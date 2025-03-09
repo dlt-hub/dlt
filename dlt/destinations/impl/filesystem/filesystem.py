@@ -19,7 +19,6 @@ from typing import (
     Dict,
 )
 from fsspec import AbstractFileSystem
-from contextlib import contextmanager
 
 import dlt
 from dlt.common import logger, time, json, pendulum

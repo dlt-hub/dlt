@@ -58,6 +58,82 @@ const sidebars = {
     },
     {
       type: 'category',
+      label: 'dlt+',
+      link: {
+        type: 'doc',
+        id: 'plus/intro',
+      },
+      items: [
+        {
+          type: 'category',
+          label: 'Getting started',
+          items: [
+            'plus/getting-started/installation',
+            'plus/getting-started/tutorial',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Core concepts',
+          items: [
+            'plus/core-concepts/project',
+            'plus/core-concepts/cache',
+            'plus/core-concepts/datasets',
+            'plus/core-concepts/profiles',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Sources & Destinations',
+          items: [
+            'plus/ecosystem/ms-sql',
+            'plus/ecosystem/iceberg',
+            'plus/ecosystem/delta',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Features',
+          items: [
+            'plus/features/projects',
+            'plus/features/data-access',
+            {
+              type: 'category',
+              label: 'Local transformations',
+              link: {
+                type: 'doc',
+                id: 'plus/features/transformations/index',
+              },
+              items: [
+                'plus/features/transformations/setup',
+                'plus/features/transformations/dbt-transformations',
+                'plus/features/transformations/python-transformations',
+              ]
+            },
+            'plus/features/ai',
+            {
+              type: 'category',
+              label: 'Data quality & tests',
+              items: [
+                'plus/features/quality/tests',
+                'plus/features/quality/data-quality',
+              ]
+            },
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Going to production',
+          items: [
+            'plus/production/runners',
+            'plus/production/observability',
+          ]
+        },
+        'plus/reference',
+      ]
+    },
+    {
+      type: 'category',
       label: 'Sources',
       link: {
         type: 'doc',
@@ -91,7 +167,7 @@ const sidebars = {
         },
         {
           type: 'category',
-          label: '30+ SQL Databases',
+          label: '30+ SQL databases',
           description: 'PostgreSQL, MySQL, MS SQL, BigQuery, Redshift, and more',
           link: {
             type: 'doc',
@@ -262,7 +338,7 @@ const sidebars = {
         },
         {
           type: 'category',
-          label: 'Loading Behavior',
+          label: 'Loading behavior',
           items: [
             'general-usage/incremental-loading',
             'walkthroughs/add-incremental-configuration',
@@ -318,7 +394,13 @@ const sidebars = {
         },
       ]
     },
-    'reference/performance',
+    {
+      type: 'category',
+      label: 'Optimizing dlt',
+      items: [
+        'reference/performance',
+      ],
+    },
     {
       type: 'category',
       label: 'Code examples',

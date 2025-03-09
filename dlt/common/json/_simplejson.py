@@ -8,6 +8,7 @@ from dlt.common.json import (
     custom_pua_encode,
     custom_pua_decode_nested,
     custom_encode,
+    set_custom_encoder_impl,
     TPuaDecoders,
     DECODERS,
 )
@@ -19,6 +20,8 @@ if platform.python_implementation() == "PyPy":
 from dlt.common.arithmetics import Decimal
 
 _impl_name = "simplejson"
+
+set_custom_encoder = set_custom_encoder_impl
 
 
 def dump(obj: Any, fp: IO[bytes], sort_keys: bool = False, pretty: bool = False) -> None:

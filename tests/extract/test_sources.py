@@ -9,15 +9,17 @@ import asyncio
 import dlt, os
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.data_types.typing import TDataType
 from dlt.common.exceptions import DictValidationException, PipelineStateNotAvailable
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.pipeline import StateInjectableContext, source_state
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnProp, TColumnSchema
 from dlt.common.schema import utils
-from dlt.common.typing import TDataItems
+from dlt.common.typing import TDataItems, TTableNames
 
 from dlt.extract import DltResource, DltSource, Incremental
+from dlt.extract.hints import TResourceNestedHints
 from dlt.extract.items import TableNameMeta
 from dlt.extract.source import DltResourceDict
 from dlt.extract.exceptions import (
@@ -1820,9 +1822,9 @@ def test_apply_nested_hints():
     assert nested_resource.compute_table_schema() == initial_schema
 
     # apply nested hints
-    outer1_id_new_type = "double"
-    outer2_innerbar_id_new_type = "bigint"
-    nested_hints = {
+    outer1_id_new_type: TDataType = "double"
+    outer2_innerbar_id_new_type: TDataType = "bigint"
+    nested_hints: Dict[TTableNames, TResourceNestedHints] = {
         ("outer1",): dict(
             columns={"outer1_id": {"name": "outer1_id", "data_type": outer1_id_new_type}}
         ),

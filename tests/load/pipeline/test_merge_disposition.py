@@ -1,7 +1,7 @@
 from copy import copy
 import pytest
 import random
-from typing import List
+from typing import List, cast
 import pytest
 import yaml
 
@@ -17,7 +17,7 @@ from dlt.common.schema.exceptions import (
     UnboundColumnException,
     CannotCoerceNullException,
 )
-from dlt.common.schema.typing import TLoaderMergeStrategy
+from dlt.common.schema.typing import TLoaderMergeStrategy, TTableFormat
 from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
 from dlt.common.destination import AnyDestination, DestinationCapabilitiesContext
@@ -25,6 +25,7 @@ from dlt.common.destination.exceptions import DestinationCapabilitiesException
 from dlt.common.libs.pyarrow import row_tuples_to_arrow
 
 from dlt.extract import DltResource
+from dlt.extract.hints import TResourceHints
 from dlt.sources.helpers.transform import skip_first, take_first
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.normalize.exceptions import NormalizeJobFailed
@@ -187,14 +188,14 @@ def test_merge_on_keys_in_schema_nested_hints(
         assert not has_table_seen_data(schema.tables["blocks__uncles"])
 
     # TODO: allow nested_hints on dlt.resource so I do not need to apply them below
-    hints = {
+    hints: TResourceHints = {
         "write_disposition": {"disposition": "merge", "strategy": merge_strategy},
-        "table_format": destination_config.table_format,
+        "table_format": cast(TTableFormat, destination_config.table_format),
     }
 
     @dlt.source(schema=schema)
     def ethereum(slice_: slice = None):
-        @dlt.resource(**hints)
+        @dlt.resource(**hints)  # type: ignore[call-overload]
         def blocks():
             with open(
                 "tests/normalize/cases/ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2.json",

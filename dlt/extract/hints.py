@@ -1,13 +1,10 @@
 from typing import (
-    TypedDict,
     cast,
     Any,
     Optional,
     Dict,
     Sequence,
     Mapping,
-    Union,
-    Tuple,
     List,
 )
 from typing_extensions import Self
@@ -31,7 +28,7 @@ from dlt.common.schema.typing import (
     TTableReferenceParam,
 )
 
-from dlt.common.typing import TypedDict
+from dlt.common.typing import TTableNames, TypedDict
 from dlt.common.schema.utils import (
     DEFAULT_WRITE_DISPOSITION,
     is_nested_table,
@@ -74,9 +71,7 @@ class TResourceNestedHints(TypedDict, total=False):
 
 class TResourceHintsBase(TResourceNestedHints, total=False):
     table_name: Optional[TTableHintTemplate[str]]
-    nested_hints: Optional[
-        TTableHintTemplate[Dict[Union[str, Tuple[str, ...]], TResourceNestedHints]]
-    ]
+    nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]]
 
 
 class TResourceHints(TResourceHintsBase, total=False):
@@ -84,6 +79,7 @@ class TResourceHints(TResourceHintsBase, total=False):
     incremental: Optional[Incremental[Any]]
     validator: ValidateItem
     original_columns: Optional[TTableHintTemplate[TAnySchemaColumns]]
+    additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]]
 
 
 class HintsMeta:
@@ -107,11 +103,10 @@ def make_hints(
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
+    additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None,
     references: TTableHintTemplate[TTableReferenceParam] = None,
     incremental: TIncrementalConfig = None,
-    nested_hints: Optional[
-        TTableHintTemplate[Dict[Union[str, Tuple[str, ...]], TResourceNestedHints]]
-    ] = None,
+    nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
 ) -> TResourceHints:
     """A convenience function to create resource hints. Accepts both static and dynamic hints based on data.
 
@@ -148,6 +143,8 @@ def make_hints(
         new_template["validator"] = validator
     if nested_hints is not None:
         new_template["nested_hints"] = nested_hints
+    if additional_table_hints is not None:
+        new_template["additional_table_hints"] = additional_table_hints
     DltResourceHints.validate_dynamic_hints(new_template)
     if incremental is not None:  # TODO: Validate
         new_template["incremental"] = Incremental.ensure_instance(incremental)
@@ -198,7 +195,7 @@ class DltResourceHints:
         return None if self._hints is None else self._hints.get("columns")  # type: ignore[return-value]
 
     @property
-    def nested_hints(self) -> Dict[str | Tuple[str], TResourceHintsBase]:
+    def nested_hints(self) -> Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]]:
         return (
             None
             if self._hints is None or self._hints.get("nested_hints") is None
@@ -292,7 +289,7 @@ class DltResourceHints:
             nested_table_template = self._clone_hints(hints)
             # table_name is not a part of TResourceNestedHints but in the future we may allow those tables
             # to be renamed. that will require a bigger refactor in the relational normalizer
-            nested_table_template["table_name"] = table_name
+            nested_table_template["table_name"] = table_name  # type: ignore[typeddict-unknown-key]
 
             # TODO: code duplication
             resolved_template: TResourceHints = {
@@ -344,9 +341,7 @@ class DltResourceHints:
         file_format: TTableHintTemplate[TFileFormat] = None,
         references: TTableHintTemplate[TTableReferenceParam] = None,
         create_table_variant: bool = False,
-        nested_hints: TTableHintTemplate[
-            Dict[Union[str, Tuple[str, ...]], TResourceNestedHints]
-        ] = None,
+        nested_hints: TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]] = None,
     ) -> Self:
         """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
 
@@ -387,18 +382,17 @@ class DltResourceHints:
             # if there is no template yet, create and set a new one.
             default_wd = None if parent_table_name else DEFAULT_WRITE_DISPOSITION
             t = make_hints(
-                table_name,
-                parent_table_name,
-                write_disposition or default_wd,
-                columns,
-                primary_key,
-                merge_key,
-                schema_contract,
-                table_format,
-                file_format,
-                references,
-                None,
-                nested_hints,
+                table_name=table_name,
+                parent_table_name=parent_table_name,
+                write_disposition=write_disposition or default_wd,
+                columns=columns,
+                primary_key=primary_key,
+                merge_key=merge_key,
+                schema_contract=schema_contract,
+                table_format=table_format,
+                file_format=file_format,
+                references=references,
+                nested_hints=nested_hints,
             )
         else:
             t = self._clone_hints(t)
@@ -445,12 +439,14 @@ class DltResourceHints:
                 else:
                     t.pop("schema_contract", None)
             if additional_table_hints is not None:
-                for k, v in additional_table_hints.items():
-                    if v:
-                        t[k] = v  # type: ignore[literal-required]
+                if additional_table_hints:
+                    if t.get("additional_table_hints") is not None:
+                        for k, v in additional_table_hints.items():
+                            t["additional_table_hints"][k] = v
                     else:
-                        t.pop(k, None)  # type: ignore[misc]
-                t.pop("additional_table_hints", None)  # type: ignore
+                        t["additional_table_hints"] = additional_table_hints
+                else:
+                    t.pop("additional_table_hints", None)
 
             # recreate validator if column definition or contract changed
             if schema_contract is not None or columns is not None:
@@ -547,9 +543,10 @@ class DltResourceHints:
             schema_contract=hints_template.get("schema_contract"),
             table_format=hints_template.get("table_format"),
             file_format=hints_template.get("file_format"),
+            additional_table_hints=hints_template.get("additional_table_hints"),
             references=hints_template.get("references"),
             create_table_variant=create_table_variant,
-            nested_hints=hints_template.get("nested_hint"),
+            nested_hints=hints_template.get("nested_hints"),
         )
 
     @staticmethod
@@ -557,12 +554,12 @@ class DltResourceHints:
         if hints_template is None:
             return None
         # creates a deep copy of dict structure without actually copying the objects
-        return clone_dict_nested(hints_template)  # type: ignore[type-var]
+        return clone_dict_nested(hints_template)
 
     @staticmethod
     def _resolve_hint(item: TDataItem, hint: TTableHintTemplate[TAny]) -> TAny:
         """Calls each dynamic hint passing a data item"""
-        return hint(item) if callable(hint) else hint
+        return hint(item) if callable(hint) else hint  # type: ignore[no-any-return]
 
     @staticmethod
     def _merge_key(hint: TColumnProp, keys: TColumnNames, partial: TPartialTableSchema) -> None:
@@ -671,7 +668,13 @@ class DltResourceHints:
             DltResourceHints._merge_write_disposition_dict(resource_hints)  # type: ignore[arg-type]
         if "incremental" in resource_hints:
             DltResourceHints._merge_incremental_column_hint(resource_hints)  # type: ignore[arg-type]
-        return cast(TTableSchema, resource_hints)
+        dict_ = cast(TTableSchema, resource_hints)
+        # apply table hints
+        if additional_table_hints := resource_hints.get("additional_table_hints"):
+            for k, v in additional_table_hints.items():
+                dict_[k] = v  # type: ignore[literal-required]
+        resource_hints.pop("additional_table_hints", None)
+        return dict_
 
     @staticmethod
     def validate_dynamic_hints(template: TResourceHints) -> None:

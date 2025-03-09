@@ -1,5 +1,3 @@
-from dataclasses import dataclass, field
-
 from typing import (
     Any,
     Callable,
@@ -22,17 +20,6 @@ from dlt.sources.helpers.rest_client.auth import AuthConfigBase, TApiKeyLocation
 
 from dataclasses import dataclass, field
 
-from dlt.common import jsonpath
-from dlt.common.typing import TSortOrder, TColumnNames
-from dlt.common.schema.typing import (
-    TTableFormat,
-    TAnySchemaColumns,
-    TWriteDispositionConfig,
-    TSchemaContract,
-)
-
-from dlt.extract.items import TTableHintTemplate
-from dlt.common.incremental.typing import LastValueFunc
 from dlt.extract.resource import DltResource
 
 from requests import Session
@@ -47,7 +34,6 @@ from dlt.sources.helpers.rest_client.paginators import (
     PageNumberPaginator,
     SinglePagePaginator,
 )
-from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
 
 
 try:
@@ -212,7 +198,7 @@ class IncrementalRESTArgs(IncrementalArgs, total=False):
 
 
 class IncrementalConfig(IncrementalRESTArgs, total=False):
-    start_param: str
+    start_param: Optional[str]
     end_param: Optional[str]
 
 

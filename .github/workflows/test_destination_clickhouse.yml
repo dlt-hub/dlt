@@ -1,13 +1,15 @@
 name: test | clickhouse
 
 on:
-  pull_request:
+  pull_request_target:
     branches:
       - master
       - devel
+    types:
+      - opened
+      - synchronize
+      - labeled
   workflow_dispatch:
-  schedule:
-    - cron: '0 2 * * *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -22,10 +24,17 @@ env:
   ALL_FILESYSTEM_DRIVERS: "[\"memory\", \"file\"]"
 
 jobs:
+  authorize:
+    # run when label is assigned OR when we are not a fork
+    if: ${{ github.event.label.name == 'ci from fork' || (github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'opened' || github.event.action == 'synchronize'))}}
+    runs-on: ubuntu-latest
+    steps:
+      - run: true
+
   get_docs_changes:
     name: docs changes
+    needs: authorize
     uses: ./.github/workflows/get_docs_changes.yml
-    if: ${{ !github.event.pull_request.head.repo.fork || contains(github.event.pull_request.labels.*.name, 'ci from fork')}}
 
   run_loader:
     name: test | clickhouse tests
@@ -40,6 +49,8 @@ jobs:
 
       - name: Check out
         uses: actions/checkout@master
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
       - name: Setup Python
         uses: actions/setup-python@v4

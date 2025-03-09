@@ -61,6 +61,23 @@ Import the module as follows for use in your sources, resources and transformers
 from dlt.common import json
 ```
 
+For custom types support you can add a custom user-defined encoder like this:
+
+```py
+from dlt.common import json
+from dlt.common.json import JsonSerializable
+from pydantic import AnyUrl
+
+def my_custom_encoder(obj: Any) -> JsonSerializable:
+    if isinstance(obj, AnyUrl):
+        # encodes the url as non-punycode string
+        return obj.unicode_string()
+    # Don't know this type, throw
+    raise TypeError(repr(obj) + " is not JSON serializable")
+
+json.set_custom_encoder(my_custom_encoder)
+```
+
 :::tip
 **orjson** is fast and available on most platforms. It uses binary streams, not strings, to load data natively.
 - Open files as binary, not string, to use `load` and `dump`.
@@ -103,7 +120,7 @@ Some file formats (e.g., Parquet) do not support schema changes when writing a s
 
 Below, we set files to rotate after 100,000 items written or when the filesize exceeds 1MiB.
 
-<!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::file_size_toml--> 
+<!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::file_size_toml-->
 
 ### Disabling and enabling file compression
 Several [text file formats](../dlt-ecosystem/file-formats/) have `gzip` compression enabled by default. If you wish that your load packages have uncompressed files (e.g., to debug the content easily), change `data_writer.disable_compression` in config.toml. The entry below will disable the compression of the files processed in the `normalize` stage.
@@ -171,7 +188,7 @@ in parallel, instead yield functions or async functions that will be evaluated i
 :::
 
 ### Normalize
-The **normalize** stage uses a process pool to create load packages concurrently. Each file created by the **extract** stage is sent to a process pool. **If you have just a single resource with a lot of data, you should enable [extract file rotation](#controlling-intermediary-files-size-and-rotation)**. The number of processes in the pool is controlled by the `workers` config value:
+The **normalize** stage uses a process pool to create load packages concurrently. Each file created by the **extract** stage is sent to a process pool. **If you have just a single resource with a lot of data, you should enable [extract file rotation](#controlling-intermediary-file-size-and-rotation)**. The number of processes in the pool is controlled by the `workers` config value:
 <!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::normalize_workers_toml-->
 
 
@@ -197,7 +214,7 @@ start_method="spawn"
 ### Load
 The **load** stage uses a thread pool for parallelization. Loading is input/output-bound. `dlt` avoids any processing of the content of the load package produced by the normalizer. By default, loading happens in 20 threads, each loading a single file.
 
-As before, **if you have just a single table with millions of records, you should enable [file rotation in the normalizer](#controlling-intermediary-files-size-and-rotation)**. Then the number of parallel load jobs is controlled by the `workers` config setting.
+As before, **if you have just a single table with millions of records, you should enable [file rotation in the normalizer](#controlling-intermediary-file-size-and-rotation)**. Then the number of parallel load jobs is controlled by the `workers` config setting.
 
 <!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::normalize_workers_2_toml-->
 
@@ -291,7 +308,7 @@ Due to the way `dlt` works, there are a few general pitfalls to be aware of:
 
     If you do not, files might be deleted by one pipeline that are still required to be loaded by another pipeline running in parallel.
 
-3. If you are using a write disposition that requires a staging dataset on the final destination, you should provide a unqiue staging datasetname for each pipeline, otherwise similar problems as noted above may occur. You can do this with the 
+3. If you are using a write disposition that requires a staging dataset on the final destination, you should provide a unqiue staging datasetname for each pipeline, otherwise similar problems as noted above may occur. You can do this with the
 [`staging_dataset_name_layout` setting.](../dlt-ecosystem/staging#staging-dataset)
 
 ## Keep pipeline working folder in a bucket on constrained environments.

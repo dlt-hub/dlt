@@ -1,5 +1,5 @@
 ---
-title: 30+ SQL Databases
+title: 30+ SQL databases
 description: PostgreSQL, MySQL, MS SQL, BigQuery, Redshift, and more
 keywords: [sql connector, sql database pipeline, sql database]
 ---
@@ -27,7 +27,12 @@ If you prefer to skip the tutorial and see the code example right away, check ou
 
 ### Supported databases
 
+:::tip dlt+
+Check out [dlt+](../../../plus/ecosystem/ms-sql.md) for support of change tracking for Microsoft SQL Server.
+:::
+
 We support all [SQLAlchemy dialects](https://docs.sqlalchemy.org/en/20/dialects/), which include, but are not limited to, the following database engines:
+
 
 * [PostgreSQL](./troubleshooting#postgres--mssql)
 * [MySQL](./troubleshooting#mysql)

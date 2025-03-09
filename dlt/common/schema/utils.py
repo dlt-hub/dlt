@@ -155,7 +155,7 @@ def remove_column_defaults(column_schema: TColumnSchema) -> TColumnSchema:
     return column_schema
 
 
-def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str, str, Sequence[str]]:
+def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str, str, List[str]]:
     """Bumps the `stored_schema` version and version hash if content modified, returns (new version, new hash, old hash, 10 last hashes) tuple"""
     hash_ = generate_version_hash(stored_schema)
     previous_hash = stored_schema.get("version_hash")
@@ -176,9 +176,12 @@ def store_prev_hash(
     stored_schema: TStoredSchema, previous_hash: str, max_history_len: int = 10
 ) -> None:
     # unshift previous hash to previous_hashes and limit array to 10 entries
-    if previous_hash not in stored_schema["previous_hashes"]:
-        stored_schema["previous_hashes"].insert(0, previous_hash)
-        stored_schema["previous_hashes"] = stored_schema["previous_hashes"][:max_history_len]
+    previous_hashes = stored_schema["previous_hashes"]
+    if previous_hash not in previous_hashes:
+        previous_hashes.insert(0, previous_hash)
+        if (sur := len(previous_hashes) - max_history_len) > 0:
+            del previous_hashes[-sur:]
+        # stored_schema["previous_hashes"] = stored_schema["previous_hashes"][:max_history_len]
 
 
 def generate_version_hash(stored_schema: TStoredSchema) -> str:

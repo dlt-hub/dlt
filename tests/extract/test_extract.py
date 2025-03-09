@@ -1,8 +1,10 @@
+from typing import Dict
 import pytest
 import os
 
 import dlt
 from dlt.common import json
+from dlt.common.data_types.typing import TDataType
 from dlt.common.storages import (
     SchemaStorage,
     SchemaStorageConfiguration,
@@ -10,10 +12,11 @@ from dlt.common.storages import (
 )
 from dlt.common.storages.schema_storage import SchemaStorage
 
+from dlt.common.typing import TTableNames
 from dlt.extract import DltResource, DltSource
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ResourceExtractionError
 from dlt.extract.extract import ExtractStorage, Extract
-from dlt.extract.hints import make_hints
+from dlt.extract.hints import TResourceNestedHints, make_hints
 
 from dlt.extract.items import TableNameMeta
 from tests.utils import MockPipeline, clean_test_storage, TEST_STORAGE_ROOT
@@ -161,6 +164,23 @@ def test_extract_hints_mark(extract_step: Extract) -> None:
         with pytest.raises(DataItemRequiredForDynamicTableHints):
             table = resource.compute_table_schema()
 
+        # add table-level hints
+        yield dlt.mark.with_hints(
+            {"namer": "dynamic"}, make_hints(additional_table_hints={"x-special-hint": "123-S"})
+        )
+        table = schema.tables["dynamic_table"]
+        # table-level hint applied
+        assert table["x-special-hint"] == "123-S"  # type: ignore[typeddict-item]
+
+        # modify table-level hints
+        yield dlt.mark.with_hints(
+            {"namer": "dynamic"},
+            make_hints(additional_table_hints={"x-special-hint": None, "x-ext": 123}),
+        )
+        table = schema.tables["dynamic_table"]
+        assert table["x-ext"] == 123  # type: ignore[typeddict-item]
+        assert table["x-special-hint"] is None  # type: ignore[typeddict-item]
+
     source = DltSource(dlt.Schema("hintable"), "module", [with_table_hints])
     extract_step.extract(source, 20, 1)
     table = source.schema.tables["dynamic_table"]
@@ -271,9 +291,9 @@ def test_extract_nested_hints(extract_step: Extract) -> None:
     nested_resource = DltResource.from_data(data, name=resource_name)
 
     # Check 1: apply nested hints
-    outer1_id_new_type = "double"
-    outer2_innerbar_id_new_type = "bigint"
-    nested_hints = {
+    outer1_id_new_type: TDataType = "double"
+    outer2_innerbar_id_new_type: TDataType = "bigint"
+    nested_hints: Dict[TTableNames, TResourceNestedHints] = {
         ("outer1",): dict(
             columns={"outer1_id": {"name": "outer1_id", "data_type": outer1_id_new_type}}
         ),

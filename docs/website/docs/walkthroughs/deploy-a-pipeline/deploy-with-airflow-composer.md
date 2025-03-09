@@ -497,7 +497,7 @@ There are two ways to pass the credentials:
 
 This section will cover the most common probable errors and exceptions.
 
-### 1. ModuleNotFoundError: No module named ‘{source_name}’
+### 1. ModuleNotFoundError: No module named ‘\{source_name\}’
 
 If you received this error, make sure that your repository has been completely copied to the DAGs folder.
 
@@ -545,7 +545,7 @@ tasks.add_run(
 
 Or you should set the `decompose = "none"` to run it as one Airflow task.
 
-### 3. DuplicateTaskIdFound: Task id ‘{your_task_id}’ has already been added to the DAG
+### 3. DuplicateTaskIdFound: Task id ‘\{your_task_id\}’ has already been added to the DAG
 
 In the case of the `pipedrive` pipeline, we tried to load data from “custom_fields_mapping” twice.
 

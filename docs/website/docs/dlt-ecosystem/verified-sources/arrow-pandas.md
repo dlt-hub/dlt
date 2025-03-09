@@ -11,7 +11,7 @@ import Header from './_source-info-header.md';
 
 You can load data directly from an Arrow table or Pandas dataframe.
 This is supported by all destinations, but it is especially recommended when using destinations that support the Parquet file format natively (e.g., [Snowflake](../destinations/snowflake.md) and [Filesystem](../destinations/filesystem.md)).
-See the [destination support](#destination-support-and-fallback) section for more information.
+See the [destination support](#destination-support) section for more information.
 
 When used with a Parquet supported destination, this is a more performant way to load structured data since `dlt` bypasses many processing steps normally involved in passing JSON objects through the pipeline.
 `dlt` automatically translates the Arrow table's schema to the destination table's schema and writes the table to a parquet file, which gets uploaded to the destination without any further processing.

@@ -1,4 +1,5 @@
 from copy import copy
+from functools import lru_cache, partial
 from typing import Set, Dict, Any, Optional, List, Union
 
 from dlt.common.configuration import known_sections, resolve_configuration, with_config
@@ -122,6 +123,9 @@ class Extractor:
         self._filtered_tables: Set[str] = set()
         self._filtered_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
         self._caps = _caps or DestinationCapabilitiesContext.generic_capabilities()
+        self._normalize_table_identifier = lru_cache(maxsize=None)(
+            partial(normalize_helpers.normalize_table_identifier, self.schema, self.naming)
+        )
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         """Write `items` to `resource` optionally computing table schemas and revalidating/filtering data"""
@@ -143,9 +147,7 @@ class Extractor:
             self._write_to_dynamic_table(resource, items, meta)
 
     def write_empty_items_file(self, table_name: str) -> None:
-        table_name = normalize_helpers.normalize_table_identifier(
-            self.schema, self.naming, table_name
-        )
+        table_name = self._normalize_table_identifier(table_name)
         self.item_storage.write_empty_items_file(self.load_id, self.schema.name, table_name, None)
 
     def _get_static_table_name(self, resource: DltResource, meta: Any) -> Optional[str]:
@@ -155,12 +157,10 @@ class Extractor:
             table_name = meta.table_name
         else:
             table_name = resource.table_name  # type: ignore[assignment]
-        return normalize_helpers.normalize_table_identifier(self.schema, self.naming, table_name)
+        return self._normalize_table_identifier(table_name)
 
     def _get_dynamic_table_name(self, resource: DltResource, item: TDataItem) -> str:
-        return normalize_helpers.normalize_table_identifier(
-            self.schema, self.naming, resource._table_name_hint_fun(item)
-        )
+        return self._normalize_table_identifier(resource._table_name_hint_fun(item))
 
     def _write_item(
         self,

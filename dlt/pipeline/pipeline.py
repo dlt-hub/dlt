@@ -13,7 +13,6 @@ from typing import (
     Sequence,
     Tuple,
     cast,
-    get_type_hints,
     ContextManager,
     Union,
 )
@@ -45,7 +44,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.exceptions import LoadPackageNotFound
-from dlt.common.typing import ConfigValue, TFun, TSecretStrValue, TColumnNames
+from dlt.common.typing import ConfigValue, TFun, TSecretStrValue, TColumnNames, get_type_hints
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import (
     LiveSchemaStorage,
@@ -73,7 +72,6 @@ from dlt.common.destination.client import (
     DestinationClientDwhConfiguration,
     WithStateSync,
     JobClientBase,
-    DestinationClientStagingConfiguration,
     DestinationClientStagingConfiguration,
 )
 from dlt.common.destination.dataset import SupportsReadableDataset
@@ -1745,7 +1743,12 @@ class Pipeline(SupportsPipeline):
 
     def __getstate__(self) -> Any:
         # pickle only the SupportsPipeline protocol fields
-        return {"pipeline_name": self.pipeline_name}
+        return {
+            "pipeline_name": self.pipeline_name,
+            "default_schema_name": self.default_schema_name,
+            "dataset_name": self.dataset_name,
+            "working_dir": self.working_dir,
+        }
 
     def dataset(
         self, schema: Union[Schema, str, None] = None, dataset_type: TDatasetType = "auto"
