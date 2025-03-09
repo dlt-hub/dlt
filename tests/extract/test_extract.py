@@ -294,9 +294,10 @@ def test_extract_nested_hints(extract_step: Extract) -> None:
     outer1_id_new_type: TDataType = "double"
     outer2_innerbar_id_new_type: TDataType = "bigint"
     nested_hints: Dict[TTableNames, TResourceNestedHints] = {
-        ("outer1",): dict(
+        "outer1": dict(
             columns={"outer1_id": {"name": "outer1_id", "data_type": outer1_id_new_type}}
         ),
+        "outer2": {},
         ("outer2", "innerbar"): dict(
             columns={
                 "innerbar_id": {"name": "innerbar_id", "data_type": outer2_innerbar_id_new_type}
@@ -307,26 +308,44 @@ def test_extract_nested_hints(extract_step: Extract) -> None:
     assert nested_resource.nested_hints == nested_hints
 
     # check 2: discover the full schema on the source; includes root and nested tables
-    implicit_parent = "outer2"
+    implicit_parent = "with_nested_hints__outer2"
 
     source = DltSource(dlt.Schema("hintable"), "module", [nested_resource])
     pre_extract_schema = source.discover_schema()
 
     # root table exists even though there are no explicit hints
     assert pre_extract_schema.get_table(resource_name)
-    assert pre_extract_schema.get_table("outer1")["parent"] == "with_nested_hints"
-    assert pre_extract_schema.get_table("outer1")["columns"] == nested_hints[("outer1",)]["columns"]
-    assert pre_extract_schema.get_table("innerbar")["parent"] == "outer2"
     assert (
-        pre_extract_schema.get_table("innerbar")["columns"]
+        pre_extract_schema.get_table("with_nested_hints__outer1")["parent"] == "with_nested_hints"
+    )
+    assert (
+        pre_extract_schema.get_table("with_nested_hints__outer1")["columns"]
+        == nested_hints["outer1"]["columns"]
+    )
+    assert (
+        pre_extract_schema.get_table("with_nested_hints__outer2__innerbar")["parent"]
+        == "with_nested_hints__outer2"
+    )
+    assert (
+        pre_extract_schema.get_table("with_nested_hints__outer2__innerbar")["columns"]
         == nested_hints[("outer2", "innerbar")]["columns"]
     )
     # this table is generated to ensure `innerbar` has a parent that links it to the root table
+    # NOTE: nested tables do not have parent set
     assert pre_extract_schema.get_table(implicit_parent) == {
         "name": implicit_parent,
-        "resource": resource_name,
+        "parent": "with_nested_hints",
         "columns": {},
     }
+
+
+def test_break_nesting_with_primary_key() -> None:
+    # primary key will break nesting
+    # resource must be present
+    # parent cannot be present
+    # is_nested_table must be false
+
+    pass
 
 
 def test_extract_metrics_on_exception_no_flush(extract_step: Extract) -> None:

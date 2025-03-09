@@ -421,9 +421,9 @@ class Schema:
                     self.name,
                     table_name,
                     parent_table_name,
-                    " This may be due to misconfigured excludes filter that fully deletes content"
-                    f" of the {parent_table_name}. Add includes that will preserve the parent"
-                    " table.",
+                    "If you declared nested hints, make sure you added all intermediate tables,"
+                    " including those for which you do not declare any hints. Nested hints must be"
+                    " ordered so all parent tables are declared before nested tables.",
                 )
         table = self._schema_tables.get(table_name)
         if table is None:

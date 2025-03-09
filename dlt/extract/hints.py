@@ -1,4 +1,5 @@
 from typing import (
+    Tuple,
     cast,
     Any,
     Optional,
@@ -275,6 +276,9 @@ class DltResourceHints:
             root_table_template = self._hints_variants.get(root_table_name, self._hints)
         else:
             root_table_template = self._hints
+        # no nested hints if not table template
+        if root_table_template is None:
+            return []
 
         nested_hints = root_table_template.get("nested_hints")
         if not nested_hints:
@@ -284,7 +288,11 @@ class DltResourceHints:
 
         nested_table_schemas = []
         for sub_path, hints in nested_hints.items():
-            full_path = (root_table_name, *sub_path)
+            # both str and sequence is supported
+            if isinstance(sub_path, str):
+                full_path: Tuple[str, ...] = (root_table_name, sub_path)
+            else:
+                full_path = (root_table_name, *sub_path)
             table_name = naming.shorten_fragments(*full_path)
             nested_table_template = self._clone_hints(hints)
             # table_name is not a part of TResourceNestedHints but in the future we may allow those tables
@@ -308,6 +316,7 @@ class DltResourceHints:
 
             if not is_nested_table(nested_table_schema):
                 nested_table_schema["resource"] = self.name
+
             validate_dict_ignoring_xkeys(
                 spec=TTableSchema,
                 doc=nested_table_schema,
