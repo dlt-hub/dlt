@@ -79,11 +79,8 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         
         Being a cached_property, this can't be set manually.
         """
-        from dlt.helpers.ibis import create_unbound_ibis_table
         # TODO should this return an ReadableIbisRelation? I'm afraid of recursion over `rel.load_table.load_table.load_table`
-        load_table = create_unbound_ibis_table(
-            self.sql_client, schema=self.schema, table_name=self.schema.loads_table_name
-        )
+        load_table = self._dataset.table(self.schema.loads_table_name) 
         return self.__class__(
             readable_dataset=self._dataset,
             ibis_object=load_table,
@@ -184,8 +181,6 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         values_to_include: Union[list[Any], list["ReadableIbisRelation"], "ReadableIbisRelation"],
     ) -> "ReadableIbisRelation":
         """Filter the root table and propagate to current table."""
-        from dlt.helpers.ibis import create_unbound_ibis_table
-
         # remove the proxy to facilitate transformations
         if isinstance(values_to_include, ReadableIbisRelation):
             values_to_include = values_to_include._ibis_object
@@ -197,9 +192,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
             # we need to use `__getattr__` to simulate Table.COL_NAME via ReadableIbisRelation.COL_NAME
             return self.filter(self.__getattr__(key).isin(values_to_include))  # type: ignore[no-any-return]
 
-        root_table = create_unbound_ibis_table(
-            self.sql_client, schema=self.schema, table_name=dlt_root_table["name"]
-        )
+        root_table = self._dataset.table(dlt_root_table["name"])
         root_table = root_table.filter(root_table.__getattr__(key).isin(values_to_include))
         root_row_key = next(
             col_name for col_name, col in dlt_root_table["columns"].items() if col.get("row_key") is True
@@ -242,8 +235,6 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
 
         Takes as input and returns a `ibis.expr.types.Table`
         """
-        from dlt.helpers.ibis import create_unbound_ibis_table
-
         filtered_table = filtered_root_table
         parent_row_key = root_row_key
         # start indexing at 1 because we already have the root table
@@ -260,9 +251,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
             assert parent_key is not None
             assert row_key is not None
 
-            child_table = create_unbound_ibis_table(
-                self.sql_client, schema=self.schema, table_name=table["name"]
-            )
+            child_table = self._dataset.table(table["name"])
             filtered_table = child_table.filter(
                 child_table.__getattr__(parent_key).isin(filtered_table.__getattr__(parent_row_key))
             )
