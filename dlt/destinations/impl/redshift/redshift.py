@@ -74,7 +74,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
 
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client
-        # we ssume S3 credentials were provided for the staging
+        # we assume S3 credentials were provided for the staging
         credentials = ""
         if self._staging_iam_role:
             credentials = f"IAM_ROLE '{self._staging_iam_role}' REGION '{self._s3_region}'"
