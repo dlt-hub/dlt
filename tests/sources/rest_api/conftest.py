@@ -103,7 +103,7 @@ def mock_api_server():
             response = paginator.page_records
 
             if paginator.next_page_url_params:
-                context.headers["cursor"] = f"{page_number+1}"
+                context.headers["cursor"] = f"{page_number + 1}"
 
             return response
 
@@ -144,6 +144,18 @@ def mock_api_server():
             post_id = int(request.qs.get("post_id", [0])[0])
             return paginate_by_page_number(request, generate_comments(post_id))
 
+        @router.get(r"/post_comments_via_headers(\?.*)?$")
+        def post_comments_via_header(request, context):
+            # raise ValueError(f"{request.headers}")
+            post_id = int(request.headers.get("post_id"))
+            return paginate_by_page_number(request, generate_comments(post_id))
+
+        @router.post(r"/post_comments(\?.*)?$")
+        def post_comments_via_json_param(request, context):
+            body = request.json()
+            post_id = int(body.get("post_id", 0))
+            return paginate_by_page_number(request, generate_comments(post_id))
+
         @router.get(r"/posts/\d+$")
         def post_detail(request, context):
             post_id = request.url.split("/")[-1]
@@ -152,6 +164,18 @@ def mock_api_server():
         @router.get(r"/post_detail(\?.*)?$")
         def post_detail_via_query_param(request, context):
             post_id = int(request.qs.get("post_id", [0])[0])
+            return {"id": int(post_id), "body": f"Post body {post_id}"}
+
+        @router.get(r"/post_detail_via_headers(\?.*)?$")
+        def post_detail_via_header(request, context):
+            # raise ValueError(f"{request.headers}")
+            post_id = int(request.headers.get("post_id"))
+            return {"id": int(post_id), "body": f"Post body {post_id}"}
+
+        @router.post(r"/post_detail(\?.*)?$")
+        def post_detail_via_json_param(request, context):
+            body = request.json()
+            post_id = int(body.get("post_id", 0))
             return {"id": int(post_id), "body": f"Post body {post_id}"}
 
         @router.get(r"/posts/\d+/some_details_404")

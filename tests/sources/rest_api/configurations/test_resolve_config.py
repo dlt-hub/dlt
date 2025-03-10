@@ -92,11 +92,13 @@ def test_process_parent_data_item() -> None:
         ResolvedParam("id", {"field": "obj_id", "resource": "issues", "type": "resolve"})
     ]
 
-    bound_path, expanded_params, request_json, parent_record = process_parent_data_item(
-        path="dlt-hub/dlt/issues/{id}/comments",
-        item={"obj_id": 12345},
-        resolved_params=resolved_params,
-        include_from_parent=None,
+    bound_path, expanded_params, request_json, request_headers, parent_record = (
+        process_parent_data_item(
+            path="dlt-hub/dlt/issues/{id}/comments",
+            item={"obj_id": 12345},
+            resolved_params=resolved_params,
+            include_from_parent=None,
+        )
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments"
     assert expanded_params == {}  # defaults to empty dict
@@ -104,66 +106,79 @@ def test_process_parent_data_item() -> None:
     assert parent_record == {}
 
     # same but with empty params and json
-    bound_path, expanded_params, request_json, parent_record = process_parent_data_item(
-        path="dlt-hub/dlt/issues/{id}/comments",
-        item={"obj_id": 12345},
-        params={},
-        request_json={},
-        resolved_params=resolved_params,
+    bound_path, expanded_params, request_json, request_headers, parent_record = (
+        process_parent_data_item(
+            path="dlt-hub/dlt/issues/{id}/comments",
+            item={"obj_id": 12345},
+            params={},
+            request_json={},
+            resolved_params=resolved_params,
+        )
     )
     # those got propagated
     assert expanded_params == {}
     assert request_json == {}  # generates empty body!
 
     # also test params and json
-    bound_path, expanded_params, request_json, parent_record = process_parent_data_item(
-        path="dlt-hub/dlt/issues/comments",
-        item={"obj_id": 12345},
-        params={"orig_id": "{id}"},
-        request_json={"orig_id": "{id}"},
-        resolved_params=resolved_params,
+    bound_path, expanded_params, request_json, request_headers, parent_record = (
+        process_parent_data_item(
+            path="dlt-hub/dlt/issues/comments",
+            item={"obj_id": 12345},
+            params={"orig_id": "{id}"},
+            request_json={"orig_id": "{id}"},
+            resolved_params=resolved_params,
+        )
     )
     assert expanded_params == {"orig_id": "12345"}
     assert request_json == {"orig_id": "12345"}
 
-    bound_path, expanded_params, request_json, parent_record = process_parent_data_item(
-        path="dlt-hub/dlt/issues/{id}/comments",
-        item={"obj_id": 12345},
-        resolved_params=resolved_params,
-        include_from_parent=["obj_id"],
+    bound_path, expanded_params, request_json, request_headers, parent_record = (
+        process_parent_data_item(
+            path="dlt-hub/dlt/issues/{id}/comments",
+            item={"obj_id": 12345},
+            resolved_params=resolved_params,
+            include_from_parent=["obj_id"],
+        )
     )
     assert parent_record == {"_issues_obj_id": 12345}
 
-    bound_path, expanded_params, request_json, parent_record = process_parent_data_item(
-        path="dlt-hub/dlt/issues/{id}/comments",
-        item={"obj_id": 12345, "obj_node": "node_1"},
-        resolved_params=resolved_params,
-        include_from_parent=["obj_id", "obj_node"],
+    bound_path, expanded_params, request_json, request_headers, parent_record = (
+        process_parent_data_item(
+            path="dlt-hub/dlt/issues/{id}/comments",
+            item={"obj_id": 12345, "obj_node": "node_1"},
+            resolved_params=resolved_params,
+            include_from_parent=["obj_id", "obj_node"],
+        )
     )
     assert parent_record == {"_issues_obj_id": 12345, "_issues_obj_node": "node_1"}
 
     # Test resource field reference in path
     resolved_params_reference = [
         ResolvedParam(
-            "resources.issues.obj_id", {"field": "obj_id", "resource": "issues", "type": "resolve"}
+            "resources.issues.obj_id",
+            {"field": "obj_id", "resource": "issues", "type": "resolve"},
         )
     ]
-    bound_path, expanded_params, request_json, parent_record = process_parent_data_item(
-        path="dlt-hub/dlt/issues/{resources.issues.obj_id}/comments",
-        item={"obj_id": 12345, "obj_node": "node_1"},
-        resolved_params=resolved_params_reference,
-        include_from_parent=["obj_id", "obj_node"],
+    bound_path, expanded_params, request_json, request_headers, parent_record = (
+        process_parent_data_item(
+            path="dlt-hub/dlt/issues/{resources.issues.obj_id}/comments",
+            item={"obj_id": 12345, "obj_node": "node_1"},
+            resolved_params=resolved_params_reference,
+            include_from_parent=["obj_id", "obj_node"],
+        )
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments"
 
     # Test resource field reference in params
-    bound_path, expanded_params, request_json, parent_record = process_parent_data_item(
-        path="dlt-hub/dlt/issues/comments",
-        item={"obj_id": 12345, "obj_node": "node_1"},
-        params={"id": "{resources.issues.obj_id}"},
-        request_json={"id": "{resources.issues.obj_id}"},
-        resolved_params=resolved_params_reference,
-        include_from_parent=["obj_id", "obj_node"],
+    bound_path, expanded_params, request_json, request_headers, parent_record = (
+        process_parent_data_item(
+            path="dlt-hub/dlt/issues/comments",
+            item={"obj_id": 12345, "obj_node": "node_1"},
+            params={"id": "{resources.issues.obj_id}"},
+            request_json={"id": "{resources.issues.obj_id}"},
+            resolved_params=resolved_params_reference,
+            include_from_parent=["obj_id", "obj_node"],
+        )
     )
     assert bound_path == "dlt-hub/dlt/issues/comments"
     assert expanded_params == {"id": "12345"}
@@ -172,16 +187,19 @@ def test_process_parent_data_item() -> None:
     # Test nested data
     resolved_param_nested = [
         ResolvedParam(
-            "id", {"field": "some_results.obj_id", "resource": "issues", "type": "resolve"}
+            "id",
+            {"field": "some_results.obj_id", "resource": "issues", "type": "resolve"},
         )
     ]
     item = {"some_results": {"obj_id": 12345}}
-    bound_path, expanded_params, request_json, parent_record = process_parent_data_item(
-        path="dlt-hub/dlt/issues/{id}/comments",
-        item=item,
-        params={},
-        resolved_params=resolved_param_nested,
-        include_from_parent=None,
+    bound_path, expanded_params, request_json, request_headers, parent_record = (
+        process_parent_data_item(
+            path="dlt-hub/dlt/issues/{id}/comments",
+            item=item,
+            params={},
+            resolved_params=resolved_param_nested,
+            include_from_parent=None,
+        )
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments"
 
@@ -217,12 +235,14 @@ def test_process_parent_data_item() -> None:
         ResolvedParam("id", {"field": "id", "resource": "comments", "type": "resolve"}),
     ]
 
-    bound_path, expanded_params, request_json, parent_record = process_parent_data_item(
-        path="dlt-hub/dlt/issues/{issue_id}/comments/{id}",
-        item={"issue": 12345, "id": 56789},
-        params={},
-        resolved_params=multi_resolve_params,
-        include_from_parent=None,
+    bound_path, expanded_params, request_json, request_headers, parent_record = (
+        process_parent_data_item(
+            path="dlt-hub/dlt/issues/{issue_id}/comments/{id}",
+            item={"issue": 12345, "id": 56789},
+            params={},
+            resolved_params=multi_resolve_params,
+            include_from_parent=None,
+        )
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments/56789"
     assert parent_record == {}
