@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from functools import partial, cached_property
+from functools import partial
 from typing import TYPE_CHECKING, Any, Union
 
 from dlt.common.exceptions import MissingDependencyException
@@ -72,20 +72,6 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
     @property
     def table_name(self) -> str:
         return self._table_name
-    
-    @cached_property
-    def load_table(self) -> "ReadableIbisRelation":
-        """Create an unbound Ibis table for the dlt load table of the dataset.
-        
-        Being a cached_property, this can't be set manually.
-        """
-        # TODO should this return an ReadableIbisRelation? I'm afraid of recursion over `rel.load_table.load_table.load_table`
-        load_table = self._dataset.table(self.schema.loads_table_name) 
-        return self.__class__(
-            readable_dataset=self._dataset,
-            ibis_object=load_table,
-            columns_schema=self.schema.tables[self.schema.loads_table_name]["columns"]
-        )
 
     def compute_columns_schema(self) -> TTableSchemaColumns:
         """provide schema columns for the cursor, may be filtered by selected columns"""
@@ -280,7 +266,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
     def list_load_ids(
         self, status: Union[int, list[int], None] = 0, limit: int | None = None
     ) -> "ReadableIbisRelation":
-        load_table = self.load_table
+        load_table = self.table(self.schema.loads_table_name)
         if status is not None:
             status = [status] if isinstance(status, int) else status
             load_table = load_table.filter(load_table.status.isin(status))
@@ -288,11 +274,11 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         if limit is not None:
             load_table = load_table.limit(limit)
 
-        return load_table.order_by(self.load_table.load_id.desc()).load_id
+        return load_table.order_by(load_table.load_id.desc()).load_id
     
     def latest_load_id(self, status: Union[int, list[int], None] = 0) -> "ReadableIbisRelation":
         """Latest `load_id` with matching load status (0 is success). If `status` is None, match any status."""
-        load_table = self.load_table
+        load_table = self.table(self.schema.loads_table_name)
         if status is not None:
             status = [status] if isinstance(status, int) else status
             load_table = load_table.filter(load_table.status.isin(status))
