@@ -1704,7 +1704,7 @@ def test_apply_hints_table_variants() -> None:
 
     # unknown table (without variant) - created out resource hints
     table_unk = empty.compute_table_schema(meta=TableNameMeta("table_unk"))
-    assert table_unk["name"] == "empty_gen"
+    assert table_unk["name"] == "table_unk"
     assert table_unk["write_disposition"] == "append"
 
     # resource hints are base for table variants

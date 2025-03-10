@@ -229,6 +229,9 @@ def test_extract_hints_table_variant(extract_step: Extract) -> None:
         # item to resource
         yield {"id": 3, "pk": "C"}
 
+        # dispatch to table a with table meta
+        yield dlt.mark.with_table_name({"id": 4, "pk": "D"}, "table_a")
+
     source = DltSource(dlt.Schema("hintable"), "module", [with_table_hints])
     extract_step.extract(source, 20, 1)
 

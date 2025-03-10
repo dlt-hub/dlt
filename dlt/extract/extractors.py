@@ -206,7 +206,7 @@ class Extractor:
             if table_name in self._filtered_tables:
                 continue
             if table_name not in self._table_contracts or resource._table_has_other_dynamic_hints:
-                item = self._compute_and_update_table(
+                item = self._compute_and_update_tables(
                     resource, table_name, item, TableNameMeta(table_name)
                 )
             # write to storage with inferred table name
@@ -220,18 +220,22 @@ class Extractor:
         self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
     ) -> None:
         if table_name not in self._table_contracts:
-            items = self._compute_and_update_table(resource, table_name, items, meta)
+            items = self._compute_and_update_tables(resource, table_name, items, meta)
         if table_name not in self._filtered_tables:
             if isinstance(meta, ImportFileMeta):
                 self._import_item(table_name, resource.name, meta)
             else:
                 self._write_item(table_name, resource.name, items)
 
-    def _compute_table(
+    def _compute_tables(
         self, resource: DltResource, items: TDataItems, meta: Any
     ) -> List[TTableSchema]:
         """Computes a schema for a new or dynamic table and normalizes identifiers"""
         root_table_schema = resource.compute_table_schema(items, meta)
+        # we need to re-normalize name to support legacy normalization mode which we will
+        # drop in next major version
+        # TODO: drop in 2.0 also drop SCHEMA__USE_BREAK_PATH_ON_NORMALIZE
+        root_table_schema["name"] = self._normalize_table_identifier(root_table_schema["name"])
         nested_tables_schema = resource.compute_nested_table_schemas(
             root_table_schema["name"], self.naming, items, meta
         )
@@ -240,15 +244,17 @@ class Extractor:
             for table_schema in (root_table_schema, *nested_tables_schema)
         ]
 
-    def _compute_and_update_table(
+    def _compute_and_update_tables(
         self, resource: DltResource, root_table_name: str, items: TDataItems, meta: Any
     ) -> TDataItems:
         """
         Computes new table and does contract checks, if false is returned, the table may not be created and no items should be written
         """
-        computed_tables = self._compute_table(resource, items, meta)
+        computed_tables = self._compute_tables(resource, items, meta)
         # overwrite root table name (if coming from meta)
-        computed_tables[0]["name"] = root_table_name
+        # TODO: remove below, remove root_table_name from arguments
+        assert computed_tables[0]["name"] == root_table_name, resource._hints
+        # computed_tables[0]["name"] = root_table_name
 
         for computed_table in computed_tables:
             table_name = computed_table["name"]
@@ -413,7 +419,7 @@ class ArrowExtractor(Extractor):
         # write items one by one
         super()._write_item(table_name, resource_name, items, columns)
 
-    def _compute_table(
+    def _compute_tables(
         self, resource: DltResource, items: TDataItems, meta: Any
     ) -> List[TPartialTableSchema]:
         # arrow_table: TTableSchema = None
@@ -423,7 +429,7 @@ class ArrowExtractor(Extractor):
         # arrow tables override the latter so the resultant schema is the same as if
         # they are sent separately
         for item in reversed(items):
-            computed_tables = super()._compute_table(resource, item, Any)
+            computed_tables = super()._compute_tables(resource, item, Any)
             for computed_table in computed_tables:
                 arrow_table = arrow_tables.get(computed_table["name"])
                 # Merge the columns to include primary_key and other hints that may be set on the resource
@@ -476,10 +482,10 @@ class ArrowExtractor(Extractor):
 
         return list(arrow_tables.values())
 
-    def _compute_and_update_table(
+    def _compute_and_update_tables(
         self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
     ) -> TDataItems:
-        items = super()._compute_and_update_table(resource, table_name, items, meta)
+        items = super()._compute_and_update_tables(resource, table_name, items, meta)
         # filter data item as filters could be updated in compute table
         items = [self._apply_contract_filters(item, resource, table_name) for item in items]
         return items

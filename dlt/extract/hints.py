@@ -59,7 +59,7 @@ from dlt.extract.validation import create_item_validator
 class TResourceNestedHints(TypedDict, total=False):
     # used to force a parent for rare cases where normalizer skips intermediate tables that
     # do not receive data
-    parent: Optional[TTableHintTemplate[str]]
+    parent_table_name: Optional[TTableHintTemplate[str]]
     write_disposition: Optional[TTableHintTemplate[TWriteDispositionConfig]]
     primary_key: Optional[TTableHintTemplate[TColumnNames]]
     columns: Optional[TTableHintTemplate[TAnySchemaColumns]]
@@ -94,6 +94,21 @@ class HintsMeta:
 NATURAL_CALLABLES = ["incremental", "validator", "original_columns"]
 
 
+def table_schema_to_hints(table: TTableSchema) -> TResourceHints:
+    """Converts table schema into resource hints in place. Does not attempt to extract primary keys,
+    additional table properties etc. into respective TResourceHints fields. Suitable only
+    to be used for a result of utils.new_table.
+    """
+    template: TResourceHints = table  # type: ignore[assignment]
+    # parent and name are different in table schema vs. resource hints so we need to rename
+    template["table_name"] = table.pop("name")
+    if "parent" in table:
+        template["parent_table_name"] = table.pop("parent")
+    # always remove resource
+    table.pop("resource", None)
+    return template
+
+
 def make_hints(
     table_name: TTableHintTemplate[str] = None,
     parent_table_name: TTableHintTemplate[str] = None,
@@ -116,16 +131,17 @@ def make_hints(
 
     validator, schema_contract = create_item_validator(columns, schema_contract)
     # create a table schema template where hints can be functions taking TDataItem
-    new_template: TResourceHints = new_table(
-        table_name,  # type: ignore
-        parent_table_name,  # type: ignore
-        write_disposition=write_disposition,  # type: ignore
-        schema_contract=schema_contract,  # type: ignore
-        table_format=table_format,  # type: ignore
-        file_format=file_format,  # type: ignore
-        references=references,  # type: ignore
+    new_template = table_schema_to_hints(
+        new_table(
+            table_name,  # type: ignore
+            parent_table_name,  # type: ignore
+            write_disposition=write_disposition,  # type: ignore
+            schema_contract=schema_contract,  # type: ignore
+            table_format=table_format,  # type: ignore
+            file_format=file_format,  # type: ignore
+            references=references,  # type: ignore
+        )
     )
-    new_template["table_name"] = new_template.pop("name")  # type: ignore
     if not table_name:
         del new_template["table_name"]
     if not write_disposition and "write_disposition" in new_template:
@@ -134,8 +150,7 @@ def make_hints(
     if columns is not None:
         new_template["original_columns"] = columns
         new_template["columns"] = ensure_table_schema_columns_hint(columns)
-    # always remove resource
-    new_template.pop("resource", None)  # type: ignore
+
     if primary_key is not None:
         new_template["primary_key"] = primary_key
     if merge_key is not None:
@@ -213,7 +228,7 @@ class DltResourceHints:
 
     @property
     def parent_table_name(self) -> TTableHintTemplate[str]:
-        return None if self._hints is None else self._hints.get("parent")
+        return None if self._hints is None else self._hints.get("parent_table_name")
 
     def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
         """Computes the table schema based on hints and column definitions passed during resource creation.
@@ -222,16 +237,19 @@ class DltResourceHints:
         """
         if isinstance(meta, TableNameMeta):
             # look for variant
-            root_table_template = self._hints_variants.get(meta.table_name, self._hints)
+            default_table_name = meta.table_name
+            root_table_template = self._hints_variants.get(default_table_name, self._hints)
         else:
+            default_table_name = self.name
             root_table_template = self._hints
+
         if not root_table_template:
-            return new_table(self.name, resource=self.name)
+            return new_table(default_table_name, resource=self.name)
 
         # resolve a copy of a held template
         root_table_template = self._clone_hints(root_table_template)
         if "table_name" not in root_table_template:
-            root_table_template["table_name"] = self.name
+            root_table_template["table_name"] = default_table_name
 
         # if table template present and has dynamic hints, the data item must be provided.
         if self._table_name_hint_fun and item is None:
@@ -249,7 +267,7 @@ class DltResourceHints:
             if isinstance(incremental, Incremental) and incremental is not Incremental.EMPTY:
                 resolved_template["incremental"] = incremental
 
-        table_schema = self._create_table_schema(resolved_template)
+        table_schema = self._hints_to_table_schema(resolved_template)
         if not is_nested_table(table_schema):
             table_schema["resource"] = self.name
         migrate_complex_types(table_schema, warn=True)
@@ -295,10 +313,6 @@ class DltResourceHints:
                 full_path = (root_table_name, *sub_path)
             table_name = naming.shorten_fragments(*full_path)
             nested_table_template = self._clone_hints(hints)
-            # table_name is not a part of TResourceNestedHints but in the future we may allow those tables
-            # to be renamed. that will require a bigger refactor in the relational normalizer
-            nested_table_template["table_name"] = table_name  # type: ignore[typeddict-unknown-key]
-
             # TODO: code duplication
             resolved_template: TResourceHints = {
                 k: self._resolve_hint(item, v)
@@ -306,7 +320,10 @@ class DltResourceHints:
                 if k not in NATURAL_CALLABLES
             }  # type: ignore
 
-            nested_table_schema = self._create_table_schema(resolved_template)
+            nested_table_schema = self._hints_to_table_schema(resolved_template)
+            # table_name is not a part of TResourceNestedHints but in the future we may allow those tables
+            # to be renamed. that will require a bigger refactor in the relational normalizer
+            nested_table_schema["name"] = table_name
             migrate_complex_types(nested_table_schema, warn=True)
 
             # in very rare cases parent may be explicitly defined for a nested table
@@ -362,8 +379,12 @@ class DltResourceHints:
         Skip the argument or pass None to leave the existing hint.
         Pass empty value (for a particular type i.e. "" for a string) to remove a hint.
 
-        parent_table_name (str, optional): A name of parent table if foreign relation is defined. Please note that if you use merge, you must define `root_key` columns explicitly
-        incremental (Incremental, optional): Enables the incremental loading for a resource.
+        Args:
+            table_name (TTableHintTemplate[str]): name of the table which resource will generate
+
+            parent_table_parent (str, optional): A name of parent table if you want the resource to generate nested table. Please note that if you use merge, you must define `root_key` columns explicitly
+
+            incremental (Incremental, optional): Enables the incremental loading for a resource.
 
         Please note that for efficient incremental loading, the resource must be aware of the Incremental by accepting it as one if its arguments and then using are to skip already loaded data.
         In non-aware resources, `dlt` will filter out the loaded values, however, the resource will yield all the values again.
@@ -412,9 +433,9 @@ class DltResourceHints:
                     t.pop("table_name", None)
             if parent_table_name is not None:
                 if parent_table_name:
-                    t["parent"] = parent_table_name
+                    t["parent_table_name"] = parent_table_name
                 else:
-                    t.pop("parent", None)
+                    t.pop("parent_table_name", None)
             if write_disposition:
                 t["write_disposition"] = write_disposition
             if columns is not None:
@@ -543,7 +564,7 @@ class DltResourceHints:
     ) -> None:
         self.apply_hints(
             table_name=hints_template.get("table_name"),
-            parent_table_name=hints_template.get("parent"),
+            parent_table_name=hints_template.get("parent_table_name"),
             write_disposition=hints_template.get("write_disposition"),
             columns=hints_template.get("original_columns"),
             primary_key=hints_template.get("primary_key"),
@@ -661,29 +682,33 @@ class DltResourceHints:
         dict_["columns"][col_name] = incremental_col
 
     @staticmethod
-    def _create_table_schema(resource_hints: TResourceHints) -> TTableSchema:
-        """Creates table schema from resource hints and resource name. Resource hints are resolved
-        (do not contain callables) and will be modified in place
+    def _hints_to_table_schema(resolved_hints: TResourceHints) -> TTableSchema:
+        """Creates table schema from resource hints in place. Resource hints must be resolved
+        (cannot contain callables).
         """
-        resource_hints["name"] = resource_hints.pop("table_name")  # type: ignore[typeddict-unknown-key]
-        resource_hints.pop("nested_hints", None)
-        resource_hints["columns"] = resource_hints.get("columns", {})
-        DltResourceHints._merge_keys(resource_hints)
-        if "write_disposition" in resource_hints:
-            if isinstance(resource_hints["write_disposition"], str):
-                resource_hints["write_disposition"] = {
-                    "disposition": resource_hints["write_disposition"]
+        resolved_hints.pop("nested_hints", None)
+        resolved_hints["columns"] = resolved_hints.get("columns", {})
+        DltResourceHints._merge_keys(resolved_hints)
+        if "write_disposition" in resolved_hints:
+            if isinstance(resolved_hints["write_disposition"], str):
+                resolved_hints["write_disposition"] = {
+                    "disposition": resolved_hints["write_disposition"]
                 }  # wrap in dict
-            DltResourceHints._merge_write_disposition_dict(resource_hints)  # type: ignore[arg-type]
-        if "incremental" in resource_hints:
-            DltResourceHints._merge_incremental_column_hint(resource_hints)  # type: ignore[arg-type]
-        dict_ = cast(TTableSchema, resource_hints)
+            DltResourceHints._merge_write_disposition_dict(resolved_hints)  # type: ignore[arg-type]
+        if "incremental" in resolved_hints:
+            DltResourceHints._merge_incremental_column_hint(resolved_hints)  # type: ignore[arg-type]
+        table = cast(TTableSchema, resolved_hints)
+        # rename two props that differ
+        if "table_name" in resolved_hints:
+            table["name"] = resolved_hints.pop("table_name")  # type: ignore[typeddict-item]
+        if "parent_table_name" in resolved_hints:
+            table["parent"] = resolved_hints.pop("parent_table_name")  # type: ignore[typeddict-item]
         # apply table hints
-        if additional_table_hints := resource_hints.get("additional_table_hints"):
+        if additional_table_hints := resolved_hints.get("additional_table_hints"):
             for k, v in additional_table_hints.items():
-                dict_[k] = v  # type: ignore[literal-required]
-        resource_hints.pop("additional_table_hints", None)
-        return dict_
+                table[k] = v  # type: ignore[literal-required]
+        resolved_hints.pop("additional_table_hints", None)
+        return table
 
     @staticmethod
     def validate_dynamic_hints(template: TResourceHints) -> None:

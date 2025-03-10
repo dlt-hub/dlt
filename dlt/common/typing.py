@@ -117,7 +117,7 @@ TSecretStrValue = Annotated[str, SecretSentinel]
 TColumnNames = Union[str, Sequence[str]]
 """A string representing a column name or a sequence of"""
 TTableNames = Union[str, Sequence[str]]
-"""A string representing a column name or a sequence of"""
+"""A string representing a table name or a sequence of"""
 TDataItem: TypeAlias = Any
 """A single data item as extracted from data source"""
 TDataItems: TypeAlias = Union[TDataItem, List[TDataItem]]
