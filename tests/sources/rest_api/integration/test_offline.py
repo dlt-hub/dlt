@@ -507,6 +507,53 @@ def test_interpolate_params_in_query_string(
         assert qs["post_id"] == [str(index)]
 
 
+@pytest.mark.parametrize(
+    "endpoint_config,expected_body",
+    [
+        pytest.param(
+            {
+                "path": "posts/{resources.posts.id}/comments",
+                # No json specified
+            },
+            None,
+            id="no_json_get",
+        ),
+        pytest.param(
+            {
+                "path": "posts/{resources.posts.id}/comments",
+                "method": "GET",
+                "json": {},
+            },
+            b"{}",
+            id="empty_json_get",
+        ),
+    ],
+)
+def test_request_json_body(mock_api_server, endpoint_config, expected_body) -> None:
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "posts_comments",
+                    "endpoint": endpoint_config,
+                },
+            ],
+        }
+    )
+    list(source.with_resources("posts", "posts_comments").add_limit(1))
+
+    post_comments_calls = [h for h in mock_api_server.request_history if "/comments" in h.url]
+    assert len(post_comments_calls) == 50
+
+    request = post_comments_calls[0]
+    if expected_body is None:
+        assert request.body is None
+    else:
+        assert request.body == expected_body
+
+
 def test_raises_error_for_unused_resolve_params(mock_api_server):
     with pytest.raises(ValueError) as exc_info:
         rest_api_source(

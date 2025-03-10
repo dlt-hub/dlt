@@ -733,7 +733,9 @@ def process_parent_data_item(
     )
     expanded_path = expand_placeholders(path, params_values)
     expanded_params = expand_placeholders(params or {}, params_values)
-    expanded_json = expand_placeholders(request_json or {}, params_values)
+    expanded_json = (
+        None if request_json is None else expand_placeholders(request_json, params_values)
+    )
 
     parent_resource_name = resolved_params[0].resolve_config["resource"]
     parent_record = build_parent_record(item, parent_resource_name, include_from_parent)
