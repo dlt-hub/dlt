@@ -7,7 +7,6 @@ from dlt.common.destination.typing import TDatasetType
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.json import json
 from dlt.common.schema import Schema
-from dlt.common.schema.utils import get_root_table
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
@@ -117,50 +116,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
                 )
 
     def __call__(self, query: Any) -> ReadableDBAPIRelation:
-        return ReadableDBAPIRelation(readable_dataset=self, provided_query=query)  # type: ignore[abstract]
-
-    def _filter_using_root_table(
-        self,
-        table_name: str,
-        key: str,
-        values_to_include: Union[list[Any], list[ReadableDBAPIRelation], ReadableDBAPIRelation],
-    ) -> ReadableDBAPIRelation:
-        """Filter the root table and propagate to current table.
-        
-        Case 1: current table is root, then filter an return
-        Case 2: current table is not root, then join on root key
-
-        NOTE. The Ibis backend supports a 3rd case, where parent-child relationships are traversed
-        Such recursive query is difficult to express in raw SQL.
-        """
-        # Case 1: if current table is root table, you can filter directly and exit early
-        dlt_root_table = get_root_table(self.schema.tables, table_name)
-        if dlt_root_table["name"] == self.table_name:
-            # TODO use secure SQL interpolation
-            # TODO use `sql_client` utils to use fully qualified names that respect destination
-            query = f"SELECT * FROM {table_name} WHERE {key} in {values_to_include}"
-            return self(query)
-
-        # Case 2: There is a root_key to join root with current table
-        # (e.g., root_key=True on Source, write_disposition="merge")
-        root_key = None
-        for col_name, col in self.columns_schema.items():
-            if col.get("root_key") is True:
-                root_key = col_name
-
-        if root_key is not None:
-            # TODO improve error handling
-            raise ValueError(f"Table `{table_name}` has no `root_key` to join with the load table.")
-
-        root_row_key = next(
-            col_name for col_name, col in dlt_root_table["columns"].items() if col.get("row_key") is True
-        )
-        query = (
-            "SELECT * "
-            f"FROM {table_name}"
-            f"WHERE current.{root_key} IN SELECT {root_row_key} FROM {dlt_root_table['name']})"
-        )
-        return self(query)    
+        return ReadableDBAPIRelation(readable_dataset=self, provided_query=query)  # type: ignore[abstract] 
     
     def table(self, table_name: str) -> SupportsReadableRelation:
         # we can create an ibis powered relation if ibis is available
@@ -218,6 +174,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
     ) -> SupportsReadableRelation:
         """Return the list most recent `load_id`s in descending order.
 
+        Executing the query returns a list of tuples [(load_id, ), ...]
         If no `load_id` is found, return empty list.
         """
         # TODO protect from SQL injection
@@ -235,55 +192,16 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         return self(query)
 
     def latest_load_id(self, status: Union[int, list[int], None] = 0) -> SupportsReadableRelation:
-        """Return the latest `load_id`."""
+        """Return the latest `load_id`.
+        
+        Executing the query returns a list of length 1 with tuple [(latest_load_id, )]
+        """
         query = "SELECT max(load_id) FROM {self.schema.loads_table_name}"
         if status is not None:
             status_list = [status] if isinstance(status, int) else status
             query += f"WHERE status IN {status_list}"
 
         return self(query)
-    
-    def filter_by_load_ids(self, table_name: str, load_ids: Union[str, list[str]]) -> ReadableDBAPIRelation:
-        """Filter on matching `load_ids`."""
-        load_ids = [load_ids] if isinstance(load_ids, str) else load_ids
-        return self._filter_using_root_table(
-            table_name=table_name, key="_dlt_load_id", values_to_include=load_ids
-        )
-
-    def filter_by_load_status(
-        self, table_name: str, status: Union[int, list[int], None] = 0
-    ) -> ReadableDBAPIRelation:
-        """Filter to rows with a specific load status."""
-        if status is None:
-            return self
-
-        load_ids = [row[0] for row in self.list_load_ids(status=status).fetchall()]
-        return self._filter_using_root_table(
-            table_name=table_name, key="_dlt_load_id", values_to_include=load_ids
-        )
-
-    def filter_by_latest_load_id(
-        self, table_name: str, status: Union[int, list[int], None] = 0
-    ) -> ReadableDBAPIRelation:
-        """Filter on the most recent `load_id` with a specific load status.
-
-        If `status` is None, don't filter by status.
-        """
-        latest_load_id = self.latest_load_id(status=status).fetchall()[0][0]
-        return self._filter_using_root_table(
-            table_name=table_name, key="_dlt_load_id", values_to_include=[latest_load_id]
-        )
-    
-    def filter_by_load_id_gt(
-        self, table_name: str, load_id: str, status: Union[int, list[int], None] = 0
-    ) -> ReadableDBAPIRelation:
-        load_ids = [
-            row[0] for row in self.list_load_ids(status=status, limit=None).fetchall()
-            if row[0] > load_id
-        ]
-        return self._filter_using_root_table(
-            table_name=table_name, key="_dlt_load_id", values_to_include=load_ids
-        )
 
     def __getitem__(self, table_name: str) -> SupportsReadableRelation:
         """access of table via dict notation"""
