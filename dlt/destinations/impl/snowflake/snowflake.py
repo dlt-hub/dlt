@@ -81,6 +81,7 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
             local_stage_file_path=stage_file_path,
             staging_credentials=self._staging_credentials,
             csv_format=self._config.csv_format,
+            use_vectorized_scanner=self._config.use_vectorized_scanner,
         )
 
         with self._sql_client.begin_transaction():
