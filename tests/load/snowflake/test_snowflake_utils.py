@@ -1,6 +1,10 @@
 import pytest
 from urllib.parse import urlparse
 
+from dlt.common.configuration.specs import (
+    AzureCredentialsWithoutDefaults,
+    AwsCredentialsWithoutDefaults,
+)
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.exceptions import TerminalValueError
 from dlt.destinations.exceptions import LoadJobTerminalException
@@ -9,19 +13,21 @@ from dlt.destinations.impl.snowflake.utils import (
     ensure_snowflake_azure_url,
 )
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 # ----------------------------------
 # Helper Functions
 # ----------------------------------
 
 
-def assert_sql_contains(sql, *phrases):
+def assert_sql_contains(sql: str, *phrases):
     """Assert that SQL contains all the given phrases."""
     for phrase in phrases:
         assert phrase in sql, f"Expected '{phrase}' in SQL, but not found:\n{sql}"
 
 
-def assert_sql_not_contains(sql, *phrases):
+def assert_sql_not_contains(sql: str, *phrases):
     """Assert that SQL does not contain any of the given phrases."""
     for phrase in phrases:
         assert phrase not in sql, f"Found unexpected '{phrase}' in SQL:\n{sql}"
@@ -32,7 +38,7 @@ def assert_sql_not_contains(sql, *phrases):
 # ----------------------------------
 
 
-def test_file_format_jsonl(test_table, local_file_path, local_stage_path):
+def test_file_format_jsonl(test_table: str, local_file_path: str, local_stage_path: str):
     """Test JSONL format handling in gen_copy_sql."""
     sql = gen_copy_sql(
         file_url=local_file_path,
@@ -50,7 +56,7 @@ def test_file_format_jsonl(test_table, local_file_path, local_stage_path):
     )
 
 
-def test_file_format_parquet(test_table, local_file_path, local_stage_path):
+def test_file_format_parquet(test_table: str, local_file_path: str, local_stage_path: str):
     """Test Parquet format handling in gen_copy_sql."""
     sql = gen_copy_sql(
         file_url=local_file_path,
@@ -69,7 +75,9 @@ def test_file_format_parquet(test_table, local_file_path, local_stage_path):
     )
 
 
-def test_file_format_parquet_vectorized(test_table, local_file_path, local_stage_path):
+def test_file_format_parquet_vectorized(
+    test_table: str, local_file_path: str, local_stage_path: str
+):
     """Test Parquet format with vectorized scanner in gen_copy_sql."""
     sql = gen_copy_sql(
         file_url=local_file_path,
@@ -101,13 +109,13 @@ def test_file_format_parquet_vectorized(test_table, local_file_path, local_stage
     ],
 )
 def test_file_format_csv(
-    include_header,
-    delimiter,
-    encoding,
-    on_error_continue,
-    test_table,
-    local_file_path,
-    local_stage_path,
+    include_header: bool,
+    delimiter: str,
+    encoding: str,
+    on_error_continue: bool,
+    test_table: str,
+    local_file_path: str,
+    local_stage_path: str,
 ):
     """Test CSV format handling in gen_copy_sql with various options."""
     csv_config = CsvFormatConfiguration(
@@ -153,7 +161,7 @@ def test_file_format_csv(
 # ----------------------------------
 
 
-def test_gen_copy_sql_local_file(test_table, local_file_path, local_stage_path):
+def test_gen_copy_sql_local_file(test_table: str, local_file_path: str, local_stage_path: str):
     """Test generating COPY command for local files."""
     sql = gen_copy_sql(
         file_url=local_file_path,
@@ -172,7 +180,7 @@ def test_gen_copy_sql_local_file(test_table, local_file_path, local_stage_path):
     )
 
 
-def test_gen_copy_sql_with_stage(test_table, stage_name, stage_bucket_url):
+def test_gen_copy_sql_with_stage(test_table: str, stage_name: str, stage_bucket_url: str):
     """Test generating COPY command with a named stage."""
     file_url = f"{stage_bucket_url}path/to/file.parquet"
 
@@ -196,7 +204,7 @@ def test_gen_copy_sql_with_stage(test_table, stage_name, stage_bucket_url):
 
 
 def test_gen_copy_sql_with_stage_with_prefix_no_slash(
-    test_table, stage_name, stage_bucket_url_with_prefix
+    test_table: str, stage_name: str, stage_bucket_url_with_prefix: str
 ):
     """Test generating COPY command with a named stage and bucket url without a forward slash."""
     file_url = f"{stage_bucket_url_with_prefix}path/to/file.parquet"
@@ -221,7 +229,7 @@ def test_gen_copy_sql_with_stage_with_prefix_no_slash(
 
 
 def test_gen_copy_sql_with_stage_with_prefix_slash(
-    test_table, stage_name, stage_bucket_url_with_prefix
+    test_table: str, stage_name: str, stage_bucket_url_with_prefix: str
 ):
     """Test generating COPY command with a named stage abd bucket url with a forward slash."""
     stage_bucket_url_with_prefix_slash = f"{stage_bucket_url_with_prefix}/"
@@ -246,7 +254,9 @@ def test_gen_copy_sql_with_stage_with_prefix_slash(
     )
 
 
-def test_gen_copy_sql_s3_with_credentials(test_table, aws_credentials):
+def test_gen_copy_sql_s3_with_credentials(
+    test_table: str, aws_credentials: AwsCredentialsWithoutDefaults
+):
     """Test generating COPY command for S3 with AWS credentials."""
     s3_url = "s3://bucket/path/to/file.jsonl"
 
@@ -268,7 +278,7 @@ def test_gen_copy_sql_s3_with_credentials(test_table, aws_credentials):
     )
 
 
-def test_gen_copy_sql_s3_without_credentials_or_stage(test_table):
+def test_gen_copy_sql_s3_without_credentials_or_stage(test_table: str):
     """Test that using S3 without credentials or stage raises an error."""
     s3_url = "s3://bucket/path/to/file.jsonl"
 
@@ -284,7 +294,11 @@ def test_gen_copy_sql_s3_without_credentials_or_stage(test_table):
     assert "without either credentials or a stage name" in str(excinfo.value)
 
 
-def test_gen_copy_sql_azure_with_credentials(test_table, azure_credentials, default_csv_format):
+def test_gen_copy_sql_azure_with_credentials(
+    test_table: str,
+    azure_credentials: AzureCredentialsWithoutDefaults,
+    default_csv_format: CsvFormatConfiguration,
+):
     """Test generating COPY command for Azure Blob with credentials."""
     azure_url = "azure://teststorage.blob.core.windows.net/container/file.csv"
 
@@ -320,7 +334,7 @@ def test_gen_copy_sql_azure_with_credentials(test_table, azure_credentials, defa
     assert "container" in parsed_url.path, "Path doesn't contain container name"
 
 
-def test_gen_copy_sql_azure_without_credentials_or_stage(test_table):
+def test_gen_copy_sql_azure_without_credentials_or_stage(test_table: str):
     """Test that using Azure Blob without credentials or stage raises an error."""
     azure_url = "azure://account.blob.core.windows.net/container/file.csv"
 
@@ -336,7 +350,7 @@ def test_gen_copy_sql_azure_without_credentials_or_stage(test_table):
     assert "without either credentials or a stage name" in str(excinfo.value)
 
 
-def test_gen_copy_sql_gcs_without_stage(test_table):
+def test_gen_copy_sql_gcs_without_stage(test_table: str):
     """Test that using GCS without stage raises an error."""
     gcs_url = "gs://bucket/path/to/file.jsonl"
 
@@ -356,7 +370,11 @@ def test_gen_copy_sql_gcs_without_stage(test_table):
     "is_case_sensitive,expected_case", [(True, "CASE_SENSITIVE"), (False, "CASE_INSENSITIVE")]
 )
 def test_gen_copy_sql_case_sensitivity(
-    is_case_sensitive, expected_case, test_table, local_file_path, local_stage_path
+    is_case_sensitive: bool,
+    expected_case: str,
+    test_table: str,
+    local_file_path: str,
+    local_stage_path: str,
 ):
     """Test case sensitivity setting in COPY command."""
     sql = gen_copy_sql(
@@ -374,7 +392,11 @@ def test_gen_copy_sql_case_sensitivity(
     "on_error_continue,include_header", [(True, True), (False, True), (True, False), (False, False)]
 )
 def test_gen_copy_sql_csv_options(
-    on_error_continue, include_header, test_table, local_file_path, local_stage_path
+    on_error_continue: bool,
+    include_header: bool,
+    test_table: str,
+    local_file_path: str,
+    local_stage_path: str,
 ):
     """Test CSV options in COPY command."""
     csv_format = CsvFormatConfiguration(
@@ -406,7 +428,9 @@ def test_gen_copy_sql_csv_options(
         assert_sql_not_contains(sql, "MATCH_BY_COLUMN_NAME")
 
 
-def test_full_workflow_s3_with_aws_credentials(test_table, aws_credentials):
+def test_full_workflow_s3_with_aws_credentials(
+    test_table: str, aws_credentials: AwsCredentialsWithoutDefaults
+):
     """Test the full workflow for S3 with AWS credentials."""
     # This test verifies that all components work together correctly
     s3_url = "s3://test-bucket/path/to/data.jsonl"
@@ -433,7 +457,9 @@ def test_full_workflow_s3_with_aws_credentials(test_table, aws_credentials):
     )
 
 
-def test_full_workflow_azure_with_credentials(test_table, azure_credentials):
+def test_full_workflow_azure_with_credentials(
+    test_table: str, azure_credentials: AzureCredentialsWithoutDefaults
+):
     """Test the full workflow for Azure Blob with credentials."""
     # This test verifies that all components work together correctly
     azure_url = "azure://teststorage.blob.core.windows.net/container/file.parquet"
