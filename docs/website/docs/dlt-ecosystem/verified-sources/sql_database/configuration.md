@@ -186,9 +186,9 @@ It is recommended to configure credentials in `.dlt/secrets.toml` and to not inc
 
 ## Other connection options
 
-### Using SqlAlchemy Engine as credentials
+### Using SQLAlchemy Engine as credentials
 
-You are able to pass an instance of SqlAlchemy Engine instead of credentials:
+You are able to pass an instance of SQLAlchemy Engine instead of credentials:
 
 ```py
 from dlt.sources.sql_database import sql_table
