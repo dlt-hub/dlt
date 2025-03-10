@@ -140,15 +140,40 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
 
         return partial(self._proxy_expression_method, name)
 
-    def __getitem__(self, columns: Union[str, Sequence[str]]) -> "ReadableIbisRelation":
+    def __getitem__(self, *columns: str) -> "ReadableIbisRelation":
+        """Proxy method to select columns on an Ibis expression.
+
+        This supports 3 notations:
+        ```
+        self["foo"]  # Column type
+        self["foo", "bar"]  # Table type
+        self[["foo", "bar"]]  # Table type
+        ```
+        Ibis reference: https://ibis-project.org/tutorials/ibis-for-pandas-users#selecting-columns
+        """
         # casefold column-names
-        columns = [columns] if isinstance(columns, str) else columns
-        columns = [self.sql_client.capabilities.casefold_identifier(col) for col in columns]
-        expr = self._ibis_object[columns]
+        # self["foo"]
+        if len(columns) == 1 and isinstance(columns[0], str):
+            col = self.sql_client.capabilities.casefold_identifier(columns[0])
+            cols = [col]
+            expr = self._ibis_object[col]
+        # self[["foo", "bar"]]
+        elif len(columns) == 1 and isinstance(columns[0], Sequence):
+            cols = [self.sql_client.capabilities.casefold_identifier(col) for col in columns[0]]
+            expr = self._ibis_object[cols]
+        # self["foo", "bar"]
+        elif all(isinstance(col, str) for col in columns):
+            cols = [self.sql_client.capabilities.casefold_identifier(col) for col in columns]
+            expr = self._ibis_object[cols]
+        else:
+            raise ValueError(
+                "ReadableIbisRelation can be accessed using `rel['foo']` to retrieve a column, or `rel['foo', 'bar'] and `rel[['foo', 'bar']] to access a table"
+            )
+
         return self.__class__(
             readable_dataset=self._dataset,
             ibis_object=expr,
-            columns_schema=self._get_filtered_columns_schema(columns),
+            columns_schema=self._get_filtered_columns_schema(cols),
         )
 
     def _get_filtered_columns_schema(self, columns: Sequence[str]) -> TTableSchemaColumns:
