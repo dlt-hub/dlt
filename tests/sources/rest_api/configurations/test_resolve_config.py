@@ -99,8 +99,32 @@ def test_process_parent_data_item() -> None:
         include_from_parent=None,
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments"
-    assert expanded_params == {}
+    assert expanded_params == {}  # defaults to empty dict
+    assert request_json is None  # defaults to None
     assert parent_record == {}
+
+    # same but with empty params and json
+    bound_path, expanded_params, request_json, parent_record = process_parent_data_item(
+        path="dlt-hub/dlt/issues/{id}/comments",
+        item={"obj_id": 12345},
+        params={},
+        request_json={},
+        resolved_params=resolved_params,
+    )
+    # those got propagated
+    assert expanded_params == {}
+    assert request_json == {}  # generates empty body!
+
+    # also test params and json
+    bound_path, expanded_params, request_json, parent_record = process_parent_data_item(
+        path="dlt-hub/dlt/issues/comments",
+        item={"obj_id": 12345},
+        params={"orig_id": "{id}"},
+        request_json={"orig_id": "{id}"},
+        resolved_params=resolved_params,
+    )
+    assert expanded_params == {"orig_id": "12345"}
+    assert request_json == {"orig_id": "12345"}
 
     bound_path, expanded_params, request_json, parent_record = process_parent_data_item(
         path="dlt-hub/dlt/issues/{id}/comments",
@@ -137,11 +161,13 @@ def test_process_parent_data_item() -> None:
         path="dlt-hub/dlt/issues/comments",
         item={"obj_id": 12345, "obj_node": "node_1"},
         params={"id": "{resources.issues.obj_id}"},
+        request_json={"id": "{resources.issues.obj_id}"},
         resolved_params=resolved_params_reference,
         include_from_parent=["obj_id", "obj_node"],
     )
     assert bound_path == "dlt-hub/dlt/issues/comments"
     assert expanded_params == {"id": "12345"}
+    assert request_json == {"id": "12345"}
 
     # Test nested data
     resolved_param_nested = [
