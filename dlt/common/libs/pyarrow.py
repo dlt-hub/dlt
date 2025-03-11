@@ -730,16 +730,18 @@ def transpose_rows_to_columns(
 
     Uses pandas if available. Otherwise, use numpy, which is slower
     """
-    import numpy as np
-
     try:
         from pandas._libs import lib
 
         pivoted_rows = lib.to_object_array_tuples(rows).T
     except ImportError:
-        logger.info(
-            "Pandas not installed, reverting to numpy.asarray to create a table which is slower"
-        )
+        logger.info("Pandas not installed, reverting to numpy.asarray to create a table which is slower")
+
+        try:
+            from dlt.common.libs.numpy import numpy as np
+        except MissingDependencyException:
+            raise MissingDependencyException("dlt pyarrow helpers", ["numpy"], "Numpy is required for this pyarrow operation")
+        
         pivoted_rows = np.asarray(rows, dtype="object", order="k").T  # type: ignore[call-overload]
 
     return {
