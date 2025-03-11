@@ -91,9 +91,10 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
                 f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}"
             )
             if region_name:
-                credentials += f"region={region_name};"
-
-            credentials += "'"  # Closing single quote
+                credentials = (
+                "CREDENTIALS"
+                f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key};region={region_name};'"
+            )
 
         # get format
         ext = os.path.splitext(self._bucket_path)[1][1:]
