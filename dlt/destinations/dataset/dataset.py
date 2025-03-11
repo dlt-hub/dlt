@@ -169,40 +169,6 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         # Execute query and build result dict
         return self(query)
 
-    def list_load_ids(
-        self, status: Union[int, list[int], None] = 0, limit: Union[int, None] = 10
-    ) -> SupportsReadableRelation:
-        """Return the list most recent `load_id`s in descending order.
-
-        Executing the query returns a list of tuples [(load_id, ), ...]
-        If no `load_id` is found, return empty list.
-        """
-        # TODO protect from SQL injection
-        query = f"SELECT load_id FROM {self.schema.loads_table_name} "
-
-        if status is not None:
-            status_list = [status] if isinstance(status, int) else status
-            query += f"WHERE status IN {status_list} "
-
-        query += "ORDER BY load_id DESC "
-
-        if limit is not None:
-            query += f"LIMIT {limit}"
-
-        return self(query)
-
-    def latest_load_id(self, status: Union[int, list[int], None] = 0) -> SupportsReadableRelation:
-        """Return the latest `load_id`.
-
-        Executing the query returns a list of length 1 with tuple [(latest_load_id, )]
-        """
-        query = f"SELECT max(load_id) FROM {self.schema.loads_table_name} "
-        if status is not None:
-            status_list = [status] if isinstance(status, int) else status
-            query += f"WHERE status IN {status_list} "
-
-        return self(query)
-
     def __getitem__(self, table_name: str) -> SupportsReadableRelation:
         """access of table via dict notation"""
         return self.table(table_name)

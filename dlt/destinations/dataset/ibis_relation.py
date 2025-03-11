@@ -5,13 +5,10 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.utils import (
     get_root_table,
-    get_root_to_table_chain,
-    get_row_key,
-    get_parent_key,
-    get_root_key,
+    get_first_column_name_with_prop,
     is_root_table,
 )
-from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.schema.typing import TTableSchemaColumns, C_DLT_LOAD_ID
 from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
 
 if TYPE_CHECKING:
@@ -147,8 +144,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
 
         return partial(self._proxy_expression_method, name)
 
-    # TODO this doesn't respect superclass with `columns: Sequence[str]`
-    def __getitem__(self, *columns: str) -> "ReadableIbisRelation":
+    def __getitem__(self, *columns: Union[str, Sequence[str]]) -> "ReadableIbisRelation":
         """Proxy method to select columns on an Ibis expression.
 
         This supports 3 notations:
@@ -159,24 +155,28 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         ```
         Ibis reference: https://ibis-project.org/tutorials/ibis-for-pandas-users#selecting-columns
         """
-        # casefold column-names
         # self["foo"]
         if len(columns) == 1 and isinstance(columns[0], str):
             col = self.sql_client.capabilities.casefold_identifier(columns[0])
             cols = [col]
             expr = self._ibis_object[col]
-        # self[["foo", "bar"]]
+
+        # NOTE `str` check needs to happen first because `issubclass(str, Sequence) is True`
+        # self[["foo"]] or self[["foo", "bar"]]
         elif len(columns) == 1 and isinstance(columns[0], Sequence):
             cols = [self.sql_client.capabilities.casefold_identifier(col) for col in columns[0]]
             expr = self._ibis_object[cols]
+
         # self["foo", "bar"]
         elif all(isinstance(col, str) for col in columns):
-            cols = [self.sql_client.capabilities.casefold_identifier(col) for col in columns]
+            cols = [self.sql_client.capabilities.casefold_identifier(col) for col in columns]  # type: ignore
             expr = self._ibis_object[cols]
+
         else:
             raise ValueError(
                 "ReadableIbisRelation can be accessed using `rel['foo']` to retrieve a column, or"
-                " `rel['foo', 'bar']` and `rel[['foo', 'bar']]` to access a table"
+                " `rel['foo', 'bar']` and `rel[['foo', 'bar']]` to access a table.\n"
+                f"Received: `{columns}`"
             )
 
         return self.__class__(
@@ -197,13 +197,11 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
 
     def _join_to_root_table(self) -> "ReadableIbisRelation":
         """Join the current table to the root table. If the current table is root, it's a no-op."""
-        LOAD_ID_COL = "_dlt_load_id"
-
         table_schema = self.schema.tables[self.table_name]
         if is_root_table(table_schema):
             return self
 
-        root_key = get_root_key(table_schema)
+        root_key = get_first_column_name_with_prop(table_schema, column_prop="root_key")
         # TODO setup another case that traverse parent-row keys to join nested tables without root_key
         if root_key is None:
             raise KeyError(
@@ -211,15 +209,17 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
                 "Set `root_key=True` on the source or use `write_disposition='merge'`."
             )
         root_table_schema = get_root_table(self.schema.tables, self.table_name)
-        root_row_key = get_row_key(root_table_schema)
+        root_row_key: str = get_first_column_name_with_prop(
+            root_table_schema, column_prop="row_key"
+        )
         root_table = self._dataset.table(root_table_schema["name"])
 
         joined_table = self.inner_join(
-            root_table.select(LOAD_ID_COL, root_row_key),
+            root_table.select(C_DLT_LOAD_ID, root_row_key),
             self[root_key] == root_table[root_row_key],
         )
         # `self` selects all columns from the original table
-        return joined_table.select(self, LOAD_ID_COL)  # type: ignore
+        return joined_table.select(self, C_DLT_LOAD_ID)  # type: ignore
 
     # forward ibis methods defined on interface
     def limit(self, limit: int, **kwargs: Any) -> "ReadableIbisRelation":
@@ -263,7 +263,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         """Filter on matching `load_ids`."""
         load_ids = [load_ids] if isinstance(load_ids, str) else load_ids
         table = self._join_to_root_table()
-        return table.filter(table["_dlt_load_id"].isin(load_ids))  # type: ignore
+        return table.filter(table[C_DLT_LOAD_ID].isin(load_ids))  # type: ignore
 
     def filter_by_latest_load_id(
         self, status: Union[int, list[int], None] = 0
@@ -273,7 +273,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         If `status` is None, don't filter by status.
         """
         table = self._join_to_root_table()
-        return table.filter(table["_dlt_load_id"] == self.latest_load_id(status=status))  # type: ignore
+        return table.filter(table[C_DLT_LOAD_ID] == self.latest_load_id(status=status))  # type: ignore
 
     def filter_by_load_status(
         self, status: Union[int, list[int], None] = 0
@@ -284,7 +284,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
 
         load_ids = self.list_load_ids(status=status)
         table = self._join_to_root_table()
-        return table.filter(table["_dlt_load_id"].isin(load_ids))  # type: ignore
+        return table.filter(table[C_DLT_LOAD_ID].isin(load_ids))  # type: ignore
 
     def filter_by_load_id_gt(
         self, load_id: str, status: Union[int, list[int], None] = 0
@@ -300,7 +300,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         table = self._join_to_root_table()
         joined_table = table.inner_join(
             load_table,
-            table["_dlt_load_id"] == load_table["load_id"],
+            table[C_DLT_LOAD_ID] == load_table["load_id"],
         )
         return joined_table.select(table)  # type: ignore
 

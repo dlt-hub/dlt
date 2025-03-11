@@ -838,31 +838,8 @@ def table_schema_has_type_with_precision(table: TTableSchema, _typ: TDataType) -
     )
 
 
-def get_row_key(table: TTableSchema) -> str:
-    for col_name, col in table["columns"].items():
-        if col.get("row_key") is True:
-            return col_name
-    raise KeyError(
-        f"No row key found for table {table['name']}. This is likely a malformed table schema."
-    )
-
-
-def get_parent_key(table: TTableSchema) -> Optional[str]:
-    for col_name, col in table["columns"].items():
-        if col.get("parent_key") is True:
-            return col_name
-    return None
-
-
 def is_root_table(table: TTableSchema) -> bool:
     return table.get("parent") is None
-
-
-def get_root_key(table: TTableSchema) -> Optional[str]:
-    for col_name, col in table["columns"].items():
-        if col.get("root_key") is True:
-            return col_name
-    return None
 
 
 def get_root_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
@@ -871,24 +848,6 @@ def get_root_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
     if is_nested_table(table):
         return get_root_table(tables, table.get("parent"))
     return table
-
-
-def get_root_to_table_chain(tables: TSchemaTables, table_name: str) -> List[TTableSchema]:
-    """Return a list of tables ordered from root to child using the (row_key - parent_key) references.
-
-    Similar functions:
-        - `get_root_table()` returns the root of the specified child instead of the full chain
-        - `get_nested_tables()` returns all children of the specified table as a chain
-    """
-    chain: List[TTableSchema] = []
-
-    def _parent(t: TTableSchema) -> None:
-        chain.append(t)
-        if t.get("parent"):
-            _parent(tables[t["parent"]])
-
-    _parent(tables[table_name])
-    return chain[::-1]
 
 
 def get_nested_tables(tables: TSchemaTables, table_name: str) -> List[TTableSchema]:

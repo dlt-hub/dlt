@@ -197,13 +197,23 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         rel.compute_columns_schema()
         return rel
 
-    def __getitem__(self, columns: Union[str, Sequence[str]]) -> "SupportsReadableRelation":
-        if isinstance(columns, str):
-            return self.select(columns)
-        elif isinstance(columns, Sequence):
-            return self.select(*columns)
+    def __getitem__(self, *columns: Union[str, Sequence[str]]) -> "SupportsReadableRelation":
+        """Supports: self["col1"], self["col1", "col2"], self[["col1", "col2"]]"""
+        # self["foo"]
+        if len(columns) == 1 and isinstance(columns[0], str):
+            return self.select(columns[0])
+        # NOTE `str` check needs to happen first because `issubclass(str, Sequence) is True`
+        # self[["foo"]] or self[["foo", "bar"]]
+        elif len(columns) == 1 and isinstance(columns[0], Sequence):
+            return self.select(*columns[0])
+        # self["foo", "bar"]
+        elif all(isinstance(col, str) for col in columns):
+            return self.select(*columns)  # type: ignore
         else:
-            raise TypeError(f"Invalid argument type: {type(columns).__name__}")
+            raise ValueError(
+                "ReadableDBAPIRelation can be accessed using `rel['foo']`, `rel['foo', 'bar']` and"
+                f" `rel[['foo', 'bar']]`.\nReceived: `{columns}`"
+            )
 
     def head(self, limit: int = 5) -> "ReadableDBAPIRelation":
         return self.limit(limit)
