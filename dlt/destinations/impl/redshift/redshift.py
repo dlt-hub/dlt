@@ -65,28 +65,35 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         file_path: str,
         staging_credentials: Optional[CredentialsConfiguration] = None,
         staging_iam_role: str = None,
-        s3_region: str = "us-east-1",  # Add region as a parameter
+        staging_region_name: str = None,
     ) -> None:
         super().__init__(file_path, staging_credentials)
         self._staging_iam_role = staging_iam_role
-        self._s3_region = s3_region  # Store region
+        self._region_name = staging_region_name
         self._job_client: "RedshiftClient" = None
 
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client
-        # we assume S3 credentials were provided for the staging
+        # we assume s3 credentials where provided for the staging
         credentials = ""
         if self._staging_iam_role:
-            credentials = f"IAM_ROLE '{self._staging_iam_role}' REGION '{self._s3_region}'"
+            credentials = f"IAM_ROLE '{self._staging_iam_role}'"
+            if self._region_name:
+                credentials += f" REGION '{self._region_name}'"
         elif self._staging_credentials and isinstance(
             self._staging_credentials, AwsCredentialsWithoutDefaults
         ):
             aws_access_key = self._staging_credentials.aws_access_key_id
             aws_secret_key = self._staging_credentials.aws_secret_access_key
+            region_name = self._staging_credentials.region_name
             credentials = (
                 "CREDENTIALS"
-                f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key};region={self._s3_region}'"
+                f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}"
             )
+            if region_name:
+                credentials += f"region={region_name};"
+
+            credentials += "'"  # Closing single quote
 
         # get format
         ext = os.path.splitext(self._bucket_path)[1][1:]
