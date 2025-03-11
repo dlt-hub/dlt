@@ -24,21 +24,6 @@ except ModuleNotFoundError:
     raise MissingDependencyException("dlt ibis helpers", ["ibis-framework"])
 
 
-SUPPORTED_DESTINATIONS = [
-    DuckDbClientConfiguration,
-    MotherDuckClientConfiguration,
-    PostgresClientConfiguration,
-    RedshiftClientConfiguration,
-    SnowflakeClientConfiguration,
-    MsSqlClientConfiguration,
-    BigQueryClientConfiguration,
-    ClickHouseClientConfiguration,
-    FilesystemConfiguration,
-    # NOTE: Athena could theoretically work with trino backend, but according to
-    # https://github.com/ibis-project/ibis/issues/7682 connecting with aws credentials
-    # does not work yet.
-]
-
 # Map dlt data types to ibis data types
 DATA_TYPE_MAP = {
     "text": "string",
@@ -58,16 +43,11 @@ DATA_TYPE_MAP = {
 def create_ibis_backend(
     destination: TDestinationReferenceArg, client: JobClientBase
 ) -> BaseBackend:
-    """Create a given ibis backend for a destination client and dataset"""
+    """Create a given ibis backend for a destination client and dataset."""
 
     # ensure destination is a Destination instance
     if not isinstance(destination, Destination):
         destination = Destination.from_reference(destination)
-
-    # check if destination is supported
-    if not any(issubclass(destination.spec, spec_class) for spec_class in SUPPORTED_DESTINATIONS):
-        destination_type = Destination.from_reference(destination).destination_type
-        raise NotImplementedError(f"Destination of type {destination_type} not supported by ibis.")
 
     if issubclass(destination.spec, DuckDbClientConfiguration) or issubclass(
         destination.spec, MotherDuckClientConfiguration
@@ -165,6 +145,14 @@ def create_ibis_backend(
         # apply only to it. old code was setting `curl` on the internal clone of sql_client
         # now we export this clone directly to ibis to it works
         con = ibis.duckdb.from_connection(duckdb_conn)
+    else:
+        # NOTE: Athena could theoretically work with trino backend, but according to
+        # https://github.com/ibis-project/ibis/issues/7682 connecting with aws credentials
+        # does not work yet.
+        raise NotImplementedError(
+            f"Destination of type {Destination.from_reference(destination).destination_type} not"
+            " supported by ibis."
+        )
 
     return con
 

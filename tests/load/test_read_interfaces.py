@@ -745,17 +745,6 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
 def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     # NOTE: we could generalize this with a context for certain deps
 
-    from dlt.helpers.ibis import SUPPORTED_DESTINATIONS
-
-    # check correct error if not supported
-    if not any(
-        issubclass(populated_pipeline.destination.spec, spec_class)
-        for spec_class in SUPPORTED_DESTINATIONS
-    ):
-        with pytest.raises(NotImplementedError):
-            populated_pipeline.dataset().ibis()
-        return
-
     total_records = _total_records(populated_pipeline)
     ibis_connection = populated_pipeline.dataset().ibis()
 
