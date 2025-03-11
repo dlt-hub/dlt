@@ -842,7 +842,9 @@ def get_row_key(table: TTableSchema) -> str:
     for col_name, col in table["columns"].items():
         if col.get("row_key") is True:
             return col_name
-    raise KeyError(f"No row key found for table {table['name']}. This is likely a malformed table schema.")
+    raise KeyError(
+        f"No row key found for table {table['name']}. This is likely a malformed table schema."
+    )
 
 
 def get_parent_key(table: TTableSchema) -> Optional[str]:
