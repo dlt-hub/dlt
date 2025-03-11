@@ -136,6 +136,7 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
         caps.alter_add_multi_column = False
         caps.supported_merge_strategies = ["delete-insert", "scd2"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
+        caps.sqlglot_dialect = "redshift"
 
         return caps
 
