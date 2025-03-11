@@ -236,6 +236,9 @@ def sql_table(
     Returns:
         DltResource: The dlt resource for loading data from the SQL database table.
     """
+    # In case we get None from the config, we want to default to "append"
+    write_disposition = write_disposition if write_disposition else "append"
+
     _detect_precision_hints_deprecated(detect_precision_hints)
 
     if detect_precision_hints:
