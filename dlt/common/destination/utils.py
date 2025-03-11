@@ -210,7 +210,7 @@ def prepare_load_table(
         prep_table = fill_hints_from_parent_and_clone_table(tables, table)
         table_format = prep_table.get("table_format")
         # set table format if preferred
-        if destination_capabilities.preferred_loader_file_format and not table_format:
+        if destination_capabilities.preferred_table_format and not table_format:
             prep_table["table_format"] = destination_capabilities.preferred_table_format
         # if table_format == "preferred":
         #     # NOTE: can also set None as table format
