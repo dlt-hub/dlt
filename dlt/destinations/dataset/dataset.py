@@ -178,13 +178,13 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         If no `load_id` is found, return empty list.
         """
         # TODO protect from SQL injection
-        query = "SELECT load_id FROM {self.schema.loads_table_name}"
+        query = f"SELECT load_id FROM {self.schema.loads_table_name} "
 
         if status is not None:
             status_list = [status] if isinstance(status, int) else status
-            query += f"WHERE status IN {status_list}"
+            query += f"WHERE status IN {status_list} "
         
-        query += "ORDER BY load_id DESC"
+        query += "ORDER BY load_id DESC "
         
         if limit is not None:
             query += f"LIMIT {limit}"
@@ -196,10 +196,10 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         
         Executing the query returns a list of length 1 with tuple [(latest_load_id, )]
         """
-        query = "SELECT max(load_id) FROM {self.schema.loads_table_name}"
+        query = f"SELECT max(load_id) FROM {self.schema.loads_table_name} "
         if status is not None:
             status_list = [status] if isinstance(status, int) else status
-            query += f"WHERE status IN {status_list}"
+            query += f"WHERE status IN {status_list} "
 
         return self(query)
 

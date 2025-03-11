@@ -838,6 +838,31 @@ def table_schema_has_type_with_precision(table: TTableSchema, _typ: TDataType) -
     )
 
 
+def get_row_key(table: TTableSchema) -> str:
+    for col_name, col in table["columns"].items():
+        if col.get("row_key") is True:
+            return col_name
+    raise KeyError(f"No row key found for table {table['name']}. This is likely a malformed table schema.")
+
+
+def get_parent_key(table: TTableSchema) -> Optional[str]:
+    for col_name, col in table["columns"].items():
+        if col.get("parent_key") is True:
+            return col_name
+    return None
+
+
+def is_root_table(table: TTableSchema) -> bool:
+    return table.get("parent") is None
+
+
+def get_root_key(table: TTableSchema) -> Optional[str]:
+    for col_name, col in table["columns"].items():
+        if col.get("root_key") is True:
+            return col_name
+    return None
+
+
 def get_root_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
     """Finds root (without parent) of a `table_name` following the nested references (row_key - parent_key)."""
     table = tables[table_name]
