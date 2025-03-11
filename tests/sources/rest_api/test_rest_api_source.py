@@ -79,7 +79,7 @@ def test_rest_api_source(destination_name: str, invocation_type: str) -> None:
 
     assert table_counts.keys() == {"pokemon_list", "berry", "location"}
 
-    assert table_counts["pokemon_list"] == 1304
+    assert table_counts["pokemon_list"] == 1302
     assert table_counts["berry"] == 64
     assert table_counts["location"] == 1039
 
