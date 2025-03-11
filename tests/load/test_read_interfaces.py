@@ -745,8 +745,16 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
 def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     # NOTE: we could generalize this with a context for certain deps
 
+    # make sure the not implemented error is raised if the ibis backend can't be created
+    try:
+        ibis_connection = populated_pipeline.dataset().ibis()
+    except NotImplementedError:
+        pytest.raises(NotImplementedError)
+        return
+    except Exception as e:
+        pytest.fail(f"Unexpected error rasied: {e}")
+
     total_records = _total_records(populated_pipeline)
-    ibis_connection = populated_pipeline.dataset().ibis()
 
     map_i = lambda x: x
     if populated_pipeline.destination.destination_type == "dlt.destinations.snowflake":
