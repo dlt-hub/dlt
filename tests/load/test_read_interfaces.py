@@ -8,7 +8,6 @@ import pytest
 import dlt
 from dlt import Pipeline
 from dlt.common import Decimal
-from dlt.common.destination.typing import TDatasetType
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.file_storage import FileStorage
@@ -455,61 +454,6 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize("dataset_type", ["default", "ibis"])
-def test_dataset_load_id_retrieval(
-    populated_pipeline: Pipeline, dataset_type: TDatasetType
-) -> None:
-    successful_load_ids = populated_pipeline.list_completed_load_packages()
-    dataset = cast(
-        ReadableDBAPIDataset,
-        _dataset(
-            destination=populated_pipeline.destination,
-            dataset_name=populated_pipeline.dataset_name,
-            # use name otherwise aleph schema is loaded
-            schema=populated_pipeline.default_schema_name,
-            dataset_type=dataset_type,
-        ),
-    )
-    assert isinstance(dataset, ReadableDBAPIDataset)
-    if dataset_type == "ibis":
-        dataset = dataset.items  # type: ignore
-        assert isinstance(dataset, ReadableIbisRelation)
-
-    results = dataset.list_load_ids().fetchall()
-    load_ids = [r[0] for r in results]
-    assert set(load_ids) == set(successful_load_ids)
-    # check descending order
-    assert load_ids == sorted(successful_load_ids, reverse=True)
-
-    # check status kwarg
-    assert len(dataset.list_load_ids(status=1).fetchall()) == 0
-    assert len(dataset.list_load_ids(status=[0]).fetchall()) == len(successful_load_ids)
-    assert len(dataset.list_load_ids(status=[0, 1]).fetchall()) == len(successful_load_ids)
-    assert len(dataset.list_load_ids(status=[1, 2]).fetchall()) == 0
-
-    # check limit kwarg
-    assert dataset.list_load_ids(limit=0).fetchall() == []
-    # limit 1 should return the max value (i.e., sort before limit)
-    assert dataset.list_load_ids(limit=1).fetchall()[0][0] == max(successful_load_ids)
-    # 50 is larger than the expected number of `load_id`
-    assert len(dataset.list_load_ids(limit=50).fetchall()) == len(successful_load_ids)
-
-    # check latest_load_id, which is `list_load_ids(limit=1)` and unpacking the list
-    latest_load_id = dataset.latest_load_id().fetchall()[0][0]
-    assert latest_load_id == max(load_ids) == max(successful_load_ids)
-    # TODO we probably want this to return None or empty list?
-    # this would require query post-processing
-    assert dataset.latest_load_id(status=1).fetchall() == [(None,)]
-
-
-@pytest.mark.no_load
-@pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_limit_and_head(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset().items
 
@@ -854,6 +798,55 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     items_table = ibis_connection.table(add_table_prefix(map_i("items")), database=dataset_name)
     assert items_table.count().to_pandas() == total_records
     ibis_connection.disconnect()
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_dataset_load_id_retrieval(populated_pipeline: Pipeline) -> None:
+    successful_load_ids = populated_pipeline.list_completed_load_packages()
+    dataset = cast(
+        ReadableDBAPIDataset,
+        _dataset(
+            destination=populated_pipeline.destination,
+            dataset_name=populated_pipeline.dataset_name,
+            # use name otherwise aleph schema is loaded
+            schema=populated_pipeline.default_schema_name,
+            dataset_type="ibis",
+        ),
+    ).items
+    assert isinstance(dataset, ReadableIbisRelation)
+
+    results = dataset.list_load_ids().fetchall()
+    load_ids = [r[0] for r in results]
+    assert set(load_ids) == set(successful_load_ids)
+    # check descending order
+    assert load_ids == sorted(successful_load_ids, reverse=True)
+
+    # check status kwarg
+    assert len(dataset.list_load_ids(status=1).fetchall()) == 0
+    assert len(dataset.list_load_ids(status=[0]).fetchall()) == len(successful_load_ids)
+    assert len(dataset.list_load_ids(status=[0, 1]).fetchall()) == len(successful_load_ids)
+    assert len(dataset.list_load_ids(status=[1, 2]).fetchall()) == 0
+
+    # check limit kwarg
+    assert dataset.list_load_ids(limit=0).fetchall() == []
+    # limit 1 should return the max value (i.e., sort before limit)
+    assert dataset.list_load_ids(limit=1).fetchall()[0][0] == max(successful_load_ids)
+    # 50 is larger than the expected number of `load_id`
+    assert len(dataset.list_load_ids(limit=50).fetchall()) == len(successful_load_ids)
+
+    # check latest_load_id, which is `list_load_ids(limit=1)` and unpacking the list
+    latest_load_id = dataset.latest_load_id().fetchall()[0][0]
+    assert latest_load_id == max(load_ids) == max(successful_load_ids)
+    # TODO we probably want this to return None or empty list?
+    # this would require query post-processing
+    assert dataset.latest_load_id(status=1).fetchall() == [(None,)]
 
 
 @pytest.mark.no_load
