@@ -22,6 +22,7 @@ from dlt.common.configuration.specs import (
 )
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema import TTableSchemaColumns
+from dlt.common.schema.typing import TWriteDispositionConfig
 from dlt.common.typing import TDataItem, TSortOrder
 from dlt.common.jsonpath import extract_simple_field_name
 
@@ -408,3 +409,4 @@ class SqlTableResourceConfiguration(BaseConfiguration):
     defer_table_reflect: Optional[bool] = False
     reflection_level: Optional[ReflectionLevel] = "full"
     included_columns: Optional[List[str]] = None
+    write_disposition: TWriteDispositionConfig = {"disposition": "append"}
