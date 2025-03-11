@@ -8,7 +8,6 @@ from .toml import (
     CONFIG_TOML,
     SECRETS_TOML,
     StringTomlProvider,
-    CustomLoaderDocProvider,
 )
 from .doc import CustomLoaderDocProvider
 from .vault import SECRETS_TOML_KEY

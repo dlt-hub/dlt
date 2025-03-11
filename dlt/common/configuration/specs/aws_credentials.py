@@ -27,6 +27,8 @@ class AwsCredentialsWithoutDefaults(
     profile_name: Optional[str] = None
     region_name: Optional[str] = None
     endpoint_url: Optional[str] = None
+    s3_url_style: Optional[str] = None
+    """Only needed for duckdb sql_client s3 access, for minio this needs to be set to path for example."""
 
     def to_s3fs_credentials(self) -> Dict[str, Optional[str]]:
         """Dict of keyword arguments that can be passed to s3fs"""
