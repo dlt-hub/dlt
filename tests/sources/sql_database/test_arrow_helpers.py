@@ -207,7 +207,7 @@ def test_convert_to_arrow_cast_string_to_decimal():
     columns_schema: TTableSchemaColumns = {
         column_name: {"name": column_name, "data_type": "decimal"}
     }
-    rows = ["2.00001", "3.00001"]
+    rows = [("2.00001",), ("3.00001",)]
 
     columns = transpose_rows_to_columns(rows, columns_schema)
     arrow_array = convert_numpy_to_arrow(
