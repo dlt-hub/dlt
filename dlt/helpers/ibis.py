@@ -17,10 +17,10 @@ from dlt.destinations.impl.clickhouse.configuration import ClickHouseClientConfi
 from dlt.common.storages.configuration import FilesystemConfiguration
 
 try:
-    import ibis
+    import ibis  # type: ignore
     import sqlglot
     from ibis import BaseBackend
-    from ibis.expr.types import Table
+    from ibis.expr.types import Table  # type: ignore
 except ModuleNotFoundError:
     raise MissingDependencyException("dlt ibis helpers", ["ibis-framework"])
 
