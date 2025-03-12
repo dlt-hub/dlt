@@ -105,6 +105,8 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
             "doris",
             "risingwave",
             "starrocks",
+            "sqlite",
+            "mysql",
         ]:
             caps.sqlglot_dialect = backend_name
 
