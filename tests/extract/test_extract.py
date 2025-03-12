@@ -300,12 +300,12 @@ def test_extract_nested_hints(extract_step: Extract) -> None:
         "outer1": dict(
             columns={"outer1_id": {"name": "outer1_id", "data_type": outer1_id_new_type}}
         ),
-        "outer2": {},
         ("outer2", "innerbar"): dict(
             columns={
                 "innerbar_id": {"name": "innerbar_id", "data_type": outer2_innerbar_id_new_type}
             }
         ),
+        "outer2": {},  # should be sorted so comes before its child
     }
     nested_resource.apply_hints(nested_hints=nested_hints)
     assert nested_resource.nested_hints == nested_hints
@@ -340,6 +340,11 @@ def test_extract_nested_hints(extract_step: Extract) -> None:
         "parent": "with_nested_hints",
         "columns": {},
     }
+
+    source = DltSource(dlt.Schema("hintable"), "module", [nested_resource])
+    extract_step.extract(source, 20, 1)
+    # schema after extractions must be same as discovered schema
+    assert source.schema._schema_tables == pre_extract_schema._schema_tables
 
 
 def test_break_nesting_with_primary_key() -> None:

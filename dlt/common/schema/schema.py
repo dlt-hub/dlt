@@ -422,8 +422,7 @@ class Schema:
                     table_name,
                     parent_table_name,
                     "If you declared nested hints, make sure you added all intermediate tables,"
-                    " including those for which you do not declare any hints. Nested hints must be"
-                    " ordered so all parent tables are declared before nested tables.",
+                    " including those for which you do not declare any hints.",
                 )
         table = self._schema_tables.get(table_name)
         if table is None:

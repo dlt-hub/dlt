@@ -1014,7 +1014,7 @@ def new_table(
         table["table_format"] = table_format
     if file_format:
         table["file_format"] = file_format
-    if references is not None:
+    if references:
         table["references"] = references
     if resource:
         table["resource"] = resource

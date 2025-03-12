@@ -29,7 +29,7 @@ from dlt.common.schema.typing import (
     TTableReferenceParam,
 )
 
-from dlt.common.typing import TTableNames, TypedDict
+from dlt.common.typing import TTableNames, TypedDict, Unpack
 from dlt.common.schema.utils import (
     DEFAULT_WRITE_DISPOSITION,
     is_nested_table,
@@ -107,6 +107,10 @@ def table_schema_to_hints(table: TTableSchema) -> TResourceHints:
     # always remove resource
     table.pop("resource", None)
     return template
+
+
+def make_nested_hints(**hints: Unpack[TResourceNestedHints]) -> TResourceNestedHints:
+    return make_hints(**hints)
 
 
 def make_hints(
@@ -294,7 +298,7 @@ class DltResourceHints:
             root_table_template = self._hints_variants.get(root_table_name, self._hints)
         else:
             root_table_template = self._hints
-        # no nested hints if not table template
+        # no nested hints if no table template
         if root_table_template is None:
             return []
 
@@ -305,7 +309,11 @@ class DltResourceHints:
         nested_hints = self._resolve_hint(item, nested_hints)
 
         nested_table_schemas = []
-        for sub_path, hints in nested_hints.items():
+        # make sure shorter paths go first
+        sorted_items = sorted(
+            nested_hints.items(), key=lambda item: len(item[0]) if isinstance(item[0], tuple) else 1
+        )
+        for sub_path, hints in sorted_items:
             # both str and sequence is supported
             if isinstance(sub_path, str):
                 full_path: Tuple[str, ...] = (root_table_name, sub_path)
@@ -313,7 +321,7 @@ class DltResourceHints:
                 full_path = (root_table_name, *sub_path)
             table_name = naming.shorten_fragments(*full_path)
             nested_table_template = self._clone_hints(hints)
-            # TODO: code duplication
+
             resolved_template: TResourceHints = {
                 k: self._resolve_hint(item, v)
                 for k, v in nested_table_template.items()
