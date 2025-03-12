@@ -348,7 +348,7 @@ print(info)
 ```
 With the dataset above and a local PostgreSQL instance, the `ConnectorX` backend is 2x faster than the `PyArrow` backend.
 
-### Arguments for `sql_database` source
+## Arguments for `sql_database` source
 The following arguments can be used with the `sql_database` source:
     
     `credentials` (Union[ConnectionStringCredentials, Engine, str]): Database credentials or an `sqlalchemy.Engine` instance.
