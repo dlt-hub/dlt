@@ -61,9 +61,9 @@ class AzureCredentialsWithoutDefaults(AzureCredentialsBase, WithPyicebergConfig)
 
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
         return {
-            "adlfs.account-name": self.azure_storage_account_name,
-            "adlfs.account-key": self.azure_storage_account_key,
-            "adlfs.sas-token": self.azure_storage_sas_token,
+            "adls.account-name": self.azure_storage_account_name,
+            "adls.account-key": self.azure_storage_account_key,
+            "adls.sas-token": self.azure_storage_sas_token,
         }
 
     def create_sas_token(self) -> None:
@@ -105,10 +105,10 @@ class AzureServicePrincipalCredentialsWithoutDefaults(AzureCredentialsBase, With
 
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
         return {
-            "adlfs.account-name": self.azure_storage_account_name,
-            "adlfs.tenant-id": self.azure_tenant_id,
-            "adlfs.client-id": self.azure_client_id,
-            "adlfs.client-secret": self.azure_client_secret,
+            "adls.account-name": self.azure_storage_account_name,
+            "adls.tenant-id": self.azure_tenant_id,
+            "adls.client-id": self.azure_client_id,
+            "adls.client-secret": self.azure_client_secret,
         }
 
 
