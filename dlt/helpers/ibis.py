@@ -7,10 +7,10 @@ from dlt.common.schema import Schema
 from dlt.destinations.sql_client import SqlClientBase
 
 try:
-    import ibis
+    import ibis  # type: ignore
     import sqlglot
     from ibis import BaseBackend
-    from ibis.expr.types import Table
+    from ibis.expr.types import Table  # type: ignore
 except ModuleNotFoundError:
     raise MissingDependencyException("dlt ibis helpers", ["ibis-framework"])
 
