@@ -70,6 +70,7 @@ const sidebars = {
           items: [
             'plus/getting-started/installation',
             'plus/getting-started/tutorial',
+            'plus/getting-started/transformations',
           ]
         },
         {
