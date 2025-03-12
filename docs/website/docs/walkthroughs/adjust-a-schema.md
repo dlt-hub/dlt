@@ -36,8 +36,8 @@ schemas
     |---export/
 ```
 
-Rather than providing the paths in the `dlt.pipeline` function, you can also set them
-in the `config.toml` file:
+Rather than providing the paths in the `dlt.pipeline` function, you can also set them at 
+the beginning of the `config.toml` file:
 
 ```toml
 export_schema_path="schemas/export"
@@ -74,10 +74,11 @@ You should keep the import schema as simple as possible and let `dlt` do the res
 In the next steps, we'll experiment a lot; you will be warned to set `dev_mode=True` until we are done experimenting.
 
 :::caution
-`dlt` will **not modify** tables after they are created.
-So if you have a YAML file, and you change it (e.g., change a data type or add a hint),
-then you need to **delete the dataset**
-or set `dev_mode=True`:
+dlt does **not modify** existing columns in a table after creation. While new columns can be added, changes to existing 
+columns (such as altering data types or adding hints) will not take effect automatically.
+
+If you modify a YAML schema file, you must either delete the dataset, enable `dev_mode=True`, or use one of the Pipeline 
+[Refresh options](../general-usage/pipeline#refresh-pipeline-data-and-state) to apply the changes.
 ```py
 dlt.pipeline(
     import_schema_path="schemas/import",
