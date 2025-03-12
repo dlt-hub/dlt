@@ -8,6 +8,8 @@ from dlt.common.schema.typing import (
     TColumnHint,
     TColumnSchema,
     TColumnSchemaBase,
+    TAnySchemaColumns,
+    TTableFormat,
 )
 from dlt.common.schema.typing import COLUMN_HINTS
 from dlt.common.schema.schema import Schema, DEFAULT_SCHEMA_CONTRACT_MODE
@@ -23,6 +25,8 @@ __all__ = [
     "TColumnHint",
     "TColumnSchema",
     "TColumnSchemaBase",
+    "TAnySchemaColumns",
+    "TTableFormat",
     "COLUMN_HINTS",
     "Schema",
     "verify_schema_hash",
