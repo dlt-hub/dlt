@@ -10,6 +10,7 @@ from tests.pipeline.utils import load_table_counts
 from dlt.extract.hints import make_hints
 
 
+# TODO: use destination config and only select duckdb for now
 def test_simple_model_jobs() -> None:
     # populate a table with 10 items and retrieve dataset
     pipeline = dlt.pipeline(
@@ -54,3 +55,22 @@ def test_simple_model_jobs() -> None:
         "_dlt_id",
         "_dlt_load_id",
     }
+
+
+def test_write_dispositions() -> None:
+    # TODO: test wether models are written into the correct tables (sometimes staging tables) and
+    # wether the merge and replace strategies are applied correctly
+    pass
+
+
+def test_insert_less_columns() -> None:
+    # TODO: test what happens if the selected schema is a subset of the target table schema
+    # maybe it works, maybe it won't...
+    pass
+
+
+def test_multiple_statments_per_resource() -> None:
+    # TODO: test what happens if a resource yields multiple statements
+    # they should all be executed and each should produce its own file
+    # after extraction
+    pass
