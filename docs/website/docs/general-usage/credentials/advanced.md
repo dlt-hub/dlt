@@ -219,7 +219,7 @@ argument is required and must be passed explicitly or must exist in the configur
 In the example above:
 - `spreadsheet_id` is a **required config** argument.
 - `tab_names` is a **required config** argument.
-- `credentials` is a **required secret** argument (Google Sheets credentials as a dictionary ({"private_key": ...})).
+- `credentials` is a **required secret** argument (Google Sheets credentials as a dictionary (\{"private_key": ...\})).
 - `only_strings` is an **optional config** argument with a default value. It may be specified when calling the `google_sheets` function or included in the configuration settings.
 
 :::tip

@@ -3,10 +3,8 @@ from datetime import datetime, date  # noqa: I251
 import inspect
 import os
 from re import Pattern as _REPattern
-import sys
 from types import FunctionType
 from typing import (
-    ForwardRef,
     Callable,
     ClassVar,
     Dict,
@@ -19,8 +17,6 @@ from typing import (
     Optional,
     Tuple,
     Type,
-    TypeVar,
-    Generic,
     Protocol,
     TYPE_CHECKING,
     Union,
@@ -33,6 +29,7 @@ from typing import (
 )
 
 from typing_extensions import (
+    ForwardRef,
     Annotated,
     Never,
     ParamSpec,
@@ -40,7 +37,11 @@ from typing_extensions import (
     Concatenate,
     Unpack,
     Self,
+    Generic,
     get_args,
+    TypeVar,
+    get_origin,
+    get_type_hints,
     get_origin,
     get_original_bases,
 )

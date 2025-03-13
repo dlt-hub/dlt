@@ -145,7 +145,7 @@ This should print out JSON data containing the issues in the GitHub project.
 
 It also prints the `load_info` object.
 
-Let's explore the loaded data with the [command](../reference/command-line-interface#show-tables-and-data-in-the-destination) `dlt pipeline <pipeline_name> show`.
+Let's explore the loaded data with the [command](../reference/command-line-interface#dlt-pipeline-show) `dlt pipeline <pipeline_name> show`.
 
 :::info
 Make sure you have `streamlit` installed: `pip install streamlit`

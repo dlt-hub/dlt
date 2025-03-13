@@ -61,7 +61,7 @@ class GoogleDriveFileSystem(AbstractFileSystem):
     ):
         """Google Drive as a file-system.
 
-        The gdrive url has following format: gdrive://<root_file_id/<file_path>
+        The gdrive url has following format: gdrive://<root_file_id>/<file_path>
         Where <root_file_id> is a file id of the folder where the <file_path> is present.
 
         Google Drive provides consistency when file ids are used. Changes are reflected immediately.

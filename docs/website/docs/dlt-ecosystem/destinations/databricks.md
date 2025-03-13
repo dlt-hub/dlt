@@ -88,8 +88,8 @@ If you already have your Databricks workspace set up, you can skip to the [Loade
 ## Authentication
 
 `dlt` currently supports two options for authentication:
-1. [OAuth2](#oauth) (recommended) allows you to authenticate to Databricks using a service principal via OAuth2 M2M.
-2. [Access token](#access_token) approach using a developer access token. This method may be deprecated in the future by Databricks.
+1. [OAuth2](#using-oauth2) (recommended) allows you to authenticate to Databricks using a service principal via OAuth2 M2M.
+2. [Access token](#using-access-token) approach using a developer access token. This method may be deprecated in the future by Databricks.
 
 ### Using OAuth2
 

@@ -44,9 +44,9 @@ You can load data from three types of Zendesk services, which are:
 
 Zendesk support can be authenticated using one of the following three methods:
 
-- Method 1 ([subdomain](#subdomain) + email address + password)
-- Method 2 ([subdomain](#subdomain) + email address + [API token](#grab-zendesk-support-api-token))
-- Method 3 ([subdomain](#subdomain) + [OAuth token](#zendesk-support-oauth-token))
+- Method 1 ([subdomain](#grab-subdomain) + email address + password)
+- Method 2 ([subdomain](#grab-subdomain) + email address + [API token](#grab-zendesk-support-api-token))
+- Method 3 ([subdomain](#grab-subdomain) + [OAuth token](#grab-zendesk-support-oauth-token))
 
 The simplest way to authenticate is via subdomain + email address + password, since these details
 are already available and you don't have to generate any tokens. Alternatively, you can also use API
@@ -105,7 +105,7 @@ Here's a summarized version:
 
 Zendesk chat can be authenticated using this method:
 
-- Method 1 ([subdomain](#subdomain-1) + [Chat OAuth token](#zendesk-chat-oauth-token))
+- Method 1 ([subdomain](#subdomain) + [Chat OAuth token](#grab-zendesk-chat-oauth-token))
   > Note: OAuth tokens for Zendesk chat and support differ, requiring separate generation
   > procedures.
 
@@ -195,7 +195,7 @@ For more information, read the guide on [how to add a verified source.](../../wa
 
       - Method 1 ([subdomain](#subdomain) + email address + password)
       - Method 2 ([subdomain](#subdomain) + email address + [API token](#grab-zendesk-support-api-token))
-      - Method 3 ([subdomain](#subdomain) + [OAuth token](#zendesk-support-oauth-token))
+      - Method 3 ([subdomain](#subdomain) + [OAuth token](#grab-zendesk-support-oauth-token))
 
     To load data from Zendesk Chat, use the following method for authentication:
       - Method 1 ([subdomain](#subdomain) + [OAuth token](#grab-zendesk-chat-oauth-token))

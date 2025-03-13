@@ -1,9 +1,5 @@
 # Datasets
 
-import Link from '../../_plus_admonition.md';
-
-<Link/>
-
 A dataset is a physical collection of data and dlt metadata, including the schema on a destination. One destination can have multiple datasets; for now, datasets are bound to a physical destination, but this may change in future iterations.
 
 By treating datasets as individual entities, dlt+ enables data cataloging and data governance.

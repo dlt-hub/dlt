@@ -4,9 +4,6 @@ description: Run local transformations with dlt+ Cache
 keywords: ["dlt+", "transformations", "cache", "dbt"]
 ---
 import DocCardList from '@theme/DocCardList';
-import Link from '../../../_plus_admonition.md';
-
-<Link/>
 
 As part of dlt+, we provide a local transformation [cache](../../core-concepts/cache.md) — a staging layer for data transformations allowing you to test, validate, and debug data pipelines without running everything in the warehouse. With local transformations, you can:
 

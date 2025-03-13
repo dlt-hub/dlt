@@ -12,14 +12,23 @@ class DltProcessor(SmartProcessor):
 
         # join long lines ending in escape (\)
         c = sub(r"\\\n\s*", "", node.docstring.content)
+
         # remove markdown headers
         c = sub(r"^#### (.*?)$", r"\1", c)
+
         # convert REPL code blocks to code
         c = sub(r"^(\s*>>>|\.\.\.)(.*?)$", r"```\n\1\2\n```", c)
         c = sub(r"^(\s*>>>|\.\.\.)(.*?)\n```\n```\n(\s*>>>|\.\.\.)", r"\1\2\n\3", c)
         c = sub(r"^(\s*>>>|\.\.\.)(.*?)\n```\n```\n(\s*>>>|\.\.\.)", r"\1\2\n\3", c)
         c = sub(r"^(\s*```)(\n\s*>>>) ", r"\1py\2", c)
         c = sub(r"(\n\s*)(>>> ?)", r"\1", c)
+
+        # escape characters that are special characters in mdx
+        c = c.replace("<", "&lt;")
+        c = c.replace(">", "&gt;")
+        c = c.replace("{", "&#123;")
+        c = c.replace("}", "&#125;")
+
         node.docstring.content = c
 
         return super()._process(node)

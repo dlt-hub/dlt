@@ -1,4 +1,6 @@
-from typing import Literal, Set, get_args
+from typing import Literal, Set
+
+from dlt.common.typing import get_args
 
 
 TDataType = Literal[

@@ -112,11 +112,17 @@ class FilesystemSqlClient(DuckDbSqlClient):
             session_token = (
                 "" if aws_creds.aws_session_token is None else aws_creds.aws_session_token
             )
-            endpoint = (
-                aws_creds.endpoint_url.replace("https://", "")
-                if aws_creds.endpoint_url
-                else "s3.amazonaws.com"
-            )
+
+            use_ssl = "true"
+            endpoint = "s3.amazonaws.com"
+            if aws_creds.endpoint_url and "http://" in aws_creds.endpoint_url:
+                use_ssl = "false"
+                endpoint = aws_creds.endpoint_url.replace("http://", "")
+            elif aws_creds.endpoint_url and "https://" in aws_creds.endpoint_url:
+                endpoint = aws_creds.endpoint_url.replace("https://", "")
+
+            s3_url_style = aws_creds.s3_url_style or "vhost"
+
             self._conn.sql(f"""
             CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                 TYPE S3,
@@ -125,7 +131,9 @@ class FilesystemSqlClient(DuckDbSqlClient):
                 SESSION_TOKEN '{session_token}',
                 REGION '{aws_creds.region_name}',
                 ENDPOINT '{endpoint}',
-                SCOPE '{scope}'
+                SCOPE '{scope}',
+                URL_STYLE '{s3_url_style}',
+                USE_SSL {use_ssl}
             );""")
 
         # azure with storage account creds

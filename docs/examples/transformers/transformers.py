@@ -9,8 +9,8 @@ For this example, we will be loading Pokemon data from the [PokeAPI](https://pok
 Pokemon details in parallel.
 
 We'll learn how to:
-- create 2 [transformers](../general-usage/resource.md#feeding-data-from-one-resource-into-another) and connect them to a resource with the pipe operator `|`;
-- [load these transformers in parallel](../reference/performance.md#parallelism) using the `@dlt.defer` decorator;
+- create 2 [transformers](../general-usage/resource.md#process-resources-with-dlttransformer) and connect them to a resource with the pipe operator `|`;
+- [load these transformers in parallel](../reference/performance.md#parallelism-within-a-pipeline) using the `@dlt.defer` decorator;
 - [configure parallelism](../reference/performance.md#parallel-pipeline-config-example) in the `config.toml` file;
 - deselect the main resource, so it will not be loaded into the database;
 - importing and using a pre-configured `requests` library with automatic retries (`from dlt.sources.helpers import requests`).

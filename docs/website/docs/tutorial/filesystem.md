@@ -167,7 +167,7 @@ files = filesystem(
 As you can see, all parameters of `filesystem` can be specified directly in the code or taken from the configuration.
 
 :::tip
-dlt supports more ways of authorizing with cloud storages, including identity-based and default credentials. To learn more about adding credentials to your pipeline, please refer to the [Configuration and secrets section](../general-usage/credentials/complex_types#aws-credentials).
+dlt supports more ways of authorizing with cloud storages, including identity-based and default credentials. To learn more about adding credentials to your pipeline, please refer to the [Configuration and secrets section](../general-usage/credentials/complex_types#awscredentials).
 :::
 
 ## 4. Running the pipeline

@@ -305,7 +305,8 @@ const sidebars = {
             'dlt-ecosystem/transformations/sql',
             'general-usage/customising-pipelines/renaming_columns',
             'general-usage/customising-pipelines/pseudonymizing_columns',
-            'general-usage/customising-pipelines/removing_columns'
+            'general-usage/customising-pipelines/removing_columns',
+            'dlt-ecosystem/transformations/encryption'
           ]
         },
         {
@@ -394,7 +395,13 @@ const sidebars = {
         },
       ]
     },
-    'reference/performance',
+    {
+      type: 'category',
+      label: 'Optimizing dlt',
+      items: [
+        'reference/performance',
+      ],
+    },
     {
       type: 'category',
       label: 'Code examples',

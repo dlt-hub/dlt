@@ -12,14 +12,19 @@ from typing import (
     Type,
     NewType,
     Union,
-    get_args,
 )
 from typing_extensions import Never
 
-from dlt.common.typing import TypedDict
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
-from dlt.common.typing import TSortOrder, TAnyDateTime, TLoaderFileFormat, TColumnNames
+from dlt.common.typing import (
+    TSortOrder,
+    TAnyDateTime,
+    TLoaderFileFormat,
+    TColumnNames,
+    TypedDict,
+    get_args,
+)
 
 try:
     from pydantic import BaseModel as _PydanticBaseModel

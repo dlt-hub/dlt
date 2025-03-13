@@ -7,11 +7,11 @@ from typing import (
     Any,
     Generic,
     Tuple,
-    cast,
     overload,
+    ClassVar,
+    Type,
 )
 from typing_extensions import Self, TypeVar
-from typing import Dict, Type, ClassVar
 
 from dlt.common import logger
 from dlt.common.configuration.specs import BaseConfiguration, known_sections
