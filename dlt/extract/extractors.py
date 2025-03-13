@@ -62,7 +62,7 @@ class ImportFileMeta(HintsMeta):
         hints: TResourceHints = None,
         create_table_variant: bool = None,
     ) -> None:
-        super().__init__(hints, create_table_variant)
+        super().__init__(hints=hints, create_table_variant=create_table_variant)
         self.file_path = file_path
         self.metrics = metrics
         self.file_format = file_format
@@ -300,6 +300,12 @@ class Extractor:
 
 class ObjectExtractor(Extractor):
     """Extracts Python object data items into typed jsonl"""
+
+    pass
+
+
+class TextExtractor(Extractor):
+    """Extracts text items and writes them row by row into a text file"""
 
     pass
 
