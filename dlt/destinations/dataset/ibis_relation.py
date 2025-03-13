@@ -19,13 +19,10 @@ except MissingDependencyException:
 
 # NOTE: some dialects are not supported by ibis, but by sqlglot, these need to
 # be transpiled with an intermediary step
-TRANSPILE_VIA_MAP = {
-    "tsql": "postgres",
-    "databricks": "postgres",
-    "clickhouse": "postgres",
-    "redshift": "postgres",
-    "presto": "postgres",
-}
+TRANSPILE_VIA_DEFAULT = [
+    "redshift",
+    "presto",
+]
 
 
 class ReadableIbisRelation(BaseReadableDBAPIRelation):
@@ -48,13 +45,17 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         target_dialect = self._dataset._destination.capabilities().sqlglot_dialect
 
         # render sql directly if possible
-        if target_dialect not in TRANSPILE_VIA_MAP:
-            return ibis.to_sql(self._ibis_object, dialect=target_dialect)
+        if target_dialect not in TRANSPILE_VIA_DEFAULT:
+            if target_dialect == "tsql":
+                # NOTE: Ibis uses the product name "mssql" as the dialect instead of the official "tsql".
+                return ibis.to_sql(self._ibis_object, dialect="mssql")
+            else:
+                return ibis.to_sql(self._ibis_object, dialect=target_dialect)
 
-        # here we need to transpile first
-        transpile_via = TRANSPILE_VIA_MAP[target_dialect]
-        sql = ibis.to_sql(self._ibis_object, dialect=transpile_via)
-        sql = sqlglot.transpile(sql, read=transpile_via, write=target_dialect)[0]
+        # here we need to transpile to ibis default and transpile back to target with sqlglot
+        # NOTE: ibis defaults to the default pretty dialect, if a dialect is not passed
+        sql = ibis.to_sql(self._ibis_object)
+        sql = sqlglot.transpile(sql, write=target_dialect)[0]
         return sql
 
     @property
