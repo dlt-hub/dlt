@@ -115,7 +115,7 @@ class SqlLoadJob(RunnableLoadJob):
 
 class ModelLoadJob(RunnableLoadJob):
     """
-    A job to insert rows into a table from a model file which contains a list of select statements
+    A job to insert rows into a table from a model file which contains a single select statement
     """
 
     def __init__(self, file_path: str) -> None:
@@ -124,9 +124,21 @@ class ModelLoadJob(RunnableLoadJob):
 
     def run(self) -> None:
         with FileStorage.open_zipsafe_ro(self._file_path, "r", encoding="utf-8") as f:
-            sql = f.read()
-        self._sql_client = self._job_client.sql_client
-        self._sql_client.execute_sql(sql)
+            select_statement = f.read()
+
+        sql_client = self._job_client.sql_client
+        insert_statement = self._insert_statement_from_select_statement(select_statement)
+        sql_client.execute_sql(insert_statement)
+
+    def _insert_statement_from_select_statement(self, select_statement: str) -> str:
+        """
+        NOTE: Here we generate an insert statement from a select statement, this is the duckdb
+        dialect, we may be able to transpile with sqlglot for each destination or we need
+        to subclass and override this method.
+        """
+        sql_client = self._job_client.sql_client
+        name = sql_client.make_qualified_table_name(self._load_table["name"])
+        return f"INSERT INTO {name} {select_statement};"
 
     @staticmethod
     def is_model_job(file_path: str) -> bool:
