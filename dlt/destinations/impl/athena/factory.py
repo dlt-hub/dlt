@@ -140,6 +140,8 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
         caps.merge_strategies_selector = athena_merge_strategies_selector
+        caps.sqlglot_dialect = "athena"
+
         return caps
 
     @property

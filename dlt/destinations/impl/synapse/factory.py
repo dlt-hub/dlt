@@ -102,6 +102,8 @@ class synapse(Destination[SynapseClientConfiguration, "SynapseClient"]):
         caps.supported_merge_strategies = ["delete-insert", "scd2"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
 
+        caps.sqlglot_dialect = "tsql"
+
         return caps
 
     @property

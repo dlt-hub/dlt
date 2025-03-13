@@ -126,6 +126,8 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
             "insert-from-staging",
             "staging-optimized",
         ]
+        caps.sqlglot_dialect = "snowflake"
+
         return caps
 
     @property

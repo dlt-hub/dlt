@@ -141,6 +141,8 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
         caps.supported_merge_strategies = ["delete-insert", "scd2"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
 
+        caps.sqlglot_dialect = "clickhouse"
+
         return caps
 
     @property

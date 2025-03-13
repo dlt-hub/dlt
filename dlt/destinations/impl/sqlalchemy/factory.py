@@ -83,12 +83,40 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         caps.max_column_identifier_length = dialect.max_identifier_length
         caps.supports_native_boolean = dialect.supports_native_boolean
 
-        # TODO: define capabilities per dialect, we can also add alchemy_dialect settings to caps
         if dialect.name == "mysql" or backend_name in ("mysql", "mariadb"):
             # correct max identifier length
             # dialect uses 255 (max length for aliases) instead of 64 (max length of identifiers)
             caps.max_identifier_length = 64
             caps.format_datetime_literal = _format_mysql_datetime_literal
+            caps.sqlglot_dialect = "mysql"
+
+        elif backend_name in [
+            "oracle",
+            "redshift",
+            "drill",
+            "druid",
+            "presto",
+            "hive",
+            "trino",
+            "clickhouse",
+            "databricks",
+            "bigquery",
+            "snowflake",
+            "doris",
+            "risingwave",
+            "starrocks",
+            "sqlite",
+        ]:
+            caps.sqlglot_dialect = backend_name
+
+        elif backend_name == "postgresql":
+            caps.sqlglot_dialect = "postgres"
+        elif backend_name == "awsathena":
+            caps.sqlglot_dialect = "athena"
+        elif backend_name == "mssql":
+            caps.sqlglot_dialect = "tsql"
+        elif backend_name == "teradatasql":
+            caps.sqlglot_dialect = "teradata"
 
         return caps
 
