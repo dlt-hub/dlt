@@ -43,6 +43,7 @@ from dlt.extract.items import TFunHintTemplate, TTableHintTemplate, TableNameMet
 from dlt.extract.items_transform import ValidateItem
 from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_columns_hint
 from dlt.extract.validation import create_item_validator
+from dlt.common.data_writers import TDataItemFormat
 
 
 class TResourceHintsBase(TypedDict, total=False):
@@ -68,11 +69,17 @@ class TResourceHints(TResourceHintsBase, total=False):
 
 
 class HintsMeta:
-    __slots__ = ("hints", "create_table_variant")
+    __slots__ = ("hints", "create_table_variant", "data_item_format")
 
-    def __init__(self, hints: TResourceHints, create_table_variant: bool) -> None:
+    def __init__(
+        self,
+        hints: TResourceHints,
+        create_table_variant: bool,
+        data_item_format: TDataItemFormat = None,
+    ) -> None:
         self.hints = hints
         self.create_table_variant = create_table_variant
+        self.data_item_format = data_item_format
 
 
 NATURAL_CALLABLES = ["incremental", "validator", "original_columns"]
