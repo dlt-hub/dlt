@@ -914,6 +914,30 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
+def test_ibis_column_selection(populated_pipeline: Pipeline) -> None:
+    import ibis.expr.types as ir  # type: ignore
+
+    rel = populated_pipeline.dataset(dataset_type="ibis").items
+
+    table_expr = [rel[["id"]], rel["id", "decimal"], rel[["id", "decimal"]]]
+    for t in table_expr:
+        assert isinstance(t, ReadableIbisRelation)
+        assert isinstance(t._ibis_object, ir.Table)
+
+    col_expr = [rel.id, rel["id"]]
+    for c in col_expr:
+        assert isinstance(c, ReadableIbisRelation)
+        assert isinstance(c._ibis_object, ir.Column)
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
 def test_dataset_load_id_retrieval(populated_pipeline: Pipeline) -> None:
     successful_load_ids = populated_pipeline.list_completed_load_packages()
     dataset = cast(
