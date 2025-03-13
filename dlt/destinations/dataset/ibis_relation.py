@@ -260,10 +260,21 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         return load_table.load_id.max()  # type: ignore
 
     def filter_by_load_ids(self, load_ids: Union[str, list[str]]) -> "ReadableIbisRelation":
-        """Filter on matching `load_ids`."""
+        """Filter on matching `load_ids`.
+
+        Note. Avoid filtering `_dlt_load_id` on the root table because it could include orphan rows.
+        We need to filter the `_dlt_loads` table to include only successfuly joings, then join
+        with current table.
+        """
         load_ids = [load_ids] if isinstance(load_ids, str) else load_ids
+        load_table = self._dataset.table(self.schema.loads_table_name)
+        load_table = load_table.filter(load_table["load_id"].isin(load_ids))
         table = self._join_to_root_table()
-        return table.filter(table[C_DLT_LOAD_ID].isin(load_ids))  # type: ignore
+        joined_table = table.inner_join(
+            load_table,
+            table[C_DLT_LOAD_ID] == load_table["load_id"],
+        )
+        return joined_table.select(table)  # type: ignore
 
     def filter_by_latest_load_id(
         self, status: Union[int, list[int], None] = 0
@@ -271,14 +282,29 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         """Filter on the most recent `load_id` with a specific load status.
 
         If `status` is None, don't filter by status.
+
+        Note. Avoid filtering `_dlt_load_id` on the root table because it could include orphan rows.
+        We need to filter the `_dlt_loads` table to include only successfuly joings, then join
+        with current table.
         """
+        load_table = self._dataset.table(self.schema.loads_table_name)
+        load_table = load_table.filter(load_table["load_id"] == self.latest_load_id(status=status))
         table = self._join_to_root_table()
-        return table.filter(table[C_DLT_LOAD_ID] == self.latest_load_id(status=status))  # type: ignore
+        joined_table = table.inner_join(
+            load_table,
+            table[C_DLT_LOAD_ID] == load_table["load_id"],
+        )
+        return joined_table.select(table)  # type: ignore
 
     def filter_by_load_status(
         self, status: Union[int, list[int], None] = 0
     ) -> "ReadableIbisRelation":
-        """Filter to rows with a specific load status."""
+        """Filter to rows with a specific load status.
+
+        Note. Avoid filtering `_dlt_load_id` on the root table because it could include orphan rows.
+        We need to filter the `_dlt_loads` table to include only successfuly joings, then join
+        with current table.
+        """
         if status is None:
             return self
 
@@ -289,6 +315,13 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
     def filter_by_load_id_gt(
         self, load_id: str, status: Union[int, list[int], None] = 0
     ) -> "ReadableIbisRelation":
+        """Filter to rows with a more recent load_id than input value. Can filter to load_id with matching
+        status.
+
+        Note. Avoid filtering `_dlt_load_id` on the root table because it could include orphan rows.
+        We need to filter the `_dlt_loads` table to include only successfuly joings, then join
+        with current table.
+        """
         load_table = self._dataset.table(self.schema.loads_table_name)
 
         conditions = [load_table["load_id"] > load_id]  # type: ignore
