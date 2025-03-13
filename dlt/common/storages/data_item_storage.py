@@ -27,8 +27,11 @@ class DataItemStorage(ABC):
         writer = self.buffered_writers.get(writer_id, None)
         if not writer:
             # assign a writer for each table
+            kwargs = {}
+            if self.writer_spec.file_max_items:
+                kwargs["file_max_items"] = self.writer_spec.file_max_items
             path = self._get_data_item_path_template(load_id, schema_name, table_name)
-            writer = BufferedDataWriter(self.writer_spec, path)
+            writer = BufferedDataWriter(self.writer_spec, path, **kwargs)
             self.buffered_writers[writer_id] = writer
         return writer
 

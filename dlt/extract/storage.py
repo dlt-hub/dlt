@@ -50,6 +50,9 @@ class ExtractStorage(NormalizeStorage):
             "arrow": ExtractorItemStorage(
                 self.new_packages, DataWriter.writer_spec_from_file_format("parquet", "arrow")
             ),
+            "model": ExtractorItemStorage(
+                self.new_packages, DataWriter.writer_spec_from_file_format("model", "model")
+            ),
         }
 
     def create_load_package(self, schema: Schema, reuse_exiting_package: bool = True) -> str:

@@ -43,6 +43,8 @@ from dlt.extract.items import (
     SupportsPipe,
 )
 
+from dlt.common.schema.typing import TFileFormat
+
 try:
     from dlt.common.libs import pydantic
 except MissingDependencyException:
@@ -60,7 +62,7 @@ except MissingDependencyException:
     pandas = None
 
 
-def get_data_item_format(items: TDataItems) -> TDataItemFormat:
+def get_data_item_format(items: TDataItems, meta: Any = None) -> TDataItemFormat:
     """Detect the format of the data item from `items`.
 
     Reverts to `object` for empty lists
@@ -68,6 +70,13 @@ def get_data_item_format(items: TDataItems) -> TDataItemFormat:
     Returns:
         The data file format.
     """
+
+    # if incoming item is hints meta, check if item format is forced
+    from dlt.extract.hints import HintsMeta
+
+    if isinstance(meta, HintsMeta) and meta.data_item_format:
+        return meta.data_item_format
+
     if not pyarrow and not pandas:
         return "object"
 

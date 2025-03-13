@@ -152,7 +152,7 @@ def verify_supported_data_types(
     for parsed_file in new_jobs:
         formats = table_file_formats.setdefault(parsed_file.table_name, set())
         if parsed_file.file_format in LOADER_FILE_FORMATS:
-            formats.add(parsed_file.file_format)  # type: ignore[arg-type]
+            formats.add(parsed_file.file_format)
     # all file formats
     all_file_formats = set(capabilities.supported_loader_file_formats or []) | set(
         capabilities.supported_staging_file_formats or []
