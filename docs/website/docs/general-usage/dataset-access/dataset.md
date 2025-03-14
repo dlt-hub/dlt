@@ -120,7 +120,7 @@ for items_chunk in items_relation.iter_fetch(chunk_size=500):
 The methods available on the ReadableRelation correspond to the methods available on the cursor returned by the SQL client. Please refer to the [SQL client](./sql-client.md#supported-methods-on-the-cursor) guide for more information.
 
 ## Special queries
-
+### `row_counts()`
 You can use the `row_counts` method to get the row counts of all tables in the destination as a DataFrame.
 
 ```py
@@ -129,6 +129,54 @@ print(dataset.row_counts().df())
 
 # or as tuples
 print(dataset.row_counts().fetchall())
+```
+
+### Retrieve `load_id` values
+Each pipeline run is associated with a `load_id`. These values are stored in the dlt loads table. Convenience queries are available to retrieve its content. By default, they only return `load_id` for successful loads.
+
+:::note
+Requires the `ibis-framework` dependency.
+:::
+
+```py
+# returns list of load ids from recent to old
+dataset.list_load_ids().fetchall()
+
+# filter based on status and set a limit
+# this retrieves the latest five successful load
+dataset.list_load_ids(status=0, limit=5)
+
+# retrieve the latest load_id only; can also filter based on status
+dataset.latest_load_id(status=...)
+```
+
+### Select by `load_id`
+The dlt loads table and its `load_id` column can be used to filter root tables on their `_dlt_load_id` column. To join a nested table, it needs to have [a `root_key` set](../incremental-loading.md#forcing-root-key-propagation).
+
+This allows you to select rows in a dataset associated with a particular load. This is convenient for backfills and incremental transformations on loaded data.
+
+:::note
+Requires the `ibis-framework` dependency.
+:::
+
+
+```py
+# retrieve load_ids from a previously ran pipeline
+pipeline = dlt.pipeline(pipeline_name="my-pipeline")
+successful_load_ids = pipeline.list_completed_load_packages()
+
+# select rows associated with specified load_ids
+dataset.filter_by_load_ids(["load-id-1", "load-id-2"])
+
+# select rows from latest load_id, optionally filter using status
+dataset.filter_by_latest_load_id(status=...)
+
+# select rows with a specific status
+dataset.filter_by_load_status(status=0)
+
+# select rows for loads more recent than `load_id`
+# optionally filter using status
+dataset.filter_by_load_id_gt(load_id="load-id-1", status=...)
 ```
 
 ## Modifying queries
@@ -154,12 +202,12 @@ df = items_relation.head().df()
 # Select only 'col1' and 'col2' columns
 items_list = items_relation.select("col1", "col2").fetchall()
 
-# Alternate notation with brackets
+# Alternative: pass a list of column names
 items_list = items_relation[["col1", "col2"]].fetchall()
 
-# Only get one column
+# Alternative: pass column names directly
+items_list = items_relation["col1", "col2"].fetchall()
 items_list = items_relation["col1"].fetchall()
-
 ```
 
 ### Chain operations
