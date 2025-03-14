@@ -992,6 +992,7 @@ def test_dataset_load_id_retrieval(populated_pipeline: Pipeline) -> None:
 def test_ibis_filter_load_ids(pipeline_with_multiple_loads: Pipeline) -> None:
     import ibis
 
+    total_records = _total_records(pipeline_with_multiple_loads)
     load_ids = pipeline_with_multiple_loads.list_completed_load_packages()
     load_df = pipeline_with_multiple_loads.dataset(dataset_type="ibis")._dlt_loads.df()
 
@@ -1004,13 +1005,13 @@ def test_ibis_filter_load_ids(pipeline_with_multiple_loads: Pipeline) -> None:
     filtered_df = filtered_rel.df()
     assert isinstance(filtered_rel, ReadableIbisRelation)
     assert schema.equals(filtered_rel._ibis_object.schema())
-    assert len(filtered_df.index) == 3000
+    assert filtered_rel.count() == total_records * 1
     assert (filtered_df.expected_load_id == 0).all()
     assert (filtered_df._dlt_load_id == load_ids[0]).all()
 
     filtered_rel2 = rel.filter_by_load_ids(load_ids[2])
     filtered_df2 = filtered_rel2.df()
-    assert len(filtered_df2.index) == 3000
+    assert filtered_rel2.count() == total_records * 1
     assert (filtered_df2.expected_load_id == 2).all()
     assert (filtered_df2._dlt_load_id == load_ids[2]).all()
 
@@ -1018,7 +1019,7 @@ def test_ibis_filter_load_ids(pipeline_with_multiple_loads: Pipeline) -> None:
     empty_rel = rel.filter_by_load_ids("")
     assert isinstance(empty_rel, ReadableIbisRelation)
     assert schema.equals(empty_rel._ibis_object.schema())
-    assert len(empty_rel.df().index) == 0
+    assert empty_rel.count() == 0
 
     # this load_id simulates a failed load with orphan rows; we expect to retrieve nothing
     # data exists on table, but not the load table
@@ -1029,7 +1030,7 @@ def test_ibis_filter_load_ids(pipeline_with_multiple_loads: Pipeline) -> None:
     failed_rel = rel.filter_by_load_ids(load_ids[1])
     assert isinstance(failed_rel, ReadableIbisRelation)
     assert schema.equals(failed_rel._ibis_object.schema())
-    assert len(failed_rel.df().index) == 0
+    assert failed_rel.count() == 0
 
     # `load_ids` kwarg handles list values; skipping load_ids[1] which failed
     selection = [load_ids[0], load_ids[2]]
@@ -1037,7 +1038,7 @@ def test_ibis_filter_load_ids(pipeline_with_multiple_loads: Pipeline) -> None:
     list_df = list_rel.df()
     assert isinstance(list_rel, ReadableIbisRelation)
     assert schema.equals(list_rel._ibis_object.schema())
-    assert len(list_df.index) == 6000
+    assert list_rel.count() == (total_records * 2)
     assert (list_df.expected_load_id.isin([0, 2])).all()
     assert (list_df._dlt_load_id.isin(selection)).all()
 
@@ -1050,7 +1051,7 @@ def test_ibis_filter_load_ids(pipeline_with_multiple_loads: Pipeline) -> None:
     filtered_nested_df = filtered_nested_rel.df()
     assert isinstance(filtered_nested_rel, ReadableIbisRelation)
     assert nested_schema.equals(filtered_nested_rel._ibis_object.schema())
-    assert len(filtered_nested_df.index) == 6000
+    assert filtered_nested_rel.count() == (total_records * 2)
     assert (filtered_nested_df._dlt_load_id == load_ids[0]).all()
 
     empty_nested_rel = nested_rel.filter_by_load_ids("")
@@ -1069,6 +1070,7 @@ def test_ibis_filter_load_ids(pipeline_with_multiple_loads: Pipeline) -> None:
 def test_ibis_filter_latest_load_id(pipeline_with_multiple_loads: Pipeline) -> None:
     import ibis
 
+    total_records = _total_records(pipeline_with_multiple_loads)
     load_ids = pipeline_with_multiple_loads.list_completed_load_packages()
 
     # Case 1: root table
@@ -1079,7 +1081,7 @@ def test_ibis_filter_latest_load_id(pipeline_with_multiple_loads: Pipeline) -> N
     filtered_df = filtered_rel.df()
     assert isinstance(filtered_rel, ReadableIbisRelation)
     assert schema.equals(filtered_rel._ibis_object.schema())
-    assert len(filtered_df.index) == 3000
+    assert filtered_rel.count() == total_records
     assert (filtered_df.expected_load_id == load_ids.index(max(load_ids))).all()
     assert (filtered_df._dlt_load_id == max(load_ids)).all()
 
@@ -1087,12 +1089,12 @@ def test_ibis_filter_latest_load_id(pipeline_with_multiple_loads: Pipeline) -> N
     empty_rel = rel.filter_by_latest_load_id(1)
     assert isinstance(empty_rel, ReadableIbisRelation)
     assert schema.equals(empty_rel._ibis_object.schema())
-    assert len(empty_rel.df().index) == 0
+    assert empty_rel.count() == 0
 
     # `status` kwarg handles list values; skipping load_ids[1] which failed
     assert rel.filter_by_latest_load_id(1).df().shape == (0, 6)
-    assert rel.filter_by_latest_load_id([0]).df().shape == (3000, 6)
-    assert rel.filter_by_latest_load_id([0, 1]).df().shape == (3000, 6)
+    assert rel.filter_by_latest_load_id([0]).df().shape == (total_records, 6)
+    assert rel.filter_by_latest_load_id([0, 1]).df().shape == (total_records, 6)
     assert rel.filter_by_latest_load_id([1, 2]).df().shape == (0, 6)
 
     # Case 2: nested with root_key
@@ -1104,7 +1106,7 @@ def test_ibis_filter_latest_load_id(pipeline_with_multiple_loads: Pipeline) -> N
     filtered_nested_df = filtered_nested_rel.df()
     assert isinstance(filtered_nested_rel, ReadableIbisRelation)
     assert nested_schema.equals(filtered_nested_rel._ibis_object.schema())
-    assert len(filtered_nested_df.index) == 6000
+    assert filtered_nested_rel.count() == (total_records * 2)
     assert (filtered_nested_df._dlt_load_id == load_ids[0]).all()
 
     empty_nested_rel = nested_rel.filter_by_load_ids("")
@@ -1123,6 +1125,7 @@ def test_ibis_filter_latest_load_id(pipeline_with_multiple_loads: Pipeline) -> N
 def test_ibis_filter_load_status(pipeline_with_multiple_loads: Pipeline) -> None:
     import ibis
 
+    total_records = _total_records(pipeline_with_multiple_loads)
     load_ids = pipeline_with_multiple_loads.list_completed_load_packages()
 
     # Case 1: root table
@@ -1133,7 +1136,7 @@ def test_ibis_filter_load_status(pipeline_with_multiple_loads: Pipeline) -> None
     filtered_df = filtered_rel.df()
     assert isinstance(filtered_rel, ReadableIbisRelation)
     assert schema.equals(filtered_rel._ibis_object.schema())
-    assert len(filtered_df.index) == 6000  # retrieve two successful load
+    assert filtered_rel.count() == total_records * 2  # includes two loads
     assert (filtered_df.expected_load_id.isin([0, 2])).all()
     assert (filtered_df._dlt_load_id.isin([load_ids[0], load_ids[2]])).all()
 
@@ -1141,7 +1144,7 @@ def test_ibis_filter_load_status(pipeline_with_multiple_loads: Pipeline) -> None
     empty_rel = rel.filter_by_load_status(1)
     assert isinstance(empty_rel, ReadableIbisRelation)
     assert schema.equals(empty_rel._ibis_object.schema())
-    assert len(empty_rel.df().index) == 0
+    assert empty_rel.count() == 0
 
     # load_status kwarg is passed to `list_load_ids()`
 
@@ -1154,7 +1157,7 @@ def test_ibis_filter_load_status(pipeline_with_multiple_loads: Pipeline) -> None
     filtered_nested_df = filtered_nested_rel.df()
     assert isinstance(filtered_nested_rel, ReadableIbisRelation)
     assert nested_schema.equals(filtered_nested_rel._ibis_object.schema())
-    assert len(filtered_nested_df.index) == 12000  # includes two loads
+    assert filtered_nested_rel == (total_records * 2) * 2  # includes two loads
     assert (filtered_nested_df._dlt_load_id.isin([load_ids[0], load_ids[2]])).all()
 
     empty_nested_rel = nested_rel.filter_by_load_status(1)
@@ -1173,6 +1176,7 @@ def test_ibis_filter_load_status(pipeline_with_multiple_loads: Pipeline) -> None
 def test_ibis_filter_load_id_gt(pipeline_with_multiple_loads: Pipeline) -> None:
     import ibis
 
+    total_records = _total_records(pipeline_with_multiple_loads)
     load_ids = pipeline_with_multiple_loads.list_completed_load_packages()
 
     # Case 1: root table
@@ -1183,13 +1187,13 @@ def test_ibis_filter_load_id_gt(pipeline_with_multiple_loads: Pipeline) -> None:
     filtered_df = filtered_rel.df()
     assert isinstance(filtered_rel, ReadableIbisRelation)
     assert schema.equals(filtered_rel._ibis_object.schema())
-    assert len(filtered_df.index) == 6000  # retrieve two successful loads
+    assert filtered_rel.count() == total_records * 2  # includes two loads
     assert (filtered_df.expected_load_id.isin([0, 1, 2])).all()
     assert (filtered_df._dlt_load_id.isin(load_ids)).all()
 
     filtered_rel2 = rel.filter_by_load_id_gt(load_ids[1])
     filtered_df2 = filtered_rel2.df()
-    assert len(filtered_df2.index) == 3000
+    assert filtered_rel.count() == total_records
     assert (filtered_df2.expected_load_id == 2).all()
     assert (filtered_df2._dlt_load_id == load_ids[2]).all()
 
@@ -1197,12 +1201,12 @@ def test_ibis_filter_load_id_gt(pipeline_with_multiple_loads: Pipeline) -> None:
     empty_rel = rel.filter_by_load_id_gt(load_ids[2])
     assert isinstance(empty_rel, ReadableIbisRelation)
     assert schema.equals(empty_rel._ibis_object.schema())
-    assert len(empty_rel.df().index) == 0
+    assert empty_rel.count() == 0
 
     # load_status kwarg is passed to `list_load_ids()`
     assert rel.filter_by_load_id_gt(load_ids[1], 1).df().shape == (0, 6)
-    assert rel.filter_by_load_id_gt(load_ids[1], [0]).df().shape == (3000, 6)
-    assert rel.filter_by_load_id_gt(load_ids[1], [0, 1]).df().shape == (3000, 6)
+    assert rel.filter_by_load_id_gt(load_ids[1], [0]).df().shape == (total_records, 6)
+    assert rel.filter_by_load_id_gt(load_ids[1], [0, 1]).df().shape == (total_records, 6)
     assert rel.filter_by_load_id_gt(load_ids[1], [1, 2]).df().shape == (0, 6)
 
     # Case 2: nested with root_key
@@ -1214,12 +1218,12 @@ def test_ibis_filter_load_id_gt(pipeline_with_multiple_loads: Pipeline) -> None:
     filtered_nested_df = filtered_nested_rel.df()
     assert isinstance(filtered_nested_rel, ReadableIbisRelation)
     assert nested_schema.equals(filtered_nested_rel._ibis_object.schema())
-    assert len(filtered_nested_df.index) == 12000  # includes two loads
+    assert filtered_nested_rel == (total_records * 2) * 2  # includes two loads
     assert (filtered_nested_df._dlt_load_id.isin([load_ids[0], load_ids[2]])).all()
 
     filtered_nested_rel2 = rel.filter_by_load_id_gt(load_ids[1])
     filtered_nested_df2 = filtered_nested_rel2.df()
-    assert len(filtered_nested_df2.index) == 3000
+    assert filtered_nested_rel.count() == total_records
     assert (filtered_nested_df2.expected_load_id == 2).all()
     assert (filtered_nested_df2._dlt_load_id == load_ids[2]).all()
 
