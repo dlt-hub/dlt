@@ -140,14 +140,14 @@ Requires the `ibis-framework` dependency.
 
 ```py
 # returns list of load ids from recent to old
-dataset.list_load_ids().fetchall()
+items_relation.list_load_ids().fetchall()
 
 # filter based on status and set a limit
 # this retrieves the latest five successful load
-dataset.list_load_ids(status=0, limit=5)
+items_relation.list_load_ids(status=0, limit=5)
 
 # retrieve the latest load_id only; can also filter based on status
-dataset.latest_load_id(status=...)
+items_relation.latest_load_id(status=...)
 ```
 
 ### Select by `load_id`
@@ -166,17 +166,17 @@ pipeline = dlt.pipeline(pipeline_name="my-pipeline")
 successful_load_ids = pipeline.list_completed_load_packages()
 
 # select rows associated with specified load_ids
-dataset.filter_by_load_ids(["load-id-1", "load-id-2"])
+items_relation.filter_by_load_ids(["load-id-1", "load-id-2"])
 
 # select rows from latest load_id, optionally filter using status
-dataset.filter_by_latest_load_id(status=...)
+items_relation.filter_by_latest_load_id(status=...)
 
 # select rows with a specific status
-dataset.filter_by_load_status(status=0)
+items_relation.filter_by_load_status(status=0)
 
 # select rows for loads more recent than `load_id`
 # optionally filter using status
-dataset.filter_by_load_id_gt(load_id="load-id-1", status=...)
+items_relation.filter_by_load_id_gt(load_id="load-id-1", status=...)
 ```
 
 ## Modifying queries
