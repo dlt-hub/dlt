@@ -239,7 +239,7 @@ def pipeline_with_multiple_loads(request, autouse_test_storage) -> Any:
     load_table_name = pipeline.default_schema.loads_table_name
     load_id_to_delete = load_info_1.loads_ids[0]
     with pipeline.sql_client() as client:
-        client.execute_sql(f"DELETE FROM {load_table_name} WHERE load_id = {load_id_to_delete}")
+        client.execute_sql(f"DELETE FROM {load_table_name} WHERE load_id = '{load_id_to_delete}'")
 
     # in case of delta on gcs we use the s3 compat layer for reading
     # for writing we still need to use the gc authentication, as delta_rs seems to use
