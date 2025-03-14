@@ -1,18 +1,15 @@
 from typing import Any, Union, TYPE_CHECKING, List
 
-from dlt.common.json import json
-
-from dlt.common.exceptions import MissingDependencyException
-
-from dlt.common.destination.reference import TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase, WithStateSync
 from dlt.common.destination.dataset import SupportsReadableRelation, SupportsReadableDataset
+from dlt.common.destination.reference import TDestinationReferenceArg, Destination
 from dlt.common.destination.typing import TDatasetType
-
-from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
+from dlt.common.exceptions import MissingDependencyException
+from dlt.common.json import json
 from dlt.common.schema import Schema
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
+from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 
 if TYPE_CHECKING:
     try:
@@ -133,6 +130,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
                     readable_dataset=self,
                     ibis_object=unbound_table,
                     columns_schema=self.schema.tables[table_name]["columns"],
+                    table_name=table_name,
                 )
             except MissingDependencyException:
                 # if ibis is explicitly requested, reraise

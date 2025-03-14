@@ -101,13 +101,24 @@ class SupportsReadableRelation(Protocol):
         ...
 
     @overload
-    def __getitem__(self, column: str) -> "SupportsReadableRelation": ...
+    def __getitem__(self, column: str) -> "SupportsReadableRelation":
+        """self["col1"]"""
+        ...
 
     @overload
-    def __getitem__(self, columns: Sequence[str]) -> "SupportsReadableRelation": ...
+    def __getitem__(self, columns: Sequence[str]) -> "SupportsReadableRelation":
+        """self[["col1", "col2"]]"""
+        ...
 
-    def __getitem__(self, columns: Union[str, Sequence[str]]) -> "SupportsReadableRelation":
-        """set which columns will be selected"""
+    @overload
+    def __getitem__(self, *columns: str) -> "SupportsReadableRelation":
+        """self["col1", "col2"]"""
+        ...
+
+    def __getitem__(self, *columns: Union[str, Sequence[str]]) -> "SupportsReadableRelation":
+        """set which columns will be selected.
+        Supports: self["col1"], self["col1", "col2"], self[["col1", "col2"]]
+        """
         ...
 
     def __getattr__(self, attr: str) -> Any:
