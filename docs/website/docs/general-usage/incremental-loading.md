@@ -149,7 +149,7 @@ When this resource is executed, the following deduplication rules are applied:
    - The record with the highest value is kept when using `desc`
    - For example, between records with id=1, the one with `"metadata_modified"="2024-01-02"` is kept
 
-2. For records with identical values in the dedup_sort column:
+2. For records with identical values in the `dedup_sort` column:
    - The first occurrence encountered is kept
    - For example, between records with id=2 and identical `"metadata_modified"="2024-01-01"`, the first record (value="C") is kept
 
