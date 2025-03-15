@@ -143,15 +143,21 @@ def sample_data():
     for item in data:
         yield item
 ```
+Output:
+| id  | metadata_modified | value |
+|-----|------------------|-------|
+|  1  | 2024-01-02       | B     |
+|  2  | 2024-01-01       | C     |
+
 When this resource is executed, the following deduplication rules are applied:
 
 1. For records with different values in the `dedup_sort` column:
-   - The record with the highest value is kept when using `desc`
-   - For example, between records with id=1, the one with `"metadata_modified"="2024-01-02"` is kept
+   - The record with the highest value is kept when using `desc`.
+   - For example, between records with id=1, the one with `"metadata_modified"="2024-01-02"` is kept.
 
 2. For records with identical values in the `dedup_sort` column:
-   - The first occurrence encountered is kept
-   - For example, between records with id=2 and identical `"metadata_modified"="2024-01-01"`, the first record (value="C") is kept
+   - The first occurrence encountered is kept.
+   - For example, between records with id=2 and identical `"metadata_modified"="2024-01-01"`, the first record (value="C") is kept.
 
 #### Delete records
 The `hard_delete` column hint can be used to delete records from the destination dataset. The behavior of the delete mechanism depends on the data type of the column marked with the hint:
