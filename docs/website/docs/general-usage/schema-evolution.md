@@ -238,7 +238,7 @@ This section addresses common schema evolution issues.
     ]
     ```
         
-    - As a result, the original column remains unchanged and a new variant column value__v_text is created for text values, requiring downstream processes to handle both columns appropriately.
+    - As a result, the original column remains unchanged and a new variant column `value__v_text` is created for text values, requiring downstream processes to handle both columns appropriately.
 
     - **Recommended solutions:**
         - **Enforce Type consistency**
@@ -289,4 +289,4 @@ This section addresses common schema evolution issues.
 #### 2. Nested data challenges:
 - Issues arise due to deep nesting, inconsistent nesting, or unsupported types.
 
-- To avoid this, you can simplify nested structures or preprocess data [see nested tables](../general-usage/destination-tables#nested-tables) or limit the unnesting level with max_table_nesting.
+- To avoid this, you can simplify nested structures or preprocess data [see nested tables](../general-usage/destination-tables#nested-tables) or limit the unnesting level with `max_table_nesting`.

@@ -292,7 +292,7 @@ If your pipeline triggers an HTTP `Error 429`, this means that the API has tempo
 
 - Use tools like `time.sleep()` or libraries such as `ratelimiter` to introduce delays between requests. This helps in staying within the allowed limits.
 
-- Incorporate exponential backoff strategies in your code. This means if a request fails with a `429`, you wait for a short period and then try again, increasing the wait time on subsequent failures.
+- Incorporate exponential backoff strategies in your code. This means if a request fails with a `429`, you wait for a short period and then try again, increasing the wait time on subsequent failures.Learn more about dlt retry rules [here](../general-usage/http/requests).
 
 - Consider batching requests or caching results to reduce the number of API calls needed during your data load process.
 
