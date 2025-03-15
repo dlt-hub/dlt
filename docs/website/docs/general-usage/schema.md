@@ -441,3 +441,59 @@ def textual(nesting_level: int):
     return dlt.resource([])
 ```
 
+## Troubleshooting
+
+This section addresses common datatype issues.
+
+### Unsupported timestamps and format issues
+
+Timestamp issues can occur when the formats are incompatible with the destination or when they change inconsistently between pipeline runs.
+
+#### 1. Unsupported formats or features
+- Combining `precision` and `timezone` in timestamps causes errors in specific destinations (e.g., DuckDB).
+- You can simplify the timestamp format to exclude unsupported features. For example:
+
+  ```py
+  import dlt
+  
+  @dlt.resource(
+      columns={"event_tstamp": {"data_type": "timestamp", "precision": 3, "timezone": False}},
+      primary_key="event_id",
+  )
+  def events():
+      yield [{"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"}]
+  
+  pipeline = dlt.pipeline(destination="duckdb")
+  pipeline.run(events())
+  ```
+
+#### 2. Inconsistent formats across runs
+- Different pipeline runs use varying timestamp formats (e.g., `YYYY-MM-DD HH:MM:SS` vs. ISO 8601 vs. non-standard formats).
+- As a result, the destination (e.g., BigQuery) might infer the timestamp column in one run, but later runs with incompatible formats (like `20-08-2024` or `04th of January 2024`) result in the creation of variant columns (e.g., `end_date__v_text`).
+- It is best practice to standardize timestamp formats across all pipeline runs to maintain consistent column datatype inference.
+
+#### 3. Inconsistent formats for incremental loading
+- Data source returns string timestamps but incremental loading is configured with an integer timestamp value.
+  - Example:
+      ```py
+      # API response
+      data = [
+          {"id": 1, "name": "Item 1", "created_at": "2024-01-01 00:00:00"},
+      ]
+      
+      # Incorrect configuration (type mismatch)
+      @dlt.resource(primary_key="id")
+      def my_data(
+          created_at=dlt.sources.incremental(
+              "created_at",
+              initial_value= 9999
+          )
+      ):
+          yield data 
+      ```
+- This makes the pipeline fails with an `IncrementalCursorInvalidCoercion` error because it cannot compare an integer (`initial_value` of 9999) with a string timestamp. The error indicates a type mismatch between the expected and actual data formats.
+- To solve this, you can:
+    - Use string timestamp for incremental loading.
+    - Convert source data using “add_map”.
+    - If you need to use timestamps for comparison but want to preserve the original format, create a separate column.
+
