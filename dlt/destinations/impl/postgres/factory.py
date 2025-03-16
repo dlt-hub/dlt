@@ -155,6 +155,7 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
             "insert-from-staging",
             "staging-optimized",
         ]
+        caps.sqlglot_dialect = "postgres"
 
         return caps
 
