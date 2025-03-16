@@ -320,16 +320,16 @@ class DltSource(Iterable[TDataItem]):
     def schema(self, value: Schema) -> None:
         self._schema = value
 
-    def discover_schema(self, item: TDataItem = None) -> Schema:
+    def discover_schema(self, item: TDataItem = None, meta: Any = None) -> Schema:
         """Computes table schemas for all selected resources in the source and merges them with a copy of current source schema. If `item` is provided,
         dynamic tables will be evaluated, otherwise those tables will be ignored."""
         schema = self._schema.clone(update_normalizers=True)
         for r in self.selected_resources.values():
             # names must be normalized here
             with contextlib.suppress(DataItemRequiredForDynamicTableHints):
-                root_table_schema = r.compute_table_schema(item)
+                root_table_schema = r.compute_table_schema(item, meta)
                 nested_tables_schema = r.compute_nested_table_schemas(
-                    root_table_schema["name"], schema.naming, item
+                    root_table_schema["name"], schema.naming, item, meta
                 )
                 # NOTE must ensure that `schema.update_table()` is called in an order that respect parent-child relationships
                 for table_schema in (root_table_schema, *nested_tables_schema):

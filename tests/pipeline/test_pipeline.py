@@ -16,7 +16,7 @@ from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.storages import FileStorage
 
 import dlt
-from dlt.common import json, pendulum
+from dlt.common import json, pendulum, Decimal
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, InvalidNativeValue
 from dlt.common.data_writers.exceptions import FileImportNotFound, SpecLookupFailed
@@ -42,6 +42,7 @@ from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
 from dlt.destinations import filesystem, redshift, dummy, duckdb
+import dlt.destinations.dataset
 from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME
 from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted
 from dlt.extract.extract import ExtractStorage
@@ -3254,3 +3255,233 @@ def test_many_pipelines_single_dataset() -> None:
         "source_2": True,
         "resources": {"gen1": {"source_2": True}},
     }
+
+
+def test_nested_hints_file_format() -> None:
+    @dlt.resource(nested_hints={"list": {"file_format": "csv"}})
+    def nested_data():
+        yield [{"id": 1, "list": [1, 2, 3]}]
+
+    p = dlt.pipeline(
+        pipeline_name="test_nested_hints_file_format",
+        destination=dlt.destinations.filesystem(TEST_STORAGE_ROOT),
+        dataset_name="local",
+    )
+    p.extract(nested_data())
+    # file_format is set
+    assert p.default_schema.tables["nested_data__list"]["file_format"] == "csv"
+    # TODO: has no effect (we have single item storage per root table)
+    normalize_info = p.normalize()
+    load_id = normalize_info.loads_ids[0]
+    norm_metrics = normalize_info.metrics[load_id][0]
+    for file_name, _ in norm_metrics["job_metrics"].items():
+        # always jsonl
+        assert file_name.endswith("jsonl")
+
+
+def test_nested_hints_write_disposition_append_merge() -> None:
+    # we can mix replace and append write disposition in nested tables
+    # that does not make much sense
+    @dlt.resource(
+        nested_hints={"list": dlt.mark.make_nested_hints(write_disposition="replace")},
+        write_disposition="append",
+    )
+    def nested_data():
+        yield [{"id": 1, "list": [1, 2, 3]}]
+
+    p = dlt.pipeline(
+        pipeline_name="test_nested_hints_file_format", destination="duckdb", dataset_name="local"
+    )
+    load_info = p.run(nested_data())
+    assert_load_info(load_info)
+    load_info = p.run(nested_data())
+    assert_load_info(load_info)
+    # nested_data 2 records (append), nested_data__list 3 records (replace - overwrite)
+    assert p.dataset().row_counts().fetchall() == [("nested_data", 2), ("nested_data__list", 3)]
+
+
+def test_nested_hints_write_disposition_nested_merge() -> None:
+    # checks what happens when nested tables has write_disposition "merge" and root table is
+    # replace / append. this combination will keep nested table in staging dataset and never copy
+    # it to final dataset.
+    @dlt.resource(
+        nested_hints={"list": dlt.mark.make_nested_hints(write_disposition="merge")},
+        write_disposition="replace",
+        primary_key="id",
+    )
+    def nested_data():
+        yield [{"id": 1, "list": [1, 2, 3]}]
+
+    p = dlt.pipeline(
+        pipeline_name="test_nested_hints_file_format", destination="duckdb", dataset_name="local"
+    )
+    load_info = p.run(nested_data())
+    assert_load_info(load_info)
+    load_info = p.run(nested_data())
+    assert_load_info(load_info)
+    # nested_data__list not copied to main dataset
+    assert p.dataset().row_counts().fetchall() == [("nested_data", 1), ("nested_data__list", 0)]
+    # will be loading to staging and always overwritten but not merged
+    staging_dataset = dlt.destinations.dataset.dataset(
+        p.destination, "local_staging", p.default_schema
+    )
+    assert staging_dataset.row_counts(table_names=["nested_data__list"]).fetchall() == [
+        ("nested_data__list", 3)
+    ]
+
+
+def test_nested_hints_write_disposition_merge() -> None:
+    os.environ["RAISE_ON_FAILED_JOBS"] = "false"
+
+    @dlt.resource(
+        nested_hints={"list": dlt.mark.make_nested_hints(write_disposition="replace")},
+        write_disposition="merge",
+        primary_key="id",
+    )
+    def nested_data():
+        yield [{"id": 1, "list": [1, 2, 3]}]
+
+    p = dlt.pipeline(
+        pipeline_name="test_nested_hints_file_format", destination="duckdb", dataset_name="local"
+    )
+    # generates package error (nested_data__list is not added to staging dataset and will not be merged, should we fix it?)
+    load_info = p.run(nested_data())
+    assert load_info.has_failed_jobs is True
+
+
+def test_nested_hints_in_variants() -> None:
+    # we create table schemas at runtime via table variants, all names are not normalized
+    data = [
+        {"Event": "issue", "DataBlob": [{"ID": 1, "Name": "first", "Date": "2024-01-01"}]},
+        {"Event": "purchase", "DataBlob": [{"PID": "20-1", "Name": "first", "Value": "28.34"}]},
+    ]
+
+    @dlt.resource
+    def nested_events():
+        # create two table variants
+        yield dlt.mark.with_hints(
+            data[0],
+            dlt.mark.make_hints(
+                "IssuesTable",
+                nested_hints={
+                    "DataBlob": dlt.mark.make_nested_hints(
+                        columns=[{"name": "Date", "data_type": "date"}]
+                    )
+                },
+            ),
+            create_table_variant=True,
+        )
+        yield dlt.mark.with_hints(
+            data[1],
+            dlt.mark.make_hints(
+                "PurchasesTable",
+                nested_hints={
+                    "DataBlob": dlt.mark.make_nested_hints(
+                        columns=[{"name": "Value", "data_type": "decimal"}]
+                    )
+                },
+            ),
+            create_table_variant=True,
+        )
+
+    p = dlt.pipeline(
+        pipeline_name="test_nested_hints_in_variants", destination="duckdb", dataset_name="local"
+    )
+    r_ = nested_events()
+    load_info = p.run(r_)
+    assert_load_info(load_info)
+    # we have variants stored in the resource (before name normalization)
+    assert r_._hints_variants == {
+        "IssuesTable": {
+            "columns": {},
+            "write_disposition": "append",
+            "table_name": "IssuesTable",
+            "nested_hints": {
+                "DataBlob": {
+                    "columns": {"Date": {"name": "Date", "data_type": "date"}},
+                    "original_columns": [{"name": "Date", "data_type": "date"}],
+                }
+            },
+        },
+        "PurchasesTable": {
+            "columns": {},
+            "write_disposition": "append",
+            "table_name": "PurchasesTable",
+            "nested_hints": {
+                "DataBlob": {
+                    "columns": {"Value": {"name": "Value", "data_type": "decimal"}},
+                    "original_columns": [{"name": "Value", "data_type": "decimal"}],
+                }
+            },
+        },
+    }
+    # check table schemas
+    assert "issues_table" in p.default_schema.tables
+    assert "purchases_table" in p.default_schema.tables
+    issues_table__data_blob = p.default_schema.tables["issues_table__data_blob"]
+    assert issues_table__data_blob["columns"]["date"]["data_type"] == "date"
+    assert "write_disposition" not in issues_table__data_blob
+
+    purchases_table__data_blob = p.default_schema.tables["purchases_table__data_blob"]
+    assert purchases_table__data_blob["columns"]["value"]["data_type"] == "decimal"
+
+
+def test_nested_hints_primary_key() -> None:
+    @dlt.resource(
+        primary_key="id",
+        write_disposition="merge",
+        nested_hints={
+            "purchases": dlt.mark.make_nested_hints(
+                # column hint is optional - makes sure that customer_id is a first column in the table
+                columns=[{"name": "customer_id", "data_type": "bigint"}],
+                primary_key=["customer_id", "id"],
+                write_disposition="merge",
+            )
+        },
+    )
+    def customers():
+        """Load customer data from a simple python list."""
+        yield [
+            {
+                "id": 1,
+                "name": "simon",
+                "city": "berlin",
+                "purchases": [{"id": 1, "name": "apple", "price": Decimal("1.50")}],
+            },
+            {
+                "id": 2,
+                "name": "violet",
+                "city": "london",
+                "purchases": [{"id": 1, "name": "banana", "price": Decimal("1.70")}],
+            },
+            {
+                "id": 3,
+                "name": "tammo",
+                "city": "new york",
+                "purchases": [{"id": 1, "name": "pear", "price": Decimal("2.50")}],
+            },
+        ]
+
+    def _pushdown_customer_id(row):
+        id_ = row["id"]
+        for purchase in row["purchases"]:
+            purchase["customer_id"] = id_
+        return row
+
+    p = dlt.pipeline(
+        pipeline_name="test_nested_hints_primary_key", destination="duckdb", dataset_name="local"
+    )
+    load_info = p.run(customers().add_map(_pushdown_customer_id))
+    assert_load_info(load_info)
+    customers__purchases = p.default_schema.tables["customers__purchases"]
+    # primary_key controls order of the columns
+    assert list(customers__purchases["columns"].keys())[:2] == ["customer_id", "id"]
+    # check if primary key set
+    assert customers__purchases["columns"]["customer_id"]["primary_key"] is True
+    assert customers__purchases["columns"]["id"]["primary_key"] is True
+    # check counts
+    row_count = p.dataset().row_counts().fetchall()
+    assert row_count == [("customers", 3), ("customers__purchases", 3)]
+    # load again, merge should overwrite rows
+    load_info = p.run(customers().add_map(_pushdown_customer_id))
+    assert p.dataset().row_counts().fetchall() == row_count

@@ -1848,7 +1848,6 @@ def test_apply_nested_hints():
     ]
 
     nested_resource.apply_hints(nested_hints=nested_hints)
-    print(nested_resource.nested_hints)
     assert nested_resource.nested_hints == nested_hints
 
     nested_schemas = nested_resource.compute_nested_table_schemas(
@@ -1856,12 +1855,59 @@ def test_apply_nested_hints():
     )
     assert nested_schemas == expected_nested_schemas
 
-    # TODO: repeat apply_hints with different nested hints. we have a different code path
-
-    # TODO: also test nested hints that declare primary or merge keys. that should
-    # - generate 'resource' name
-    # - drop the `parent`
-    # effectively breaking the nesting chain`
+    # apply hints again
+    nested_hints = {
+        ("outer1",): {
+            "columns": {
+                "outer1_id": {"name": "outer1_id", "data_type": "decimal", "precision": 18}
+            },
+            "references": [
+                {
+                    "columns": ["outer1_id"],
+                    "referenced_columns": ["outer1_fk_1"],
+                    "referenced_table": "external_table",
+                }
+            ],
+            "file_format": "parquet",
+            "table_format": "delta",
+            "schema_contract": "discard_value",
+        },
+        ("outer2", "innerbar"): {"merge_key": "innerfoo_id"},
+    }
+    nested_resource.apply_hints(nested_hints=nested_hints)
+    nested_schemas = nested_resource.compute_nested_table_schemas(
+        resource_name, naming=SnakeCaseNamingConvention()
+    )
+    # currently new hints overwrite fully old hints. nothing gets merged
+    assert nested_schemas == [
+        {
+            "columns": {
+                "outer1_id": {"name": "outer1_id", "data_type": "decimal", "precision": 18}
+            },
+            "references": [
+                {
+                    "columns": ["outer1_id"],
+                    "referenced_columns": ["outer1_fk_1"],
+                    "referenced_table": "external_table",
+                }
+            ],
+            "file_format": "parquet",
+            "table_format": "delta",
+            "schema_contract": "discard_value",
+            "name": "with_nested_hints__outer1",
+            "parent": "with_nested_hints",
+        },
+        {
+            "columns": {
+                "innerfoo_id": {"name": "innerfoo_id", "nullable": False, "merge_key": True}
+            },
+            "name": "with_nested_hints__outer2__innerbar",
+            "resource": "with_nested_hints",
+        },
+    ]
+    # with_nested_hints__outer2__innerbar not a nested table
+    assert utils.is_nested_table(nested_schemas[1]) is False
+    assert utils.may_be_nested(nested_schemas[1]) is False
 
 
 def test_resource_no_template() -> None:

@@ -5,6 +5,7 @@ import os
 import dlt
 from dlt.common import json
 from dlt.common.data_types.typing import TDataType
+from dlt.common.schema.utils import is_nested_table, may_be_nested
 from dlt.common.storages import (
     SchemaStorage,
     SchemaStorageConfiguration,
@@ -21,6 +22,19 @@ from dlt.extract.hints import TResourceNestedHints, make_hints
 from dlt.extract.items import TableNameMeta
 from tests.utils import MockPipeline, clean_test_storage, TEST_STORAGE_ROOT
 from tests.extract.utils import expect_extracted_file
+
+
+NESTED_DATA = [
+    {
+        "id": 1,
+        "outer1": [
+            {"outer1_id": "2", "innerfoo": [{"innerfoo_id": "3"}]},
+        ],
+        "outer2": [
+            {"outer2_id": "4", "innerbar": [{"innerbar_id": "5"}]},
+        ],
+    }
+]
 
 
 @pytest.fixture
@@ -279,19 +293,8 @@ def test_extract_hints_mark_incremental(extract_step: Extract) -> None:
 
 
 def test_extract_nested_hints(extract_step: Extract) -> None:
-    data = [
-        {
-            "id": 1,
-            "outer1": [
-                {"outer1_id": "2", "innerfoo": [{"innerfoo_id": "3"}]},
-            ],
-            "outer2": [
-                {"outer2_id": "4", "innerbar": [{"innerbar_id": "5"}]},
-            ],
-        }
-    ]
     resource_name = "with_nested_hints"
-    nested_resource = DltResource.from_data(data, name=resource_name)
+    nested_resource = DltResource.from_data(NESTED_DATA, name=resource_name)
 
     # Check 1: apply nested hints
     outer1_id_new_type: TDataType = "double"
@@ -318,21 +321,21 @@ def test_extract_nested_hints(extract_step: Extract) -> None:
 
     # root table exists even though there are no explicit hints
     assert pre_extract_schema.get_table(resource_name)
-    assert (
-        pre_extract_schema.get_table("with_nested_hints__outer1")["parent"] == "with_nested_hints"
-    )
-    assert (
-        pre_extract_schema.get_table("with_nested_hints__outer1")["columns"]
-        == nested_hints["outer1"]["columns"]
-    )
-    assert (
-        pre_extract_schema.get_table("with_nested_hints__outer2__innerbar")["parent"]
-        == "with_nested_hints__outer2"
-    )
-    assert (
-        pre_extract_schema.get_table("with_nested_hints__outer2__innerbar")["columns"]
-        == nested_hints[("outer2", "innerbar")]["columns"]
-    )
+    outer1_tab = pre_extract_schema.get_table("with_nested_hints__outer1")
+    assert outer1_tab["parent"] == "with_nested_hints"
+    assert outer1_tab["columns"] == nested_hints["outer1"]["columns"]
+    # no resource on nested table
+    assert "resource" not in outer1_tab
+    assert is_nested_table(outer1_tab) is True
+    assert may_be_nested(outer1_tab) is True
+
+    outer2_innerbar_tab = pre_extract_schema.get_table("with_nested_hints__outer2__innerbar")
+    assert outer2_innerbar_tab["parent"] == "with_nested_hints__outer2"
+    assert outer2_innerbar_tab["columns"] == nested_hints[("outer2", "innerbar")]["columns"]
+    assert "resource" not in outer2_innerbar_tab
+    assert is_nested_table(outer2_innerbar_tab) is True
+    assert may_be_nested(outer2_innerbar_tab) is True
+
     # this table is generated to ensure `innerbar` has a parent that links it to the root table
     # NOTE: nested tables do not have parent set
     assert pre_extract_schema.get_table(implicit_parent) == {
@@ -341,19 +344,88 @@ def test_extract_nested_hints(extract_step: Extract) -> None:
         "columns": {},
     }
 
-    source = DltSource(dlt.Schema("hintable"), "module", [nested_resource])
     extract_step.extract(source, 20, 1)
     # schema after extractions must be same as discovered schema
     assert source.schema._schema_tables == pre_extract_schema._schema_tables
 
 
-def test_break_nesting_with_primary_key() -> None:
-    # primary key will break nesting
-    # resource must be present
-    # parent cannot be present
-    # is_nested_table must be false
+def test_break_nesting_with_primary_key(extract_step: Extract) -> None:
+    resource_name = "with_nested_hints"
+    nested_resource = DltResource.from_data(NESTED_DATA, name=resource_name)
+    nested_hints: Dict[TTableNames, TResourceNestedHints] = {
+        "outer1": {"columns": {"outer1_id": {"name": "outer1_id", "data_type": "bigint"}}},
+        ("outer1", "innerbar"): {"primary_key": "innerfoo_id"},
+    }
+    nested_resource.apply_hints(nested_hints=nested_hints)
+    assert nested_resource.nested_hints == nested_hints
 
-    pass
+    source = DltSource(dlt.Schema("hintable"), "module", [nested_resource])
+    pre_extract_schema = source.discover_schema()
+    # primary key will break nesting
+    # print(pre_extract_schema.to_pretty_yaml())
+    innerfoo_tab = pre_extract_schema.tables["with_nested_hints__outer1__innerbar"]
+    assert innerfoo_tab["columns"]["innerfoo_id"]["primary_key"] is True
+    # resource must be present
+    assert innerfoo_tab["resource"] == "with_nested_hints"
+    # parent cannot be present
+    assert "parent" not in innerfoo_tab["columns"]["innerfoo_id"]
+    # is_nested_table must be false
+    assert is_nested_table(innerfoo_tab) is False
+    assert may_be_nested(innerfoo_tab) is False
+    extract_step.extract(source, 20, 1)
+    # schema after extractions must be same as discovered schema
+    assert source.schema._schema_tables == pre_extract_schema._schema_tables
+
+
+def test_nested_hints_dynamic_table_names(extract_step: Extract) -> None:
+    data = [
+        {"Event": "issue", "DataBlob": [{"ID": 1, "Name": "first", "Date": "2024-01-01"}]},
+        {"Event": "purchase", "DataBlob": [{"PID": "20-1", "Name": "first", "Date": "2024-01-01"}]},
+    ]
+    events = DltResource.from_data(
+        data,
+        name="events",
+        hints=dlt.mark.make_hints(
+            table_name=lambda e: e["Event"],
+            nested_hints={
+                "DataBlob": dlt.mark.make_nested_hints(
+                    columns=[{"name": "Date", "data_type": "date"}]
+                )
+            },
+        ),
+    )
+
+    source = DltSource(dlt.Schema("hintable"), "module", [events])
+    extract_step.extract(source, 20, 1)
+    # make sure that tables exist and types are applies
+    assert "issue" in source.schema.tables
+    assert "purchase" in source.schema.tables
+    assert source.schema.tables["issue__data_blob"]["columns"]["date"]["data_type"] == "date"
+    assert source.schema.tables["purchase__data_blob"]["columns"]["date"]["data_type"] == "date"
+
+
+def test_nested_hints_table_name(extract_step: Extract) -> None:
+    data = [
+        {"Event": "issue", "DataBlob": [{"ID": 1, "Name": "first", "Date": "2024-01-01"}]},
+        {"Event": "purchase", "DataBlob": [{"PID": "20-1", "Name": "first", "Date": "2024-01-01"}]},
+    ]
+    events = DltResource.from_data(
+        data,
+        name="events",
+        hints=dlt.mark.make_hints(
+            table_name="events_table",
+            nested_hints={
+                "DataBlob": dlt.mark.make_nested_hints(
+                    columns=[{"name": "Date", "data_type": "date"}]
+                )
+            },
+        ),
+    )
+
+    source = DltSource(dlt.Schema("hintable"), "module", [events])
+    extract_step.extract(source, 20, 1)
+    assert "events_table" in source.schema.tables
+    assert source.schema.tables["events_table__data_blob"]["columns"]["date"]["data_type"] == "date"
 
 
 def test_extract_metrics_on_exception_no_flush(extract_step: Extract) -> None:

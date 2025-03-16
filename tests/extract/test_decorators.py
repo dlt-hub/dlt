@@ -17,13 +17,14 @@ from dlt.common.exceptions import ArgumentsOverloadException, DictValidationExce
 from dlt.common.pipeline import StateInjectableContext, TPipelineState
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table, new_column
-from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.schema.typing import TTableReference, TTableSchemaColumns
 from dlt.common.schema.exceptions import InvalidSchemaName
-from dlt.common.typing import TDataItem
+from dlt.common.typing import TDataItem, TTableNames
 
 from dlt.cli.source_detection import detect_source_configs
 from dlt.common.utils import custom_environ
 from dlt.extract.decorators import _DltSingleSource, DltSourceFactoryWrapper
+from dlt.extract.hints import TResourceNestedHints
 from dlt.extract.reference import SourceReference
 from dlt.extract import DltResource, DltSource
 from dlt.extract.exceptions import (
@@ -320,7 +321,7 @@ def test_apply_hints_columns() -> None:
 
 
 def test_apply_hints_reference() -> None:
-    example_reference = {
+    example_reference: TTableReference = {
         "columns": ["User ID", "user_name"],
         "referenced_table": "users",
         "referenced_columns": ["id", "name"],
@@ -342,7 +343,7 @@ def test_apply_hints_reference() -> None:
 
 
 def test_nested_hints_decorator() -> None:
-    nested_hints = {
+    nested_hints: Dict[TTableNames, TResourceNestedHints] = {
         "steps": dlt.mark.make_nested_hints(
             columns=[{"name": "timestamp", "data_type": "timestamp"}]
         ),

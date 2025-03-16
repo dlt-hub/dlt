@@ -763,9 +763,8 @@ def get_inherited_table_hint(
     tables: TSchemaTables, table_name: str, table_hint_name: str, allow_none: bool = False
 ) -> Any:
     table = tables.get(table_name, {})
-    hint = table.get(table_hint_name)
-    if hint:
-        return hint
+    if table_hint_name in table:
+        return table[table_hint_name]  # type: ignore[literal-required]
 
     if is_nested_table(table):
         return get_inherited_table_hint(tables, table.get("parent"), table_hint_name, allow_none)

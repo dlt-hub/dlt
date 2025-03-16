@@ -120,7 +120,6 @@ def verify_schema_merge_disposition(
                         " merge keys defined."
                         " dlt will fall back to `append` for this table."
                     )
-                    raise RuntimeError()
             elif merge_strategy == "upsert":
                 if not has_column_with_prop(table, "primary_key"):
                     exception_log.append(

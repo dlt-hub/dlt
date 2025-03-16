@@ -232,13 +232,13 @@ class Extractor:
     ) -> List[TTableSchema]:
         """Computes a schema for a new or dynamic table and normalizes identifiers"""
         root_table_schema = resource.compute_table_schema(items, meta)
+        nested_tables_schema = resource.compute_nested_table_schemas(
+            root_table_schema["name"], self.naming, items, meta
+        )
         # we need to re-normalize name to support legacy normalization mode which we will
         # drop in next major version
         # TODO: drop in 2.0 also drop SCHEMA__USE_BREAK_PATH_ON_NORMALIZE
         root_table_schema["name"] = self._normalize_table_identifier(root_table_schema["name"])
-        nested_tables_schema = resource.compute_nested_table_schemas(
-            root_table_schema["name"], self.naming, items, meta
-        )
         return [
             utils.normalize_table_identifiers(table_schema, self.naming)
             for table_schema in (root_table_schema, *nested_tables_schema)
