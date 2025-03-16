@@ -114,6 +114,7 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
             "insert-from-staging",
             "staging-optimized",
         ]
+        caps.sqlglot_dialect = "tsql"
 
         return caps
 

@@ -140,7 +140,7 @@ We'll provide you with access to the resources above if you wish to test locally
 
 ## Local Development
 
-Use Python 3.8 for development, as it's the lowest supported version for `dlt`. You'll need `distutils` and `venv`. You may also use `pyenv`, as suggested by [poetry](https://python-poetry.org/docs/managing-environments/).
+Use Python 3.9 for development, as it's the lowest supported version for `dlt`. You'll need `distutils` and `venv`. You may also use `pyenv`, as suggested by [poetry](https://python-poetry.org/docs/managing-environments/).
 
 ## Publishing (Maintainers Only)
 

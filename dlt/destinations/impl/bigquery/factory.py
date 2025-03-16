@@ -123,6 +123,7 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
             "insert-from-staging",
             "staging-optimized",
         ]
+        caps.sqlglot_dialect = "bigquery"
 
         return caps
 

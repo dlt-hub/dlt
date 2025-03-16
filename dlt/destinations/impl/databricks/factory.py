@@ -139,6 +139,8 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
             "insert-from-staging",
             "staging-optimized",
         ]
+        caps.sqlglot_dialect = "databricks"
+
         return caps
 
     @property

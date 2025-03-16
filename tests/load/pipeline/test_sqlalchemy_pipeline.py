@@ -1,3 +1,4 @@
+from typing import cast
 import pytest
 
 from tests.load.utils import (
@@ -23,9 +24,12 @@ def test_sqlalchemy_create_indexes(
 ) -> None:
     from dlt.destinations import sqlalchemy
     from dlt.common.libs.sql_alchemy import Table, MetaData
+    from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyCredentials
 
     alchemy_ = sqlalchemy(
-        create_unique_indexes=create_unique_indexes, create_primary_keys=create_primary_keys
+        create_unique_indexes=create_unique_indexes,
+        create_primary_keys=create_primary_keys,
+        credentials=cast(SqlalchemyCredentials, destination_config.credentials),
     )
 
     pipeline = destination_config.setup_pipeline(
