@@ -229,11 +229,11 @@ def test_snowflake_use_vectorized_scanner(
 ) -> None:
     """Tests whether the vectorized scanner option is correctly applied when loading Parquet files into Snowflake."""
 
-    from dlt.destinations.impl.snowflake import utils
+    from dlt.destinations.impl.snowflake import snowflake
 
     os.environ["DESTINATION__SNOWFLAKE__USE_VECTORIZED_SCANNER"] = use_vectorized_scanner
 
-    load_job_spy = mocker.spy(utils, "gen_copy_sql")
+    load_job_spy = mocker.spy(snowflake, "gen_copy_sql")
 
     data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
@@ -317,3 +317,4 @@ def test_snowflake_use_vectorized_scanner(
             parse_json_strings=True,
             timestamp_precision=6,
         )
+
