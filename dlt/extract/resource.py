@@ -77,7 +77,6 @@ def with_hints(
     item: TDataItems,
     hints: TResourceHints = None,
     create_table_variant: bool = False,
-    data_item_format: TDataItemFormat = None,
 ) -> DataItemWithMeta:
     """Marks `item` to update the resource with specified `hints`.
 
@@ -86,7 +85,7 @@ def with_hints(
     Create `TResourceHints` with `make_hints`.
     Setting `table_name` will dispatch the `item` to a specified table, like `with_table_name`
     """
-    return DataItemWithMeta(HintsMeta(hints or {}, create_table_variant, data_item_format), item)
+    return DataItemWithMeta(HintsMeta(hints, create_table_variant), item)
 
 
 TDltResourceImpl = TypeVar("TDltResourceImpl", bound="DltResource", default="DltResource")

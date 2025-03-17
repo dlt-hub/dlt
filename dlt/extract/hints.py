@@ -75,11 +75,13 @@ class HintsMeta:
         self,
         hints: TResourceHints,
         create_table_variant: bool,
-        data_item_format: TDataItemFormat = None,
     ) -> None:
         self.hints = hints
         self.create_table_variant = create_table_variant
-        self.data_item_format = data_item_format
+
+
+class ModelStr(str):
+    pass
 
 
 NATURAL_CALLABLES = ["incremental", "validator", "original_columns"]

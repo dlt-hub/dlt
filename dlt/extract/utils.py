@@ -62,7 +62,7 @@ except MissingDependencyException:
     pandas = None
 
 
-def get_data_item_format(items: TDataItems, meta: Any = None) -> TDataItemFormat:
+def get_data_item_format(items: TDataItems) -> TDataItemFormat:
     """Detect the format of the data item from `items`.
 
     Reverts to `object` for empty lists
@@ -72,10 +72,10 @@ def get_data_item_format(items: TDataItems, meta: Any = None) -> TDataItemFormat
     """
 
     # if incoming item is hints meta, check if item format is forced
-    from dlt.extract.hints import HintsMeta
+    from dlt.extract.hints import ModelStr
 
-    if isinstance(meta, HintsMeta) and meta.data_item_format:
-        return meta.data_item_format
+    if isinstance(items, ModelStr):
+        return "model"
 
     if not pyarrow and not pandas:
         return "object"
