@@ -357,7 +357,7 @@ def mutated_transformation(dataset: SupportsReadableDataset):
     return dataset.employees.mutate(static_column=1234)
 
 # we can supply a column hint for the static_column, which will work for sql transformations
-@dlt_plus.transform(transformation_type="sql", lineage_mode="best_effort", column_hints={"static_column": {"type": "double"}})
+@dlt_plus.transform(transformation_type="sql", lineage_mode="best_effort", columns={"static_column": {"type": "double"}})
 def mutated_transformation(dataset: SupportsReadableDataset):
     return dataset.employees.mutate(static_column=1234)
 
