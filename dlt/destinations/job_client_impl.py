@@ -113,7 +113,7 @@ class SqlLoadJob(RunnableLoadJob):
         return os.path.splitext(file_path)[1][1:] == "sql"
 
 
-class ModelLoadJob(RunnableLoadJob):
+class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
     """
     A job to insert rows into a table from a model file which contains a single select statement
     """
