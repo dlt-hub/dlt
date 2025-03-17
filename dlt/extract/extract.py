@@ -366,7 +366,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                             collector.update("Resources", delta)
                         signals.raise_if_signalled()
                         resource = source.resources[pipe_item.pipe.name]
-                        item_format = get_data_item_format(pipe_item.item, pipe_item.meta)
+                        item_format = get_data_item_format(pipe_item.item)
                         extractors[item_format].write_items(
                             resource, pipe_item.item, pipe_item.meta
                         )

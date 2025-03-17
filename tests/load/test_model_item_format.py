@@ -7,7 +7,7 @@ import dlt
 from dlt.common.destination.dataset import SupportsReadableDataset
 
 from tests.pipeline.utils import load_table_counts
-from dlt.extract.hints import make_hints
+from dlt.extract.hints import make_hints, ModelStr
 
 
 # TODO: use destination config and only select duckdb for now
@@ -26,16 +26,12 @@ def test_simple_model_jobs() -> None:
     @dlt.resource()
     def copied_table() -> Any:
         query = dataset["example_table"].limit(5).query()
-        yield dlt.mark.with_hints(
-            query, hints=make_hints(columns=example_table_columns), data_item_format="model"
-        )
+        yield dlt.mark.with_hints(ModelStr(query), hints=make_hints(columns=example_table_columns))
 
     @dlt.resource()
     def copied_table_2() -> Any:
         query = dataset["example_table"].limit(7).query()
-        yield dlt.mark.with_hints(
-            query, hints=make_hints(columns=example_table_columns), data_item_format="model"
-        )
+        yield dlt.mark.with_hints(ModelStr(query), hints=make_hints(columns=example_table_columns))
 
     # run sql jobs
     pipeline.run([copied_table(), copied_table_2()])
