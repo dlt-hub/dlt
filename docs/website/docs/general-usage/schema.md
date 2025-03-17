@@ -227,8 +227,86 @@ You are able to bring your own `row_key` by adding a `_dlt_id` column/field to y
 
 `merge` write disposition requires an additional nested reference that goes from **nested** to **root** table, skipping all parent tables in between. This reference is created by [adding a column with a hint](incremental-loading.md#forcing-root-key-propagation) `root_key` (named `_dlt_root_id` by default) to nested tables.
 
+### Generate custom linking for nested tables
+Using `nested_hints` in `@dlt.resource` you can model your own relations between root and nested tables. You do that by specifying `primary_key` or `merge_key` on
+a nested table.
+<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::nested_hints_primary_key-->
+
+In the above example we effectively convert `customers__purchases` table into a top level table that is linked to `customers` table `id` column with `customer_id` foreign key.
+1. we declare compound primary key on `purchases` on (customer_id, id) columns
+2. we add a mapping function that will push the customer `id` to `purchases` as `customer_id`
+3. we declare table reference from `purchases` to `customers` (this is optional)
+4. we set `merge` write disposition on `purchases`.
+
+Here's resulting schema. Note that regular linking for nested tables was not generated. Instead `customer__purchases` table has compound
+primary key, write disposition, load id but still receives data from `purchases` nested list.
+
+```yml
+tables:
+  customers:
+    columns:
+      id:
+        nullable: false
+        primary_key: true
+        data_type: bigint
+      name:
+        data_type: text
+        nullable: true
+      city:
+        data_type: text
+        nullable: true
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      _dlt_load_id:
+        data_type: text
+        nullable: false
+    write_disposition: merge
+    resource: customers
+  customers__purchases:
+    columns:
+      customer_id:
+        data_type: bigint
+        primary_key: true
+        nullable: false
+      id:
+        nullable: false
+        primary_key: true
+        data_type: bigint
+      name:
+        data_type: text
+        nullable: true
+      price:
+        data_type: decimal
+        nullable: true
+      _dlt_root_id:
+        data_type: text
+        nullable: false
+        root_key: true
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      _dlt_load_id:
+        data_type: text
+        nullable: false
+    references:
+    - referenced_table: customers
+      columns:
+      - customer_id
+      referenced_columns:
+      - id
+    write_disposition: merge
+    resource: customers
+```
+
+
 ### Table references
-You can annotate tables with table references. This feature is coming soon.
+You can annotate tables with table references. `@dlt.resource` implements `references` argument that declares table references. Those references
+are not enforced by `dlt`. See [example](#generate-custom-linking-for-nested-tables) above.
 
 ## Schema settings
 

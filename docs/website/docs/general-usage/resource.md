@@ -63,12 +63,74 @@ You can modify the generation process by using the table and column hints. The r
 You can pass dynamic hints which are functions that take the data item as input and return a hint value. This lets you create table and column schemas depending on the data. See an [example below](#adjust-schema-when-you-yield-data).
 :::
 
-:::tip
-You can mark some resource arguments as [configuration and credentials](credentials) values so `dlt` can pass them automatically to your functions.
-:::
-
 ### Put a contract on tables, columns, and data
 Use the `schema_contract` argument to tell dlt how to [deal with new tables, data types, and bad data types](schema-contracts.md). For example, if you set it to **freeze**, `dlt` will not allow for any new tables, columns, or data types to be introduced to the schema - it will raise an exception. Learn more about available contract modes [here](schema-contracts.md#setting-up-the-contract).
+
+### Define schema of nested tables
+
+`dlt` creates [nested tables](schema.md#nested-references-root-and-nested-tables) to store [list of objects](destination-tables.md#nested-tables) if present in your data.
+You can define the schema of such tables with `nested_hints` argument to `@dlt.resource`:
+```py
+import dlt
+
+@dlt.resource(
+    nested_hints={
+        "purchases": dlt.mark.make_nested_hints(
+            columns=[{"name": "price", "data_type": "decimal"}],
+            schema_contract={"columns": "freeze"},
+        )
+    },
+)
+def customers():
+    """Load customer data from a simple python list."""
+    yield [
+        {
+            "id": 1,
+            "name": "simon",
+            "city": "berlin",
+            "purchases": [{"id": 1, "name": "apple", "price": "1.50"}],
+        },
+    ]
+```
+Here we convert the `price` field in list of `purchases` to decimal type and set the schema contract to lock the list
+of columns in it. We use convenience function `dlt.mark.make_nested_hints` to generate nested hints dictionary. You are
+free to use it directly.
+
+Mind that `purchases` list will be stored as table with name `customers__purchases`. When declaring nested hints you just need
+to specify nested field(s) name(s). In case of deeper nesting ie. let's say each `purchase` has a list of `coupons` applied,
+you can apply hints to coupons and define `customers__purchases__coupons` table schema:
+```py
+import dlt
+
+@dlt.resource(
+    nested_hints={
+        "purchases": {},
+        ("purchases", "coupons"): {
+            "columns": {"registered_at": {"data_type": "timestamp"}}
+        }
+    },
+)
+def customers():
+    ...
+```
+Here we use `("purchases", "coupons")` to locate list at the depth of 2 and set the data type on `registered_at` column
+to `timestamp`. We do that by directly using nested hints dict.
+Note that we specified `purchases` with an empty list of hints. **You are required to specify all parent hints, even if they 
+are empty. Currently we are not adding missing path elements automatically**.
+
+You can use `nested_hints` primarily to set column hints and schema contract, those work exactly as in case of root tables.
+* `file_format` has no effect (not implemented yet)
+* `write_disposition` works as expected but leads to unintended consequences (ie. you can set nested table to `replace`) while root table is `append`.
+* `references` will create [table references](schema.md#table-references-1) (annotations) as expected.
+* `primary_key` and `merge_key`: **setting those will convert nested table into a regular table, with a separate write disposition, file format etc.**
+[It allows you to create custom table relationships ie. using natural primary and foreign keys present in the data.](schema.md#generate-custom-linking-for-nested-tables)
+
+:::tip
+[REST API Source](../dlt-ecosystem/verified-sources/rest_api/basic.md) accepts `nested_hints` argument as well.
+
+You can apply nested hints after the resource was created by using [apply_hints](#set-table-name-and-adjust-schema).
+:::
+
 
 ### Define a schema with Pydantic
 
@@ -176,8 +238,9 @@ for row in generate_rows(20):
     print(row)
 ```
 
-You can mark some resource arguments as [configuration and credentials](credentials) values
-so `dlt` can pass them automatically to your functions.
+:::tip
+You can mark some resource arguments as [configuration and credentials](credentials) values so `dlt` can pass them automatically to your functions.
+:::
 
 ### Process resources with `dlt.transformer`
 
