@@ -19,17 +19,6 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
 
     __config_gen_annotations__: ClassVar[List[str]] = ["athena_work_group"]
 
-    def on_resolved(self) -> None:
-        if self.force_iceberg is not None:
-            warnings.warn(
-                "The `force_iceberg` is deprecated.If you upgraded dlt on existing pipeline and you"
-                " have data already loaded, please keep this flag to make sure your data is"
-                " consistent.If you are creating a new dataset and no data was loaded, please set"
-                " `table_format='iceberg`` on your resources explicitly.",
-                Dlt100DeprecationWarning,
-                stacklevel=1,
-            )
-
     def __str__(self) -> str:
         """Return displayable destination location"""
         if self.staging_config:
