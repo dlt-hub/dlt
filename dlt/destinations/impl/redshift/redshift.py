@@ -2,6 +2,7 @@ import platform
 import os
 
 from dlt.destinations.utils import is_compression_disabled
+from dlt.common import logger
 
 if platform.python_implementation() == "PyPy":
     import psycopg2cffi as psycopg2
@@ -65,38 +66,41 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         file_path: str,
         staging_credentials: Optional[CredentialsConfiguration] = None,
         staging_iam_role: str = None,
-        staging_region: str = None,
     ) -> None:
         super().__init__(file_path, staging_credentials)
         self._staging_iam_role = staging_iam_role
-        self._staging_region = staging_region
         self._job_client: "RedshiftClient" = None
 
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client
         # we assume s3 credentials where provided for the staging
         credentials = ""
-        if self._staging_iam_role:
-            region_part = f" REGION '{self._staging_region}'" if self._staging_region else ""
-            credentials = f"IAM_ROLE '{self._staging_iam_role}'{region_part}"
+        # get format
+        ext = os.path.splitext(self._bucket_path)[1][1:]
 
+        if self._staging_iam_role:
+            credentials = f"IAM_ROLE '{self._staging_iam_role}'"
         elif self._staging_credentials and isinstance(
             self._staging_credentials, AwsCredentialsWithoutDefaults
         ):
             aws_access_key = self._staging_credentials.aws_access_key_id
             aws_secret_key = self._staging_credentials.aws_secret_access_key
-            region_name = self._staging_credentials.region_name
-            credentials = (
-                "CREDENTIALS"
-                f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}"
-            )
-            if region_name:
-               credentials += f";region={region_name}"
+            aws_region = self._staging_credentials.region_name
 
-            credentials += "'"  # Closing single quote
+            region_part = ""
+            if aws_region:
+                if ext == "parquet":
+                    # Redshift doesn't support copying across regions for columnar data formats
+                    # https://docs.aws.amazon.com/redshift/latest/dg/copy-usage_notes-copy-from-columnar.html
+                    logger.warning("Redshift doesn't support copying Parquet files across regions. Region parameter will be ignored.")
+                else:
+                    region_part = f";region={aws_region}"
 
-        # get format
-        ext = os.path.splitext(self._bucket_path)[1][1:]
+                credentials = (
+                    "CREDENTIALS"
+                    f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}{region_part}'"
+                )
+
         file_type = ""
         dateformat = ""
         compression = ""
@@ -185,7 +189,6 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
                 file_path,
                 staging_credentials=self.config.staging_config.credentials,
                 staging_iam_role=self.config.staging_iam_role,
-                staging_region=self.config.staging_region
             )
         return job
 
