@@ -47,6 +47,54 @@ from dlt.sources.rest_api.config_setup import (
             {"dict": {"b": {"c": "1"}, "list": ["1", "2"]}},
             id="nested_json_body_with_dots",
         ),
+        pytest.param(
+            "posts/{id}/{{not_this}}",
+            {"id": 1},
+            "posts/1/{not_this}",
+            id="string_with_escaped_braces",
+        ),
+        pytest.param(
+            "posts/{{not_this}}/{id}/{{also_not}}",
+            {"id": 1},
+            "posts/{not_this}/1/{also_not}",
+            id="string_with_mixed_braces",
+        ),
+        pytest.param(
+            {
+                "path": "posts/{id}/{{not_this}}",
+                "nested": {"path": "{{not_this}}/{id}/{{also_not}}", "value": "{id}"},
+            },
+            {"id": 1},
+            {
+                "path": "posts/1/{not_this}",
+                "nested": {"path": "{not_this}/1/{also_not}", "value": "1"},
+            },
+            id="nested_dict_with_escaped_braces",
+        ),
+        pytest.param(
+            {
+                "list": ["{{not_this}}", "{id}", "{{also_not}}"],
+                "dict": {"key": "{{not_this}}", "value": "{id}"},
+            },
+            {"id": 1},
+            {
+                "list": ["{not_this}", "1", "{also_not}"],
+                "dict": {"key": "{not_this}", "value": "1"},
+            },
+            id="mixed_structures_with_escaped_braces",
+        ),
+        pytest.param(
+            "posts/{{{{not_this}}}}/{id}",
+            {"id": 1},
+            "posts/{{not_this}}/1",
+            id="double_escaped_braces",
+        ),
+        pytest.param(
+            "posts/{{not_this {id}}}",
+            {"id": 1},
+            "posts/{not_this 1}",
+            id="escaped_braces_with_placeholder",
+        ),
     ],
 )
 def test_expand_placeholders(obj, placeholders, expected):
@@ -89,6 +137,35 @@ def test_expand_placeholders_raises(obj, expected_error):
         pytest.param("", None, set(), id="empty_string"),
         pytest.param(
             "blog/{r.blog.id}/{not_this}", ["r."], {"r.blog.id"}, id="string_with_prefixes"
+        ),
+        pytest.param(
+            "blog/{r.blog.id}/{{not_this}}", None, {"r.blog.id"}, id="string_with_escaped_braces"
+        ),
+        pytest.param(
+            "blog/{{r.not.this}}/{not_this}",
+            ["r."],
+            set(),
+            id="string_with_escaped_braces_and_prefixes",
+        ),
+        pytest.param(
+            {
+                "dict": {
+                    "a": {"b": "{r.blog.id}"},
+                    "c": "{{r.not.this}}",
+                    "d": "{{r.not.this {{r.nor.this}}}}",
+                    "graphql": {"query": """
+                            query Entity {{
+                                entity(id: "123") {{
+                                    id
+                                    name
+                                }}
+                            }}
+                        """},
+                }
+            },
+            None,
+            {"r.blog.id"},
+            id="dict_with_escaped_braces",
         ),
     ],
 )
