@@ -748,38 +748,43 @@ def test_table_name_meta_normalized() -> None:
 def test_row_id_is_primary_key() -> None:
     # TODO: if there's a column with row_id hint and primary_key, it should get propagated
     pass
-    # schema = create_schema_with_name("discord")
-    # schema._merge_hints({"primary_key": ["id"]})  # type: ignore[list-item]
-    # schema._compile_settings()
-    # add_dlt_root_id_propagation(schema.data_item_normalizer)  # type: ignore[arg-type]
+    schema = create_schema_with_name("discord")
+    schema.update_table(
+        {"name": "discord__w_id", "columns": {"id": {"name": "id", "primary_key": True}}}
+    )
+    schema._merge_hints({"primary_key": ["id"]})  # type: ignore[list-item]
 
-    # row = {"id": "817949077341208606", "w_id": [{"id": 9128918293891111, "wo_id": [1, 2, 3]}]}
-    # rows = list(schema.normalize_data_item(row, "load_id", "discord"))
-    # # get root
-    # root = next(t[1] for t in rows if t[0][0] == "discord")
-    # assert root["_dlt_id"] != digest128("817949077341208606", DLT_ID_LENGTH_BYTES)
-    # assert "_dlt_parent_id" not in root
-    # assert "_dlt_root_id" not in root
-    # assert root["_dlt_load_id"] == "load_id"
+    add_dlt_root_id_propagation(schema.data_item_normalizer)  # type: ignore[arg-type]
 
-    # el_w_id = next(t[1] for t in rows if t[0][0] == "discord__w_id")
-    # # this also has primary key
-    # assert el_w_id["_dlt_id"] != digest128("9128918293891111", DLT_ID_LENGTH_BYTES)
-    # assert "_dlt_parent_id" not in el_w_id
-    # assert "_dlt_list_idx" not in el_w_id
-    # # if enabled, dlt_root is always propagated
-    # assert "_dlt_root_id" in el_w_id
+    row = {"id": "817949077341208606", "w_id": [{"id": 9128918293891111, "wo_id": [1, 2, 3]}]}
+    rows = list(schema.normalize_data_item(row, "load_id", "discord"))
+    # get root
+    root = next(t[1] for t in rows if t[0][0] == "discord")
+    assert root["_dlt_id"] != digest128("817949077341208606", DLT_ID_LENGTH_BYTES)
+    assert "_dlt_parent_id" not in root
+    assert "_dlt_root_id" not in root
+    assert root["_dlt_load_id"] == "load_id"
 
-    # # this must have deterministic child key
-    # f_wo_id = next(
-    #     t[1] for t in rows if t[0][0] == "discord__w_id__wo_id" and t[1]["_dlt_list_idx"] == 2
-    # )
-    # assert f_wo_id["value"] == 3
-    # assert f_wo_id["_dlt_root_id"] != digest128("817949077341208606", DLT_ID_LENGTH_BYTES)
-    # assert f_wo_id["_dlt_parent_id"] != digest128("9128918293891111", DLT_ID_LENGTH_BYTES)
-    # assert f_wo_id["_dlt_id"] == RelationalNormalizer._get_nested_row_hash(
-    #     f_wo_id["_dlt_parent_id"], "discord__w_id__wo_id", 2
-    # )
+    el_w_id = next(t[1] for t in rows if t[0][0] == "discord__w_id")
+    # this also has primary key
+    assert el_w_id["_dlt_id"] != digest128("9128918293891111", DLT_ID_LENGTH_BYTES)
+    assert "_dlt_parent_id" not in el_w_id
+    assert "_dlt_list_idx" not in el_w_id
+    # if enabled, dlt_root is always propagated
+    assert "_dlt_root_id" in el_w_id
+    # load id is added
+    assert el_w_id["_dlt_load_id"] == "load_id"
+
+    # this must have deterministic child key
+    f_wo_id = next(
+        t[1] for t in rows if t[0][0] == "discord__w_id__wo_id" and t[1]["_dlt_list_idx"] == 2
+    )
+    assert f_wo_id["value"] == 3
+    assert f_wo_id["_dlt_root_id"] != digest128("817949077341208606", DLT_ID_LENGTH_BYTES)
+    assert f_wo_id["_dlt_parent_id"] != digest128("9128918293891111", DLT_ID_LENGTH_BYTES)
+    assert f_wo_id["_dlt_id"] == normalize_helpers.get_nested_row_hash(
+        f_wo_id["_dlt_parent_id"], "discord__w_id__wo_id", 2
+    )
 
 
 def test_keeps_none_values() -> None:

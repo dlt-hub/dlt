@@ -3425,6 +3425,12 @@ def test_nested_hints_in_variants() -> None:
     purchases_table__data_blob = p.default_schema.tables["purchases_table__data_blob"]
     assert purchases_table__data_blob["columns"]["value"]["data_type"] == "decimal"
 
+    # make sure that _load_id was generated
+    assert "_dlt_load_id" not in issues_table__data_blob["columns"]
+    assert "_dlt_load_id" not in purchases_table__data_blob["columns"]
+    assert "_dlt_load_id" in p.default_schema.tables["issues_table"]["columns"]
+    assert "_dlt_load_id" in p.default_schema.tables["purchases_table"]["columns"]
+
 
 def test_nested_hints_primary_key() -> None:
     @dlt.resource(
@@ -3436,6 +3442,13 @@ def test_nested_hints_primary_key() -> None:
                 columns=[{"name": "customer_id", "data_type": "bigint"}],
                 primary_key=["customer_id", "id"],
                 write_disposition="merge",
+                references=[
+                    {
+                        "referenced_table": "customers",
+                        "columns": ["customer_id"],
+                        "referenced_columns": ["id"],
+                    }
+                ],
             )
         },
     )
@@ -3479,9 +3492,13 @@ def test_nested_hints_primary_key() -> None:
     # check if primary key set
     assert customers__purchases["columns"]["customer_id"]["primary_key"] is True
     assert customers__purchases["columns"]["id"]["primary_key"] is True
+    # make sure that _load_id was generated
+    assert "_dlt_load_id" in customers__purchases["columns"]
+    assert "_dlt_load_id" in p.default_schema.tables["customers"]["columns"]
     # check counts
     row_count = p.dataset().row_counts().fetchall()
     assert row_count == [("customers", 3), ("customers__purchases", 3)]
     # load again, merge should overwrite rows
     load_info = p.run(customers().add_map(_pushdown_customer_id))
     assert p.dataset().row_counts().fetchall() == row_count
+    print(p.default_schema.to_pretty_yaml())

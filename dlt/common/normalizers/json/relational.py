@@ -74,6 +74,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         It yields row dictionaries at each nesting level."""
         self.schema = schema
         self.naming = schema.naming
+        self._load_id: str = None
         self._reset()
 
     def _reset(self) -> None:
@@ -269,6 +270,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         row_id = flattened_row.get(self.c_dlt_id, None)
         if not row_id:
             row_id = self._add_row_id(table, dict_row, flattened_row, parent_row_id, pos, is_root)
+        # identify load id if loaded data must be processed after loading incrementally
+        if is_root:
+            flattened_row[self.c_dlt_load_id] = self._load_id
 
         # find fields to propagate to nested tables in config
         extend.update(self._get_propagated_values(table, flattened_row, is_root))
@@ -369,10 +373,8 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # wrap items that are not dictionaries in dictionary, otherwise they cannot be processed by the JSON normalizer
         if not isinstance(item, dict):
             item = wrap_in_dict(self.c_value, item)
-        # we will extend event with all the fields necessary to load it as root row
+        self._load_id = load_id
 
-        # identify load id if loaded data must be processed after loading incrementally
-        item[self.c_dlt_load_id] = load_id
         # get table name and nesting level
         root_table_name = self._normalize_table_identifier(table_name)
         max_nesting = self._get_table_nesting_level(root_table_name, self.max_nesting)
