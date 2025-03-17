@@ -85,7 +85,7 @@ athena_work_group="my_workgroup"
 You can force all tables to be in iceberg format:
 ```toml
 [destination.athena]
-force_iceberg=True
+force_iceberg = true
 ```
 
 
@@ -147,7 +147,7 @@ See [athena adapter](#athena-adapter) for partitioning and other options.
 You can also force all tables to be in iceberg format:
 ```toml
 [destination.athena]
-force_iceberg=True
+force_iceberg = true
 ```
 
 
