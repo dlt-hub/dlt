@@ -299,6 +299,22 @@ def test_load_mock_api(mock_api_server, config):
             {"since": ["1"], "sort": ["desc"]},
             id="incremental_in_params",
         ),
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {
+                    "sort": "desc",
+                    "param_with_braces": "{{not_this}}",
+                    "param_with_nested_braces": "{{not_this {{and}} {{not_that}}}}",
+                },
+            },
+            {
+                "sort": ["desc"],
+                "param_with_braces": ["{not_this}"],
+                "param_with_nested_braces": ["{not_this {and} {not_that}}"],
+            },
+            id="escaped_braces_in_params",
+        ),
     ],
 )
 def test_single_resource_query_string_params(
@@ -538,6 +554,19 @@ def test_dependent_resource_query_string_params(
             {"sort": ["desc"], "locale": [""]},
             id="one_static_param_is_empty",
         ),
+        # Escaped braces in params
+        pytest.param(
+            {
+                "path": "post_detail",
+                "params": {
+                    "post_id": "{resources.posts.id}",
+                    "sort": "desc",
+                    "param_with_braces": "{{not_this}}",
+                },
+            },
+            {"sort": ["desc"], "param_with_braces": ["{not_this}"]},
+            id="escaped_braces_in_params",
+        ),
     ],
 )
 def test_interpolate_params_in_query_string(
@@ -567,6 +596,9 @@ def test_interpolate_params_in_query_string(
         qs = parse_qs(urlsplit(call.url).query, keep_blank_values=True)
         assert set(qs.keys()) == set(expected_static_params.keys()) | {"post_id"}
         assert qs["post_id"] == [str(index)]
+
+        for param_key, param_values in expected_static_params.items():
+            assert qs[param_key] == param_values
 
 
 @pytest.mark.parametrize(
@@ -763,6 +795,7 @@ def test_interpolate_parent_values_in_path_and_json_body(mock_api_server):
                             "more_array": [
                                 "{resources.posts.id}",
                             ],
+                            "escaped_braces": "{{ string in escaped braces }}",
                         },
                     },
                 },

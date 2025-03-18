@@ -322,10 +322,10 @@ def create_resources(
                                 incremental_object, incremental_cursor_transform
                             )
                         )
-                    # TODO: expand json as well. make sure you do not default to {} as this will
-                    #  generate empty body
+
                     path = expand_placeholders(path, format_kwargs)
                     params = expand_placeholders(params, format_kwargs)
+                    json = expand_placeholders(json, format_kwargs) if json is not None else None
 
                 yield from client.paginate(
                     method=method,
