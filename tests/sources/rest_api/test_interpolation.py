@@ -142,6 +142,12 @@ def test_expand_placeholders_raises(obj, expected_error):
             "blog/{r.blog.id}/{{not_this}}", None, {"r.blog.id"}, id="string_with_escaped_braces"
         ),
         pytest.param(
+            "blog/{{not_this}}", None, set(), id="string_with_escaped_braces"
+        ),
+        pytest.param(
+            "{{not_this}} {{ and {{not_that}} }}", None, set(), id="string_nested_escaped_braces"
+        ),
+        pytest.param(
             "blog/{{r.not.this}}/{not_this}",
             ["r."],
             set(),
