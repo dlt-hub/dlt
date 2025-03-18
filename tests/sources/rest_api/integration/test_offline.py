@@ -3,12 +3,15 @@ from unittest import mock
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-from requests import Request, Response, Session
+from requests import Request, Response
+
+from dlt.sources.helpers.requests import Session
 
 import dlt
 from dlt.common import pendulum
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.rest_client.paginators import BaseReferencePaginator
+from dlt.sources.helpers.rest_client import catch_http_error
 from dlt.sources.rest_api import (
     ClientConfig,
     Endpoint,
@@ -1169,3 +1172,55 @@ def test_DltResource_gets_called(mock_api_server, mocker, posts_resource_config)
         for i in range(3):
             _, kwargs = mock_paginate.call_args_list[i]
             assert kwargs["path"] == f"posts/{i}/comments"
+
+
+def test_catch_http_error_with_error(mock_api_server, mocker):
+    source = rest_api_source(
+        {
+            "client": {
+                "base_url": "https://api.example.com",
+            },
+            "resources": [
+                {
+                    "name": "crash",
+                    "endpoint": {
+                        "path": "/posts/2/some_details_404",
+                    },
+                },
+            ],
+        }
+    )
+
+    with catch_http_error() as http_error:
+        list(source.with_resources("crash"))
+
+    assert http_error is not None
+    assert http_error.response.status_code == 404
+    assert http_error.response.text == '{"error":"Post with id 2 not found"}'
+    assert http_error.response.url == "https://api.example.com/posts/2/some_details_404"
+
+
+def test_catch_http_error_without_error(mock_api_server):
+    source = rest_api_source(
+        {
+            "client": {
+                "base_url": "https://api.example.com",
+            },
+            "resources": [
+                {
+                    "name": "posts",
+                    "endpoint": {
+                        "path": "/posts",
+                    },
+                },
+            ],
+        }
+    )
+
+    with catch_http_error() as http_error:
+        data = list(source.with_resources("posts"))
+
+    assert not http_error
+    assert len(data) > 0
+    assert data[0]["id"] == 0
+    assert data[0]["title"] == "Post 0"
