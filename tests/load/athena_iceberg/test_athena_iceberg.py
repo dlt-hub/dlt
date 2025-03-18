@@ -81,7 +81,7 @@ def test_iceberg(destination_config: DestinationTestConfiguration) -> None:
     ),
     ids=lambda x: x.name,
 )
-def test_force_iceberg_deprecation(destination_config: DestinationTestConfiguration) -> None:
+def test_force_iceberg(destination_config: DestinationTestConfiguration) -> None:
     """Fails on deprecated force_iceberg option"""
     destination_config.force_iceberg = True
     pipeline = destination_config.setup_pipeline("test_force_iceberg_deprecation", dev_mode=True)

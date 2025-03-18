@@ -82,6 +82,13 @@ You can provide an Athena workgroup like so:
 athena_work_group="my_workgroup"
 ```
 
+You can force all tables to be in iceberg format:
+```toml
+[destination.athena]
+force_iceberg = true
+```
+
+
 ## Write disposition
 
 The `athena` destination handles the write dispositions as follows:
@@ -134,6 +141,15 @@ def data() -> Iterable[TDataItem]:
 ```
 
 For every table created as an Iceberg table, the Athena destination will create a regular Athena table in the staging dataset of both the filesystem and the Athena glue catalog, and then copy all data into the final Iceberg table that lives with the non-Iceberg tables in the same dataset on both the filesystem and the glue catalog. Switching from Iceberg to regular table or vice versa is not supported.
+
+See [athena adapter](#athena-adapter) for partitioning and other options.
+
+You can also force all tables to be in iceberg format:
+```toml
+[destination.athena]
+force_iceberg = true
+```
+
 
 #### `merge` support
 
