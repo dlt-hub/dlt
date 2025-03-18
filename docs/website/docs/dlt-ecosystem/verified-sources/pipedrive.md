@@ -253,7 +253,7 @@ verified source.
 
    ```py
    pipedrive_data = pipedrive_source()
-   #print source info
+   # print source info
    print(pipedrive_data)
    # list resource names
    print(pipedrive_data.resources.keys())
@@ -272,7 +272,7 @@ verified source.
 1. To load data from selected resources:
 
    ```py
-   #To load custom fields, include custom_fields_mapping for hash to name mapping.
+   # To load custom fields, include custom_fields_mapping for hash to name mapping.
    load_data = pipedrive_source().with_resources("products", "deals", "deals_participants", "custom_fields_mapping")
    load_info = pipeline.run(load_data) #runs the pipeline loading selected data
    print(load_info)
