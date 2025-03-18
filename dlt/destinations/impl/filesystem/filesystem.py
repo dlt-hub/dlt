@@ -37,6 +37,8 @@ from dlt.common.storages.load_package import (
     load_package as current_load_package,
 )
 from dlt.destinations.sql_client import WithSqlClient, SqlClientBase
+from dlt.destinations.impl.filesystem.table_format.delta import DeltaLoadFilesystemJob
+from dlt.destinations.impl.filesystem.table_format.iceberg import IcebergLoadFilesystemJob
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.client import (
     FollowupJobRequest,
@@ -116,128 +118,6 @@ class FilesystemLoadJob(RunnableLoadJob):
     def metrics(self) -> Optional[LoadJobMetrics]:
         m = super().metrics()
         return m._replace(remote_url=self.make_remote_url())
-
-
-class TableFormatLoadFilesystemJob(FilesystemLoadJob):
-    def __init__(self, file_path: str) -> None:
-        super().__init__(file_path=file_path)
-
-        self.file_paths = ReferenceFollowupJobRequest.resolve_references(self._file_path)
-
-    def make_remote_path(self) -> str:
-        return self._job_client.get_table_dir(self.load_table_name)
-
-    @property
-    def arrow_dataset(self) -> Any:
-        from dlt.common.libs.pyarrow import pyarrow
-
-        return pyarrow.dataset.dataset(self.file_paths)
-
-    @property
-    def _partition_columns(self) -> List[str]:
-        return get_columns_names_with_prop(self._load_table, "partition")
-
-
-class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
-    def run(self) -> None:
-        # create Arrow dataset from Parquet files
-        from dlt.common.libs.pyarrow import pyarrow as pa
-        from dlt.common.libs.deltalake import write_delta_table, merge_delta_table
-
-        logger.info(
-            f"Will copy file(s) {self.file_paths} to delta table {self.make_remote_url()} [arrow"
-            f" buffer: {pa.total_allocated_bytes()}]"
-        )
-        source_ds = self.arrow_dataset
-        delta_table = self._delta_table()
-
-        # explicitly check if there is data
-        # (https://github.com/delta-io/delta-rs/issues/2686)
-        if source_ds.head(1).num_rows == 0:
-            delta_table = self._create_or_evolve_delta_table(source_ds, delta_table)
-        else:
-            with source_ds.scanner().to_reader() as arrow_rbr:  # RecordBatchReader
-                if self._load_table["write_disposition"] == "merge" and delta_table is not None:
-                    merge_delta_table(
-                        table=delta_table,
-                        data=arrow_rbr,
-                        schema=self._load_table,
-                    )
-                else:
-                    write_delta_table(
-                        table_or_uri=(
-                            self.make_remote_url() if delta_table is None else delta_table
-                        ),
-                        data=arrow_rbr,
-                        write_disposition=self._load_table["write_disposition"],
-                        partition_by=self._partition_columns,
-                        storage_options=self._storage_options,
-                    )
-        # release memory ASAP by deleting objects explicitly
-        del source_ds
-        del delta_table
-        logger.info(
-            f"Copied {self.file_paths} to delta table {self.make_remote_url()} [arrow buffer:"
-            f" {pa.total_allocated_bytes()}]"
-        )
-
-    @property
-    def _storage_options(self) -> Dict[str, str]:
-        from dlt.common.libs.deltalake import _deltalake_storage_options
-
-        return _deltalake_storage_options(self._job_client.config)
-
-    def _delta_table(self) -> Optional["DeltaTable"]:  # type: ignore[name-defined] # noqa: F821
-        from dlt.common.libs.deltalake import DeltaTable
-
-        if DeltaTable.is_deltatable(self.make_remote_url(), storage_options=self._storage_options):
-            return DeltaTable(self.make_remote_url(), storage_options=self._storage_options)
-        else:
-            return None
-
-    def _create_or_evolve_delta_table(self, arrow_ds: "Dataset", delta_table: "DeltaTable") -> "DeltaTable":  # type: ignore[name-defined] # noqa: F821
-        from dlt.common.libs.deltalake import (
-            DeltaTable,
-            ensure_delta_compatible_arrow_schema,
-            _evolve_delta_table_schema,
-        )
-
-        if delta_table is None:
-            return DeltaTable.create(
-                table_uri=self.make_remote_url(),
-                schema=ensure_delta_compatible_arrow_schema(arrow_ds.schema),
-                mode="overwrite",
-                partition_by=self._partition_columns,
-                storage_options=self._storage_options,
-            )
-        else:
-            return _evolve_delta_table_schema(delta_table, arrow_ds.schema)
-
-
-class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
-    def run(self) -> None:
-        from dlt.common.libs.pyiceberg import write_iceberg_table
-
-        write_iceberg_table(
-            table=self._iceberg_table(),
-            data=self.arrow_dataset.to_table(),
-            write_disposition=self._load_table["write_disposition"],
-        )
-
-    def _iceberg_table(self) -> "pyiceberg.table.Table":  # type: ignore[name-defined] # noqa: F821
-        from dlt.common.libs.pyiceberg import get_catalog
-
-        catalog = get_catalog(
-            client=self._job_client,
-            table_name=self.load_table_name,
-            schema=self.arrow_dataset.schema,
-            partition_columns=self._partition_columns,
-        )
-        return catalog.load_table(self.table_identifier)
-
-    @property
-    def table_identifier(self) -> str:
-        return f"{self._job_client.dataset_name}.{self.load_table_name}"
 
 
 class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
