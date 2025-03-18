@@ -317,4 +317,3 @@ def test_snowflake_use_vectorized_scanner(
             parse_json_strings=True,
             timestamp_precision=6,
         )
-
