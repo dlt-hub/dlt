@@ -68,6 +68,8 @@ from dlt.destinations.utils import (
     verify_schema_merge_disposition,
 )
 
+import sqlglot.expressions as sge
+
 # this should suffice for now
 DDL_COMMANDS = ["ALTER", "CREATE", "DROP"]
 
@@ -138,7 +140,17 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         """
         sql_client = self._job_client.sql_client
         name = sql_client.make_qualified_table_name(self._load_table["name"])
-        return f"INSERT INTO {name} {select_statement};"
+        dialect = self._job_client.capabilities.sqlglot_dialect
+
+        query = sge.insert(
+            expression=select_statement,
+            into=name,
+            dialect=dialect,
+        ).sql()
+
+        # NOTE: This query doesn't have a trailing ";"
+
+        return query       
 
     @staticmethod
     def is_model_job(file_path: str) -> bool:
