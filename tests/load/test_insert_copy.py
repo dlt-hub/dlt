@@ -9,20 +9,20 @@ from tests.load.utils import (
 
 
 DESTINATIONS: List[str] = [
-    #    "duckdb",
-    #    "athena",
-    #    "bigquery",
-    #    "clickhouse",
-    #    "databricks",
-    #    "motherduck",
-    #    "redshift",
-    #    "snowflake",
-    #    "sqlalchemy",
-    # NOTE: the following haven't been tested yet
-    #    "postgres"
-    #    "mssql",
-    #    "filesystem",
-    #    "dremio"
+    # NOTE: The following destinations
+    # support simple INSERT INTO FROM expressions
+    "duckdb",
+    "athena",
+    "bigquery",
+    "clickhouse",
+    "databricks",
+    "motherduck",
+    "redshift",
+    "snowflake",
+    "sqlalchemy",
+    "mssql",
+    "postgres",
+    "dremio",
 ]
 
 
@@ -30,7 +30,6 @@ DESTINATIONS: List[str] = [
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        # subset=DESTINATIONS,
     ),
     ids=lambda x: x.name,
 )
