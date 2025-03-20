@@ -1,3 +1,4 @@
+import itertools
 from typing import Any, Iterator
 import os
 
@@ -71,24 +72,27 @@ redshift_with_staging_configs = [
         extra_info="s3-role",
     ),
 ]
+staging_regions = ["eu-central-1", ""]
+test_cases = list(itertools.product(redshift_with_staging_configs, staging_regions))
+
 @pytest.mark.parametrize( 
-    "destination_config", 
-    redshift_with_staging_configs,
-    ids=lambda x: x.name,
+    "destination_config, staging_region", 
+    test_cases
 )
-def test_copy_from_staging_with_region(destination_config: DestinationTestConfiguration ) -> None:
+def test_copy_from_staging_with_region(
+    destination_config: DestinationTestConfiguration, staging_region: str
+    ) -> None:
     """
     Tests if copy-command is constructed correctly for both iam-role and aws-credentials
-    when REGION is set. It should be set for jsonl, but unset for parquet
+    when REGION is set as well when its unset. 
+    the region should be part of the COPY Command for jsonl, but removed for parquet
     """
     # initialize pipeline
+    os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__REGION_NAME"] = staging_region
+
     pipeline : dlt.Pipeline = destination_config.setup_pipeline(
         "redshift_region_test_" + uniq_id(), dataset_name="redshift_region_test_" + uniq_id()
     )
-    # TODO assert that region is actually configured
-    # staging_credentials = ## how to get those??
-    # assert  isinstance(staging_credentials, AwsCredentialsWithoutDefaults), "staging not set up correctly"
-    # assert staging_credentials.region_name, "region not set"
 
     @dlt.resource(primary_key="id")
     def some_data():
@@ -103,6 +107,7 @@ def test_copy_from_staging_with_region(destination_config: DestinationTestConfig
         return [some_data(), other_data()]
 
     info = pipeline.run(some_source(), **destination_config.run_kwargs)
+
     package_info = pipeline.get_load_package_info(info.loads_ids[0])
     # print(package_info.asstr(verbosity=2))
     assert package_info.state == "loaded"
