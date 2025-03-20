@@ -146,7 +146,7 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
             expression=select_statement,
             into=name,
             dialect=dialect,
-        ).sql()
+        ).sql(dialect)
 
         # NOTE: This query doesn't have a trailing ";"
 

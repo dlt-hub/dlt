@@ -56,7 +56,7 @@ class FileWriterSpec(NamedTuple):
     file_extension: str
     is_binary_format: bool
     supports_schema_changes: Literal["True", "Buffer", "False"]
-    """File format supports changes of schema: True - at any moment, Buffer - in memory buffer before opening file,  False - not at all"""
+    """File format supports changes of schema: True - at any moment, Buffer - in memory buffer before opening file, False - not at all"""
     requires_destination_capabilities: bool = False
     supports_compression: bool = False
     file_max_items: Optional[int] = None

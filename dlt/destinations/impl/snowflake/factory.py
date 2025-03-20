@@ -98,7 +98,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "jsonl"
-        caps.supported_loader_file_formats = ["jsonl", "parquet", "csv"]
+        caps.supported_loader_file_formats = ["jsonl", "parquet", "csv", "model"]
         caps.preferred_staging_file_format = "jsonl"
         caps.supported_staging_file_formats = ["jsonl", "parquet", "csv"]
         caps.type_mapper = SnowflakeTypeMapper

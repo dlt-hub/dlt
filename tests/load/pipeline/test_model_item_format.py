@@ -12,7 +12,23 @@ from dlt.common.schema.typing import TWriteDisposition
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    destinations_configs(
+        default_sql_configs=True,
+        subset=[
+            "duckdb",
+        #    "athena", #TODO: maybe
+            "bigquery",
+        #    "clickhouse", #TODO:
+        #    "databricks", #TODO:
+            "motherduck",
+            "redshift",
+            "snowflake",
+            "sqlalchemy",
+            "mssql",
+            "postgres",
+        #    "dremio" #TODO:
+        ],
+    ),
     ids=lambda x: x.name,
 )
 def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> None:
@@ -64,7 +80,23 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    destinations_configs(
+        default_sql_configs=True,
+        subset=[
+            "duckdb",
+        #    "athena", #TODO: maybe
+            "bigquery",
+        #    "clickhouse", #TODO:
+        #    "databricks", #TODO:
+            "motherduck",
+            "redshift",
+            "snowflake",
+            "sqlalchemy",
+            "mssql",
+            "postgres",
+        #    "dremio" #TODO:
+        ],
+    ),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize(
@@ -105,7 +137,10 @@ def test_write_dispositions(
 
     pipeline.run([copied_table()])
 
-    result_items = dataset["example_table_1"].df()["a"].tolist()
+    if destination_config.destination_type == "snowflake":
+        result_items = dataset["example_table_1"].df()["A"].tolist()
+    else:
+        result_items = dataset["example_table_1"].df()["a"].tolist()
     result_items.sort()
 
     if write_disposition == "merge":
@@ -123,7 +158,23 @@ def test_write_dispositions(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    destinations_configs(
+        default_sql_configs=True,
+        subset=[
+            "duckdb",
+        #    "athena", #TODO: maybe
+            "bigquery",
+        #    "clickhouse", #TODO:
+        #    "databricks", #TODO:
+            "motherduck",
+            "redshift",
+            "snowflake",
+            "sqlalchemy",
+            "mssql",
+            "postgres",
+        #    "dremio" #TODO:
+        ],
+    ),
     ids=lambda x: x.name,
 )
 def test_insert_less_columns(destination_config: DestinationTestConfiguration) -> None:
@@ -134,10 +185,26 @@ def test_insert_less_columns(destination_config: DestinationTestConfiguration) -
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    destinations_configs(
+        default_sql_configs=True,
+        subset=[
+            "duckdb",
+        #    "athena", #TODO: maybe
+            "bigquery",
+        #    "clickhouse", #TODO:
+        #    "databricks", #TODO:
+            "motherduck",
+            "redshift",
+            "snowflake",
+            "sqlalchemy",
+            "mssql",
+            "postgres",
+        #    "dremio" #TODO:
+        ],
+    ),
     ids=lambda x: x.name,
 )
-def test_multiple_statments_per_resource(destination_config: DestinationTestConfiguration) -> None:
+def test_multiple_statements_per_resource(destination_config: DestinationTestConfiguration) -> None:
     pipeline = destination_config.setup_pipeline(
         "test_multiple_statments_per_resource", dev_mode=False
     )
