@@ -45,6 +45,7 @@ def test_redshift_blocks_time_column(destination_config: DestinationTestConfigur
     else:
         assert pip_ex.value.__cause__.data_type in ("time", "binary")
 
+
 AWS_BUCKET = dlt.config.get("tests.bucket_url_s3", str)
 redshift_with_staging_configs = [
     DestinationTestConfiguration(
@@ -75,22 +76,20 @@ redshift_with_staging_configs = [
 staging_regions = ["eu-central-1", ""]
 test_cases = list(itertools.product(redshift_with_staging_configs, staging_regions))
 
-@pytest.mark.parametrize( 
-    "destination_config, staging_region", 
-    test_cases
-)
+
+@pytest.mark.parametrize("destination_config, staging_region", test_cases)
 def test_copy_from_staging_with_region(
     destination_config: DestinationTestConfiguration, staging_region: str
-    ) -> None:
+) -> None:
     """
     Tests if copy-command is constructed correctly for both iam-role and aws-credentials
-    when REGION is set as well when its unset. 
+    when REGION is set as well when its unset.
     the region should be part of the COPY Command for jsonl, but removed for parquet
     """
     # initialize pipeline
     os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__REGION_NAME"] = staging_region
 
-    pipeline : dlt.Pipeline = destination_config.setup_pipeline(
+    pipeline: dlt.Pipeline = destination_config.setup_pipeline(
         "redshift_region_test_" + uniq_id(), dataset_name="redshift_region_test_" + uniq_id()
     )
 
@@ -113,4 +112,3 @@ def test_copy_from_staging_with_region(
     assert package_info.state == "loaded"
     # all three jobs succeeded
     assert len(package_info.jobs["failed_jobs"]) == 0
-

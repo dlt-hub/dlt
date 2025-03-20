@@ -104,7 +104,10 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         elif ext == "parquet":
             # Redshift doesn't support copying across regions for columnar data formats
             # https://docs.aws.amazon.com/redshift/latest/dg/copy-usage_notes-copy-from-columnar.html
-            logger.warning("Redshift doesn't support copying Parquet files across regions. Region parameter will be ignored.")
+            logger.warning(
+                "Redshift doesn't support copying Parquet files across regions. Region parameter"
+                " will be ignored."
+            )
             region = ""
 
             file_type = "PARQUET"
