@@ -124,7 +124,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
                 {dateformat}
                 {compression}
                 {credentials}
-                {region} MAXERROR 0;""")
+                {region} MAXERROR 0;""")
 
 
 class RedshiftMergeJob(SqlMergeFollowupJob):
