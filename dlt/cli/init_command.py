@@ -5,6 +5,7 @@ import tomlkit
 from typing import Dict, Sequence, Tuple
 from pathlib import Path
 
+import dlt.destinations
 from dlt.common import git
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.providers import (
@@ -181,6 +182,10 @@ def _list_verified_sources(
     return sources
 
 
+def _list_core_destinations() -> list[str]:
+    return dlt.destinations.__all__
+
+
 def _welcome_message(
     source_name: str,
     destination_type: str,
@@ -287,6 +292,16 @@ def list_sources_command(repo_location: str, branch: str = None) -> None:
         if not reqs.is_installed_dlt_compatible():
             msg += fmt.warning_style(" [needs update: %s]" % (dlt_req_string))
 
+        fmt.echo(msg)
+
+
+def list_destinations_command() -> None:
+    fmt.echo("---")
+    fmt.echo("Available dlt core destinations:")
+    fmt.echo("---")
+    core_destinations = _list_core_destinations()
+    for destination_name in core_destinations:
+        msg = "%s" % fmt.bold(destination_name)
         fmt.echo(msg)
 
 
