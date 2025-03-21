@@ -9,25 +9,29 @@ from dlt.extract.hints import make_hints, ModelStr
 from tests.load.utils import count_job_types, destinations_configs, DestinationTestConfiguration
 from dlt.common.schema.typing import TWriteDisposition
 
+from dlt.pipeline.exceptions import PipelineStepFailed
+
+DESTINATIONS_SUPPORTING_MODEL = [
+    "duckdb",
+    # "athena", #TODO: might support with the iceberg table format
+    "bigquery",
+    "clickhouse",
+    "databricks",
+    "motherduck",
+    "redshift",
+    "snowflake",
+    "sqlalchemy",
+    "mssql",
+    "postgres",
+    "dremio",
+]
+
 
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        subset=[
-            "duckdb",
-        #    "athena", #TODO: maybe
-            "bigquery",
-        #    "clickhouse", #TODO:
-        #    "databricks", #TODO:
-            "motherduck",
-            "redshift",
-            "snowflake",
-            "sqlalchemy",
-            "mssql",
-            "postgres",
-        #    "dremio" #TODO:
-        ],
+        exclude=["athena"],
     ),
     ids=lambda x: x.name,
 )
@@ -82,20 +86,7 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        subset=[
-            "duckdb",
-        #    "athena", #TODO: maybe
-            "bigquery",
-        #    "clickhouse", #TODO:
-        #    "databricks", #TODO:
-            "motherduck",
-            "redshift",
-            "snowflake",
-            "sqlalchemy",
-            "mssql",
-            "postgres",
-        #    "dremio" #TODO:
-        ],
+        exclude=["athena"],
     ),
     ids=lambda x: x.name,
 )
@@ -126,7 +117,11 @@ def test_write_dispositions(
     # each w_d should have a different outcome
     dataset = pipeline.dataset()
     example_table_columns = dataset.schema.tables["example_table_1"]["columns"]
-    relation = dataset["example_table_2"].order_by("a").limit(7, offset=3)
+    # In Databricks, Ibis adds a helper column to emulate offset, causing a schema mismatch
+    # when the query attempts to insert it. We explicitly select only the expected columns.
+    relation = (
+        dataset["example_table_2"].order_by("a").limit(7, offset=3)[example_table_columns.keys()]
+    )
     query = relation.query()
 
     @dlt.resource(
@@ -137,6 +132,7 @@ def test_write_dispositions(
 
     pipeline.run([copied_table()])
 
+    # Snowflake is case sensitive
     if destination_config.destination_type == "snowflake":
         result_items = dataset["example_table_1"].df()["A"].tolist()
     else:
@@ -160,47 +156,58 @@ def test_write_dispositions(
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        subset=[
-            "duckdb",
-        #    "athena", #TODO: maybe
-            "bigquery",
-        #    "clickhouse", #TODO:
-        #    "databricks", #TODO:
-            "motherduck",
-            "redshift",
-            "snowflake",
-            "sqlalchemy",
-            "mssql",
-            "postgres",
-        #    "dremio" #TODO:
-        ],
+        #        subset=["sqlalchemy"],
+        exclude=["athena", "mssql", "dremio", "postgres", "synapse"],
     ),
     ids=lambda x: x.name,
 )
-def test_insert_less_columns(destination_config: DestinationTestConfiguration) -> None:
+def test_insert_less_or_reversed_columns(destination_config: DestinationTestConfiguration) -> None:
     # NOTE: at least for duckdb, the column count AND order of the select query must match
     # the target table schema
-    pass
+    pipeline = destination_config.setup_pipeline("test_insert_less_columns", dev_mode=False)
+
+    pipeline.run(
+        [{"a": 1, "b": "n", "c": True}, {"a": None, "b": "n", "c": False}],
+        table_name="example_table",
+    )
+    dataset = pipeline.dataset()
+
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+
+    print(example_table_columns)
+
+    # This should raise a column number mismatch error
+    @dlt.resource()
+    def partial_insert() -> Any:
+        partial_table_column_keys = [key for key in example_table_columns.keys() if key != "a"]
+        relation = dataset["example_table"][partial_table_column_keys]
+        query = relation.query()
+        yield dlt.mark.with_hints(ModelStr(query), hints=make_hints(columns=example_table_columns))
+
+    with pytest.raises(PipelineStepFailed):
+        pipeline.run([partial_insert()])
+
+    # This should raise a type mismatch.
+    # SQLite (via SQLAlchemy) is lenient with types, so instead of a type error,
+    # we get a NOT NULL constraint violation when inserting None from "a" into "_dlt_id".
+    @dlt.resource()
+    def reversed_insert() -> Any:
+        reversed_table_column_keys = list(example_table_columns.keys())[::-1]
+        relation = dataset["example_table"][reversed_table_column_keys]
+        query = relation.query()
+        yield dlt.mark.with_hints(ModelStr(query), hints=make_hints(columns=example_table_columns))
+
+    print(example_table_columns)
+
+    with pytest.raises(PipelineStepFailed):
+        pipeline.run([reversed_insert()])
 
 
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        subset=[
-            "duckdb",
-        #    "athena", #TODO: maybe
-            "bigquery",
-        #    "clickhouse", #TODO:
-        #    "databricks", #TODO:
-            "motherduck",
-            "redshift",
-            "snowflake",
-            "sqlalchemy",
-            "mssql",
-            "postgres",
-        #    "dremio" #TODO:
-        ],
+        exclude=["athena"],
     ),
     ids=lambda x: x.name,
 )

@@ -150,7 +150,7 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         # NOTE: This query doesn't have a trailing ";"
 
-        return query       
+        return query
 
     @staticmethod
     def is_model_job(file_path: str) -> bool:
