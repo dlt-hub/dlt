@@ -12,12 +12,12 @@ from dlt.common.destination.client import (
 from dlt.common.storages import FilesystemConfiguration
 
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
-from dlt.destinations.configuration import WithLocalFiles
+from dlt.destinations.configuration import FilesystemConfigurationWithLocalFiles
 from dlt.destinations.path_utils import check_layout, get_unused_placeholders
 
 
 @configspec
-class FilesystemDestinationClientConfiguration(FilesystemConfiguration, WithLocalFiles, DestinationClientStagingConfiguration):  # type: ignore[misc]
+class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalFiles, DestinationClientStagingConfiguration):  # type: ignore[misc]
     destination_type: Final[str] = dataclasses.field(  # type: ignore[misc]
         default="filesystem", init=False, repr=False, compare=False
     )
@@ -42,21 +42,3 @@ class FilesystemDestinationClientConfiguration(FilesystemConfiguration, WithLoca
         )
         if unused_placeholders:
             logger.info(f"Found unused layout placeholders: {', '.join(unused_placeholders)}")
-
-    def normalize_bucket_url(self) -> None:
-        # here we deal with normalized file:// local paths
-        if self.is_local_filesystem:
-            # convert to native path
-            try:
-                local_file_path = self.make_local_path(self.bucket_url)
-            except ValueError:
-                local_file_path = self.bucket_url
-            relocated_path = self.make_location(local_file_path, "%s")
-            # convert back into file:// schema if relocated
-            if local_file_path != relocated_path:
-                if self.bucket_url.startswith("file:"):
-                    self.bucket_url = self.make_file_url(relocated_path)
-                else:
-                    self.bucket_url = relocated_path
-        # modified local path before it is normalized
-        super().normalize_bucket_url()

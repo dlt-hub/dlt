@@ -5,8 +5,9 @@ from typing_extensions import Self
 
 import dlt
 import dlt.common
+from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.typing import Annotated
-from dlt.common.configuration.specs.base_configuration import NotResolved
+from dlt.common.configuration.specs.base_configuration import NotResolved, configspec
 from dlt.common.destination.client import DestinationClientConfiguration
 from dlt.common.pipeline import SupportsPipeline
 
@@ -54,8 +55,7 @@ class WithLocalFiles(DestinationClientConfiguration):
             if self.pipeline_working_dir:
                 return os.path.join(self.pipeline_working_dir, default_location)
             raise RuntimeError(
-                "Attempting to use special duckdb database location :pipeline: outside of pipeline"
-                " context."
+                "Attempting to use special location :pipeline: outside of pipeline context."
             )
         else:
             # if explicit path is absolute, use it
@@ -78,3 +78,24 @@ class WithLocalFiles(DestinationClientConfiguration):
                 return self.legacy_db_path
             # use tmp path as root, not cwd
             return os.path.join(self.local_dir, configured_location or default_location)
+
+
+@configspec
+class FilesystemConfigurationWithLocalFiles(FilesystemConfiguration, WithLocalFiles):  # type: ignore[misc]
+    def normalize_bucket_url(self) -> None:
+        # here we deal with normalized file:// local paths
+        if self.is_local_filesystem:
+            # convert to native path
+            try:
+                local_file_path = self.make_local_path(self.bucket_url)
+            except ValueError:
+                local_file_path = self.bucket_url
+            relocated_path = self.make_location(local_file_path, "%s")
+            # convert back into file:// schema if relocated
+            if local_file_path != relocated_path:
+                if self.bucket_url.startswith("file:"):
+                    self.bucket_url = self.make_file_url(relocated_path)
+                else:
+                    self.bucket_url = relocated_path
+        # modified local path before it is normalized
+        super().normalize_bucket_url()
