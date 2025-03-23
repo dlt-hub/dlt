@@ -17,6 +17,7 @@ from typing import (
     AnyStr,
     List,
     Generator,
+    TypeVar,
     cast,
 )
 
@@ -309,19 +310,12 @@ SELECT 1
         return "", f"LIMIT {limit}"
 
 
-class WithSqlClient(JobClientBase):
+class WithSqlClient:
     @property
     @abstractmethod
     def sql_client(self) -> SqlClientBase[TNativeConn]: ...
-
-    def __enter__(self) -> "WithSqlClient":
-        return self
-
-    def __exit__(
-        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
-    ) -> None:
-        pass
-
+    # TODO: add class var with sqlclient type so we know when WithTableScanners
+    # is implemented
 
 class DBApiCursorImpl(DBApiCursor):
     """A DBApi Cursor wrapper with dataframes reading functionality"""

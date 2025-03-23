@@ -1,10 +1,26 @@
+from abc import abstractmethod
 import duckdb
+import semver
+from pathlib import Path
+import sqlglot
+import sqlglot.expressions as exp
+from urllib.parse import urlparse
 import math
 from contextlib import contextmanager
-from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, Generator
+from typing import Any, AnyStr, ClassVar, Dict, Iterator, Optional, Sequence, Generator, cast
 
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.configuration.specs import (
+    AwsCredentials,
+    AzureServicePrincipalCredentialsWithoutDefaults,
+    AzureCredentialsWithoutDefaults,
+)
+from dlt.common.destination.client import JobClientBase
+from dlt.common.destination.dataset import DBApiCursor
+
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.storages.configuration import FileSystemCredentials
 from dlt.destinations.exceptions import (
     DatabaseTerminalException,
     DatabaseTransientException,
@@ -18,8 +34,7 @@ from dlt.destinations.sql_client import (
     raise_open_connection_error,
 )
 
-from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials
-from dlt.common.destination.dataset import DBApiCursor
+from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials, DuckDbCredentials
 
 
 class DuckDBDBApiCursorImpl(DBApiCursorImpl):
@@ -208,3 +223,261 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
         return isinstance(ex, duckdb.Error)
+
+
+class WithTableScanners(DuckDbSqlClient):
+    memory_db: duckdb.DuckDBPyConnection = None
+    """Internally created in-mem database in case external is not provided"""
+
+    def __init__(
+        self,
+        remote_client: JobClientBase,
+        dataset_name: str,
+        cache_db: DuckDbCredentials = None,
+    ) -> None:
+        """Allows to maps data in tables accessed via `remote_client` as VIEWs in duckdb database.
+        Creates in memory "cache" database by default or allows for external database via "cache_db".
+        Will attempt to create views lazily by parsing SQL queries, identifying tables and adding views
+        before execution.
+        """
+        # if no credentials are passed from the outside
+        # we know to keep an in memory instance here
+        if not cache_db:
+            self.memory_db = duckdb.connect(":memory:")
+            cache_db = DuckDbCredentials(self.memory_db)
+
+        # figure out dataset name
+        # assert isinstance(
+        #     remote_client.config, DestinationClientDwhConfiguration
+        # ), f"Remote client {remote_client} does not support datasets"
+
+        from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory
+
+        super().__init__(
+            dataset_name=dataset_name,
+            staging_dataset_name=None,
+            credentials=cache_db,
+            capabilities=duckdb_factory()._raw_capabilities(),
+        )
+        self.remote_client = remote_client
+        self.schema = remote_client.schema
+
+    @abstractmethod
+    def _create_default_secret_name(self) -> str:
+        pass
+
+    def drop_authentication(self, secret_name: str = None) -> None:
+        if not secret_name:
+            secret_name = self._create_default_secret_name()
+        self._conn.sql(f"DROP PERSISTENT SECRET IF EXISTS {secret_name}")
+
+    def create_authentication(
+        self,
+        scope: str,
+        credentials: FileSystemCredentials,
+        persistent: bool = False,
+        secret_name: str = None,
+    ) -> bool:
+        #  home dir is a bad choice, it should be more explicit
+        if not secret_name:
+            secret_name = self._create_default_secret_name()
+
+        if persistent and self.memory_db:
+            raise Exception("Creating persistent secrets for in memory db is not allowed.")
+
+        secrets_path = Path(
+            self._conn.sql(
+                "SELECT current_setting('secret_directory') AS secret_directory;"
+            ).fetchone()[0]
+        )
+
+        is_default_secrets_directory = (
+            len(secrets_path.parts) >= 2
+            and secrets_path.parts[-1] == "stored_secrets"
+            and secrets_path.parts[-2] == ".duckdb"
+        )
+
+        if is_default_secrets_directory and persistent:
+            logger.warn(
+                "You are persisting duckdb secrets but are storing them in the default folder"
+                f" {secrets_path}. These secrets are saved there unencrypted, we"
+                " recommend using a custom secret directory."
+            )
+
+        persistent_stmt = ""
+        if persistent:
+            persistent_stmt = " PERSISTENT "
+
+        if "@" in scope:
+            scope = scope.split("@")[0]
+
+        protocol = urlparse(scope).scheme
+
+        # add secrets required for creating views
+        if protocol == "s3":
+            aws_creds = cast(AwsCredentials, credentials)
+            session_token = (
+                "" if aws_creds.aws_session_token is None else aws_creds.aws_session_token
+            )
+
+            use_ssl = "true"
+            endpoint = "s3.amazonaws.com"
+            if aws_creds.endpoint_url and "http://" in aws_creds.endpoint_url:
+                use_ssl = "false"
+                endpoint = aws_creds.endpoint_url.replace("http://", "")
+            elif aws_creds.endpoint_url and "https://" in aws_creds.endpoint_url:
+                endpoint = aws_creds.endpoint_url.replace("https://", "")
+
+            s3_url_style = aws_creds.s3_url_style or "vhost"
+
+            self._conn.sql(f"""
+            CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
+                TYPE S3,
+                KEY_ID '{aws_creds.aws_access_key_id}',
+                SECRET '{aws_creds.aws_secret_access_key}',
+                SESSION_TOKEN '{session_token}',
+                REGION '{aws_creds.region_name}',
+                ENDPOINT '{endpoint}',
+                SCOPE '{scope}',
+                URL_STYLE '{s3_url_style}',
+                USE_SSL {use_ssl}
+            );""")
+
+        # azure with storage account creds
+        elif protocol in ["az", "abfss"]:
+            # the line below solves problems with certificate path lookup on linux
+            # see duckdb docs
+            self._conn.sql("SET azure_transport_option_type = 'curl';")
+
+            if isinstance(credentials, AzureCredentialsWithoutDefaults):
+                self._conn.sql(f"""
+                CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
+                    TYPE AZURE,
+                    CONNECTION_STRING 'AccountName={credentials.azure_storage_account_name};AccountKey={credentials.azure_storage_account_key}',
+                    SCOPE '{scope}'
+                );""")
+
+            # azure with service principal creds
+            elif isinstance(credentials, AzureServicePrincipalCredentialsWithoutDefaults):
+                self._conn.sql(f"""
+                CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
+                    TYPE AZURE,
+                    PROVIDER SERVICE_PRINCIPAL,
+                    TENANT_ID '{credentials.azure_tenant_id}',
+                    CLIENT_ID '{credentials.azure_client_id}',
+                    CLIENT_SECRET '{credentials.azure_client_secret}',
+                    ACCOUNT_NAME '{credentials.azure_storage_account_name}',
+                    SCOPE '{scope}'
+                );""")
+        elif persistent:
+            raise ValueError(
+                "Cannot create persistent secret for filesystem protocol"
+                f" {protocol}. If you are trying to use persistent secrets"
+                " with gs/gcs, please use the s3 compatibility layer."
+            )
+        else:
+            # could not create secret
+            return False
+        return True
+
+    def open_connection(self) -> duckdb.DuckDBPyConnection:
+        # we keep the in memory instance around, so if this prop is set, return it
+        first_connection = self.credentials.never_borrowed
+        super().open_connection()
+
+        if first_connection:
+            # set up dataset
+            if not self.has_dataset():
+                self.create_dataset()
+            self._conn.sql(f"USE {self.fully_qualified_dataset_name()}")
+
+        # this is a hack to re-enable iceberg settings that get lost when
+        # duckdb connection is closed. each clone needs settings to happen again
+        # self._conn is opened and closed in the relation.cursor()
+        try:
+            self._conn.execute("SET unsafe_enable_version_guessing=true;")
+        except Exception:
+            pass
+
+        return self._conn
+
+    @abstractmethod
+    def should_replace_view(self, view_name: str, table_schema: PreparedTableSchema) -> bool:
+        pass
+
+    @abstractmethod
+    def create_view(self, view_name: str, table_schema: PreparedTableSchema) -> None:
+        pass
+
+    def create_views_for_all_tables(self) -> None:
+        self.create_views_for_tables({v: v for v in self.schema.tables.keys()})
+
+    def create_views_for_tables(self, tables: Dict[str, str]) -> None:
+        """Add the required tables as views to the duckdb in memory instance"""
+
+        # this also gets all views
+        existing_tables = [tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall()]
+
+        for table_name in tables.keys():
+            view_name = tables[table_name]
+
+            if table_name not in self.schema.tables:
+                # unknown views will not be created
+                continue
+            # NOTE: if this is staging configuration then `prepare_load_table` will remove some info
+            # from table schema, if we ever extend this to handle staging destination, this needs to change
+            schema_table = self.remote_client.prepare_load_table(table_name)
+
+            needs_replace = self.should_replace_view(view_name, schema_table)
+            # skip if view already exists and does not need to be replaced each time
+            if view_name in existing_tables and not needs_replace:
+                continue
+
+            self.create_view(view_name, schema_table)
+
+    @contextmanager
+    @raise_database_error
+    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
+        # skip parametrized queries, we could also render them but currently user is not able to
+        # do parametrized queries via dataset interface
+        if not args and not kwargs:
+            # find all tables to preload
+            expression = sqlglot.parse_one(query, read="duckdb")  # type: ignore
+            load_tables: Dict[str, str] = {}
+            for table in expression.find_all(exp.Table):
+                # sqlglot has tables without tables ie. schemas are tables
+                if not table.this:
+                    continue
+                schema = table.db
+                # add only tables from the dataset schema
+                if not schema or schema.lower() == self.dataset_name.lower():
+                    load_tables[table.name] = table.name
+
+            if load_tables:
+                self.create_views_for_tables(load_tables)
+        with super().execute_query(query, *args, **kwargs) as cursor:
+            yield cursor
+
+    @staticmethod
+    def _setup_iceberg(conn: duckdb.DuckDBPyConnection) -> None:
+        if semver.Version.parse(duckdb.__version__) <= semver.Version.parse("1.1.2"):
+            raise NotImplementedError(
+                f"Iceberg scanner for duckdb {duckdb.__version__} does not implement recent"
+                " snapshot discovery. Please install duckdb >= 1.1.3"
+            )
+        # needed to make persistent secrets work in new connection
+        # https://github.com/duckdb/duckdb_iceberg/issues/83
+        conn.execute("FROM duckdb_secrets();")
+
+        # `duckdb_iceberg` extension does not support autoloading
+        # https://github.com/duckdb/duckdb_iceberg/issues/71
+        if semver.Version.parse(duckdb.__version__) < semver.Version.parse("1.2.0"):
+            conn.execute("INSTALL Iceberg FROM core_nightly; LOAD iceberg;")
+
+        # allow unsafe version resolution
+        conn.execute("SET unsafe_enable_version_guessing=true;")
+
+    def __del__(self) -> None:
+        if self.memory_db:
+            self.memory_db.close()
+            self.memory_db = None

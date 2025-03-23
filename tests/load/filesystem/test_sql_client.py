@@ -159,8 +159,8 @@ def _run_dataset_checks(
     ) -> FilesystemSqlClient:
         return FilesystemSqlClient(
             dataset_name="second",
-            fs_client=pipeline.destination_client(),  #  type: ignore
-            credentials=DuckDbCredentials(connection),
+            remote_client=pipeline.destination_client(),  #  type: ignore
+            cache_db=DuckDbCredentials(connection),
         )
 
     # we create a duckdb with a table an see whether we can add more views from the fs client
@@ -228,7 +228,12 @@ def _run_dataset_checks(
 
     try:
         with fs_sql_client as sql_client:
-            fs_sql_client.create_authentication(persistent=True, secret_name=TEST_SECRET_NAME)
+            fs_sql_client.create_authentication(
+                fs_sql_client.remote_client.config.bucket_url,
+                fs_sql_client.remote_client.config.credentials,
+                persistent=True,
+                secret_name=TEST_SECRET_NAME,
+            )
         external_db.close()
 
         # now this should work
