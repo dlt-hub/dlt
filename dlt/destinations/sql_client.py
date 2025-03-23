@@ -17,7 +17,6 @@ from typing import (
     AnyStr,
     List,
     Generator,
-    TypeVar,
     cast,
 )
 
@@ -314,8 +313,10 @@ class WithSqlClient:
     @property
     @abstractmethod
     def sql_client(self) -> SqlClientBase[TNativeConn]: ...
+
     # TODO: add class var with sqlclient type so we know when WithTableScanners
     # is implemented
+
 
 class DBApiCursorImpl(DBApiCursor):
     """A DBApi Cursor wrapper with dataframes reading functionality"""

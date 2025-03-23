@@ -9,8 +9,6 @@ from dlt.common.destination.client import (
     DestinationClientStagingConfiguration,
 )
 
-from dlt.common.storages import FilesystemConfiguration
-
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
 from dlt.destinations.configuration import FilesystemConfigurationWithLocalFiles
 from dlt.destinations.path_utils import check_layout, get_unused_placeholders
