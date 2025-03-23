@@ -533,6 +533,10 @@ class JobClientBase(ABC):
         return expected_update
 
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
+        """Prepares a table schema to be loaded by filling missing hints and doing other modifications requires by given destination.
+
+        Returns: prepared table, note: table schema for `table_name` is cloned
+        """
         return prepare_load_table(
             self.schema.tables, self.schema.get_table(table_name), self.capabilities
         )

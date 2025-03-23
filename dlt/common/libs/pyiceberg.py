@@ -1,6 +1,8 @@
 import os
 from typing import Dict, Any, List, Optional
 
+from fsspec import AbstractFileSystem
+
 from dlt import version, Pipeline
 from dlt.common.libs.pyarrow import cast_arrow_schema_types
 from dlt.common.schema.typing import TWriteDisposition
@@ -14,7 +16,7 @@ from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 try:
     from pyiceberg.table import Table as IcebergTable
-    from pyiceberg.catalog import MetastoreCatalog
+    from pyiceberg.catalog import Catalog
     import pyarrow as pa
 except ModuleNotFoundError:
     raise MissingDependencyException(
@@ -49,7 +51,7 @@ def write_iceberg_table(
         table.overwrite(ensure_iceberg_compatible_arrow_data(data))
 
 
-def get_sql_catalog(credentials: FileSystemCredentials) -> "SqlCatalog":  # type: ignore[name-defined] # noqa: F821
+def get_sql_catalog(catalog_name: str, uri: str, credentials: FileSystemCredentials, properties: Dict[str, Any] = None) -> "SqlCatalog":  # type: ignore[name-defined] # noqa: F821
     assert_min_pkg_version(
         pkg_name="sqlalchemy",
         version="2.0.18",
@@ -61,9 +63,10 @@ def get_sql_catalog(credentials: FileSystemCredentials) -> "SqlCatalog":  # type
     from pyiceberg.catalog.sql import SqlCatalog
 
     return SqlCatalog(
-        "default",
-        uri="sqlite:///:memory:",
+        catalog_name,
+        uri=uri,
         **_get_fileio_config(credentials),
+        **(properties or {}),
     )
 
 
@@ -78,20 +81,20 @@ def ensure_pyiceberg_local_path(location: str) -> str:
 
 
 def create_or_evolve_table(
-    catalog: MetastoreCatalog,
+    catalog: Catalog,
     client: FilesystemClient,
     table_name: str,
     namespace_name: Optional[str] = None,
     schema: Optional[pa.Schema] = None,
     partition_columns: Optional[List[str]] = None,
-) -> MetastoreCatalog:
+) -> Catalog:
     # add table to catalog
     table_id = f"{namespace_name}.{table_name}"
     table_path = f"{client.dataset_path}/{table_name}"
     metadata_path = f"{table_path}/metadata"
     if client.fs_client.exists(metadata_path):
         # found metadata; register existing table
-        table = _register_table(table_id, metadata_path, catalog, client)
+        table = _register_table(table_id, metadata_path, catalog, client.fs_client, client.config)
 
         # evolve schema
         if schema is not None:
@@ -103,7 +106,7 @@ def create_or_evolve_table(
         with catalog.create_table_transaction(
             table_id,
             schema=ensure_iceberg_compatible_arrow_schema(schema),
-            location=ensure_pyiceberg_local_path(_make_path(table_path, client)),
+            location=make_location(table_path, client.config),
         ) as txn:
             # add partitioning
             with txn.update_spec() as update_spec:
@@ -113,17 +116,17 @@ def create_or_evolve_table(
     return catalog
 
 
-def get_catalog(
+def get_ephemeral_catalog(
     client: FilesystemClient,
     table_name: str,
     namespace_name: Optional[str] = None,
     schema: Optional[pa.Schema] = None,
     partition_columns: Optional[List[str]] = None,
-) -> MetastoreCatalog:
+) -> Catalog:
     """Returns single-table, ephemeral, in-memory Iceberg catalog."""
 
     # create in-memory catalog
-    catalog: MetastoreCatalog = get_sql_catalog(client.config.credentials)
+    catalog: Catalog = get_sql_catalog("default", "sqlite:///:memory:", client.config.credentials)
 
     # create namespace
     if namespace_name is None:
@@ -169,7 +172,7 @@ def get_iceberg_tables(
             schema_iceberg_tables = [t for t in schema_iceberg_tables if t in tables]
 
         return {
-            name: get_catalog(client, name).load_table(f"{pipeline.dataset_name}.{name}")
+            name: get_ephemeral_catalog(client, name).load_table(f"{pipeline.dataset_name}.{name}")
             for name in schema_iceberg_tables
         }
 
@@ -180,23 +183,28 @@ def _get_fileio_config(credentials: CredentialsConfiguration) -> Dict[str, Any]:
     return {}
 
 
-def _get_last_metadata_file(metadata_path: str, client: FilesystemClient) -> str:
+def get_last_metadata_file(
+    metadata_path: str, fs_client: AbstractFileSystem, config: FilesystemConfiguration
+) -> str:
     # TODO: implement faster way to obtain `last_metadata_file` (listing is slow)
-    metadata_files = [f for f in client.fs_client.ls(metadata_path) if f.endswith(".json")]
-    return _make_path(sorted(metadata_files)[-1], client)
+    metadata_files = [f for f in fs_client.ls(metadata_path) if f.endswith(".json")]
+    return make_location(sorted(metadata_files)[-1], config)
 
 
 def _register_table(
     identifier: str,
     metadata_path: str,
-    catalog: MetastoreCatalog,
-    client: FilesystemClient,
+    catalog: Catalog,
+    fs_client: AbstractFileSystem,
+    config: FilesystemConfiguration,
 ) -> IcebergTable:
-    last_metadata_file = _get_last_metadata_file(metadata_path, client)
-    return catalog.register_table(identifier, ensure_pyiceberg_local_path(last_metadata_file))
+    last_metadata_file = get_last_metadata_file(metadata_path, fs_client, config)
+    return catalog.register_table(identifier, last_metadata_file)
 
 
-def _make_path(path: str, client: FilesystemClient) -> str:
+def make_location(path: str, config: FilesystemConfiguration) -> str:
     # don't use file protocol for local files because duckdb does not support it
     # https://github.com/duckdb/duckdb/issues/13669
-    return path if client.is_local_filesystem else client.config.make_url(path)
+    return ensure_pyiceberg_local_path(
+        path if config.is_local_filesystem else config.make_url(path)
+    )

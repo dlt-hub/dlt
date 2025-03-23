@@ -204,6 +204,8 @@ def prepare_load_table(
     """Prepares a table schema to be loaded by filling missing hints and doing other modifications requires by given destination.
 
     `destination_capabilities` are injected from context if not explicitly passed.
+
+    Returns: prepared table, note: `table` is cloned
     """
     table_name = table["name"]
     try:

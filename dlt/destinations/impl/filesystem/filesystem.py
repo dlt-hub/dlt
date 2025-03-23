@@ -101,7 +101,7 @@ class FilesystemLoadJob(RunnableLoadJob):
             extra_placeholders=self._job_client.config.extra_placeholders,
         )
         # pick local filesystem pathlib or posix for buckets
-        pathlib = os.path if self.__is_local_filesystem else posixpath
+        pathlib = self._job_client.config.pathlib
         # path.join does not normalize separators and available
         # normalization functions are very invasive and may string the trailing separator
         return pathlib.join(  # type: ignore[no-any-return]
@@ -225,9 +225,9 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
         )
 
     def _iceberg_table(self) -> "pyiceberg.table.Table":  # type: ignore[name-defined] # noqa: F821
-        from dlt.common.libs.pyiceberg import get_catalog
+        from dlt.common.libs.pyiceberg import get_ephemeral_catalog
 
-        catalog = get_catalog(
+        catalog = get_ephemeral_catalog(
             client=self._job_client,
             table_name=self.load_table_name,
             schema=self.arrow_dataset.schema,
@@ -292,7 +292,7 @@ class FilesystemClient(
         from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
 
         if not self._sql_client:
-            self._sql_client = FilesystemSqlClient(self)
+            self._sql_client = FilesystemSqlClient(self, self.dataset_name)
         return self._sql_client
 
     @sql_client.setter
