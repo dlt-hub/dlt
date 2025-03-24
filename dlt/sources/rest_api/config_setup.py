@@ -16,6 +16,7 @@ from typing import (
 )
 import graphlib
 import string
+import re
 from requests import Response
 
 from dlt.common import logger
@@ -682,9 +683,12 @@ def _find_expressions(
             for item in value:
                 recursive_search(item)
         elif isinstance(value, str):
+
+            pattern = r'\{\s*([A-Za-z0-9._]+)\s*\}'
+ 
             e = [
                 field_name
-                for _, field_name, _, _ in string.Formatter().parse(value)
+                for  field_name in re.findall(pattern, value)
                 if field_name
                 and (prefixes is None or any(field_name.startswith(prefix) for prefix in prefixes))
             ]
