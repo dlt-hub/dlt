@@ -44,7 +44,7 @@ def sql_database(
     type_adapter_callback: Optional[TTypeAdapter] = None,
     query_adapter_callback: Optional[TQueryAdapter] = None,
     resolve_foreign_keys: bool = False,
-    engine_adapter_callback: Callable[[Engine], Engine] = None,
+    engine_adapter_callback: Optional[Callable[[Engine], Engine]] = None,
 ) -> Iterable[DltResource]:
     """
     A dlt source which loads data from an SQL database using SQLAlchemy.
