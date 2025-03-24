@@ -20,6 +20,15 @@ To install Streamlit, run the following command:
 pip install streamlit
 ```
 
+*Note*: Your python version must be installed with C library support. You can verify by running
+```sh
+`python -c "import _ctypes"`
+```
+If this fails, you need to install the [libffi](https://sourceware.org/libffi/)-package
+(`libffi-dev` for debian/ubuntu/Windows and `libffi` for macOs) package.
+Afterwards you might need to also reinstall your python version.
+
+
 ## Launching the Streamlit app
 
 You can use the `show` [CLI command](../../reference/command-line-interface.md#dlt-pipeline-show)
