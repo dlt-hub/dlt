@@ -473,8 +473,12 @@ class TestRESTClient:
             cert=("/path/client.cert", "/path/client.key"),
             timeout=321,
             allow_redirects=False,
-            headers={"Accept": "my/mimetype"},
+            headers={"Custom": "My-Header"},
         )
+
+        prepared_request = mocked_send.call_args[0][0]
+        # .headers also has the default headers of the request
+        assert prepared_request.headers["Custom"] == "My-Header"
 
         assert mocked_send.call_args[1] == {
             "proxies": {
@@ -486,7 +490,6 @@ class TestRESTClient:
             "cert": ("/path/client.cert", "/path/client.key"),
             "timeout": 321,
             "allow_redirects": False,
-            "headers": {"Accept": "my/mimetype"},
         }
 
         next(
