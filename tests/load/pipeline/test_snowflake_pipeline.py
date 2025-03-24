@@ -9,9 +9,9 @@ from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import PipelineStepFailed
+from tests.load.snowflake.test_snowflake_client import QUERY_TAG
 
 from tests.load.pipeline.test_pipelines import simple_nested_pipeline
-from tests.load.snowflake.test_snowflake_client import QUERY_TAG
 from tests.pipeline.utils import assert_load_info, assert_query_data
 from tests.load.utils import (
     TABLE_UPDATE_COLUMNS_SCHEMA,
