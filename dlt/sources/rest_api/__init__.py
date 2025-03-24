@@ -294,7 +294,7 @@ def create_resources(
             def paginate_resource(
                 method: HTTPMethodBasic,
                 path: str,
-                headers: Dict[str, Any],
+                headers: Optional[Dict[str, Any]],
                 params: Dict[str, Any],
                 json: Optional[Dict[str, Any]],
                 paginator: Optional[BasePaginator],
