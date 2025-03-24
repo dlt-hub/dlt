@@ -11,6 +11,7 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 from tests.cases import table_update_and_row, assert_all_data_types_row
+from tests.utils import preserve_environ
 from tests.pipeline.utils import assert_load_info
 
 # mark all tests as essential, do not remove
@@ -79,7 +80,7 @@ test_cases = list(itertools.product(redshift_with_staging_configs, staging_regio
 
 @pytest.mark.parametrize("destination_config, staging_region", test_cases)
 def test_copy_from_staging_with_region(
-    destination_config: DestinationTestConfiguration, staging_region: str
+    destination_config: DestinationTestConfiguration, staging_region: str, preserve_environ: None
 ) -> None:
     """
     Tests if copy-command is constructed correctly for both iam-role and aws-credentials
