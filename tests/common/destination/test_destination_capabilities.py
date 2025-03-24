@@ -132,7 +132,7 @@ def test_verify_capabilities_data_types() -> None:
     assert len(exceptions) == 1
     assert isinstance(exceptions[0], UnsupportedDataType)
     assert exceptions[0].column == "col2"
-    assert exceptions[0].available_in_formats == ["parquet", "model"]
+    assert set(exceptions[0].available_in_formats) == {"parquet", "model"}
 
     # exclude binary type if precision is set on column
     schema_bin = Schema("schema_bin")
@@ -161,7 +161,7 @@ def test_verify_capabilities_data_types() -> None:
     assert isinstance(exceptions[0], UnsupportedDataType)
     assert exceptions[0].data_type == "binary(128)"
     assert exceptions[0].column == "binary_2"
-    assert exceptions[0].available_in_formats == ["insert_values", "model"]
+    assert set(exceptions[0].available_in_formats) == {"insert_values", "model"}
 
     # check nested type on bigquery
     from dlt.destinations import bigquery
