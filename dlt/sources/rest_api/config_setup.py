@@ -322,8 +322,12 @@ def build_resource_dependency_graph(
         params_expressions = _find_expressions(endpoint_resource["endpoint"].get("params", {}))
         _raise_if_any_not_in(params_expressions, available_contexts, message="params")
 
-        json_expressions = _find_expressions(endpoint_resource["endpoint"].get("json", {}))
-        _raise_if_any_not_in(json_expressions, available_contexts, message="json")
+        # In case of graphql endpoint, the json will contain the key "query" and the associated
+        # value will contain elements that looks like expressions, we will ignore those. 
+        json_request = endpoint_resource["endpoint"].get("json", {})
+        json_expressions = _find_expressions(json_request)
+        if not json_request.get("query"):
+            _raise_if_any_not_in(json_expressions, available_contexts, message="json")
 
         resolved_params += _expressions_to_resolved_params(
             _filter_resource_expressions(path_expressions | params_expressions | json_expressions)
