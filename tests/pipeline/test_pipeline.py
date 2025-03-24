@@ -3279,7 +3279,7 @@ def test_nested_hints_file_format() -> None:
         assert file_name.endswith("jsonl")
 
 
-def test_nested_hints_write_disposition_append_merge() -> None:
+def test_nested_hints_write_disposition_append_replace() -> None:
     # we can mix replace and append write disposition in nested tables
     # that does not make much sense
     @dlt.resource(
@@ -3290,7 +3290,9 @@ def test_nested_hints_write_disposition_append_merge() -> None:
         yield [{"id": 1, "list": [1, 2, 3]}]
 
     p = dlt.pipeline(
-        pipeline_name="test_nested_hints_file_format", destination="duckdb", dataset_name="local"
+        pipeline_name="test_nested_hints_write_disposition_append_replace",
+        destination="duckdb",
+        dataset_name="local",
     )
     load_info = p.run(nested_data())
     assert_load_info(load_info)
@@ -3298,6 +3300,28 @@ def test_nested_hints_write_disposition_append_merge() -> None:
     assert_load_info(load_info)
     # nested_data 2 records (append), nested_data__list 3 records (replace - overwrite)
     assert p.dataset().row_counts().fetchall() == [("nested_data", 2), ("nested_data__list", 3)]
+
+
+def test_nested_hints_write_disposition_replace_replace() -> None:
+    # if nested hints have the same write disposition as root - all is good
+    @dlt.resource(
+        nested_hints={"list": dlt.mark.make_nested_hints(write_disposition="replace")},
+        write_disposition="replace",
+    )
+    def nested_data():
+        yield [{"id": 1, "list": [1, 2, 3]}]
+
+    p = dlt.pipeline(
+        pipeline_name="test_nested_hints_write_disposition_replace_replace",
+        destination="duckdb",
+        dataset_name="local",
+    )
+    load_info = p.run(nested_data())
+    assert_load_info(load_info)
+    load_info = p.run(nested_data())
+    assert_load_info(load_info)
+    # nested_data 1 record (append), nested_data__list 3 records (replace - overwrite)
+    assert p.dataset().row_counts().fetchall() == [("nested_data", 1), ("nested_data__list", 3)]
 
 
 def test_nested_hints_write_disposition_nested_merge() -> None:
@@ -3313,7 +3337,9 @@ def test_nested_hints_write_disposition_nested_merge() -> None:
         yield [{"id": 1, "list": [1, 2, 3]}]
 
     p = dlt.pipeline(
-        pipeline_name="test_nested_hints_file_format", destination="duckdb", dataset_name="local"
+        pipeline_name="test_nested_hints_write_disposition_nested_merge",
+        destination="duckdb",
+        dataset_name="local",
     )
     load_info = p.run(nested_data())
     assert_load_info(load_info)
@@ -3342,7 +3368,9 @@ def test_nested_hints_write_disposition_merge() -> None:
         yield [{"id": 1, "list": [1, 2, 3]}]
 
     p = dlt.pipeline(
-        pipeline_name="test_nested_hints_file_format", destination="duckdb", dataset_name="local"
+        pipeline_name="test_nested_hints_write_disposition_merge",
+        destination="duckdb",
+        dataset_name="local",
     )
     # generates package error (nested_data__list is not added to staging dataset and will not be merged, should we fix it?)
     load_info = p.run(nested_data())
@@ -3501,4 +3529,3 @@ def test_nested_hints_primary_key() -> None:
     # load again, merge should overwrite rows
     load_info = p.run(customers().add_map(_pushdown_customer_id))
     assert p.dataset().row_counts().fetchall() == row_count
-    print(p.default_schema.to_pretty_yaml())

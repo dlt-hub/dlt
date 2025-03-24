@@ -341,6 +341,18 @@ class DltResourceHints:
 
             if not is_nested_table(nested_table_schema):
                 nested_table_schema["resource"] = self.name
+            elif nested_write_disposition := nested_table_schema.get("write_disposition"):
+                write_disposition = root_table_template.get("write_disposition")
+                # TODO: write_disposition may also be a callable, in that case generate warning as well
+                if nested_write_disposition != write_disposition:
+                    logger.warning(
+                        f"You defined '{nested_write_disposition}' write disposition on a nested"
+                        f" table {table_name} while root table {root_table_name} has"
+                        f" {write_disposition} write disposition. This may lead to data"
+                        " inconsistency across root and nested tables. Consider setting primary or"
+                        " merge key on a nested table to break nesting chain and convert it into a"
+                        "  top level table."
+                    )
 
             validate_dict_ignoring_xkeys(
                 spec=TTableSchema,

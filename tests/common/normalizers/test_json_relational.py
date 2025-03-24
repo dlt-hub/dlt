@@ -746,8 +746,6 @@ def test_table_name_meta_normalized() -> None:
 
 
 def test_row_id_is_primary_key() -> None:
-    # TODO: if there's a column with row_id hint and primary_key, it should get propagated
-    pass
     schema = create_schema_with_name("discord")
     schema.update_table(
         {"name": "discord__w_id", "columns": {"id": {"name": "id", "primary_key": True}}}

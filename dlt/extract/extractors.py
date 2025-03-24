@@ -251,11 +251,6 @@ class Extractor:
         Computes new table and does contract checks, if false is returned, the table may not be created and no items should be written
         """
         computed_tables = self._compute_tables(resource, items, meta)
-        # overwrite root table name (if coming from meta)
-        # TODO: remove below, remove root_table_name from arguments
-        assert computed_tables[0]["name"] == root_table_name, resource._hints
-        # computed_tables[0]["name"] = root_table_name
-
         for computed_table in computed_tables:
             table_name = computed_table["name"]
             # get or compute contract
@@ -483,9 +478,9 @@ class ArrowExtractor(Extractor):
         return list(arrow_tables.values())
 
     def _compute_and_update_tables(
-        self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
+        self, resource: DltResource, root_table_name: str, items: TDataItems, meta: Any
     ) -> TDataItems:
-        items = super()._compute_and_update_tables(resource, table_name, items, meta)
+        items = super()._compute_and_update_tables(resource, root_table_name, items, meta)
         # filter data item as filters could be updated in compute table
-        items = [self._apply_contract_filters(item, resource, table_name) for item in items]
+        items = [self._apply_contract_filters(item, resource, root_table_name) for item in items]
         return items

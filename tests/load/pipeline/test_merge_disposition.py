@@ -121,7 +121,6 @@ def test_merge_on_keys_in_schema_nested_hints(
         **destination_config.run_kwargs,
     )
     assert_load_info(info)
-    print(p.default_schema.to_pretty_yaml())
     eth_1_counts = load_table_counts(p, "blocks")
     # we load a single block
     assert eth_1_counts["blocks"] == 1

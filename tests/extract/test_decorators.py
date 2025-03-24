@@ -360,29 +360,29 @@ def test_nested_hints_decorator() -> None:
     expected_table_schemas = [
         {
             "columns": {"timestamp": {"name": "timestamp", "data_type": "timestamp"}},
-            "name": "campagins__steps",
-            "parent": "campagins",
+            "name": "campaigns__steps",
+            "parent": "campaigns",
         },
         {
             "table_format": "iceberg",
             "columns": {"budget_id": {"name": "budget_id", "nullable": False, "primary_key": True}},
-            "name": "campagins__steps__budgets",
+            "name": "campaigns__steps__budgets",
             "resource": "campaigns",
         },
     ]
 
-    table_schemas = campaigns().compute_nested_table_schemas("campagins", Schema("default").naming)
+    table_schemas = campaigns().compute_nested_table_schemas("campaigns", Schema("default").naming)
     assert table_schemas == expected_table_schemas
 
     @dlt.transformer(nested_hints=nested_hints)
-    def campaign_detials(campaing):
+    def campaign_details(campaign):
         yield []
 
-    table_schemas = campaign_detials().compute_nested_table_schemas(
-        "campagins", Schema("default").naming
+    table_schemas = campaign_details().compute_nested_table_schemas(
+        "campaigns", Schema("default").naming
     )
     # resource name changed for budgets table (it breaks nesting chain by setting primary_key)
-    expected_table_schemas[1]["resource"] = "campaign_detials"
+    expected_table_schemas[1]["resource"] = "campaign_details"
     assert table_schemas == expected_table_schemas
 
 
