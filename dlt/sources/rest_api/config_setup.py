@@ -323,7 +323,7 @@ def build_resource_dependency_graph(
         _raise_if_any_not_in(params_expressions, available_contexts, message="params")
 
         # In case of graphql endpoint, the json will contain the key "query" and the associated
-        # value will contain elements that looks like expressions, we will ignore those. 
+        # value will contain elements that looks like expressions, we will ignore those.
         json_request = endpoint_resource["endpoint"].get("json", {})
         json_expressions = _find_expressions(json_request)
         if not json_request.get("query"):
@@ -687,12 +687,11 @@ def _find_expressions(
             for item in value:
                 recursive_search(item)
         elif isinstance(value, str):
+            pattern = r"\{\s*([A-Za-z0-9._]+)\s*\}"
 
-            pattern = r'\{\s*([A-Za-z0-9._]+)\s*\}'
- 
             e = [
                 field_name
-                for  field_name in re.findall(pattern, value)
+                for field_name in re.findall(pattern, value)
                 if field_name
                 and (prefixes is None or any(field_name.startswith(prefix) for prefix in prefixes))
             ]
