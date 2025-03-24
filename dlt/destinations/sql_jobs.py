@@ -31,6 +31,7 @@ from dlt.common.destination.exceptions import DestinationTransientException
 class SqlJobParams(TypedDict, total=False):
     replace: Optional[bool]
     table_chain_create_table_statements: Dict[str, Sequence[str]]
+    replace_strategy: Optional[str]
 
 
 DEFAULTS: SqlJobParams = {"replace": False}
@@ -145,7 +146,11 @@ class SqlStagingCopyFollowupJob(SqlFollowupJob):
         sql_client: SqlClientBase[Any],
         params: SqlJobParams = None,
     ) -> List[str]:
-        if params["replace"] and sql_client.capabilities.supports_clone_table:
+        if (
+            params["replace"]
+            and params["replace_strategy"] == "staging-optimized"
+            and sql_client.capabilities.supports_clone_table
+        ):
             return cls._generate_clone_sql(table_chain, sql_client)
         return cls._generate_insert_sql(table_chain, sql_client, params)
 

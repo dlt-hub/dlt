@@ -2,6 +2,7 @@ from typing import Dict
 import yaml
 import dlt, os, pytest
 from dlt.common.utils import uniq_id
+from pytest_mock import MockerFixture
 
 from tests.pipeline.utils import assert_load_info, load_table_counts, load_tables_to_dicts
 from tests.load.utils import (
@@ -374,3 +375,42 @@ def test_replace_table_clearing(
         "other_items": 1,
         "other_items__sub_items": 2,
     }
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        default_staging_configs=True,
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
+def test_replace_sql_queries(
+    destination_config: DestinationTestConfiguration, replace_strategy: str, mocker: MockerFixture
+) -> None:
+    skip_if_unsupported_replace_strategy(destination_config, replace_strategy)
+
+    from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob
+
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
+
+    clone_sql_generator_spy = mocker.spy(SqlStagingCopyFollowupJob, "_generate_clone_sql")
+    insert_sql_generator_spy = mocker.spy(SqlStagingCopyFollowupJob, "_generate_insert_sql")
+
+    pipeline = destination_config.setup_pipeline("insert_from_staging_test", dev_mode=True)
+    load_info = pipeline.run([{"id": 1}], table_name="my_table", write_disposition="replace")
+
+    assert_load_info(load_info)
+
+    if replace_strategy == "truncate-and-insert":
+        assert clone_sql_generator_spy.call_count == 0
+        assert insert_sql_generator_spy.call_count == 0
+
+    elif replace_strategy == "insert-from-staging":
+        assert clone_sql_generator_spy.call_count == 0
+        assert insert_sql_generator_spy.call_count == 1
+
+    elif replace_strategy == "staging-optimized":
+        assert clone_sql_generator_spy.call_count == 1
+        assert insert_sql_generator_spy.call_count == 0
