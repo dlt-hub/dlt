@@ -1,3 +1,7 @@
+from tests.utils import skip_if_not_active
+
+skip_if_not_active("snowflake")
+
 import pytest
 from urllib.parse import urlparse
 
@@ -12,6 +16,7 @@ from dlt.destinations.impl.snowflake.utils import (
     gen_copy_sql,
     ensure_snowflake_azure_url,
 )
+
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential

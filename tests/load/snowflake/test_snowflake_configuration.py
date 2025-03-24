@@ -1,11 +1,13 @@
+from tests.utils import skip_if_not_active
+
+skip_if_not_active("snowflake")
+
 import os
 import pytest
 from pathlib import Path
 
 from dlt.common.configuration.utils import add_config_to_env
 from tests.utils import TEST_DICT_CONFIG_PROVIDER
-
-pytest.importorskip("snowflake")
 
 from dlt.common.libs.sql_alchemy_compat import make_url
 from dlt.common.configuration.resolve import resolve_configuration
@@ -19,6 +21,7 @@ from dlt.destinations.impl.snowflake.configuration import (
 )
 
 from tests.common.configuration.utils import environment
+
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential

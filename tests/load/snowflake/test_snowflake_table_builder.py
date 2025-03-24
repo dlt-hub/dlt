@@ -1,3 +1,7 @@
+from tests.utils import skip_if_not_active
+
+skip_if_not_active("snowflake")
+
 from copy import deepcopy
 
 import pytest
@@ -13,6 +17,7 @@ from dlt.destinations.impl.snowflake.configuration import (
 )
 
 from tests.load.utils import TABLE_UPDATE, empty_schema
+
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
