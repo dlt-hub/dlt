@@ -241,7 +241,7 @@ In the above example we effectively convert `customers__purchases` table into a 
 Here's resulting schema. Note that regular linking for nested tables was not generated. Instead `customer__purchases` table has compound
 primary key, write disposition, load id but still receives data from `purchases` nested list.
 
-```yml
+```yaml
 tables:
   customers:
     columns:

@@ -261,18 +261,19 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         is_root: bool = False,
     ) -> TNormalizedRowIterator:
         table = self._shorten_fragments(*parent_path, *ident_path)
-        is_root = is_root or not self._should_be_nested(table)
         # flatten current row and extract all lists to recur into
         flattened_row, lists = self._flatten(table, dict_row, _r_lvl)
         # always extend row
         DataItemNormalizer._extend_row(extend, flattened_row)
+
+        # identify load id if loaded data must be processed after loading incrementally
+        if is_root := is_root or not self._should_be_nested(table):
+            flattened_row[self.c_dlt_load_id] = self._load_id
+
         # infer record hash or leave existing primary key if present
         row_id = flattened_row.get(self.c_dlt_id, None)
         if not row_id:
             row_id = self._add_row_id(table, dict_row, flattened_row, parent_row_id, pos, is_root)
-        # identify load id if loaded data must be processed after loading incrementally
-        if is_root:
-            flattened_row[self.c_dlt_load_id] = self._load_id
 
         # find fields to propagate to nested tables in config
         extend.update(self._get_propagated_values(table, flattened_row, is_root))
