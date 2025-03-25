@@ -84,6 +84,12 @@ from dlt.sources.rest_api.config_setup import (
             id="mixed_structures_with_escaped_braces",
         ),
         pytest.param(
+            "posts/{{{id}}}",
+            {"id": 1},
+            "posts/{1}",
+            id="triple_braces",
+        ),
+        pytest.param(
             "posts/{{{{not_this}}}}/{id}",
             {"id": 1},
             "posts/{{not_this}}/1",
