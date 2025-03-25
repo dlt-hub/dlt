@@ -158,6 +158,10 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         self.config: DestinationClientDwhConfiguration = config
 
     @property
+    def sql_client_class(self) -> Type[SqlClientBase[Any]]:
+        return self._sql_client.__class__
+
+    @property
     def sql_client(self) -> SqlClientBase[TNativeConn]:
         return self._sql_client
 

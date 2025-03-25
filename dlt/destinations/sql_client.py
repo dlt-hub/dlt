@@ -309,13 +309,17 @@ SELECT 1
         return "", f"LIMIT {limit}"
 
 
-class WithSqlClient:
+class WithSqlClient(ABC):
     @property
     @abstractmethod
-    def sql_client(self) -> SqlClientBase[TNativeConn]: ...
+    def sql_client(self) -> SqlClientBase[TNativeConn]:
+        pass
 
-    # TODO: add class var with sqlclient type so we know when WithTableScanners
-    # is implemented
+    # Sqlclient type so we know when WithTableScanners is implemented
+    @property
+    @abstractmethod
+    def sql_client_class(self) -> Type[SqlClientBase[TNativeConn]]:
+        pass
 
 
 class DBApiCursorImpl(DBApiCursor):

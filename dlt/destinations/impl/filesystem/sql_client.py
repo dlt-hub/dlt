@@ -7,6 +7,7 @@ from dlt.common import logger
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.storages.configuration import FileSystemCredentials
 
+from dlt.common.typing import TLoaderFileFormat
 from dlt.destinations.sql_client import raise_database_error
 from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
 from dlt.destinations.impl.duckdb.factory import DuckDbCredentials
@@ -27,34 +28,43 @@ class FilesystemSqlClient(WithTableScanners):
         remote_client: FilesystemClient,
         dataset_name: str,
         cache_db: DuckDbCredentials = None,
+        persist_secrets: bool = False,
     ) -> None:
         if remote_client.config.protocol not in SUPPORTED_PROTOCOLS:
             raise NotImplementedError(
                 f"Protocol {remote_client.config.protocol} currently not supported for"
                 f" FilesystemSqlClient. Supported protocols are {SUPPORTED_PROTOCOLS}."
             )
-        super().__init__(remote_client, dataset_name, cache_db)
+        super().__init__(remote_client, dataset_name, cache_db, persist_secrets=persist_secrets)
         self.remote_client: FilesystemClient = remote_client
         self.is_abfss = self.remote_client.config.protocol == "abfss"
         self.iceberg_initialized = False
 
-    def _create_default_secret_name(self) -> str:
-        regex = re.compile("[^a-zA-Z]")
-        escaped_bucket_name = regex.sub("", self.remote_client.config.bucket_url.lower())
-        return f"secret_{escaped_bucket_name}"
+    def can_create_view(self, table_schema: PreparedTableSchema) -> bool:
+        if table_schema.get("table_format") in ("delta", "iceberg"):
+            return True
+        file_format = self.get_file_format(table_schema)
+        return file_format in ("jsonl", "parquet")
 
-    def create_authentication(
+    def get_file_format(self, table_schema: PreparedTableSchema) -> TLoaderFileFormat:
+        if table_schema["name"] in self.schema.dlt_table_names():
+            return "jsonl"
+        file_format = table_schema.get("file_format")
+        if not file_format or file_format == "preferred":
+            file_format = self.remote_client.capabilities.preferred_loader_file_format
+        return file_format
+
+    def create_secret(
         self,
         scope: str,
         credentials: FileSystemCredentials,
-        persistent: bool = False,
         secret_name: str = None,
     ) -> bool:
-        if not super().create_authentication(
-            scope, credentials, persistent=persistent, secret_name=secret_name
-        ):
+        protocol = self.remote_client.config.protocol
+        if protocol == "file":
+            return True
+        if not super().create_secret(scope, credentials, secret_name=secret_name):
             # native google storage implementation is not supported..
-            protocol = self.remote_client.config.protocol
             if protocol in ["gs", "gcs"]:
                 logger.warn(
                     "For gs/gcs access via duckdb please use the gs/gcs s3 compatibility layer if"
@@ -80,7 +90,7 @@ class FilesystemSqlClient(WithTableScanners):
 
         if first_connection:
             # create single authentication for the whole client
-            self.create_authentication(
+            self.create_secret(
                 self.remote_client.config.bucket_url, self.remote_client.config.credentials
             )
 
@@ -143,14 +153,18 @@ class FilesystemSqlClient(WithTableScanners):
                     " skip_schema_inference=True)"
                 )
         else:
-            # discover file type
-            files = self.remote_client.list_table_files(table_name)
-            first_file_type = os.path.splitext(files[0])[1][1:]
+            # get file format from schema
+            # NOTE: this does not support cases where table contains many different file formats
+            first_file_type = self.get_file_format(table_schema)
+
+            # files = self.remote_client.list_table_files(table_name)
+            # first_file_type = os.path.splitext(files[0])[1][1:]
 
             # build files string
             supports_wildcard_notation = self.remote_client.config.protocol != "abfss"
             resolved_files_string = f"'{resolved_folder}/**/*.{first_file_type}'"
             if not supports_wildcard_notation:
+                files = self.remote_client.list_table_files(table_name)
                 resolved_files_string = ",".join(map(lambda f: f"'{protocol}{f}'", files))
 
             if first_file_type == "parquet":

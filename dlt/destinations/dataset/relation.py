@@ -1,4 +1,4 @@
-from typing import Any, Generator, Sequence, Union, TYPE_CHECKING
+from typing import Any, Generator, Sequence, Type, Union, TYPE_CHECKING
 
 from contextlib import contextmanager
 
@@ -13,7 +13,7 @@ from dlt.destinations.dataset.exceptions import (
 )
 
 from dlt.common.schema.typing import TTableSchemaColumns
-from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.common.schema import Schema
 
 if TYPE_CHECKING:
@@ -22,7 +22,7 @@ else:
     ReadableDBAPIDataset = Any
 
 
-class BaseReadableDBAPIRelation(SupportsReadableRelation):
+class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     def __init__(
         self,
         *,
@@ -46,6 +46,10 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation):
     @property
     def sql_client(self) -> SqlClientBase[Any]:
         return self._dataset.sql_client
+
+    @property
+    def sql_client_class(self) -> Type[SqlClientBase[Any]]:
+        return self._dataset.sql_client_class
 
     @property
     def schema(self) -> Schema:

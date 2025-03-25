@@ -286,6 +286,12 @@ class FilesystemClient(
         self._sql_client: SqlClientBase[Any] = None
 
     @property
+    def sql_client_class(self) -> Type[SqlClientBase[Any]]:
+        from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
+
+        return FilesystemSqlClient
+
+    @property
     def sql_client(self) -> SqlClientBase[Any]:
         # we use an inner import here, since the sql client depends on duckdb and will
         # only be used for read access on data, some users will not need the dependency

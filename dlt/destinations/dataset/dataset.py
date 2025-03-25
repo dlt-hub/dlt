@@ -1,4 +1,4 @@
-from typing import Any, Union, TYPE_CHECKING, List
+from typing import Any, Type, Union, TYPE_CHECKING, List
 
 from dlt.common.json import json
 
@@ -23,7 +23,7 @@ else:
     IbisBackend = Any
 
 
-class ReadableDBAPIDataset(SupportsReadableDataset):
+class ReadableDBAPIDataset(SupportsReadableDataset, WithSqlClient):
     """Access to dataframes and arrowtables in the destination dataset via dbapi"""
 
     def __init__(
@@ -66,6 +66,10 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         if not self._sql_client:
             self._ensure_client_and_schema()
         return self._sql_client
+
+    @property
+    def sql_client_class(self) -> Type[SqlClientBase[Any]]:
+        return self.sql_client.__class__
 
     @property
     def destination_client(self) -> JobClientBase:

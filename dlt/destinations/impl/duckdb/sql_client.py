@@ -1,4 +1,5 @@
 from abc import abstractmethod
+import re
 import duckdb
 import semver
 from pathlib import Path
@@ -234,6 +235,7 @@ class WithTableScanners(DuckDbSqlClient):
         remote_client: JobClientBase,
         dataset_name: str,
         cache_db: DuckDbCredentials = None,
+        persist_secrets: bool = False,
     ) -> None:
         """Allows to maps data in tables accessed via `remote_client` as VIEWs in duckdb database.
         Creates in memory "cache" database by default or allows for external database via "cache_db".
@@ -261,28 +263,44 @@ class WithTableScanners(DuckDbSqlClient):
         )
         self.remote_client = remote_client
         self.schema = remote_client.schema
+        self.persist_secrets = persist_secrets
 
-    @abstractmethod
-    def _create_default_secret_name(self) -> str:
-        pass
+    def create_secret_name(self, scope: str) -> str:
+        regex = re.compile("[^a-zA-Z]")
+        escaped_bucket_name = regex.sub("", scope.lower())
+        return f"{self.dataset_name}_{escaped_bucket_name}"
 
-    def drop_authentication(self, secret_name: str = None) -> None:
-        if not secret_name:
-            secret_name = self._create_default_secret_name()
-        self._conn.sql(f"DROP PERSISTENT SECRET IF EXISTS {secret_name}")
+    def list_secrets(self) -> Sequence[str]:
+        """List secrets that belong to this dataset"""
+        secrets = self._conn.sql(
+            f"SELECT name FROM duckdb_secrets() WHERE name LIKE '{self.dataset_name}%'"
+        ).fetchall()
+        return [s[0] for s in secrets]
 
-    def create_authentication(
+    def drop_secret(self, secret_name: str) -> None:
+        if not secret_name.startswith(self.dataset_name):
+            raise ValueError(
+                f"Secret name must start with dataset name {self.dataset_name}, got {secret_name}"
+            )
+
+        self._conn.sql(f"DROP SECRET {secret_name}")
+
+    def create_secret(
         self,
         scope: str,
         credentials: FileSystemCredentials,
-        persistent: bool = False,
         secret_name: str = None,
     ) -> bool:
         #  home dir is a bad choice, it should be more explicit
         if not secret_name:
-            secret_name = self._create_default_secret_name()
+            secret_name = self.create_secret_name(scope)
 
-        if persistent and self.memory_db:
+        if not secret_name.startswith(self.dataset_name):
+            raise ValueError(
+                f"Secret name must start with dataset name {self.dataset_name}, got {secret_name}"
+            )
+
+        if self.persist_secrets and self.memory_db:
             raise Exception("Creating persistent secrets for in memory db is not allowed.")
 
         secrets_path = Path(
@@ -297,7 +315,7 @@ class WithTableScanners(DuckDbSqlClient):
             and secrets_path.parts[-2] == ".duckdb"
         )
 
-        if is_default_secrets_directory and persistent:
+        if is_default_secrets_directory and self.persist_secrets:
             logger.warn(
                 "You are persisting duckdb secrets but are storing them in the default folder"
                 f" {secrets_path}. These secrets are saved there unencrypted, we"
@@ -305,7 +323,7 @@ class WithTableScanners(DuckDbSqlClient):
             )
 
         persistent_stmt = ""
-        if persistent:
+        if self.persist_secrets:
             persistent_stmt = " PERSISTENT "
 
         if "@" in scope:
@@ -369,7 +387,7 @@ class WithTableScanners(DuckDbSqlClient):
                     ACCOUNT_NAME '{credentials.azure_storage_account_name}',
                     SCOPE '{scope}'
                 );""")
-        elif persistent:
+        elif self.persist_secrets:
             raise ValueError(
                 "Cannot create persistent secret for filesystem protocol"
                 f" {protocol}. If you are trying to use persistent secrets"
@@ -403,10 +421,16 @@ class WithTableScanners(DuckDbSqlClient):
 
     @abstractmethod
     def should_replace_view(self, view_name: str, table_schema: PreparedTableSchema) -> bool:
+        """Tells if view `view_name` should be replaced"""
         pass
 
     @abstractmethod
     def create_view(self, view_name: str, table_schema: PreparedTableSchema) -> None:
+        pass
+
+    @abstractmethod
+    def can_create_view(self, table_schema: PreparedTableSchema) -> bool:
+        """Tells if a view for a table `table_schema` can be created"""
         pass
 
     def create_views_for_all_tables(self) -> None:
@@ -431,6 +455,9 @@ class WithTableScanners(DuckDbSqlClient):
             needs_replace = self.should_replace_view(view_name, schema_table)
             # skip if view already exists and does not need to be replaced each time
             if view_name in existing_tables and not needs_replace:
+                continue
+
+            if not self.can_create_view(schema_table):
                 continue
 
             self.create_view(view_name, schema_table)
