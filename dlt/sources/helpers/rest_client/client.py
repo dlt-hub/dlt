@@ -165,13 +165,13 @@ class RESTClient:
         self,
         path: str = "",
         method: HTTPMethodBasic = "GET",
-        headers: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
         auth: Optional[AuthBase] = None,
         paginator: Optional[BasePaginator] = None,
         data_selector: Optional[jsonpath.TJsonPath] = None,
         hooks: Optional[Hooks] = None,
+        headers: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ) -> Iterator[PageData[Any]]:
         """Iterates over paginated API responses, yielding pages of data.
