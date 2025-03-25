@@ -325,8 +325,8 @@ def create_resources(
 
                 # Always expand placeholders to handle escaped sequences
                 path = expand_placeholders(path, format_kwargs)
-                params = expand_placeholders(params, format_kwargs)
                 headers = expand_placeholders(headers, format_kwargs)
+                params = expand_placeholders(params, format_kwargs)
                 json = expand_placeholders(json, format_kwargs)
 
                 yield from client.paginate(
@@ -399,8 +399,8 @@ def create_resources(
                     ) = process_parent_data_item(
                         path=path,
                         item=item,
-                        params=params,
                         headers=headers,
+                        params=params,
                         request_json=json,
                         resolved_params=resolved_params,
                         include_from_parent=include_from_parent,
@@ -411,8 +411,8 @@ def create_resources(
                     for child_page in client.paginate(
                         method=method,
                         path=formatted_path,
-                        params=expanded_params,
                         headers=expanded_headers,
+                        params=expanded_params,
                         json=expanded_json,
                         paginator=paginator,
                         data_selector=data_selector,
@@ -430,8 +430,8 @@ def create_resources(
             )(
                 method=endpoint_config.get("method", "get"),
                 path=endpoint_config.get("path"),
-                params=base_params,
                 headers=request_headers,
+                params=base_params,
                 json=request_json,
                 paginator=paginator,
                 data_selector=endpoint_config.get("data_selector"),
