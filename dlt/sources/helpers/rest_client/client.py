@@ -101,6 +101,7 @@ class RESTClient:
         method: HTTPMethod,
         headers: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
         auth: Optional[AuthBase] = None,
         hooks: Optional[Hooks] = None,
@@ -111,15 +112,12 @@ class RESTClient:
         else:
             url = join_url(self.base_url, path_or_url)
 
-        combined_headers = copy.deepcopy(self.headers) or {}
-        if headers:
-            # passed headers should override default headers
-            combined_headers.update(headers)
+        request_headers = (self.headers or {}) | (headers or {})
 
         return Request(
             method=method,
             url=url,
-            headers=combined_headers,
+            headers=request_headers,
             params=params,
             json=json,
             auth=auth or self.auth,
@@ -152,6 +150,7 @@ class RESTClient:
             method=method,
             headers=kwargs.pop("headers", None),
             params=kwargs.pop("params", None),
+            headers=kwargs.pop("headers", None),
             json=kwargs.pop("json", None),
             auth=kwargs.pop("auth", None),
             hooks=kwargs.pop("hooks", None),
@@ -170,6 +169,7 @@ class RESTClient:
         method: HTTPMethodBasic = "GET",
         headers: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
         auth: Optional[AuthBase] = None,
         paginator: Optional[BasePaginator] = None,

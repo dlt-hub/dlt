@@ -264,7 +264,7 @@ def setup_incremental_object(
 
 
 def parse_convert_or_deprecated_transform(
-    config: Union[IncrementalConfig, Dict[str, Any]]
+    config: Union[IncrementalConfig, Dict[str, Any]],
 ) -> Optional[Callable[..., Any]]:
     convert = config.get("convert", None)
     deprecated_transform = config.get("transform", None)
@@ -317,15 +317,20 @@ def build_resource_dependency_graph(
             endpoint_resource["endpoint"]["path"], available_contexts
         )
 
-        # Find all expressions in params and json, but error if any of them is not in available_contexts
+        # Find all expressions in params, json, or header, but error if any of them is not in available_contexts
         params_expressions = _find_expressions(endpoint_resource["endpoint"].get("params", {}))
         _raise_if_any_not_in(params_expressions, available_contexts, message="params")
 
         json_expressions = _find_expressions(endpoint_resource["endpoint"].get("json", {}))
         _raise_if_any_not_in(json_expressions, available_contexts, message="json")
 
+        headers_expressions = _find_expressions(endpoint_resource["endpoint"].get("headers", {}))
+        _raise_if_any_not_in(headers_expressions, available_contexts, message="headers")
+
         resolved_params += _expressions_to_resolved_params(
-            _filter_resource_expressions(path_expressions | params_expressions | json_expressions)
+            _filter_resource_expressions(
+                path_expressions | params_expressions | json_expressions | headers_expressions
+            )
         )
 
         # set of resources in resolved params
@@ -723,11 +728,12 @@ def process_parent_data_item(
     item: Dict[str, Any],
     resolved_params: List[ResolvedParam],
     params: Optional[Dict[str, Any]] = None,
+    request_headers: Optional[Dict[str, Any]] = None,
     request_json: Optional[Dict[str, Any]] = None,
     include_from_parent: Optional[List[str]] = None,
     incremental: Optional[Incremental[Any]] = None,
     incremental_value_convert: Optional[Callable[..., Any]] = None,
-) -> Tuple[str, Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+) -> Tuple[str, Dict[str, Any], Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
     params_values = collect_resolved_values(
         item, resolved_params, incremental, incremental_value_convert
     )
@@ -737,10 +743,20 @@ def process_parent_data_item(
         None if request_json is None else expand_placeholders(request_json, params_values)
     )
 
+    expanded_headers = (
+        None if request_headers is None else expand_placeholders(request_headers, params_values)
+    )
+
     parent_resource_name = resolved_params[0].resolve_config["resource"]
     parent_record = build_parent_record(item, parent_resource_name, include_from_parent)
 
-    return expanded_path, expanded_params, expanded_json, parent_record
+    return (
+        expanded_path,
+        expanded_params,
+        expanded_json,
+        expanded_headers,
+        parent_record,
+    )
 
 
 def convert_incremental_values(
@@ -819,7 +835,9 @@ def expand_placeholders(obj: Any, placeholders: Dict[str, Any]) -> Any:
 
 
 def build_parent_record(
-    item: Dict[str, Any], parent_resource_name: str, include_from_parent: Optional[List[str]]
+    item: Dict[str, Any],
+    parent_resource_name: str,
+    include_from_parent: Optional[List[str]],
 ) -> Dict[str, Any]:
     """
     Builds a dictionary of the `include_from_parent` fields from the parent,
