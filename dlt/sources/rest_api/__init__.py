@@ -326,10 +326,8 @@ def create_resources(
                 # Always expand placeholders to handle escaped sequences
                 path = expand_placeholders(path, format_kwargs)
                 params = expand_placeholders(params, format_kwargs)
-                headers = (
-                    expand_placeholders(headers, format_kwargs) if headers is not None else None
-                )
-                json = expand_placeholders(json, format_kwargs) if json is not None else None
+                headers = expand_placeholders(headers, format_kwargs)
+                json = expand_placeholders(json, format_kwargs)
 
                 yield from client.paginate(
                     method=method,
