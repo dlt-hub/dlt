@@ -18,19 +18,6 @@ from dlt.sources.rest_api.typing import (
     RESTAPIConfig,
 )
 
-try:
-    from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
-except ImportError:
-    from dlt.sources.helpers.rest_client.paginators import (
-        JSONResponsePaginator as JSONLinkPaginator,
-    )
-
-
-try:
-    from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
-except ImportError:
-    pass
-
 
 def test_bind_path_param() -> None:
     three_params: EndpointResource = {

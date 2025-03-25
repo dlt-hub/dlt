@@ -10,9 +10,6 @@ from typing import (
 
 from dlt.common import jsonpath
 from dlt.common.typing import TypedDict
-from dlt.common.schema.typing import (
-    TAnySchemaColumns,
-)
 from dlt.common.incremental.typing import IncrementalArgs
 from dlt.extract.items import TTableHintTemplate
 from dlt.extract.hints import TResourceHintsBase
@@ -28,20 +25,13 @@ from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
 
 from dlt.sources.helpers.rest_client.paginators import (
     BasePaginator,
+    JSONLinkPaginator,
     HeaderLinkPaginator,
     JSONResponseCursorPaginator,
     OffsetPaginator,
     PageNumberPaginator,
     SinglePagePaginator,
 )
-
-
-try:
-    from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
-except ImportError:
-    from dlt.sources.helpers.rest_client.paginators import (
-        JSONResponsePaginator as JSONLinkPaginator,
-    )
 
 from dlt.sources.helpers.rest_client.auth import (
     HttpBasicAuth,
