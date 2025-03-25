@@ -931,5 +931,6 @@ def _raise_if_any_not_in(expressions: Set[str], available_contexts: Set[str], me
         if not any(expression.startswith(prefix + ".") for prefix in available_contexts):
             raise ValueError(
                 f"Expression '{expression}' defined in {message} is not valid. Valid expressions"
-                f" must start with one of: {', '.join(available_contexts)}"
+                f" must start with one of: {', '.join(available_contexts)}. If you need to use"
+                " literal curly braces in your expression, escape them by doubling them: {{ and }}"
             )
