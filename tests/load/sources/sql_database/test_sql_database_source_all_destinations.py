@@ -42,9 +42,10 @@ def test_load_sql_schema_loads_all_tables(
     sql_source_db: SQLAlchemySourceDB,
     destination_config: DestinationTestConfiguration,
     backend: TableBackend,
-    request: Any,
 ) -> None:
-    pipeline = destination_config.setup_pipeline(request.node.name, dev_mode=True)
+    pipeline = destination_config.setup_pipeline(
+        "test_load_sql_schema_loads_all_tables", dev_mode=True
+    )
 
     source = sql_database(
         credentials=sql_source_db.credentials,
@@ -86,9 +87,10 @@ def test_load_sql_schema_loads_all_tables_parallel(
     sql_source_db: SQLAlchemySourceDB,
     destination_config: DestinationTestConfiguration,
     backend: TableBackend,
-    request: Any,
 ) -> None:
-    pipeline = destination_config.setup_pipeline(request.node.name, dev_mode=True)
+    pipeline = destination_config.setup_pipeline(
+        "test_load_sql_schema_loads_all_tables_parallel", dev_mode=True
+    )
     source = sql_database(
         credentials=sql_source_db.credentials,
         schema=sql_source_db.schema,
@@ -127,9 +129,8 @@ def test_load_sql_table_names(
     sql_source_db: SQLAlchemySourceDB,
     destination_config: DestinationTestConfiguration,
     backend: TableBackend,
-    request: Any,
 ) -> None:
-    pipeline = destination_config.setup_pipeline(request.node.name, dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_load_sql_table_names", dev_mode=True)
     tables = ["chat_channel", "chat_message"]
     load_info = pipeline.run(
         sql_database(
@@ -155,7 +156,6 @@ def test_load_sql_table_incremental(
     sql_source_db: SQLAlchemySourceDB,
     destination_config: DestinationTestConfiguration,
     backend: TableBackend,
-    request: Any,
 ) -> None:
     """Run pipeline twice. Insert more rows after first run
     and ensure only those rows are stored after the second run.
@@ -165,7 +165,7 @@ def test_load_sql_table_incremental(
     if not IS_SQL_ALCHEMY_20 and backend == "connectorx":
         pytest.skip("Test will not run on sqlalchemy 1.4 with connectorx")
 
-    pipeline = destination_config.setup_pipeline(request.node.name, dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_load_sql_table_incremental", dev_mode=True)
     tables = ["chat_message"]
 
     def make_source():
@@ -194,7 +194,7 @@ def test_load_sql_table_incremental(
 )
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
 def test_load_mysql_data_load(
-    destination_config: DestinationTestConfiguration, backend: TableBackend, request: Any
+    destination_config: DestinationTestConfiguration, backend: TableBackend
 ) -> None:
     # reflect a database
     credentials = ConnectionStringCredentials(
@@ -225,7 +225,7 @@ def test_load_mysql_data_load(
         # table_adapter_callback=_double_as_decimal_adapter,
     )
 
-    pipeline = destination_config.setup_pipeline(request.node.name, dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_load_mysql_data_load", dev_mode=True)
     load_info = pipeline.run(family_table, write_disposition="merge")
     assert_load_info(load_info)
     counts_1 = load_table_counts(pipeline, "family")
@@ -257,7 +257,6 @@ def test_load_sql_table_resource_loads_data(
     sql_source_db: SQLAlchemySourceDB,
     destination_config: DestinationTestConfiguration,
     backend: TableBackend,
-    request: Any,
 ) -> None:
     @dlt.source
     def sql_table_source() -> List[DltResource]:
@@ -271,7 +270,9 @@ def test_load_sql_table_resource_loads_data(
             )
         ]
 
-    pipeline = destination_config.setup_pipeline(request.node.name, dev_mode=True)
+    pipeline = destination_config.setup_pipeline(
+        "test_load_sql_table_resource_loads_data", dev_mode=True
+    )
     load_info = pipeline.run(sql_table_source())
     assert_load_info(load_info)
 
@@ -288,7 +289,6 @@ def test_load_sql_table_resource_incremental(
     sql_source_db: SQLAlchemySourceDB,
     destination_config: DestinationTestConfiguration,
     backend: TableBackend,
-    request: Any,
 ) -> None:
     if not IS_SQL_ALCHEMY_20 and backend == "connectorx":
         pytest.skip("Test will not run on sqlalchemy 1.4 with connectorx")
@@ -306,7 +306,9 @@ def test_load_sql_table_resource_incremental(
             )
         ]
 
-    pipeline = destination_config.setup_pipeline(request.node.name, dev_mode=True)
+    pipeline = destination_config.setup_pipeline(
+        "test_load_sql_table_resource_incremental", dev_mode=True
+    )
     load_info = pipeline.run(sql_table_source())
     assert_load_info(load_info)
     sql_source_db.fake_messages(n=100)
@@ -326,7 +328,6 @@ def test_load_sql_table_resource_incremental_initial_value(
     sql_source_db: SQLAlchemySourceDB,
     destination_config: DestinationTestConfiguration,
     backend: TableBackend,
-    request: Any,
 ) -> None:
     if not IS_SQL_ALCHEMY_20 and backend == "connectorx":
         pytest.skip("Test will not run on sqlalchemy 1.4 with connectorx")
@@ -347,7 +348,9 @@ def test_load_sql_table_resource_incremental_initial_value(
             )
         ]
 
-    pipeline = destination_config.setup_pipeline(request.node.name, dev_mode=True)
+    pipeline = destination_config.setup_pipeline(
+        "test_load_sql_table_resource_incremental_initial_value", dev_mode=True
+    )
     load_info = pipeline.run(sql_table_source())
     assert_load_info(load_info)
     assert_row_counts(pipeline, sql_source_db, ["chat_message"])

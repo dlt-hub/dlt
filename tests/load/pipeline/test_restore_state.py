@@ -106,7 +106,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     with p.managed_state(extract_state=True):
         pass
     # just run the existing extract
-    p.normalize(loader_file_format=destination_config.file_format)
+    p.normalize()
     p.load()
 
     with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
@@ -118,7 +118,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     with p.managed_state(extract_state=True) as managed_state:
         # this will be saved
         managed_state["sources"] = {"source": dict(JSON_TYPED_DICT_DECODED)}
-    p.normalize(loader_file_format=destination_config.file_format)
+    p.normalize()
     p.load()
 
     with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
@@ -134,7 +134,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     new_local_state = p._get_state()
     new_local_state.pop("_local")
     assert local_state == new_local_state
-    p.normalize(loader_file_format=destination_config.file_format)
+    p.normalize()
     info = p.load()
     assert len(info.loads_ids) == 0
 
@@ -167,7 +167,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     assert new_local_state_2_local["_last_extracted_hash"] == new_local_state_2["_version_hash"]
     # but the version didn't change
     assert new_local_state["_state_version"] == new_local_state_2["_state_version"]
-    p.normalize(loader_file_format=destination_config.file_format)
+    p.normalize()
     info = p.load()
     assert len(info.loads_ids) == 1
 
@@ -354,18 +354,34 @@ def test_restore_state_pipeline(
     # extract by creating ad hoc source in pipeline that keeps state under pipeline name
     data1 = some_data("state1")
     data1._pipe.name = "state1_data"
-    p.extract([data1, some_data("state2")], schema=Schema("default"))
+    p.extract(
+        [data1, some_data("state2")],
+        schema=Schema("default"),
+        loader_file_format=destination_config.file_format,
+    )
 
     data_two = source_two("state3")
-    p.extract(data_two, table_format=destination_config.table_format)
+    p.extract(
+        data_two,
+        table_format=destination_config.table_format,
+        loader_file_format=destination_config.file_format,
+    )
 
     data_three = source_three("state4")
-    p.extract(data_three, table_format=destination_config.table_format)
+    p.extract(
+        data_three,
+        table_format=destination_config.table_format,
+        loader_file_format=destination_config.file_format,
+    )
 
     data_four = source_four()
-    p.extract(data_four, table_format=destination_config.table_format)
+    p.extract(
+        data_four,
+        table_format=destination_config.table_format,
+        loader_file_format=destination_config.file_format,
+    )
 
-    p.normalize(loader_file_format=destination_config.file_format)
+    p.normalize()
     p.load()
     # keep the orig state
     orig_state = p.state

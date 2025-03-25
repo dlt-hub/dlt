@@ -2806,6 +2806,27 @@ def test_import_unknown_file_format() -> None:
     assert isinstance(inner_ex.__cause__, ValueError)
 
 
+def test_run_file_format_sets_table_schema() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="test_run_file_format_sets_table_schema",
+        destination="duckdb",
+        dev_mode=True,
+    )
+
+    @dlt.resource(file_format="jsonl")
+    def _data():
+        yield [1, 2, 3]
+
+    pipeline.run(_data(), loader_file_format="insert_values")
+    assert pipeline.default_schema.get_table("_data")["file_format"] == "insert_values"
+
+    pipeline.extract(_data().with_name("data_"), loader_file_format="insert_values")
+    assert pipeline.default_schema.get_table("datax")["file_format"] == "insert_values"
+
+    pipeline.extract(_data().with_name("_data_"))
+    assert pipeline.default_schema.get_table("_datax")["file_format"] == "jsonl"
+
+
 def test_resource_transformer_standalone() -> None:
     # requires that standalone resources are executes in a single source
     page = 1

@@ -84,12 +84,21 @@ def test_default_pipeline_names(
         yield data
 
     # this will create default schema
-    p.extract(data_fun, table_format=destination_config.table_format)
+    p.extract(
+        data_fun,
+        table_format=destination_config.table_format,
+        loader_file_format=destination_config.file_format,
+    )
     # _pipeline suffix removed when creating default schema name
     assert p.default_schema_name in ["dlt_pytest", "dlt", "dlt_jb_pytest_runner"]
 
     # this will create additional schema
-    p.extract(data_fun(), schema=dlt.Schema("names"), table_format=destination_config.table_format)
+    p.extract(
+        data_fun(),
+        schema=dlt.Schema("names"),
+        table_format=destination_config.table_format,
+        loader_file_format=destination_config.file_format,
+    )
     assert p.default_schema_name in ["dlt_pytest", "dlt", "dlt_jb_pytest_runner"]
     assert "names" in p.schemas.keys()
 
@@ -124,7 +133,7 @@ def test_default_pipeline_names(
     state_package = p.get_load_package_info(last_load_id)
     assert len(state_package.jobs["new_jobs"]) == 1
     assert state_package.schema_name == p.default_schema_name
-    p.normalize(loader_file_format=destination_config.file_format)
+    p.normalize()
     info = p.load(dataset_name="d" + uniq_id())
     print(p.dataset_name)
     assert info.pipeline is p
@@ -179,8 +188,9 @@ def test_default_schema_name(
         table_name="test",
         schema=Schema("default"),
         table_format=destination_config.table_format,
+        loader_file_format=destination_config.file_format,
     )
-    p.normalize(loader_file_format=destination_config.file_format)
+    p.normalize()
     info = p.load()
     print(info)
 
@@ -367,10 +377,12 @@ def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None
     )
 
     p.extract(
-        source(10).with_resources("simple_rows"), table_format=destination_config.table_format
+        source(10).with_resources("simple_rows"),
+        table_format=destination_config.table_format,
+        loader_file_format=destination_config.file_format,
     )
     # print(p.default_schema.to_pretty_yaml())
-    p.normalize(loader_file_format=destination_config.file_format)
+    p.normalize()
     info = p.load(dataset_name=dataset_name)
     # test __str__
     print(info)
@@ -443,7 +455,11 @@ def test_pipeline_data_writer_compression(
     destination_config.disable_compression = disable_compression
 
     p = destination_config.setup_pipeline("compression_test", dataset_name=dataset_name)
-    p.extract(dlt.resource(data, name="data"), table_format=destination_config.table_format)
+    p.extract(
+        dlt.resource(data, name="data"),
+        table_format=destination_config.table_format,
+        loader_file_format=destination_config.file_format,
+    )
     s = p._get_normalize_storage()
     # check that files are not compressed if compression is disabled
     for name in s.list_files_to_normalize_sorted():
@@ -458,7 +474,7 @@ def test_pipeline_data_writer_compression(
                 with open(full_path, "rt", encoding="utf-8") as f:
                     f.readline()
 
-    p.normalize(loader_file_format=destination_config.file_format)
+    p.normalize()
 
     info = p.load()
     assert_table(p, "data", data, info=info)

@@ -2,7 +2,7 @@ from typing import Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration
-from dlt.common.destination import DestinationCapabilitiesContext, TLoaderFileFormat
+from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
 from dlt.common.storages import (
     LoadStorageConfiguration,
@@ -23,7 +23,6 @@ class ItemsNormalizerConfiguration(BaseConfiguration):
 class NormalizeConfiguration(PoolRunnerConfiguration):
     pool_type: TPoolType = "process"
     destination_capabilities: DestinationCapabilitiesContext = None  # injectable
-    loader_file_format: Optional[TLoaderFileFormat] = None
     _schema_storage_config: SchemaStorageConfiguration = None
     _normalize_storage_config: NormalizeStorageConfiguration = None
     _load_storage_config: LoadStorageConfiguration = None
