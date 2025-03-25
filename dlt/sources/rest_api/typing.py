@@ -249,6 +249,7 @@ class Endpoint(TypedDict, total=False):
     response_actions: Optional[List[ResponseAction]]
     incremental: Optional[IncrementalConfig]
     auth: Optional[AuthConfig]
+    headers: Optional[Dict[str, Any]]
 
 
 class ProcessingSteps(TypedDict):
