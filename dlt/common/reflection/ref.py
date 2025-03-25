@@ -111,8 +111,11 @@ def object_from_ref(
     Returns: a tuple (typechecked attr, trace if error)
 
     """
+    # TODO consider using `module.submodule:object_in_module` notation
+    # There's no official PEP, but it's used in pyproject.toml, setuptools, pytest, uvicorn
+    # This would allow `module_path, _, attr_name = ref.partition(":")`
     if "." not in ref:
-        raise ValueError("ref format is module.attr and must contain at leas one dot")
+        raise ValueError("ref format is module.attr and must contain at least one dot")
     module_path, attr_name = ref.rsplit(".", 1)
     try:
         spec = importlib.util.find_spec(module_path)
@@ -142,6 +145,7 @@ def object_from_ref(
             raise
         return None, ImportTrace(ref, module_path, attr_name, "ImportError", mod_ex)
 
+    dest_module = importlib.reload(dest_module)
     try:
         factory = getattr(dest_module, attr_name)
     except AttributeError as attr_ex:

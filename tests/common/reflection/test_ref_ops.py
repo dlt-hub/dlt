@@ -1,15 +1,22 @@
-from typing import Iterator
-import pytest
+import importlib
+import importlib.util
+import inspect
 import sys
+import shutil
+from typing import Iterator
+
+import pytest
 
 from dlt.common.reflection.ref import object_from_ref, callable_typechecker
 from dlt.extract.reference import SourceFactory, SourceReference
 from tests.utils import unload_modules
 
+MODULE_SOURCE_PATH = "tests/common/reflection/cases/modules"
+
 
 @pytest.fixture(autouse=True)
 def set_syspath() -> Iterator[None]:
-    sys.path.append("tests/common/reflection/cases/modules")
+    sys.path.append(MODULE_SOURCE_PATH)
     try:
         yield
     finally:
@@ -151,3 +158,92 @@ def test_ref_import() -> None:
     # typechecker may modify attr. source typechecker can extract factory from standalone function
     r_, _ = object_from_ref("regular_mod.r", SourceReference._factory_typechecker)
     assert isinstance(r_, SourceFactory)
+
+
+def test_ref_is_properly_reloaded(tmp_path) -> None:
+    mod_v1 = """\
+import dlt
+
+@dlt.source(name="foo_s")
+def s():
+    return []
+
+@dlt.resource(name="foo_r", standalone=True)
+def r():
+    yield [1, 2, 3]
+
+def foo():
+    pass
+"""
+
+
+    mod_v2 = """\
+import dlt
+
+@dlt.source(name="bar_s")
+def s():
+    return []
+
+@dlt.resource(name="bar_r", standalone=True)
+def r():
+    yield [1, 2, 3]
+
+def bar():
+    pass
+"""
+    module_name = "mod_to_reload"
+    source_ref = f"{module_name}.s"
+    resource_ref = f"{module_name}.r"
+    module_path = tmp_path / f"{module_name}.py"
+    sys.path.append(str(tmp_path))
+    
+    # write module v1
+    with module_path.open("w") as f:
+        f.write(mod_v1)
+
+    # load module v1
+    s_1, _ = object_from_ref(
+        source_ref,
+        SourceReference._factory_typechecker,
+    )
+    # calling object_from_ref loads the python module
+    mod_to_reload = __import__(module_name)
+    source_code_v1 = inspect.getsource(mod_to_reload)
+    assert "foo_s" in source_code_v1
+    assert "foo_r" in source_code_v1
+
+    r_1, _ = object_from_ref(
+        resource_ref,
+        SourceReference._factory_typechecker,
+    )
+
+    assert s_1.name == "foo_s"
+    assert r_1.name == "foo_r"
+
+
+    # write module v2
+    with module_path.open("w") as f:
+        f.write(mod_v2)
+
+    # load module v2
+    s_2, _ = object_from_ref(
+        source_ref,
+        SourceReference._factory_typechecker,
+    )
+
+    # calling object_from_ref should reload the module
+    source_code_v2 = inspect.getsource(mod_to_reload)
+    assert "foo_s" not in source_code_v2
+    assert "foo_r" not in source_code_v2
+    assert "bar_s" in source_code_v2
+    assert "bar_r" in source_code_v2
+
+    assert s_2.name == "bar_s"
+
+    r_2, _ = object_from_ref(
+        resource_ref,
+        SourceReference._factory_typechecker,
+    )
+    assert r_2.name == "bar_r"
+
+    sys.path.pop()
