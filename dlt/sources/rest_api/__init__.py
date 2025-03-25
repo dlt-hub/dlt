@@ -400,7 +400,7 @@ def create_resources(
                         path=path,
                         item=item,
                         params=params,
-                        request_headers=request_headers,
+                        headers=request_headers,
                         request_json=json,
                         resolved_params=resolved_params,
                         include_from_parent=include_from_parent,

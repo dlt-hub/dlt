@@ -728,7 +728,7 @@ def process_parent_data_item(
     item: Dict[str, Any],
     resolved_params: List[ResolvedParam],
     params: Optional[Dict[str, Any]] = None,
-    request_headers: Optional[Dict[str, Any]] = None,
+    headers: Optional[Dict[str, Any]] = None,
     request_json: Optional[Dict[str, Any]] = None,
     include_from_parent: Optional[List[str]] = None,
     incremental: Optional[Incremental[Any]] = None,
@@ -738,7 +738,7 @@ def process_parent_data_item(
         item, resolved_params, incremental, incremental_value_convert
     )
     expanded_path = expand_placeholders(path, params_values)
-    expanded_headers = expand_placeholders(request_headers, params_values)
+    expanded_headers = expand_placeholders(headers, params_values)
     expanded_params = expand_placeholders(params or {}, params_values)
     expanded_json = expand_placeholders(request_json, params_values)
 

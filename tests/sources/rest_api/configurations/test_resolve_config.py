@@ -113,7 +113,7 @@ def test_process_parent_data_item() -> None:
             item={"obj_id": 12345},
             params={},
             request_json={},
-            request_headers={},
+            headers={},
             resolved_params=resolved_params,
         )
     )
@@ -129,7 +129,7 @@ def test_process_parent_data_item() -> None:
             item={"obj_id": 12345},
             params={"orig_id": "{id}"},
             request_json={"orig_id": "{id}"},
-            request_headers={"X-Id": "{id}"},
+            headers={"X-Id": "{id}"},
             resolved_params=resolved_params,
         )
     )
@@ -181,7 +181,7 @@ def test_process_parent_data_item() -> None:
             item={"obj_id": 12345, "obj_node": "node_1"},
             params={"id": "{resources.issues.obj_id}"},
             request_json={"id": "{resources.issues.obj_id}"},
-            request_headers={"X-Id": "{resources.issues.obj_id}"},
+            headers={"X-Id": "{resources.issues.obj_id}"},
             resolved_params=resolved_params_reference,
             include_from_parent=["obj_id", "obj_node"],
         )
@@ -204,7 +204,7 @@ def test_process_parent_data_item() -> None:
             path="dlt-hub/dlt/issues/{id}/comments",
             item=item,
             params={},
-            request_headers={"X-Id": "{id}"},
+            headers={"X-Id": "{id}"},
             resolved_params=resolved_param_nested,
             include_from_parent=None,
         )
@@ -220,7 +220,7 @@ def test_process_parent_data_item() -> None:
             path="dlt-hub/dlt/issues/comments",
             item={"obj_id": 12345},
             params={},
-            request_headers={
+            headers={
                 "X-Initial": "{incremental.initial_value}",
                 "X-End": "{incremental.end_value}"
             },
@@ -270,7 +270,7 @@ def test_process_parent_data_item() -> None:
             path="dlt-hub/dlt/issues/{issue_id}/comments/{id}",
             item={"issue": 12345, "id": 56789},
             params={},
-            request_headers={"X-Issue": "{issue_id}", "X-Id": "{id}"},
+            headers={"X-Issue": "{issue_id}", "X-Id": "{id}"},
             resolved_params=multi_resolve_params,
             include_from_parent=None,
         )
