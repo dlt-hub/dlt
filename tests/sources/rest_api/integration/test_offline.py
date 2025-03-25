@@ -1270,39 +1270,42 @@ def test_DltResource_gets_called(mock_api_server, mocker, posts_resource_config)
             assert kwargs["path"] == f"posts/{i}/comments"
 
 
-@pytest.mark.parametrize("headers, expected_headers", [
-    pytest.param(
-        {
-            "X-Custom-Header": "test-value",
-            "X-Another-Header": "another-value",
-        },
-        {
-            "X-Custom-Header": "test-value",
-            "X-Another-Header": "another-value",
-        },
-        id="basic",
-    ),
-    pytest.param(
-        {
-            "X-Custom-Header": "test-value with {{escaped}} braces",
-            "X-Another-Header": "",
-        },
-        {
-            "X-Custom-Header": "test-value with {escaped} braces",
-            "X-Another-Header": "",
-        },
-        id="empty-header-and-escaped-braces",
-    ),
-    pytest.param(
-        {
-            "X-Double-Braces-{{escaped}}": "test-value",
-        },
-        {
-            "X-Double-Braces-{escaped}": "test-value",
-        },
-        id="braces-in-header-name",
-    ),
-])
+@pytest.mark.parametrize(
+    "headers, expected_headers",
+    [
+        pytest.param(
+            {
+                "X-Custom-Header": "test-value",
+                "X-Another-Header": "another-value",
+            },
+            {
+                "X-Custom-Header": "test-value",
+                "X-Another-Header": "another-value",
+            },
+            id="basic",
+        ),
+        pytest.param(
+            {
+                "X-Custom-Header": "test-value with {{escaped}} braces",
+                "X-Another-Header": "",
+            },
+            {
+                "X-Custom-Header": "test-value with {escaped} braces",
+                "X-Another-Header": "",
+            },
+            id="empty-header-and-escaped-braces",
+        ),
+        pytest.param(
+            {
+                "X-Double-Braces-{{escaped}}": "test-value",
+            },
+            {
+                "X-Double-Braces-{escaped}": "test-value",
+            },
+            id="braces-in-header-name",
+        ),
+    ],
+)
 def test_headers_in_top_level_resource(mock_api_server, headers, expected_headers):
     """Test that headers are properly passed in top-level resources"""
     source = rest_api_source(

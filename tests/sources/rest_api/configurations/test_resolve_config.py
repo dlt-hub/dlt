@@ -214,6 +214,7 @@ def test_process_parent_data_item() -> None:
 
     # Test incremental values in headers
     from dlt.extract import Incremental
+
     incremental = Incremental(initial_value="2025-01-01", end_value="2025-01-02")
     bound_path, expanded_params, request_json, request_headers, parent_record = (
         process_parent_data_item(
@@ -222,16 +223,13 @@ def test_process_parent_data_item() -> None:
             params={},
             headers={
                 "X-Initial": "{incremental.initial_value}",
-                "X-End": "{incremental.end_value}"
+                "X-End": "{incremental.end_value}",
             },
             resolved_params=resolved_params,
             incremental=incremental,
         )
     )
-    assert request_headers == {
-        "X-Initial": "2025-01-01",
-        "X-End": "2025-01-02"
-    }
+    assert request_headers == {"X-Initial": "2025-01-01", "X-End": "2025-01-02"}
 
     # Param path not found
     with pytest.raises(ValueError) as val_ex:
