@@ -168,7 +168,6 @@ class RESTClient:
         method: HTTPMethodBasic = "GET",
         headers: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
         auth: Optional[AuthBase] = None,
         paginator: Optional[BasePaginator] = None,
