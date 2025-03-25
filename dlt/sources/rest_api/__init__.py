@@ -393,8 +393,8 @@ def create_resources(
                     (
                         formatted_path,
                         expanded_params,
-                        updated_json,
-                        updated_headers,
+                        expanded_json,
+                        expanded_headers,
                         parent_record,
                     ) = process_parent_data_item(
                         path=path,
@@ -412,8 +412,8 @@ def create_resources(
                         method=method,
                         path=formatted_path,
                         params=expanded_params,
-                        headers=updated_headers,
-                        json=updated_json,
+                        headers=expanded_headers,
+                        json=expanded_json,
                         paginator=paginator,
                         data_selector=data_selector,
                         hooks=hooks,
