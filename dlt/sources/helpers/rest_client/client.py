@@ -127,6 +127,7 @@ class RESTClient:
         logger.info(
             f"Making {request.method.upper()} request to {request.url}"
             f" with params={request.params}, json={request.json}"
+            f" with headers={request.headers}"
         )
 
         prepared_request = self.session.prepare_request(request)
@@ -180,6 +181,8 @@ class RESTClient:
                 Can also be a fully qualified URL; if starting with http(s) it will
                 be used instead of the base_url + path.
             method (HTTPMethodBasic): HTTP method for the request, defaults to 'get'.
+            headers (Optional[Dict[str, Any]]): Headers for the request.
+                Overwrites default headers.
             params (Optional[Dict[str, Any]]): URL parameters for the request.
             json (Optional[Dict[str, Any]]): JSON payload for the request.
             auth (Optional[AuthBase): Authentication configuration for the request.
