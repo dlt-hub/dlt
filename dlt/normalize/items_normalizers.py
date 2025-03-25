@@ -133,7 +133,9 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                         schema_contract = self._table_contracts.setdefault(
                             table_name,
                             schema.resolve_contract_settings_for_table(
-                                parent_table or table_name
+                                table_name
+                                if table_name in schema.tables
+                                else parent_table or table_name
                             ),  # parent_table, if present, exists in the schema
                         )
                         partial_table, filters = schema.apply_schema_contract(

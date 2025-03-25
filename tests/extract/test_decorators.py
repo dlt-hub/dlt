@@ -17,13 +17,14 @@ from dlt.common.exceptions import ArgumentsOverloadException, DictValidationExce
 from dlt.common.pipeline import StateInjectableContext, TPipelineState
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table, new_column
-from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.schema.typing import TTableReference, TTableSchemaColumns
 from dlt.common.schema.exceptions import InvalidSchemaName
-from dlt.common.typing import TDataItem
+from dlt.common.typing import TDataItem, TTableNames
 
 from dlt.cli.source_detection import detect_source_configs
 from dlt.common.utils import custom_environ
 from dlt.extract.decorators import _DltSingleSource, DltSourceFactoryWrapper
+from dlt.extract.hints import TResourceNestedHints
 from dlt.extract.reference import SourceReference
 from dlt.extract import DltResource, DltSource
 from dlt.extract.exceptions import (
@@ -320,26 +321,69 @@ def test_apply_hints_columns() -> None:
 
 
 def test_apply_hints_reference() -> None:
-    @dlt.resource(
-        references=[
-            {
-                "columns": ["User ID", "user_name"],
-                "referenced_table": "users",
-                "referenced_columns": ["id", "name"],
-            }
-        ]
-    )
+    example_reference: TTableReference = {
+        "columns": ["User ID", "user_name"],
+        "referenced_table": "users",
+        "referenced_columns": ["id", "name"],
+    }
+
+    @dlt.resource(references=[example_reference])
     def campaigns():
         yield []
 
     table_schema = campaigns().compute_table_schema()
-    assert table_schema["references"] == [
+    assert table_schema["references"] == [example_reference]
+
+    @dlt.transformer(references=[example_reference])
+    def campaign_details(campaign):
+        yield []
+
+    table_schema = campaign_details().compute_table_schema()
+    assert table_schema["references"] == [example_reference]
+
+
+def test_nested_hints_decorator() -> None:
+    nested_hints: Dict[TTableNames, TResourceNestedHints] = {
+        "steps": dlt.mark.make_nested_hints(
+            columns=[{"name": "timestamp", "data_type": "timestamp"}]
+        ),
+        ("steps", "budgets"): {
+            "primary_key": "budget_id",
+            "table_format": "iceberg",
+        },
+    }
+
+    @dlt.resource(nested_hints=nested_hints)
+    def campaigns():
+        yield []
+
+    expected_table_schemas = [
         {
-            "columns": ["User ID", "user_name"],
-            "referenced_table": "users",
-            "referenced_columns": ["id", "name"],
-        }
+            "columns": {"timestamp": {"name": "timestamp", "data_type": "timestamp"}},
+            "name": "campaigns__steps",
+            "parent": "campaigns",
+        },
+        {
+            "table_format": "iceberg",
+            "columns": {"budget_id": {"name": "budget_id", "nullable": False, "primary_key": True}},
+            "name": "campaigns__steps__budgets",
+            "resource": "campaigns",
+        },
     ]
+
+    table_schemas = campaigns().compute_nested_table_schemas("campaigns", Schema("default").naming)
+    assert table_schemas == expected_table_schemas
+
+    @dlt.transformer(nested_hints=nested_hints)
+    def campaign_details(campaign):
+        yield []
+
+    table_schemas = campaign_details().compute_nested_table_schemas(
+        "campaigns", Schema("default").naming
+    )
+    # resource name changed for budgets table (it breaks nesting chain by setting primary_key)
+    expected_table_schemas[1]["resource"] = "campaign_details"
+    assert table_schemas == expected_table_schemas
 
 
 def test_columns_from_pydantic() -> None:

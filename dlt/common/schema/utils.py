@@ -76,6 +76,13 @@ def is_nested_table(table: TTableSchema) -> bool:
     return bool(table.get("parent"))
 
 
+def may_be_nested(table: TTableSchema) -> bool:
+    """Table may be nested if it does not define any primary/merge keys"""
+    pks = get_columns_names_with_prop(table, "primary_key", include_incomplete=True)
+    mks = get_columns_names_with_prop(table, "merge_key", include_incomplete=True)
+    return not pks and not mks
+
+
 def normalize_schema_name(name: str) -> str:
     """Normalizes schema name by using snake case naming convention. The maximum length is 64 characters"""
     snake_case = SnakeCase(InvalidSchemaName.MAXIMUM_SCHEMA_NAME_LENGTH)
@@ -756,9 +763,8 @@ def get_inherited_table_hint(
     tables: TSchemaTables, table_name: str, table_hint_name: str, allow_none: bool = False
 ) -> Any:
     table = tables.get(table_name, {})
-    hint = table.get(table_hint_name)
-    if hint:
-        return hint
+    if table_hint_name in table:
+        return table[table_hint_name]  # type: ignore[literal-required]
 
     if is_nested_table(table):
         return get_inherited_table_hint(tables, table.get("parent"), table_hint_name, allow_none)
@@ -1001,8 +1007,6 @@ def new_table(
 
     if write_disposition:
         table["write_disposition"] = write_disposition
-    if resource:
-        table["resource"] = resource
     if schema_contract is not None:
         table["schema_contract"] = schema_contract
     if table_format:
@@ -1011,6 +1015,8 @@ def new_table(
         table["file_format"] = file_format
     if references:
         table["references"] = references
+    if resource:
+        table["resource"] = resource
     if parent_table_name:
         table["parent"] = parent_table_name
     else:
@@ -1018,8 +1024,7 @@ def new_table(
         if not write_disposition:
             # set write disposition only for root tables
             table["write_disposition"] = DEFAULT_WRITE_DISPOSITION
-        if not resource:
-            table["resource"] = table_name
+        table["resource"] = resource or table_name
 
     # migrate complex types to json
     migrate_complex_types(table, warn=True)

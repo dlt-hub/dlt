@@ -9,14 +9,17 @@ import asyncio
 import dlt, os
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.data_types.typing import TDataType
 from dlt.common.exceptions import DictValidationException, PipelineStateNotAvailable
+from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.pipeline import StateInjectableContext, source_state
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnProp, TColumnSchema
 from dlt.common.schema import utils
-from dlt.common.typing import TDataItems
+from dlt.common.typing import TDataItems, TTableNames
 
 from dlt.extract import DltResource, DltSource, Incremental
+from dlt.extract.hints import TResourceNestedHints
 from dlt.extract.items import TableNameMeta
 from dlt.extract.source import DltResourceDict
 from dlt.extract.exceptions import (
@@ -1701,7 +1704,7 @@ def test_apply_hints_table_variants() -> None:
 
     # unknown table (without variant) - created out resource hints
     table_unk = empty.compute_table_schema(meta=TableNameMeta("table_unk"))
-    assert table_unk["name"] == "empty_gen"
+    assert table_unk["name"] == "table_unk"
     assert table_unk["write_disposition"] == "append"
 
     # resource hints are base for table variants
@@ -1791,6 +1794,120 @@ def test_apply_hints_keys(key_prop: TColumnProp) -> None:
     assert actual_keys == key_columns_3
     actual_keys = utils.get_columns_names_with_prop(table, "nullable", include_incomplete=True)
     assert actual_keys == key_columns_2
+
+
+def test_apply_nested_hints():
+    data = [
+        {
+            "id": 1,
+            "outer1": [
+                {"outer1_id": "2", "innerfoo": [{"innerfoo_id": "3"}]},
+            ],
+            "outer2": [
+                {"outer2_id": "4", "innerbar": [{"innerbar_id": "5"}]},
+            ],
+        }
+    ]
+    resource_name = "with_nested_hints"
+    nested_resource = DltResource.from_data(data, name=resource_name)
+
+    # before applying any hints
+    initial_schema = {
+        "name": resource_name,
+        "columns": {},
+        "resource": resource_name,
+        "write_disposition": "append",
+    }
+    assert nested_resource.nested_hints is None
+    assert nested_resource.compute_table_schema() == initial_schema
+
+    # apply nested hints
+    outer1_id_new_type: TDataType = "double"
+    outer2_innerbar_id_new_type: TDataType = "bigint"
+    nested_hints: Dict[TTableNames, TResourceNestedHints] = {
+        ("outer1",): dict(
+            columns={"outer1_id": {"name": "outer1_id", "data_type": outer1_id_new_type}}
+        ),
+        ("outer2", "innerbar"): dict(
+            columns={
+                "innerbar_id": {"name": "innerbar_id", "data_type": outer2_innerbar_id_new_type}
+            }
+        ),
+    }
+    expected_nested_schemas = [
+        {
+            "name": "with_nested_hints__outer1",
+            "parent": "with_nested_hints",
+            "columns": {"outer1_id": {"name": "outer1_id", "data_type": "double"}},
+        },
+        {
+            "name": "with_nested_hints__outer2__innerbar",
+            "parent": "with_nested_hints__outer2",
+            "columns": {"innerbar_id": {"name": "innerbar_id", "data_type": "bigint"}},
+        },
+    ]
+
+    nested_resource.apply_hints(nested_hints=nested_hints)
+    assert nested_resource.nested_hints == nested_hints
+
+    nested_schemas = nested_resource.compute_nested_table_schemas(
+        resource_name, naming=SnakeCaseNamingConvention()
+    )
+    assert nested_schemas == expected_nested_schemas
+
+    # apply hints again
+    nested_hints = {
+        ("outer1",): {
+            "columns": {
+                "outer1_id": {"name": "outer1_id", "data_type": "decimal", "precision": 18}
+            },
+            "references": [
+                {
+                    "columns": ["outer1_id"],
+                    "referenced_columns": ["outer1_fk_1"],
+                    "referenced_table": "external_table",
+                }
+            ],
+            "file_format": "parquet",
+            "table_format": "delta",
+            "schema_contract": "discard_value",
+        },
+        ("outer2", "innerbar"): {"merge_key": "innerfoo_id"},
+    }
+    nested_resource.apply_hints(nested_hints=nested_hints)
+    nested_schemas = nested_resource.compute_nested_table_schemas(
+        resource_name, naming=SnakeCaseNamingConvention()
+    )
+    # currently new hints overwrite fully old hints. nothing gets merged
+    assert nested_schemas == [
+        {
+            "columns": {
+                "outer1_id": {"name": "outer1_id", "data_type": "decimal", "precision": 18}
+            },
+            "references": [
+                {
+                    "columns": ["outer1_id"],
+                    "referenced_columns": ["outer1_fk_1"],
+                    "referenced_table": "external_table",
+                }
+            ],
+            "file_format": "parquet",
+            "table_format": "delta",
+            "schema_contract": "discard_value",
+            "name": "with_nested_hints__outer1",
+            "parent": "with_nested_hints",
+        },
+        {
+            "columns": {
+                "innerfoo_id": {"name": "innerfoo_id", "nullable": False, "merge_key": True}
+            },
+            "name": "with_nested_hints__outer2__innerbar",
+            "resource": "with_nested_hints",
+        },
+    ]
+    # with_nested_hints__outer2__innerbar not a nested table
+    assert utils.is_nested_table(nested_schemas[1]) is False
+    assert utils.may_be_nested(nested_schemas[1]) is False
 
 
 def test_resource_no_template() -> None:
