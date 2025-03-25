@@ -101,7 +101,6 @@ class RESTClient:
         method: HTTPMethod,
         headers: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
         auth: Optional[AuthBase] = None,
         hooks: Optional[Hooks] = None,
