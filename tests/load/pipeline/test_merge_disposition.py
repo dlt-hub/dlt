@@ -1,7 +1,7 @@
 from copy import copy
 import pytest
 import random
-from typing import List
+from typing import List, cast
 import pytest
 import yaml
 
@@ -17,7 +17,7 @@ from dlt.common.schema.exceptions import (
     UnboundColumnException,
     CannotCoerceNullException,
 )
-from dlt.common.schema.typing import TLoaderMergeStrategy
+from dlt.common.schema.typing import TLoaderMergeStrategy, TTableFormat
 from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
 from dlt.common.destination import AnyDestination, DestinationCapabilitiesContext
@@ -25,6 +25,7 @@ from dlt.common.destination.exceptions import DestinationCapabilitiesException
 from dlt.common.libs.pyarrow import row_tuples_to_arrow
 
 from dlt.extract import DltResource
+from dlt.extract.hints import TResourceHints
 from dlt.sources.helpers.transform import skip_first, take_first
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.normalize.exceptions import NormalizeJobFailed
@@ -71,7 +72,7 @@ def skip_if_not_supported(
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
-def test_merge_on_keys_in_schema(
+def test_merge_on_keys_in_schema_nested_hints(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
@@ -88,13 +89,23 @@ def test_merge_on_keys_in_schema(
         del schema.tables["blocks__uncles"]["x-normalizer"]
         assert not has_table_seen_data(schema.tables["blocks__uncles"])
 
+    hints: TResourceHints = {
+        "write_disposition": {"disposition": "merge", "strategy": merge_strategy},
+        "table_format": cast(TTableFormat, destination_config.table_format),
+    }
+    # NOTE: setting primary key will break nesting chain
+    nested_hints = {
+        ("transactions",): {**hints, "primary_key": ("block_number", "transaction_index")},
+        ("transactions", "logs"): {
+            **hints,
+            "primary_key": ("block_number", "transaction_index", "log_index"),
+        },
+    }
+
     @dlt.source(schema=schema)
     def ethereum(slice_: slice = None):
-        @dlt.resource(
-            table_name="blocks",
-            write_disposition={"disposition": "merge", "strategy": merge_strategy},
-        )
-        def data():
+        @dlt.resource(**hints, nested_hints=nested_hints)  # type: ignore[call-overload]
+        def blocks():
             with open(
                 "tests/normalize/cases/ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2.json",
                 "r",
@@ -102,19 +113,7 @@ def test_merge_on_keys_in_schema(
             ) as f:
                 yield json.load(f) if slice_ is None else json.load(f)[slice_]
 
-        # also modify the child tables (not nested)
-        schema_ = dlt.current.source_schema()
-        blocks__transactions = schema_.tables["blocks__transactions"]
-        blocks__transactions["write_disposition"] = "merge"
-        blocks__transactions["x-merge-strategy"] = merge_strategy  # type: ignore[typeddict-unknown-key]
-        blocks__transactions["table_format"] = destination_config.table_format
-
-        blocks__transactions__logs = schema_.tables["blocks__transactions__logs"]
-        blocks__transactions__logs["write_disposition"] = "merge"
-        blocks__transactions__logs["x-merge-strategy"] = merge_strategy  # type: ignore[typeddict-unknown-key]
-        blocks__transactions__logs["table_format"] = destination_config.table_format
-
-        return data
+        return blocks()
 
     # take only the first block. the first block does not have uncles so this table should not be created and merged
     info = p.run(
@@ -182,10 +181,10 @@ def test_merge_record_updates(
     def r(data):
         yield data
 
-    # initial load
+    # initial load, also use primary key is that must be normalized "ID" -> "id"
     run_1 = [
-        {"id": 1, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
-        {"id": 2, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+        {"ID": 1, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+        {"ID": 2, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
     ]
     info = p.run(r(run_1), **destination_config.run_kwargs)
     assert_load_info(info)

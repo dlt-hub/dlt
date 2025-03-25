@@ -249,6 +249,7 @@ class Endpoint(TypedDict, total=False):
     response_actions: Optional[List[ResponseAction]]
     incremental: Optional[IncrementalConfig]
     auth: Optional[AuthConfig]
+    headers: Optional[Dict[str, Any]]
 
 
 class ProcessingSteps(TypedDict):
@@ -259,9 +260,7 @@ class ProcessingSteps(TypedDict):
 class ResourceBase(TResourceHintsBase, total=False):
     """Defines hints that may be passed to `dlt.resource` decorator"""
 
-    table_name: Optional[TTableHintTemplate[str]]
     max_table_nesting: Optional[int]
-    columns: Optional[TTableHintTemplate[TAnySchemaColumns]]
     selected: Optional[bool]
     parallelized: Optional[bool]
     processing_steps: Optional[List[ProcessingSteps]]

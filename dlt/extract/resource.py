@@ -12,6 +12,8 @@ from typing import (
     Any,
     Optional,
     Mapping,
+    List,
+    Tuple,
 )
 from typing_extensions import TypeVar, Self
 
@@ -477,7 +479,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                     self._hints["incremental"] = incremental
 
         table_schema = super().compute_table_schema(item, meta)
-
         return table_schema
 
     def bind(self: TDltResourceImpl, *args: Any, **kwargs: Any) -> TDltResourceImpl:

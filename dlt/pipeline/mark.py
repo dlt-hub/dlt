@@ -4,5 +4,6 @@ from dlt.extract import (
     with_hints,
     with_file_import,
     make_hints,
+    make_nested_hints,
     materialize_schema_item as materialize_table_schema,
 )
