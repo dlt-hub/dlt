@@ -740,11 +740,11 @@ def process_parent_data_item(
     expanded_path = expand_placeholders(path, params_values)
     expanded_params = expand_placeholders(params or {}, params_values)
     expanded_json = (
-        None if request_json is None else expand_placeholders(request_json, params_values)
+        expand_placeholders(request_json, params_values) if request_json is not None else None
     )
 
     expanded_headers = (
-        None if request_headers is None else expand_placeholders(request_headers, params_values)
+        expand_placeholders(request_headers, params_values) if request_headers is not None else None
     )
 
     parent_resource_name = resolved_params[0].resolve_config["resource"]
