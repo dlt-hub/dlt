@@ -74,6 +74,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         It yields row dictionaries at each nesting level."""
         self.schema = schema
         self.naming = schema.naming
+        self._load_id: str = None
         self._reset()
 
     def _reset(self) -> None:
@@ -260,11 +261,15 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         is_root: bool = False,
     ) -> TNormalizedRowIterator:
         table = self._shorten_fragments(*parent_path, *ident_path)
-        is_root = is_root or not self._should_be_nested(table)
         # flatten current row and extract all lists to recur into
         flattened_row, lists = self._flatten(table, dict_row, _r_lvl)
         # always extend row
         DataItemNormalizer._extend_row(extend, flattened_row)
+
+        # identify load id if loaded data must be processed after loading incrementally
+        if is_root := is_root or not self._should_be_nested(table):
+            flattened_row[self.c_dlt_load_id] = self._load_id
+
         # infer record hash or leave existing primary key if present
         row_id = flattened_row.get(self.c_dlt_id, None)
         if not row_id:
@@ -369,10 +374,8 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # wrap items that are not dictionaries in dictionary, otherwise they cannot be processed by the JSON normalizer
         if not isinstance(item, dict):
             item = wrap_in_dict(self.c_value, item)
-        # we will extend event with all the fields necessary to load it as root row
+        self._load_id = load_id
 
-        # identify load id if loaded data must be processed after loading incrementally
-        item[self.c_dlt_load_id] = load_id
         # get table name and nesting level
         root_table_name = self._normalize_table_identifier(table_name)
         max_nesting = self._get_table_nesting_level(root_table_name, self.max_nesting)

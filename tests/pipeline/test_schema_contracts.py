@@ -818,6 +818,56 @@ def test_pydantic_contract_implementation(contract_setting: str, as_list: bool) 
     assert table_counts[ITEMS_TABLE] == 1 if (contract_setting in ["freeze", "discard_row"]) else 3
 
 
+def test_nested_hints_contract() -> None:
+    @dlt.resource(
+        nested_hints={"list": dlt.mark.make_nested_hints(schema_contract={"columns": "freeze"})},
+        write_disposition="append",
+        schema_contract="evolve",
+    )
+    def nested_data():
+        yield [{"id": 1, "list": [{"l": 1}, {"l": 2}, {"l": 3}]}]
+
+    p = dlt.pipeline(
+        pipeline_name="test_nested_hints_file_format", destination="duckdb", dataset_name="local"
+    )
+    p.run(nested_data())
+
+    # add column in root table
+
+    def nested_data():  # type: ignore[no-redef]
+        yield [{"id": 1, "opt": True}]
+
+    p.run(nested_data())
+
+    # add column in nested data
+
+    def nested_data():  # type: ignore[no-redef]
+        yield [{"id": 1, "list": [{"l": 1, "opt": True}, {"l": 2}, {"l": 3}]}]
+
+    # that actually works - raise on freeze
+    with raises_step_exception():
+        p.run(nested_data())
+
+
+def test_nested_hints_evolve_once() -> None:
+    @dlt.resource(
+        nested_hints={"list": dlt.mark.make_nested_hints(schema_contract={"columns": "freeze"})},
+        write_disposition="append",
+        schema_contract="evolve",
+    )
+    def nested_data():
+        yield [{"id": 1, "list": [{"l": 1}, {"l": 2}, {"l": 3}]}]
+
+    p = dlt.pipeline(
+        pipeline_name="test_nested_hints_file_format", destination="duckdb", dataset_name="local"
+    )
+    p.extract(nested_data())
+    # evolve once must be set on nested tables
+    nested_data__list = p.default_schema.tables["nested_data__list"]
+    assert nested_data__list["schema_contract"] == {"columns": "freeze"}
+    assert nested_data__list["x-normalizer"] == {"evolve-columns-once": True}
+
+
 def test_write_to_existing_database_tables_frozen() -> None:
     pipeline = get_pipeline()
 

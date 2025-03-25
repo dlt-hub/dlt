@@ -390,11 +390,9 @@ class Schema:
                 tables[table_name] = new_table_schema
             else:
                 tables = self._schema_tables
-            # find root table
             try:
-                table = utils.get_root_table(tables, table_name)
-                settings = table["schema_contract"]
-            except KeyError:
+                settings = utils.get_inherited_table_hint(tables, table_name, "schema_contract")
+            except ValueError:
                 settings = self._settings.get("schema_contract", {})
 
         # expand settings, empty settings will expand into default settings
@@ -421,9 +419,8 @@ class Schema:
                     self.name,
                     table_name,
                     parent_table_name,
-                    " This may be due to misconfigured excludes filter that fully deletes content"
-                    f" of the {parent_table_name}. Add includes that will preserve the parent"
-                    " table.",
+                    "If you declared nested hints, make sure you added all intermediate tables,"
+                    " including those for which you do not declare any hints.",
                 )
         table = self._schema_tables.get(table_name)
         if table is None:
