@@ -769,6 +769,81 @@ def test_source_with_post_request(mock_api_server):
         assert res[i] == {"id": 51 + i, "title": f"Post {51 + i}"}
 
 
+@pytest.mark.parametrize(
+    "json_body,expected_json",
+    [
+        pytest.param(
+            {
+                "initial_value": "{incremental.initial_value}",
+                "escaped_braces": "{{not_this}}",
+                "nested": {
+                    "initial_value": "{incremental.initial_value}",
+                    "escaped": "{{not_this_either}}",
+                },
+                "array_values": [
+                    "{incremental.initial_value}",
+                    "{{not_array_either}}",
+                ],
+            },
+            {
+                "initial_value": "1",
+                "escaped_braces": "{not_this}",
+                "nested": {
+                    "initial_value": "1",
+                    "escaped": "{not_this_either}",
+                },
+                "array_values": [
+                    "1",
+                    "{not_array_either}",
+                ],
+            },
+            id="complex_nested_json",
+        ),
+        pytest.param(
+            {},
+            {},
+            id="empty_json",
+        ),
+        # TODO: None JSON breaks _merge_resource_endpoints
+        # pytest.param(
+        #     None,
+        #     None,
+        #     id="none_json",
+        # ),
+    ],
+)
+def test_json_body_in_top_level_resource(mock_api_server, json_body, expected_json):
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                {
+                    "name": "posts",
+                    "endpoint": {
+                        "path": "posts/search",
+                        "method": "POST",
+                        "json": json_body,
+                        "incremental": {
+                            "cursor_path": "id",
+                            "initial_value": 1,
+                        },
+                    },
+                },
+            ],
+        }
+    )
+
+    list(source.with_resources("posts").add_limit(1))
+
+    history = mock_api_server.request_history
+    assert len(history) == 1
+    request_call = history[0]
+    if expected_json is None:
+        assert request_call.json is None
+    else:
+        assert request_call.json() == expected_json
+
+
 def test_interpolate_parent_values_in_path_and_json_body(mock_api_server):
     pipeline = dlt.pipeline(
         pipeline_name="rest_api_mock",
