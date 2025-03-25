@@ -390,13 +390,7 @@ def create_resources(
                     )
 
                 for item in items:
-                    (
-                        formatted_path,
-                        expanded_params,
-                        expanded_json,
-                        expanded_headers,
-                        parent_record,
-                    ) = process_parent_data_item(
+                    processed_data = process_parent_data_item(
                         path=path,
                         item=item,
                         headers=headers,
@@ -410,17 +404,17 @@ def create_resources(
 
                     for child_page in client.paginate(
                         method=method,
-                        path=formatted_path,
-                        headers=expanded_headers,
-                        params=expanded_params,
-                        json=expanded_json,
+                        path=processed_data.path,
+                        headers=processed_data.headers,
+                        params=processed_data.params,
+                        json=processed_data.json,
                         paginator=paginator,
                         data_selector=data_selector,
                         hooks=hooks,
                     ):
-                        if parent_record:
+                        if processed_data.parent_record:
                             for child_record in child_page:
-                                child_record.update(parent_record)
+                                child_record.update(processed_data.parent_record)
                         yield child_page
 
             resources[resource_name] = dlt.resource(  # type: ignore[call-overload]

@@ -98,6 +98,14 @@ class IncrementalParam(NamedTuple):
     end: Optional[str]
 
 
+class ProcessedParentData(NamedTuple):
+    path: str
+    headers: Optional[Dict[str, Any]]
+    params: Dict[str, Any]
+    json: Optional[Dict[str, Any]]
+    parent_record: Dict[str, Any]
+
+
 class DirectKeyFormatter(string.Formatter):
     def get_field(self, field_name: str, args: Any, kwargs: Any) -> Any:
         if field_name in kwargs:
@@ -733,7 +741,7 @@ def process_parent_data_item(
     include_from_parent: Optional[List[str]] = None,
     incremental: Optional[Incremental[Any]] = None,
     incremental_value_convert: Optional[Callable[..., Any]] = None,
-) -> Tuple[str, Dict[str, Any], Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+) -> ProcessedParentData:
     params_values = collect_resolved_values(
         item, resolved_params, incremental, incremental_value_convert
     )
@@ -745,12 +753,12 @@ def process_parent_data_item(
     parent_resource_name = resolved_params[0].resolve_config["resource"]
     parent_record = build_parent_record(item, parent_resource_name, include_from_parent)
 
-    return (
-        expanded_path,
-        expanded_params,
-        expanded_json,
-        expanded_headers,
-        parent_record,
+    return ProcessedParentData(
+        path=expanded_path,
+        headers=expanded_headers,
+        params=expanded_params,
+        json=expanded_json,
+        parent_record=parent_record,
     )
 
 
