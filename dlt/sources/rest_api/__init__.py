@@ -246,7 +246,7 @@ def create_resources(
 
         endpoint_config = cast(Endpoint, endpoint_resource["endpoint"])
         request_params = endpoint_config.get("params", {})
-        request_json = endpoint_config.get("json", None)
+        request_json = endpoint_config.get("json")
         request_headers = endpoint_config.get("headers")
         paginator = create_paginator(endpoint_config.get("paginator"))
         processing_steps = endpoint_resource.pop("processing_steps", [])
