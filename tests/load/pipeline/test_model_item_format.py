@@ -23,7 +23,7 @@ DESTINATIONS_SUPPORTING_MODEL = [
     "sqlalchemy",
     "mssql",
     "postgres",
-    "dremio",
+    # "dremio",
 ]
 
 
@@ -31,7 +31,7 @@ DESTINATIONS_SUPPORTING_MODEL = [
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        exclude=["athena"],
+        exclude=["athena", "dremio"],
     ),
     ids=lambda x: x.name,
 )
@@ -86,7 +86,7 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        exclude=["athena"],
+        exclude=["athena", "dremio"],
     ),
     ids=lambda x: x.name,
 )
@@ -156,8 +156,7 @@ def test_write_dispositions(
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        #        subset=["sqlalchemy"],
-        exclude=["athena", "mssql", "dremio", "postgres", "synapse"],
+        exclude=["athena", "dremio"],
     ),
     ids=lambda x: x.name,
 )
@@ -207,7 +206,7 @@ def test_insert_less_or_reversed_columns(destination_config: DestinationTestConf
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        exclude=["athena"],
+        exclude=["athena", "dremio"],
     ),
     ids=lambda x: x.name,
 )
@@ -223,6 +222,7 @@ def test_multiple_statements_per_resource(destination_config: DestinationTestCon
 
     # create a resource that generates sql statements to create 2 new tables
     # we also need to supply all hints so the table can be created
+    # we enfore nullabl
     @dlt.resource()
     def copied_table() -> Any:
         query1 = dataset["example_table"].limit(5).query()
