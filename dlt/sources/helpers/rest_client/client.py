@@ -149,7 +149,6 @@ class RESTClient:
             method=method,
             headers=kwargs.pop("headers", None),
             params=kwargs.pop("params", None),
-            headers=kwargs.pop("headers", None),
             json=kwargs.pop("json", None),
             auth=kwargs.pop("auth", None),
             hooks=kwargs.pop("hooks", None),
