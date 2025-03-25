@@ -105,6 +105,64 @@ from tests.utils import assert_load_info, assert_query_data, load_table_counts
             },
             id="interpolated_params_in_query_string",
         ),
+        # Using interpolated params in json object
+        pytest.param(
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resources": [
+                    "posts",
+                    {
+                        "name": "post_comments",
+                        "endpoint": {
+                            "path": "post_comments",
+                            "method": "POST",
+                            "json": {
+                                "post_id": "{resources.posts.id}",
+                            },
+                        },
+                    },
+                    {
+                        "name": "post_details",
+                        "endpoint": {
+                            "path": "post_detail",
+                            "method": "POST",
+                            "json": {
+                                "post_id": "{resources.posts.id}",
+                            },
+                        },
+                    },
+                ],
+            },
+            id="interpolated_params_in_json_string",
+        ),
+        # Using interpolated params in the headers
+        pytest.param(
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resources": [
+                    "posts",
+                    {
+                        "name": "post_comments",
+                        "endpoint": {
+                            "path": "post_comments_via_headers",
+                            "headers": {
+                                "post_id": "{resources.posts.id}",
+                            },
+                        },
+                    },
+                    {
+                        "name": "post_details",
+                        "endpoint": {
+                            "path": "post_detail_via_headers",
+                            "headers": {
+                                "post_id": "{resources.posts.id}",
+                            },
+                        },
+                    },
+                ],
+            },
+            id="interpolated_params_in_the_headers",
+        ),
     ],
 )
 def test_load_mock_api(mock_api_server, config):
@@ -471,7 +529,11 @@ def test_dependent_resource_query_string_params(
         pytest.param(
             {
                 "path": "post_detail",
-                "params": {"post_id": "{resources.posts.id}", "sort": "desc", "locale": ""},
+                "params": {
+                    "post_id": "{resources.posts.id}",
+                    "sort": "desc",
+                    "locale": "",
+                },
             },
             {"sort": ["desc"], "locale": [""]},
             id="one_static_param_is_empty",
@@ -657,7 +719,11 @@ def test_source_with_post_request(mock_api_server):
                     "endpoint": {
                         "path": "/posts/search",
                         "method": "POST",
-                        "json": {"ids_greater_than": 50, "page_size": 25, "page_count": 4},
+                        "json": {
+                            "ids_greater_than": 50,
+                            "page_size": 25,
+                            "page_count": 4,
+                        },
                         "paginator": JSONBodyPageCursorPaginator(),
                     },
                 }
