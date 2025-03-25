@@ -95,6 +95,42 @@ from dlt.sources.rest_api.config_setup import (
             "posts/{not_this 1}",
             id="escaped_braces_with_placeholder",
         ),
+        pytest.param(
+            None,
+            {},
+            None,
+            id="none",
+        ),
+        pytest.param(
+            "posts/{id}",
+            {"id": ""},
+            "posts/",
+            id="empty_string_placeholder",
+        ),
+        pytest.param(
+            {"empty_list": [], "empty_dict": {}},
+            {},
+            {"empty_list": [], "empty_dict": {}},
+            id="empty_containers",
+        ),
+        pytest.param(
+            {"mixed": [{"id": "{id}"}, 123, ["{value}", True], {"nested": {"key": "{key}"}}]},
+            {"id": "test", "value": 456, "key": "nested"},
+            {"mixed": [{"id": "test"}, 123, ["456", True], {"nested": {"key": "nested"}}]},
+            id="mixed_nested_structures",
+        ),
+        pytest.param(
+            "user/{user@domain}/settings/{setting-name}",
+            {"user@domain": "john@example.com", "setting-name": "theme"},
+            "user/john@example.com/settings/theme",
+            id="special_chars_in_placeholders",
+        ),
+        pytest.param(
+            "{name} ❤️ {id}",
+            {"name": "测试", "id": "テスト"},
+            "测试 ❤️ テスト",
+            id="unicode_chars",
+        ),
     ],
 )
 def test_expand_placeholders(obj, placeholders, expected):
