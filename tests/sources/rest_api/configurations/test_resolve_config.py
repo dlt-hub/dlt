@@ -103,21 +103,24 @@ def test_process_parent_data_item() -> None:
     assert bound_path == "dlt-hub/dlt/issues/12345/comments"
     assert expanded_params == {}  # defaults to empty dict
     assert request_json is None  # defaults to None
+    assert request_headers is None  # defaults to None
     assert parent_record == {}
 
-    # same but with empty params and json
+    # same but with empty headers, params and json
     bound_path, expanded_params, request_json, request_headers, parent_record = (
         process_parent_data_item(
             path="dlt-hub/dlt/issues/{id}/comments",
             item={"obj_id": 12345},
             params={},
             request_json={},
+            request_headers={},
             resolved_params=resolved_params,
         )
     )
     # those got propagated
     assert expanded_params == {}
     assert request_json == {}  # generates empty body!
+    assert request_headers == {}
 
     # also test params and json
     bound_path, expanded_params, request_json, request_headers, parent_record = (
@@ -126,11 +129,13 @@ def test_process_parent_data_item() -> None:
             item={"obj_id": 12345},
             params={"orig_id": "{id}"},
             request_json={"orig_id": "{id}"},
+            request_headers={"X-Id": "{id}"},
             resolved_params=resolved_params,
         )
     )
     assert expanded_params == {"orig_id": "12345"}
     assert request_json == {"orig_id": "12345"}
+    assert request_headers == {"X-Id": "12345"}
 
     bound_path, expanded_params, request_json, request_headers, parent_record = (
         process_parent_data_item(
@@ -169,13 +174,14 @@ def test_process_parent_data_item() -> None:
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments"
 
-    # Test resource field reference in params
+    # Test resource field reference in params and headers
     bound_path, expanded_params, request_json, request_headers, parent_record = (
         process_parent_data_item(
             path="dlt-hub/dlt/issues/comments",
             item={"obj_id": 12345, "obj_node": "node_1"},
             params={"id": "{resources.issues.obj_id}"},
             request_json={"id": "{resources.issues.obj_id}"},
+            request_headers={"X-Id": "{resources.issues.obj_id}"},
             resolved_params=resolved_params_reference,
             include_from_parent=["obj_id", "obj_node"],
         )
@@ -183,6 +189,7 @@ def test_process_parent_data_item() -> None:
     assert bound_path == "dlt-hub/dlt/issues/comments"
     assert expanded_params == {"id": "12345"}
     assert request_json == {"id": "12345"}
+    assert request_headers == {"X-Id": "12345"}
 
     # Test nested data
     resolved_param_nested = [
@@ -197,11 +204,34 @@ def test_process_parent_data_item() -> None:
             path="dlt-hub/dlt/issues/{id}/comments",
             item=item,
             params={},
+            request_headers={"X-Id": "{id}"},
             resolved_params=resolved_param_nested,
             include_from_parent=None,
         )
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments"
+    assert request_headers == {"X-Id": "12345"}
+
+    # Test incremental values in headers
+    from dlt.extract import Incremental
+    incremental = Incremental(initial_value="2025-01-01", end_value="2025-01-02")
+    bound_path, expanded_params, request_json, request_headers, parent_record = (
+        process_parent_data_item(
+            path="dlt-hub/dlt/issues/comments",
+            item={"obj_id": 12345},
+            params={},
+            request_headers={
+                "X-Initial": "{incremental.initial_value}",
+                "X-End": "{incremental.end_value}"
+            },
+            resolved_params=resolved_params,
+            incremental=incremental,
+        )
+    )
+    assert request_headers == {
+        "X-Initial": "2025-01-01",
+        "X-End": "2025-01-02"
+    }
 
     # Param path not found
     with pytest.raises(ValueError) as val_ex:
@@ -240,11 +270,13 @@ def test_process_parent_data_item() -> None:
             path="dlt-hub/dlt/issues/{issue_id}/comments/{id}",
             item={"issue": 12345, "id": 56789},
             params={},
+            request_headers={"X-Issue": "{issue_id}", "X-Id": "{id}"},
             resolved_params=multi_resolve_params,
             include_from_parent=None,
         )
     )
     assert bound_path == "dlt-hub/dlt/issues/12345/comments/56789"
+    assert request_headers == {"X-Issue": "12345", "X-Id": "56789"}
     assert parent_record == {}
 
     # Param path not found with multiple parameters
