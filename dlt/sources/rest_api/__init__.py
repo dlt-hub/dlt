@@ -307,6 +307,7 @@ def create_resources(
                     Callable[..., Any]
                 ] = incremental_cursor_transform,
             ) -> Generator[Any, None, None]:
+                format_kwargs = {}
                 if incremental_object:
                     params = _set_incremental_params(
                         params,
@@ -314,8 +315,7 @@ def create_resources(
                         incremental_param,
                         incremental_cursor_transform,
                     )
-
-                    format_kwargs = {"incremental": incremental_object}
+                    format_kwargs["incremental"] = incremental_object
                     if incremental_cursor_transform:
                         format_kwargs.update(
                             convert_incremental_values(
@@ -323,9 +323,13 @@ def create_resources(
                             )
                         )
 
-                    path = expand_placeholders(path, format_kwargs)
-                    params = expand_placeholders(params, format_kwargs)
-                    json = expand_placeholders(json, format_kwargs) if json is not None else None
+                # Always expand placeholders to handle escaped sequences
+                path = expand_placeholders(path, format_kwargs)
+                params = expand_placeholders(params, format_kwargs)
+                headers = (
+                    expand_placeholders(headers, format_kwargs) if headers is not None else None
+                )
+                json = expand_placeholders(json, format_kwargs) if json is not None else None
 
                 yield from client.paginate(
                     method=method,
