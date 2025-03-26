@@ -25,7 +25,7 @@ You can install Python 3.10 with `apt`.
 ```sh
 sudo apt update
 sudo apt install python3.10
-sudo apt install python3.10-venv
+pip install uv
 ```
 
   </TabItem>
@@ -36,6 +36,7 @@ On macOS, you can use [Homebrew](https://brew.sh) to install Python 3.10.
 ```sh
 brew update
 brew install python@3.10
+brew install uv
 ```
 
   </TabItem>
@@ -59,46 +60,46 @@ This way, all the dependencies for your current project will be isolated from pa
 
   <TabItem value="ubuntu">
 
-Create a new virtual environment in your working folder. This will create an `./env` directory where your virtual environment will be stored:
+Create a new virtual environment in your working folder. This will create an `./venv` directory where your virtual environment will be stored:
 
 ```sh
-python -m venv ./env
+uv venv --python 3.10
 ```
 
 Activate the virtual environment:
 
 ```sh
-source ./env/bin/activate
+source .venv/bin/activate
 ```
 
   </TabItem>
   <TabItem value="macos">
 
-Create a new virtual environment in your working folder. This will create an `./env` directory where your virtual environment will be stored:
+Create a new virtual environment in your working folder. This will create an `./venv` directory where your virtual environment will be stored:
 
 ```sh
-python -m venv ./env
+uv venv --python 3.10
 ```
 
 Activate the virtual environment:
 
 ```sh
-source ./env/bin/activate
+source .venv/bin/activate
 ```
 
   </TabItem>
   <TabItem value="windows">
 
-Create a new virtual environment in your working folder. This will create an `./env` directory where your virtual environment will be stored:
+Create a new virtual environment in your working folder. This will create an `./venv` directory where your virtual environment will be stored:
 
 ```bat
-C:\> python -m venv ./env
+C:\> uv venv --python 3.10
 ```
 
 Activate the virtual environment:
 
 ```bat
-C:\> .\env\Scripts\activate
+C:\> .\venv\Scripts\activate
 ```
 
   </TabItem>
@@ -109,19 +110,19 @@ C:\> .\env\Scripts\activate
 To install or upgrade to the newest version of `dlt` in your virtual environment, run:
 
 ```sh
-pip install -U dlt
+uv pip install -U dlt
 ```
 
 Here are some additional installation examples:
 
 To install dlt with DuckDB support:
 ```sh
-pip install "dlt[duckdb]"
+uv pip install "dlt[duckdb]"
 ```
 
 To install a specific version of dlt (for example, versions before 0.5.0):
 ```sh
-pip install "dlt<0.5.0"
+uv pip install "dlt<0.5.0"
 ```
 
 ### 3.1. Install dlt via Pixi or Conda
