@@ -147,7 +147,8 @@ class SqlStagingCopyFollowupJob(SqlFollowupJob):
         params: SqlJobParams = None,
     ) -> List[str]:
         if (
-            params["replace"]
+            params
+            and params["replace"]
             and params["replace_strategy"] == "staging-optimized"
             and sql_client.capabilities.supports_clone_table
         ):
