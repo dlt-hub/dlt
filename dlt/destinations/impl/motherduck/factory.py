@@ -41,6 +41,7 @@ class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"])
         caps.supported_merge_strategies = ["delete-insert", "scd2"]
         caps.max_parallel_load_jobs = 8
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
+        caps.sqlglot_dialect = "duckdb"
 
         return caps
 

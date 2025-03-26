@@ -84,6 +84,8 @@ duckdb:
         - httpfs
         - parquet
         - iceberg
+      settings:
+        unsafe_enable_version_guessing: true
       # TODO: emit the config of duck db
 
 motherduck:

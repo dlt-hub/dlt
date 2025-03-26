@@ -150,6 +150,7 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
         caps.supports_truncate_command = False
         caps.supported_merge_strategies = ["delete-insert", "scd2"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
+        caps.sqlglot_dialect = "duckdb"
 
         return caps
 

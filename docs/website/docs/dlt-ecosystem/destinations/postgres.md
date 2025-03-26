@@ -70,7 +70,7 @@ To pass credentials directly, use the [explicit instance of the destination](../
 pipeline = dlt.pipeline(
   pipeline_name='chess',
   destination=dlt.destinations.postgres("postgresql://loader:<password>@localhost/dlt_data"),
-  dataset_name='chess_data'
+  dataset_name='chess_data' #your destination schema name
 )
 ```
 

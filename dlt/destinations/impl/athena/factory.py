@@ -7,6 +7,7 @@ from dlt.common.data_writers.escape import (
     escape_athena_identifier,
     format_bigquery_datetime_literal,
 )
+from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
@@ -140,6 +141,8 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
         caps.merge_strategies_selector = athena_merge_strategies_selector
+        caps.sqlglot_dialect = "athena"
+
         return caps
 
     @property
@@ -147,6 +150,18 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         from dlt.destinations.impl.athena.athena import AthenaClient
 
         return AthenaClient
+
+    @classmethod
+    def adjust_capabilities(
+        cls,
+        caps: DestinationCapabilitiesContext,
+        config: AthenaClientConfiguration,
+        naming: t.Optional[NamingConvention],
+    ) -> DestinationCapabilitiesContext:
+        if config.force_iceberg:
+            caps.preferred_table_format = "iceberg"
+
+        return super().adjust_capabilities(caps, config, naming)
 
     def __init__(
         self,
