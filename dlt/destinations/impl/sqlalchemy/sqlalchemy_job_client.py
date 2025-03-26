@@ -76,7 +76,12 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
         if self.config.create_primary_keys:
             # if a primary key list is provided in the schema, add a PrimaryKeyConstraint.
             pk_columns = get_columns_names_with_prop(schema_table, "primary_key")
+
             if pk_columns:
+                # some databases (e.g. starrocks) requires primary key columns to be before other columns
+                table_columns_reordered = [ self._to_column_object(schema_table['columns'][c], schema_table) for c in pk_columns ]
+                table_columns_reordered.extend([ c for c in table_columns if c.name not in pk_columns ])
+                table_columns = table_columns_reordered
                 table_columns.append(sa.PrimaryKeyConstraint(*pk_columns))  # type: ignore[arg-type]
 
         return sa.Table(
@@ -224,6 +229,10 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
 
         with self.sql_client.begin_transaction():
             for table_obj in tables_to_create:
+                for c in table_obj.constraints:
+                    if isinstance(c, sa.PrimaryKeyConstraint) and len(c.columns) > 0:
+                        table_obj.kwargs[self.config.credentials.drivername + '_primary_key'] = ', '.join([i.name for i in c.columns])
+
                 self.sql_client.create_table(table_obj)
             self.sql_client.alter_table_add_columns(columns_to_add)
             self._update_schema_in_storage(self.schema)
