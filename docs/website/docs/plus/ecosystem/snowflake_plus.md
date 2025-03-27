@@ -94,9 +94,9 @@ The `snowflake_plus` destination extends the standard Snowflake configuration wi
 
 | Option | Description | Required | Default |
 |--------|-------------|----------|---------|
-| `force_iceberg` | Whether to force the creation of Iceberg tables | No | False |
+| `force_iceberg` | Whether to force the creation of Iceberg tables | No | `False` |
 | `external_volume` | The external volume to store Iceberg metadata | Yes | None |
-| `catalog` | The catalog to use for Iceberg tables | No | "SNOWFLAKE" |
+| `catalog` | The catalog to use for Iceberg tables | No | `"SNOWFLAKE"` |
 | `base_location` | Custom base location for Iceberg data in the external volume | No | `<dataset_name>/<table_name>` |
 
 You can configure these options in your `config.toml` file under the `[destination.snowflake]` section or in `dlt.yml` file under the `destinations.snowflake_plus` section.
