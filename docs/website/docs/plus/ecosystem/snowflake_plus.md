@@ -29,8 +29,8 @@ Once the `snowflake` extra is installed, you can configure a pipeline to use `sn
 
 ### Use as a drop-in replacement for the `snowflake` destination
 
-1. Make sure you have configured [Snowflake credentials](../../dlt-ecosystem/destinations/snowflake#setup-guide)
-2. Make sure you [set up database user and permissions](../../dlt-ecosystem/destinations/snowflake#set-up-the-database-user-and-permissions)
+1. Make sure you have configured [Snowflake credentials](../../dlt-ecosystem/destinations/snowflake.md#setup-guide)
+2. Make sure you [set up database user and permissions](../../dlt-ecosystem/destinations/snowflake.md#set-up-the-database-user-and-permissions)
 3. [Configure an external volume in Snowflake](https://docs.snowflake.com/en/user-guide/tables-iceberg-configure-external-volume)
 4. Grant usage on the external volume to the role you are using to load data:
 
