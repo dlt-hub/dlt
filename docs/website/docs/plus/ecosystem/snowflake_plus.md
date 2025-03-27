@@ -6,7 +6,7 @@ keywords: [Snowflake, Iceberg, destination]
 
 # Snowflake Plus
 
-Snowflake Plus is an **experimental** extension of the [snowflake destination](../../dlt-ecosystem/destinations/snowflake.md) that adds Apache Iceberg table creation and related features.
+Snowflake Plus is an **experimental** extension of the [Snowflake destination](../../dlt-ecosystem/destinations/snowflake.md) that adds Apache Iceberg table creation and related features.
 This destination is available starting from `dlt-plus==0.9.0`. It fully supports all the functionality of the standard Snowflake destination, plus:
 
 1. The ability to create Iceberg tables in Snowflake by setting `force_iceberg` to `true` in your `config.toml` file or `dlt.yml` file.
