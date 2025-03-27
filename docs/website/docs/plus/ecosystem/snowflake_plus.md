@@ -25,7 +25,7 @@ pip install "dlt-plus[snowflake]"
 
 ## Setup
 
-Once `snowflake` is installed, you can configure a pipeline to use `snowflake_plus` exactly the same way you would use `snowflake` or initialize a dlt+ project with the `snowflake_plus` source.
+Once the `snowflake` extra is installed, you can configure a pipeline to use `snowflake_plus` exactly the same way you would use `snowflake` or initialize a dlt+ project with the `snowflake_plus` source.
 
 ### Use as a drop-in replacement for the `snowflake` destination
 
