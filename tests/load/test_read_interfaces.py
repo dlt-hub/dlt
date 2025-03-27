@@ -237,7 +237,9 @@ def pipeline_with_multiple_loads(request, autouse_test_storage) -> Any:
     )
 
     # delete the load table entry, but not the data rows to mock failed load
-    load_table_name = pipeline.default_schema.loads_table_name
+    load_table_name = pipeline.default_schema.naming.normalize_table_identifier(
+        pipeline.default_schema.loads_table_name
+    )
     load_id_to_delete = load_info_1.loads_ids[0]
 
     # for filesystem, overwrite with an empty parquet that has the right schema
