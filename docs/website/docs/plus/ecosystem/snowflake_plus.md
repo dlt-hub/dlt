@@ -48,7 +48,7 @@ force_iceberg = true
 
 6. Use the `snowflake_plus` destination in your pipeline:
 
-```python
+```py
 import dlt
 
 pipeline = dlt.pipeline(
