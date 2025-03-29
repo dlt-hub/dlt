@@ -19,6 +19,7 @@ LEGACY_DB_PATH_LOCAL_STATE_KEY = "duckdb_database"
 class WithLocalFiles(DestinationClientConfiguration):
     local_dir: Annotated[str, NotResolved()] = None
     # needed by duckdb
+    # TODO: deprecate this in 2.0
     pipeline_name: Annotated[Optional[str], NotResolved()] = None
     pipeline_working_dir: Annotated[Optional[str], NotResolved()] = None
     legacy_db_path: Annotated[Optional[str], NotResolved()] = None
@@ -38,7 +39,8 @@ class WithLocalFiles(DestinationClientConfiguration):
     def on_partial(self) -> None:
         if not self.local_dir:
             self.local_dir = os.path.abspath(dlt.current.run_context().local_dir)
-            self.resolve()
+            if not self.is_partial():
+                self.resolve()
 
     def make_location(self, configured_location: str, default_location_pat: str) -> str:
         # do not set any paths for external database
