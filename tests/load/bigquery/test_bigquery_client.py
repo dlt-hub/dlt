@@ -232,6 +232,7 @@ def test_bigquery_configuration() -> None:
     assert config.retry_deadline == 60.0
     assert config.file_upload_timeout == 1800.0
     assert config.fingerprint() == digest128("chat-analytics-rasa-ci")
+    assert config.ignore_unknown_values is False
 
     # credential location is deprecated
     # os.environ["CREDENTIALS__LOCATION"] = "EU"
