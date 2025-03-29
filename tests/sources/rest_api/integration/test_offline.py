@@ -299,6 +299,22 @@ def test_load_mock_api(mock_api_server, config):
             {"since": ["1"], "sort": ["desc"]},
             id="incremental_in_params",
         ),
+        pytest.param(
+            {
+                "path": "posts",
+                "params": {
+                    "sort": "desc",
+                    "param_with_braces": "{{not_this}}",
+                    "param_with_nested_braces": "{{not_this {{and}} {{not_that}}}}",
+                },
+            },
+            {
+                "sort": ["desc"],
+                "param_with_braces": ["{not_this}"],
+                "param_with_nested_braces": ["{not_this {and} {not_that}}"],
+            },
+            id="escaped_braces_in_params",
+        ),
     ],
 )
 def test_single_resource_query_string_params(
@@ -538,6 +554,19 @@ def test_dependent_resource_query_string_params(
             {"sort": ["desc"], "locale": [""]},
             id="one_static_param_is_empty",
         ),
+        # Escaped braces in params
+        pytest.param(
+            {
+                "path": "post_detail",
+                "params": {
+                    "post_id": "{resources.posts.id}",
+                    "sort": "desc",
+                    "param_with_braces": "{{not_this}}",
+                },
+            },
+            {"sort": ["desc"], "param_with_braces": ["{not_this}"]},
+            id="escaped_braces_in_params",
+        ),
     ],
 )
 def test_interpolate_params_in_query_string(
@@ -567,6 +596,9 @@ def test_interpolate_params_in_query_string(
         qs = parse_qs(urlsplit(call.url).query, keep_blank_values=True)
         assert set(qs.keys()) == set(expected_static_params.keys()) | {"post_id"}
         assert qs["post_id"] == [str(index)]
+
+        for param_key, param_values in expected_static_params.items():
+            assert qs[param_key] == param_values
 
 
 @pytest.mark.parametrize(
@@ -737,6 +769,81 @@ def test_source_with_post_request(mock_api_server):
         assert res[i] == {"id": 51 + i, "title": f"Post {51 + i}"}
 
 
+@pytest.mark.parametrize(
+    "json_body,expected_json",
+    [
+        pytest.param(
+            {
+                "initial_value": "{incremental.initial_value}",
+                "escaped_braces": "{{not_this}}",
+                "nested": {
+                    "initial_value": "{incremental.initial_value}",
+                    "escaped": "{{not_this_either}}",
+                },
+                "array_values": [
+                    "{incremental.initial_value}",
+                    "{{not_array_either}}",
+                ],
+            },
+            {
+                "initial_value": "1",
+                "escaped_braces": "{not_this}",
+                "nested": {
+                    "initial_value": "1",
+                    "escaped": "{not_this_either}",
+                },
+                "array_values": [
+                    "1",
+                    "{not_array_either}",
+                ],
+            },
+            id="complex_nested_json",
+        ),
+        pytest.param(
+            {},
+            {},
+            id="empty_json",
+        ),
+        # TODO: None JSON breaks _merge_resource_endpoints
+        # pytest.param(
+        #     None,
+        #     None,
+        #     id="none_json",
+        # ),
+    ],
+)
+def test_json_body_in_top_level_resource(mock_api_server, json_body, expected_json):
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                {
+                    "name": "posts",
+                    "endpoint": {
+                        "path": "posts/search",
+                        "method": "POST",
+                        "json": json_body,
+                        "incremental": {
+                            "cursor_path": "id",
+                            "initial_value": 1,
+                        },
+                    },
+                },
+            ],
+        }
+    )
+
+    list(source.with_resources("posts").add_limit(1))
+
+    history = mock_api_server.request_history
+    assert len(history) == 1
+    request_call = history[0]
+    if expected_json is None:
+        assert request_call.json is None
+    else:
+        assert request_call.json() == expected_json
+
+
 def test_interpolate_parent_values_in_path_and_json_body(mock_api_server):
     pipeline = dlt.pipeline(
         pipeline_name="rest_api_mock",
@@ -763,6 +870,7 @@ def test_interpolate_parent_values_in_path_and_json_body(mock_api_server):
                             "more_array": [
                                 "{resources.posts.id}",
                             ],
+                            "escaped_braces": "{{ string in escaped braces }}",
                         },
                     },
                 },
@@ -1235,3 +1343,144 @@ def test_DltResource_gets_called(mock_api_server, mocker, posts_resource_config)
         for i in range(3):
             _, kwargs = mock_paginate.call_args_list[i]
             assert kwargs["path"] == f"posts/{i}/comments"
+
+
+@pytest.mark.parametrize(
+    "headers, expected_headers",
+    [
+        pytest.param(
+            {
+                "X-Custom-Header": "test-value",
+                "X-Another-Header": "another-value",
+            },
+            {
+                "X-Custom-Header": "test-value",
+                "X-Another-Header": "another-value",
+            },
+            id="basic",
+        ),
+        pytest.param(
+            {
+                "X-Custom-Header": "test-value with {{escaped}} braces",
+                "X-Another-Header": "",
+            },
+            {
+                "X-Custom-Header": "test-value with {escaped} braces",
+                "X-Another-Header": "",
+            },
+            id="empty-header-and-escaped-braces",
+        ),
+        pytest.param(
+            {
+                "X-Double-Braces-{{escaped}}": "test-value",
+            },
+            {
+                "X-Double-Braces-{escaped}": "test-value",
+            },
+            id="braces-in-header-name",
+        ),
+    ],
+)
+def test_headers_in_top_level_resource(mock_api_server, headers, expected_headers):
+    """Test that headers are properly passed in top-level resources"""
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                {
+                    "name": "posts",
+                    "endpoint": {
+                        "path": "posts",
+                        "headers": headers,
+                    },
+                },
+            ],
+        }
+    )
+
+    list(source.with_resources("posts").add_limit(1))
+
+    history = mock_api_server.request_history
+    assert len(history) == 1
+    request_call = history[0]
+    assert request_call.headers["User-Agent"].startswith("dlt/")
+    for header_name, header_value in expected_headers.items():
+        assert request_call.headers[header_name] == header_value
+
+
+def test_headers_in_dependent_resource(mock_api_server):
+    """Test that headers can use interpolation from parent resource"""
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                "posts",
+                {
+                    "name": "post_details",
+                    "endpoint": {
+                        "path": "post_detail",
+                        "params": {
+                            "post_id": "{resources.posts.id}",
+                        },
+                        "headers": {
+                            "X-Static-Header": "test-value",
+                            "X-Double-Braces-{{Escaped}}": "name-escaped",
+                            "X-Post-ID": "{resources.posts.id}",
+                            "X-Post-Title": "{resources.posts.title}",
+                            "X-Escaped": "{{value_escaped}}",
+                        },
+                    },
+                },
+            ],
+        }
+    )
+
+    list(source.with_resources("posts", "post_details").add_limit(1))
+
+    history = mock_api_server.request_history
+    post_details_calls = [h for h in history if "/post_detail" in h.url]
+    assert len(post_details_calls) == 5
+
+    for index, call in enumerate(post_details_calls):
+        assert call.headers["User-Agent"].startswith("dlt/")
+        assert call.headers["X-Post-ID"] == str(index)
+        assert call.headers["X-Post-Title"] == f"Post {index}"
+        assert call.headers["X-Escaped"] == "{value_escaped}"
+
+
+def test_headers_with_incremental_values(mock_api_server):
+    """Test that headers can use incremental values"""
+    source = rest_api_source(
+        {
+            "client": {"base_url": "https://api.example.com"},
+            "resources": [
+                {
+                    "name": "posts",
+                    "endpoint": {
+                        "path": "posts",
+                        "headers": {
+                            "X-Initial-Value": "{incremental.initial_value}",
+                            "X-Start-Value": "{incremental.start_value}",
+                            "X-End-Value": "{incremental.end_value}",
+                            "X-Escaped": "{{not_this}}",
+                        },
+                        "incremental": {
+                            "cursor_path": "id",
+                            "initial_value": 1600000000,
+                            "end_value": 1700000000,
+                        },
+                    },
+                },
+            ],
+        }
+    )
+
+    list(source.with_resources("posts").add_limit(1))
+
+    history = mock_api_server.request_history
+    assert len(history) == 1
+    request_call = history[0]
+    assert request_call.headers["X-Initial-Value"] == "1600000000"
+    assert request_call.headers["X-Start-Value"] == "1600000000"
+    assert request_call.headers["X-End-Value"] == "1700000000"
+    assert request_call.headers["X-Escaped"] == "{not_this}"
