@@ -51,6 +51,19 @@ You also need `sqlalchemy>=2.0.18`:
 ```sh
 pip install 'sqlalchemy>=2.0.18'
 ```
+## Additional permissions for Iceberg
+
+When using Iceberg with object stores like S3, additional permissions may be required for operations like multipart uploads and tagging. Make sure your IAM role or user has the following permissions:
+
+```json
+[
+  "s3:ListBucketMultipartUploads",
+  "s3:GetBucketLocation",
+  "s3:AbortMultipartUpload",
+  "s3:PutObjectTagging",
+  "s3:GetObjectTagging"
+]
+```
 
 ## Set table format
 
