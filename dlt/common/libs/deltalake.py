@@ -5,6 +5,7 @@ from dlt import version, Pipeline
 from dlt.common import logger
 from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.libs.pyarrow import cast_arrow_schema_types
+from dlt.common.libs.utils import load_open_tables
 from dlt.common.schema.typing import TWriteDisposition, TTableSchema
 from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns_names_with_prop
 from dlt.common.exceptions import MissingDependencyException
@@ -125,7 +126,7 @@ def merge_delta_table(
     if strategy == "upsert":
         # `DeltaTable.merge` does not support automatic schema evolution
         # https://github.com/delta-io/delta-rs/issues/2282
-        _evolve_delta_table_schema(table, data.schema)
+        evolve_delta_table_schema(table, data.schema)
 
         if "parent" in schema:
             unique_column = get_first_column_name_with_prop(schema, "unique")
@@ -154,44 +155,45 @@ def merge_delta_table(
 def get_delta_tables(
     pipeline: Pipeline, *tables: str, schema_name: str = None
 ) -> Dict[str, DeltaTable]:
-    """Returns Delta tables in `pipeline.default_schema (default)` as `deltalake.DeltaTable` objects.
+    """Returns Delta tables in `pipeline.default_schema (default)` or `schema_name` as `deltalake.DeltaTable` objects.
 
     Returned object is a dictionary with table names as keys and `DeltaTable` objects as values.
     Optionally filters dictionary by table names specified as `*tables*`.
     Raises ValueError if table name specified as `*tables` is not found. You may try to switch to other
     schemas via `schema_name` argument.
     """
+    return load_open_tables(pipeline, "delta", *tables, schema_name=schema_name)
 
-    with pipeline.destination_client(schema_name=schema_name) as client:
-        assert isinstance(
-            client, FilesystemClient
-        ), "The `get_delta_tables` function requires a `filesystem` destination."
+    # with pipeline.destination_client(schema_name=schema_name) as client:
+    #     assert isinstance(
+    #         client, FilesystemClient
+    #     ), "The `get_delta_tables` function requires a `filesystem` destination."
 
-        schema_delta_tables = [
-            t["name"]
-            for t in client.schema.tables.values()
-            if client.prepare_load_table(t["name"]).get("table_format") == "delta"
-        ]
-        if len(tables) > 0:
-            invalid_tables = set(tables) - set(schema_delta_tables)
-            if len(invalid_tables) > 0:
-                available_schemas = ""
-                if len(pipeline.schema_names) > 1:
-                    available_schemas = f" Available schemas are {pipeline.schema_names}"
-                raise ValueError(
-                    f"Schema {client.schema.name} does not contain Delta tables with these names: "
-                    f"{', '.join(invalid_tables)}.{available_schemas}"
-                )
-            schema_delta_tables = [t for t in schema_delta_tables if t in tables]
-        table_dirs = client.get_table_dirs(schema_delta_tables, remote=True)
-        storage_options = _deltalake_storage_options(client.config)
-        return {
-            name: DeltaTable(_dir, storage_options=storage_options)
-            for name, _dir in zip(schema_delta_tables, table_dirs)
-        }
+    #     schema_delta_tables = [
+    #         t["name"]
+    #         for t in client.schema.tables.values()
+    #         if client.prepare_load_table(t["name"]).get("table_format") == "delta"
+    #     ]
+    #     if len(tables) > 0:
+    #         invalid_tables = set(tables) - set(schema_delta_tables)
+    #         if len(invalid_tables) > 0:
+    #             available_schemas = ""
+    #             if len(pipeline.schema_names) > 1:
+    #                 available_schemas = f" Available schemas are {pipeline.schema_names}"
+    #             raise ValueError(
+    #                 f"Schema {client.schema.name} does not contain Delta tables with these names: "
+    #                 f"{', '.join(invalid_tables)}.{available_schemas}"
+    #             )
+    #         schema_delta_tables = [t for t in schema_delta_tables if t in tables]
+    #     table_dirs = client.get_table_dirs(schema_delta_tables, remote=True)
+    #     storage_options = _deltalake_storage_options(client.config)
+    #     return {
+    #         name: DeltaTable(_dir, storage_options=storage_options)
+    #         for name, _dir in zip(schema_delta_tables, table_dirs)
+    #     }
 
 
-def _deltalake_storage_options(config: FilesystemConfiguration) -> Dict[str, str]:
+def deltalake_storage_options(config: FilesystemConfiguration) -> Dict[str, str]:
     """Returns dict that can be passed as `storage_options` in `deltalake` library."""
     creds = {}
     extra_options = {}
@@ -210,7 +212,7 @@ def _deltalake_storage_options(config: FilesystemConfiguration) -> Dict[str, str
     return {**creds, **extra_options}
 
 
-def _evolve_delta_table_schema(delta_table: DeltaTable, arrow_schema: pa.Schema) -> DeltaTable:
+def evolve_delta_table_schema(delta_table: DeltaTable, arrow_schema: pa.Schema) -> DeltaTable:
     """Evolves `delta_table` schema if different from `arrow_schema`.
 
     We compare fields via names. Actual types and nullability are ignored. This is

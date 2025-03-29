@@ -110,37 +110,29 @@ class FilesystemSqlClient(WithTableScanners):
         # files - newest files
         table_name = table_schema["name"]
         table_format = table_schema.get("table_format")
-        # discover file type
-        folder = self.remote_client.get_table_dir(table_name)
-        protocol = (
-            ""
-            if self.remote_client.is_local_filesystem
-            else f"{self.remote_client.config.protocol}://"
-        )
-        resolved_folder = f"{protocol}{folder}"
+        protocol = self.remote_client.config.protocol
+        table_location = self.remote_client.get_open_table_location(table_format, table_name)
 
         # discover whether compression is enabled
         compression = "" if is_compression_disabled() else ", compression = 'gzip'"
 
         # dlt tables are never compressed for now...
-        if view_name in self.remote_client.schema.dlt_table_names():
+        if table_name in self.remote_client.schema.dlt_table_names():
             compression = ""
 
         # create from statement
         from_statement = ""
         if table_format == "delta":
-            from_statement = f"delta_scan('{resolved_folder}')"
+            from_statement = f"delta_scan('{table_location}')"
         elif table_format == "iceberg":
             if not self.iceberg_initialized:
                 self._setup_iceberg(self._conn)
                 self.iceberg_initialized = True
-            # TODO: get version from a catalog if implemented
-
             if self.is_abfss:
                 # duckdb can't glob on abfss 🤯
                 from dlt.common.libs.pyiceberg import get_last_metadata_file
 
-                metadata_path = f"{resolved_folder}/metadata"
+                metadata_path = f"{table_location}/metadata"
                 last_metadata_file = get_last_metadata_file(
                     metadata_path, self.remote_client.fs_client, self.remote_client.config
                 )
@@ -149,20 +141,18 @@ class FilesystemSqlClient(WithTableScanners):
                 # skip schema inference to make nested data types work
                 # https://github.com/duckdb/duckdb_iceberg/issues/47
                 from_statement = (
-                    f"iceberg_scan('{resolved_folder}', version='?', allow_moved_paths = true,"
-                    " skip_schema_inference=True)"
+                    f"iceberg_scan('{table_location}', version='?', allow_moved_paths = true,"
+                    " skip_schema_inference=true)"
                 )
         else:
             # get file format from schema
             # NOTE: this does not support cases where table contains many different file formats
             first_file_type = self.get_file_format(table_schema)
 
-            # files = self.remote_client.list_table_files(table_name)
-            # first_file_type = os.path.splitext(files[0])[1][1:]
-
             # build files string
-            supports_wildcard_notation = self.remote_client.config.protocol != "abfss"
-            resolved_files_string = f"'{resolved_folder}/**/*.{first_file_type}'"
+            supports_wildcard_notation = not self.is_abfss
+
+            resolved_files_string = f"'{table_location}/**/*.{first_file_type}'"
             if not supports_wildcard_notation:
                 files = self.remote_client.list_table_files(table_name)
                 resolved_files_string = ",".join(map(lambda f: f"'{protocol}{f}'", files))

@@ -113,14 +113,14 @@ class ReadableDBAPIDataset(SupportsReadableDataset, WithSqlClient):
 
         # here we create the client bound to the resolved schema
         if not self._sql_client:
-            destination_client = self._destination_client(self._schema)
-            if isinstance(destination_client, WithSqlClient):
-                self._sql_client = destination_client.sql_client
-            else:
-                raise Exception(
-                    f"Destination {destination_client.config.destination_type} does not support"
-                    " SqlClient."
-                )
+            with self._destination_client(self._schema) as destination_client:
+                if isinstance(destination_client, WithSqlClient):
+                    self._sql_client = destination_client.sql_client
+                else:
+                    raise Exception(
+                        f"Destination {destination_client.config.destination_type} does not support"
+                        " SqlClient."
+                    )
 
     def __call__(self, query: Any) -> ReadableDBAPIRelation:
         return ReadableDBAPIRelation(readable_dataset=self, provided_query=query)  # type: ignore[abstract]

@@ -30,6 +30,7 @@ from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
     TLoaderReplaceStrategy,
+    TTableFormat,
 )
 
 from dlt.common.configuration import configspec, NotResolved
@@ -634,3 +635,28 @@ class SupportsStagingDestination(ABC):
         For Athena we truncate those tables only on "replace" write disposition.
         """
         pass
+
+
+class SupportsOpenTables(ABC):
+    """Provides access to data stored in one of open table formats (iceberg or delta) and intended to
+       be implemented by job clients.
+       
+    """
+
+    @abstractmethod
+    def get_open_table_catalog(self, table_format: TTableFormat, catalog_name: str = None) -> Any:
+        """Gets the catalog that keeps tables' metadata. Currently only pyiceberg Catalog is supported"""
+
+    @abstractmethod
+    def get_open_table_location(self, table_format: TTableFormat, table_name: str) -> str:
+        """Computes location in which table metadata is stored. Does not verify if table exists."""
+
+    @abstractmethod
+    def load_open_table(self, table_format: TTableFormat, table_name: str, **kwargs: Any) -> Any:
+        """Loads table `table_name` metadata via catalog or directly and returns populated and authenticated
+           table client. Currently pyiceberg Table or DeltaTable is returned.
+        """
+
+    @abstractmethod
+    def is_open_table(self, table_format: TTableFormat, table_name: str) -> bool:
+        """Checks if `table_name` is stored with open table format `table_format`"""
