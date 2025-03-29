@@ -31,6 +31,9 @@ class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     """Number of rows in streaming insert batch"""
     autodetect_schema: bool = False
     """Allow BigQuery to autodetect schemas and create data tables"""
+    ignore_unknown_values: bool = False
+    """Ignore unknown values in the data"""
+
 
     __config_gen_annotations__: ClassVar[List[str]] = ["location"]
 
