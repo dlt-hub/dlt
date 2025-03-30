@@ -100,10 +100,6 @@ def write_delta_table(
 
     Thin wrapper around `deltalake.write_deltalake`.
     """
-
-    # throws warning for `s3` protocol: https://github.com/delta-io/delta-rs/issues/2460
-    # TODO: upgrade `deltalake` lib after https://github.com/delta-io/delta-rs/pull/2500
-    # is released
     write_deltalake(  # type: ignore[call-overload]
         table_or_uri=table_or_uri,
         data=ensure_delta_compatible_arrow_data(data, partition_by),
@@ -126,6 +122,7 @@ def merge_delta_table(
     if strategy == "upsert":
         # `DeltaTable.merge` does not support automatic schema evolution
         # https://github.com/delta-io/delta-rs/issues/2282
+        # NOTE: fixing the issue didn't help here
         evolve_delta_table_schema(table, data.schema)
 
         if "parent" in schema:
@@ -163,34 +160,6 @@ def get_delta_tables(
     schemas via `schema_name` argument.
     """
     return load_open_tables(pipeline, "delta", *tables, schema_name=schema_name)
-
-    # with pipeline.destination_client(schema_name=schema_name) as client:
-    #     assert isinstance(
-    #         client, FilesystemClient
-    #     ), "The `get_delta_tables` function requires a `filesystem` destination."
-
-    #     schema_delta_tables = [
-    #         t["name"]
-    #         for t in client.schema.tables.values()
-    #         if client.prepare_load_table(t["name"]).get("table_format") == "delta"
-    #     ]
-    #     if len(tables) > 0:
-    #         invalid_tables = set(tables) - set(schema_delta_tables)
-    #         if len(invalid_tables) > 0:
-    #             available_schemas = ""
-    #             if len(pipeline.schema_names) > 1:
-    #                 available_schemas = f" Available schemas are {pipeline.schema_names}"
-    #             raise ValueError(
-    #                 f"Schema {client.schema.name} does not contain Delta tables with these names: "
-    #                 f"{', '.join(invalid_tables)}.{available_schemas}"
-    #             )
-    #         schema_delta_tables = [t for t in schema_delta_tables if t in tables]
-    #     table_dirs = client.get_table_dirs(schema_delta_tables, remote=True)
-    #     storage_options = _deltalake_storage_options(client.config)
-    #     return {
-    #         name: DeltaTable(_dir, storage_options=storage_options)
-    #         for name, _dir in zip(schema_delta_tables, table_dirs)
-    #     }
 
 
 def deltalake_storage_options(config: FilesystemConfiguration) -> Dict[str, str]:

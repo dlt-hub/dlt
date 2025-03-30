@@ -829,8 +829,9 @@ def test_table_format_schema_evolution(
         # just check shape and schema for `append`, because table comparison is
         # more involved than with the other dispositions
         assert actual.num_rows == 3
-        actual.schema.equals(expected.schema)
+        assert actual.schema.equals(expected.schema)
     else:
+        assert actual.schema.equals(expected.schema)
         assert actual.sort_by("pk").equals(expected.sort_by("pk"))
 
     # create empty Arrow table with additional column
@@ -851,9 +852,6 @@ def test_table_format_schema_evolution(
         expected_num_rows = 3
     elif write_disposition == "replace":
         expected_num_rows = 0
-        if destination_config.table_format == "delta":
-            # TODO: fix https://github.com/dlt-hub/dlt/issues/2092 and remove this if-clause
-            expected_num_rows = 2
     elif write_disposition == {"disposition": "merge", "strategy": "upsert"}:
         expected_num_rows = 2
     assert actual.num_rows == expected_num_rows

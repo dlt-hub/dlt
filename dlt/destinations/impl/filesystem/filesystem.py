@@ -173,30 +173,21 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
         else:
             delta_table = None
 
-        # explicitly check if there is data
-        # (https://github.com/delta-io/delta-rs/issues/2686)
-        if source_ds.head(1).num_rows == 0:
-            delta_table = self._create_or_evolve_delta_table(
-                source_ds, delta_table, storage_options
-            )
-        else:
-            with source_ds.scanner().to_reader() as arrow_rbr:  # RecordBatchReader
-                if self._load_table["write_disposition"] == "merge" and delta_table is not None:
-                    merge_delta_table(
-                        table=delta_table,
-                        data=arrow_rbr,
-                        schema=self._load_table,
-                    )
-                else:
-                    write_delta_table(
-                        table_or_uri=(
-                            self.make_remote_url() if delta_table is None else delta_table
-                        ),
-                        data=arrow_rbr,
-                        write_disposition=self._load_table["write_disposition"],
-                        partition_by=self._partition_columns,
-                        storage_options=storage_options,
-                    )
+        with source_ds.scanner().to_reader() as arrow_rbr:  # RecordBatchReader
+            if self._load_table["write_disposition"] == "merge" and delta_table is not None:
+                merge_delta_table(
+                    table=delta_table,
+                    data=arrow_rbr,
+                    schema=self._load_table,
+                )
+            else:
+                write_delta_table(
+                    table_or_uri=(self.make_remote_url() if delta_table is None else delta_table),
+                    data=arrow_rbr,
+                    write_disposition=self._load_table["write_disposition"],
+                    partition_by=self._partition_columns,
+                    storage_options=storage_options,
+                )
         # release memory ASAP by deleting objects explicitly
         del source_ds
         del delta_table

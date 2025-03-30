@@ -2518,21 +2518,22 @@ files = [
 
 [[package]]
 name = "deltalake"
-version = "0.24.0"
+version = "0.25.4"
 description = "Native Delta Lake Python binding based on delta-rs with Pandas integration"
 optional = true
 python-versions = ">=3.9"
 files = [
-    {file = "deltalake-0.24.0-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:1c4c5b2d3b8d467fb35504ef5649344bf3ad4f656303101e463ece3db2843c79"},
-    {file = "deltalake-0.24.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:3d59e62305d42b76c78e0c3dcb479d9ad512a2bbe12867c24e3ed2d66492d2b4"},
-    {file = "deltalake-0.24.0-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:59487ae82c7de5950ec951e2dad7d4b2b281e81fac7b65d8187dac64b1506359"},
-    {file = "deltalake-0.24.0-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:05dc5ee8adb05cc4aaf8988335c14720b4e7b042d0d1976bde10c2a5cc3b9654"},
-    {file = "deltalake-0.24.0-cp39-abi3-win_amd64.whl", hash = "sha256:1c423bdab46fa3c01a9364ba5533167d3b58099fd4a0599e6d0c363e9ba64799"},
-    {file = "deltalake-0.24.0.tar.gz", hash = "sha256:0a33528b40067ee204b527efd88cc1a4cea4b61af4886ca57539d5b6b657e20f"},
+    {file = "deltalake-0.25.4-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:083ef408412ec85fc2ec80a22adb4c2bd1b144ed19a6aa6866b144410456841e"},
+    {file = "deltalake-0.25.4-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:d2076801f10c5906bc4d545f0a8bc3599ea80bcbbfd952e1b10b19279715ba94"},
+    {file = "deltalake-0.25.4-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:bda3319095b50821ee8367abb124a8b9930ec5494b9932d0c07788be786fcf8b"},
+    {file = "deltalake-0.25.4-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:586a9abfa7bc34eb549d29b7112c284faf47cf310698cbffd6c9d1eab8c6c1f7"},
+    {file = "deltalake-0.25.4-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:0d24346806879cc237cb26b57dbb377e0136cdf0572b5bdc52a0e18c2aafdcfd"},
+    {file = "deltalake-0.25.4-cp39-abi3-win_amd64.whl", hash = "sha256:c8f181500b1ece0b0c8d46e62921b8d91cdcf8287425289b008cdd200dae6566"},
+    {file = "deltalake-0.25.4.tar.gz", hash = "sha256:67670235e18d61e2878e22925cddbfa9c80347ff2955acfa12d0114db5b77d7d"},
 ]
 
 [package.dependencies]
-pyarrow = ">=16"
+pyarrow = ">=16,<19"
 
 [package.extras]
 devel = ["azure-storage-blob (==12.20.0)", "mypy (==1.10.1)", "packaging (>=20)", "pip (>=24.0)", "pytest", "pytest-benchmark", "pytest-cov", "pytest-mock", "pytest-timeout", "ruff (==0.5.2)", "sphinx (<=4.5)", "sphinx-rtd-theme", "toml", "wheel"]
