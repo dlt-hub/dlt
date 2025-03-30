@@ -626,7 +626,7 @@ class TestJSONResponseCursorPaginator:
         paginator = JSONResponseCursorPaginator()
 
         # Test setting value in empty dict
-        test_obj:dict[str, Any] = {}
+        test_obj: dict[str, Any] = {}
         paginator._set_value_at_path(test_obj, "key", "value")
         assert test_obj == {"key": "value"}
 
