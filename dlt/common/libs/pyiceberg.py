@@ -55,7 +55,12 @@ def write_iceberg_table(
         table.overwrite(ensure_iceberg_compatible_arrow_data(data))
 
 
-def get_sql_catalog(catalog_name: str, uri: str, credentials: FileSystemCredentials, properties: Dict[str, Any] = None) -> "SqlCatalog":  # type: ignore[name-defined] # noqa: F821
+def get_sql_catalog(
+    catalog_name: str,
+    uri: str,
+    credentials: FileSystemCredentials,
+    properties: Dict[str, Any] = None,
+) -> IcebergCatalog:  # noqa: F821
     assert_min_pkg_version(
         pkg_name="sqlalchemy",
         version="2.0.18",

@@ -155,7 +155,7 @@ class FilesystemSqlClient(WithTableScanners):
             resolved_files_string = f"'{table_location}/**/*.{first_file_type}'"
             if not supports_wildcard_notation:
                 files = self.remote_client.list_table_files(table_name)
-                resolved_files_string = ",".join(map(lambda f: f"'{protocol}{f}'", files))
+                resolved_files_string = ",".join(map(lambda f: f"'{protocol}://{f}'", files))
 
             if first_file_type == "parquet":
                 from_statement = f"read_parquet([{resolved_files_string}])"

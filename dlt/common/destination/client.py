@@ -639,8 +639,8 @@ class SupportsStagingDestination(ABC):
 
 class SupportsOpenTables(ABC):
     """Provides access to data stored in one of open table formats (iceberg or delta) and intended to
-       be implemented by job clients.
-       
+    be implemented by job clients.
+
     """
 
     @abstractmethod
@@ -654,7 +654,7 @@ class SupportsOpenTables(ABC):
     @abstractmethod
     def load_open_table(self, table_format: TTableFormat, table_name: str, **kwargs: Any) -> Any:
         """Loads table `table_name` metadata via catalog or directly and returns populated and authenticated
-           table client. Currently pyiceberg Table or DeltaTable is returned.
+        table client. Currently pyiceberg Table or DeltaTable is returned.
         """
 
     @abstractmethod

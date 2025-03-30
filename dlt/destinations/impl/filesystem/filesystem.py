@@ -58,7 +58,11 @@ from dlt.common.destination.client import (
     LoadJob,
 )
 from dlt.common.destination.dataset import SupportsReadableRelation
-from dlt.common.destination.exceptions import DestinationUndefinedEntity
+from dlt.common.destination.exceptions import (
+    DestinationUndefinedEntity,
+    OpenTableCatalogNotSupported,
+    OpenTableFormatNotSupported,
+)
 
 from dlt.destinations.job_impl import (
     ReferenceFollowupJobRequest,
@@ -785,20 +789,15 @@ class FilesystemClient(
 
         return jobs
 
-    def load_open_table(self, table_format: TTableFormat, table_name: str, **kwargs: Any) -> Any:
-        """Locates, loads and returns native table client for table `table_name` with format `table_format`
+    # SupportsOpenTables implementation
 
-        Iceberg and Delta tables are supported.
-        """
+    def load_open_table(self, table_format: TTableFormat, table_name: str, **kwargs: Any) -> Any:
+        """Locates, loads and returns native table client for table `table_name` in delta or iceberg formats"""
+
         prepared_table = self.prepare_load_table(table_name)
         detected_format = prepared_table.get("table_format")
-        if not detected_format:
-            raise ValueError(f"Table {table_name} is not stored in any known open table format.")
         if detected_format != table_format:
-            raise ValueError(
-                f"Table {table_name} is stored as {detected_format} while {table_format} was"
-                " requested"
-            )
+            raise OpenTableFormatNotSupported(table_format, table_name, detected_format)
 
         if table_format == "iceberg":
             catalog = self.get_open_table_catalog("iceberg")
@@ -823,7 +822,9 @@ class FilesystemClient(
                 table_location, storage_options=deltalake_storage_options(self.config)
             )
         else:
-            raise NotImplementedError(f"Cannot load tables in {table_format} format.")
+            raise NotImplementedError(
+                f"Cannot load tables in {table_format} format in filesystem destination."
+            )
 
     def get_open_table_catalog(self, table_format: TTableFormat, catalog_name: str = None) -> Any:
         """Gets a native catalog for a table `table_name` with format `table_format`
@@ -831,7 +832,8 @@ class FilesystemClient(
         Returns: currently pyiceberg Catalog is supported
         """
         if table_format != "iceberg":
-            raise NotImplementedError(f"No catalog for table format {table_format}")
+            raise OpenTableCatalogNotSupported(table_format, "filesystem")
+
         from dlt.common.libs.pyiceberg import get_sql_catalog, IcebergCatalog
 
         # create in-memory catalog
@@ -845,6 +847,7 @@ class FilesystemClient(
         return catalog
 
     def get_open_table_location(self, table_format: TTableFormat, table_name: str) -> str:
+        """All tables have location, also those in "native" table format."""
         folder = self.get_table_dir(table_name)
         location = self.make_remote_url(folder)
         if self.config.is_local_filesystem and os.name == "nt":
@@ -853,6 +856,8 @@ class FilesystemClient(
         return location
 
     def is_open_table(self, table_format: TTableFormat, table_name: str) -> bool:
+        if table_name in self.schema.dlt_table_names():
+            return False
         prepared_table = self.prepare_load_table(table_name)
         detected_format = prepared_table.get("table_format")
         return table_format == detected_format

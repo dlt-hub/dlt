@@ -42,9 +42,6 @@ def _run_dataset_checks(
 ) -> None:
     total_records = 200
 
-    # duckdb will store secrets lower case, that's why we could not delete it
-    TEST_SECRET_NAME = "test_secret_" + uniq_id()
-
     # only some buckets have support for persistent secrets
     needs_persistent_secrets = (
         destination_config.bucket_url.startswith("s3")
@@ -144,6 +141,8 @@ def _run_dataset_checks(
     #
 
     duck_db_location = TEST_STORAGE_ROOT + "/" + uniq_id()
+    # duckdb will store secrets lower case, that's why we could not delete it
+    TEST_SECRET_NAME = "second_" + uniq_id()
 
     def _external_duckdb_connection() -> duckdb.DuckDBPyConnection:
         external_db = duckdb.connect(duck_db_location)
@@ -230,6 +229,10 @@ def _run_dataset_checks(
 
     try:
         with fs_sql_client as sql_client:
+            # remove all previous secrets
+            for secret_name in fs_sql_client.list_secrets():
+                fs_sql_client.drop_secret(secret_name)
+
             fs_sql_client.create_secret(
                 fs_sql_client.remote_client.config.bucket_url,
                 fs_sql_client.remote_client.config.credentials,
@@ -258,7 +261,7 @@ def _run_dataset_checks(
                 == total_records
             )
         external_db.close()
-    finally:
+    except Exception:
         with duckdb.connect() as conn:
             fs_sql_client = _fs_sql_client_for_external_db(conn)
             with fs_sql_client as sql_client:

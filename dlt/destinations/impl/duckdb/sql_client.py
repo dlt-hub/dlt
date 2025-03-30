@@ -339,7 +339,7 @@ class WithTableScanners(DuckDbSqlClient):
             )
 
             use_ssl = "true"
-            endpoint = "s3.amazonaws.com"
+            endpoint = aws_creds.endpoint_url or "s3.amazonaws.com"
             if aws_creds.endpoint_url and "http://" in aws_creds.endpoint_url:
                 use_ssl = "false"
                 endpoint = aws_creds.endpoint_url.replace("http://", "")
@@ -347,7 +347,6 @@ class WithTableScanners(DuckDbSqlClient):
                 endpoint = aws_creds.endpoint_url.replace("https://", "")
 
             s3_url_style = aws_creds.s3_url_style or "vhost"
-
             self._conn.sql(f"""
             CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                 TYPE S3,

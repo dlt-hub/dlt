@@ -5,7 +5,7 @@ from dlt.common.json import json
 from dlt.common.exceptions import MissingDependencyException
 
 from dlt.common.destination.reference import TDestinationReferenceArg, Destination
-from dlt.common.destination.client import JobClientBase, WithStateSync
+from dlt.common.destination.client import JobClientBase, SupportsOpenTables, WithStateSync
 from dlt.common.destination.dataset import SupportsReadableRelation, SupportsReadableDataset
 from dlt.common.destination.typing import TDatasetType
 
@@ -37,6 +37,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset, WithSqlClient):
         self._provided_schema = schema
         self._dataset_name = dataset_name
         self._sql_client: SqlClientBase[Any] = None
+        self._table_client: SupportsOpenTables = None
         self._schema: Schema = None
         self._dataset_type = dataset_type
 
@@ -76,6 +77,12 @@ class ReadableDBAPIDataset(SupportsReadableDataset, WithSqlClient):
         if not self._sql_client:
             self._ensure_client_and_schema()
         return self._destination_client(self._schema)
+
+    @property
+    def table_client(self) -> SupportsOpenTables:
+        if not self._sql_client:
+            self._ensure_client_and_schema()
+        return self._table_client
 
     def _destination_client(self, schema: Schema) -> JobClientBase:
         return get_destination_clients(
@@ -121,6 +128,8 @@ class ReadableDBAPIDataset(SupportsReadableDataset, WithSqlClient):
                         f"Destination {destination_client.config.destination_type} does not support"
                         " SqlClient."
                     )
+                if isinstance(destination_client, SupportsOpenTables):
+                    self._table_client = destination_client
 
     def __call__(self, query: Any) -> ReadableDBAPIRelation:
         return ReadableDBAPIRelation(readable_dataset=self, provided_query=query)  # type: ignore[abstract]
