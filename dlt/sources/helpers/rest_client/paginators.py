@@ -630,12 +630,30 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
         def get_data():
             for page in client.paginate("/posts"):
                 yield page
+
+    For requests with a JSON body, you can specify where to place the cursor in the request body
+    using the `cursor_body_path` parameter. For example:
+
+        from dlt.sources.helpers.rest_client import RESTClient
+        client = RESTClient(
+            base_url="https://api.example.com",
+            paginator=JSONResponseCursorPaginator(
+                cursor_path="nextPageToken",
+                cursor_body_path="nextPageToken"
+            )
+        )
+
+        @dlt.resource
+        def get_data():
+            for page in client.paginate(path="/search", method="POST", json={"query": "example"}):
+                yield page
     """
 
     def __init__(
         self,
         cursor_path: jsonpath.TJsonPath = "cursors.next",
-        cursor_param: str = "cursor",
+        cursor_param: Optional[str] = None,
+        cursor_body_path: Optional[jsonpath.TJsonPath] = None,
     ):
         """
         Args:
@@ -643,10 +661,22 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
                 the response.
             cursor_param: The name of the query parameter to be used in
                 the request to get the next page.
+            cursor_body_path: The JSON path where to place the cursor in the request body.
         """
         super().__init__()
         self.cursor_path = jsonpath.compile_path(cursor_path)
+
+        # For backward compatibility: set default cursor_param if both are None
+        if cursor_param is None and cursor_body_path is None:
+            cursor_param = "cursor"
+        # Check that only one of cursor_param or cursor_body_path is provided
+        elif cursor_param is not None and cursor_body_path is not None:
+            raise ValueError(
+                "Either 'cursor_param' or 'cursor_body_path' must be provided, not both."
+            )
+
         self.cursor_param = cursor_param
+        self.cursor_body_path = cursor_body_path
 
     def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
         """Extracts the cursor value from the JSON response."""
@@ -654,16 +684,42 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
         self._next_reference = values[0] if values and values[0] else None
 
     def update_request(self, request: Request) -> None:
-        """Updates the request with the cursor query parameter."""
-        if request.params is None:
-            request.params = {}
+        """Updates the request with the cursor value either in query parameters
+        or in the request JSON body."""
+        if self.cursor_body_path:
+            if request.json is None:
+                request.json = {}
 
-        request.params[self.cursor_param] = self._next_reference
+            self._set_value_at_path(request.json, self.cursor_body_path, self._next_reference)
+        else:
+            if request.params is None:
+                request.params = {}
+            request.params[self.cursor_param] = self._next_reference
+
+    def _set_value_at_path(self, obj: Dict[str, Any], path: str, value: Any) -> None:
+        """Sets a value in a nested dictionary at the specified path.
+
+        Args:
+            obj: The dictionary to modify
+            path: The dot-separated path to the target location
+            value: The value to set
+        """
+        path_parts = str(path).split(".")
+        current = obj
+
+        for part in path_parts[:-1]:
+            if part not in current:
+                current[part] = {}
+            current = current[part]
+
+        current[path_parts[-1]] = value
 
     def __str__(self) -> str:
         return (
             super().__str__()
-            + f": cursor_path: {self.cursor_path} cursor_param: {self.cursor_param}"
+            + f": cursor_path: {self.cursor_path}"
+            + (f" cursor_param: {self.cursor_param}" if self.cursor_param else "")
+            + (f" cursor_body_path: {self.cursor_body_path}" if self.cursor_body_path else "")
         )
 
 

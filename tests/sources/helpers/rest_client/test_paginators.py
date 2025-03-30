@@ -531,20 +531,76 @@ class TestJSONResponseCursorPaginator:
         assert paginator._next_reference == "cursor-2"
         assert paginator.has_next_page is True
 
+    def test_cursor_param_initialization(self):
+        # Test that cursor_param defaults to 'cursor' when both cursor_param and cursor_body_path are None
+        paginator = JSONResponseCursorPaginator()
+        assert paginator.cursor_param == "cursor"
+        assert paginator.cursor_body_path is None
+
+        # Test that cursor_param is set to the provided value
+        paginator = JSONResponseCursorPaginator(cursor_param="cursor_param")
+        assert paginator.cursor_param == "cursor_param"
+        assert paginator.cursor_body_path is None
+
+        # Test that cursor_body_path is set to the provided value
+        paginator = JSONResponseCursorPaginator(cursor_body_path="cursor_body_path")
+        assert paginator.cursor_param is None
+        assert paginator.cursor_body_path == "cursor_body_path"
+
+    def test_both_cursor_param_and_cursor_body_path_raises_error(self):
+        # Test that an error is raised when both cursor_param and cursor_body_path are provided
+        with pytest.raises(ValueError) as excinfo:
+            JSONResponseCursorPaginator(
+                cursor_path="next_cursor", cursor_param="cursor", cursor_body_path="page"
+            )
+        assert "Either 'cursor_param' or 'cursor_body_path' must be provided, not both" in str(
+            excinfo.value
+        )
+
     def test_update_state_when_cursor_path_is_empty_string(self):
         paginator = JSONResponseCursorPaginator(cursor_path="next_cursor")
         response = Mock(Response, json=lambda: {"next_cursor": "", "results": []})
         paginator.update_state(response)
         assert paginator.has_next_page is False
 
-    def test_update_request(self):
+    def test_update_request_param(self):
         paginator = JSONResponseCursorPaginator(cursor_path="next_cursor")
         paginator._next_reference = "cursor-2"
         request = Request(method="GET", url="http://example.com/api/resource")
         paginator.update_request(request)
         assert request.params["cursor"] == "cursor-2"
 
-    def test_client_pagination(self, rest_client):
+    def test_update_request_json(self):
+        paginator = JSONResponseCursorPaginator(
+            cursor_path="next_cursor", cursor_body_path="cursor"
+        )
+        paginator._next_reference = "cursor-2"
+        request = Request(method="POST", url="http://example.com/api/resource")
+        paginator.update_request(request)
+        assert request.json["cursor"] == "cursor-2"
+
+    def test_update_request_json_nested(self):
+        paginator = JSONResponseCursorPaginator(
+            cursor_path="next_cursor", cursor_body_path="cursor.next"
+        )
+        paginator._next_reference = "cursor-2"
+        request = Request(method="POST", url="http://example.com/api/resource")
+        paginator.update_request(request)
+        assert request.json["cursor"]["next"] == "cursor-2"
+
+    def test_update_request_json_with_existing_json(self):
+        paginator = JSONResponseCursorPaginator(
+            cursor_path="next_cursor", cursor_body_path="cursor"
+        )
+        paginator._next_reference = "cursor-2"
+        request = Request(
+            method="POST", url="http://example.com/api/resource", json={"existing": "data"}
+        )
+        paginator.update_request(request)
+        assert request.json["existing"] == "data"
+        assert request.json["cursor"] == "cursor-2"
+
+    def test_client_pagination_with_param(self, rest_client):
         pages_iter = rest_client.paginate(
             "/posts_cursor",
             paginator=JSONResponseCursorPaginator(cursor_path="next_cursor"),
@@ -553,6 +609,49 @@ class TestJSONResponseCursorPaginator:
         pages = list(pages_iter)
 
         assert_pagination(pages)
+
+    def test_client_pagination_with_json(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts/search",
+            method="POST",
+            json={"ids_greater_than": -1, "page_size": 5, "page_count": 5},
+            paginator=JSONResponseCursorPaginator(cursor_path="next_page", cursor_body_path="page"),
+        )
+
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
+
+    def test_set_value_at_path(self):
+        paginator = JSONResponseCursorPaginator()
+
+        # Test setting value in empty dict
+        test_obj: dict[str, Any] = {}
+        paginator._set_value_at_path(test_obj, "key", "value")
+        assert test_obj == {"key": "value"}
+
+        # Test setting value in nested path
+        test_obj = {}
+        paginator._set_value_at_path(test_obj, "parent.child", "value")
+        assert test_obj == {"parent": {"child": "value"}}
+
+        # Test setting value in deeply nested path
+        test_obj = {}
+        paginator._set_value_at_path(test_obj, "level1.level2.level3", "value")
+        assert test_obj == {"level1": {"level2": {"level3": "value"}}}
+
+        # Test setting value with existing structure
+        test_obj = {"existing": "data", "parent": {"existing_child": "data"}}
+        paginator._set_value_at_path(test_obj, "parent.new_child", "value")
+        assert test_obj == {
+            "existing": "data",
+            "parent": {"existing_child": "data", "new_child": "value"},
+        }
+
+        # Test overwriting existing value
+        test_obj = {"key": "old_value"}
+        paginator._set_value_at_path(test_obj, "key", "new_value")
+        assert test_obj == {"key": "new_value"}
 
 
 @pytest.mark.usefixtures("mock_api_server")
