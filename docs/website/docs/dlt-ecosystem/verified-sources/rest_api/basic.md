@@ -555,20 +555,6 @@ Make sure to store your access tokens and other sensitive information in the `se
 
 Available authentication types:
 
-| Authentication class | String Alias (`type`) | Description |
-| ------------------- | ----------- | ----------- |
-| [BearerTokenAuth](../../../general-usage/http/rest-client.md#bearer-token-authentication) | `bearer` | Bearer token authentication. |
-| [HTTPBasicAuth](../../../general-usage/http/rest-client.md#http-basic-authentication) | `http_basic` | Basic HTTP authentication. |
-| [APIKeyAuth](../../../general-usage/http/rest-client.md#api-key-authentication) | `api_key` | API key authentication with key defined in the query parameters or in the headers. |
-| [OAuth2ClientCredentials](../../../general-usage/http/rest-client.md#oauth-20-authorization) | `oauth2_client_credentials` | OAuth 2.0 authorization with a temporary access token obtained from the authorization server. |
-
-
-:::warning
-Make sure to store your access tokens and other sensitive information in the `secrets.toml` file and never commit it to the version control system.
-:::
-
-Available authentication types:
-
 | `type` | Authentication class | Description |
 | ----------- | ------------------- | ----------- |
 | `bearer` | [BearerTokenAuth](../../../general-usage/http/rest-client.md#bearer-token-authentication) | Bearer token authentication.<br/>Parameters:<ul><li>`token` (str)</li></ul> |
