@@ -742,7 +742,7 @@ def process_parent_data_item(
     expanded_path = expand_placeholders(path, params_values)
     expanded_headers = expand_placeholders(headers, params_values)
     expanded_params = expand_placeholders(params or {}, params_values)
-    expanded_json = expand_placeholders(request_json, params_values)
+    expanded_json = expand_placeholders(request_json, params_values, preserve_value_type=True)
 
     parent_resource_name = resolved_params[0].resolve_config["resource"]
     parent_record = build_parent_record(item, parent_resource_name, include_from_parent)
@@ -809,24 +809,64 @@ def collect_resolved_values(
     return params_values
 
 
-def expand_placeholders(obj: Any, placeholders: Dict[str, Any]) -> Any:
+def _extract_single_placeholder_field(value: str) -> Tuple[bool, Optional[str]]:
+    """Check if a string contains exactly one placeholder with no surrounding text
+    if so, return True and the field name, otherwise return False and None
+
+    Args:
+        value: The string to check
+
+    Returns:
+        Tuple[bool, Optional[str]]: (True, field_name) if it's a single placeholder, (False, None) otherwise
+    """
+    parsed = list(string.Formatter().parse(value))
+    if (
+        len(parsed) == 1
+        and parsed[0][0] == ""  # no leading text
+        and (parsed[0][2] is None or parsed[0][2] == "")  # no format spec
+        and parsed[0][3] is None  # no conversion
+        and parsed[0][1]  # we have a placeholder
+    ):
+        return True, parsed[0][1]
+    return False, None
+
+
+def expand_placeholders(
+    obj: Any, placeholders: Dict[str, Any], preserve_value_type: bool = False
+) -> Any:
     """
     Recursively expand str.format placeholders in `obj` using `placeholders`.
+
+    Args:
+        obj: The object to expand placeholders in
+        placeholders: Dictionary of placeholder values
+        preserve_value_type: If True, when a string contains exactly one
+            placeholder with no surrounding text, format spec, or conversion,
+            return the value directly instead of formatting it as a string.
+            This preserves the original type of the value. Defaults to False.
     """
     if obj is None:
         return None
 
     if isinstance(obj, str):
+        if preserve_value_type:
+            is_single, field_name = _extract_single_placeholder_field(obj)
+            if is_single:
+                value, _ = DirectKeyFormatter().get_field(field_name, (), placeholders)
+                return value
+
         return DirectKeyFormatter().format(obj, **placeholders)
 
     if isinstance(obj, dict):
         return {
-            expand_placeholders(k, placeholders): expand_placeholders(v, placeholders)
+            expand_placeholders(k, placeholders, preserve_value_type): expand_placeholders(
+                v, placeholders, preserve_value_type
+            )
             for k, v in obj.items()
         }
 
     if isinstance(obj, list):
-        return [expand_placeholders(item, placeholders) for item in obj]
+        return [expand_placeholders(item, placeholders, preserve_value_type) for item in obj]
 
     return obj  # For other data types, do nothing
 
