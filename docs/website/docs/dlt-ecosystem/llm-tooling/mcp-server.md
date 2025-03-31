@@ -128,7 +128,6 @@ mcpServers:
 There's also a global configuration specs in JSON
 ```json
 {
-  // ... more content above
   "experimental": {
     "modelContextProtocolServers": [
       {
@@ -158,7 +157,7 @@ You need to [add a JSON configuration file](https://modelcontextprotocol.io/quic
 ```json
 {
   "mcpServers": {
-    "dlt": {  // server name
+    "dlt": {
       "command": "uv",
       "args": [
         "tool",
@@ -182,7 +181,7 @@ Select `Agent Mode` to enable the MCP server. The [configuration](https://docs.c
 ```json
 {
   "mcpServers": {
-    "dlt": {  // server name
+    "dlt": {
       "command": "uv",
       "args": [
         "tool",
