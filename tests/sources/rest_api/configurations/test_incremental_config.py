@@ -25,11 +25,6 @@ from dlt.sources.rest_api.typing import (
     IncrementalConfig,
 )
 
-try:
-    from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
-except ImportError:
-    pass
-
 
 @pytest.fixture()
 def incremental_with_init_and_end() -> Incremental[str]:

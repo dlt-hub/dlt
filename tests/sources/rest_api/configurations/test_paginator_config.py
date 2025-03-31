@@ -8,6 +8,7 @@ import dlt.common.exceptions
 import dlt.extract
 from dlt.common.jsonpath import compile_path
 from dlt.sources.helpers.rest_client.paginators import (
+    JSONLinkPaginator,
     HeaderLinkPaginator,
     JSONResponseCursorPaginator,
     JSONResponsePaginator,
@@ -26,13 +27,6 @@ from dlt.sources.rest_api.typing import (
     PaginatorType,
     RESTAPIConfig,
 )
-
-try:
-    from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
-except ImportError:
-    from dlt.sources.helpers.rest_client.paginators import (
-        JSONResponsePaginator as JSONLinkPaginator,
-    )
 
 
 from .source_configs import (

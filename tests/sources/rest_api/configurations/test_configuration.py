@@ -29,11 +29,6 @@ from dlt.sources.rest_api.typing import (
     RESTAPIConfig,
 )
 
-try:
-    from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
-except ImportError:
-    pass
-
 
 from .source_configs import (
     INVALID_CONFIGS,
