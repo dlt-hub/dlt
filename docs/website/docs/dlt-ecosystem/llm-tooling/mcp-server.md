@@ -82,7 +82,7 @@ Then, to enable the MCP server and tool usage, several IDEs require you to enabl
 
 ### dlt+ MCP server
 
-To run the `dlt+` MCP server, you will need to set your [dlt+ License](https://dlthub.com/docs/plus/getting-started/installation#licensing) globally in `~/.dlt/secrets.toml` or in an environment variable (must be set before lauching the IDE).
+To run the `dlt+` MCP server, you will need to set your [dlt+ License](../../plus/getting-started/installation#licensing) globally in `~/.dlt/secrets.toml` or in an environment variable (must be set before lauching the IDE).
 
 Then, use `dlt mcp run_plus` to launch the server instead of `dlt mcp run`. If the `dlt+` license is missing, the `dlt` MCP server will be launched instead. You can tell the two apart by the tools, resources, and prompts available­.
 
