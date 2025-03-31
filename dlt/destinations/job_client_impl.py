@@ -612,12 +612,22 @@ WHERE """
                     hint_columns = [
                         self.sql_client.escape_column_name(c["name"])
                         for c in new_columns
-                        if c.get(hint, False)
+                        if not has_default_column_prop_value(hint, c.get(hint))
                     ]
-                    if hint in ["hard_delete", "dedup_sort", "merge_key"]:
+                    # some hints are not materialized in destination or may be materialized in alter
+                    # TODO: add this information to TColumnPropInfo
+                    if hint in [
+                        "hard_delete",
+                        "dedup_sort",
+                        "merge_key",
+                        "variant",
+                        "row_key",
+                        "parent_key",
+                        "root_key",
+                    ]:
                         # you may add those
                         pass
-                    elif hint == "null":
+                    elif hint == "nullable":
                         logger.warning(
                             f"Column(s) {hint_columns} with NOT NULL are being added to existing"
                             f" table {table_name}. If there's data in the table the operation"
