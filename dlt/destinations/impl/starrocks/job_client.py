@@ -42,31 +42,32 @@ class StarrocksStreamLoadJob(RunnableLoadJob, HasFollowupJobs):
         c = self._job_client.config.credentials
         # url = f'http://{c.http_host}:{c.http_port}/api/{self._job_client.sql_client.dataset_name}/{self.table.name}/_stream_load'
         auth = aiohttp.BasicAuth(login=c.username, password=c.password)
-        label = self.load_id.replace('.', '-') + '-' + secrets.token_hex(2)
         async with aiohttp.ClientSession(auth=auth) as session:
             headers = {
-                "label": label,
                 "db": self._job_client.sql_client.dataset_name,
                 "table": self.table.name,
                 "format": "JSON",
                 "strip_outer_array": "true"
             }
             
-            async with session.post(f'http://{c.http_host}:{c.http_port}/api/transaction/begin', expect100 = True, headers = headers) as resp:
-                resp_dict = json.loads(await resp.text())
-                if resp.status != 200 or resp_dict["Status"] != "OK":
-                    raise DatabaseTransientException(Exception('Failed to start Stream Load transaction'))
-                
             for chunk in self._iter_data_item_chunks():
+                label = self.load_id.replace('.', '-') + '-' + secrets.token_hex(2)
+                headers['label'] = label
+
+                async with session.post(f'http://{c.http_host}:{c.http_port}/api/transaction/begin', expect100 = True, headers = headers) as resp:
+                    resp_dict = json.loads(await resp.text())
+                    if resp.status != 200 or resp_dict["Status"] != "OK":
+                        raise DatabaseTransientException(Exception('Failed to start Stream Load transaction'))
+                
                 async with session.put(f'http://{c.http_host}:{c.http_port}/api/transaction/load', expect100 = True, headers = headers, data = json.dumps(chunk)) as resp:
                     resp_dict = json.loads(await resp.text())
                     if resp.status != 200 or resp_dict["Status"] != "OK":
                         raise DatabaseTransientException(Exception('Failed to send data to Stream Load transaction'))
 
-            async with session.post(f'http://{c.http_host}:{c.http_port}/api/transaction/commit', expect100 = True, headers = headers) as resp:
-                if resp.status != 200 or resp_dict["Status"] != "OK":
-                    # print(resp_dict)
-                    raise DatabaseTransientException(Exception('Failed to commit Stream Load transaction'))
+                async with session.post(f'http://{c.http_host}:{c.http_port}/api/transaction/commit', expect100 = True, headers = headers) as resp:
+                    if resp.status != 200 or resp_dict["Status"] != "OK":
+                        # print(resp_dict)
+                        raise DatabaseTransientException(Exception('Failed to commit Stream Load transaction'))
 
         # with _sql_client.begin_transaction():
         #     for chunk in self._iter_data_item_chunks():
