@@ -17,6 +17,7 @@ from dlt.destinations.impl.databricks.factory import databricks
 from dlt.destinations.impl.dremio.factory import dremio
 from dlt.destinations.impl.clickhouse.factory import clickhouse
 from dlt.destinations.impl.sqlalchemy.factory import sqlalchemy
+from dlt.destinations.impl.starrocks.factory import starrocks
 
 
 __all__ = [
@@ -39,4 +40,5 @@ __all__ = [
     "clickhouse",
     "destination",
     "sqlalchemy",
+    "starrocks"
 ]
