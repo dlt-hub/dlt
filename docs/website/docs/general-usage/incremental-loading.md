@@ -357,7 +357,7 @@ the `merge_key` must be explicitly unset:
     write_disposition={"disposition": "merge", "strategy": "scd2"}
 )
 def dim_customer():
-...
+    ...
 ```
 Simply omitting `merge_key` from the decorator will not disable the behavior. Aternatively, you can disable the `merge_key` hint for the affected column in the import schema.
 :::
