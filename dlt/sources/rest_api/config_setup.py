@@ -817,7 +817,8 @@ def _extract_single_placeholder_field(value: str) -> Tuple[bool, Optional[str]]:
         value: The string to check
 
     Returns:
-        Tuple[bool, Optional[str]]: (True, field_name) if it's a single placeholder, (False, None) otherwise
+        Tuple[bool, Optional[str]]: (True, field_name) if it's a single
+            placeholder, (False, None) otherwise
     """
     parsed = list(string.Formatter().parse(value))
     if (
