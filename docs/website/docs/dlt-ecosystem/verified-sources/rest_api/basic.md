@@ -1086,8 +1086,7 @@ You can also use different placeholder variants depending on your needs:
 | ----------- | ----------- |
 | `{incremental.start_value}` | The value to use as the starting point for this request (either the initial value or the last tracked maximum value) |
 | `{incremental.initial_value}` | Always uses the initial value specified in the configuration |
-| `{incremental.last_value}` | The last seen value (same as start_value in most cases, see the [incremental loading](../../../general-usage/incremental-loading.
-md#incremental-loading-with-a-cursor-field) guide for more details) |
+| `{incremental.last_value}` | The last seen value (same as start_value in most cases, see the [incremental loading](../../../general-usage/incremental-loading.md#incremental-loading-with-a-cursor-field) guide for more details) |
 | `{incremental.end_value}` | The end value if specified in the configuration |
 
 
