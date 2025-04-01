@@ -39,10 +39,6 @@ class NamingConvention(BaseNamingConvention):
 
     def normalize_identifier(self, identifier: str) -> str:
         identifier = super().normalize_identifier(identifier)
-
-        if identifier.lower() == 'text':
-            identifier += '_col'
-
         # print(f"{identifier} -> {self.shorten_identifier(identifier, self.max_length)} ({self.max_length})")
         return self._normalize_identifier(identifier, self.max_length)
 

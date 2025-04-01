@@ -37,6 +37,7 @@ class starrocks(sqlalchemy):
         caps.preferred_staging_file_format = "parquet"
         caps.supported_staging_file_formats = ["parquet"]
         caps.sqlglog_dialect = "starrocks"
+        caps.naming_convention = "dlt.destinations.impl.starrocks.naming"
 
         return caps
 
