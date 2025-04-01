@@ -19,7 +19,7 @@ dlt is designed to be easy to use, flexible, and scalable:
 - dlt infers [schemas](./general-usage/schema) and [data types](./general-usage/schema/#data-types), [normalizes the data](./general-usage/schema/#data-normalizer), and handles nested data structures.
 - dlt supports a variety of [popular destinations](./dlt-ecosystem/destinations/) and has an interface to add [custom destinations](./dlt-ecosystem/destinations/destination) to create reverse ETL pipelines.
 - dlt can be deployed anywhere Python runs, be it on [Airflow](./walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer), [serverless functions](./walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions), or any other cloud deployment of your choice.
-- dlt automates pipeline maintenance with [schema evolution](./general-usage/schema-evolution) and [schema and data contracts](./general-usage/schema-contracts).
+- dlt automates pipeline maintenance with [incremental loading](./general-usage/incremental-loading), [schema evolution](./general-usage/schema-evolution), and [schema and data contracts](./general-usage/schema-contracts).
 
 To get started with dlt, install the library using pip:
 
@@ -43,7 +43,7 @@ We recommend using a clean virtual environment for your experiments! Read the [d
 ]}>
   <TabItem value="rest-api">
 
-Use dlt's [REST API source](./tutorial/rest-api) to extract data from any REST API. Define the API endpoints you’d like to fetch data from, the pagination method, and authentication, and dlt will handle the rest:
+Use dlt's [REST API source](./tutorial/rest-api) to extract data from any REST API. Define the API endpoints you'd like to fetch data from, the pagination method, and authentication, and dlt will handle the rest:
 
 ```py
 import dlt
