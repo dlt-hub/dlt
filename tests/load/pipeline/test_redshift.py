@@ -100,7 +100,7 @@ def test_copy_from_staging_with_region(
 
     @dlt.resource(write_disposition="replace")
     def other_data():
-        yield [1, 2, 3, 4, 5]
+        yield [1, 2, 3, 4]
 
     @dlt.source(max_table_nesting=0)
     def some_source():
