@@ -98,7 +98,8 @@ See the [dltHub page](https://hub.continue.dev/dlthub) and select the `dlt` or `
 #### Local
 You can define an assistant locally with the same YAML syntax as the Continue Hub by adding files to `$PROJECT_ROOT/.continue/assistants`. This snippet creates an assistant with the MCP only.
 
-```yaml title="local_dlt.yaml"
+```yaml
+# local_dlt.yaml
 name: dlt MCP  # can change
 version: 0.0.1  # can change
 schema: v1
