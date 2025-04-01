@@ -838,10 +838,6 @@ def table_schema_has_type_with_precision(table: TTableSchema, _typ: TDataType) -
     )
 
 
-def is_root_table(table: TTableSchema) -> bool:
-    return table.get("parent") is None
-
-
 def get_root_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
     """Finds root (without parent) of a `table_name` following the nested references (row_key - parent_key)."""
     table = tables[table_name]

@@ -6,7 +6,7 @@ from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.utils import (
     get_root_table,
     get_first_column_name_with_prop,
-    is_root_table,
+    is_nested_table,
 )
 from dlt.common.schema.typing import TTableSchemaColumns, C_DLT_LOAD_ID
 from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
@@ -198,7 +198,8 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
     def _join_to_root_table(self) -> "ReadableIbisRelation":
         """Join the current table to the root table. If the current table is root, it's a no-op."""
         table_schema = self.schema.tables[self.table_name]
-        if is_root_table(table_schema):
+        # if root, skip table
+        if not is_nested_table(table_schema):
             return self
 
         root_key = get_first_column_name_with_prop(table_schema, column_prop="root_key")
