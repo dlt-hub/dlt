@@ -55,12 +55,12 @@ def _read_jsonl(items: Iterator[FileItemDict], chunksize: int = 1000) -> Iterato
 
 def _read_parquet(
     items: Iterator[FileItemDict],
-    chunksize: int = 10,
+    chunksize: int = 1000,
 ) -> Iterator[TDataItems]:
     """Reads parquet file content and extract the data.
 
     Args:
-        chunksize (int, optional): The number of files to process at once, defaults to 10.
+        chunksize (int, optional): The number of records to process at once, defaults to 1000.
 
     Returns:
         TDataItem: The file content
