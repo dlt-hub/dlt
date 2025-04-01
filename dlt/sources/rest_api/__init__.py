@@ -327,7 +327,7 @@ def create_resources(
                 path = expand_placeholders(path, format_kwargs)
                 headers = expand_placeholders(headers, format_kwargs)
                 params = expand_placeholders(params, format_kwargs)
-                json = expand_placeholders(json, format_kwargs)
+                json = expand_placeholders(json, format_kwargs, preserve_value_type=True)
 
                 yield from client.paginate(
                     method=method,
