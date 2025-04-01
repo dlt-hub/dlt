@@ -349,8 +349,9 @@ pipeline.run(dim_customer())  # second run — 2024-04-09 22:13:07.943703
 | **2024-04-09 22:13:07.943703** | **NULL** | **1** | **foo_updated** | **1** |
 
 :::tip
-To disable the prevention of retiring absent records,
-the `merge_key` must be explicitly unset:
+If you decide to undo the previous configuration that prevented retiring absent records for an existing pipeline,
+and want to start retiring them again,
+you must explicitly unset the `merge_key`:
 ```py
 @dlt.resource(
     columns={"customer_key": {"merge_key": False}},
