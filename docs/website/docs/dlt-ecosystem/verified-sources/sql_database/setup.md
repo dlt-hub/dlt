@@ -55,6 +55,14 @@ If you'd like to use a different destination, simply replace `duckdb` with the n
     pip install -r requirements.txt
     ```
 
+    :::note
+    To [load data more efficiently using pyarrow](./configuration#pyarrow), you'll also need to install `pyarrow`, `numpy`, and `pandas`. 
+
+    ```sh
+    pip install pyarrow numpy pandas
+    ```
+    :::
+
 5. Run the pipeline  
 
     ```sh

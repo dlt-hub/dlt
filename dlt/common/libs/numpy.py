@@ -1,6 +1,6 @@
 from dlt.common.exceptions import MissingDependencyException
 
 try:
-    import numpy
+    import numpy  # noqa: I251
 except ModuleNotFoundError:
-    raise MissingDependencyException("dlt Numpy Helpers", ["numpy"])
+    raise MissingDependencyException("dlt numpy Helpers", ["numpy"])
