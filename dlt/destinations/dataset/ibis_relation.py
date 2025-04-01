@@ -213,13 +213,14 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
             root_table_schema, column_prop="row_key"
         )
         root_table = self._dataset.table(root_table_schema["name"])
+        normalized_load_id_col = self.schema.naming.normalize_table_identifier(C_DLT_LOAD_ID)
 
         joined_table = self.inner_join(
-            root_table.select(C_DLT_LOAD_ID, root_row_key),
+            root_table.select(normalized_load_id_col, root_row_key),
             self[root_key] == root_table[root_row_key],
         )
         # `self` selects all columns from the original table
-        return joined_table.select(self, C_DLT_LOAD_ID)  # type: ignore
+        return joined_table.select(self, normalized_load_id_col)  # type: ignore
 
     # forward ibis methods defined on interface
     def limit(self, limit: int, **kwargs: Any) -> "ReadableIbisRelation":
@@ -266,13 +267,14 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         We need to filter the `_dlt_loads` table to include only successfuly joings, then join
         with current table.
         """
+        normalized_load_id_col = self.schema.naming.normalize_table_identifier(C_DLT_LOAD_ID)
         load_ids = [load_ids] if isinstance(load_ids, str) else load_ids
         load_table = self._dataset.table(self.schema.loads_table_name)
         load_table = load_table.filter(load_table["load_id"].isin(load_ids))
         table = self._join_to_root_table()
         joined_table = table.inner_join(
             load_table,
-            table[C_DLT_LOAD_ID] == load_table["load_id"],
+            table[normalized_load_id_col] == load_table["load_id"],
         )
         return joined_table.select(table)  # type: ignore
 
@@ -287,12 +289,13 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         We need to filter the `_dlt_loads` table to include only successfuly joings, then join
         with current table.
         """
+        normalized_load_id_col = self.schema.naming.normalize_table_identifier(C_DLT_LOAD_ID)
         load_table = self._dataset.table(self.schema.loads_table_name)
         load_table = load_table.filter(load_table["load_id"] == self.latest_load_id(status=status))
         table = self._join_to_root_table()
         joined_table = table.inner_join(
             load_table,
-            table[C_DLT_LOAD_ID] == load_table["load_id"],
+            table[normalized_load_id_col] == load_table["load_id"],
         )
         return joined_table.select(table)  # type: ignore
 
@@ -308,9 +311,10 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         if status is None:
             return self
 
+        normalized_load_id_col = self.schema.naming.normalize_table_identifier(C_DLT_LOAD_ID)
         load_ids = self.list_load_ids(status=status)
         table = self._join_to_root_table()
-        return table.filter(table[C_DLT_LOAD_ID].isin(load_ids))  # type: ignore
+        return table.filter(table[normalized_load_id_col].isin(load_ids))  # type: ignore
 
     def filter_by_load_id_gt(
         self, load_id: str, status: Union[int, list[int], None] = 0
@@ -329,11 +333,12 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
             status = [status] if isinstance(status, int) else status
             conditions.append(load_table["status"].isin(status))
         load_table = load_table.filter(*conditions)
+        normalized_load_id_col = self.schema.naming.normalize_table_identifier(C_DLT_LOAD_ID)
 
         table = self._join_to_root_table()
         joined_table = table.inner_join(
             load_table,
-            table[C_DLT_LOAD_ID] == load_table["load_id"],
+            table[normalized_load_id_col] == load_table["load_id"],
         )
         return joined_table.select(table)  # type: ignore
 
