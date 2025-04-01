@@ -132,7 +132,7 @@ Please install a valid license before proceeding, as described under [licensing]
 
 ## Licensing
 
-Once you have a valid license, you can make it available to `dlt+` using one of the following methods:
+Once you have a valid license, you can make it available to dlt+ using one of the following methods:
 
 1. **Environment variable**: set the license key as an environment variable:
 

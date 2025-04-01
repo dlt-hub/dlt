@@ -234,7 +234,7 @@ You can pass storage options by configuring `destination.delta.deltalake_storage
 deltalake_storage_options = '{"AWS_S3_LOCKING_PROVIDER": "dynamodb", "DELTA_DYNAMO_TABLE_NAME": "custom_table_name"}'
 ```
 
-`dlt` passes these options to the `storage_options` argument of the `write_deltalake` method in the `deltalake` library. Look at their [documentation](https://delta-io.github.io/delta-rs/api/delta_writer/#deltalake.write_deltalake) to see which options can be used.
+dlt passes these options to the `storage_options` argument of the `write_deltalake` method in the `deltalake` library. See the [Delta Lake `write_deltalake` API documentation](https://delta-io.github.io/delta-rs/api/delta_writer/#deltalake.write_deltalake) for available storage options.
 
 You don't need to specify credentials here. dlt merges the required credentials with the options you provided before passing them as `storage_options`.
 

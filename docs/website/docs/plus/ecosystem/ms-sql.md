@@ -119,12 +119,12 @@ incremental_resource = create_change_tracking_table(
 
 pipeline.run(incremental_resource)
 ```
-When running for the first time, it is necessary to pass the `tracking_version` in the `initial_tracking_version` argument. This will initialize incremental loading and keep the updated tracking version in the `dlt` state. In subsequent runs, you do not need to provide the initial value anymore.
+When running for the first time, it is necessary to pass the `tracking_version` in the `initial_tracking_version` argument. This will initialize incremental loading and keep the updated tracking version in the dlt state. In subsequent runs, you do not need to provide the initial value anymore.
 
 ### Incremental loading
 
 After the initial load, you can run the `create_change_tracking_table` resource on a schedule to load only the changes since the last tracking version using SQL Server’s `CHANGETABLE` function.
-You do not need to pass `initial_tracking_version` anymore, since this is automatically stored in the `dlt` state.
+You do not need to pass `initial_tracking_version` anymore, since this is automatically stored in the dlt state.
 
 ```py
 from dlt_plus.sources.mssql import create_change_tracking_table
@@ -305,8 +305,7 @@ pipeline.run(incremental_resource)
 
 By default, `hard_delete` is set to `True`, meaning hard deletes are performed, i.e., rows deleted in the source will be permanently removed from the destination.
 
-Replicated data allows for NULLs for not nullable columns when a record is deleted. To avoid additional tables that hold deleted rows and additional merge steps,
-`dlt` emits placeholder values that are stored in the staging dataset only.
+Replicated data allows for NULLs for not nullable columns when a record is deleted. To avoid additional tables that hold deleted rows and additional merge steps, dlt emits placeholder values that are stored in the staging dataset only.
 
 ### Soft deletes
 
