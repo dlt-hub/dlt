@@ -35,7 +35,7 @@ The MCP is progressively being adopted and not all clients support all the featu
 
 ## Features
 
-The `dlt` and `dlt+` MCP servers aim to be a toolbox to help developers build, maintain, and operate `dlt` pipelines. There are two primary avenues:
+The dlt and dlt+ MCP servers aim to be a toolbox to help developers build, maintain, and operate `dlt` pipelines. There are two primary avenues:
 
 - **Code generation**: LLMs are good at writing Python code, but they don't know everything about `dlt`. The MCP provides resources and tools to provide up-to-date information to the LLm about the dlt library and the specifics of your project.
 
@@ -45,11 +45,14 @@ The next sections are a non-exhaustive documentation of existing and upcoming fe
 
 ### Tools
 
-- Use your local pipeline directory (default: `~/.dlt/pipelines`) to retrieve pipeline metadata. This includes: available pipleines, available tables, table schemas. It also include operational information such as last load date, schema changes, schema diffs, load packages data.
+- Pipeline metadata: read your pipeline directory (default: `~/.dlt/pipelines`) to know available pipelines, available tables, table schemas.
 
-- Use your pipeline context to inspect your dlt configuration (sources, resources, destinations).
+- Operational metadata: read your pipeline directory to identify last load date, schema changes, load errors, and inspect load packages.
 
-- Connect to the destination to retrieve data. This enables table previews and light text-to-SQL capabilities.
+- dlt configuration: use an instantiated pipeline to inspect the dlt configuration (sources, resources, destinations).
+
+- Datasets: connect to the destination and execute SQL queries to retrieve data tables via light text-to-SQL.
+
 
 ### Resources
 
@@ -76,15 +79,13 @@ To explain each part:
 - [uv tool run](https://docs.astral.sh/uv/guides/tools/) executes the command in an isolated virtual environment
 - the `--with PACKAGE_NAME` specify the Python dependencies required by the MCP server
 - `dlt-plus==0.9.0` pins a specific `dlt-plus` version (where the MCP code lives). We suggest at least pinning the `dlt-plus` version to provide a consistent experience
-- `dlt mcp run` is a CLI command found in `dlt+`
+- `dlt mcp run` is a CLI command found in dlt+ that starts the dlt MCP server. Use `dlt mcp run_plus` to
 
 Then, to enable the MCP server and tool usage, several IDEs require you to enable "tool/agent/mcp mode".
 
 ### dlt+ MCP server
 
-To run the `dlt+` MCP server, you will need to set your [dlt+ License](../../plus/getting-started/installation#licensing) globally in `~/.dlt/secrets.toml` or in an environment variable (must be set before lauching the IDE).
-
-Then, use `dlt mcp run_plus` to launch the server instead of `dlt mcp run`. If the `dlt+` license is missing, the `dlt` MCP server will be launched instead. You can tell the two apart by the tools, resources, and prompts available­.
+To run the `dlt+` MCP server, you will need to set your [dlt+ License](../../plus/getting-started/installation#licensing) globally in `~/.dlt/secrets.toml` or in an environment variable (must be set before lauching the IDE) and use `dlt mcp run_plus` in your configuration. If the `dlt+` license is missing, the dlt MCP server will be launched instead. You can tell the two apart by the tools, resources, and prompts available­.
 
 
 ### Continue
@@ -97,8 +98,7 @@ See the [dltHub page](https://hub.continue.dev/dlthub) and select the `dlt` or `
 #### Local
 You can define an assistant locally with the same YAML syntax as the Continue Hub by adding files to `$PROJECT_ROOT/.continue/assistants`. This snippet creates an assistant with the MCP only.
 
-```yaml
-# local_dlt.yaml
+```yaml title="local_dlt.yaml"
 name: dlt MCP  # can change
 version: 0.0.1  # can change
 schema: v1
@@ -176,7 +176,7 @@ You need to [add a JSON configuration file](https://modelcontextprotocol.io/quic
 
 ### Cursor
 
-Select `Agent Mode` to enable the MCP server. The [configuration](https://docs.cursor.com/context/model-context-protocol#configuring-mcp-servers) follows the same JSON specs as Claude Desktop
+Select **Agent Mode** to enable the MCP server. The [configuration](https://docs.cursor.com/context/model-context-protocol#configuring-mcp-servers) follows the same JSON specs as Claude Desktop
 
 ```json
 {
