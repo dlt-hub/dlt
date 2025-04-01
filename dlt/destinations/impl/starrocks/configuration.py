@@ -1,5 +1,10 @@
+import dataclasses
+from starrocks.dialect import StarRocksDialect
+from typing import Final, Dict, Any
+
 from dlt.common.configuration import configspec
 
+from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.destinations.impl.sqlalchemy.configuration import (
     SqlalchemyCredentials,
     SqlalchemyClientConfiguration
@@ -12,5 +17,12 @@ class StarrocksCredentials(SqlalchemyCredentials):
     http_host: str = None
 
 @configspec
-class StarrocksClientConfiguration(SqlalchemyClientConfiguration):
+class StarrocksClientConfiguration(SqlalchemyClientConfiguration, DestinationClientDwhWithStagingConfiguration):
+    destination_type: Final[str] = dataclasses.field(default="starrocks", init=False, repr=False, compare=False)  # type: ignore[misc]
     credentials: StarrocksCredentials = None
+
+    def get_dialect(self):
+        return StarRocksDialect
+
+    def get_backend_name(self):
+        return "starrocks"

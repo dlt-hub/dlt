@@ -1,6 +1,8 @@
 import asyncio
 import secrets
 
+from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob
+from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from typing import IO, Dict, Any, Iterator, Sequence, Iterable, Optional
 from dlt.common.destination.client import JobClientBase
 from dlt.common import logger
@@ -12,16 +14,19 @@ from dlt.common.schema.utils import (
     is_complete_column,
     get_columns_names_with_prop,
 )
+from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 import sqlalchemy as sa
 import aiohttp
 
 from dlt.common.destination.client import (
     LoadJob,
-    PreparedTableSchema
+    PreparedTableSchema,
+    SupportsStagingDestination
 )
 from dlt.common.destination.client import (
     RunnableLoadJob,
-    HasFollowupJobs
+    HasFollowupJobs,
+    CredentialsConfiguration,
 )
 from dlt.common.storages import FileStorage
 from dlt.common.json import json, PY_DATETIME_DECODERS
@@ -31,6 +36,63 @@ from dlt.destinations.exceptions import (
 )
 
 
+class StarrocksObjectStorageLoadJob(CopyRemoteFileLoadJob):
+    def __init__(self, file_path: str, table: sa.Table, load_id: str, staging_credentials: Optional[CredentialsConfiguration], staging_kwargs: Optional[Dict]) -> None:
+        super().__init__(file_path, staging_credentials)
+        self._job_client: "StarrocksJobClient" = None
+        self.table = table
+        self.load_id = load_id
+        self._staging_kwargs = staging_kwargs
+        
+    def run(self) -> None:
+        _sql_client = self._job_client.sql_client
+        # Copy the table to the current dataset (i.e. staging) if needed
+        # This is a no-op if the table is already in the correct schema
+        table = self.table.to_metadata(
+            self.table.metadata, schema=_sql_client.dataset_name  # type: ignore[attr-defined]
+        )
+
+        bucket_path = (
+            ReferenceFollowupJobRequest.resolve_reference(self._file_path)
+            if ReferenceFollowupJobRequest.is_reference_job(self._file_path)
+            else ""
+        )
+
+        file_format = bucket_path.split('.')[-1]
+        if file_format != 'parquet':
+            raise DatabaseTransientException(Exception('Only parquet files currently supported for load from Object Storage'))
+        
+        # if self._staging_iam_role:
+        #     credentials = f"IAM_ROLE '{self._staging_iam_role}'"
+        if self._staging_credentials and isinstance(
+            self._staging_credentials, AwsCredentialsWithoutDefaults
+        ):
+            connection_dict = {
+                'aws.s3.access_key': self._staging_credentials.aws_access_key_id,
+                'aws.s3.secret_key': self._staging_credentials.aws_secret_access_key,
+                'format': file_format,
+                'path': bucket_path,
+                'aws.s3.endpoint': self._staging_credentials.endpoint_url,
+                'aws.s3.enable_ssl': str(self._staging_kwargs.get('use_ssl', 'true')).lower(),
+                'aws.s3.enable_path_style_access': self._staging_kwargs.get('enable_path_style_access', 'true')
+            }
+
+            aws_connection_details = ',\n'.join([ f'"{i}" = "{connection_dict[i]}"'  for i in connection_dict ])
+
+            stmt = f'''
+                    INSERT INTO {self._job_client.sql_client.dataset_name}.{self.table.name}
+                    SELECT * FROM FILES (
+                        {aws_connection_details}
+                    )
+                    '''
+            logger.info(stmt)
+
+            with _sql_client.begin_transaction():
+                _sql_client.execute_sql(stmt)
+            
+        else:
+            raise DatabaseTransientException(Exception('Cannot Broker Load without staging credentials'))
+    
 class StarrocksStreamLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(self, file_path: str, table: sa.Table, load_id: str) -> None:
         super().__init__(file_path)
@@ -41,6 +103,7 @@ class StarrocksStreamLoadJob(RunnableLoadJob, HasFollowupJobs):
     async def stream_load(self):
         c = self._job_client.config.credentials
         # url = f'http://{c.http_host}:{c.http_port}/api/{self._job_client.sql_client.dataset_name}/{self.table.name}/_stream_load'
+        url_base = f'http://{c.http_host}:{c.http_port}/api/transaction/'
         auth = aiohttp.BasicAuth(login=c.username, password=c.password)
         async with aiohttp.ClientSession(auth=auth) as session:
             headers = {
@@ -54,26 +117,20 @@ class StarrocksStreamLoadJob(RunnableLoadJob, HasFollowupJobs):
                 label = self.load_id.replace('.', '-') + '-' + secrets.token_hex(2)
                 headers['label'] = label
 
-                async with session.post(f'http://{c.http_host}:{c.http_port}/api/transaction/begin', expect100 = True, headers = headers) as resp:
+                async with session.post(url_base + 'begin', expect100 = True, headers = headers) as resp:
                     resp_dict = json.loads(await resp.text())
                     if resp.status != 200 or resp_dict["Status"] != "OK":
                         raise DatabaseTransientException(Exception('Failed to start Stream Load transaction'))
                 
-                async with session.put(f'http://{c.http_host}:{c.http_port}/api/transaction/load', expect100 = True, headers = headers, data = json.dumps(chunk)) as resp:
+                async with session.put(url_base + 'load', expect100 = True, headers = headers, data = json.dumps(chunk)) as resp:
                     resp_dict = json.loads(await resp.text())
                     if resp.status != 200 or resp_dict["Status"] != "OK":
                         raise DatabaseTransientException(Exception('Failed to send data to Stream Load transaction'))
 
-                async with session.post(f'http://{c.http_host}:{c.http_port}/api/transaction/commit', expect100 = True, headers = headers) as resp:
+                async with session.post(url_base + 'commit', expect100 = True, headers = headers) as resp:
                     if resp.status != 200 or resp_dict["Status"] != "OK":
                         # print(resp_dict)
                         raise DatabaseTransientException(Exception('Failed to commit Stream Load transaction'))
-
-        # with _sql_client.begin_transaction():
-        #     for chunk in self._iter_data_item_chunks():
-        #         print(table, chunk)
-                # _sql_client.execute_sql(table.insert(), chunk)
-        # await asyncio.sleep(1)
         
     def _open_load_file(self) -> IO[bytes]:
         return FileStorage.open_zipsafe_ro(self._file_path, "rb")
@@ -122,7 +179,10 @@ class StarrocksStreamLoadJob(RunnableLoadJob, HasFollowupJobs):
         # l = asyncio.get_running_loop()
         asyncio.run(self.stream_load())
 
-class StarrocksJobClient(SqlalchemyJobClient):
+class StarrocksJobClient(SqlalchemyJobClient, SupportsStagingDestination):
+    def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
+        return self.config.truncate_tables_on_staging_destination_before_load
+
     def _to_table_object(self, schema_table: PreparedTableSchema) -> sa.Table:
         existing = self.sql_client.get_existing_table(schema_table["name"])
         if existing is not None:
@@ -219,11 +279,24 @@ class StarrocksJobClient(SqlalchemyJobClient):
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        table_obj = self._to_table_object(table)
-        job = StarrocksStreamLoadJob(file_path, table_obj, load_id)
+        job = None
+        
+        if file_path.endswith(".typed-jsonl"):
+            table_obj = self._to_table_object(table)
+            job = StarrocksStreamLoadJob(file_path, table_obj, load_id)
+        elif file_path.endswith(".parquet") or file_path.endswith(".reference"):
+            table_obj = self._to_table_object(table)
+            job = StarrocksObjectStorageLoadJob(
+                    file_path,
+                    table_obj,
+                    load_id,
+                    staging_credentials = self.config.staging_config.credentials,
+                    staging_kwargs = self.config.staging_config.kwargs)
         
         if job is not None:
             return job
+
+        logger.warn('Falling back to sqlalchemy')
         
         job = super().create_load_job(table, file_path, load_id, restore)
         return job
