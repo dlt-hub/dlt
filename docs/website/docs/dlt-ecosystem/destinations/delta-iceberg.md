@@ -1,14 +1,14 @@
 ---
 title: Delta
-description: Delta `dlt` destination
+description: Delta dlt destination
 keywords: [delta, destination, data warehouse]
 ---
 
 # Delta table format
-`dlt` supports writing [Delta](https://delta.io/) tables when using the [filesystem](./filesystem.md) destination.
+dlt supports writing [Delta](https://delta.io/) tables when using the [filesystem](./filesystem.md) destination.
 
 ## How it works
-`dlt` uses the [deltalake](https://pypi.org/project/deltalake/) library to write Delta tables. One or multiple Parquet files are prepared during the extract and normalize steps. In the load step, these Parquet files are exposed as an Arrow data structure and fed into `deltalake`.
+dlt uses the [deltalake](https://pypi.org/project/deltalake/) library to write Delta tables. One or multiple Parquet files are prepared during the extract and normalize steps. In the load step, these Parquet files are exposed as an Arrow data structure and fed into `deltalake`.
 
 ## Delta dependencies
 
@@ -41,7 +41,7 @@ pipeline.run(my_resource, table_format="delta")
 ```
 
 :::note
-`dlt` always uses Parquet as `loader_file_format` when using the `delta` table format. Any setting of `loader_file_format` is disregarded.
+dlt always uses Parquet as `loader_file_format` when using the `delta` table format. Any setting of `loader_file_format` is disregarded.
 :::
 
 ## Table format partitioning
@@ -120,9 +120,9 @@ You can pass storage options by configuring `destination.filesystem.deltalake_st
 deltalake_storage_options = '{"AWS_S3_LOCKING_PROVIDER": "dynamodb", "DELTA_DYNAMO_TABLE_NAME": "custom_table_name"}'
 ```
 
-`dlt` passes these options to the `storage_options` argument of the `write_deltalake` method in the `deltalake` library. Look at their [documentation](https://delta-io.github.io/delta-rs/api/delta_writer/#deltalake.write_deltalake) to see which options can be used.
+dlt passes these options to the `storage_options` argument of the `write_deltalake` method in the `deltalake` library. Look at their [documentation](https://delta-io.github.io/delta-rs/api/delta_writer/#deltalake.write_deltalake) to see which options can be used.
 
-You don't need to specify credentials here. `dlt` merges the required credentials with the options you provided before passing it as `storage_options`.
+You don't need to specify credentials here. dlt merges the required credentials with the options you provided before passing it as `storage_options`.
 
 >❗When using `s3`, you need to specify storage options to [configure](https://delta-io.github.io/delta-rs/usage/writing/writing-to-s3-with-locking-provider/) locking behavior.
 

@@ -1,17 +1,17 @@
 ---
 title: Iceberg
-description: Iceberg `dlt` destination
+description: Iceberg dlt destination
 keywords: [iceberg, destination, data warehouse]
 ---
 
 # Iceberg table format
-`dlt` supports writing [Iceberg](https://iceberg.apache.org/) tables when using the [filesystem](./filesystem.md) destination.
+dlt supports writing [Iceberg](https://iceberg.apache.org/) tables when using the [filesystem](./filesystem.md) destination.
 
 ## How it works
-`dlt` uses the [pyiceberg](https://pypi.org/project/pyiceberg/) library to write Iceberg tables. One or multiple Parquet files are prepared during the extract and normalize steps. In the load step, these Parquet files are exposed as an Arrow data structure and fed into `pyiceberg`.
+dlt uses the [PyIceberg](https://py.iceberg.apache.org/) library to write Iceberg tables. One or multiple Parquet files are prepared during the extract and normalize steps. In the load step, these Parquet files are exposed as an Arrow data structure and fed into `pyiceberg`.
 
 ## Iceberg single-user ephemeral catalog
-`dlt` uses single-table, ephemeral, in-memory, SQLite-based [Iceberg catalogs](https://iceberg.apache.org/terms/#catalog). These catalogs are created "on demand" when a pipeline is run, and do not persist afterwards. If a table already exists in the filesystem, it gets registered into the catalog using its latest metadata file. This allows for a serverless setup. It is currently not possible to connect your own Iceberg catalog.
+dlt uses single-table, ephemeral, in-memory, SQLite-based [Iceberg catalogs](https://iceberg.apache.org/terms/#catalog). These catalogs are created "on demand" when a pipeline is run, and do not persist afterwards. If a table already exists in the filesystem, it gets registered into the catalog using its latest metadata file. This allows for a serverless setup. It is currently not possible to connect your own Iceberg catalog.
 
 :::caution
 While ephemeral catalogs make it easy to get started with Iceberg, it comes with limitations:
@@ -55,7 +55,7 @@ pipeline.run(my_resource, table_format="iceberg")
 ```
 
 :::note
-`dlt` always uses Parquet as `loader_file_format` when using the `iceberg` table format. Any setting of `loader_file_format` is disregarded.
+dlt always uses Parquet as `loader_file_format` when using the `iceberg` table format. Any setting of `loader_file_format` is disregarded.
 :::
 
 ## Table format partitioning
@@ -106,7 +106,7 @@ The [S3-compatible](./filesystem.md#using-s3-compatible-storage) interface for G
 :::
 
 ## Iceberg Azure scheme
-The `az` [scheme](./filesystem.md#supported-schemes) is not supported when using the `iceberg` table format. Please use the `abfss` scheme. This is because `pyiceberg`, which `dlt` used under the hood, currently does not support `az`.
+The `az` [scheme](./filesystem.md#supported-schemes) is not supported when using the `iceberg` table format. Please use the `abfss` scheme. This is because `pyiceberg`, which dlt used under the hood, currently does not support `az`.
 
 ## Table format `merge` support
 The `merge` write disposition is not supported for Iceberg and falls back to `append`. If you're interested in support for the `merge` write disposition with Iceberg, check out [dlt+ Iceberg destination](../../plus/ecosystem/iceberg.md).
