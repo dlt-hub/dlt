@@ -27,7 +27,7 @@ def generate_typed_example(name: str, hint: AnyType) -> Any:
     try:
         sc_type = py_type_to_sc_type(inner_hint)
         if sc_type == "text":
-            return name
+            return ""
         if sc_type == "bigint":
             return 0
         if sc_type == "double":
@@ -81,7 +81,7 @@ def write_value(
             toml_table[name] = example_value
             # tomlkit not supporting comments on boolean
             if not isinstance(example_value, bool):
-                toml_table[name].comment("please set me up!")
+                toml_table[name].comment("fill this in!")
         else:
             toml_table[name] = default_value
 
