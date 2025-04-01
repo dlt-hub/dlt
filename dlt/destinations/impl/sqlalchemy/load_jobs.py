@@ -107,7 +107,7 @@ class SqlalchemyStagingCopyJob(SqlFollowupJob):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlalchemyClient,  # type: ignore[override]
-        params: Optional[SqlJobParams] = None,
+        params: SqlJobParams,
     ) -> List[str]:
         statements: List[str] = []
         for table in table_chain:

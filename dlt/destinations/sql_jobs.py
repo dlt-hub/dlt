@@ -89,7 +89,7 @@ class SqlFollowupJob(FollowupJobRequestImpl):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
-        params: Optional[SqlJobParams] = None,
+        params: SqlJobParams,
     ) -> List[str]:
         pass
 
@@ -119,7 +119,7 @@ class SqlStagingCopyFollowupJob(SqlFollowupJob):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
-        params: SqlJobParams = None,
+        params: SqlJobParams,
     ) -> List[str]:
         sql: List[str] = []
         for table in table_chain:
@@ -144,11 +144,10 @@ class SqlStagingCopyFollowupJob(SqlFollowupJob):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
-        params: SqlJobParams = None,
+        params: SqlJobParams,
     ) -> List[str]:
         if (
-            params
-            and params["replace"]
+            params["replace"]
             and params["replace_strategy"] == "staging-optimized"
             and sql_client.capabilities.supports_clone_table
         ):
@@ -167,7 +166,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
-        params: Optional[SqlJobParams] = None,
+        params: SqlJobParams,
     ) -> List[str]:
         # resolve only root table
         root_table = table_chain[0]
