@@ -1066,6 +1066,7 @@ Some APIs use path parameters to filter the data:
 ```
 
 #### In request headers
+
 ```py
 {
     "path": "posts",
