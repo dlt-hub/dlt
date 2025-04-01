@@ -271,6 +271,19 @@ const sidebars = {
         'walkthroughs/create-a-pipeline',
         'walkthroughs/run-a-pipeline',
         {
+          type: "category",
+          label: "Build with LLMs",
+          link: {
+            type: 'generated-index',
+            title: 'Build with LLMs',
+            description: 'Learn to build dlt pipelines with LLMs',
+            slug: 'dlt-ecosystem/llm-tooling',
+          },
+          items: [
+            "dlt-ecosystem/llm-tooling/mcp-server",
+          ]
+        },
+        {
           type: 'category',
           label: 'Accessing loaded data',
            link: {
