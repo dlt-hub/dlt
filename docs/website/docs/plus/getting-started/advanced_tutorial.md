@@ -10,7 +10,7 @@ import Link from '../../_plus_admonition.md';
 
 In this tutorial, you will explore advanced features of a dlt+ project. By the end, you will be able to:
 * Understand how dlt+ automatically creates implicit entities when not explicitly defined—and how to prevent this behavior
-* Use dlt+ datasets to control access to specific datasets and destinations
+* Use dlt+ datasets to control access to specific datasets and destinations 
 * Interact with the dlt+ project context and reference entities directly from your code
 * Package a dlt+ project for distribution to other teams or stakeholders within your organization
 
@@ -26,6 +26,7 @@ Additionally, install the required Python packages:
 
 ```sh
 pip install pandas numpy pyarrow streamlit dlt[duckdb] uv
+
 ```
 
 ## Implicit entities
@@ -317,7 +318,7 @@ dlt pipeline my_pipeline run
 
 If you open the `__init__.py` file inside your project module, you'll see the full interface that users of your package will interact with.
 This interface is very similar to the `current` interface used in flat (non-packaged) projects. The main difference is that it automatically uses the `access` profile by default.
-ou can customize the `__init__.py` file to your project's needs.
+You can customize the `__init__.py` file to your project's needs.
 
 ### Using the packaged project
 
