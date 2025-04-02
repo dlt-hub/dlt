@@ -64,20 +64,11 @@ def create_ibis_backend(
         con = ibis.duckdb.from_connection(duck)
     elif issubclass(destination.spec, PostgresClientConfiguration):
         if destination.spec is RedshiftClientConfiguration:
-            # patch psycopg
-            try:
-                import psycopg  # type: ignore[import-not-found, unused-ignore]
-
-                old_fetch = psycopg.types.TypeInfo.fetch
-
-                def _ignore_hstore(conn: Any, name: Any) -> Any:
-                    if name == "hstore":
-                        raise TypeError("HSTORE")
-                    return old_fetch(conn, name)
-
-                psycopg.types.TypeInfo.fetch = _ignore_hstore  # type: ignore[method-assign, unused-ignore]
-            except Exception:
-                pass
+            raise NotImplementedError(
+                "Destination of type"
+                f" {Destination.from_reference(destination).destination_type} not supported by"
+                " ibis."
+            )
         credentials = client.config.credentials.to_native_representation()
         con = ibis.connect(credentials)
     elif issubclass(destination.spec, SnowflakeClientConfiguration):

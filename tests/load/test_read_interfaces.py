@@ -796,16 +796,8 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
         )
     }
 
-    if populated_pipeline.destination.destination_type == "dlt.destinations.redshift":
-        # Redshift does not support pg_enum (used in the latest ibis get_schema update)
-        # so we bypass ibis expressions and use raw sql + fetchall() to count rows
-        qualified_table_name = f"{dataset_name}.{add_table_prefix(map_i('items'))}"
-        cursor = ibis_connection.raw_sql(f"SELECT * FROM {qualified_table_name}")
-        total_in_db = len(cursor.fetchall())
-        assert total_in_db == total_records
-    else:
-        items_table = ibis_connection.table(add_table_prefix(map_i("items")), database=dataset_name)
-        assert items_table.count().to_pandas() == total_records
+    items_table = ibis_connection.table(add_table_prefix(map_i("items")), database=dataset_name)
+    assert items_table.count().to_pandas() == total_records
     ibis_connection.disconnect()
 
 
