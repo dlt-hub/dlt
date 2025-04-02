@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import Union
 
 from dlt.common.destination import TDestinationReferenceArg
@@ -13,5 +14,6 @@ def dataset(
     dataset_name: str,
     schema: Union[Schema, str, None] = None,
     dataset_type: TDatasetType = "auto",
+    load_ids: Sequence[str] = None,
 ) -> SupportsReadableDataset:
-    return ReadableDBAPIDataset(destination, dataset_name, schema, dataset_type)
+    return ReadableDBAPIDataset(destination, dataset_name, schema, dataset_type, load_ids)

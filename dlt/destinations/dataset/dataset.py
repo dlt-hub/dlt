@@ -170,9 +170,11 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         *,
         status: Union[int, Sequence[int], None] = None,
         limit: Optional[int] = None
-    ) -> list[str]:
+    ) -> tuple[str]:
         """Get the list of load id in descending order (from recent to old). This operation is eager"""
-        normalized_load_id_col = self.schema.naming.normalize_table_identifier(C_DLT_LOAD_ID)
+        LOAD_ID_COL_ON_LOADS_TABLE = "load_id"
+
+        normalized_load_id_col = self.schema.naming.normalize_table_identifier(LOAD_ID_COL_ON_LOADS_TABLE)
         normalized_load_table_name = self.schema.loads_table_name
 
         query = f"SELECT {normalized_load_id_col} FROM {normalized_load_table_name}"
@@ -191,12 +193,19 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         elif limit is not None:
             raise DltException(f"The `limit` argument should be `int` or `None`. Received `{status}`")
 
-        return [row[0] for row in self(query).fetchall()]
+        rows = self(query).fetchall()
+        columns = list(zip(*rows))
+        return columns[0] if columns else tuple()
 
-
-    def latest_load_id(self, status: Union[int, Sequence[int], None] = None) -> str:
-        """Get the latest load id. This operation is eager"""
-        normalized_load_id_col = self.schema.naming.normalize_table_identifier(C_DLT_LOAD_ID)
+    def latest_load_id(self, *, status: Union[int, Sequence[int], None] = None) -> Union[str, None]:
+        """Get the latest load id. This operation is eager.
+        
+        This is equivalent to `.list_load_ids(limit=1)` but returns a single value instead of
+        a tuple. The implementation also includes performance improvements on larger datasets.
+        """
+        LOAD_ID_COL_ON_LOADS_TABLE = "load_id"
+        
+        normalized_load_id_col = self.schema.naming.normalize_table_identifier(LOAD_ID_COL_ON_LOADS_TABLE)
         normalized_load_table_name = self.schema.loads_table_name
     
         query = f"SELECT MAX({normalized_load_id_col}) FROM {normalized_load_table_name}"
@@ -207,7 +216,8 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         elif status is not None:
             raise DltException(f"The `status` argument should be `int`, `Sequence[int]` or `None`. Received `{status}`")
 
-        return next(row[0] for row in self(query).fetchall())
+        rows = self(query).fetchall()
+        return rows[0][0] if rows else None
 
 
     def row_counts(

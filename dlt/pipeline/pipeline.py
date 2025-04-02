@@ -1751,7 +1751,10 @@ class Pipeline(SupportsPipeline):
         }
 
     def dataset(
-        self, schema: Union[Schema, str, None] = None, dataset_type: TDatasetType = "auto"
+        self,
+        schema: Union[Schema, str, None] = None,
+        dataset_type: TDatasetType = "auto",
+        load_ids: Sequence[str] = None,
     ) -> SupportsReadableDataset:
         """Returns a dataset object for querying the destination data.
 
@@ -1759,6 +1762,7 @@ class Pipeline(SupportsPipeline):
             schema: Schema name or Schema object to use. If None, uses the default schema if set.
             dataset_type: Type of dataset interface to return. Defaults to 'auto' which will select ibis if available
                 otherwise it will fallback to the standard dbapi interface.
+            load_ids: List of `_dlt_load_id` values used to filter the dataset.
         Returns:
             A dataset object that supports querying the destination data.
         """
@@ -1780,4 +1784,5 @@ class Pipeline(SupportsPipeline):
             self.dataset_name,
             schema=schema,
             dataset_type=dataset_type,
+            load_ids=load_ids,
         )

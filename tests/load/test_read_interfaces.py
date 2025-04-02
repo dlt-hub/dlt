@@ -535,6 +535,114 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
         ),
     }
 
+# TODO remove per-destination parameterization for many tests in this file.
+# If they focus on ReadableDBAPIDataset and don't load data, they're unlikely to need parameterization
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    [c for c in configs if c[0][0].destination_type == "duckdb"],
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_filter(populated_pipeline: Pipeline) -> None:
+    mock_load_ids = ["foo1", "bar2"]
+    dataset = populated_pipeline.dataset()
+    dataset_filtered_at_init = populated_pipeline.dataset(load_ids=mock_load_ids)
+
+    assert dataset._load_ids == set()
+    assert dataset_filtered_at_init._load_ids == set(mock_load_ids)
+    assert type(dataset) is type(dataset_filtered_at_init)
+
+    dataset_filtered_later = dataset.filter(mock_load_ids)
+
+    # ensure `dataset` wasn't mutated
+    assert dataset._load_ids == set()
+    assert dataset_filtered_later._load_ids == set(mock_load_ids)
+    assert type(dataset) is type(dataset_filtered_later)  
+
+    # chain filters
+    other_load_ids = ["baz3"]
+    dataset_filtered_twice = dataset.filter(mock_load_ids).filter(other_load_ids)
+    assert dataset_filtered_twice._load_ids == set(mock_load_ids + other_load_ids)
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_list_load_ids(populated_pipeline: Pipeline) -> None:
+    successful_load_ids = populated_pipeline.list_completed_load_packages()
+    # test requires several successful load_id values
+    assert len(successful_load_ids) == 3
+    dataset: ReadableDBAPIDataset = populated_pipeline.dataset()
+
+    # only accepts keyword arguments
+    with pytest.raises(TypeError):
+        dataset.list_load_ids(1)
+
+    retrieved_load_ids = dataset.list_load_ids()
+
+    assert isinstance(retrieved_load_ids, tuple)
+    assert all(isinstance(load_id, str) for load_id in retrieved_load_ids)
+    assert set(retrieved_load_ids) == set(successful_load_ids)
+    assert retrieved_load_ids == tuple(sorted(successful_load_ids, reverse=True))
+
+    # check status kwarg
+    # status=0 is currently "success" and should match status=None when there's no failure
+    assert dataset.list_load_ids(status=0) == retrieved_load_ids
+    assert len(dataset.list_load_ids(status=0)) == len(successful_load_ids)
+    # status=1 is currently an invalid value and should never match rows
+    assert len(dataset.list_load_ids(status=1)) == 0
+    assert len(dataset.list_load_ids(status=[0])) == len(successful_load_ids)
+    assert len(dataset.list_load_ids(status=[0, 1])) == len(successful_load_ids)
+    assert len(dataset.list_load_ids(status=[1, 2])) == 0
+
+    # check limit kwarg
+    assert dataset.list_load_ids(limit=0) == tuple()
+    assert len(dataset.list_load_ids(limit=2)) == 2
+    assert len(dataset.list_load_ids(limit=5)) == len(successful_load_ids)
+    # sorting should happen before limit; i.e., limit=1 returns the max value
+    assert dataset.list_load_ids(limit=1)[0] == max(successful_load_ids)
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_latest_load_id(populated_pipeline: Pipeline) -> None:
+    successful_load_ids = populated_pipeline.list_completed_load_packages()
+    # test requires several successful load_id values
+    assert len(successful_load_ids) == 3
+    dataset: ReadableDBAPIDataset = populated_pipeline.dataset()
+
+    # only accepts keyword arguments
+    with pytest.raises(TypeError):
+        dataset.list_load_ids(1)
+
+    latest_load_id = dataset.latest_load_id()
+
+    assert isinstance(latest_load_id, str)
+    assert latest_load_id == max(successful_load_ids)
+
+    # check status kwarg
+    # status=0 is currently "success" and should match status=None when there's no failure
+    assert dataset.latest_load_id(status=0) == latest_load_id
+    # status=1 is currently an invalid value and should never match rows
+    assert dataset.latest_load_id(status=1) is None
+    assert dataset.latest_load_id(status=1) is None
+    assert dataset.latest_load_id(status=[0]) == latest_load_id
+    assert dataset.latest_load_id(status=[0, 1]) == latest_load_id
+    assert dataset.latest_load_id(status=[1, 2]) is None
+
 
 @pytest.mark.no_load
 @pytest.mark.essential
