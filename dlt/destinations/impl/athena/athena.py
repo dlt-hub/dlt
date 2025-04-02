@@ -177,13 +177,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
 
     @raise_open_connection_error
     def open_connection(self) -> Connection:
-        native_credentials = self.config.credentials.to_native_representation()
-        self._conn = connect(
-            schema_name=self.dataset_name,
-            s3_staging_dir=self.config.query_result_bucket,
-            work_group=self.config.athena_work_group,
-            **native_credentials,
-        )
+        self._conn = connect(schema_name=self.dataset_name, **self.config.to_connector_params())
         return self._conn
 
     def close_connection(self) -> None:
@@ -305,6 +299,9 @@ class AthenaSQLClient(SqlClientBase[Connection]):
                 except KeyError:
                     raise DatabaseTransientException(OperationalError())
 
+        # TODO: (important) allow to use PandasCursor and ArrowCursor to get fast data access
+        #    the problem: you need to set the cursor type upfront. so if user uses wrong cursor
+        #    we won't be able to dynamically change it.
         yield DBApiCursorImpl(cursor)  # type: ignore
 
 
@@ -379,7 +376,8 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         # create unique tag for iceberg table so it is never recreated in the same folder
         # athena requires some kind of special cleaning (or that is a bug) so we cannot refresh
         # iceberg tables without it
-        location_tag = uniq_id(6) if create_iceberg else ""
+        # NOTE: problem seems to be gone! see test_iceberg_location_tag
+        location_tag = ""  # uniq_id(6) if create_iceberg else ""
         # this will fail if the table prefix is not properly defined
         table_prefix = self.table_prefix_layout.format(table_name=table_name + location_tag)
         location = f"{bucket}/{dataset}/{table_prefix}"
