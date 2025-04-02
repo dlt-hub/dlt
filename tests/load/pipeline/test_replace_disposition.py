@@ -382,7 +382,6 @@ def test_replace_table_clearing(
     destinations_configs(
         default_sql_configs=True,
         default_staging_configs=True,
-        subset=["snowflake"],
     ),
     ids=lambda x: x.name,
 )
