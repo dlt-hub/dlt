@@ -1,12 +1,14 @@
-from typing import Any, Union, TYPE_CHECKING, List
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, List, Set, Optional, Union
 
 from dlt.common.destination.client import JobClientBase, WithStateSync
 from dlt.common.destination.dataset import SupportsReadableRelation, SupportsReadableDataset
 from dlt.common.destination.reference import TDestinationReferenceArg, Destination
 from dlt.common.destination.typing import TDatasetType
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.exceptions import MissingDependencyException, DltException
 from dlt.common.json import json
 from dlt.common.schema import Schema
+from dlt.common.schema.typing import C_DLT_LOAD_ID
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
@@ -29,13 +31,16 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         dataset_name: str,
         schema: Union[Schema, str, None] = None,
         dataset_type: TDatasetType = "auto",
+        load_ids: Union[Sequence[str], Set[str]] = None,
     ) -> None:
+        self._destination_reference_arg = destination
         self._destination = Destination.from_reference(destination)
         self._provided_schema = schema
         self._dataset_name = dataset_name
         self._sql_client: SqlClientBase[Any] = None
         self._schema: Schema = None
         self._dataset_type = dataset_type
+        self._load_ids: Set[str] = set() if load_ids is None else set(load_ids)
 
     def ibis(self) -> IbisBackend:
         """return a connected ibis backend"""
@@ -118,6 +123,22 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
     def __call__(self, query: Any) -> ReadableDBAPIRelation:
         return ReadableDBAPIRelation(readable_dataset=self, provided_query=query)  # type: ignore[abstract]
 
+    def filter(self, load_ids: Sequence[str]) -> "ReadableDBAPIDataset":
+        """Filter the dataset to specific load ids. Accessing tables will only
+        return rows associated with these load ids. 
+
+        This is useful for incremental data transformations
+        """
+        # extend load ids to allow chaining filters on dataset
+        extended_load_ids = self._load_ids.union(set(load_ids))
+        return self.__class__(
+            destination=self._destination_reference_arg,
+            dataset_name=self._dataset_name,
+            schema=self._provided_schema,
+            dataset_type=self._dataset_type,
+            load_ids=extended_load_ids,
+        )
+
     def table(self, table_name: str) -> SupportsReadableRelation:
         # we can create an ibis powered relation if ibis is available
         if table_name in self.schema.tables and self._dataset_type in ("auto", "ibis"):
@@ -142,6 +163,52 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
             readable_dataset=self,
             table_name=table_name,
         )  # type: ignore[abstract]
+
+
+    def list_load_ids(
+        self,
+        *,
+        status: Union[int, Sequence[int], None] = None,
+        limit: Optional[int] = None
+    ) -> list[str]:
+        """Get the list of load id in descending order (from recent to old). This operation is eager"""
+        normalized_load_id_col = self.schema.naming.normalize_table_identifier(C_DLT_LOAD_ID)
+        normalized_load_table_name = self.schema.loads_table_name
+
+        query = f"SELECT {normalized_load_id_col} FROM {normalized_load_table_name}"
+
+        if isinstance(status, int):
+            query += f" WHERE status = {status}"
+        elif isinstance(status, Sequence):
+            query += f" WHERE status IN {tuple(status)}"
+        elif status is not None:
+            raise DltException(f"The `status` argument should be `int`, `Sequence[int]` or `None`. Received `{status}`")
+
+        query += f" ORDER BY {normalized_load_id_col} DESC"
+
+        if isinstance(limit, int):
+            query += f" LIMIT {limit}"
+        elif limit is not None:
+            raise DltException(f"The `limit` argument should be `int` or `None`. Received `{status}`")
+
+        return [row[0] for row in self(query).fetchall()]
+
+
+    def latest_load_id(self, status: Union[int, Sequence[int], None] = None) -> str:
+        """Get the latest load id. This operation is eager"""
+        normalized_load_id_col = self.schema.naming.normalize_table_identifier(C_DLT_LOAD_ID)
+        normalized_load_table_name = self.schema.loads_table_name
+    
+        query = f"SELECT MAX({normalized_load_id_col}) FROM {normalized_load_table_name}"
+        if isinstance(status, int):
+            query += f" WHERE status = {status}"
+        elif isinstance(status, Sequence):
+            query += f" WHERE status IN {tuple(status)}"
+        elif status is not None:
+            raise DltException(f"The `status` argument should be `int`, `Sequence[int]` or `None`. Received `{status}`")
+
+        return next(row[0] for row in self(query).fetchall())
+
 
     def row_counts(
         self, *, data_tables: bool = True, dlt_tables: bool = False, table_names: List[str] = None
