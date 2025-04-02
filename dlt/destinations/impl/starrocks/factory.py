@@ -3,9 +3,43 @@ from dlt.destinations.impl.starrocks.configuration import (
     StarrocksClientConfiguration,
     StarrocksCredentials
 )
+from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 
 from dlt.destinations.impl.sqlalchemy.factory import sqlalchemy
+from dlt.common.schema.typing import TColumnSchema
+from dlt.common.destination.typing import PreparedTableSchema
+from sqlalchemy.sql import sqltypes
+from sqlalchemy.types import VARCHAR, BIGINT, DATETIME, DOUBLE, BOOLEAN, BINARY, JSON, DECIMAL, DATE, DATETIME
+
+class StarrocksTypeMapper(TypeMapperImpl):
+    sct_to_unbound_dbt = {
+        "text": VARCHAR(1000000),
+        "double": DOUBLE,
+        "bool": BOOLEAN,
+        "bigint": BIGINT,
+        "timestamp": DATETIME,
+        "binary": BINARY,
+        "json": JSON,
+        "decimal": DECIMAL,
+        "date": DATE,
+        "datetime": DATETIME
+    }
+
+    sct_to_dbt = {
+        "text": "VARCHAR(%i)",
+    }
+
+    dbt_to_sct = {
+    }
+
+    def to_destination_type(  # type: ignore[override]
+        self, column: TColumnSchema, table: PreparedTableSchema = None
+    ) -> sqltypes.TypeEngine:
+        return super().to_destination_type(column, table)
+
+    
+
 class starrocks(sqlalchemy):
     spec = StarrocksClientConfiguration
     
@@ -38,6 +72,10 @@ class starrocks(sqlalchemy):
         caps.supported_staging_file_formats = ["parquet"]
         caps.sqlglog_dialect = "starrocks"
         caps.naming_convention = "dlt.destinations.impl.starrocks.naming"
+        caps.type_mapper = StarrocksTypeMapper
+
+        def get_type_mapper(self):
+            return caps.type_mapper
 
         return caps
 

@@ -1,11 +1,13 @@
 import asyncio
 import secrets
 
+from dlt.destinations.impl.starrocks.configuration import StarrocksClientConfiguration
 from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from typing import IO, Dict, Any, Iterator, Sequence, Iterable, Optional
-from dlt.common.destination.client import JobClientBase
 from dlt.common import logger
+from dlt.common.destination.client import JobClientBase
+from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.schema import Schema, TTableSchema, TColumnSchema, TSchemaTables
 from dlt.common.schema.typing import TColumnType, TTableSchemaColumns
 from dlt.common.schema.utils import (
@@ -35,6 +37,7 @@ from dlt.destinations.exceptions import (
     DatabaseTransientException
 )
 
+from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
 
 class StarrocksObjectStorageLoadJob(CopyRemoteFileLoadJob):
     def __init__(self, file_path: str, table: sa.Table, load_id: str, staging_credentials: Optional[CredentialsConfiguration], staging_kwargs: Optional[Dict]) -> None:
@@ -180,6 +183,25 @@ class StarrocksStreamLoadJob(RunnableLoadJob, HasFollowupJobs):
         asyncio.run(self.stream_load())
 
 class StarrocksJobClient(SqlalchemyJobClient, SupportsStagingDestination):
+    def __init__(
+        self,
+        schema: Schema,
+        config: StarrocksClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        self.sql_client = SqlalchemyClient(
+            config.normalize_dataset_name(schema),
+            config.normalize_staging_dataset_name(schema),
+            config.credentials,
+            capabilities,
+            engine_args=config.engine_args,
+        )
+
+        self.schema = schema
+        self.capabilities = capabilities
+        self.config: StarrocksClientConfiguration = config
+        self.type_mapper = self.capabilities.type_mapper(capabilities)
+
     def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         return self.config.truncate_tables_on_staging_destination_before_load
 
