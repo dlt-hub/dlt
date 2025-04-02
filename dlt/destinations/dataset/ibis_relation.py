@@ -1,20 +1,18 @@
 from typing import TYPE_CHECKING, Any, Union, Sequence
-
 from functools import partial
+import sqlglot
 
-from dlt.common.exceptions import MissingDependencyException
-from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
+from dlt.common.destination.dataset import SupportsReadableRelation
 from dlt.common.schema.typing import TTableSchemaColumns
+
+from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
+
 
 if TYPE_CHECKING:
     from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+    from dlt.helpers.ibis import Table as IbisTable
 else:
-    ReadableDBAPIDataset = Any
-
-try:
-    from dlt.helpers.ibis import Expr
-except MissingDependencyException:
-    Expr = Any
+    IbisTable = object
 
 
 # NOTE: some dialects are not supported by ibis, but by sqlglot, these need to
@@ -25,11 +23,11 @@ TRANSPILE_VIA_DEFAULT = [
 ]
 
 
-class ReadableIbisRelation(BaseReadableDBAPIRelation):
+class ReadableIbisRelation(BaseReadableDBAPIRelation, IbisTable):
     def __init__(
         self,
         *,
-        readable_dataset: ReadableDBAPIDataset,
+        readable_dataset: "ReadableDBAPIDataset[SupportsReadableRelation]",
         ibis_object: Any = None,
         columns_schema: TTableSchemaColumns = None,
     ) -> None:
@@ -40,7 +38,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
 
     def query(self) -> Any:
         """build the query"""
-        from dlt.helpers.ibis import ibis, sqlglot
+        from dlt.helpers.ibis import ibis
 
         target_dialect = self._dataset._destination.capabilities().sqlglot_dialect
 
@@ -203,3 +201,9 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
 
     def __sub__(self, other: Any) -> "ReadableIbisRelation":
         return self._proxy_expression_method("__sub__", other)  # type: ignore
+
+    def __repr__(self) -> str:
+        return self._ibis_object.__repr__()  # type: ignore[no-any-return]
+
+    def __str__(self) -> str:
+        return self._ibis_object.__str__()  # type: ignore[no-any-return]
