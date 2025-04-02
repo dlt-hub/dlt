@@ -8,7 +8,6 @@ from dlt.common.destination.typing import TDatasetType
 from dlt.common.exceptions import MissingDependencyException, DltException
 from dlt.common.json import json
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import C_DLT_LOAD_ID
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
@@ -163,7 +162,6 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
             readable_dataset=self,
             table_name=table_name,
         )  # type: ignore[abstract]
-
 
     def list_load_ids(
         self,

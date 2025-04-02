@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from functools import partial
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union, Set
 
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.utils import (
@@ -51,6 +51,9 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
 
         target_dialect = self._dataset._destination.capabilities().sqlglot_dialect
 
+        if self._dataset._load_ids:
+            self = self._filter_by_load_id(self._dataset._load_ids)
+
         # render sql directly if possible
         if target_dialect not in TRANSPILE_VIA_DEFAULT:
             if target_dialect == "tsql":
@@ -81,6 +84,37 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         """provide schema columns for the cursor, may be filtered by selected columns"""
         # TODO: provide column lineage tracing with sqlglot lineage
         return self._columns_schema
+    
+    def _filter_by_load_id(self, load_ids: Union[Sequence[str], Set[str]]) -> "ReadableIbisRelation":
+        load_ids = set(load_ids)
+        normalized_load_id_col = self.schema.naming.normalize_table_identifier(C_DLT_LOAD_ID)
+        table_schema = self.schema.tables[self.table_name]
+
+        # Case 1: current table is root
+        if not is_nested_table(table_schema):
+            return self.filter(self[normalized_load_id_col].isin(self._dataset._load_ids))
+        
+        root_key = get_first_column_name_with_prop(table_schema, column_prop="root_key")
+
+        # Unsupported case: current table is child/nested without a root_key set 
+        # TODO setup another case that traverse parent-row keys to join nested tables without root_key
+        if root_key is None:
+            raise KeyError(
+                "ReadableIbisRelation requires a `root_key` hint to join non-root tables. "
+                "Set `root_key=True` on the source or use `write_disposition='merge'`."
+            )
+        
+        # Case 2: current table is child/nested with a root_key to join with root_table
+        root_table_schema = get_root_table(self.schema.tables, self.table_name)
+        root_row_key: str = get_first_column_name_with_prop(
+            root_table_schema, column_prop="row_key"
+        )
+        root_table = self._dataset.table(root_table_schema["name"])
+        root_table = root_table.filter(root_table[normalized_load_id_col].isin(self._dataset._load_ids))
+        joined_table = self.inner_join(root_table, self[root_key] == root_table[root_row_key])
+        # `self` selects all columns from the original table
+        return joined_table.select(self, normalized_load_id_col)  # type: ignore
+
 
     def _proxy_expression_method(self, method_name: str, *args: Any, **kwargs: Any) -> Any:
         """Proxy method calls to the underlying ibis expression, allowing to wrap the resulting expression in a new relation"""
@@ -195,34 +229,6 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
             # here we just break the column schema inheritance chain
             return None
 
-    def _join_to_root_table(self) -> "ReadableIbisRelation":
-        """Join the current table to the root table. If the current table is root, it's a no-op."""
-        table_schema = self.schema.tables[self.table_name]
-        # if root, skip table
-        if not is_nested_table(table_schema):
-            return self
-
-        root_key = get_first_column_name_with_prop(table_schema, column_prop="root_key")
-        # TODO setup another case that traverse parent-row keys to join nested tables without root_key
-        if root_key is None:
-            raise KeyError(
-                "ReadableIbisRelation requires a `root_key` hint to join non-root tables. "
-                "Set `root_key=True` on the source or use `write_disposition='merge'`."
-            )
-        root_table_schema = get_root_table(self.schema.tables, self.table_name)
-        root_row_key: str = get_first_column_name_with_prop(
-            root_table_schema, column_prop="row_key"
-        )
-        root_table = self._dataset.table(root_table_schema["name"])
-        normalized_load_id_col = self.schema.naming.normalize_table_identifier(C_DLT_LOAD_ID)
-
-        joined_table = self.inner_join(
-            root_table.select(normalized_load_id_col, root_row_key),
-            self[root_key] == root_table[root_row_key],
-        )
-        # `self` selects all columns from the original table
-        return joined_table.select(self, normalized_load_id_col)  # type: ignore
-
     # forward ibis methods defined on interface
     def limit(self, limit: int, **kwargs: Any) -> "ReadableIbisRelation":
         """limit the result to 'limit' items"""
@@ -235,113 +241,6 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
     def select(self, *columns: str) -> "ReadableIbisRelation":
         """set which columns will be selected"""
         return self._proxy_expression_method("select", *columns)  # type: ignore
-
-    # TODO ensure same defaults in ReadableDBAPIDataset and ReadableIbisRelation; and docstrings
-    def list_load_ids(
-        self, status: Union[int, list[int], None] = 0, limit: Optional[int] = None
-    ) -> "ReadableIbisRelation":
-        load_table = self._dataset.table(self.schema.loads_table_name)
-        if status is not None:
-            status = [status] if isinstance(status, int) else status
-            load_table = load_table.filter(load_table["status"].isin(status))
-
-        load_table = load_table.order_by(load_table["load_id"].desc())
-        # limit needs to be applied after sorting
-        if limit is not None:
-            load_table = load_table.limit(limit)
-
-        return load_table.load_id  # type: ignore
-
-    def latest_load_id(self, status: Union[int, list[int], None] = 0) -> "ReadableIbisRelation":
-        """Latest `load_id` with matching load status (0 is success). If `status` is None, match any status."""
-        load_table = self._dataset.table(self.schema.loads_table_name)
-        if status is not None:
-            status = [status] if isinstance(status, int) else status
-            load_table = load_table.filter(load_table["status"].isin(status))
-
-        return load_table.load_id.max()  # type: ignore
-
-    def filter_by_load_ids(self, load_ids: Union[str, list[str]]) -> "ReadableIbisRelation":
-        """Filter on matching `load_ids`.
-
-        Note. Avoid filtering `_dlt_load_id` on the root table because it could include orphan rows.
-        We need to filter the `_dlt_loads` table to include only successfuly joings, then join
-        with current table.
-        """
-        normalized_load_id_col = self.schema.naming.normalize_table_identifier(C_DLT_LOAD_ID)
-        load_ids = [load_ids] if isinstance(load_ids, str) else load_ids
-        load_table = self._dataset.table(self.schema.loads_table_name)
-        load_table = load_table.filter(load_table["load_id"].isin(load_ids))
-        table = self._join_to_root_table()
-        joined_table = table.inner_join(
-            load_table,
-            table[normalized_load_id_col] == load_table["load_id"],
-        )
-        return joined_table.select(table)  # type: ignore
-
-    def filter_by_latest_load_id(
-        self, status: Union[int, list[int], None] = 0
-    ) -> "ReadableIbisRelation":
-        """Filter on the most recent `load_id` with a specific load status.
-
-        If `status` is None, don't filter by status.
-
-        Note. Avoid filtering `_dlt_load_id` on the root table because it could include orphan rows.
-        We need to filter the `_dlt_loads` table to include only successfuly joings, then join
-        with current table.
-        """
-        normalized_load_id_col = self.schema.naming.normalize_table_identifier(C_DLT_LOAD_ID)
-        load_table = self._dataset.table(self.schema.loads_table_name)
-        load_table = load_table.filter(load_table["load_id"] == self.latest_load_id(status=status))
-        table = self._join_to_root_table()
-        joined_table = table.inner_join(
-            load_table,
-            table[normalized_load_id_col] == load_table["load_id"],
-        )
-        return joined_table.select(table)  # type: ignore
-
-    def filter_by_load_status(
-        self, status: Union[int, list[int], None] = 0
-    ) -> "ReadableIbisRelation":
-        """Filter to rows with a specific load status.
-
-        Note. Avoid filtering `_dlt_load_id` on the root table because it could include orphan rows.
-        We need to filter the `_dlt_loads` table to include only successfuly joings, then join
-        with current table.
-        """
-        if status is None:
-            return self
-
-        normalized_load_id_col = self.schema.naming.normalize_table_identifier(C_DLT_LOAD_ID)
-        load_ids = self.list_load_ids(status=status)
-        table = self._join_to_root_table()
-        return table.filter(table[normalized_load_id_col].isin(load_ids))  # type: ignore
-
-    def filter_by_load_id_gt(
-        self, load_id: str, status: Union[int, list[int], None] = 0
-    ) -> "ReadableIbisRelation":
-        """Filter to rows with a more recent load_id than input value. Can filter to load_id with matching
-        status.
-
-        Note. Avoid filtering `_dlt_load_id` on the root table because it could include orphan rows.
-        We need to filter the `_dlt_loads` table to include only successfuly joings, then join
-        with current table.
-        """
-        load_table = self._dataset.table(self.schema.loads_table_name)
-
-        conditions = [load_table["load_id"] > load_id]  # type: ignore
-        if status is not None:
-            status = [status] if isinstance(status, int) else status
-            conditions.append(load_table["status"].isin(status))
-        load_table = load_table.filter(*conditions)
-        normalized_load_id_col = self.schema.naming.normalize_table_identifier(C_DLT_LOAD_ID)
-
-        table = self._join_to_root_table()
-        joined_table = table.inner_join(
-            load_table,
-            table[normalized_load_id_col] == load_table["load_id"],
-        )
-        return joined_table.select(table)  # type: ignore
 
     # forward ibis comparison and math operators
     def __lt__(self, other: Any) -> "ReadableIbisRelation":

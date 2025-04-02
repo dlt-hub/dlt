@@ -1,8 +1,7 @@
 import os
 import re
-import shutil
 from functools import reduce
-from typing import Any, cast, Tuple, List
+from typing import TYPE_CHECKING, Any, cast, Tuple, List
 
 import pytest
 
@@ -10,6 +9,7 @@ import dlt
 from dlt import Pipeline
 from dlt.common import Decimal
 from dlt.common.schema.schema import Schema
+from dlt.common.schema.typing import C_DLT_LOAD_ID
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.file_storage import FileStorage
 from dlt.destinations import filesystem
@@ -27,6 +27,11 @@ from tests.load.utils import (
     SFTP_BUCKET,
     MEMORY_BUCKET,
 )
+
+if TYPE_CHECKING:
+    from dlt.common.libs import pandas as pd
+else:
+    pd = Any
 
 
 EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
@@ -191,16 +196,14 @@ def pipeline_with_multiple_loads(request, autouse_test_storage) -> Any:
             },
         )
         def items():
-            yield from [
-                {
+            for i in range(total_records):
+                yield {
                     "id": i,
                     "expected_load_id": expected_load_id,
                     "children": [{"id": i + 100}, {"id": i + 1000}],
                     "decimal": Decimal("10.433"),
                     "other_decimal": Decimal("10.433"),
                 }
-                for i in range(total_records)
-            ]
 
         @dlt.resource(
             table_format=destination_config.table_format,
@@ -213,15 +216,16 @@ def pipeline_with_multiple_loads(request, autouse_test_storage) -> Any:
             },
         )
         def double_items():
-            yield from [
-                {
+            for i in range(total_records):
+                if expected_load_id ==1 and i > (total_records / 2):
+                    raise RuntimeError("This mocks a runtime error that leads to a failed job.")
+
+                yield {                 
                     "id": i,
                     "expected_load_id": expected_load_id,
                     "double_id": i * 2,
                     "di_decimal": Decimal("10.433"),
                 }
-                for i in range(total_records)
-            ]
 
         return [items, double_items]
 
@@ -229,30 +233,16 @@ def pipeline_with_multiple_loads(request, autouse_test_storage) -> Any:
     pipeline.run(
         source(0), loader_file_format=destination_config.file_format, write_disposition="append"
     )
-    load_info_1 = pipeline.run(
-        source(1), loader_file_format=destination_config.file_format, write_disposition="append"
-    )
+    # execute a pipeline run and mock a failed execution
+    try:
+        pipeline.run(
+            source(1), loader_file_format=destination_config.file_format, write_disposition="append"
+        )
+    except Exception:
+        pass
     pipeline.run(
         source(2), loader_file_format=destination_config.file_format, write_disposition="append"
     )
-
-    # delete the load table entry, but not the data rows to mock failed load
-    load_table_name = pipeline.default_schema.naming.normalize_table_identifier(
-        pipeline.default_schema.loads_table_name
-    )
-    load_id_to_delete = load_info_1.loads_ids[0]
-
-    # for filesystem, overwrite with an empty parquet that has the right schema
-    if destination_config.destination_type == "filesystem":
-        load_file_path = (
-            f"{pipeline.pipelines_dir}/{pipeline.pipeline_name}/load/loaded/{load_id_to_delete}"
-        )
-        shutil.rmtree(load_file_path)
-    else:
-        with pipeline.sql_client() as client:
-            client.execute_sql(
-                f"DELETE FROM {load_table_name} WHERE load_id = '{load_id_to_delete}'"
-            )
 
     # in case of delta on gcs we use the s3 compat layer for reading
     # for writing we still need to use the gc authentication, as delta_rs seems to use
@@ -570,22 +560,21 @@ def test_filter(populated_pipeline: Pipeline) -> None:
 @pytest.mark.no_load
 @pytest.mark.essential
 @pytest.mark.parametrize(
-    "populated_pipeline",
+    "pipeline_with_multiple_loads",
     configs,
     indirect=True,
     ids=lambda x: x.name,
 )
-def test_list_load_ids(populated_pipeline: Pipeline) -> None:
-    successful_load_ids = populated_pipeline.list_completed_load_packages()
-    # test requires several successful load_id values
-    assert len(successful_load_ids) == 3
-    dataset: ReadableDBAPIDataset = populated_pipeline.dataset()
+def test_list_load_ids(pipeline_with_multiple_loads: Pipeline) -> None:
+    successful_load_ids = pipeline_with_multiple_loads.list_completed_load_packages()
+    # test includes 2 success and 1 failed load
+    assert len(successful_load_ids) == 2
+    dataset: ReadableDBAPIDataset = pipeline_with_multiple_loads.dataset()
 
+    retrieved_load_ids = dataset.list_load_ids()
     # only accepts keyword arguments
     with pytest.raises(TypeError):
         dataset.list_load_ids(1)
-
-    retrieved_load_ids = dataset.list_load_ids()
 
     assert isinstance(retrieved_load_ids, tuple)
     assert all(isinstance(load_id, str) for load_id in retrieved_load_ids)
@@ -613,22 +602,21 @@ def test_list_load_ids(populated_pipeline: Pipeline) -> None:
 @pytest.mark.no_load
 @pytest.mark.essential
 @pytest.mark.parametrize(
-    "populated_pipeline",
+    "pipeline_with_multiple_loads",
     configs,
     indirect=True,
     ids=lambda x: x.name,
 )
-def test_latest_load_id(populated_pipeline: Pipeline) -> None:
-    successful_load_ids = populated_pipeline.list_completed_load_packages()
-    # test requires several successful load_id values
-    assert len(successful_load_ids) == 3
-    dataset: ReadableDBAPIDataset = populated_pipeline.dataset()
+def test_latest_load_id(pipeline_with_multiple_loads: Pipeline) -> None:
+    successful_load_ids = pipeline_with_multiple_loads.list_completed_load_packages()
+    # test includes 2 success and 1 failed load
+    assert len(successful_load_ids) == 2
+    dataset: ReadableDBAPIDataset = pipeline_with_multiple_loads.dataset()
 
+    latest_load_id = dataset.latest_load_id()
     # only accepts keyword arguments
     with pytest.raises(TypeError):
         dataset.list_load_ids(1)
-
-    latest_load_id = dataset.latest_load_id()
 
     assert isinstance(latest_load_id, str)
     assert latest_load_id == max(successful_load_ids)
@@ -760,6 +748,99 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
     assert dataset.schema.name == "aleph"
     assert "digits" in dataset.schema.tables
     dataset.digits.fetchall()
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "pipeline_with_multiple_loads",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("dataset_type", ("ibis", ))#"default"))
+def test_dataset_methods_inherit_dataset_filter(pipeline_with_multiple_loads: Pipeline, dataset_type: str) -> None:
+    """ReadableDBAPIDataset.__call__() creates a ReadableDBAPIRelation with a pre-generated
+    SQL query. This allows dataset methods (e.g., `.row_counts()`) to inherit the filter.
+    """
+    successful_load_ids = pipeline_with_multiple_loads.list_completed_load_packages()
+    # test includes 2 success and 1 failed load
+    assert len(successful_load_ids) == 2
+    selected_load_id = successful_load_ids[0]
+    dataset: ReadableDBAPIDataset = pipeline_with_multiple_loads.dataset(dataset_type=dataset_type)
+    dataset_filtered = dataset.filter([selected_load_id])
+
+    # .list_load_ids()
+    assert set(dataset.list_load_ids()) == set(successful_load_ids)
+    assert set(dataset_filtered.list_load_ids()) ==  set([selected_load_id])
+
+    # .latest_load_id()
+    assert dataset_filtered.latest_load_id() == selected_load_id != dataset.latest_load_id()
+    
+    # .row_counts()
+    rows_per_table = {table_name: row_count for table_name, row_count in dataset.row_counts().fetchall()}
+    rows_per_table_filtered = {table_name: row_count for table_name, row_count in dataset_filtered.row_counts().fetchall()}
+    assert rows_per_table == rows_per_table_filtered
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "pipeline_with_multiple_loads",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("dataset_type", ("ibis", "default"))
+def test_filter_root_table(pipeline_with_multiple_loads: Pipeline, dataset_type: str) -> None:
+    successful_load_ids = pipeline_with_multiple_loads.list_completed_load_packages()
+    # test includes 2 success and 1 failed load
+    assert len(successful_load_ids) == 2
+    selected_load_id = successful_load_ids[0]
+    dataset: ReadableDBAPIDataset = pipeline_with_multiple_loads.dataset(dataset_type=dataset_type)
+    dataset_filtered = dataset.filter([selected_load_id])
+    normalized_load_id_col = dataset.schema.naming.normalize_table_identifier(C_DLT_LOAD_ID)
+
+    items_df: pd.DataFrame = dataset.items.df()
+    items_df_filtered: pd.DataFrame = dataset_filtered.items.df()
+
+    assert items_df.shape[0] > items_df_filtered.shape[0]
+    assert set(successful_load_ids) != set([selected_load_id])
+    assert set(items_df[normalized_load_id_col].unique()) == set(successful_load_ids)
+    assert set(items_df_filtered[normalized_load_id_col].unique()) == set([selected_load_id])
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "pipeline_with_multiple_loads",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("dataset_type", ("ibis", "default"))
+def test_filter_non_root_table_with_row_key(pipeline_with_multiple_loads: Pipeline, dataset_type: str) -> None:
+    successful_load_ids = pipeline_with_multiple_loads.list_completed_load_packages()
+    # test includes 2 success and 1 failed load
+    assert len(successful_load_ids) == 2
+    selected_load_id = successful_load_ids[0]
+    dataset: ReadableDBAPIDataset = pipeline_with_multiple_loads.dataset(dataset_type=dataset_type)
+    dataset_filtered = dataset.filter([selected_load_id])
+    normalized_load_id_col = dataset.schema.naming.normalize_table_identifier(C_DLT_LOAD_ID)
+
+    nested_df: pd.DataFrame = dataset.items__children.df()
+
+    if dataset_type == "ibis":
+        nested_df_filtered: pd.DataFrame = dataset_filtered.items__children.df()
+        # by default, non-root tables don't have a `_dlt_load_id` column
+        assert normalized_load_id_col not in nested_df.columns
+        assert normalized_load_id_col in nested_df_filtered.columns
+        assert nested_df.shape[0] > nested_df_filtered.shape[0]
+        assert set(successful_load_ids) != set([selected_load_id])
+        assert set(nested_df_filtered[normalized_load_id_col].unique()) == set([selected_load_id])
+    else:
+        with pytest.raises(RuntimeError):
+            nested_df_filtered: pd.DataFrame = dataset_filtered.items__children.df()
 
 
 @pytest.mark.no_load
@@ -1051,327 +1132,6 @@ def test_ibis_column_selection(populated_pipeline: Pipeline) -> None:
     for c in col_expr:
         assert isinstance(c, ReadableIbisRelation)
         assert isinstance(c._ibis_object, ir.Column)
-
-
-@pytest.mark.no_load
-@pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
-def test_dataset_load_id_retrieval(populated_pipeline: Pipeline) -> None:
-    successful_load_ids = populated_pipeline.list_completed_load_packages()
-    dataset = cast(
-        ReadableDBAPIDataset,
-        _dataset(
-            destination=populated_pipeline.destination,
-            dataset_name=populated_pipeline.dataset_name,
-            # use name otherwise aleph schema is loaded
-            schema=populated_pipeline.default_schema_name,
-            dataset_type="ibis",
-        ),
-    ).items
-    assert isinstance(dataset, ReadableIbisRelation)
-
-    results = dataset.list_load_ids().fetchall()
-    load_ids = [r[0] for r in results]
-    assert set(load_ids) == set(successful_load_ids)
-    # check descending order
-    assert load_ids == sorted(successful_load_ids, reverse=True)
-
-    # check status kwarg
-    assert len(dataset.list_load_ids(status=1).fetchall()) == 0
-    assert len(dataset.list_load_ids(status=[0]).fetchall()) == len(successful_load_ids)
-    assert len(dataset.list_load_ids(status=[0, 1]).fetchall()) == len(successful_load_ids)
-    assert len(dataset.list_load_ids(status=[1, 2]).fetchall()) == 0
-
-    # check limit kwarg
-    assert dataset.list_load_ids(limit=0).fetchall() == []
-    # limit 1 should return the max value (i.e., sort before limit)
-    assert dataset.list_load_ids(limit=1).fetchall()[0][0] == max(successful_load_ids)
-    # 50 is larger than the expected number of `load_id`
-    assert len(dataset.list_load_ids(limit=50).fetchall()) == len(successful_load_ids)
-
-    # check latest_load_id, which is `list_load_ids(limit=1)` and unpacking the list
-    latest_load_id = dataset.latest_load_id().fetchall()[0][0]
-    assert latest_load_id == max(load_ids) == max(successful_load_ids)
-    # check that an invalid `status` doesn't fail / raise an exception; it should return empty results
-    # empty results are destination-specific: SQLite returns `None`, Clickhouse `""`
-    # TODO check destination-specific nulls
-    assert dataset.latest_load_id(status=1).fetchall()
-
-
-@pytest.mark.no_load
-@pytest.mark.essential
-@pytest.mark.parametrize(
-    "pipeline_with_multiple_loads",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
-def test_ibis_filter_load_ids(pipeline_with_multiple_loads: Pipeline) -> None:
-    import ibis
-
-    total_records = _total_records(pipeline_with_multiple_loads)
-    load_ids = pipeline_with_multiple_loads.list_completed_load_packages()
-    load_df = pipeline_with_multiple_loads.dataset(dataset_type="ibis")._dlt_loads.df()
-    expected_col_name = (
-        pipeline_with_multiple_loads.default_schema.naming.normalize_table_identifier(
-            "expected_load_id"
-        )
-    )
-
-    # Case 1: root table
-    rel = pipeline_with_multiple_loads.dataset(dataset_type="ibis").items
-    schema = rel._ibis_object.schema()
-    df = rel.df()
-
-    filtered_rel = rel.filter_by_load_ids(load_ids[0])
-    filtered_df = filtered_rel.df()
-    assert isinstance(filtered_rel, ReadableIbisRelation)
-    assert schema.equals(filtered_rel._ibis_object.schema())
-    assert filtered_rel.count() == total_records * 1
-    assert (filtered_df[expected_col_name] == 0).all()
-    assert (filtered_df._dlt_load_id == load_ids[0]).all()
-
-    filtered_rel2 = rel.filter_by_load_ids(load_ids[2])
-    filtered_df2 = filtered_rel2.df()
-    assert filtered_rel2.count() == total_records * 1
-    assert (filtered_df2[expected_col_name] == 2).all()
-    assert (filtered_df2._dlt_load_id == load_ids[2]).all()
-
-    # a non-existent load_id returns an empty table with the right schema
-    empty_rel = rel.filter_by_load_ids("")
-    assert isinstance(empty_rel, ReadableIbisRelation)
-    assert schema.equals(empty_rel._ibis_object.schema())
-    assert empty_rel.count() == 0
-
-    # this load_id simulates a failed load with orphan rows; we expect to retrieve nothing
-    # data exists on table, but not the load table
-    # TODO move these checks to the fixture
-    assert load_ids[1] in df._dlt_load_id.values
-    assert load_ids[1] not in load_df.load_id.values
-
-    failed_rel = rel.filter_by_load_ids(load_ids[1])
-    assert isinstance(failed_rel, ReadableIbisRelation)
-    assert schema.equals(failed_rel._ibis_object.schema())
-    assert failed_rel.count() == 0
-
-    # `load_ids` kwarg handles list values; skipping load_ids[1] which failed
-    selection = [load_ids[0], load_ids[2]]
-    list_rel = rel.filter_by_load_ids(selection)
-    list_df = list_rel.df()
-    assert isinstance(list_rel, ReadableIbisRelation)
-    assert schema.equals(list_rel._ibis_object.schema())
-    assert list_rel.count() == (total_records * 2)
-    assert (list_df[expected_col_name].isin([0, 2])).all()
-    assert (list_df._dlt_load_id.isin(selection)).all()
-
-    # Case 2: nested with root_key
-    nested_rel = pipeline_with_multiple_loads.dataset(dataset_type="ibis").items__children
-    # add the column `_dlt_load_id` to the nested table; it needs to be positioned at the end
-    nested_schema = ibis.schema({**nested_rel._ibis_object.schema(), "_dlt_load_id": "string"})
-
-    filtered_nested_rel = nested_rel.filter_by_load_ids(load_ids[0])
-    filtered_nested_df = filtered_nested_rel.df()
-    assert isinstance(filtered_nested_rel, ReadableIbisRelation)
-    assert nested_schema.equals(filtered_nested_rel._ibis_object.schema())
-    assert filtered_nested_rel.count() == (total_records * 2)
-    assert (filtered_nested_df._dlt_load_id == load_ids[0]).all()
-
-    empty_nested_rel = nested_rel.filter_by_load_ids("")
-    assert isinstance(empty_nested_rel, ReadableIbisRelation)
-    assert nested_schema.equals(empty_nested_rel._ibis_object.schema())
-
-
-@pytest.mark.no_load
-@pytest.mark.essential
-@pytest.mark.parametrize(
-    "pipeline_with_multiple_loads",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
-def test_ibis_filter_latest_load_id(pipeline_with_multiple_loads: Pipeline) -> None:
-    import ibis
-
-    total_records = _total_records(pipeline_with_multiple_loads)
-    load_ids = pipeline_with_multiple_loads.list_completed_load_packages()
-    expected_col_name = (
-        pipeline_with_multiple_loads.default_schema.naming.normalize_table_identifier(
-            "expected_load_id"
-        )
-    )
-
-    # Case 1: root table
-    rel = pipeline_with_multiple_loads.dataset(dataset_type="ibis").items
-    schema = rel._ibis_object.schema()
-
-    filtered_rel = rel.filter_by_latest_load_id(0)
-    filtered_df = filtered_rel.df()
-    assert isinstance(filtered_rel, ReadableIbisRelation)
-    assert schema.equals(filtered_rel._ibis_object.schema())
-    assert filtered_rel.count() == total_records
-    assert (filtered_df[expected_col_name] == load_ids.index(max(load_ids))).all()
-    assert (filtered_df._dlt_load_id == max(load_ids)).all()
-
-    # no match for load_id=1 returns an empty table with the right schema
-    empty_rel = rel.filter_by_latest_load_id(1)
-    assert isinstance(empty_rel, ReadableIbisRelation)
-    assert schema.equals(empty_rel._ibis_object.schema())
-    assert empty_rel.count() == 0
-
-    # `status` kwarg handles list values; skipping load_ids[1] which failed
-    assert rel.filter_by_latest_load_id(1).df().shape == (0, 6)
-    assert rel.filter_by_latest_load_id([0]).df().shape == (total_records, 6)
-    assert rel.filter_by_latest_load_id([0, 1]).df().shape == (total_records, 6)
-    assert rel.filter_by_latest_load_id([1, 2]).df().shape == (0, 6)
-
-    # Case 2: nested with root_key
-    nested_rel = pipeline_with_multiple_loads.dataset(dataset_type="ibis").items__children
-    # add the column `_dlt_load_id` to the nested table; it needs to be positioned at the end
-    nested_schema = ibis.schema({**nested_rel._ibis_object.schema(), "_dlt_load_id": "string"})
-
-    filtered_nested_rel = nested_rel.filter_by_load_ids(load_ids[0])
-    filtered_nested_df = filtered_nested_rel.df()
-    assert isinstance(filtered_nested_rel, ReadableIbisRelation)
-    assert nested_schema.equals(filtered_nested_rel._ibis_object.schema())
-    assert filtered_nested_rel.count() == (total_records * 2)
-    assert (filtered_nested_df._dlt_load_id == load_ids[0]).all()
-
-    empty_nested_rel = nested_rel.filter_by_load_ids("")
-    assert isinstance(empty_nested_rel, ReadableIbisRelation)
-    assert nested_schema.equals(empty_nested_rel._ibis_object.schema())
-
-
-@pytest.mark.no_load
-@pytest.mark.essential
-@pytest.mark.parametrize(
-    "pipeline_with_multiple_loads",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
-def test_ibis_filter_load_status(pipeline_with_multiple_loads: Pipeline) -> None:
-    import ibis
-
-    total_records = _total_records(pipeline_with_multiple_loads)
-    load_ids = pipeline_with_multiple_loads.list_completed_load_packages()
-    expected_col_name = (
-        pipeline_with_multiple_loads.default_schema.naming.normalize_table_identifier(
-            "expected_load_id"
-        )
-    )
-
-    # Case 1: root table
-    rel = pipeline_with_multiple_loads.dataset(dataset_type="ibis").items
-    schema = rel._ibis_object.schema()
-
-    filtered_rel = rel.filter_by_load_status(0)
-    filtered_df = filtered_rel.df()
-    assert isinstance(filtered_rel, ReadableIbisRelation)
-    assert schema.equals(filtered_rel._ibis_object.schema())
-    assert filtered_rel.count() == total_records * 2  # includes two loads
-    assert (filtered_df[expected_col_name].isin([0, 2])).all()
-    assert (filtered_df._dlt_load_id.isin([load_ids[0], load_ids[2]])).all()
-
-    # no match for load_id=1 returns an empty table with the right schema
-    empty_rel = rel.filter_by_load_status(1)
-    assert isinstance(empty_rel, ReadableIbisRelation)
-    assert schema.equals(empty_rel._ibis_object.schema())
-    assert empty_rel.count() == 0
-
-    # load_status kwarg is passed to `list_load_ids()`
-
-    # Case 2: nested with root_key
-    nested_rel = pipeline_with_multiple_loads.dataset(dataset_type="ibis").items__children
-    # add the column `_dlt_load_id` to the nested table; it needs to be positioned at the end
-    nested_schema = ibis.schema({**nested_rel._ibis_object.schema(), "_dlt_load_id": "string"})
-
-    filtered_nested_rel = nested_rel.filter_by_load_status(0)
-    filtered_nested_df = filtered_nested_rel.df()
-    assert isinstance(filtered_nested_rel, ReadableIbisRelation)
-    assert nested_schema.equals(filtered_nested_rel._ibis_object.schema())
-    assert filtered_nested_rel == (total_records * 2) * 2  # includes two loads
-    assert (filtered_nested_df._dlt_load_id.isin([load_ids[0], load_ids[2]])).all()
-
-    empty_nested_rel = nested_rel.filter_by_load_status(1)
-    assert isinstance(empty_nested_rel, ReadableIbisRelation)
-    assert nested_schema.equals(empty_nested_rel._ibis_object.schema())
-
-
-@pytest.mark.no_load
-@pytest.mark.essential
-@pytest.mark.parametrize(
-    "pipeline_with_multiple_loads",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
-def test_ibis_filter_load_id_gt(pipeline_with_multiple_loads: Pipeline) -> None:
-    import ibis
-
-    total_records = _total_records(pipeline_with_multiple_loads)
-    load_ids = pipeline_with_multiple_loads.list_completed_load_packages()
-    expected_col_name = (
-        pipeline_with_multiple_loads.default_schema.naming.normalize_table_identifier(
-            "expected_load_id"
-        )
-    )
-
-    # Case 1: root table
-    rel = pipeline_with_multiple_loads.dataset(dataset_type="ibis").items
-    schema = rel._ibis_object.schema()
-
-    filtered_rel = rel.filter_by_load_id_gt("")
-    filtered_df = filtered_rel.df()
-    assert isinstance(filtered_rel, ReadableIbisRelation)
-    assert schema.equals(filtered_rel._ibis_object.schema())
-    assert filtered_rel.count() == total_records * 2  # includes two loads
-    assert (filtered_df[expected_col_name].isin([0, 1, 2])).all()
-    assert (filtered_df._dlt_load_id.isin(load_ids)).all()
-
-    filtered_rel2 = rel.filter_by_load_id_gt(load_ids[1])
-    filtered_df2 = filtered_rel2.df()
-    assert filtered_rel.count() == total_records
-    assert (filtered_df2[expected_col_name] == 2).all()
-    assert (filtered_df2._dlt_load_id == load_ids[2]).all()
-
-    # no load_id > load_ids[2]; returns an empty table with the right schema
-    empty_rel = rel.filter_by_load_id_gt(load_ids[2])
-    assert isinstance(empty_rel, ReadableIbisRelation)
-    assert schema.equals(empty_rel._ibis_object.schema())
-    assert empty_rel.count() == 0
-
-    # load_status kwarg is passed to `list_load_ids()`
-    assert rel.filter_by_load_id_gt(load_ids[1], 1).df().shape == (0, 6)
-    assert rel.filter_by_load_id_gt(load_ids[1], [0]).df().shape == (total_records, 6)
-    assert rel.filter_by_load_id_gt(load_ids[1], [0, 1]).df().shape == (total_records, 6)
-    assert rel.filter_by_load_id_gt(load_ids[1], [1, 2]).df().shape == (0, 6)
-
-    # Case 2: nested with root_key
-    nested_rel = pipeline_with_multiple_loads.dataset(dataset_type="ibis").items__children
-    # add the column `_dlt_load_id` to the nested table; it needs to be positioned at the end
-    nested_schema = ibis.schema({**nested_rel._ibis_object.schema(), "_dlt_load_id": "string"})
-
-    filtered_nested_rel = nested_rel.filter_by_load_id_gt("")
-    filtered_nested_df = filtered_nested_rel.df()
-    assert isinstance(filtered_nested_rel, ReadableIbisRelation)
-    assert nested_schema.equals(filtered_nested_rel._ibis_object.schema())
-    assert filtered_nested_rel == (total_records * 2) * 2  # includes two loads
-    assert (filtered_nested_df._dlt_load_id.isin([load_ids[0], load_ids[2]])).all()
-
-    filtered_nested_rel2 = rel.filter_by_load_id_gt(load_ids[1])
-    filtered_nested_df2 = filtered_nested_rel2.df()
-    assert filtered_nested_rel.count() == total_records
-    assert (filtered_nested_df2[expected_col_name] == 2).all()
-    assert (filtered_nested_df2._dlt_load_id == load_ids[2]).all()
-
-    empty_nested_rel = nested_rel.filter_by_load_id_gt(load_ids[2])
-    assert isinstance(empty_nested_rel, ReadableIbisRelation)
-    assert nested_schema.equals(empty_nested_rel._ibis_object.schema())
 
 
 @pytest.mark.no_load
