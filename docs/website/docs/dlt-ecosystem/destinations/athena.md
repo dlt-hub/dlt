@@ -98,6 +98,7 @@ and provide any other `PyAthena` connection setting
 ```toml
 [destination.athena.conn_properties]
 poll_interval=2
+```
 
 ## Write disposition
 
