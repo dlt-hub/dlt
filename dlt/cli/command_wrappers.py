@@ -16,6 +16,7 @@ from dlt.cli.exceptions import CliCommandException
 from dlt.cli.init_command import (
     init_command,
     list_sources_command,
+    list_destinations_command,
     DLT_INIT_DOCS_URL,
 )
 from dlt.cli.pipeline_command import pipeline_command, DLT_PIPELINE_COMMAND_DOCS_URL
@@ -57,6 +58,11 @@ def init_command_wrapper(
 @utils.track_command("list_sources", False)
 def list_sources_command_wrapper(repo_location: str, branch: str) -> None:
     list_sources_command(repo_location, branch)
+
+
+@utils.track_command("list_destinations", False)
+def list_destinations_command_wrapper() -> None:
+    list_destinations_command()
 
 
 @utils.track_command("pipeline", True, "operation")
