@@ -7,6 +7,7 @@ import pytest
     "example_name",
     (
         "load_select_tables_from_database",
+        "load_select_tables_from_paginated_database",
         # "load_entire_database",
         "load_standalone_table_resource",
         "select_columns",

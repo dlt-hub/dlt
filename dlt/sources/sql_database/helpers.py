@@ -29,6 +29,7 @@ from dlt.common.utils import is_typeerror_due_to_wrong_call
 from dlt.extract import Incremental
 
 from .arrow_helpers import row_tuples_to_arrow
+from .pagination_helpers import TablePaginator
 from .schema_types import (
     default_table_adapter,
     Table,
@@ -36,6 +37,7 @@ from .schema_types import (
     ReflectionLevel,
     TTypeAdapter,
     table_to_resource_hints,
+    SelectClause,
 )
 
 from dlt.common.libs.sql_alchemy import (
@@ -44,11 +46,9 @@ from dlt.common.libs.sql_alchemy import (
     create_engine,
     MetaData,
     sa,
-    TextClause,
 )
 
 TableBackend = Literal["sqlalchemy", "pyarrow", "pandas", "connectorx"]
-SelectClause = Union[SelectAny, TextClause]
 TQueryAdapter = Union[
     Callable[[SelectAny, Table], SelectClause],
     Callable[[SelectAny, Table, Incremental[Any], Engine], SelectClause],
@@ -64,6 +64,7 @@ class TableLoader:
         table: Table,
         columns: TTableSchemaColumns,
         chunk_size: int = 1000,
+        page_size: Optional[int] = None,
         incremental: Optional[Incremental[Any]] = None,
         query_adapter_callback: Optional[TQueryAdapter] = None,
     ) -> None:
@@ -72,6 +73,7 @@ class TableLoader:
         self.table = table
         self.columns = columns
         self.chunk_size = chunk_size
+        self.page_size = page_size
         self.query_adapter_callback = query_adapter_callback
         self.incremental = incremental
         if incremental:
@@ -96,6 +98,11 @@ class TableLoader:
             self.on_cursor_value_missing = self.incremental.on_cursor_value_missing
             self.range_start = self.incremental.range_start
             self.range_end = self.incremental.range_end
+        elif page_size:
+            raise ValueError(
+                "Incremental strategy must be specified when using a page size to "
+                "sort rows during the pagination of the results."
+            )
         else:
             self.cursor_column = None
             self.last_value = None
@@ -179,29 +186,35 @@ class TableLoader:
 
     def _load_rows(self, query: SelectClause, backend_kwargs: Dict[str, Any]) -> TDataItem:
         with self.engine.connect() as conn:
-            result = conn.execution_options(yield_per=self.chunk_size).execute(query)
+            # Given that the paginator is an iterator, create a one-element list for non-paginated queries
+            results: Iterator[Any] = None
+            if self.page_size:
+                results = iter(TablePaginator(query=query, conn=conn, page_size=self.page_size))
+            else:
+                results = iter([conn.execution_options(yield_per=self.chunk_size).execute(query)])
             # NOTE: cursor returns not normalized column names! may be quite useful in case of Oracle dialect
             # that normalizes columns
             # columns = [c[0] for c in result.cursor.description]
-            columns = list(result.keys())
-            for partition in result.partitions(size=self.chunk_size):
-                if self.backend == "sqlalchemy":
-                    yield [dict(row._mapping) for row in partition]
-                elif self.backend == "pandas":
-                    from dlt.common.libs.pandas_sql import _wrap_result
+            for result in results:
+                columns = list(result.keys())
+                for partition in result.partitions(size=self.chunk_size):
+                    if self.backend == "sqlalchemy":
+                        yield [dict(row._mapping) for row in partition]
+                    elif self.backend == "pandas":
+                        from dlt.common.libs.pandas_sql import _wrap_result
 
-                    df = _wrap_result(
-                        partition,
-                        columns,
-                        **{"dtype_backend": "pyarrow", **backend_kwargs},
-                    )
-                    yield df
-                elif self.backend == "pyarrow":
-                    yield row_tuples_to_arrow(
-                        partition,
-                        columns=_add_missing_columns(self.columns, columns),
-                        tz=backend_kwargs.get("tz", "UTC"),
-                    )
+                        df = _wrap_result(
+                            partition,
+                            columns,
+                            **{"dtype_backend": "pyarrow", **backend_kwargs},
+                        )
+                        yield df
+                    elif self.backend == "pyarrow":
+                        yield row_tuples_to_arrow(
+                            partition,
+                            columns=_add_missing_columns(self.columns, columns),
+                            tz=backend_kwargs.get("tz", "UTC"),
+                        )
 
     def _load_rows_connectorx(
         self, query: SelectClause, backend_kwargs: Dict[str, Any]
@@ -241,6 +254,7 @@ def table_rows(
     metadata: MetaData,
     chunk_size: int,
     backend: TableBackend,
+    page_size: Optional[int] = None,
     incremental: Optional[Incremental[Any]] = None,
     table_adapter_callback: TTableAdapter = None,
     reflection_level: ReflectionLevel = "minimal",
@@ -297,6 +311,7 @@ def table_rows(
         hints["columns"],
         incremental=incremental,
         chunk_size=chunk_size,
+        page_size=page_size,
         query_adapter_callback=query_adapter_callback,
     )
     try:
@@ -364,7 +379,9 @@ def _add_missing_columns(
 
 
 def _execute_table_adapter(
-    table: Table, adapter: Optional[TTableAdapter], included_columns: Optional[List[str]]
+    table: Table,
+    adapter: Optional[TTableAdapter],
+    included_columns: Optional[List[str]],
 ) -> Table:
     """Executes default table adapter on `table` and then `adapter` if defined"""
     default_table_adapter(table, included_columns)
@@ -403,6 +420,7 @@ class SqlTableResourceConfiguration(BaseConfiguration):
     schema: Optional[str] = None
     incremental: Optional[Incremental] = None  # type: ignore[type-arg]
     chunk_size: int = 50000
+    page_size: Optional[int] = None
     backend: TableBackend = "sqlalchemy"
     detect_precision_hints: Optional[bool] = None
     defer_table_reflect: Optional[bool] = False
