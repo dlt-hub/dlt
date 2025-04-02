@@ -91,15 +91,13 @@ iceberg_tables = get_iceberg_tables(pipeline)
 # etc.
 ```
 
-## Table format Google Cloud Storage authentication
+## Google Cloud Storage authentication
 
 Note that not all authentication methods are supported when using Iceberg on Google Cloud Storage:
 
-| Authentication method | `iceberg` |
-| -- | -- |
-| [Service Account](bigquery.md#setup-guide) | ❌ |
-| [OAuth](../destinations/bigquery.md#oauth-20-authentication) | ✅ |
-| [Application Default Credentials](bigquery.md#using-default-credentials) | ❌ |
+- [OAuth](../destinations/bigquery.md#oauth-20-authentication) - ✅ Supported
+- [Service Account](bigquery.md#setup-guide) - ❌ Not supported
+- [Application Default Credentials](bigquery.md#using-default-credentials) - ❌ Not supported
 
 :::note
 The [S3-compatible](./filesystem.md#using-s3-compatible-storage) interface for Google Cloud Storage is not supported when using `iceberg`.

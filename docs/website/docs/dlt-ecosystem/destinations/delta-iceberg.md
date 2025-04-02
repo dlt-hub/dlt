@@ -80,15 +80,13 @@ delta_tables["another_delta_table"].optimize.z_order(["col_a", "col_b"])
 # etc.
 ```
 
-## Table format Google Cloud Storage authentication
+## Google Cloud Storage authentication
 
 Note that not all authentication methods are supported when using Delta table format on Google Cloud Storage:
 
-| Authentication method | `delta` |
-| -- | -- |
-| [Service Account](bigquery.md#setup-guide) | ✅ |
-| [OAuth](../destinations/bigquery.md#oauth-20-authentication) | ❌ |
-| [Application Default Credentials](bigquery.md#using-default-credentials) | ✅ |
+- [Service Account](bigquery.md#setup-guide) - ✅ Supported
+- [Application Default Credentials](bigquery.md#using-default-credentials) - ✅ Supported
+- [OAuth](../destinations/bigquery.md#oauth-20-authentication) - ❌ Not supported
 
 ## Table format `merge` support (**experimental**)
 The [`upsert`](../../general-usage/incremental-loading.md#upsert-strategy) merge strategy is supported for `delta`.
