@@ -1,20 +1,20 @@
 from typing import Any, Generator, Sequence, Union, TYPE_CHECKING
-
 from contextlib import contextmanager
 
 
 from dlt.common.destination.dataset import (
     SupportsReadableRelation,
 )
+from dlt.destinations.sql_client import SqlClientBase
+from dlt.common.schema import Schema
+from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.typing import Self
 
 from dlt.destinations.dataset.exceptions import (
     ReadableRelationHasQueryException,
     ReadableRelationUnknownColumnException,
 )
 
-from dlt.common.schema.typing import TTableSchemaColumns
-from dlt.destinations.sql_client import SqlClientBase
-from dlt.common.schema import Schema
 
 if TYPE_CHECKING:
     from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
@@ -26,7 +26,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation):
     def __init__(
         self,
         *,
-        readable_dataset: "ReadableDBAPIDataset",
+        readable_dataset: "ReadableDBAPIDataset[SupportsReadableRelation]",
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
 
@@ -95,7 +95,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
     def __init__(
         self,
         *,
-        readable_dataset: "ReadableDBAPIDataset",
+        readable_dataset: "ReadableDBAPIDataset[SupportsReadableRelation]",
         provided_query: Any = None,
         table_name: str = None,
         limit: int = None,
@@ -171,7 +171,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
 
         return filtered_columns
 
-    def __copy__(self) -> "ReadableDBAPIRelation":
+    def __copy__(self) -> Self:
         return self.__class__(
             readable_dataset=self._dataset,
             provided_query=self._provided_query,
@@ -180,14 +180,14 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
             selected_columns=self._selected_columns,
         )
 
-    def limit(self, limit: int, **kwargs: Any) -> "ReadableDBAPIRelation":
+    def limit(self, limit: int, **kwargs: Any) -> Self:
         if self._provided_query:
             raise ReadableRelationHasQueryException("limit")
         rel = self.__copy__()
         rel._limit = limit
         return rel
 
-    def select(self, *columns: str) -> "ReadableDBAPIRelation":
+    def select(self, *columns: str) -> Self:
         if self._provided_query:
             raise ReadableRelationHasQueryException("select")
         rel = self.__copy__()
@@ -197,7 +197,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         rel.compute_columns_schema()
         return rel
 
-    def __getitem__(self, columns: Union[str, Sequence[str]]) -> "SupportsReadableRelation":
+    def __getitem__(self, columns: Union[str, Sequence[str]]) -> Self:
         if isinstance(columns, str):
             return self.select(columns)
         elif isinstance(columns, Sequence):
@@ -205,5 +205,5 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         else:
             raise TypeError(f"Invalid argument type: {type(columns).__name__}")
 
-    def head(self, limit: int = 5) -> "ReadableDBAPIRelation":
+    def head(self, limit: int = 5) -> Self:
         return self.limit(limit)

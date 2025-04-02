@@ -66,7 +66,7 @@ def test_copy_and_chaining() -> None:
     relation = dataset.items
     relation = relation.limit(34)
     relation = relation[["one", "two"]]
-    relation._schema_columns = {"one": {}, "two": {}}  # type: ignore[attr-defined]
+    relation._schema_columns = {"one": {}, "two": {}}
 
     relation2 = relation.__copy__()
     assert relation != relation2
