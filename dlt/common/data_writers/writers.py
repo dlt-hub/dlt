@@ -189,7 +189,7 @@ class ModelWriter(DataWriter):
         super().write_data(items)
         self.items_count += len(items)
         for item in items:
-            self._f.write(item + "\n")
+            self._f.write("dialect: " + (item.dialect or "") + "\n" + item.query + "\n")
 
     @classmethod
     def writer_spec(cls) -> FileWriterSpec:

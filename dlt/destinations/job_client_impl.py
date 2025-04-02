@@ -126,13 +126,18 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
 
     def run(self) -> None:
         with FileStorage.open_zipsafe_ro(self._file_path, "r", encoding="utf-8") as f:
+            select_dialect = f.readline().split(": ")[1].strip() or None
             select_statement = f.read()
 
         sql_client = self._job_client.sql_client
-        insert_statement = self._insert_statement_from_select_statement(select_statement)
+        insert_statement = self._insert_statement_from_select_statement(
+            select_dialect, select_statement
+        )
         sql_client.execute_sql(insert_statement)
 
-    def _insert_statement_from_select_statement(self, select_statement: str) -> str:
+    def _insert_statement_from_select_statement(
+        self, select_dialect: str, select_statement: str
+    ) -> str:
         """
         NOTE: Here we generate an insert statement from a select statement, this is the duckdb
         dialect, we may be able to transpile with sqlglot for each destination or we need
@@ -145,7 +150,7 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         query = sge.insert(
             expression=select_statement,
             into=name,
-            dialect=dialect,
+            dialect=select_dialect,
         ).sql(dialect)
 
         # NOTE: This query doesn't have a trailing ";"

@@ -5,7 +5,7 @@ import pytest
 import dlt
 
 from tests.pipeline.utils import load_table_counts
-from dlt.extract.hints import make_hints, ModelStr
+from dlt.extract.hints import make_hints, SqlModel
 from tests.load.utils import count_job_types, destinations_configs, DestinationTestConfiguration
 from dlt.common.schema.typing import TWriteDisposition
 
@@ -44,17 +44,25 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
 
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+
     # create a resource that generates sql statements to create 2 new tables
     # we also need to supply all hints so the table can be created
     @dlt.resource()
     def copied_table() -> Any:
         query = dataset["example_table"].limit(5).query()
-        yield dlt.mark.with_hints(ModelStr(query), hints=make_hints(columns=example_table_columns))
+        yield dlt.mark.with_hints(
+            SqlModel(dialect=select_dialect, query=query),
+            hints=make_hints(columns=example_table_columns),
+        )
 
     @dlt.resource()
     def copied_table_2() -> Any:
         query = dataset["example_table"].limit(7).query()
-        yield dlt.mark.with_hints(ModelStr(query), hints=make_hints(columns=example_table_columns))
+        yield dlt.mark.with_hints(
+            SqlModel(dialect=select_dialect, query=query),
+            hints=make_hints(columns=example_table_columns),
+        )
 
     # run sql jobs
     pipeline.run([copied_table(), copied_table_2()])
@@ -124,11 +132,16 @@ def test_write_dispositions(
     )
     query = relation.query()
 
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+
     @dlt.resource(
         write_disposition=write_disposition, table_name="example_table_1", primary_key="a"
     )
     def copied_table() -> Any:
-        yield dlt.mark.with_hints(ModelStr(query), hints=make_hints(columns=example_table_columns))
+        yield dlt.mark.with_hints(
+            SqlModel(dialect=select_dialect, query=query),
+            hints=make_hints(columns=example_table_columns),
+        )
 
     pipeline.run([copied_table()])
 
@@ -173,7 +186,7 @@ def test_insert_less_or_reversed_columns(destination_config: DestinationTestConf
 
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
-    print(example_table_columns)
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
 
     # This should raise a column number mismatch error
     @dlt.resource()
@@ -181,7 +194,10 @@ def test_insert_less_or_reversed_columns(destination_config: DestinationTestConf
         partial_table_column_keys = [key for key in example_table_columns.keys() if key != "a"]
         relation = dataset["example_table"][partial_table_column_keys]
         query = relation.query()
-        yield dlt.mark.with_hints(ModelStr(query), hints=make_hints(columns=example_table_columns))
+        yield dlt.mark.with_hints(
+            SqlModel(dialect=select_dialect, query=query),
+            hints=make_hints(columns=example_table_columns),
+        )
 
     with pytest.raises(PipelineStepFailed):
         pipeline.run([partial_insert()])
@@ -194,9 +210,10 @@ def test_insert_less_or_reversed_columns(destination_config: DestinationTestConf
         reversed_table_column_keys = list(example_table_columns.keys())[::-1]
         relation = dataset["example_table"][reversed_table_column_keys]
         query = relation.query()
-        yield dlt.mark.with_hints(ModelStr(query), hints=make_hints(columns=example_table_columns))
-
-    print(example_table_columns)
+        yield dlt.mark.with_hints(
+            SqlModel(dialect=select_dialect, query=query),
+            hints=make_hints(columns=example_table_columns),
+        )
 
     with pytest.raises(PipelineStepFailed):
         pipeline.run([reversed_insert()])
@@ -220,16 +237,24 @@ def test_multiple_statements_per_resource(destination_config: DestinationTestCon
 
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+
     # create a resource that generates sql statements to create 2 new tables
     # we also need to supply all hints so the table can be created
     # we enfore nullabl
     @dlt.resource()
     def copied_table() -> Any:
         query1 = dataset["example_table"].limit(5).query()
-        yield dlt.mark.with_hints(ModelStr(query1), hints=make_hints(columns=example_table_columns))
+        yield dlt.mark.with_hints(
+            SqlModel(dialect=select_dialect, query=query1),
+            hints=make_hints(columns=example_table_columns),
+        )
 
         query2 = dataset["example_table"].limit(7).query()
-        yield dlt.mark.with_hints(ModelStr(query2), hints=make_hints(columns=example_table_columns))
+        yield dlt.mark.with_hints(
+            SqlModel(dialect=select_dialect, query=query2),
+            hints=make_hints(columns=example_table_columns),
+        )
 
     pipeline.run([copied_table()])
 
