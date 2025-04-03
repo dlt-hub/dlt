@@ -132,6 +132,10 @@ This will set the timezone and session keep alive. Mind that if you use TOML, yo
 `"snowflake://loader/dlt_data?authenticator=oauth&timezone=UTC&client_session_keep_alive=true"`
 will pass `client_session_keep_alive` as a string to the connect method (which we didn't verify if it works).
 
+:::note
+Be aware that dlt is expecting the transaction behavior to `ALTER SESSION SET AUTOCOMMIT = TRUE;`. Meaning all DMLs are automatically committed or set to `ALTER SESSION SET AUTOCOMMIT = FALSE;` where needed by dlt. BUT, dlt will not set it explicitly to `TRUE` when needed; therefore, if you have set the transaction mode to `FALSE` on Snowflake, dlt will have opened COMMITs that will not be committed anymore. Please use the default behaviour of Snowflake to avoid running into issues.
+:::
+
 ### Write disposition
 
 All write dispositions are supported.
