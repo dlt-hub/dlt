@@ -19,6 +19,10 @@ from typing import (
 import zlib
 import re
 
+import sqlglot.expressions
+import sqlglot.optimizer
+import sqlglot.optimizer.normalize_identifiers
+
 from dlt.common import pendulum, logger
 from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.json import json
@@ -68,7 +72,7 @@ from dlt.destinations.utils import (
     verify_schema_merge_disposition,
 )
 
-import sqlglot.expressions as sge
+import sqlglot
 
 # this should suffice for now
 DDL_COMMANDS = ["ALTER", "CREATE", "DROP"]
@@ -136,7 +140,7 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         sql_client.execute_sql(insert_statement)
 
     def _insert_statement_from_select_statement(
-        self, select_dialect: str, select_statement: str
+        self, select_dialect: Optional[str], select_statement: str
     ) -> str:
         """
         NOTE: Here we generate an insert statement from a select statement, this is the duckdb
@@ -145,13 +149,32 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         """
         sql_client = self._job_client.sql_client
         name = sql_client.make_qualified_table_name(self._load_table["name"])
-        dialect = self._job_client.capabilities.sqlglot_dialect
 
-        query = sge.insert(
-            expression=select_statement,
+        parsed_select_query = sqlglot.parse_one(select_statement, read=select_dialect)
+        destination_dialect = self._job_client.capabilities.sqlglot_dialect
+
+        if destination_dialect == select_dialect:
+            pass
+        # get rid of project name if destination is duckdb
+        elif destination_dialect == "duckdb":
+            for table in parsed_select_query.find_all(sqlglot.exp.Table):
+                if len(table.parts) == 3:
+                    table.set("this", sqlglot.exp.to_identifier(str(table.parts[2])))  # table
+                    table.set(
+                        "db", sqlglot.exp.to_identifier(str(table.parts[1]))
+                    )  # dataset (schema)
+                    table.set("catalog", None)  # remove project
+
+        normalized_select_query = parsed_select_query.sql(dialect=select_dialect)
+        transpiled_select_query = sqlglot.transpile(
+            normalized_select_query, read=select_dialect, write=destination_dialect
+        )[0]
+
+        query = sqlglot.expressions.insert(
+            expression=transpiled_select_query,
             into=name,
-            dialect=select_dialect,
-        ).sql(dialect)
+            dialect=destination_dialect,
+        ).sql(destination_dialect)
 
         # NOTE: This query doesn't have a trailing ";"
 

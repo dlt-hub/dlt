@@ -29,6 +29,61 @@ DESTINATIONS_SUPPORTING_MODEL = [
 
 @pytest.mark.parametrize(
     "destination_config",
+    destinations_configs(default_sql_configs=True, exclude=["athena", "dremio"], subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "other_destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        exclude=["athena", "dremio"],
+        subset=["sqlalchemy", "snowflake", "duckdb", "mssql", "redshift", "postgres"],
+    ),
+    ids=lambda x: x.name,
+)
+def test_different_dialects(
+    destination_config: DestinationTestConfiguration,
+    other_destination_config: DestinationTestConfiguration,
+) -> None:
+    other_pipeline = other_destination_config.setup_pipeline(
+        pipeline_name="other_pipeline", dataset_name="test_model_item_format", dev_mode=False
+    )
+    other_pipeline.run(
+        [{"a": i} for i in range(10)], table_name="example_table", write_disposition="replace"
+    )
+
+    other_dataset = other_pipeline.dataset()
+    other_dialect = other_pipeline.destination.capabilities().sqlglot_dialect
+
+    example_table_columns = other_dataset.schema.tables["example_table"]["columns"]
+
+    # for now, we need to make sure the same data exists in the destination
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="pipeline", dataset_name="test_model_item_format", dev_mode=False
+    )
+    pipeline.run(
+        [{"a": i} for i in range(10)], table_name="example_table", write_disposition="replace"
+    )
+
+    @dlt.resource()
+    def copied_table() -> Any:
+        query = other_dataset["example_table"].limit(5).query()
+        sql_model = SqlModel.from_sqlglot(query=query, dialect=other_dialect)
+        yield dlt.mark.with_hints(
+            sql_model,
+            hints=make_hints(columns=example_table_columns),
+        )
+
+    pipeline.run(copied_table)
+    # the two tables where created
+    assert load_table_counts(pipeline, "copied_table", "example_table") == {
+        "copied_table": 5,
+        "example_table": 10,
+    }
+
+
+@pytest.mark.parametrize(
+    "destination_config",
     destinations_configs(
         default_sql_configs=True,
         exclude=["athena", "dremio"],
@@ -51,8 +106,9 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     @dlt.resource()
     def copied_table() -> Any:
         query = dataset["example_table"].limit(5).query()
+        sql_model = SqlModel.from_sqlglot(query=query, dialect=select_dialect)
         yield dlt.mark.with_hints(
-            SqlModel(dialect=select_dialect, query=query),
+            sql_model,
             hints=make_hints(columns=example_table_columns),
         )
 
@@ -60,7 +116,7 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     def copied_table_2() -> Any:
         query = dataset["example_table"].limit(7).query()
         yield dlt.mark.with_hints(
-            SqlModel(dialect=select_dialect, query=query),
+            SqlModel.from_sqlglot(query=query, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),
         )
 
@@ -139,7 +195,7 @@ def test_write_dispositions(
     )
     def copied_table() -> Any:
         yield dlt.mark.with_hints(
-            SqlModel(dialect=select_dialect, query=query),
+            SqlModel.from_sqlglot(query=query, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),
         )
 
@@ -195,7 +251,7 @@ def test_insert_less_or_reversed_columns(destination_config: DestinationTestConf
         relation = dataset["example_table"][partial_table_column_keys]
         query = relation.query()
         yield dlt.mark.with_hints(
-            SqlModel(dialect=select_dialect, query=query),
+            SqlModel.from_sqlglot(query=query, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),
         )
 
@@ -211,7 +267,7 @@ def test_insert_less_or_reversed_columns(destination_config: DestinationTestConf
         relation = dataset["example_table"][reversed_table_column_keys]
         query = relation.query()
         yield dlt.mark.with_hints(
-            SqlModel(dialect=select_dialect, query=query),
+            SqlModel.from_sqlglot(query=query, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),
         )
 
@@ -246,13 +302,13 @@ def test_multiple_statements_per_resource(destination_config: DestinationTestCon
     def copied_table() -> Any:
         query1 = dataset["example_table"].limit(5).query()
         yield dlt.mark.with_hints(
-            SqlModel(dialect=select_dialect, query=query1),
+            SqlModel.from_sqlglot(query=query1, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),
         )
 
         query2 = dataset["example_table"].limit(7).query()
         yield dlt.mark.with_hints(
-            SqlModel(dialect=select_dialect, query=query2),
+            SqlModel.from_sqlglot(query=query2, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),
         )
 

@@ -56,6 +56,8 @@ from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_c
 from dlt.extract.validation import create_item_validator
 from dlt.common.data_writers import TDataItemFormat
 
+import sqlglot
+
 
 class TResourceNestedHints(TypedDict, total=False):
     # used to force a parent for rare cases where normalizer skips intermediate tables that
@@ -99,6 +101,16 @@ class HintsMeta:
 class SqlModel(NamedTuple):
     query: str
     dialect: Optional[str] = None
+
+    @classmethod
+    def from_sqlglot(cls, query: str, dialect: Optional[str] = None) -> "SqlModel":
+        """
+        Creates a SqlModel from a raw SQL query string using sqlglot.
+        """
+
+        parsed_query = sqlglot.parse_one(query, read=dialect)
+        normalized_query = parsed_query.sql(dialect=dialect)
+        return cls(query=normalized_query, dialect=dialect)
 
 
 NATURAL_CALLABLES = ["incremental", "validator", "original_columns"]

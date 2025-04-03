@@ -39,6 +39,7 @@ from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.schema.utils import is_nullable_column
 from dlt.common.typing import StrAny, TDataItem
 
+import sqlglot
 
 if TYPE_CHECKING:
     from dlt.common.libs.pyarrow import pyarrow as pa
@@ -189,7 +190,11 @@ class ModelWriter(DataWriter):
         super().write_data(items)
         self.items_count += len(items)
         for item in items:
-            self._f.write("dialect: " + (item.dialect or "") + "\n" + item.query + "\n")
+            dialect = item.dialect or (self._caps.sqlglot_dialect)
+            query = item.query
+            parsed_query = sqlglot.parse_one(query, read=dialect)
+            normalized_query = parsed_query.sql(dialect=dialect)
+            self._f.write("dialect: " + (dialect or "") + "\n" + normalized_query + "\n")
 
     @classmethod
     def writer_spec(cls) -> FileWriterSpec:
