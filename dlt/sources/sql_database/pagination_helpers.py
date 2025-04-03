@@ -2,9 +2,11 @@ from typing import Iterator, Any, Optional
 from math import ceil
 from dlt.common.libs.sql_alchemy import Select
 from .schema_types import SelectClause
-from sqlalchemy.engine import Connection
+from sqlalchemy.engine import Connection, CursorResult
 from sqlalchemy.sql.expression import func, ColumnElement
 from dlt.common import logger
+from dlt.common.data_types.type_helpers import coerce_value
+import os
 
 
 class TablePaginator:
@@ -25,7 +27,15 @@ class TablePaginator:
         self._query = query.limit(self._page_size)
         if pk_columns:
             self._query = self._query.order_by(*pk_columns)
-        logger.info("Initial pagination query: {self._query}")
+        logger.info(
+            "Initial pagination query:"
+            f" {self._query.compile(compile_kwargs={'literal_binds': True})}"
+        )
+        self._max_retries = coerce_value(
+            "bigint", "text", os.environ.get("PAGINATION_RETRIES", "2")
+        )
+        self._current_retry = 0
+        self._backoff = coerce_value("decimal", "text", os.environ.get("PAGINATION_BACKOFF", "0.1"))
 
     def __iter__(self) -> Iterator[Any]:
         return self
@@ -46,14 +56,39 @@ class TablePaginator:
     def has_next(self) -> bool:
         return self._current_page < self._total_pages
 
-    def __next__(self) -> Any:
+    def page_backoff_possible(self) -> bool:
+        if self._current_retry == self._max_retries:
+            return False
+        # Adapt page size with backoff
+        self._page_size = int(self._page_size * self._backoff)
+        logger.warning(
+            f"Retrying query with backoff. New page size {self._page_size}"
+        )
+        self._current_retry += 1
+        # Update query
+        self._query = self._query.limit(self._page_size)
+        return True
+
+    def make_query(self) -> CursorResult:
+        self._query = self._query.offset(self._query_offset())
+        try:
+            result = self._conn.execute(self._query)
+        except Exception as e:
+            if self.page_backoff_possible():
+                return self.make_query()
+            else:
+                raise e
+        return result
+
+    def __next__(self) -> CursorResult:
         if self.has_next():
-            query = self._query.offset(self._query_offset())
+            self._query = self._query.offset(self._query_offset())
+            result = self.make_query()
             logger.info(
                 f"Pagination query {self._current_page} of {self._total_pages}: "
-                f"{query.compile(compile_kwargs={'literal_binds': True})}"
+                f"{self._query.compile(compile_kwargs={'literal_binds': True})}"
             )
             self._current_page += 1
-            return self._conn.execute(query)
+            return result
         else:
             raise StopIteration()
