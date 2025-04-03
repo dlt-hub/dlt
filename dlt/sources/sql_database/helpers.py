@@ -98,11 +98,6 @@ class TableLoader:
             self.on_cursor_value_missing = self.incremental.on_cursor_value_missing
             self.range_start = self.incremental.range_start
             self.range_end = self.incremental.range_end
-        elif page_size:
-            raise ValueError(
-                "Incremental strategy must be specified when using a page size to "
-                "sort rows during the pagination of the results."
-            )
         else:
             self.cursor_column = None
             self.last_value = None
@@ -111,6 +106,11 @@ class TableLoader:
             self.on_cursor_value_missing = None
             self.range_start = None
             self.range_end = None
+            if page_size:
+                raise ValueError(
+                    "Incremental strategy must be specified when using a page size to "
+                    "sort rows during the pagination of the results."
+                )
 
     def _make_query(self) -> SelectAny:
         table = self.table
@@ -189,7 +189,18 @@ class TableLoader:
             # Given that the paginator is an iterator, create a one-element list for non-paginated queries
             results: Iterator[Any] = None
             if self.page_size:
-                results = iter(TablePaginator(query=query, conn=conn, page_size=self.page_size))
+                primary_key = self.incremental.primary_key
+                if isinstance(primary_key, str):
+                    primary_key = [primary_key]
+                pk_columns = [self.table.c[pk_name] for pk_name in primary_key]  # type: ignore[union-attr]
+                results = iter(
+                    TablePaginator(
+                        query=query,
+                        conn=conn,
+                        page_size=self.page_size,
+                        pk_columns=pk_columns,
+                    )
+                )
             else:
                 results = iter([conn.execution_options(yield_per=self.chunk_size).execute(query)])
             # NOTE: cursor returns not normalized column names! may be quite useful in case of Oracle dialect

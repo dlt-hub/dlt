@@ -9,8 +9,12 @@ from dlt.sources.credentials import ConnectionStringCredentials
 
 from dlt.sources.sql_database import sql_database, sql_table, Table
 
+from dlt.pipeline.exceptions import PipelineStepFailed
+
 from sqlalchemy.sql.sqltypes import TypeEngine
 import sqlalchemy as sa
+
+from pytest import raises
 
 
 def load_select_tables_from_database() -> None:
@@ -55,9 +59,11 @@ def load_select_tables_from_database() -> None:
 
 
 def load_select_tables_from_paginated_database() -> None:
-    # Same as load_select_tables_from_database but using pagination
+    # Same as load_select_tables_from_database but using pagination with primary keys and cursors
     # Create a pipeline
-    pipeline = dlt.pipeline(pipeline_name="rfam", destination="duckdb", dataset_name="rfam_data")
+    pipeline = dlt.pipeline(
+        pipeline_name="rfam_paginated", destination="duckdb", dataset_name="rfam_data"
+    )
 
     # Credentials for the sample database.
     # Note: It is recommended to configure credentials in `.dlt/secrets.toml` under `sources.sql_database.credentials`
@@ -68,27 +74,37 @@ def load_select_tables_from_paginated_database() -> None:
     # And the credentials will be automatically read from `secrets.toml`.
 
     # Configure the source to load a few select tables incrementally
-    source_1 = sql_database(credentials, page_size=30).with_resources("family", "clan")
+    source_1 = sql_database(credentials, page_size=500).with_resources("family", "clan")
 
     # Add incremental config to the resources. "updated" is a timestamp column in these tables that gets used as a cursor
-    source_1.family.apply_hints(incremental=dlt.sources.incremental("updated"))
-    source_1.clan.apply_hints(incremental=dlt.sources.incremental("updated"))
+    source_1.family.apply_hints(
+        incremental=dlt.sources.incremental("updated"), primary_key="rfam_id"
+    )
+    source_1.clan.apply_hints(incremental=dlt.sources.incremental("updated"), primary_key="id")
 
     # Run the pipeline. The merge write disposition merges existing rows in the destination by primary key
     info = pipeline.run(source_1, write_disposition="merge")
     print(info)
 
-    # Load some other tables with replace write disposition. This overwrites the existing tables in destination
-    source_2 = sql_database(credentials).with_resources("features", "author")
+    # Load a table with replace write disposition. This overwrites the existing tables in destination
+    source_2 = sql_database(credentials, page_size=500).with_resources("author")
+    source_2.author.apply_hints(incremental=dlt.sources.incremental("author_id"))
     info = pipeline.run(source_2, write_disposition="replace")
     print(info)
 
+    # Load another table with replace write disposition, but without primary key nor cursor.
+    with raises(PipelineStepFailed, match=r".*Incremental strategy.*"):
+        source_3 = sql_database(credentials, page_size=500).with_resources("features")
+        info = pipeline.run(source_3, write_disposition="replace")
+
     # Load a table incrementally with append write disposition
     # this is good when a table only has new rows inserted, but not updated
-    source_3 = sql_database(credentials).with_resources("genome")
-    source_3.genome.apply_hints(incremental=dlt.sources.incremental("created"))
+    source_4 = sql_database(credentials, page_size=500).with_resources("genome")
+    source_4.genome.apply_hints(
+        incremental=dlt.sources.incremental("created"), primary_key=["upid"]
+    )
 
-    info = pipeline.run(source_3, write_disposition="append")
+    info = pipeline.run(source_4, write_disposition="append")
     print(info)
 
 
