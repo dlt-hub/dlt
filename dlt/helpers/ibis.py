@@ -78,6 +78,13 @@ def create_ibis_backend(
                 psycopg.types.TypeInfo.fetch = _ignore_hstore  # type: ignore[method-assign, unused-ignore]
             except Exception:
                 pass
+            # check ibis version and raise an error if it's >= 0.10.4
+            ibis_version = tuple(map(int, ibis.__version__.split(".")))
+            if ibis_version >= (0, 10, 4):
+                raise NotImplementedError(
+                    "Redshift is not properly supported by ibis as of version 0.10.4. "
+                    "Please use an older version of ibis."
+                )
         credentials = client.config.credentials.to_native_representation()
         con = ibis.connect(credentials)
     elif issubclass(destination.spec, SnowflakeClientConfiguration):
