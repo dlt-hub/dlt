@@ -726,8 +726,8 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # topk
     assert sql_from_expr(items_table.decimal.topk(10)) == (
         (
-            'SELECT * FROM ( SELECT "t0"."decimal", COUNT(*) AS "CountStar(items)" FROM'
-            ' "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1" ORDER BY "t1"."CountStar(items)" DESC'
+            'SELECT * FROM ( SELECT "t0"."decimal", COUNT(*) AS "decimal_count" FROM'
+            ' "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1" ORDER BY "t1"."decimal_count" DESC'
             " LIMIT 10"
         ),
         None,
