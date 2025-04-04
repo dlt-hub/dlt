@@ -143,36 +143,63 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         self, select_dialect: Optional[str], select_statement: str
     ) -> str:
         """
+        Generates an INSERT statement from a SELECT statement using sqlglot.
+        Transpiles the SELECT if needed and adjusts identifiers for the destination dialect.
         NOTE: Here we generate an insert statement from a select statement, this is the duckdb
         dialect, we may be able to transpile with sqlglot for each destination or we need
         to subclass and override this method.
         """
         sql_client = self._job_client.sql_client
-        name = sql_client.make_qualified_table_name(self._load_table["name"])
+        target_table = sql_client.make_qualified_table_name(self._load_table["name"])
+        target_catalog = sql_client.catalog_name(escape=False)
 
+        # Adjust separator for clickhouse-to-other
+        if (
+            self._job_client.config.destination_type != "clickhouse"
+            and select_dialect == "clickhouse"
+        ):
+            select_statement = select_statement.replace("___", '"."')
+
+        # Parse SELECT
         parsed_select_query = sqlglot.parse_one(select_statement, read=select_dialect)
-        destination_dialect = self._job_client.capabilities.sqlglot_dialect
 
-        if destination_dialect == select_dialect:
-            pass
-        # get rid of project name if destination is duckdb
-        elif destination_dialect == "duckdb":
-            for table in parsed_select_query.find_all(sqlglot.exp.Table):
-                if len(table.parts) == 3:
-                    table.set("this", sqlglot.exp.to_identifier(str(table.parts[2])))  # table
-                    table.set(
-                        "db", sqlglot.exp.to_identifier(str(table.parts[1]))
-                    )  # dataset (schema)
-                    table.set("catalog", None)  # remove project
+        # Adjust table parts (catalog/db/this) based on dialect and catalog presence
+        for table in parsed_select_query.find_all(sqlglot.exp.Table):
+            parts = list(table.parts)
+            if target_catalog:
+                if len(parts) == 3:
+                    table.set("catalog", sqlglot.exp.to_identifier(target_catalog))
+                    table.set("db", sqlglot.exp.to_identifier(parts[1].name))
+                    table.set("this", sqlglot.exp.to_identifier(parts[2].name))
+                elif len(parts) == 2:
+                    table.set("catalog", sqlglot.exp.to_identifier(target_catalog))
+                    table.set("db", sqlglot.exp.to_identifier(parts[0].name))
+                    table.set("this", sqlglot.exp.to_identifier(parts[1].name))
+            else:
+                if len(parts) == 3:
+                    table.set("catalog", None)
+                    table.set("db", sqlglot.exp.to_identifier(parts[1].name))
+                    table.set("this", sqlglot.exp.to_identifier(parts[2].name))
 
         normalized_select_query = parsed_select_query.sql(dialect=select_dialect)
+
+        destination_dialect = self._job_client.capabilities.sqlglot_dialect
         transpiled_select_query = sqlglot.transpile(
             normalized_select_query, read=select_dialect, write=destination_dialect
         )[0]
 
+        # Apply case folding if needed
+        if self._job_client.capabilities.has_case_sensitive_identifiers:
+            # We lowercase first for uniformity
+            transpiled_select_query = transpiled_select_query.lower()
+            transpiled_select_query = self._job_client.capabilities.casefold_identifier(
+                transpiled_select_query
+            )
+
+        # Build final INSERT
         query = sqlglot.expressions.insert(
             expression=transpiled_select_query,
-            into=name,
+            into=target_table,
             dialect=destination_dialect,
         ).sql(destination_dialect)
 
