@@ -32,7 +32,7 @@ class PostgresStagingCopyJob(SqlStagingCopyFollowupJob):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
-        params: Optional[SqlJobParams] = None,
+        params: SqlJobParams,
     ) -> List[str]:
         sql: List[str] = []
         for table in table_chain:

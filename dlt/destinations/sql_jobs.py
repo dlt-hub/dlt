@@ -31,6 +31,7 @@ from dlt.common.destination.exceptions import DestinationTransientException
 class SqlJobParams(TypedDict, total=False):
     replace: Optional[bool]
     table_chain_create_table_statements: Dict[str, Sequence[str]]
+    replace_strategy: Optional[str]
 
 
 DEFAULTS: SqlJobParams = {"replace": False}
@@ -88,7 +89,7 @@ class SqlFollowupJob(FollowupJobRequestImpl):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
-        params: Optional[SqlJobParams] = None,
+        params: SqlJobParams,
     ) -> List[str]:
         pass
 
@@ -118,7 +119,7 @@ class SqlStagingCopyFollowupJob(SqlFollowupJob):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
-        params: SqlJobParams = None,
+        params: SqlJobParams,
     ) -> List[str]:
         sql: List[str] = []
         for table in table_chain:
@@ -143,9 +144,13 @@ class SqlStagingCopyFollowupJob(SqlFollowupJob):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
-        params: SqlJobParams = None,
+        params: SqlJobParams,
     ) -> List[str]:
-        if params["replace"] and sql_client.capabilities.supports_clone_table:
+        if (
+            params["replace"]
+            and params["replace_strategy"] == "staging-optimized"
+            and sql_client.capabilities.supports_clone_table
+        ):
             return cls._generate_clone_sql(table_chain, sql_client)
         return cls._generate_insert_sql(table_chain, sql_client, params)
 
@@ -161,7 +166,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
-        params: Optional[SqlJobParams] = None,
+        params: SqlJobParams,
     ) -> List[str]:
         # resolve only root table
         root_table = table_chain[0]
