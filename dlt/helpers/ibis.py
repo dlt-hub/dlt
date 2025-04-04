@@ -197,12 +197,10 @@ def create_unbound_ibis_table(
     """Create an unbound ibis table from a dlt schema. Tables not in schema will be created
     without columns.
     """
-
+    # allow to create empty tables without schema to unify behavior with default relation
     if table_name not in schema.tables:
-        raise Exception(
-            f"Table {table_name} not found in schema. Available tables: {schema.tables.keys()}"
-        )
-    table_schema = schema.tables.get(table_name) or new_table(table_name)
+        schema.update_table(new_table(table_name))
+    table_schema = schema.tables[table_name]
 
     # Convert dlt table schema columns to ibis schema
     ibis_schema = {

@@ -593,7 +593,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         return
 
     # we check a bunch of expressions without executing them to see that they produce correct sql
-    # also we return the keys of the disovered schema columns
+    # also we return the keys of the discovered schema columns
     def sql_from_expr(expr: Any) -> Tuple[str, List[str]]:
         query = str(expr.query()).replace(populated_pipeline.dataset_name, "dataset")
         columns = list(expr.columns_schema.keys()) if expr.columns_schema else None

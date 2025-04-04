@@ -138,7 +138,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
             from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 
             unbound_table = create_unbound_ibis_table(self.sql_client, self.schema, table_name)
-            return ReadableIbisRelation(
+            return ReadableIbisRelation(  # type: ignore[abstract,return-value]
                 readable_dataset=self,
                 ibis_object=unbound_table,
                 columns_schema=self.schema.tables[table_name]["columns"],

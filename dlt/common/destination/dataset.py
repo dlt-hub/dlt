@@ -38,7 +38,6 @@ class SupportsReadableRelation(Protocol):
 
     """Represents relation as an query, currently always SQL"""
 
-    # accessing data
     def df(self, chunk_size: int = None) -> Optional[DataFrame]:
         """Fetches the results as data frame. For large queries the results may be chunked
 

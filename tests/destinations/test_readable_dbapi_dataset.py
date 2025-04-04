@@ -2,6 +2,7 @@
 import dlt
 import pytest
 
+from dlt.common.destination.typing import TDatasetType
 import dlt.destinations.dataset
 from dlt.destinations.dataset.exceptions import (
     ReadableRelationHasQueryException,
@@ -9,9 +10,12 @@ from dlt.destinations.dataset.exceptions import (
 )
 
 
-def test_query_builder() -> None:
+@pytest.mark.parametrize("dataset_type", ("default",))
+def test_query_builder(dataset_type: TDatasetType) -> None:
     dataset = dlt.destinations.dataset.dataset(
-        dlt.destinations.duckdb(destination_name="duck_db"), "pipeline_dataset"
+        dlt.destinations.duckdb(destination_name="duck_db"),
+        "pipeline_dataset",
+        dataset_type=dataset_type,
     )
 
     # default query for a table
@@ -57,16 +61,18 @@ def test_query_builder() -> None:
     )
 
 
-def test_copy_and_chaining() -> None:
+@pytest.mark.parametrize("dataset_type", ("default",))
+def test_copy_and_chaining(dataset_type: TDatasetType) -> None:
     dataset = dlt.destinations.dataset.dataset(
-        dlt.destinations.duckdb(destination_name="duck_db"), "pipeline_dataset"
+        dlt.destinations.duckdb(destination_name="duck_db"),
+        "pipeline_dataset",
+        dataset_type=dataset_type,
     )
 
-    # create releation and set some stuff on it
+    # create relation and set some stuff on it
     relation = dataset.items
     relation = relation.limit(34)
     relation = relation[["one", "two"]]
-    relation._schema_columns = {"one": {}, "two": {}}
 
     relation2 = relation.__copy__()
     assert relation != relation2
@@ -84,9 +90,12 @@ def test_copy_and_chaining() -> None:
     assert relation.limit(23).limit(67).limit(11)._limit == 11
 
 
-def test_computed_schema_columns() -> None:
+@pytest.mark.parametrize("dataset_type", ("default",))
+def test_computed_schema_columns(dataset_type: TDatasetType) -> None:
     dataset = dlt.destinations.dataset.dataset(
-        dlt.destinations.duckdb(destination_name="duck_db"), "pipeline_dataset"
+        dlt.destinations.duckdb(destination_name="duck_db"),
+        "pipeline_dataset",
+        dataset_type=dataset_type,
     )
     relation = dataset.items
 
@@ -108,14 +117,17 @@ def test_computed_schema_columns() -> None:
     # when selecting only one column, computing schema columns will only show that one
     assert relation.select("one").columns_schema == {"one": {"data_type": "text"}}
 
-    # selecting unkonwn column fails
+    # selecting unknown column fails
     with pytest.raises(ReadableRelationUnknownColumnException):
         relation["unknown_columns"]
 
 
-def test_prevent_changing_relation_with_query() -> None:
+@pytest.mark.parametrize("dataset_type", ("default",))
+def test_prevent_changing_relation_with_query(dataset_type: TDatasetType) -> None:
     dataset = dlt.destinations.dataset.dataset(
-        dlt.destinations.duckdb(destination_name="duck_db"), "pipeline_dataset"
+        dlt.destinations.duckdb(destination_name="duck_db"),
+        "pipeline_dataset",
+        dataset_type=dataset_type,
     )
     relation = dataset("SELECT * FROM something")
 

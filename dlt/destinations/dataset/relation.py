@@ -47,10 +47,6 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation):
     def sql_client(self) -> SqlClientBase[Any]:
         return self._dataset.sql_client
 
-    @property
-    def schema(self) -> Schema:
-        return self._dataset.schema
-
     def query(self) -> Any:
         # NOTE: converted from property to method due to:
         #   if this property raises AttributeError, __getattr__ will get called 🤯
@@ -120,8 +116,10 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         if self._provided_query:
             return self._provided_query
 
+        dataset_schema = self._dataset.schema
+
         table_name = self.sql_client.make_qualified_table_name(
-            self.schema.naming.normalize_path(self._table_name)
+            dataset_schema.naming.normalize_path(self._table_name)
         )
 
         maybe_limit_clause_1 = ""
@@ -135,7 +133,9 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         if self._selected_columns:
             selector = ",".join(
                 [
-                    self.sql_client.escape_column_name(self.schema.naming.normalize_tables_path(c))
+                    self.sql_client.escape_column_name(
+                        dataset_schema.naming.normalize_tables_path(c)
+                    )
                     for c in self._selected_columns
                 ]
             )
@@ -152,9 +152,12 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
 
     def compute_columns_schema(self) -> TTableSchemaColumns:
         """provide schema columns for the cursor, may be filtered by selected columns"""
+        dataset_schema = self._dataset.schema
 
         columns_schema = (
-            self.schema.tables.get(self._table_name, {}).get("columns", {}) if self.schema else {}
+            dataset_schema.tables.get(self._table_name, {}).get("columns", {})
+            if dataset_schema
+            else {}
         )
 
         if not columns_schema:
@@ -164,7 +167,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
 
         filtered_columns: TTableSchemaColumns = {}
         for sc in self._selected_columns:
-            sc = self.schema.naming.normalize_path(sc)
+            sc = dataset_schema.naming.normalize_path(sc)
             if sc not in columns_schema.keys():
                 raise ReadableRelationUnknownColumnException(sc)
             filtered_columns[sc] = columns_schema[sc]

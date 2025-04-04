@@ -10,9 +10,10 @@ from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
 
 if TYPE_CHECKING:
     from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
-    from dlt.helpers.ibis import Table as IbisTable
+    from dlt.helpers.ibis import Table as IbisTable, Expr as IbisEpr
 else:
     IbisTable = object
+    IbisEpr = Any
 
 
 # NOTE: some dialects are not supported by ibis, but by sqlglot, these need to
@@ -23,12 +24,12 @@ TRANSPILE_VIA_DEFAULT = [
 ]
 
 
-class ReadableIbisRelation(BaseReadableDBAPIRelation, IbisTable):
+class ReadableIbisRelation(BaseReadableDBAPIRelation):
     def __init__(
         self,
         *,
         readable_dataset: "ReadableDBAPIDataset[SupportsReadableRelation]",
-        ibis_object: Any = None,
+        ibis_object: IbisEpr = None,
         columns_schema: TTableSchemaColumns = None,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
@@ -51,7 +52,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation, IbisTable):
                 return ibis.to_sql(self._ibis_object, dialect=target_dialect)
 
         # here we need to transpile to ibis default and transpile back to target with sqlglot
-        # NOTE: ibis defaults to the default pretty dialect, if a dialect is not passed
+        # NOTE: ibis defaults to the duckdb dialect, if a dialect is not passed
         sql = ibis.to_sql(self._ibis_object)
         sql = sqlglot.transpile(sql, write=target_dialect)[0]
         return sql
