@@ -434,7 +434,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
             create_disposition=bigquery.CreateDisposition.CREATE_NEVER,
             source_format=source_format,
             decimal_target_types=decimal_target_types,
-            ignore_unknown_values=False,
+            ignore_unknown_values=self.config.ignore_unknown_values,
             max_bad_records=0,
         )
         if should_autodetect_schema(table):
@@ -463,6 +463,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
         self, table: PreparedTableSchema, job_config: bigquery.LoadJobConfig
     ) -> bigquery.LoadJobConfig:
         job_config.autodetect = True
+        job_config.ignore_unknown_values = self.config.ignore_unknown_values
         job_config.schema_update_options = bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION
         job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
         if partition_column_ := get_columns_names_with_prop(table, PARTITION_HINT):

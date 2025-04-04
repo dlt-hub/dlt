@@ -280,6 +280,7 @@ retry_deadline=60.0
 * `http_timeout` sets the timeout when connecting and getting a response from the BigQuery API (default: **15 seconds**)
 * `file_upload_timeout` is a timeout for file upload when loading local files: the total time of the upload may not exceed this value (default: **30 minutes**, set in seconds)
 * `retry_deadline` is a deadline for a [DEFAULT_RETRY used by Google](https://cloud.google.com/python/docs/reference/storage/1.39.0/retry_timeout)
+* `ignore_unknown_values` is a configuration option that allows BigQuery to ignore rows with unknown or unexpected values during data loading. When enabled, rows containing fields that are not defined in the schema will be skipped instead of causing the entire load job to fail. This can be useful when dealing with inconsistent or evolving data sources.
 
 ### dbt support
 
