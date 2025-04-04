@@ -88,6 +88,13 @@ def create_ibis_backend(
                 psycopg.types.TypeInfo.fetch = _ignore_hstore  # type: ignore[method-assign, unused-ignore]
             except Exception:
                 pass
+            # check ibis version and raise an error if it's >= 0.10.4
+            ibis_version = tuple(map(int, ibis.__version__.split(".")))
+            if ibis_version >= (0, 10, 4):
+                raise NotImplementedError(
+                    "Redshift is not properly supported by ibis as of version 0.10.4. "
+                    "Please use an older version of ibis."
+                )
         credentials = client.config.credentials.copy()
         # schema must be passed at path, `schema` argument does not work (overridden, probably a bug)
         credentials.database = credentials.database + "/" + client.sql_client.dataset_name
