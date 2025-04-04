@@ -24,6 +24,22 @@ TRANSPILE_VIA_DEFAULT = [
     "presto",
 ]
 
+EXECUTION_METHODS = (
+    "execute",
+    "to_csv",
+    "to_delta",
+    "to_json",
+    "to_pandas",
+    "to_pandas_batches",
+    "to_parquet",
+    "to_parquet_dir",
+    "to_polars",
+    "to_pyarrow",
+    "to_pyarrow_batches",
+    "to_torch",
+    "to_xlsx",
+)
+
 
 class ReadableIbisRelation(BaseReadableDBAPIRelation):
     def __init__(
@@ -58,6 +74,9 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         sql = sqlglot.transpile(sql, write=target_dialect)[0]
         return sql
 
+    def to_ibis(self) -> Expr:
+        return self._ibis_object
+
     @property
     def columns_schema(self) -> TTableSchemaColumns:
         return self.compute_columns_schema()
@@ -71,8 +90,104 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         # TODO: provide column lineage tracing with sqlglot lineage
         return self._columns_schema
 
+    def _proxy_execution_method(self, method_name: str, *args: Any, **kwargs: Any) -> Any:
+        assert method_name in EXECUTION_METHODS
+        # NOTE should the connection be explicitly closed?
+        con = self._dataset.ibis()
+
+        # we can't use `con.__getattr__` to proxy methods because this is explicitly prevented by Ibis
+        if method_name == "execute":
+            result = con.execute(self._ibis_object, *args, **kwargs)
+
+        elif method_name == "to_csv":
+            result = con.to_csv(self._ibis_object, *args, **kwargs)
+
+        elif method_name == "to_delta":
+            # reimplements the Ibis code: https://github.com/ibis-project/ibis/blob/8e813b0a73c6898273ffc688dc1eebfe56029a6d/ibis/backends/__init__.py#L554
+            # because it uses `.to_pyarrow_batches` under the hood, which we can't proxy
+            try:
+                from deltalake.writer import write_deltalake
+            except MissingDependencyException:
+                raise MissingDependencyException(
+                    "ReadableIbisRelation",
+                    ["deltalake"],
+                    "Install `dlt[deltalake]` to use `.to_delta()`",
+                )
+
+            # `path` is required, but it can be can be positional or keyword
+            path = args[0] if args else None
+            if path is None:
+                path = kwargs.pop("path")
+            params = kwargs.pop("params", None)
+
+            with con.to_pyarrow_batches(self._ibis_object, params=params) as batch_reader:
+                result = write_deltalake(path, batch_reader, **kwargs)
+
+        elif method_name == "to_json":
+            result = con.to_json(self._ibis_object, *args, **kwargs)
+
+        elif method_name == "to_pandas":
+            result = con.to_pandas(self._ibis_object, *args, **kwargs)
+
+        elif method_name == "to_pandas_batches":
+            result = con.to_pandas_batches(self._ibis_object, *args, **kwargs)
+
+        elif method_name == "to_parquet":
+            result = con.to_parquet(self._ibis_object, *args, **kwargs)
+
+        elif method_name == "to_parquet_dir":
+            # reimplements the Ibis code https://github.com/ibis-project/ibis/blob/8e813b0a73c6898273ffc688dc1eebfe56029a6d/ibis/backends/__init__.py#L508
+            # because it uses `.to_pyarrow_batches` under the hood, which we can't proxy
+            try:
+                import pyarrow.dataset as ds
+            except MissingDependencyException:
+                raise MissingDependencyException(
+                    "ReadableIbisRelation",
+                    ["pyarrow"],
+                    "Install `pyarrow` to use `.to_parquet_dir()`",
+                )
+
+            # `directory` is required, but it can be can be positional or keyword
+            directory = args[0] if args else None
+            if directory is None:
+                directory = kwargs.pop("directory")
+            params = kwargs.pop("params", None)
+
+            with con.to_pyarrow_batches(self._ibis_object, params=params) as batch_reader:
+                result = ds.write_dataset(
+                    batch_reader, base_dir=directory, format="parquet", **kwargs
+                )
+
+        elif method_name == "to_polars":
+            result = con.to_polars(self._ibis_object, *args, **kwargs)
+
+        elif method_name == "to_pyarrow":
+            result = con.to_pyarrow(self._ibis_object, *args, **kwargs)
+
+        elif method_name == "to_pyarrow_batches":
+            result = con.to_pyarrow_batches(self._ibis_object, *args, **kwargs)
+
+        elif method_name == "to_torch":
+            result = con.to_torch(self._ibis_object, *args, **kwargs)
+
+        elif method_name == "to_xlsx":
+            result = con.to_xlsx(self._ibis_object, *args, **kwargs)
+
+        else:
+            raise ValueError(
+                f"Method `{method_name}` is unsupported. If you think this is an error, please open"
+                " a GitHub issue."
+            )
+
+        con.disconnect()
+
+        return result
+
     def _proxy_expression_method(self, method_name: str, *args: Any, **kwargs: Any) -> Any:
         """Proxy method calls to the underlying ibis expression, allowing to wrap the resulting expression in a new relation"""
+
+        if method_name in EXECUTION_METHODS:
+            return self._proxy_execution_method(method_name, *args, **kwargs)
 
         # Get the method from the expression
         method = getattr(self._ibis_object, method_name)

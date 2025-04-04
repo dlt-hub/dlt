@@ -3,6 +3,7 @@ import re
 import pytest
 import dlt
 import os
+import pathlib
 
 from dlt import Pipeline
 from dlt.common import Decimal
@@ -799,6 +800,45 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     items_table = ibis_connection.table(add_table_prefix(map_i("items")), database=dataset_name)
     assert items_table.count().to_pandas() == total_records
     ibis_connection.disconnect()
+
+
+# TODO better fixture to test with a single destination
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    [
+        c
+        for c in configs
+        if c[0][0].destination_type == "duckdb"  # type: ignore[index]
+        and c[0][0].file_format is None  # type: ignore[index]
+    ],
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_ibis_execution_proxy(populated_pipeline: Pipeline, tmp_path: pathlib.Path) -> None:
+    """Check that execution methods can be used on unbound tables.
+
+    If the test passes on a destination, it should work on other destination given
+    the Ibis connection is valid.
+    """
+    unbound_table_relation = populated_pipeline.dataset(dataset_type="ibis").items
+
+    unbound_table_relation.execute()
+    unbound_table_relation.to_csv(path=tmp_path / "file.csv")
+    unbound_table_relation.to_xlsx(path=tmp_path / "file.xlsx")
+    unbound_table_relation.to_json(path=tmp_path / "file.json")
+    unbound_table_relation.to_parquet(path=tmp_path / "file.parquet")
+    unbound_table_relation.to_delta(path=tmp_path / "file.delta")
+    unbound_table_relation.to_parquet_dir(directory=tmp_path / "parquet_dir")
+
+    unbound_table_relation.to_pandas()
+    unbound_table_relation.to_pandas_batches()
+    unbound_table_relation.to_pyarrow()
+    unbound_table_relation.to_pyarrow_batches()
+    # should work, don't want to add pytorch and polars as dependencies
+    # unbound_table_relation.to_torch()
+    # unbound_table_relation.to_polars()
 
 
 @pytest.mark.no_load
