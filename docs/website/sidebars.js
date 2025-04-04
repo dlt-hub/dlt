@@ -89,6 +89,7 @@ const sidebars = {
             'plus/ecosystem/ms-sql',
             'plus/ecosystem/iceberg',
             'plus/ecosystem/delta',
+            'plus/ecosystem/snowflake_plus',
           ]
         },
         {
