@@ -376,8 +376,7 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         # create unique tag for iceberg table so it is never recreated in the same folder
         # athena requires some kind of special cleaning (or that is a bug) so we cannot refresh
         # iceberg tables without it
-        # NOTE: problem seems to be gone! see test_iceberg_location_tag
-        location_tag = ""  # uniq_id(6) if create_iceberg else ""
+        location_tag = "" + uniq_id(6) if create_iceberg else ""
         # this will fail if the table prefix is not properly defined
         table_prefix = self.table_prefix_layout.format(table_name=table_name + location_tag)
         location = f"{bucket}/{dataset}/{table_prefix}"
