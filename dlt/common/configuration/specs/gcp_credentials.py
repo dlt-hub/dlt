@@ -15,7 +15,7 @@ from dlt.common.configuration.specs.exceptions import (
 )
 from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials, WithPyicebergConfig
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.typing import DictStrAny, TSecretStrValue, StrAny
+from dlt.common.typing import DictStrAny, TSecretStrValue, StrAny, Self
 from dlt.common.configuration.specs.base_configuration import (
     CredentialsConfiguration,
     CredentialsWithDefault,
@@ -25,7 +25,7 @@ from dlt.common.utils import is_interactive
 
 
 @configspec
-class GcpCredentials(CredentialsConfiguration, WithObjectStoreRsCredentials, WithPyicebergConfig):
+class GcpCredentials(CredentialsConfiguration, WithObjectStoreRsCredentials):
     token_uri: Final[str] = dataclasses.field(
         default="https://oauth2.googleapis.com/token", init=False, repr=False, compare=False
     )
@@ -77,7 +77,7 @@ class GcpCredentials(CredentialsConfiguration, WithObjectStoreRsCredentials, Wit
 
 
 @configspec
-class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials):
+class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials, WithPyicebergConfig):
     private_key: TSecretStrValue = None
     private_key_id: Optional[str] = None
     client_email: str = None
@@ -134,12 +134,19 @@ class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials):
             " authentication instead."
         )
 
+    @classmethod
+    def from_pyiceberg_fileio_config(cls, file_io: Dict[str, Any]) -> Self:
+        raise UnsupportedAuthenticationMethodException(
+            "Service Account authentication not supported with `iceberg` table format. Use OAuth"
+            " authentication instead."
+        )
+
     def __str__(self) -> str:
         return f"{self.client_email}@{self.project_id}"
 
 
 @configspec
-class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
+class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials, WithPyicebergConfig):
     # only desktop app supported
     refresh_token: TSecretStrValue = None
     client_type: Final[str] = dataclasses.field(
@@ -197,6 +204,15 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
             "gcs.oauth2.token-expires-at": (pendulum.now().timestamp() + 60) * 1000,
         }
 
+    @classmethod
+    def from_pyiceberg_fileio_config(cls, file_io: Dict[str, Any]) -> Self:
+        credentials: Self = cls()
+        credentials.project_id = file_io.get("gcs.project-id")
+        credentials.token = file_io.get("gcs.oauth2.token")
+        # if token and project are set, credentials are resolved
+        credentials.on_partial()
+        return credentials
+
     def auth(self, scopes: Union[str, List[str]] = None, redirect_url: str = None) -> None:
         if not self.refresh_token:
             self.add_scopes(scopes)
@@ -221,6 +237,11 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
             if not self.is_partial():
                 self.resolve()
             self.refresh_token = None
+        # if token and project are set, credentials are resolved
+        if self.token and self.project_id:
+            self.refresh_token = ""
+            self.client_id = ""
+            self.resolve()
 
     def _get_access_token(self) -> str:
         try:
@@ -329,12 +350,6 @@ class GcpDefaultCredentials(CredentialsWithDefault, GcpCredentials):
         else:
             return super().to_native_credentials()
 
-    def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
-        raise UnsupportedAuthenticationMethodException(
-            "Application Default Credentials authentication not supported with `iceberg` table"
-            " format. Use OAuth authentication instead."
-        )
-
 
 @configspec
 class GcpServiceAccountCredentials(
@@ -359,6 +374,6 @@ class GcpOAuthCredentials(GcpDefaultCredentials, GcpOAuthCredentialsWithoutDefau
 
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
         if self.has_default_credentials():
-            return GcpDefaultCredentials.to_pyiceberg_fileio_config(self)
+            raise NotImplementedError()
         else:
             return GcpOAuthCredentialsWithoutDefaults.to_pyiceberg_fileio_config(self)
