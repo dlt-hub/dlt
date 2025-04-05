@@ -71,8 +71,9 @@ def create_ibis_backend(
         con.raw_sql(f"SET search_path = '{dataset_name}';")
     elif issubclass(destination.spec, PostgresClientConfiguration):
         from dlt.destinations.impl.postgres.postgres import PostgresClient
+        from dlt.destinations.impl.redshift.redshift import RedshiftClient
 
-        assert isinstance(client, PostgresClient)
+        assert isinstance(client, (PostgresClient, RedshiftClient))
         if destination.spec is RedshiftClientConfiguration:
             # patch psycopg
             try:
