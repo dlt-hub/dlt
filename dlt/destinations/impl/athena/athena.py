@@ -317,7 +317,7 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     ) -> None:
         # verify if staging layout is valid for Athena
         # this will raise if the table prefix is not properly defined
-        # we actually that {table_name} is first, no {schema_name} is allowed
+        # we actually make sure that {table_name} is first, no {schema_name} is allowed
         if config.staging_config:
             self.table_prefix_layout = path_utils.get_table_prefix_layout(
                 config.staging_config.layout,
@@ -376,24 +376,27 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         create_iceberg = self._is_iceberg_table(table, self.in_staging_dataset_mode)
         columns = ", ".join([self._get_column_def_sql(c, table) for c in new_columns])
 
-        # create unique tag for iceberg table so it is never recreated in the same folder
-        # athena requires some kind of special cleaning (or that is a bug) so we cannot refresh
-        # iceberg tables without it
-        location_tag = uniq_id(6) if create_iceberg else ""
-        # this will fail if the table prefix is not properly defined
-        table_prefix = self.table_prefix_layout.format(table_name=table_name + location_tag)
-        location = f"{bucket}/{dataset}/{table_prefix}"
-
         # use qualified table names
         qualified_table_name = self.sql_client.make_qualified_ddl_table_name(table_name)
         if generate_alter:
             # alter table to add new columns at the end
             sql.append(f"""ALTER TABLE {qualified_table_name} ADD COLUMNS ({columns});""")
         else:
+            table_prefix = self.table_prefix_layout.format(table_name=table_name)
             if create_iceberg:
                 partition_clause = self._iceberg_partition_clause(
                     cast(Optional[Dict[str, str]], table.get(PARTITION_HINT))
                 )
+                # create unique tag for iceberg table so it is never recreated in the same folder
+                # athena requires some kind of special cleaning (or that is a bug) so we cannot refresh
+                # iceberg tables without it, by default tag is not added
+                location = f"{bucket}/" + self.config.table_location_layout.format(
+                    dataset_name=dataset,
+                    table_name=table_prefix.rstrip("/"),
+                    location_tag=uniq_id(6),
+                )
+                logger.info(f"Will create ICEBERG table {table_name} in {location}")
+                # this will fail if the table prefix is not properly defined
                 sql.append(f"""{self._make_create_table(qualified_table_name, table)}
                         ({columns})
                         {partition_clause}
@@ -405,6 +408,9 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
             #             ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
             #             LOCATION '{location}';""")
             else:
+                # external tables always here
+                location = f"{bucket}/{dataset}/{table_prefix}"
+                logger.info(f"Will create EXTERNAL table {table_name} from {location}")
                 sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}
                         ({columns})
                         STORED AS PARQUET

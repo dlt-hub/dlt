@@ -16,6 +16,8 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     athena_work_group: Optional[str] = None
     aws_data_catalog: Optional[str] = "awsdatacatalog"
     force_iceberg: Optional[bool] = None
+    # possible placeholders: {dataset_name}, {table_name}, {location_tag}
+    table_location_layout: Optional[str] = "{dataset_name}/{table_name}"
 
     __config_gen_annotations__: ClassVar[List[str]] = ["athena_work_group"]
 
