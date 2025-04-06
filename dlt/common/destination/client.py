@@ -21,7 +21,11 @@ import datetime  # noqa: 251
 from dlt.common import logger, pendulum
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
 from dlt.common.destination.typing import PreparedTableSchema
-from dlt.common.destination.utils import verify_schema_capabilities, verify_supported_data_types
+from dlt.common.destination.utils import (
+    resolve_replace_strategy,
+    verify_schema_capabilities,
+    verify_supported_data_types,
+)
 from dlt.common.exceptions import TerminalException
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.normalizers.naming import NamingConvention
@@ -187,8 +191,8 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
         default=None, init=False, repr=False, compare=False
     )
     """name of default schema to be used to name effective dataset to load data to"""
-    replace_strategy: TLoaderReplaceStrategy = "truncate-and-insert"
-    """How to handle replace disposition for this destination, can be classic or staging"""
+    replace_strategy: Optional[TLoaderReplaceStrategy] = None
+    """How to handle replace disposition for this destination, uses first strategy from caps if not declared"""
     staging_dataset_name_layout: str = "%s_staging"
     """Layout for staging dataset, where %s is replaced with dataset name. placeholder is optional"""
     enable_dataset_name_normalization: bool = True

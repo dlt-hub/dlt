@@ -74,7 +74,6 @@ class AzureCredentialsWithoutDefaults(AzureCredentialsBase, WithPyicebergConfig)
         # convert signed uri to credentials
         for key, value in list(file_io.items()):
             if key.startswith("adls.sas-token."):
-                # key.replace(f"{ADLS_SAS_TOKEN}.", ""): value for key, value in properties.items() if key.startswith(ADLS_SAS_TOKEN)
                 if "adls.account-name" not in file_io:
                     file_io["adls.account-name"] = key.split(".")[2]
                 if "adls.sas-token" not in file_io:

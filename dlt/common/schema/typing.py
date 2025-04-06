@@ -227,6 +227,7 @@ TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "
 
 WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
 MERGE_STRATEGIES: Set[TLoaderMergeStrategy] = set(get_args(TLoaderMergeStrategy))
+REPLACE_STRATEGIES: Set[TLoaderReplaceStrategy] = set(get_args(TLoaderReplaceStrategy))
 
 DEFAULT_VALIDITY_COLUMN_NAMES = ["_dlt_valid_from", "_dlt_valid_to"]
 """Default values for validity column names used in `scd2` merge strategy."""

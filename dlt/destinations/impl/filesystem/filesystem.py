@@ -22,7 +22,7 @@ from fsspec import AbstractFileSystem
 
 import dlt
 from dlt.common import logger, time, json, pendulum
-from dlt.common.destination.utils import resolve_merge_strategy
+from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace_strategy
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
@@ -57,7 +57,6 @@ from dlt.common.destination.client import (
     StateInfo,
     LoadJob,
 )
-from dlt.common.destination.dataset import SupportsReadableRelation
 from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
     OpenTableCatalogNotSupported,
@@ -72,7 +71,10 @@ from dlt.destinations.job_impl import (
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations import path_utils
 from dlt.destinations.fs_client import FSClientBase
-from dlt.destinations.utils import verify_schema_merge_disposition
+from dlt.destinations.utils import (
+    verify_schema_merge_disposition,
+    verify_schema_replace_disposition,
+)
 
 INIT_FILE_NAME = "init"
 FILENAME_SEPARATOR = "__"
@@ -390,6 +392,16 @@ class FilesystemClient(
             for exception in exceptions:
                 logger.error(str(exception))
             raise exceptions[0]
+        if exceptions := verify_schema_replace_disposition(
+            self.schema,
+            loaded_tables,
+            self.capabilities,
+            self.config.replace_strategy,
+            warnings=True,
+        ):
+            for exception in exceptions:
+                logger.error(str(exception))
+            raise exceptions[0]
         return loaded_tables
 
     def update_stored_schema(
@@ -428,6 +440,10 @@ class FilesystemClient(
                 table["write_disposition"] = "append"
             else:
                 table["x-merge-strategy"] = merge_strategy  # type: ignore[typeddict-unknown-key]
+        if table["write_disposition"] == "replace":
+            replace_strategy = resolve_replace_strategy(table, self.config.replace_strategy)
+            assert replace_strategy, f"Must be able to get replace strategy for {table_name}"
+            table["x-replace-strategy"] = replace_strategy  # type: ignore[typeddict-unknown-key]
         if table["name"].startswith(DLT_NAME_PREFIX):
             table.pop("table_format", None)
         return table

@@ -81,10 +81,6 @@ def test_secrets_management(
     external_db = _external_duckdb_connection()
     fs_sql_client = _fs_sql_client_for_external_db(external_db, persist_secrets=True)
     with fs_sql_client as sql_client:
-        # fs_sql_client.create_authentication(
-        #     fs_sql_client.remote_client.config.bucket_url,
-        #     fs_sql_client.remote_client.config.credentials,
-        # )
         assert _secrets_exist()
 
     # remove secrets and check that they are removed
@@ -103,10 +99,6 @@ def test_secrets_management(
     with pytest.raises(Exception):
         with fs_sql_client as sql_client:
             pass
-            # fs_sql_client.create_authentication(
-            #     fs_sql_client.remote_client.config.bucket_url,
-            #     fs_sql_client.remote_client.config.credentials,
-            # )
 
     # check that no warning was logged
     logger_spy.assert_not_called()
@@ -118,11 +110,6 @@ def test_secrets_management(
     fs_sql_client = _fs_sql_client_for_external_db(duck_db, persist_secrets=True)
     with fs_sql_client as sql_client:
         pass
-        # sql_client.create_authentication(
-        #     fs_sql_client.remote_client.config.bucket_url,
-        #     fs_sql_client.remote_client.config.credentials,
-        #     persistent=True,
-        # )
     logger_spy.assert_called_once()
     assert warning_mesage in logger_spy.call_args_list[0][0][0]
     duck_db.close()

@@ -11,18 +11,16 @@ from dlt.common.pipeline import SupportsPipeline
 from dlt.common.destination import Destination
 from dlt.common.destination.client import WithStagingDataset
 from dlt.common.schema.schema import Schema
-from dlt.common.schema.typing import VERSION_TABLE_NAME
+from dlt.common.schema.typing import VERSION_TABLE_NAME, REPLACE_STRATEGIES
 from dlt.common.schema.utils import new_table
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
 from dlt.common.exceptions import TerminalValueError
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
-from dlt.destinations import filesystem, redshift
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.extract.exceptions import ResourceNameMissing
 from dlt.extract.source import DltSource
-from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import (
     CannotRestorePipelineException,
     PipelineConfigMissing,
@@ -47,7 +45,7 @@ from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
 )
-from tests.load.pipeline.utils import REPLACE_STRATEGIES, skip_if_unsupported_replace_strategy
+from tests.load.pipeline.utils import skip_if_unsupported_replace_strategy
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential

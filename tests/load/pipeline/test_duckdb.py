@@ -228,8 +228,11 @@ def test_append_column_with_hint(destination_config: DestinationTestConfiguratio
 
     data = [{"a": 1, "b": 2}, {"a": 1}]
     pipeline.run(data, table_name="data")
-    # nullability info will be ignored on ALTER TABLE
-    pipeline.run([{"c": "X"}], table_name="data", columns={"c": {"nullable": False}})
+    # nullability info is not ignored on ALTER TABLE
+    # duckdb prevents adding any constraints on ALTER TABLE
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run([{"c": "X"}], table_name="data", columns={"c": {"nullable": False}})
+    assert pip_ex.value.step == "load"
 
 
 @pytest.mark.parametrize(

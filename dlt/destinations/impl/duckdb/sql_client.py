@@ -248,11 +248,6 @@ class WithTableScanners(DuckDbSqlClient):
             self.memory_db = duckdb.connect(":memory:")
             cache_db = DuckDbCredentials(self.memory_db)
 
-        # figure out dataset name
-        # assert isinstance(
-        #     remote_client.config, DestinationClientDwhConfiguration
-        # ), f"Remote client {remote_client} does not support datasets"
-
         from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory
 
         super().__init__(
