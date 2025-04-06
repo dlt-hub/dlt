@@ -85,19 +85,19 @@ class DuckDbClient(InsertValuesJobClient):
     ) -> TColumnType:
         return self.type_mapper.from_destination_type(pq_t, precision, scale)
 
-    def _make_add_column_sql(
-        self, new_columns: Sequence[TColumnSchema], table: PreparedTableSchema = None
-    ) -> List[str]:
-        # skip nullability on duckdb
-        new_columns = list(new_columns)
-        for idx, c in enumerate(new_columns):
-            if not has_default_column_prop_value("nullable", c.get("nullable")):
-                logger.warning(
-                    f"Adding new NOT NULL column '{c['name']}' to existing table '{table['name']}'"
-                    " on duckdb. NOT NULL will be ignored."
-                )
-                # make copy so original new column is not changed
-                new_columns[idx] = copy(c)
-                new_columns[idx]["nullable"] = True
+    # def _make_add_column_sql(
+    #     self, new_columns: Sequence[TColumnSchema], table: PreparedTableSchema = None
+    # ) -> List[str]:
+    #     # skip nullability on duckdb
+    #     new_columns = list(new_columns)
+    #     for idx, c in enumerate(new_columns):
+    #         if not has_default_column_prop_value("nullable", c.get("nullable")):
+    #             logger.warning(
+    #                 f"Adding new NOT NULL column '{c['name']}' to existing table '{table['name']}'"
+    #                 " on duckdb. NOT NULL will be ignored."
+    #             )
+    #             # make copy so original new column is not changed
+    #             new_columns[idx] = copy(c)
+    #             new_columns[idx]["nullable"] = True
 
-        return [f"ADD COLUMN {self._get_column_def_sql(c, table)}" for c in new_columns]
+    #     return [f"ADD COLUMN {self._get_column_def_sql(c, table)}" for c in new_columns]

@@ -197,7 +197,9 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials, With
         )
 
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
-        self.auth()
+        # do auth only if token is not yet present
+        if not self.token:
+            self.auth()
         return {
             "gcs.project-id": self.project_id,
             "gcs.oauth2.token": self.token,
