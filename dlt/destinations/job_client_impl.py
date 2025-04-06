@@ -72,6 +72,8 @@ from dlt.destinations.utils import (
 
 # this should suffice for now
 DDL_COMMANDS = ["ALTER", "CREATE", "DROP"]
+# TODO: move to respective sql clients
+UNLOGGED_COMMANDS = ["ALTER SCHEMA"]
 
 
 class SqlLoadJob(RunnableLoadJob):
@@ -97,7 +99,7 @@ class SqlLoadJob(RunnableLoadJob):
         if (
             self._job_client.capabilities.supports_ddl_transactions
             or not self._string_contains_ddl_queries(sql)
-        ):
+        ) and not self._has_out_of_transaction_commands(sql):
             with self._sql_client.begin_transaction():
                 yield
         else:
@@ -105,6 +107,12 @@ class SqlLoadJob(RunnableLoadJob):
 
     def _string_contains_ddl_queries(self, sql: str) -> bool:
         for cmd in DDL_COMMANDS:
+            if re.search(cmd, sql, re.IGNORECASE):
+                return True
+        return False
+
+    def _has_out_of_transaction_commands(self, sql: str) -> bool:
+        for cmd in UNLOGGED_COMMANDS:
             if re.search(cmd, sql, re.IGNORECASE):
                 return True
         return False
@@ -237,7 +245,9 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         load_table = super().prepare_load_table(table_name)
         # apply x-replace-strategy (still unofficial)
         if load_table["write_disposition"] == "replace":
-            replace_strategy = resolve_replace_strategy(load_table, self.config.replace_strategy)
+            replace_strategy = resolve_replace_strategy(
+                load_table, self.config.replace_strategy, self.capabilities
+            )
             assert replace_strategy, f"Must be able to get replace strategy for {table_name}"
             load_table["x-replace-strategy"] = replace_strategy  # type: ignore[typeddict-unknown-key]
         return load_table

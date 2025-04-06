@@ -106,7 +106,7 @@ def verify_schema_replace_disposition(
             continue
         table_name = table["name"]
         if table["write_disposition"] == "replace":
-            if not resolve_replace_strategy(table, required_strategy):
+            if not resolve_replace_strategy(table, required_strategy, capabilities):
                 format_info = ""
                 if capabilities.supported_table_formats:
                     format_info = (

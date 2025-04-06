@@ -11,12 +11,14 @@ def skip_if_unsupported_replace_strategy(
         destination_config.raw_capabilities().supported_replace_strategies
     )
     # hardcoded exclusions (that require table schema and selector to be used, here it is not available)
-    if (
-        destination_config.destination_type == "athena"
-        and not destination_config.force_iceberg
-        and destination_config.table_format != "iceberg"
-    ):
+    is_athena = destination_config.destination_type == "athena"
+    is_iceberg = destination_config.force_iceberg or destination_config.table_format == "iceberg"
+
+    if is_athena and not is_iceberg:
         supported_replace_strategies = ["truncate-and-insert"]
+
+    if is_athena and is_iceberg:
+        supported_replace_strategies = ["insert-from-staging"]
 
     if replace_strategy not in supported_replace_strategies:
         pytest.skip(

@@ -430,7 +430,7 @@ class FilesystemClient(
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
         table = super().prepare_load_table(table_name)
         if self.config.as_staging_destination:
-            if table["write_disposition"] == "merge":
+            if table["write_disposition"] in ("merge", "replace"):
                 table["write_disposition"] = "append"
             table.pop("table_format", None)
         merge_strategy = resolve_merge_strategy(self.schema.tables, table, self.capabilities)
@@ -441,7 +441,9 @@ class FilesystemClient(
             else:
                 table["x-merge-strategy"] = merge_strategy  # type: ignore[typeddict-unknown-key]
         if table["write_disposition"] == "replace":
-            replace_strategy = resolve_replace_strategy(table, self.config.replace_strategy)
+            replace_strategy = resolve_replace_strategy(
+                table, self.config.replace_strategy, self.capabilities
+            )
             assert replace_strategy, f"Must be able to get replace strategy for {table_name}"
             table["x-replace-strategy"] = replace_strategy  # type: ignore[typeddict-unknown-key]
         if table["name"].startswith(DLT_NAME_PREFIX):
