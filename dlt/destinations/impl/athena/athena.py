@@ -447,7 +447,9 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         if self._is_iceberg_table(table_chain[0]):
             return [
                 SqlStagingCopyFollowupJob.from_table_chain(
-                    table_chain, self.sql_client, {"replace": True}
+                    table_chain,
+                    self.sql_client,
+                    {"replace": True, "replace_strategy": self.config.replace_strategy},
                 )
             ]
         return super()._create_replace_followup_jobs(table_chain)

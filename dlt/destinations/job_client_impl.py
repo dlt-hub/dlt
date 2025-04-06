@@ -253,7 +253,9 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         if self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]:
             jobs.append(
                 SqlStagingCopyFollowupJob.from_table_chain(
-                    table_chain, self.sql_client, {"replace": True}
+                    table_chain,
+                    self.sql_client,
+                    params={"replace": True, "replace_strategy": self.config.replace_strategy},
                 )
             )
         return jobs
