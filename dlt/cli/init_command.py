@@ -305,15 +305,23 @@ def list_destinations_command() -> None:
         msg = "%s" % fmt.bold(destination_name)
         fmt.echo(msg)
 
-
 def init_command(
     source_name: str,
     destination_type: str,
     repo_location: str,
     branch: str = None,
     eject_source: bool = False,
-) -> None:
+    dry_run: bool = False,
+    skip_example_pipeline_script: bool = False,
+) -> Tuple[
+    Dict[str, str],
+    Dict[str, WritableConfigValue], Dict[str, WritableConfigValue], Dict[str, SourceReference]
+]:
+    skip_destination_config = True if not destination_type else False
+    
+    print ('aaaaaaaaaaaaaaaaaaaaa')
     # try to import the destination and get config spec
+
     destination_reference = Destination.from_reference(destination_type)
     destination_spec = destination_reference.spec
 
@@ -530,9 +538,10 @@ def init_command(
             )
 
     # add destination spec to required secrets
-    required_secrets["destinations:" + destination_type] = WritableConfigValue(
-        destination_type, destination_spec, None, ("destination",)
-    )
+    if not skip_example_pipeline_script:
+        required_secrets["destinations:" + destination_type] = WritableConfigValue(
+            destination_type, destination_spec, None, ("destination",)
+        )
     # add the global telemetry to required config
     required_config["runtime.dlthub_telemetry"] = WritableConfigValue(
         "dlthub_telemetry", bool, utils.get_telemetry_status(), ("runtime",)
@@ -612,6 +621,18 @@ def init_command(
                 ),
             )
         )
+    # if dry-run, do not actually modify storage, just return file content
+    pipeline_script_target_path =  dest_storage.make_full_path(
+            os.path.join(run_ctx.get_run_entity("sources"), source_configuration.dest_pipeline_script)
+    )
+    if dry_run:
+        files_to_create: Dict[str, str] = {}
+        for source_path, dest_path in copy_files:
+            files_to_create[dest_path]= dest_storage.load(source_path)
+        if not skip_example_pipeline_script:
+            files_to_create[pipeline_script_target_path] = dest_script_source
+        # todo also delete files like below
+        return files_to_create, required_config, required_secrets, checked_sources
 
     # modify storage at the end
     for src_path, dest_path in copy_files:
@@ -626,8 +647,8 @@ def init_command(
             source_name, remote_index, remote_modified, remote_deleted
         )
     # create script
-    if not dest_storage.has_file(source_configuration.dest_pipeline_script):
-        dest_storage.save(source_configuration.dest_pipeline_script, dest_script_source)
+    if not dest_storage.has_file(source_configuration.dest_pipeline_script) and not skip_example_pipeline_script:
+        dest_storage.save(pipeline_script_target_path, dest_script_source)
 
     # generate tomls with comments
     secrets_prov = SecretsTomlProvider(settings_dir=run_ctx.settings_dir)
@@ -644,3 +665,5 @@ def init_command(
     if dependency_system is None:
         requirements_txt = "\n".join(source_configuration.requirements.compiled())
         dest_storage.save(utils.REQUIREMENTS_TXT, requirements_txt)
+
+    return copy_files, required_config, required_secrets, checked_sources
