@@ -456,6 +456,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
                 "no such",
                 "not found",
                 "not exist",
+                "unknown",
             ]
             for pat_ in terminal_patterns:
                 if pat_ in msg:

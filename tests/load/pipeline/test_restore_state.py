@@ -10,11 +10,10 @@ from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.schema import Schema, utils
 from dlt.common.schema.utils import normalize_table_identifiers
 from dlt.common.utils import uniq_id
-from dlt.common.destination.exceptions import DestinationUndefinedEntity
+from dlt.common.destination.exceptions import DestinationUndefinedEntity, SqlClientNotAvailable
 from dlt.common.destination.client import WithStateSync
 
 from dlt.load import Load
-from dlt.pipeline.exceptions import SqlClientNotAvailable
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state_sync import (
     load_pipeline_state_from_destination,

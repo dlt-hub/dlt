@@ -218,3 +218,21 @@ class OpenTableCatalogNotSupported(DestinationTerminalException):
             f"Catalog not supported for table format {table_format} in {destination_type} "
             "destination"
         )
+
+
+class SqlClientNotAvailable(DestinationTerminalException):
+    def __init__(self, pipeline_name: str, destination_name: str) -> None:
+        super().__init__(
+            pipeline_name,
+            f"SQL Client not available for destination {destination_name} in pipeline"
+            f" {pipeline_name}",
+        )
+
+
+class FSClientNotAvailable(DestinationTerminalException):
+    def __init__(self, pipeline_name: str, destination_name: str) -> None:
+        super().__init__(
+            pipeline_name,
+            f"Filesystem Client not available for destination {destination_name} in pipeline"
+            f" {pipeline_name}",
+        )

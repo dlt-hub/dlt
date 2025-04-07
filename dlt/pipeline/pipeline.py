@@ -75,6 +75,7 @@ from dlt.common.destination.client import (
     DestinationClientStagingConfiguration,
 )
 from dlt.common.destination.dataset import SupportsReadableDataset
+from dlt.common.destination.exceptions import SqlClientNotAvailable, FSClientNotAvailable
 from dlt.common.destination.typing import TDatasetType
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.pipeline import (
@@ -121,8 +122,6 @@ from dlt.pipeline.exceptions import (
     PipelineNeverRan,
     PipelineNotActive,
     PipelineStepFailed,
-    SqlClientNotAvailable,
-    FSClientNotAvailable,
 )
 from dlt.pipeline.trace import (
     PipelineTrace,
