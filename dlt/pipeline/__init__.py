@@ -10,12 +10,18 @@ from dlt.common.schema.typing import (
     TSchemaContract,
 )
 
-from dlt.common.typing import TSecretStrValue, Any
+from dlt.common.typing import TSecretStrValue, Any, Unpack
 from dlt.common.configuration import with_config
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import get_orig_args, last_config
 from dlt.common.destination import TLoaderFileFormat, Destination, TDestinationReferenceArg
-from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir, TRefreshMode
+from dlt.common.pipeline import (
+    LoadInfo,
+    PipelineContext,
+    get_dlt_pipelines_dir,
+    TRefreshMode,
+    SupportsPipelineRunArgs,
+)
 from dlt.common.runtime import apply_runtime_config, init_telemetry
 
 from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs
@@ -235,18 +241,7 @@ def attach(
 
 def run(
     data: Any,
-    *,
-    destination: TDestinationReferenceArg = None,
-    staging: TDestinationReferenceArg = None,
-    dataset_name: str = None,
-    table_name: str = None,
-    write_disposition: TWriteDispositionConfig = None,
-    columns: Sequence[TColumnSchema] = None,
-    schema: Schema = None,
-    loader_file_format: TLoaderFileFormat = None,
-    table_format: TTableFormat = None,
-    schema_contract: TSchemaContract = None,
-    refresh: Optional[TRefreshMode] = None,
+    **kwargs: Unpack[SupportsPipelineRunArgs],
 ) -> LoadInfo:
     """Loads the data in `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
@@ -266,61 +261,14 @@ def run(
     Next it will make sure that data from the previous is fully processed. If not, `run` method normalizes and loads pending data items.
     Only then the new data from `data` argument is extracted, normalized and loaded.
 
-    Args:
-        data (Any): Data to be loaded to destination
-
-        destination (str | DestinationReference, optional): A name of the destination to which dlt will load the data, or a destination module imported from `dlt.destination`.
-            If not provided, the value passed to `dlt.pipeline` will be used.
-
-        dataset_name (str, optional): A name of the dataset to which the data will be loaded. A dataset is a logical group of tables ie. `schema` in relational databases or folder grouping many files.
-            If not provided, the value passed to `dlt.pipeline` will be used. If not provided at all then defaults to the `pipeline_name`
-
-        table_name (str, optional): The name of the table to which the data should be loaded within the `dataset`. This argument is required for a `data` that is a list/Iterable or Iterator without `__name__` attribute.
-            The behavior of this argument depends on the type of the `data`:
-            * generator functions: the function name is used as table name, `table_name` overrides this default
-            * `@dlt.resource`: resource contains the full table schema and that includes the table name. `table_name` will override this property. Use with care!
-            * `@dlt.source`: source contains several resources each with a table schema. `table_name` will override all table names within the source and load the data into single table.
-
-        write_disposition (TWriteDispositionConfig, optional): Controls how to write data to a table. Accepts a shorthand string literal or configuration dictionary.
-            Allowed shorthand string literals: `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
-            Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
-            Please note that in case of `dlt.resource` the table schema value will be overwritten and in case of `dlt.source`, the values in all resources will be overwritten.
-
-        columns (Sequence[TColumnSchema], optional): A list of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
-
-        schema (Schema, optional): An explicit `Schema` object in which all table schemas will be grouped. By default `dlt` takes the schema from the source (if passed in `data` argument) or creates a default one itself.
-
-        loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional): The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
-
-        table_format (Literal["delta", "iceberg"], optional): The table format used by the destination to store tables. Currently you can select table format on filesystem and Athena destinations.
-
-        schema_contract (TSchemaContract, optional): On override for the schema contract settings, this will replace the schema contract settings for all tables in the schema. Defaults to None.
-
-        refresh (str | TRefreshMode): Fully or partially reset sources before loading new data in this run. The following refresh modes are supported:
-            * `drop_sources`: Drop tables and source and resource state for all sources currently being processed in `run` or `extract` methods of the pipeline. (Note: schema history is erased)
-            * `drop_resources`: Drop tables and resource state for all resources being processed. Source level state is not modified. (Note: schema history is erased)
-            * `drop_data`: Wipe all data and resource state for all resources being processed. Schema is not modified.
-
     Raises:
         PipelineStepFailed: when a problem happened during `extract`, `normalize` or `load` steps.
     Returns:
         LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
     """
-    destination = Destination.from_reference(destination)
-    return pipeline().run(
-        data,
-        destination=destination,
-        staging=staging,
-        dataset_name=dataset_name,
-        table_name=table_name,
-        write_disposition=write_disposition,
-        columns=columns,
-        schema=schema,
-        loader_file_format=loader_file_format,
-        table_format=table_format,
-        schema_contract=schema_contract,
-        refresh=refresh,
-    )
+    destination = Destination.from_reference(kwargs.pop("destination", None))
+    kwargs["destination"] = destination
+    return pipeline().run(data, **kwargs)
 
 
 # plug default tracking module
