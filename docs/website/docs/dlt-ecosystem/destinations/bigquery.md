@@ -246,7 +246,7 @@ The option above is off by default.
 
 BigQuery supports GCS as a file staging destination. `dlt` will upload files in the parquet format to GCS and ask BigQuery to copy their data directly into the database.
 Please refer to the [Google Storage filesystem documentation](./filesystem.md#google-storage) to learn how to set up your GCS bucket with the bucket_url and credentials.
-If you use the same service account for GCS and your Redshift deployment, you do not need to provide additional authentication for BigQuery to be able to read from your bucket.
+If you use the same service account for GCS and your BigQuery deployment, you do not need to provide additional authentication for BigQuery to be able to read from your bucket.
 
 Alternatively to parquet files, you can specify jsonl as the staging file format. For this, set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
 
