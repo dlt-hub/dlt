@@ -269,7 +269,7 @@ class PipelineTasksGroup(TaskGroup):
         if self.abort_task_if_any_job_failed is not None:
             dlt.config["load.raise_on_failed_jobs"] = self.abort_task_if_any_job_failed
             logger.info(
-                "Set load.abort_task_if_any_job_failed to {self.abort_task_if_any_job_failed}"
+                f"Set load.abort_task_if_any_job_failed to {self.abort_task_if_any_job_failed}"
             )
 
         if self.log_progress_period > 0 and task_pipeline.collector == NULL_COLLECTOR:

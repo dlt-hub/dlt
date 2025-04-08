@@ -1,5 +1,5 @@
 
-name: dest | redshift, postgres and fs
+name: dest | redshift and postgres
 
 on:
   pull_request_target:
@@ -31,7 +31,7 @@ env:
   RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
   # Test redshift and filesystem with all buckets
   # postgres runs again here so we can test on mac/windows
-  ACTIVE_DESTINATIONS: "[\"redshift\", \"postgres\", \"duckdb\", \"filesystem\", \"dummy\"]"
+  ACTIVE_DESTINATIONS: "[\"redshift\", \"postgres\", \"duckdb\", \"dummy\"]"
   # note that all buckets are enabled for testing
   ALL_FILESYSTEM_DRIVERS: "[\"memory\", \"file\", \"r2\", \"s3\", \"gs\", \"az\", \"abfss\", \"gdrive\"]" #excludes sftp
 
@@ -89,10 +89,7 @@ jobs:
       #     key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-redshift
 
       - name: Install dependencies
-        run: poetry install --no-interaction -E redshift -E postgis -E postgres -E gs -E s3 -E az -E parquet -E duckdb -E cli -E filesystem --with sentry-sdk --with pipeline -E deltalake -E pyiceberg && poetry run pip install ibis-framework[duckdb,postgres,bigquery,snowflake,mssql,clickhouse]
-
-      - name: Upgrade sqlalchemy
-        run: poetry run pip install sqlalchemy==2.0.18  # minimum version required by `pyiceberg`
+        run: poetry install --no-interaction -E redshift -E postgis -E postgres -E gs -E s3 -E az -E parquet -E duckdb -E cli -E filesystem --with sentry-sdk --with pipeline && poetry run pip install ibis-framework[duckdb,postgres,bigquery,snowflake,mssql,clickhouse]
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml

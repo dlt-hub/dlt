@@ -42,7 +42,15 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
-from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems, TColumnNames
+from dlt.common.typing import (
+    AnyFun,
+    ParamSpec,
+    Concatenate,
+    TDataItem,
+    TDataItems,
+    TColumnNames,
+    TTableNames,
+)
 from dlt.common.utils import (
     get_callable_name,
     get_module_name,
@@ -50,7 +58,7 @@ from dlt.common.utils import (
     get_full_callable_name,
 )
 
-from dlt.extract.hints import make_hints
+from dlt.extract.hints import TResourceNestedHints, make_hints
 from dlt.extract.utils import simulate_func_call
 from dlt.extract.exceptions import (
     CurrentSourceNotAvailable,
@@ -448,6 +456,7 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
     references: TTableHintTemplate[TTableReferenceParam] = None,
+    nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -471,6 +480,7 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
     references: TTableHintTemplate[TTableReferenceParam] = None,
+    nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -494,6 +504,7 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
     references: TTableHintTemplate[TTableReferenceParam] = None,
+    nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -520,6 +531,7 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
     references: TTableHintTemplate[TTableReferenceParam] = None,
+    nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -542,6 +554,7 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
     references: TTableHintTemplate[TTableReferenceParam] = None,
+    nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -610,6 +623,8 @@ def resource(
             A list in the form of `[{'referenced_table': 'other_table', 'columns': ['other_col1', 'other_col2'], 'referenced_columns': ['col1', 'col2']}]`.
             Table and column names will be normalized according to the configured naming convention.
 
+        nested_hints (Dict[TTableNames, TResourceNestedHints], optional): Hints for nested tables created by this resource.
+
         selected (bool, optional): When `True` `dlt pipeline` will extract and load this resource, if `False`, the resource will be ignored.
 
         spec (Type[BaseConfiguration], optional): A specification of configuration and secret values required by the source.
@@ -642,6 +657,7 @@ def resource(
             table_format=table_format,
             file_format=file_format,
             references=references,
+            nested_hints=nested_hints,
             incremental=incremental,
         )
 
@@ -802,6 +818,8 @@ def transformer(
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
+    references: TTableHintTemplate[TTableReferenceParam] = None,
+    nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -823,6 +841,8 @@ def transformer(
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
+    references: TTableHintTemplate[TTableReferenceParam] = None,
+    nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -848,6 +868,8 @@ def transformer(
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
+    references: TTableHintTemplate[TTableReferenceParam] = None,
+    nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -869,6 +891,8 @@ def transformer(
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
+    references: TTableHintTemplate[TTableReferenceParam] = None,
+    nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -890,6 +914,8 @@ def transformer(
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     file_format: TTableHintTemplate[TFileFormat] = None,
+    references: TTableHintTemplate[TTableReferenceParam] = None,
+    nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -954,6 +980,12 @@ def transformer(
         file_format (Literal["preferred", ...], optional): Format of the file in which resource data is stored. Useful when importing external files. Use `preferred` to force
             a file format that is preferred by the destination used. This setting superseded the `load_file_format` passed to pipeline `run` method.
 
+        references (TTableReferenceParam, optional): A list of references to other table's columns.
+            A list in the form of `[{'referenced_table': 'other_table', 'columns': ['other_col1', 'other_col2'], 'referenced_columns': ['col1', 'col2']}]`.
+            Table and column names will be normalized according to the configured naming convention.
+
+        nested_hints (Dict[TTableNames, TResourceNestedHints], optional): Hints for nested tables created by this resource.
+
         selected (bool, optional): When `True` `dlt pipeline` will extract and load this resource, if `False`, the resource will be ignored.
 
         spec (Type[BaseConfiguration], optional): A specification of configuration and secret values required by the source.
@@ -987,6 +1019,8 @@ def transformer(
         schema_contract=schema_contract,
         table_format=table_format,
         file_format=file_format,
+        references=references,
+        nested_hints=nested_hints,
         selected=selected,
         spec=spec,
         standalone=standalone,

@@ -16,6 +16,7 @@ from dlt.helpers.dbt import (
 from dlt.pipeline.pipeline import Pipeline
 
 
+# TODO: make `venv_path` to be field in DBTRunnerConfiguration
 def get_venv(
     pipeline: Pipeline, venv_path: str = "dbt", dbt_version: str = _DEFAULT_DBT_VERSION
 ) -> Venv:

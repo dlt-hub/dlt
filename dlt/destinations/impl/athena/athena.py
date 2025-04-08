@@ -441,7 +441,9 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         if self._is_iceberg_table(table_chain[0]):
             return [
                 SqlStagingCopyFollowupJob.from_table_chain(
-                    table_chain, self.sql_client, {"replace": True}
+                    table_chain,
+                    self.sql_client,
+                    {"replace": True, "replace_strategy": self.config.replace_strategy},
                 )
             ]
         return super()._create_replace_followup_jobs(table_chain)
@@ -457,9 +459,7 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         table_format = table.get("table_format")
         # all dlt tables that are not loaded via files are iceberg tables, no matter if they are on staging or regular dataset
         # all other iceberg tables are HIVE (external) tables on staging dataset
-        table_format_iceberg = table_format == "iceberg" or (
-            self.config.force_iceberg and table_format is None
-        )
+        table_format_iceberg = table_format == "iceberg"
         return (table_format_iceberg and not is_staging_dataset) or table[
             "write_disposition"
         ] == "skip"

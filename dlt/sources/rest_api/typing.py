@@ -10,9 +10,6 @@ from typing import (
 
 from dlt.common import jsonpath
 from dlt.common.typing import TypedDict
-from dlt.common.schema.typing import (
-    TAnySchemaColumns,
-)
 from dlt.common.incremental.typing import IncrementalArgs
 from dlt.extract.items import TTableHintTemplate
 from dlt.extract.hints import TResourceHintsBase
@@ -28,20 +25,13 @@ from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
 
 from dlt.sources.helpers.rest_client.paginators import (
     BasePaginator,
+    JSONLinkPaginator,
     HeaderLinkPaginator,
     JSONResponseCursorPaginator,
     OffsetPaginator,
     PageNumberPaginator,
     SinglePagePaginator,
 )
-
-
-try:
-    from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
-except ImportError:
-    from dlt.sources.helpers.rest_client.paginators import (
-        JSONResponsePaginator as JSONLinkPaginator,
-    )
 
 from dlt.sources.helpers.rest_client.auth import (
     HttpBasicAuth,
@@ -249,6 +239,7 @@ class Endpoint(TypedDict, total=False):
     response_actions: Optional[List[ResponseAction]]
     incremental: Optional[IncrementalConfig]
     auth: Optional[AuthConfig]
+    headers: Optional[Dict[str, Any]]
 
 
 class ProcessingSteps(TypedDict):
@@ -259,9 +250,7 @@ class ProcessingSteps(TypedDict):
 class ResourceBase(TResourceHintsBase, total=False):
     """Defines hints that may be passed to `dlt.resource` decorator"""
 
-    table_name: Optional[TTableHintTemplate[str]]
     max_table_nesting: Optional[int]
-    columns: Optional[TTableHintTemplate[TAnySchemaColumns]]
     selected: Optional[bool]
     parallelized: Optional[bool]
     processing_steps: Optional[List[ProcessingSteps]]

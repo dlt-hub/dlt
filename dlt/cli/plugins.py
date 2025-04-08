@@ -13,6 +13,7 @@ from dlt.cli.exceptions import CliCommandException
 from dlt.cli.command_wrappers import (
     init_command_wrapper,
     list_sources_command_wrapper,
+    list_destinations_command_wrapper,
     pipeline_command_wrapper,
     schema_command_wrapper,
     telemetry_status_command_wrapper,
@@ -82,6 +83,12 @@ version if run again with an existing `source` name. You will be warned if files
             ),
         )
         parser.add_argument(
+            "--list-destinations",
+            default=False,
+            action="store_true",
+            help="Shows the name of all core dlt destinations.",
+        )
+        parser.add_argument(
             "source",
             nargs="?",
             help=(
@@ -120,6 +127,8 @@ version if run again with an existing `source` name. You will be warned if files
     def execute(self, args: argparse.Namespace) -> None:
         if args.list_sources:
             list_sources_command_wrapper(args.location, args.branch)
+        elif args.list_destinations:
+            list_destinations_command_wrapper()
         else:
             if not args.source or not args.destination:
                 self.parser.print_usage()

@@ -24,7 +24,7 @@ import dlt
 from dlt.common import logger, time, json, pendulum
 from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.metrics import LoadJobMetrics
-from dlt.common.schema.typing import C_DLT_LOAD_ID, TTableSchemaColumns
+from dlt.common.schema.typing import C_DLT_LOAD_ID, TTableSchemaColumns, DLT_NAME_PREFIX
 from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables
@@ -427,6 +427,8 @@ class FilesystemClient(
                 table["write_disposition"] = "append"
             else:
                 table["x-merge-strategy"] = merge_strategy  # type: ignore[typeddict-unknown-key]
+        if table["name"].startswith(DLT_NAME_PREFIX):
+            table.pop("table_format", None)
         return table
 
     def get_table_dir(self, table_name: str, remote: bool = False) -> str:

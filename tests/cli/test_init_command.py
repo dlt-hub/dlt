@@ -172,6 +172,15 @@ def test_init_list_sources(repo_dir: str) -> None:
         assert source in _out
 
 
+def test_init_list_destinations() -> None:
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        init_command.list_destinations_command()
+        _out = buf.getvalue()
+
+    for destination in IMPLEMENTED_DESTINATIONS:
+        assert destination in _out
+
+
 @pytest.mark.parametrize(
     "source_name",
     [name for name in CORE_SOURCES_CONFIG if CORE_SOURCES_CONFIG[name]["requires_extra"]],

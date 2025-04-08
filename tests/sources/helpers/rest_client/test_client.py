@@ -23,7 +23,11 @@ from dlt.sources.helpers.rest_client.auth import (
 )
 from dlt.sources.helpers.rest_client.client import Hooks
 from dlt.sources.helpers.rest_client.exceptions import IgnoreResponseException
-from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator, BaseReferencePaginator
+from dlt.sources.helpers.rest_client.paginators import (
+    JSONLinkPaginator,
+    BaseReferencePaginator,
+    JSONResponseCursorPaginator,
+)
 
 from .conftest import DEFAULT_PAGE_SIZE, DEFAULT_TOTAL_PAGES, assert_pagination
 
@@ -400,21 +404,11 @@ class TestRESTClient:
         # leave 3 pages of data
         posts_skip = (DEFAULT_TOTAL_PAGES - 3) * DEFAULT_PAGE_SIZE
 
-        class JSONBodyPageCursorPaginator(BaseReferencePaginator):
-            def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
-                self._next_reference = response.json().get("next_page")
-
-            def update_request(self, request):
-                if request.json is None:
-                    request.json = {}
-
-                request.json["page"] = self._next_reference
-
         page_generator = rest_client.paginate(
             path="/posts/search",
             method="POST",
             json={"ids_greater_than": posts_skip - 1, "page_size": 5, "page_count": 5},
-            paginator=JSONBodyPageCursorPaginator(),
+            paginator=JSONResponseCursorPaginator(cursor_path="next_page", cursor_body_path="page"),
         )
         result = [post for page in list(page_generator) for post in page]
         for i in range(3 * DEFAULT_PAGE_SIZE):
@@ -473,7 +467,12 @@ class TestRESTClient:
             cert=("/path/client.cert", "/path/client.key"),
             timeout=321,
             allow_redirects=False,
+            headers={"Custom": "My-Header"},
         )
+
+        prepared_request = mocked_send.call_args[0][0]
+        # .headers also has the default headers of the request
+        assert prepared_request.headers["Custom"] == "My-Header"
 
         assert mocked_send.call_args[1] == {
             "proxies": {
@@ -533,4 +532,15 @@ class TestRESTClient:
             base_url=base_url,
         )
         response = rest_client.get("my://protocol")
+        assert response.json() == expected
+
+    @requests_mock.Mocker(kw="mock")
+    def test_overwrite_headers(self, mocker, **kwargs) -> None:
+        expected = {"Accept": "my/mimetype"}
+        kwargs["mock"].get("https://my.url", json=expected)
+        rest_client = RESTClient(
+            base_url="https://api.example.com",
+            headers={"Accept": "application/json"},
+        )
+        response = rest_client.get("https://my.url", headers={"Accept": "my/mimetype"})
         assert response.json() == expected

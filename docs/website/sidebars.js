@@ -89,6 +89,7 @@ const sidebars = {
             'plus/ecosystem/ms-sql',
             'plus/ecosystem/iceberg',
             'plus/ecosystem/delta',
+            'plus/ecosystem/snowflake_plus',
           ]
         },
         {
@@ -271,6 +272,19 @@ const sidebars = {
         'walkthroughs/create-a-pipeline',
         'walkthroughs/run-a-pipeline',
         {
+          type: "category",
+          label: "Build with LLMs",
+          link: {
+            type: 'generated-index',
+            title: 'Build with LLMs',
+            description: 'Learn to build dlt pipelines with LLMs',
+            slug: 'dlt-ecosystem/llm-tooling',
+          },
+          items: [
+            "dlt-ecosystem/llm-tooling/mcp-server",
+          ]
+        },
+        {
           type: 'category',
           label: 'Accessing loaded data',
            link: {
@@ -305,7 +319,8 @@ const sidebars = {
             'dlt-ecosystem/transformations/sql',
             'general-usage/customising-pipelines/renaming_columns',
             'general-usage/customising-pipelines/pseudonymizing_columns',
-            'general-usage/customising-pipelines/removing_columns'
+            'general-usage/customising-pipelines/removing_columns',
+            'dlt-ecosystem/transformations/encryption'
           ]
         },
         {
