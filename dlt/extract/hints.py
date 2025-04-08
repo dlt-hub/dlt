@@ -7,6 +7,7 @@ from typing import (
     Sequence,
     Mapping,
     List,
+    NamedTuple,
 )
 from typing_extensions import Self
 

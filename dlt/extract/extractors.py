@@ -304,7 +304,7 @@ class ObjectExtractor(Extractor):
     pass
 
 
-class TextExtractor(Extractor):
+class ModelExtractor(Extractor):
     """Extracts text items and writes them row by row into a text file"""
 
     pass

@@ -130,7 +130,7 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
 
     def run(self) -> None:
         with FileStorage.open_zipsafe_ro(self._file_path, "r", encoding="utf-8") as f:
-            select_dialect = f.readline().split(": ")[1].strip() or None
+            select_dialect = f.readline().split(":")[1].strip() or None
             select_statement = f.read()
 
         sql_client = self._job_client.sql_client
@@ -153,52 +153,51 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         target_table = sql_client.make_qualified_table_name(self._load_table["name"])
         target_catalog = sql_client.catalog_name(escape=False)
 
-        # Adjust separator for clickhouse-to-other
-        if (
-            self._job_client.config.destination_type != "clickhouse"
-            and select_dialect == "clickhouse"
-        ):
-            select_statement = select_statement.replace("___", '"."')
-
         # Parse SELECT
         parsed_select_query = sqlglot.parse_one(select_statement, read=select_dialect)
 
-        # Adjust table parts (catalog/db/this) based on dialect and catalog presence
-        for table in parsed_select_query.find_all(sqlglot.exp.Table):
-            parts = list(table.parts)
-            if target_catalog:
-                if len(parts) == 3:
-                    table.set("catalog", sqlglot.exp.to_identifier(target_catalog))
-                    table.set("db", sqlglot.exp.to_identifier(parts[1].name))
-                    table.set("this", sqlglot.exp.to_identifier(parts[2].name))
-                elif len(parts) == 2:
-                    table.set("catalog", sqlglot.exp.to_identifier(target_catalog))
-                    table.set("db", sqlglot.exp.to_identifier(parts[0].name))
-                    table.set("this", sqlglot.exp.to_identifier(parts[1].name))
-            else:
-                if len(parts) == 3:
-                    table.set("catalog", None)
-                    table.set("db", sqlglot.exp.to_identifier(parts[1].name))
-                    table.set("this", sqlglot.exp.to_identifier(parts[2].name))
-
-        normalized_select_query = parsed_select_query.sql(dialect=select_dialect)
-
         destination_dialect = self._job_client.capabilities.sqlglot_dialect
-        transpiled_select_query = sqlglot.transpile(
-            normalized_select_query, read=select_dialect, write=destination_dialect
-        )[0]
+
+        # Adjust table parts (catalog/db/this) based on dialect and catalog presence
+        if select_dialect == destination_dialect:
+            pass
+        else:
+            # TODO: We might need this
+            for table in parsed_select_query.find_all(sqlglot.exp.Table):
+                parts = list(table.parts)
+                if target_catalog:
+                    if len(parts) == 3:
+                        table.set("catalog", sqlglot.exp.to_identifier(target_catalog))
+                        table.set("db", sqlglot.exp.to_identifier(parts[1].name))
+                        table.set("this", sqlglot.exp.to_identifier(parts[2].name))
+                    elif len(parts) == 2:
+                        table.set("catalog", sqlglot.exp.to_identifier(target_catalog))
+                        table.set("db", sqlglot.exp.to_identifier(parts[0].name))
+                        table.set("this", sqlglot.exp.to_identifier(parts[1].name))
+                else:
+                    if len(parts) == 3:
+                        table.set("catalog", None)
+                        table.set("db", sqlglot.exp.to_identifier(parts[1].name))
+                        table.set("this", sqlglot.exp.to_identifier(parts[2].name))
 
         # Apply case folding if needed
         if self._job_client.capabilities.has_case_sensitive_identifiers:
-            # We lowercase first for uniformity
-            transpiled_select_query = transpiled_select_query.lower()
-            transpiled_select_query = self._job_client.capabilities.casefold_identifier(
-                transpiled_select_query
-            )
+            top_level_select = parsed_select_query.find(sqlglot.exp.Select)
+
+            if top_level_select:
+                for column in top_level_select.expressions:
+                    if isinstance(column, sqlglot.exp.Column):
+                        original_name = column.alias_or_name
+                        casefolded_name = self._job_client.capabilities.casefold_identifier(
+                            original_name
+                        )
+                        column.set("name", sqlglot.exp.to_identifier(casefolded_name))
+
+        normalized_select_query = parsed_select_query.sql(dialect=destination_dialect)
 
         # Build final INSERT
         query = sqlglot.expressions.insert(
-            expression=transpiled_select_query,
+            expression=normalized_select_query,
             into=target_table,
             dialect=destination_dialect,
         ).sql(destination_dialect)
