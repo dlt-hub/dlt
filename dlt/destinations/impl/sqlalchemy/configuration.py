@@ -48,15 +48,14 @@ class SqlalchemyCredentials(ConnectionStringCredentials):
                 engine_ = self.engine
                 # track open connections to properly close it
                 self._conn_borrows += 1
-            # print(f"getting conn refcnt {self._conn_borrows} at {id(self)}")
 
+        # print(f"GETTING conn refcnt {self._conn_borrows} at {id(self)}")
         return engine_.connect()
 
     def return_conn(self, borrowed_conn: "Connection") -> None:
         # close the borrowed conn
-        borrowed_conn.close()
-
         with self._conn_lock:
+            borrowed_conn.close()
             # close the main conn if the last borrowed conn was closed
             assert self._conn_borrows > 0, "Returning connection when borrows is 0"
             self._conn_borrows -= 1

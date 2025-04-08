@@ -142,6 +142,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         return self._current_connection
 
     def close_connection(self) -> None:
+        # rollback any transactions
         try:
             if self._in_transaction():
                 self.rollback_transaction()
@@ -149,13 +150,20 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             pass
         finally:
             self._current_transaction = None
+        # detach databases
+        try:
+            if self.dialect_name == "sqlite":
+                for dataset_name in list(self._sqlite_attached_datasets):
+                    self._sqlite_detach_dataset(dataset_name)
+        except Exception:
+            # close internal connection. that will detach all datasets
+            self._current_connection.connection.close()
 
         try:
             if self._current_connection is not None:
                 self.credentials.return_conn(self._current_connection)
         finally:
             self._current_connection = None
-            self._sqlite_attached_datasets.clear()
 
     @property
     def native_connection(self) -> Connection:
@@ -240,11 +248,11 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         else:
             new_db_fn = self._sqlite_dataset_filename(dataset_name)
 
-        if dataset_name != "main":  # main is the current file, it is always attached
-            statement = "ATTACH DATABASE :fn AS :name"
-            self.execute_sql(statement, fn=new_db_fn, name=dataset_name)
-        # WAL mode is applied to all currently attached databases
-        self.execute_sql("PRAGMA journal_mode=WAL")
+            if dataset_name != "main":  # main is the current file, it is always attached
+                statement = "ATTACH DATABASE :fn AS :name"
+                self.execute_sql(statement, fn=new_db_fn, name=dataset_name)
+            # WAL mode is applied to all currently attached databases
+            self.execute_sql("PRAGMA journal_mode=WAL")
         self._sqlite_attached_datasets.add(dataset_name)
 
     def _sqlite_drop_dataset(self, dataset_name: str) -> None:
@@ -255,15 +263,18 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         rows = self.execute_sql("PRAGMA database_list")
         dbs = {row[1]: row[2] for row in rows}  # db_name: filename
         if dataset_name != "main":  # main is the default database, it cannot be detached
-            statement = "DETACH DATABASE :name"
-            self.execute_sql(statement, name=dataset_name)
-            self._sqlite_attached_datasets.discard(dataset_name)
+            self._sqlite_detach_dataset(dataset_name)
 
         fn = dbs[dataset_name]
         if not fn:  # It's a memory database, nothing to do
             return
         # Delete the database file
         Path(fn).unlink()
+
+    def _sqlite_detach_dataset(self, dataset_name: str) -> None:
+        statement = "DETACH DATABASE :name"
+        self.execute_sql(statement, name=dataset_name)
+        self._sqlite_attached_datasets.discard(dataset_name)
 
     @contextmanager
     def with_alternative_dataset_name(

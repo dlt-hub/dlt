@@ -28,15 +28,6 @@ from dlt.destinations.sql_client import SqlClientBase
 from dlt.common.destination.exceptions import DestinationTransientException
 
 
-# class SqlJobParams(TypedDict, total=False):
-#     replace: Optional[bool]
-#     # table_chain_create_table_statements: Dict[str, Sequence[str]]
-#     # replace_strategy: Optional[str]
-
-
-# DEFAULTS: SqlJobParams = {"replace": False}
-
-
 class SqlJobCreationException(DestinationTransientException):
     def __init__(
         self, original_exception: Exception, table_chain: Sequence[PreparedTableSchema]
