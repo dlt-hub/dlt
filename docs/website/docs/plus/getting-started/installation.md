@@ -75,7 +75,7 @@ This way, all the dependencies for your current project will be isolated from pa
 
   <TabItem value="ubuntu">
 
-Create a new virtual environment in your working folder. This will create an `./venv` directory where your virtual environment will be stored:
+Create a new virtual environment in your working folder. This will create a `./venv` directory where your virtual environment will be stored:
 
 ```sh
 uv venv --python 3.10
