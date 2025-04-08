@@ -51,7 +51,7 @@ On macOS, you can use [Homebrew](https://brew.sh) to install Python 3.10.
 ```sh
 brew update
 brew install python@3.10
-brew install uv
+pip install uv
 ```
 
   </TabItem>
