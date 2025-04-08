@@ -46,7 +46,7 @@ After installing [Python 3.10 (64-bit version) for Windows](https://www.python.o
 
 ```sh
 C:\> pip3 install -U pip
-C:\> pip install uv
+C:\> pip3 install uv
 ```
 
   </TabItem>
