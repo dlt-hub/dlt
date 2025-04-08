@@ -188,12 +188,11 @@ mode.
 ```py
 @dlt.resource(write_disposition="merge")
 def opportunity(
-    last_timestamp: Incremental[str] = dlt.sources.incremental(
+    last_timestamp: incremental[str] = dlt.sources.incremental(
         "SystemModstamp", initial_value=None
     )
-) -> Iterator[Dict[str, Any]]:
-
-    yield from _get_records(
+) -> Iterable[TDataItem]:
+    yield get_records(
         client, "Opportunity", last_timestamp.last_value, "SystemModstamp"
     )
 ```
