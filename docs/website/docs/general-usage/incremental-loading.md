@@ -120,7 +120,7 @@ If you use the `merge` write disposition, but do not specify merge or primary ke
 The appended data will be inserted from a staging table in one transaction for most destinations in this case.
 :::
 
-Example: Deduplication with Timestamp based sorting
+**Example: deduplication with timestamp based sorting**
 
 ```py
 # Sample data
