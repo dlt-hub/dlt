@@ -246,7 +246,7 @@ The option above is off by default.
 
 BigQuery supports GCS as a file staging destination. `dlt` will upload files in the parquet format to GCS and ask BigQuery to copy their data directly into the database.
 Please refer to the [Google Storage filesystem documentation](./filesystem.md#google-storage) to learn how to set up your GCS bucket with the bucket_url and credentials.
-If you use the same service account for GCS and your Redshift deployment, you do not need to provide additional authentication for BigQuery to be able to read from your bucket.
+If you use the same service account for GCS and your BigQuery deployment, you do not need to provide additional authentication for BigQuery to be able to read from your bucket.
 
 Alternatively to parquet files, you can specify jsonl as the staging file format. For this, set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
 
@@ -280,6 +280,7 @@ retry_deadline=60.0
 * `http_timeout` sets the timeout when connecting and getting a response from the BigQuery API (default: **15 seconds**)
 * `file_upload_timeout` is a timeout for file upload when loading local files: the total time of the upload may not exceed this value (default: **30 minutes**, set in seconds)
 * `retry_deadline` is a deadline for a [DEFAULT_RETRY used by Google](https://cloud.google.com/python/docs/reference/storage/1.39.0/retry_timeout)
+* `ignore_unknown_values` is a configuration option that allows BigQuery to ignore rows with unknown or unexpected values during data loading. When enabled, rows containing fields that are not defined in the schema will be skipped instead of causing the entire load job to fail. This can be useful when dealing with inconsistent or evolving data sources.
 
 ### dbt support
 

@@ -786,14 +786,14 @@ def test_source_with_post_request(mock_api_server):
                 ],
             },
             {
-                "initial_value": "1",
+                "initial_value": 1,
                 "escaped_braces": "{not_this}",
                 "nested": {
-                    "initial_value": "1",
+                    "initial_value": 1,
                     "escaped": "{not_this_either}",
                 },
                 "array_values": [
-                    "1",
+                    1,
                     "{not_array_either}",
                 ],
             },
