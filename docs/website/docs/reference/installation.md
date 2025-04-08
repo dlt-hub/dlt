@@ -36,7 +36,7 @@ On macOS, you can use [Homebrew](https://brew.sh) to install Python 3.10.
 ```sh
 brew update
 brew install python@3.10
-brew install uv
+pip install uv
 ```
 
   </TabItem>
@@ -46,6 +46,7 @@ After installing [Python 3.10 (64-bit version) for Windows](https://www.python.o
 
 ```sh
 C:\> pip3 install -U pip
+C:\> pip install uv
 ```
 
   </TabItem>
@@ -60,7 +61,7 @@ This way, all the dependencies for your current project will be isolated from pa
 
   <TabItem value="ubuntu">
 
-Create a new virtual environment in your working folder. This will create an `./venv` directory where your virtual environment will be stored:
+Create a new virtual environment in your working folder. This will create a `./venv` directory where your virtual environment will be stored:
 
 ```sh
 uv venv --python 3.10
@@ -75,7 +76,7 @@ source .venv/bin/activate
   </TabItem>
   <TabItem value="macos">
 
-Create a new virtual environment in your working folder. This will create an `./venv` directory where your virtual environment will be stored:
+Create a new virtual environment in your working folder. This will create a `./venv` directory where your virtual environment will be stored:
 
 ```sh
 uv venv --python 3.10
@@ -90,7 +91,7 @@ source .venv/bin/activate
   </TabItem>
   <TabItem value="windows">
 
-Create a new virtual environment in your working folder. This will create an `./venv` directory where your virtual environment will be stored:
+Create a new virtual environment in your working folder. This will create a `./venv` directory where your virtual environment will be stored:
 
 ```bat
 C:\> uv venv --python 3.10
