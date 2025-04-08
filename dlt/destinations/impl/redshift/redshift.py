@@ -104,7 +104,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             # https://docs.aws.amazon.com/redshift/latest/dg/copy-usage_notes-copy-from-columnar.html  # noqa: E501
             if region:
                 logger.warning(
-                    "Redshift doesn't support copying Parquet files across regions. Region"
+                    "Redshift doesn't support copying Parquet files across regions. The region"
                     " parameter will be ignored."
                 )
                 region = ""
