@@ -109,7 +109,7 @@ All standard write dispositions (`append`, `replace`, and `merge`) are supported
 
 ## Data types
 
-Snowflake Plus destination supports all standard Snowflake destination data types, with additional type mappings for Iceberg tables:
+The Snowflake Plus destination supports all standard Snowflake destination data types, with additional type mappings for Iceberg tables:
 
 | dlt Type | Iceberg Type |
 |----------|--------------|
