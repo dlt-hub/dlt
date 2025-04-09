@@ -180,18 +180,16 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
                         table.set("db", sqlglot.exp.to_identifier(parts[1].name))
                         table.set("this", sqlglot.exp.to_identifier(parts[2].name))
 
-        # Apply case folding if needed
-        if self._job_client.capabilities.has_case_sensitive_identifiers:
-            top_level_select = parsed_select_query.find(sqlglot.exp.Select)
+        top_level_select = parsed_select_query.find(sqlglot.exp.Select)
 
-            if top_level_select:
-                for column in top_level_select.expressions:
-                    if isinstance(column, sqlglot.exp.Column):
-                        original_name = column.alias_or_name
-                        casefolded_name = self._job_client.capabilities.casefold_identifier(
-                            original_name
-                        )
-                        column.set("name", sqlglot.exp.to_identifier(casefolded_name))
+        columns = []
+
+        for column in top_level_select.expressions:
+            if isinstance(column, sqlglot.exp.Column):
+                original_name = column.name
+                casefolded_name = self._job_client.capabilities.casefold_identifier(original_name)
+                column.set("name", sqlglot.exp.to_identifier(casefolded_name))
+                columns.append(sqlglot.exp.to_identifier(casefolded_name))
 
         normalized_select_query = parsed_select_query.sql(dialect=destination_dialect)
 
@@ -199,6 +197,7 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         query = sqlglot.expressions.insert(
             expression=normalized_select_query,
             into=target_table,
+            columns=columns,
             dialect=destination_dialect,
         ).sql(destination_dialect)
 

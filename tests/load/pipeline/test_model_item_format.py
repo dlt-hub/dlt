@@ -39,39 +39,50 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     # populate a table with 10 items and retrieve dataset
     pipeline = destination_config.setup_pipeline("test_model_item_format", dev_mode=False)
 
-    pipeline.run([{"a": i} for i in range(10)], table_name="example_table")
+    pipeline.run([{"a": i, "b": i + 1} for i in range(10)], table_name="example_table")
     dataset = pipeline.dataset()
 
-    example_table_columns = dataset.schema.tables["example_table"]["columns"]
-
     select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
     # create a resource that generates sql statements to create 2 new tables
     # we also need to supply all hints so the table can be created
     @dlt.resource()
     def copied_table() -> Any:
-        query = dataset["example_table"].limit(5).query()
+        query = dataset["example_table"][["a", "_dlt_load_id", "_dlt_id"]].limit(5).query()
         sql_model = SqlModel.from_sqlglot(query=query, dialect=select_dialect)
         yield dlt.mark.with_hints(
             sql_model,
-            hints=make_hints(columns=example_table_columns),
+            hints=make_hints(columns={k: v for k, v in example_table_columns.items() if k != "b"}),
         )
 
     @dlt.resource()
     def copied_table_2() -> Any:
-        query = dataset["example_table"].limit(7).query()
+        query = dataset["example_table"][["b", "_dlt_load_id", "_dlt_id"]].limit(7).query()
+        yield dlt.mark.with_hints(
+            SqlModel.from_sqlglot(query=query, dialect=select_dialect),
+            hints=make_hints(columns={k: v for k, v in example_table_columns.items() if k != "a"}),
+        )
+
+    @dlt.resource()
+    def copied_table_3() -> Any:
+        query = dataset["example_table"].limit(8).query()
         yield dlt.mark.with_hints(
             SqlModel.from_sqlglot(query=query, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),
         )
 
     # run sql jobs
-    pipeline.run([copied_table(), copied_table_2()])
+    pipeline.run([copied_table(), copied_table_2(), copied_table_3()])
 
     # the two tables where created
-    assert load_table_counts(pipeline, "copied_table", "copied_table_2", "example_table") == {
+    assert load_table_counts(
+        pipeline, "copied_table", "copied_table_2", "copied_table_3", "example_table"
+    ) == {
         "copied_table": 5,
         "copied_table_2": 7,
+        "copied_table_3": 8,
         "example_table": 10,
     }
 
@@ -88,6 +99,7 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     assert count_job_types(pipeline) == {
         "copied_table": {"model": 1},
         "copied_table_2": {"model": 1},
+        "copied_table_3": {"model": 1},
     }
 
 
