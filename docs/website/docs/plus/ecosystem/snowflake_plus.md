@@ -7,7 +7,7 @@ keywords: [Snowflake, Iceberg, destination]
 # Snowflake Plus
 
 Snowflake Plus is an **experimental** extension of the [Snowflake destination](../../dlt-ecosystem/destinations/snowflake.md) that adds [Apache Iceberg tables](https://docs.snowflake.com/en/user-guide/tables-iceberg) creation and related features.
-This destination is available starting from `dlt-plus` version `0.9.0`. It fully supports all the functionality of the standard Snowflake destination, plus:
+This destination is available starting from dlt+ version 0.9.0. It fully supports all the functionality of the standard Snowflake destination, plus:
 
 1. The ability to create Iceberg tables in Snowflake by setting `force_iceberg` to `true` in your `config.toml` file or `dlt.yml` file.
 2. Additional configuration for Iceberg tables in Snowflake via:
@@ -39,13 +39,36 @@ Once the `snowflake` extra is installed, you can configure a pipeline to use `sn
 GRANT USAGE ON EXTERNAL VOLUME <external_volume_name> TO ROLE <role_name>;
 ```
 
-5. Configure the `snowflake_plus` destination in your `config.toml`:
+5. Configure the `snowflake_plus` destination:
+
+<Tabs
+  groupId="config-format"
+  defaultValue="config-toml"
+  values={[
+    {"label": "dlt.yml", "value": "dlt-yml"},
+    {"label": "config.toml", "value": "config-toml"},
+]}>
+  <TabItem value="dlt-yml">
+
+```yaml
+destinations:
+  snowflake:
+    type: snowflake_plus
+    external_volume: "<external_volume_name>"
+    force_iceberg: true
+```
+
+  </TabItem>
+  <TabItem value="config-toml">
 
 ```toml
 [destination.snowflake]
 external_volume = "<external_volume_name>"
 force_iceberg = true
 ```
+
+  </TabItem>
+</Tabs>
 
 6. Use the `snowflake_plus` destination in your pipeline:
 
@@ -73,21 +96,34 @@ dlt project init sql_database snowflake_plus
 
 This will create a Snowflake Plus destination in your `dlt.yml` file.
 
+<Tabs
+  groupId="config-format"
+  defaultValue="config-toml"
+  values={[
+    {"label": "dlt.yml", "value": "dlt-yml"},
+    {"label": "config.toml", "value": "config-toml"},
+]}>
+  <TabItem value="dlt-yml">
+
 ```yaml
 destinations:
-  snowflake_plus:
-    type: snowflake_plus
-```
-
-To enable Iceberg table creation, set the `force_iceberg` option to `true` and `external_volume` to the name of the external volume you created in step 3.
-
-```yaml
-destinations:
-  snowflake_plus:
+  snowflake:
     type: snowflake_plus
     force_iceberg: true
     external_volume: "<external_volume_name>"
 ```
+
+  </TabItem>
+  <TabItem value="config-toml">
+
+```toml
+[destination.snowflake]
+force_iceberg = true
+external_volume = "<external_volume_name>"
+```
+
+  </TabItem>
+</Tabs>
 
 ## Configuration
 
@@ -154,9 +190,27 @@ To enable querying of Snowflake-managed Iceberg tables by third-party engines (e
 
 Refer to the [Snowflake documentation](https://docs.snowflake.com/en/user-guide/tables-iceberg-open-catalog-sync#step-4-create-a-catalog-integration-for-open-catalog) for detailed setup instructions.
 
-3. Configure the `catalog_sync` option in your `config.toml` or `dlt.yml` file:
+3. Configure the `catalog_sync` option:
 
-- In `config.toml`:
+<Tabs
+  groupId="config-format"
+  defaultValue="config-toml"
+  values={[
+    {"label": "dlt.yml", "value": "dlt-yml"},
+    {"label": "config.toml", "value": "config-toml"},
+]}>
+  <TabItem value="dlt-yml">
+
+```yaml
+destinations:
+  snowflake:
+    type: snowflake_plus
+    # ... other configuration
+    catalog_sync: "my_open_catalog_int"
+```
+
+  </TabItem>
+  <TabItem value="config-toml">
 
 ```toml
 [destination.snowflake]
@@ -164,15 +218,8 @@ Refer to the [Snowflake documentation](https://docs.snowflake.com/en/user-guide/
 catalog_sync = "my_open_catalog_int"
 ```
 
-- In `dlt.yml`:
-
-```yaml
-destinations:
-  snowflake_plus:
-    type: snowflake_plus
-    # ... other configuration
-    catalog_sync: "my_open_catalog_int"
-```
+  </TabItem>
+</Tabs>
 
 ## Additional Resources
 
