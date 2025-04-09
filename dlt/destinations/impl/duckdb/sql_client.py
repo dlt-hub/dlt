@@ -35,7 +35,11 @@ from dlt.destinations.sql_client import (
     raise_open_connection_error,
 )
 
-from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials, DuckDbCredentials
+from dlt.destinations.impl.duckdb.configuration import (
+    DuckDbBaseCredentials,
+    DuckDbClientConfiguration,
+    DuckDbCredentials,
+)
 
 
 class DuckDBDBApiCursorImpl(DBApiCursorImpl):
@@ -254,7 +258,9 @@ class WithTableScanners(DuckDbSqlClient):
             dataset_name=dataset_name,
             staging_dataset_name=None,
             credentials=cache_db,
-            capabilities=duckdb_factory()._raw_capabilities(),
+            capabilities=duckdb_factory().capabilities(
+                DuckDbClientConfiguration(credentials=cache_db), naming=remote_client.schema.naming
+            ),
         )
         self.remote_client = remote_client
         self.schema = remote_client.schema

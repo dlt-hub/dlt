@@ -119,6 +119,8 @@ def test_dependent_resource(destination_config: DestinationTestConfiguration) ->
         "pokemon__types",
         "pokemon__stats",
         "pokemon__moves__version_group_details",
+        "pokemon__past_abilities",
+        "pokemon__past_abilities__abilities",
         "pokemon__moves",
         "pokemon__game_indices",
         "pokemon__forms",
