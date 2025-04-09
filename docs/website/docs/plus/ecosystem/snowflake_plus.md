@@ -145,7 +145,7 @@ To enable querying of Snowflake-managed Iceberg tables by third-party engines (e
 
 ### Setup
 
-1. [Create an external catalog in Snowflake Open Catalog](https://other-docs.snowflake.com/en/opencatalog/create-catalog).
+1. Create an [external catalog in Snowflake Open Catalog](https://other-docs.snowflake.com/en/opencatalog/create-catalog).
 
 2. Create a catalog integration in Snowflake. Example:
 
