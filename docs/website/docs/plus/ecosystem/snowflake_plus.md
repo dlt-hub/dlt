@@ -1,5 +1,5 @@
 ---
-title: Snowflake Plus
+title: "Destination: Snowflake Plus"
 description: Snowflake destination with Iceberg table support
 keywords: [Snowflake, Iceberg, destination]
 ---
@@ -24,7 +24,7 @@ Install the `dlt-plus` package with the `snowflake` extra:
 pip install "dlt-plus[snowflake]"
 ```
 
-Once the `snowflake` extra is installed, you can configure a pipeline to use `snowflake_plus` exactly the same way you would use `snowflake` or initialize a dlt+ project with the `snowflake_plus` source and use it as a drop-in replacement for the `snowflake` destination.
+Once the `snowflake` extra is installed, you can configure a pipeline to use `snowflake_plus` exactly the same way you would use the `snowflake` destination.
 
 ## Setup
 
@@ -37,14 +37,14 @@ Once the `snowflake` extra is installed, you can configure a pipeline to use `sn
 GRANT USAGE ON EXTERNAL VOLUME <external_volume_name> TO ROLE <role_name>;
 ```
 
-5. Configure the `snowflake_plus` destination in in dlt+ project (in `dlt.yml`) or in a Python script (in `config.toml`):
+5. Configure the `snowflake_plus` destination. For a dlt+ project (in `dlt.yml`) or for a Python script (in `config.toml`):
 
 <Tabs
   groupId="config-format"
   defaultValue="dlt-yml"
   values={[
-    {"label": "dlt+ project", "value": "dlt-yml"},
-    {"label": "Python script", "value": "config-toml"},
+    {"label": "dlt.yml", "value": "dlt-yml"},
+    {"label": "config.toml", "value": "config-toml"},
 ]}>
   <TabItem value="dlt-yml">
 
