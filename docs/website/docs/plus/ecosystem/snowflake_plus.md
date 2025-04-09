@@ -24,11 +24,9 @@ Install the `dlt-plus` package with the `snowflake` extra:
 pip install "dlt-plus[snowflake]"
 ```
 
+Once the `snowflake` extra is installed, you can configure a pipeline to use `snowflake_plus` exactly the same way you would use `snowflake` or initialize a dlt+ project with the `snowflake_plus` source and use it as a drop-in replacement for the `snowflake` destination.
+
 ## Setup
-
-Once the `snowflake` extra is installed, you can configure a pipeline to use `snowflake_plus` exactly the same way you would use `snowflake` or initialize a dlt+ project with the `snowflake_plus` source.
-
-### Use as a drop-in replacement for the `snowflake` destination
 
 1. [Configure your Snowflake credentials](../../dlt-ecosystem/destinations/snowflake.md#setup-guide)
 2. [Set up a database user and permissions](../../dlt-ecosystem/destinations/snowflake.md#set-up-the-database-user-and-permissions)
@@ -39,16 +37,32 @@ Once the `snowflake` extra is installed, you can configure a pipeline to use `sn
 GRANT USAGE ON EXTERNAL VOLUME <external_volume_name> TO ROLE <role_name>;
 ```
 
-5. Configure the `snowflake_plus` destination:
+5. Configure the `snowflake_plus` destination in in dlt+ project (in `dlt.yml`) or in a Python script (in `config.toml`):
 
 <Tabs
   groupId="config-format"
-  defaultValue="config-toml"
+  defaultValue="dlt-yml"
   values={[
-    {"label": "dlt.yml", "value": "dlt-yml"},
-    {"label": "config.toml", "value": "config-toml"},
+    {"label": "dlt+ project", "value": "dlt-yml"},
+    {"label": "Python script", "value": "config-toml"},
 ]}>
   <TabItem value="dlt-yml">
+
+If you don't have a dlt+ project yet, initialize one in the current working directory. Replace `sql_database` with the source of your choice:
+
+```sh
+dlt project init sql_database snowflake_plus
+```
+
+This will create a Snowflake Plus destination in your `dlt.yml` file:
+
+```yaml
+destinations:
+  snowflake:
+    type: snowflake_plus
+```
+
+To enable Iceberg table creation, set the `force_iceberg` option to `true` and `external_volume` to the name of the external volume you created in step 3.
 
 ```yaml
 destinations:
@@ -61,16 +75,15 @@ destinations:
   </TabItem>
   <TabItem value="config-toml">
 
+Add the configuration to your `config.toml` file:
+
 ```toml
 [destination.snowflake]
 external_volume = "<external_volume_name>"
 force_iceberg = true
 ```
 
-  </TabItem>
-</Tabs>
-
-6. Use the `snowflake_plus` destination in your pipeline:
+Use the `snowflake_plus` destination in your pipeline:
 
 ```py
 import dlt
@@ -86,44 +99,9 @@ def my_iceberg_table():
     ...
 ```
 
-### Use with `dlt+` project
-
-Initialize a dlt+ project in the current working directory. Replace `sql_database` with the source of your choice:
-
-```sh
-dlt project init sql_database snowflake_plus
-```
-
-This will create a Snowflake Plus destination in your `dlt.yml` file.
-
-<Tabs
-  groupId="config-format"
-  defaultValue="config-toml"
-  values={[
-    {"label": "dlt.yml", "value": "dlt-yml"},
-    {"label": "config.toml", "value": "config-toml"},
-]}>
-  <TabItem value="dlt-yml">
-
-```yaml
-destinations:
-  snowflake:
-    type: snowflake_plus
-    force_iceberg: true
-    external_volume: "<external_volume_name>"
-```
-
-  </TabItem>
-  <TabItem value="config-toml">
-
-```toml
-[destination.snowflake]
-force_iceberg = true
-external_volume = "<external_volume_name>"
-```
-
   </TabItem>
 </Tabs>
+
 
 ## Configuration
 
