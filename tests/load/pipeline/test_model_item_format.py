@@ -35,6 +35,37 @@ DESTINATIONS_SUPPORTING_MODEL = [
     ),
     ids=lambda x: x.name,
 )
+def test_simple_incremental(destination_config: DestinationTestConfiguration) -> None:
+    pipeline = destination_config.setup_pipeline("test_model_item_format", dev_mode=False)
+
+    pipeline.run([{"a": i, "b": i + 1} for i in range(10)], table_name="example_table")
+    dataset = pipeline.dataset()
+
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+
+    # TODO: incremental is not supported for models yet
+    @dlt.resource()
+    def copied_table(incremental_field=dlt.sources.incremental("a")) -> Any:
+        query = dataset["example_table"].limit(8).query()
+        yield dlt.mark.with_hints(
+            SqlModel.from_sqlglot(query=query, dialect=select_dialect),
+            hints=make_hints(columns=example_table_columns),
+        )
+
+    with pytest.raises(PipelineStepFailed):
+        pipeline.run([copied_table()])
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        exclude=["athena", "dremio"],
+    ),
+    ids=lambda x: x.name,
+)
 def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> None:
     # populate a table with 10 items and retrieve dataset
     pipeline = destination_config.setup_pipeline("test_model_item_format", dev_mode=False)

@@ -130,7 +130,9 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
 
     def run(self) -> None:
         with FileStorage.open_zipsafe_ro(self._file_path, "r", encoding="utf-8") as f:
-            select_dialect = f.readline().split(":")[1].strip() or None
+            select_dialect = (
+                f.readline().split(":")[1].strip() or self._job_client.capabilities.sqlglot_dialect
+            )
             select_statement = f.read()
 
         sql_client = self._job_client.sql_client
@@ -140,30 +142,24 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         sql_client.execute_sql(insert_statement)
 
     def _insert_statement_from_select_statement(
-        self, select_dialect: Optional[str], select_statement: str
+        self, select_dialect: str, select_statement: str
     ) -> str:
         """
         Generates an INSERT statement from a SELECT statement using sqlglot.
         Transpiles the SELECT if needed and adjusts identifiers for the destination dialect.
-        NOTE: Here we generate an insert statement from a select statement, this is the duckdb
-        dialect, we may be able to transpile with sqlglot for each destination or we need
-        to subclass and override this method.
         """
         sql_client = self._job_client.sql_client
         target_table = sql_client.make_qualified_table_name(self._load_table["name"])
         target_catalog = sql_client.catalog_name(escape=False)
-
-        # Parse SELECT
-        parsed_select_query = sqlglot.parse_one(select_statement, read=select_dialect)
-
         destination_dialect = self._job_client.capabilities.sqlglot_dialect
 
+        # Parse SELECT
+        parsed_select = sqlglot.parse_one(select_statement, read=select_dialect)
+
         # Adjust table parts (catalog/db/this) based on dialect and catalog presence
-        if select_dialect == destination_dialect:
-            pass
-        else:
+        if select_dialect != destination_dialect:
             # TODO: We might need this
-            for table in parsed_select_query.find_all(sqlglot.exp.Table):
+            for table in parsed_select.find_all(sqlglot.exp.Table):
                 parts = list(table.parts)
                 if target_catalog:
                     if len(parts) == 3:
@@ -180,18 +176,29 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
                         table.set("db", sqlglot.exp.to_identifier(parts[1].name))
                         table.set("this", sqlglot.exp.to_identifier(parts[2].name))
 
-        top_level_select = parsed_select_query.find(sqlglot.exp.Select)
+        # Ensure there's a top-level SELECT, otherwise it doesn't make sense
+        top_level_select = parsed_select.find(sqlglot.exp.Select)
+        if top_level_select is None:
+            raise ValueError(
+                "No top-level SELECT statement found in the model query. Models must be defined"
+                " using a SELECT statement."
+            )
 
+        # Casefold column names according to destination and wrap them in aliases
         columns = []
+        for i, expr in enumerate(top_level_select.expressions):
+            if isinstance(expr, sqlglot.exp.Column):
+                original_name = expr.name
+                alias_name = self._job_client.capabilities.casefold_identifier(original_name)
+                alias = sqlglot.exp.Alias(
+                    this=expr.copy(),
+                    alias=sqlglot.exp.to_identifier(alias_name),
+                )
+                top_level_select.expressions[i] = alias
+                columns.append(sqlglot.exp.to_identifier(alias_name))
 
-        for column in top_level_select.expressions:
-            if isinstance(column, sqlglot.exp.Column):
-                original_name = column.name
-                casefolded_name = self._job_client.capabilities.casefold_identifier(original_name)
-                column.set("name", sqlglot.exp.to_identifier(casefolded_name))
-                columns.append(sqlglot.exp.to_identifier(casefolded_name))
-
-        normalized_select_query = parsed_select_query.sql(dialect=destination_dialect)
+        # Generate the normalized SELECT query
+        normalized_select_query = parsed_select.sql(dialect=destination_dialect)
 
         # Build final INSERT
         query = sqlglot.expressions.insert(
