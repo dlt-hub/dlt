@@ -1,7 +1,6 @@
 import os
 import ast
 import shutil
-import tomlkit
 from typing import Dict, Sequence, Tuple
 from pathlib import Path
 
@@ -305,6 +304,7 @@ def list_destinations_command() -> None:
         msg = "%s" % fmt.bold(destination_name)
         fmt.echo(msg)
 
+
 def init_command(
     source_name: str,
     destination_type: str,
@@ -313,15 +313,38 @@ def init_command(
     eject_source: bool = False,
     dry_run: bool = False,
     skip_example_pipeline_script: bool = False,
-) -> Tuple[
-    Dict[str, str],
-    Dict[str, WritableConfigValue], Dict[str, WritableConfigValue], Dict[str, SourceReference]
-]:
-    skip_destination_config = True if not destination_type else False
-    
-    print ('aaaaaaaaaaaaaaaaaaaaa')
-    # try to import the destination and get config spec
+) -> Tuple[Dict[str, str], Dict[str, WritableConfigValue], Dict[str, WritableConfigValue],]:
+    run_ctx = run_context.active()
+    destination_storage_path = run_ctx.run_dir
+    settings_dir = run_ctx.settings_dir
+    sources_dir = run_ctx.get_run_entity("sources")
+    return init_pipeline_at_destination(
+        source_name,
+        destination_type,
+        repo_location,
+        branch,
+        eject_source,
+        dry_run,
+        skip_example_pipeline_script,
+        destination_storage_path,
+        settings_dir,
+        sources_dir,
+    )
 
+
+def init_pipeline_at_destination(
+    source_name: str,
+    destination_type: str,
+    repo_location: str,
+    branch: str = None,
+    eject_source: bool = False,
+    dry_run: bool = False,
+    skip_example_pipeline_script: bool = False,
+    destination_storage_path: str = None,
+    settings_dir: str = None,
+    sources_dir: str = None,
+) -> Tuple[Dict[str, str], Dict[str, WritableConfigValue], Dict[str, WritableConfigValue],]:
+    # try to import the destination and get config spec
     destination_reference = Destination.from_reference(destination_type)
     destination_spec = destination_reference.spec
 
@@ -329,10 +352,8 @@ def init_command(
     core_sources_storage = _get_core_sources_storage()
     templates_storage = _get_templates_storage()
 
-    # get current run context
-    run_ctx = run_context.active()
-
     # discover type of source
+    # todo: only clone if not template source
     source_type: files_ops.TSourceType = "template"
     if source_name in files_ops.get_sources_names(core_sources_storage, source_type="core"):
         source_type = "core"
@@ -344,9 +365,9 @@ def init_command(
             source_type = "verified"
 
     # prepare destination storage
-    dest_storage = FileStorage(run_ctx.run_dir)
-    if not dest_storage.has_folder(run_ctx.settings_dir):
-        dest_storage.create_folder(run_ctx.settings_dir)
+    dest_storage = FileStorage(destination_storage_path)
+    if not dest_storage.has_folder(settings_dir):
+        dest_storage.create_folder(settings_dir)
     # get local index of verified source files
     local_index = files_ops.load_verified_sources_local_index(source_name)
     # folder deleted at dest - full refresh
@@ -389,7 +410,7 @@ def init_command(
             )
         if not remote_deleted and not remote_modified:
             fmt.echo("No files to update, exiting")
-            return
+            return None, None, None
 
         if remote_index["is_dirty"]:
             fmt.warning(
@@ -416,6 +437,7 @@ def init_command(
             #  create remote modified index to copy files when ejecting
             remote_modified = {file_name: None for file_name in source_configuration.files}
         else:
+            # is single file template source
             if not is_valid_schema_name(source_name):
                 raise InvalidSchemaName(source_name)
             source_configuration = files_ops.get_template_configuration(
@@ -427,7 +449,7 @@ def init_command(
                 "Pipeline script %s already exists, exiting"
                 % source_configuration.dest_pipeline_script
             )
-            return
+            return None, None, None
 
     # add .dlt/*.toml files to be copied
     # source_configuration.files.extend(
@@ -452,7 +474,7 @@ def init_command(
                 "You can update dlt with: pip3 install -U"
                 f' "{source_configuration.requirements.dlt_requirement_base}"'
             )
-            return
+            return None, None, None
 
     # read module source and parse it
     visitor = utils.parse_init_script(
@@ -616,54 +638,57 @@ def init_command(
             (
                 source_configuration.storage.make_full_path(file_name),
                 # copy into where "sources" reside in run context, being root dir by default
-                dest_storage.make_full_path(
-                    os.path.join(run_ctx.get_run_entity("sources"), file_name)
-                ),
+                dest_storage.make_full_path(os.path.join(sources_dir, file_name)),
             )
         )
     # if dry-run, do not actually modify storage, just return file content
-    pipeline_script_target_path =  dest_storage.make_full_path(
-            os.path.join(run_ctx.get_run_entity("sources"), source_configuration.dest_pipeline_script)
+    pipeline_script_target_path = dest_storage.make_full_path(
+        os.path.join(sources_dir, source_configuration.dest_pipeline_script)
     )
     if dry_run:
         files_to_create: Dict[str, str] = {}
         for source_path, dest_path in copy_files:
-            files_to_create[dest_path]= dest_storage.load(source_path)
+            files_to_create[dest_path] = dest_storage.load(source_path)
         if not skip_example_pipeline_script:
             files_to_create[pipeline_script_target_path] = dest_script_source
-        # todo also delete files like below
-        return files_to_create, required_config, required_secrets, checked_sources
+        # todo: handle remote index changes?
+        return files_to_create, required_config, required_secrets
 
-    # modify storage at the end
-    for src_path, dest_path in copy_files:
-        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-        shutil.copy2(src_path, dest_path)
-    if remote_index:
-        # delete files
-        for file_name in remote_deleted:
-            if dest_storage.has_file(file_name):
-                dest_storage.delete(file_name)
-        files_ops.save_verified_source_local_index(
-            source_name, remote_index, remote_modified, remote_deleted
-        )
-    # create script
-    if not dest_storage.has_file(source_configuration.dest_pipeline_script) and not skip_example_pipeline_script:
-        dest_storage.save(pipeline_script_target_path, dest_script_source)
+    # modify storage
+    else:
+        for src_path, dest_path in copy_files:
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+            shutil.copy2(src_path, dest_path)
+        if remote_index:
+            # delete files
+            for file_name in remote_deleted:
+                if dest_storage.has_file(file_name):
+                    dest_storage.delete(file_name)
+            files_ops.save_verified_source_local_index(
+                source_name, remote_index, remote_modified, remote_deleted
+            )
+        # create example script
+        if (
+            not dest_storage.has_file(source_configuration.dest_pipeline_script)
+            and not skip_example_pipeline_script
+        ):
+            dest_storage.save(pipeline_script_target_path, dest_script_source)
 
-    # generate tomls with comments
-    secrets_prov = SecretsTomlProvider(settings_dir=run_ctx.settings_dir)
-    write_values(secrets_prov._config_toml, required_secrets.values(), overwrite_existing=False)
+        # generate tomls with comments
+        secrets_prov = SecretsTomlProvider(settings_dir)
+        write_values(secrets_prov._config_toml, required_secrets.values(), overwrite_existing=False)
 
-    config_prov = ConfigTomlProvider(settings_dir=run_ctx.settings_dir)
-    write_values(config_prov._config_toml, required_config.values(), overwrite_existing=False)
+        config_prov = ConfigTomlProvider(settings_dir)
+        write_values(config_prov._config_toml, required_config.values(), overwrite_existing=False)
 
-    # write toml files
-    secrets_prov.write_toml()
-    config_prov.write_toml()
+        # write toml files
+        secrets_prov.write_toml()
+        config_prov.write_toml()
 
-    # if there's no dependency system write the requirements file
-    if dependency_system is None:
-        requirements_txt = "\n".join(source_configuration.requirements.compiled())
-        dest_storage.save(utils.REQUIREMENTS_TXT, requirements_txt)
+        # if there's no dependency system write the requirements file
+        if dependency_system is None:
+            requirements_txt = "\n".join(source_configuration.requirements.compiled())
+            dest_storage.save(utils.REQUIREMENTS_TXT, requirements_txt)
 
-    return copy_files, required_config, required_secrets, checked_sources
+        copied_files: Dict[str, str] = {dest_path: src_path for src_path, dest_path in copy_files}
+        return copied_files, required_config, required_secrets
