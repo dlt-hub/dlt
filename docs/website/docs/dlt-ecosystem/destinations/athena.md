@@ -104,6 +104,18 @@ when table with given name was deleted and re-created - but not always. Adding l
 prevents this error from showing up.
 :::
 
+You can change the default catalog name
+```toml
+[destination.athena]
+aws_data_catalog="awsdatacatalog"
+```
+
+and provide any other `PyAthena` connection setting
+```toml
+[destination.athena.conn_properties]
+poll_interval=2
+```
+
 ## Write disposition
 
 The `athena` destination handles the write dispositions as follows:
@@ -179,6 +191,7 @@ The `merge` write disposition is supported for Athena when using Iceberg tables.
 
 Athena is supported via `dbt-athena-community`. Credentials are passed into `aws_access_key_id` and `aws_secret_access_key` of the generated dbt profile. Iceberg tables are supported, but you need to make sure that you materialize your models as Iceberg tables if your source table is Iceberg. We encountered problems with materializing date-time columns due to different precision on Iceberg (nanosecond) and regular Athena tables (millisecond).
 The Athena adapter requires that you set up **region_name** in the Athena configuration below. You can also set up the table catalog name to change the default: **awsdatacatalog**
+
 ```toml
 [destination.athena]
 aws_data_catalog="awsdatacatalog"

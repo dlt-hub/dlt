@@ -157,3 +157,17 @@ def test_tmp_folder_writable() -> None:
     import tempfile
 
     assert is_folder_writable(tempfile.gettempdir()) is True
+
+
+def test_context_with_xdg_dir() -> None:
+    import tempfile
+
+    temp_data_home = os.path.join(tempfile.gettempdir(), "test")
+
+    os.environ["XDG_DATA_HOME"] = temp_data_home
+
+    ctx = PluggableRunContext()
+    run_context = ctx.context
+    assert run_context.global_dir == os.path.join(temp_data_home, "dlt")
+
+    os.environ.pop("XDG_DATA_HOME")

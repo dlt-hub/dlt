@@ -22,7 +22,7 @@ from tests.load.utils import (
 )
 from dlt.destinations import filesystem
 from tests.utils import TEST_STORAGE_ROOT, clean_test_storage
-from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
 from dlt.destinations.dataset.exceptions import (
     ReadableRelationUnknownColumnException,
 )
@@ -80,6 +80,9 @@ def populated_pipeline(request, autouse_test_storage) -> Any:
     )
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "700"
     total_records = _total_records(pipeline)
+
+    # TODO: this test should test ALL data types using our standard fixture
+    #       step 1 would be to just let it run and see we do not have exceptions
 
     @dlt.source()
     def source():
@@ -590,7 +593,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         return
 
     # we check a bunch of expressions without executing them to see that they produce correct sql
-    # also we return the keys of the disovered schema columns
+    # also we return the keys of the discovered schema columns
     def sql_from_expr(expr: Any) -> Tuple[str, List[str]]:
         query = str(expr.query()).replace(populated_pipeline.dataset_name, "dataset")
         columns = list(expr.columns_schema.keys()) if expr.columns_schema else None
@@ -754,51 +757,64 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     except Exception as e:
         pytest.fail(f"Unexpected error rasied: {e}")
 
-    total_records = _total_records(populated_pipeline)
+    try:
+        total_records = _total_records(populated_pipeline)
 
-    map_i = lambda x: x
-    if populated_pipeline.destination.destination_type == "dlt.destinations.snowflake":
-        map_i = lambda x: x.upper()
+        map_i = lambda x: x
+        if populated_pipeline.destination.destination_type == "dlt.destinations.snowflake":
+            map_i = lambda x: x.upper()
 
-    dataset_name = map_i(populated_pipeline.dataset_name)
-    table_like_statement = None
-    table_name_prefix = ""
-    additional_tables = []
+        dataset_name = map_i(populated_pipeline.dataset_name)
+        table_like_statement = None
+        table_name_prefix = ""
+        additional_tables = []
 
-    # clickhouse has no datasets, but table prefixes and a sentinel table
-    if populated_pipeline.destination.destination_type == "dlt.destinations.clickhouse":
-        table_like_statement = dataset_name + "."
-        table_name_prefix = dataset_name + "___"
-        dataset_name = None
-        additional_tables += ["dlt_sentinel_table"]
+        # clickhouse has no datasets, but table prefixes and a sentinel table
+        if populated_pipeline.destination.destination_type == "dlt.destinations.clickhouse":
+            table_like_statement = dataset_name + "."
+            table_name_prefix = dataset_name + "___"
+            dataset_name = None
+            additional_tables += ["dlt_sentinel_table"]
 
-    # filesystem uses duckdb and views to map know tables. for other ibis will list
-    # all available tables so both schemas tables are visible
-    if populated_pipeline.destination.destination_type != "dlt.destinations.filesystem":
-        # from aleph schema
-        additional_tables += ["digits"]
+        # filesystem uses duckdb and views to map know tables. for other ibis will list
+        # all available tables so both schemas tables are visible
+        if populated_pipeline.destination.destination_type != "dlt.destinations.filesystem":
+            # from aleph schema
+            additional_tables += ["digits"]
 
-    add_table_prefix = lambda x: table_name_prefix + x
+        add_table_prefix = lambda x: table_name_prefix + x
 
-    # just do a basic check to see wether ibis can connect
-    assert set(ibis_connection.list_tables(database=dataset_name, like=table_like_statement)) == {
-        add_table_prefix(map_i(x))
-        for x in (
-            [
-                "_dlt_loads",
-                "_dlt_pipeline_state",
-                "_dlt_version",
-                "double_items",
-                "items",
-                "items__children",
-            ]
-            + additional_tables
-        )
-    }
+        # just do a basic check to see wether ibis can connect
+        assert set(
+            ibis_connection.list_tables(database=dataset_name, like=table_like_statement)
+        ) == {
+            add_table_prefix(map_i(x))
+            for x in (
+                [
+                    "_dlt_loads",
+                    "_dlt_pipeline_state",
+                    "_dlt_version",
+                    "double_items",
+                    "items",
+                    "items__children",
+                ]
+                + additional_tables
+            )
+        }
 
-    items_table = ibis_connection.table(add_table_prefix(map_i("items")), database=dataset_name)
-    assert items_table.count().to_pandas() == total_records
-    ibis_connection.disconnect()
+        table_name = add_table_prefix(map_i("items"))
+        items_table = ibis_connection.table(table_name, database=dataset_name)
+        assert items_table.count().to_pandas() == total_records
+
+        # some of the destinations allow to set default schema/dataset
+        try:
+            items_table = ibis_connection.tables[table_name]
+            assert items_table.count().to_pandas() == total_records
+        except KeyError:
+            if populated_pipeline.destination.destination_type not in ["dlt.destinations.mssql"]:
+                raise
+    finally:
+        ibis_connection.disconnect()
 
 
 @pytest.mark.no_load
@@ -813,16 +829,13 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline)
 
     # check dataset factory
-    dataset = cast(
-        ReadableDBAPIDataset,
-        _dataset(
-            destination=populated_pipeline.destination,
-            dataset_name=populated_pipeline.dataset_name,
-            # use name otherwise aleph schema is loaded
-            schema=populated_pipeline.default_schema_name,
-        ),
+    dataset = _dataset(
+        destination=populated_pipeline.destination,
+        dataset_name=populated_pipeline.dataset_name,
+        # use name otherwise aleph schema is loaded
+        schema=populated_pipeline.default_schema_name,
     )
-    # verfiy that sql client and schema are lazy loaded
+    # verify that sql client and schema are lazy loaded
     assert not dataset._schema
     assert not dataset._sql_client
     table_relationship = dataset.items
@@ -831,24 +844,18 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     assert dataset.schema.tables["items"]["write_disposition"] == "replace"
 
     # check that schema is not loaded when wrong name given
-    dataset = cast(
-        ReadableDBAPIDataset,
-        _dataset(
-            destination=populated_pipeline.destination,
-            dataset_name=populated_pipeline.dataset_name,
-            schema="wrong_schema_name",
-        ),
+    dataset = _dataset(
+        destination=populated_pipeline.destination,
+        dataset_name=populated_pipeline.dataset_name,
+        schema="wrong_schema_name",
     )
     assert "items" not in dataset.schema.tables
     assert dataset.schema.name == "wrong_schema_name"
 
     # check that schema is loaded if no schema name given
-    dataset = cast(
-        ReadableDBAPIDataset,
-        _dataset(
-            destination=populated_pipeline.destination,
-            dataset_name=populated_pipeline.dataset_name,
-        ),
+    dataset = _dataset(
+        destination=populated_pipeline.destination,
+        dataset_name=populated_pipeline.dataset_name,
     )
     # aleph is a secondary schema in the pipeline but because it was stored second
     # will be retrieved by default
@@ -856,12 +863,9 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     assert dataset.schema.tables["digits"]["write_disposition"] == "append"
 
     # check that there is no error when creating dataset without schema table
-    dataset = cast(
-        ReadableDBAPIDataset,
-        _dataset(
-            destination=populated_pipeline.destination,
-            dataset_name="unknown_dataset",
-        ),
+    dataset = _dataset(
+        destination=populated_pipeline.destination,
+        dataset_name="unknown_dataset",
     )
     assert dataset.schema.name == "unknown_dataset"
     assert "items" not in dataset.schema.tables
@@ -879,12 +883,9 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     with populated_pipeline.destination_client() as client:
         client.update_stored_schema()
 
-    dataset = cast(
-        ReadableDBAPIDataset,
-        _dataset(
-            destination=populated_pipeline.destination,
-            dataset_name=populated_pipeline.dataset_name,
-        ),
+    dataset = _dataset(
+        destination=populated_pipeline.destination,
+        dataset_name=populated_pipeline.dataset_name,
     )
     assert dataset.schema.name == "some_other_schema"
     assert "other_table" in dataset.schema.tables
