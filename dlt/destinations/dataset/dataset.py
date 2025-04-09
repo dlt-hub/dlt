@@ -42,12 +42,9 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
 
     def ibis(self) -> IbisBackend:
         """return a connected ibis backend"""
-        from dlt.helpers.ibis import create_ibis_backend
+        from dlt.destinations.dataset.ibis_relation import DltBackend
 
-        return create_ibis_backend(
-            self._destination,
-            self._destination_client(self.schema),
-        )
+        return DltBackend.from_dataset(self)
 
     @property
     def schema(self) -> Schema:
