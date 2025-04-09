@@ -129,7 +129,7 @@ def add_row_hash_to_table(row_hash_column_name: str) -> TDataItem:
         else:
             df = table
 
-        hash_ = pd.util.hash_pandas_object(df)
+        hash_ = pd.util.hash_pandas_object(df, index=False)
 
         if is_arrow:
             table = pyarrow.append_column(

@@ -240,8 +240,8 @@ pipelines:
 import dlt_plus
 
 entities = dlt_plus.current.entities()
-pipeline = entities.create_pipeline("bronze_pipe")
-transformation = entities.create_transformation("stressed_transformation")
+pipeline = entities.get_pipeline("bronze_pipe")
+transformation = entities.get_transformation("stressed_transformation")
 ```
 Here, we access the entities manager, which allows you to create sources, destinations, pipelines, and other objects.
 You can also obtain the **catalog** with all created datasets via `dlt_plus.current.catalog()`, which makes it easy to

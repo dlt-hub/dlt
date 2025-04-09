@@ -31,18 +31,12 @@ from dlt.extract.utils import ensure_table_schema_columns
 from dlt.sources.helpers.rest_client.paginators import (
     BasePaginator,
     SinglePagePaginator,
+    JSONLinkPaginator,
     HeaderLinkPaginator,
     JSONResponseCursorPaginator,
     OffsetPaginator,
     PageNumberPaginator,
 )
-
-try:
-    from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
-except ImportError:
-    from dlt.sources.helpers.rest_client.paginators import (
-        JSONResponsePaginator as JSONLinkPaginator,
-    )
 
 from dlt.sources.helpers.rest_client.detector import single_entity_path
 from dlt.sources.helpers.rest_client.exceptions import IgnoreResponseException
@@ -96,6 +90,14 @@ AUTH_MAP: Dict[str, Type[AuthConfigBase]] = {
 class IncrementalParam(NamedTuple):
     start: Optional[str]
     end: Optional[str]
+
+
+class ProcessedParentData(NamedTuple):
+    path: str
+    headers: Optional[Dict[str, Any]]
+    params: Dict[str, Any]
+    json: Optional[Dict[str, Any]]
+    parent_record: Dict[str, Any]
 
 
 class DirectKeyFormatter(string.Formatter):
@@ -264,7 +266,7 @@ def setup_incremental_object(
 
 
 def parse_convert_or_deprecated_transform(
-    config: Union[IncrementalConfig, Dict[str, Any]]
+    config: Union[IncrementalConfig, Dict[str, Any]],
 ) -> Optional[Callable[..., Any]]:
     convert = config.get("convert", None)
     deprecated_transform = config.get("transform", None)
@@ -317,15 +319,20 @@ def build_resource_dependency_graph(
             endpoint_resource["endpoint"]["path"], available_contexts
         )
 
-        # Find all expressions in params and json, but error if any of them is not in available_contexts
+        # Find all expressions in params, json, or header, but error if any of them is not in available_contexts
         params_expressions = _find_expressions(endpoint_resource["endpoint"].get("params", {}))
         _raise_if_any_not_in(params_expressions, available_contexts, message="params")
 
         json_expressions = _find_expressions(endpoint_resource["endpoint"].get("json", {}))
         _raise_if_any_not_in(json_expressions, available_contexts, message="json")
 
+        headers_expressions = _find_expressions(endpoint_resource["endpoint"].get("headers", {}))
+        _raise_if_any_not_in(headers_expressions, available_contexts, message="headers")
+
         resolved_params += _expressions_to_resolved_params(
-            _filter_resource_expressions(path_expressions | params_expressions | json_expressions)
+            _filter_resource_expressions(
+                path_expressions | params_expressions | json_expressions | headers_expressions
+            )
         )
 
         # set of resources in resolved params
@@ -722,25 +729,31 @@ def process_parent_data_item(
     path: str,
     item: Dict[str, Any],
     resolved_params: List[ResolvedParam],
+    headers: Optional[Dict[str, Any]] = None,
     params: Optional[Dict[str, Any]] = None,
     request_json: Optional[Dict[str, Any]] = None,
     include_from_parent: Optional[List[str]] = None,
     incremental: Optional[Incremental[Any]] = None,
     incremental_value_convert: Optional[Callable[..., Any]] = None,
-) -> Tuple[str, Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+) -> ProcessedParentData:
     params_values = collect_resolved_values(
         item, resolved_params, incremental, incremental_value_convert
     )
     expanded_path = expand_placeholders(path, params_values)
+    expanded_headers = expand_placeholders(headers, params_values)
     expanded_params = expand_placeholders(params or {}, params_values)
-    expanded_json = (
-        None if request_json is None else expand_placeholders(request_json, params_values)
-    )
+    expanded_json = expand_placeholders(request_json, params_values, preserve_value_type=True)
 
     parent_resource_name = resolved_params[0].resolve_config["resource"]
     parent_record = build_parent_record(item, parent_resource_name, include_from_parent)
 
-    return expanded_path, expanded_params, expanded_json, parent_record
+    return ProcessedParentData(
+        path=expanded_path,
+        headers=expanded_headers,
+        params=expanded_params,
+        json=expanded_json,
+        parent_record=parent_record,
+    )
 
 
 def convert_incremental_values(
@@ -796,30 +809,73 @@ def collect_resolved_values(
     return params_values
 
 
-def expand_placeholders(obj: Any, placeholders: Dict[str, Any]) -> Any:
+def _extract_single_placeholder_field(value: str) -> Tuple[bool, Optional[str]]:
+    """Check if a string contains exactly one placeholder with no surrounding text
+    if so, return True and the field name, otherwise return False and None
+
+    Args:
+        value: The string to check
+
+    Returns:
+        Tuple[bool, Optional[str]]: (True, field_name) if it's a single
+            placeholder, (False, None) otherwise
+    """
+    parsed = list(string.Formatter().parse(value))
+    if (
+        len(parsed) == 1
+        and parsed[0][0] == ""  # no leading text
+        and (parsed[0][2] is None or parsed[0][2] == "")  # no format spec
+        and parsed[0][3] is None  # no conversion
+        and parsed[0][1]  # we have a placeholder
+    ):
+        return True, parsed[0][1]
+    return False, None
+
+
+def expand_placeholders(
+    obj: Any, placeholders: Dict[str, Any], preserve_value_type: bool = False
+) -> Any:
     """
     Recursively expand str.format placeholders in `obj` using `placeholders`.
+
+    Args:
+        obj: The object to expand placeholders in
+        placeholders: Dictionary of placeholder values
+        preserve_value_type: If True, when a string contains exactly one
+            placeholder with no surrounding text, format spec, or conversion,
+            return the value directly instead of formatting it as a string.
+            This preserves the original type of the value. Defaults to False.
     """
     if obj is None:
         return None
 
     if isinstance(obj, str):
+        if preserve_value_type:
+            is_single, field_name = _extract_single_placeholder_field(obj)
+            if is_single:
+                value, _ = DirectKeyFormatter().get_field(field_name, (), placeholders)
+                return value
+
         return DirectKeyFormatter().format(obj, **placeholders)
 
     if isinstance(obj, dict):
         return {
-            expand_placeholders(k, placeholders): expand_placeholders(v, placeholders)
+            expand_placeholders(k, placeholders, preserve_value_type): expand_placeholders(
+                v, placeholders, preserve_value_type
+            )
             for k, v in obj.items()
         }
 
     if isinstance(obj, list):
-        return [expand_placeholders(item, placeholders) for item in obj]
+        return [expand_placeholders(item, placeholders, preserve_value_type) for item in obj]
 
     return obj  # For other data types, do nothing
 
 
 def build_parent_record(
-    item: Dict[str, Any], parent_resource_name: str, include_from_parent: Optional[List[str]]
+    item: Dict[str, Any],
+    parent_resource_name: str,
+    include_from_parent: Optional[List[str]],
 ) -> Dict[str, Any]:
     """
     Builds a dictionary of the `include_from_parent` fields from the parent,
@@ -918,5 +974,7 @@ def _raise_if_any_not_in(expressions: Set[str], available_contexts: Set[str], me
         if not any(expression.startswith(prefix + ".") for prefix in available_contexts):
             raise ValueError(
                 f"Expression '{expression}' defined in {message} is not valid. Valid expressions"
-                f" must start with one of: {', '.join(available_contexts)}"
+                f" must start with one of: {', '.join(available_contexts)}. If you need to use"
+                " literal curly braces in your expression, escape them by doubling them: {{ and"
+                " }}"
             )

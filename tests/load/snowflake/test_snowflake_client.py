@@ -1,3 +1,7 @@
+from tests.utils import skip_if_not_active
+
+skip_if_not_active("snowflake")
+
 from copy import deepcopy
 import os
 from typing import Iterator
@@ -12,6 +16,7 @@ from dlt.destinations.sql_client import TJobQueryTags
 
 from tests.cases import TABLE_UPDATE
 from tests.load.utils import yield_client_with_storage, empty_schema
+
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential

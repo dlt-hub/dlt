@@ -6,7 +6,6 @@ from dlt.common.exceptions import MissingDependencyException
 from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
 from dlt.common.schema.typing import TTableSchemaColumns
 
-
 if TYPE_CHECKING:
     from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
 else:
@@ -17,34 +16,13 @@ try:
 except MissingDependencyException:
     Expr = Any
 
-# map dlt destination to sqlglot dialect
-DIALECT_MAP = {
-    "dlt.destinations.duckdb": "duckdb",  # works
-    "dlt.destinations.motherduck": "duckdb",  # works
-    "dlt.destinations.clickhouse": "clickhouse",  # works
-    "dlt.destinations.databricks": "databricks",  # works
-    "dlt.destinations.bigquery": "bigquery",  # works
-    "dlt.destinations.postgres": "postgres",  # works
-    "dlt.destinations.redshift": "redshift",  # works
-    "dlt.destinations.snowflake": "snowflake",  # works
-    "dlt.destinations.mssql": "tsql",  # works
-    "dlt.destinations.synapse": "tsql",  # works
-    "dlt.destinations.athena": "trino",  # works
-    "dlt.destinations.filesystem": "duckdb",  # works
-    "dlt.destinations.dremio": "presto",  # works
-    # NOTE: can we discover the current dialect in sqlalchemy?
-    "dlt.destinations.sqlalchemy": "mysql",  # may work
-}
 
 # NOTE: some dialects are not supported by ibis, but by sqlglot, these need to
-# be transpiled with a intermediary step
-TRANSPILE_VIA_MAP = {
-    "tsql": "postgres",
-    "databricks": "postgres",
-    "clickhouse": "postgres",
-    "redshift": "postgres",
-    "presto": "postgres",
-}
+# be transpiled with an intermediary step
+TRANSPILE_VIA_DEFAULT = [
+    "redshift",
+    "presto",
+]
 
 
 class ReadableIbisRelation(BaseReadableDBAPIRelation):
@@ -64,17 +42,20 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         """build the query"""
         from dlt.helpers.ibis import ibis, sqlglot
 
-        destination_type = self._dataset._destination.destination_type
-        target_dialect = DIALECT_MAP[destination_type]
+        target_dialect = self._dataset._destination.capabilities().sqlglot_dialect
 
         # render sql directly if possible
-        if target_dialect not in TRANSPILE_VIA_MAP:
-            return ibis.to_sql(self._ibis_object, dialect=target_dialect)
+        if target_dialect not in TRANSPILE_VIA_DEFAULT:
+            if target_dialect == "tsql":
+                # NOTE: Ibis uses the product name "mssql" as the dialect instead of the official "tsql".
+                return ibis.to_sql(self._ibis_object, dialect="mssql")
+            else:
+                return ibis.to_sql(self._ibis_object, dialect=target_dialect)
 
-        # here we need to transpile first
-        transpile_via = TRANSPILE_VIA_MAP[target_dialect]
-        sql = ibis.to_sql(self._ibis_object, dialect=transpile_via)
-        sql = sqlglot.transpile(sql, read=transpile_via, write=target_dialect)[0]
+        # here we need to transpile to ibis default and transpile back to target with sqlglot
+        # NOTE: ibis defaults to the default pretty dialect, if a dialect is not passed
+        sql = ibis.to_sql(self._ibis_object)
+        sql = sqlglot.transpile(sql, write=target_dialect)[0]
         return sql
 
     @property

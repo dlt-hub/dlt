@@ -1,4 +1,5 @@
 """Generic API Source"""
+
 from copy import deepcopy
 from typing import Any, Dict, List, Optional, Generator, Callable, cast, Union
 import graphlib
@@ -70,7 +71,11 @@ def rest_api(
 ) -> List[DltResource]:
     """Creates and configures a REST API source with default settings"""
     return rest_api_resources(
-        {"client": client, "resources": resources, "resource_defaults": resource_defaults}
+        {
+            "client": client,
+            "resources": resources,
+            "resource_defaults": resource_defaults,
+        }
     )
 
 
@@ -241,7 +246,8 @@ def create_resources(
 
         endpoint_config = cast(Endpoint, endpoint_resource["endpoint"])
         request_params = endpoint_config.get("params", {})
-        request_json = endpoint_config.get("json", None)
+        request_json = endpoint_config.get("json")
+        request_headers = endpoint_config.get("headers")
         paginator = create_paginator(endpoint_config.get("paginator"))
         processing_steps = endpoint_resource.pop("processing_steps", [])
 
@@ -288,6 +294,7 @@ def create_resources(
             def paginate_resource(
                 method: HTTPMethodBasic,
                 path: str,
+                headers: Optional[Dict[str, Any]],
                 params: Dict[str, Any],
                 json: Optional[Dict[str, Any]],
                 paginator: Optional[BasePaginator],
@@ -300,6 +307,7 @@ def create_resources(
                     Callable[..., Any]
                 ] = incremental_cursor_transform,
             ) -> Generator[Any, None, None]:
+                format_kwargs = {}
                 if incremental_object:
                     params = _set_incremental_params(
                         params,
@@ -307,22 +315,24 @@ def create_resources(
                         incremental_param,
                         incremental_cursor_transform,
                     )
-
-                    format_kwargs = {"incremental": incremental_object}
+                    format_kwargs["incremental"] = incremental_object
                     if incremental_cursor_transform:
                         format_kwargs.update(
                             convert_incremental_values(
                                 incremental_object, incremental_cursor_transform
                             )
                         )
-                    # TODO: expand json as well. make sure you do not default to {} as this will
-                    #  generate empty body
-                    path = expand_placeholders(path, format_kwargs)
-                    params = expand_placeholders(params, format_kwargs)
+
+                # Always expand placeholders to handle escaped sequences
+                path = expand_placeholders(path, format_kwargs)
+                headers = expand_placeholders(headers, format_kwargs)
+                params = expand_placeholders(params, format_kwargs)
+                json = expand_placeholders(json, format_kwargs, preserve_value_type=True)
 
                 yield from client.paginate(
                     method=method,
                     path=path,
+                    headers=headers,
                     params=params,
                     json=json,
                     paginator=paginator,
@@ -336,6 +346,7 @@ def create_resources(
             )(
                 method=endpoint_config.get("method", "get"),
                 path=endpoint_config.get("path"),
+                headers=request_headers,
                 params=request_params,
                 json=request_json,
                 paginator=paginator,
@@ -355,6 +366,7 @@ def create_resources(
                 items: List[Dict[str, Any]],
                 method: HTTPMethodBasic,
                 path: str,
+                headers: Optional[Dict[str, Any]],
                 params: Dict[str, Any],
                 json: Optional[Dict[str, Any]],
                 paginator: Optional[BasePaginator],
@@ -378,31 +390,31 @@ def create_resources(
                     )
 
                 for item in items:
-                    formatted_path, expanded_params, updated_json, parent_record = (
-                        process_parent_data_item(
-                            path=path,
-                            item=item,
-                            params=params,
-                            request_json=json,
-                            resolved_params=resolved_params,
-                            include_from_parent=include_from_parent,
-                            incremental=incremental_object,
-                            incremental_value_convert=incremental_cursor_transform,
-                        )
+                    processed_data = process_parent_data_item(
+                        path=path,
+                        item=item,
+                        headers=headers,
+                        params=params,
+                        request_json=json,
+                        resolved_params=resolved_params,
+                        include_from_parent=include_from_parent,
+                        incremental=incremental_object,
+                        incremental_value_convert=incremental_cursor_transform,
                     )
 
                     for child_page in client.paginate(
                         method=method,
-                        path=formatted_path,
-                        params=expanded_params,
-                        json=updated_json,
+                        path=processed_data.path,
+                        headers=processed_data.headers,
+                        params=processed_data.params,
+                        json=processed_data.json,
                         paginator=paginator,
                         data_selector=data_selector,
                         hooks=hooks,
                     ):
-                        if parent_record:
+                        if processed_data.parent_record:
                             for child_record in child_page:
-                                child_record.update(parent_record)
+                                child_record.update(processed_data.parent_record)
                         yield child_page
 
             resources[resource_name] = dlt.resource(  # type: ignore[call-overload]
@@ -412,6 +424,7 @@ def create_resources(
             )(
                 method=endpoint_config.get("method", "get"),
                 path=endpoint_config.get("path"),
+                headers=request_headers,
                 params=base_params,
                 json=request_json,
                 paginator=paginator,
@@ -456,7 +469,8 @@ def _mask_secrets(auth_config: AuthConfig) -> AuthConfig:
     has_sensitive_key = any(key in auth_config for key in SENSITIVE_KEYS)
     if (
         isinstance(
-            auth_config, (APIKeyAuth, BearerTokenAuth, HttpBasicAuth, OAuth2ClientCredentials)
+            auth_config,
+            (APIKeyAuth, BearerTokenAuth, HttpBasicAuth, OAuth2ClientCredentials),
         )
         or has_sensitive_key
     ):
@@ -503,7 +517,7 @@ def _set_incremental_params(
 
 
 def _validate_param_type(
-    request_params: Dict[str, Union[ResolveParamConfig, IncrementalParamConfig, Any]]
+    request_params: Dict[str, Union[ResolveParamConfig, IncrementalParamConfig, Any]],
 ) -> None:
     for _, value in request_params.items():
         if isinstance(value, dict) and value.get("type") not in PARAM_TYPES:

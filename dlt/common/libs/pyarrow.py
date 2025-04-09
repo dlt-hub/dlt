@@ -730,7 +730,12 @@ def transpose_rows_to_columns(
 
     Uses pandas if available. Otherwise, use numpy, which is slower
     """
-    import numpy as np
+    try:
+        from dlt.common.libs.numpy import numpy as np
+    except MissingDependencyException:
+        raise MissingDependencyException(
+            "dlt pyarrow helpers", ["numpy"], "Numpy is required for this pyarrow operation"
+        )
 
     try:
         from pandas._libs import lib

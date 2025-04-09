@@ -491,8 +491,8 @@ Creates a pipeline project in the current folder by adding existing verified sou
 
 **Usage**
 ```sh
-dlt init [-h] [--list-sources] [--location LOCATION] [--branch BRANCH] [--eject]
-    [source] [destination]
+dlt init [-h] [--list-sources] [--list-destinations] [--location LOCATION]
+    [--branch BRANCH] [--eject] [source] [destination]
 ```
 
 **Description**
@@ -522,6 +522,7 @@ Inherits arguments from [`dlt`](#dlt).
 **Options**
 * `-h, --help` - Show this help message and exit
 * `--list-sources, -l` - Shows all available verified sources and their short descriptions. for each source, it checks if your local `dlt` version requires an update and prints the relevant warning.
+* `--list-destinations` - Shows the name of all core dlt destinations.
 * `--location LOCATION` - Advanced. uses a specific url or local path to verified sources repository.
 * `--branch BRANCH` - Advanced. uses specific branch of the verified sources repository to fetch the template.
 * `--eject` - Ejects the source code of the core source like sql_database or rest_api so they will be editable by you.

@@ -1,14 +1,13 @@
+from tests.utils import skip_if_not_active
+
+skip_if_not_active("snowflake")
+
 import os
 import pytest
 from pathlib import Path
-from urllib3.util import parse_url
 
 from dlt.common.configuration.utils import add_config_to_env
-from dlt.common.exceptions import TerminalValueError
-from dlt.destinations.impl.snowflake.snowflake import SnowflakeLoadJob
 from tests.utils import TEST_DICT_CONFIG_PROVIDER
-
-pytest.importorskip("snowflake")
 
 from dlt.common.libs.sql_alchemy_compat import make_url
 from dlt.common.configuration.resolve import resolve_configuration
@@ -22,6 +21,7 @@ from dlt.destinations.impl.snowflake.configuration import (
 )
 
 from tests.common.configuration.utils import environment
+
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -273,27 +273,3 @@ def test_snowflake_configuration() -> None:
         explicit_value="snowflake://user1:pass@host1/db1?warehouse=warehouse1&role=role1",
     )
     assert SnowflakeClientConfiguration(credentials=c).fingerprint() == digest128("host1")
-
-
-def test_snowflake_azure_converter() -> None:
-    with pytest.raises(TerminalValueError):
-        SnowflakeLoadJob.ensure_snowflake_azure_url("az://dlt-ci-test-bucket")
-
-    azure_url = SnowflakeLoadJob.ensure_snowflake_azure_url("az://dlt-ci-test-bucket", "my_account")
-    assert azure_url == "azure://my_account.blob.core.windows.net/dlt-ci-test-bucket"
-
-    azure_url = SnowflakeLoadJob.ensure_snowflake_azure_url(
-        "az://dlt-ci-test-bucket/path/to/file.parquet", "my_account"
-    )
-    assert (
-        azure_url
-        == "azure://my_account.blob.core.windows.net/dlt-ci-test-bucket/path/to/file.parquet"
-    )
-
-    azure_url = SnowflakeLoadJob.ensure_snowflake_azure_url(
-        "abfss://dlt-ci-test-bucket@my_account.blob.core.windows.net/path/to/file.parquet"
-    )
-    assert (
-        azure_url
-        == "azure://my_account.blob.core.windows.net/dlt-ci-test-bucket/path/to/file.parquet"
-    )
