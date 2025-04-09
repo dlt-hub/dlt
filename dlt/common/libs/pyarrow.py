@@ -740,6 +740,7 @@ def transpose_rows_to_columns(
     try:
         from pandas._libs import lib
 
+        # NOTE: this is part of public interface now via DataFrame.from_records()
         pivoted_rows = lib.to_object_array_tuples(rows).T
     except ImportError:
         logger.info(
