@@ -1,5 +1,6 @@
 from typing import Any, Type, Union, TYPE_CHECKING, List
 
+from dlt.common.destination.exceptions import OpenTableClientNotAvailable
 from dlt.common.json import json
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination.reference import TDestinationReferenceArg, Destination
@@ -88,9 +89,13 @@ class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
         return self._destination_client(self._schema)
 
     @property
-    def table_client(self) -> SupportsOpenTables:
+    def open_table_client(self) -> SupportsOpenTables:
         if not self._sql_client:
             self._ensure_client_and_schema()
+        if not self._table_client:
+            raise OpenTableClientNotAvailable(
+                self._dataset_name, self._destination.destination_name
+            )
         return self._table_client
 
     def _destination_client(self, schema: Schema) -> JobClientBase:

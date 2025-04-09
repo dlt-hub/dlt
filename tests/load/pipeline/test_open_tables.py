@@ -1,9 +1,7 @@
-import os
 import pytest
-from typing import Any, Tuple
 
 import dlt
-from dlt.common.schema.typing import TTableFormat
+from dlt.common.destination.exceptions import OpenTableClientNotAvailable
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from tests.load.utils import (
     destinations_configs,
@@ -200,6 +198,28 @@ def test_load_open_table(destination_config: DestinationTestConfiguration) -> No
             assert len(arrow_table) == 5
             assert "id" in arrow_table.column_names
             assert "value" in arrow_table.column_names
+
+    # test open table client
+    dataset_ = pipeline.dataset()
+    assert dataset_.open_table_client.get_open_table_location(
+        destination_config.table_format, "open_table"
+    )
+
+
+def test_table_client_not_available() -> None:
+    """Test that an appropriate error is raised when trying to access open_table_client on a destination that doesn't support it."""
+    pipeline = dlt.pipeline("test_table_client_not_available", destination="duckdb")
+
+    # Run the pipeline to create the table
+    pipeline.run([1, 2, 3], table_name="simple_table")
+
+    dataset_ = pipeline.dataset()
+
+    # This should work because SQL client is available
+    assert dataset_.sql_client is not None
+
+    with pytest.raises(OpenTableClientNotAvailable):
+        dataset_.open_table_client
 
 
 @pytest.mark.parametrize(
