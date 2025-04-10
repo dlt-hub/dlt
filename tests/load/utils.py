@@ -532,6 +532,14 @@ def destinations_configs(
                 extra_info="credential-forwarding",
             ),
             DestinationTestConfiguration(
+                destination_type="redshift",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AWS_BUCKET,
+                staging_iam_role="arn:aws:iam::267388281016:role/redshift_s3_read",
+                extra_info="s3-role",
+            ),
+            DestinationTestConfiguration(
                 destination_type="snowflake",
                 staging="filesystem",
                 file_format="parquet",
