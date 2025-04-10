@@ -227,7 +227,7 @@ Just go to cursor's MCP-settings, choose "add new global MCP server" and add thi
   "mcpServers": {
     "dltPlusProxy": {
       "command": "uv",
-      "args": ["run", "mcp-proxy", "http://127.0.0.1:43655/sse"]
+      "args": ["run", "mcp-proxy", "http://127.0.0.1:43655/sse"],
       "env": {}
     }
   }
