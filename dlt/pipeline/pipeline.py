@@ -9,12 +9,14 @@ from typing import (
     ClassVar,
     List,
     Iterator,
+    Literal,
     Optional,
     Sequence,
     Tuple,
     cast,
     ContextManager,
     Union,
+    overload,
 )
 
 import dlt
@@ -74,7 +76,6 @@ from dlt.common.destination.client import (
     JobClientBase,
     DestinationClientStagingConfiguration,
 )
-from dlt.common.destination.dataset import SupportsReadableDataset
 from dlt.common.destination.typing import TDatasetType
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.pipeline import (
@@ -97,6 +98,7 @@ from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
 from dlt.destinations.configuration import WithLocalFiles
+from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.extract import DltSource
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import Extract, data_to_sources
@@ -109,6 +111,9 @@ from dlt.destinations.dataset import (
     dataset,
     get_destination_clients,
 )
+from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
+from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
+
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
 
@@ -1750,9 +1755,30 @@ class Pipeline(SupportsPipeline):
             "working_dir": self.working_dir,
         }
 
+    @overload
+    def dataset(
+        self,
+        schema: Union[Schema, str, None] = None,
+        dataset_type: Literal["ibis"] = "ibis",
+    ) -> ReadableDBAPIDataset[ReadableIbisRelation]: ...
+
+    @overload
+    def dataset(
+        self,
+        schema: Union[Schema, str, None] = None,
+        dataset_type: Literal["default"] = "default",
+    ) -> ReadableDBAPIDataset[ReadableDBAPIRelation]: ...
+
+    @overload
+    def dataset(
+        self,
+        schema: Union[Schema, str, None] = None,
+        dataset_type: TDatasetType = "auto",
+    ) -> ReadableDBAPIDataset[ReadableIbisRelation]: ...
+
     def dataset(
         self, schema: Union[Schema, str, None] = None, dataset_type: TDatasetType = "auto"
-    ) -> SupportsReadableDataset:
+    ) -> Any:
         """Returns a dataset object for querying the destination data.
 
         Args:

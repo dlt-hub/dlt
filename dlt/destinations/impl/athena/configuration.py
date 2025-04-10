@@ -1,11 +1,9 @@
 import dataclasses
-from typing import ClassVar, Final, List, Optional
-import warnings
+from typing import Any, ClassVar, Dict, Final, List, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.configuration.specs import AwsCredentials
-from dlt.common.warnings import Dlt100DeprecationWarning
 
 
 @configspec
@@ -15,9 +13,20 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     credentials: AwsCredentials = None
     athena_work_group: Optional[str] = None
     aws_data_catalog: Optional[str] = "awsdatacatalog"
+    connection_params: Optional[Dict[str, Any]] = None
     force_iceberg: Optional[bool] = None
 
-    __config_gen_annotations__: ClassVar[List[str]] = ["athena_work_group"]
+    __config_gen_annotations__: ClassVar[List[str]] = ["athena_work_group", "aws_data_catalog"]
+
+    def to_connector_params(self) -> Dict[str, Any]:
+        native_credentials = self.credentials.to_native_representation()
+        return {
+            "s3_staging_dir": self.query_result_bucket,
+            "work_group": self.athena_work_group,
+            "catalog_name": self.aws_data_catalog,
+            **(self.connection_params or {}),
+            **native_credentials,
+        }
 
     def __str__(self) -> str:
         """Return displayable destination location"""

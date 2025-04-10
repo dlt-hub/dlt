@@ -1,29 +1,28 @@
 from typing import Any, Union, TYPE_CHECKING, List
 
 from dlt.common.json import json
-
 from dlt.common.exceptions import MissingDependencyException
-
 from dlt.common.destination.reference import TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase, WithStateSync
-from dlt.common.destination.dataset import SupportsReadableRelation, SupportsReadableDataset
+from dlt.common.destination.dataset import (
+    SupportsReadableRelation,
+    SupportsReadableDataset,
+    TReadableRelation,
+)
 from dlt.common.destination.typing import TDatasetType
+from dlt.common.schema import Schema
 
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
-from dlt.common.schema import Schema
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
 
 if TYPE_CHECKING:
-    try:
-        from dlt.helpers.ibis import BaseBackend as IbisBackend
-    except MissingDependencyException:
-        IbisBackend = Any
+    from dlt.helpers.ibis import BaseBackend as IbisBackend
 else:
     IbisBackend = Any
 
 
-class ReadableDBAPIDataset(SupportsReadableDataset):
+class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
     """Access to dataframes and arrowtables in the destination dataset via dbapi"""
 
     def __init__(
@@ -38,7 +37,17 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         self._dataset_name = dataset_name
         self._sql_client: SqlClientBase[Any] = None
         self._schema: Schema = None
-        self._dataset_type = dataset_type
+        # resolve dataset type
+        if dataset_type in ("auto", "ibis"):
+            try:
+                from dlt.helpers.ibis import ibis
+
+                dataset_type = "ibis"
+            except MissingDependencyException:
+                # if ibis is explicitly requested, reraise
+                if dataset_type == "ibis":
+                    raise
+        self._dataset_type: TDatasetType = dataset_type
 
     def ibis(self) -> IbisBackend:
         """return a connected ibis backend"""
@@ -119,31 +128,27 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
                 )
 
     def __call__(self, query: Any) -> ReadableDBAPIRelation:
+        # TODO: accept other query types and return a right relation: sqlglot (DBAPI) and ibis (Expr)
         return ReadableDBAPIRelation(readable_dataset=self, provided_query=query)  # type: ignore[abstract]
 
-    def table(self, table_name: str) -> SupportsReadableRelation:
+    def table(self, table_name: str) -> TReadableRelation:
         # we can create an ibis powered relation if ibis is available
-        if table_name in self.schema.tables and self._dataset_type in ("auto", "ibis"):
-            try:
-                from dlt.helpers.ibis import create_unbound_ibis_table
-                from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
+        if self._dataset_type == "ibis":
+            from dlt.helpers.ibis import create_unbound_ibis_table
+            from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 
-                unbound_table = create_unbound_ibis_table(self.sql_client, self.schema, table_name)
-                return ReadableIbisRelation(  # type: ignore[abstract]
-                    readable_dataset=self,
-                    ibis_object=unbound_table,
-                    columns_schema=self.schema.tables[table_name]["columns"],
-                )
-            except MissingDependencyException:
-                # if ibis is explicitly requested, reraise
-                if self._dataset_type == "ibis":
-                    raise
+            unbound_table = create_unbound_ibis_table(self.sql_client, self.schema, table_name)
+            return ReadableIbisRelation(  # type: ignore[abstract,return-value]
+                readable_dataset=self,
+                ibis_object=unbound_table,
+                columns_schema=self.schema.tables[table_name]["columns"],
+            )
 
         # fallback to the standard dbapi relation
-        return ReadableDBAPIRelation(
+        return ReadableDBAPIRelation(  # type: ignore[abstract,return-value]
             readable_dataset=self,
             table_name=table_name,
-        )  # type: ignore[abstract]
+        )
 
     def row_counts(
         self, *, data_tables: bool = True, dlt_tables: bool = False, table_names: List[str] = None
@@ -171,10 +176,10 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         # Execute query and build result dict
         return self(query)
 
-    def __getitem__(self, table_name: str) -> SupportsReadableRelation:
+    def __getitem__(self, table_name: str) -> TReadableRelation:
         """access of table via dict notation"""
         return self.table(table_name)
 
-    def __getattr__(self, table_name: str) -> SupportsReadableRelation:
+    def __getattr__(self, table_name: str) -> TReadableRelation:
         """access of table via property notation"""
         return self.table(table_name)

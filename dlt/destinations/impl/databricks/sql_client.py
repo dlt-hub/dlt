@@ -7,15 +7,7 @@ from typing import (
     Iterator,
     Optional,
     Sequence,
-    List,
-    Tuple,
-    Union,
-    Dict,
-    cast,
-    Callable,
 )
-
-from databricks.sdk.core import Config, oauth_service_principal
 from databricks import sql as databricks_lib
 from databricks.sql.client import (
     Connection as DatabricksSqlConnection,
@@ -75,25 +67,8 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
         self._conn: DatabricksSqlConnection = None
         self.credentials = credentials
 
-    def _get_oauth_credentials(self) -> Optional[Callable[[], Dict[str, str]]]:
-        config = Config(
-            host=f"https://{self.credentials.server_hostname}",
-            client_id=self.credentials.client_id,
-            client_secret=self.credentials.client_secret,
-        )
-        return cast(Callable[[], Dict[str, str]], oauth_service_principal(config))
-
     def open_connection(self) -> DatabricksSqlConnection:
         conn_params = self.credentials.to_connector_params()
-
-        if self.credentials.client_id and self.credentials.client_secret:
-            conn_params["credentials_provider"] = self._get_oauth_credentials
-        elif callable(self.credentials.access_token):
-            # this is w.config.authenticator
-            conn_params["credentials_provider"] = lambda: self.credentials.access_token
-        else:
-            # this is access token
-            conn_params["access_token"] = self.credentials.access_token
 
         self._conn = databricks_lib.connect(
             **conn_params, schema=self.dataset_name, use_inline_params="silent"
