@@ -3,6 +3,7 @@ from copy import deepcopy
 from typing import Any, Callable, cast, List, Optional, Set
 
 import pytest
+from pytest_mock import MockerFixture
 
 import dlt
 from dlt.common import json
@@ -16,6 +17,7 @@ from dlt.extract.exceptions import ResourceExtractionError
 from dlt.extract.incremental.transform import JsonIncremental, ArrowIncremental
 from dlt.sources import DltResource
 
+import dlt.sources.sql_database
 from tests.pipeline.utils import (
     assert_load_info,
     assert_schema_on_data,
@@ -95,6 +97,69 @@ def convert_time_to_us(table):
         time_us_column,
     )
     return new_table
+
+
+def test_sqlalchemy_no_quoted_name(
+    sql_source_db: SQLAlchemySourceDB, mocker: MockerFixture
+) -> None:
+    """
+    Ensures that table names internally passed as `quoted_name` to `sql_table` are not persisted
+    in the schema object or serialized schema file.
+    """
+    from sqlalchemy.sql.elements import quoted_name
+    from tests.utils import TEST_STORAGE_ROOT
+    from dlt.common.storages.file_storage import FileStorage
+    import yaml
+
+    # Validate how quoted_name is dumped in YAML
+    quoted = quoted_name("quoted_table", True)
+    wrong_yaml = yaml.dump({"table": quoted})
+    assert "!!python" in wrong_yaml
+
+    # Ensure casting to str avoids yaml tag
+    fixed_yaml = yaml.dump({"table": str(quoted)})
+    assert "!!python" not in fixed_yaml
+    assert "quoted_table" in fixed_yaml
+
+    # Test within a dlt pipeline
+    import_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "import")
+    export_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "export")
+
+    sql_table_spy = mocker.spy(dlt.sources.sql_database, "sql_table")
+
+    all_tables = sql_database(
+        credentials=sql_source_db.credentials,
+        schema=sql_source_db.schema,
+        table_names=["chat_message"],
+    )
+
+    # Assert sql_table is called once and receives table name of type quoted_name
+    assert len(sql_table_spy.call_args_list) == 1
+    table_arg = sql_table_spy.call_args_list[0].kwargs["table"]
+    assert isinstance(table_arg, quoted_name)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="sql_database" + uniq_id(),
+        destination="duckdb",
+        dataset_name="test_sql_pipeline_" + uniq_id(),
+        full_refresh=False,
+        import_schema_path=import_schema_path,
+        export_schema_path=export_schema_path,
+    )
+
+    # We only need to extract to create the import schema
+    pipeline.extract(all_tables)
+
+    # Assert that `quoted_name` is no longer present in schema or serialized file
+    for name, schema in pipeline._schema_storage.live_schemas.items():
+        resource = schema.tables["chat_message"]["resource"]
+        assert not isinstance(resource, quoted_name)
+
+        schema_file = pipeline._schema_storage._file_name_in_store(
+            name, pipeline._schema_storage.config.external_schema_format
+        )
+        schema_str = FileStorage(import_schema_path, makedirs=False).load(schema_file)
+        assert "!!python/object/apply:sqlalchemy.sql.elements.quoted_name" not in schema_str
 
 
 def test_pass_engine_credentials(sql_source_db: SQLAlchemySourceDB) -> None:
