@@ -98,6 +98,21 @@ class TableLoader:
             self.on_cursor_value_missing = self.incremental.on_cursor_value_missing
             self.range_start = self.incremental.range_start
             self.range_end = self.incremental.range_end
+            if page_size:
+                # Make cursor.rowcount also available for SELECT statements
+                # Needed to check returned rows during pagination
+                self.engine = self.engine.execution_options(preserve_rowcount=True)
+                if self.row_order is None:
+                    raise ValueError(
+                        "Row order must be specified when using a page size to "
+                        "sort rows during the pagination of the results."
+                    )
+                if self.incremental.primary_key is None:
+                    raise ValueError(
+                        "Primary keys must be specified when using a page size to "
+                        "sort rows during the pagination of the results to avoid ties when sorting "
+                        "by the cursor."
+                    )
         else:
             self.cursor_column = None
             self.last_value = None
@@ -193,6 +208,16 @@ class TableLoader:
                 if isinstance(primary_key, str):
                     primary_key = [primary_key]
                 pk_columns = [self.table.c[pk_name] for pk_name in primary_key]  # type: ignore[union-attr]
+                if len(pk_columns) == 1 and pk_columns[0] == self.cursor_column:
+                    # If PK column is the same as cursor, no additional sorting is needed
+                    pk_columns = None
+                else:
+                    # When PK is different from cursor column, sorting is needed to avoid ties
+                    # Sort PK by row_order since they will be used as additional sort for rows with ties
+                    if self.row_order == "asc":
+                        pk_columns = [column.asc() for column in pk_columns]
+                    else:
+                        pk_columns = [column.desc() for column in pk_columns]
                 results = iter(
                     TablePaginator(
                         query=query,
