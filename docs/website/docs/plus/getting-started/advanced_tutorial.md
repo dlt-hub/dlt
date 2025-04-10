@@ -231,7 +231,8 @@ Under the hood, `dlt+` runs an ad-hoc pipeline to handle the write operation.
 
 :::warning
 Writing data to the catalog is an **experimental feature**.  
-Use it with caution until it's fully stable.:::
+Use it with caution until it's fully stable.
+:::
 
 ```py
 # get a dataset from the catalog (it must already exist and be defined in dlt.yml)
