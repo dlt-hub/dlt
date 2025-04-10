@@ -965,10 +965,10 @@ You can combine multiple processing steps to achieve complex transformations:
 Some APIs provide a way to fetch only new or changed data (most often by using a timestamp field like `updated_at`, `created_at`, or incremental IDs).
 This is called [incremental loading](../../../general-usage/incremental-loading.md) and is very useful as it allows you to reduce the load time and the amount of data transferred.
 
-Let's start with a basic example to understand incremental loading with query parameters.
+Let's continue with our imaginary blog API example to understand incremental loading with query parameters.
 
 Imagine we have the following endpoint `https://api.example.com/posts` and it:
-1. Accepts a `created_since` query parameter to fetch posts created after a certain date.
+1. Accepts a `created_since` query parameter to fetch blog posts created after a certain date.
 2. Returns a list of posts with the `created_at` field for each post.
 
 For example, if we query the endpoint with GET request `https://api.example.com/posts?created_since=2024-01-25`, we get the following response:
@@ -985,7 +985,7 @@ For example, if we query the endpoint with GET request `https://api.example.com/
 
 When the API endpoint supports incremental loading, you can configure dlt to load only the new or changed data using these three methods:
 
-1. Using placeholders for incremental loading
+1. Using [placeholders for incremental loading](#using-placeholders-for-incremental-loading)
 2. Defining a special parameter in the `params` section of the [endpoint configuration](#endpoint-configuration) (DEPRECATED)
 3. Using the `incremental` field in the [endpoint configuration](#endpoint-configuration) with the `start_param` field (DEPRECATED)
 
@@ -995,7 +995,13 @@ The last two methods are deprecated and will be removed in a future dlt version.
 
 ### Using placeholders for incremental loading
 
-Let's continue with our example of fetching posts created after a certain date. Using placeholders, we can reference incremental values in different parts of the request:
+The most flexible way to configure incremental loading is to use placeholders in the request configuration along with the `incremental` section.
+Here's how it works:
+
+1. Define the `incremental` section in the [endpoint configuration](#endpoint-configuration) to specify the cursor path (where to find the incremental value in the response) and initial value (the value to start the incremental loading from).
+2. Use the placeholder `{incremental.start_value}` in the request configuration to reference the incremental value.
+
+Let's take the example from the previous section and configure it using placeholders:
 
 ```py
 {
@@ -1020,14 +1026,13 @@ When you first run this pipeline, dlt will:
 On the next pipeline run, dlt will:
 1. Replace `{incremental.start_value}` with "2024-01-28" (the last seen maximum value)
 2. Make a GET request to `https://api.example.com/posts?created_since=2024-01-28`
-3. Only load posts created on or after January 28th
+3. The API will only return posts created on or after January 28th
 
 Let's break down the configuration:
 1. We explicitly set `data_selector` to `"results"` to select the list of posts from the response. This is optional; if not set, dlt will try to auto-detect the data location.
 2. We define the `created_since` parameter in `params` section and use the placeholder `{incremental.start_value}` to reference the incremental value.
-3. We also define the `incremental` section to specify the cursor path (where to find the incremental value in the response) and initial value (the value to start the incremental loading from).
 
-Placeholders are versatile and can be used in multiple request components. Here are some examples:
+Placeholders are versatile and can be used in various request components. Here are some examples:
 
 #### In JSON body (for POST requests)
 
@@ -1067,6 +1072,8 @@ Some APIs use path parameters to filter the data:
 
 #### In request headers
 
+It's not so common, but you can also use placeholders in the request headers:
+
 ```py
 {
     "path": "posts",
@@ -1093,11 +1100,11 @@ You can also use different placeholder variants depending on your needs:
 ### Legacy method: Incremental loading in `params` (DEPRECATED)
 
 :::caution
-DEPRECATED: This method is deprecated and will be removed in a future version. Use the placeholder method described above instead.
+DEPRECATED: This method is deprecated and will be removed in a future version. Use the [placeholder method](#using-placeholders-for-incremental-loading) instead.
 :::
 
 :::note
-This method only works for query string parameters. For other request parts (path, JSON body, headers), use the placeholder method described above.
+This method only works for query string parameters. For other request parts (path, JSON body, headers), use the [placeholder method](#using-placeholders-for-incremental-loading).
 :::
 
 For query string parameters, you can also specify incremental loading directly in the `params` section:
@@ -1137,7 +1144,7 @@ The fields are:
 ### Incremental loading using the `incremental` field (DEPRECATED)
 
 :::caution
-DEPRECATED: This method is deprecated and will be removed in a future dlt version. Use the placeholder method described above instead.
+DEPRECATED: This method is deprecated and will be removed in a future dlt version. Use the [placeholder method](#using-placeholders-for-incremental-loading) instead.
 :::
 
 Another alternative method is to use the `incremental` field in the [endpoint configuration](#endpoint-configuration) while specifying names of the query string parameters to be used as start and end conditions.
