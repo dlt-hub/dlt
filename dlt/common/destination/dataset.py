@@ -34,9 +34,8 @@ class SupportsReadableRelation(Protocol):
     columns_schema: TTableSchemaColumns
     """Known dlt table columns for this relation"""
 
-    def query(self) -> Any: ...
-
-    """Represents relation as an query, currently always SQL"""
+    def query(self) -> Any:
+        """Represents relation as a query, currently always SQL"""
 
     def df(self, chunk_size: int = None) -> Optional[DataFrame]:
         """Fetches the results as data frame. For large queries the results may be chunked
