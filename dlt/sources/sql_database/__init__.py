@@ -61,6 +61,7 @@ def sql_database(
             "sqlalchemy" yields batches as lists of Python dictionaries, "pyarrow" and "connectorx" yield batches as arrow tables, "pandas" yields panda frames.
             "sqlalchemy" is the default and does not require additional dependencies, "pyarrow" creates stable destination schemas with correct data types,
             "connectorx" is typically the fastest but ignores the "chunk_size" so you must deal with large tables yourself.
+        page_size (Optional[int]): Number of rows to be retrieved per transaction. Useful when connecting to DBs with restrictions on the number of rows to retrieve.
         detect_precision_hints (bool): Deprecated. Use `reflection_level`. Set column precision and scale hints for supported data types in the target schema based on the columns in the source tables.
             This is disabled by default.
         reflection_level: (ReflectionLevel): Specifies how much information should be reflected from the source database schema.
@@ -178,6 +179,7 @@ def sql_table(
             "sqlalchemy" yields batches as lists of Python dictionaries, "pyarrow" and "connectorx" yield batches as arrow tables, "pandas" yields panda frames.
             "sqlalchemy" is the default and does not require additional dependencies, "pyarrow" creates stable destination schemas with correct data types,
             "connectorx" is typically the fastest but ignores the "chunk_size" so you must deal with large tables yourself.
+        page_size (Optional[int]): Number of rows to be retrieved per transaction. Useful when connecting to DBs with restrictions on the number of rows to retrieve.
         reflection_level: (ReflectionLevel): Specifies how much information should be reflected from the source database schema.
             "minimal": Only table names, nullability and primary keys are reflected. Data types are inferred from the data. This is the default option.
             "full": Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary.
