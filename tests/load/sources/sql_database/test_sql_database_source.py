@@ -733,8 +733,8 @@ def test_all_types_with_precision_hints(
     # add JSON unwrap for connectorx
     if backend == "connectorx":
         source.resources[table_name].add_map(unwrap_json_connector_x("json_col"))
-    pipeline.extract(source)
-    pipeline.normalize(loader_file_format="parquet")
+    pipeline.extract(source, loader_file_format="parquet")
+    pipeline.normalize()
     info = pipeline.load()
     assert_load_info(info)
 
@@ -771,8 +771,8 @@ def test_all_types_no_precision_hints(
     # add JSON unwrap for connectorx
     if backend == "connectorx":
         source.resources[table_name].add_map(unwrap_json_connector_x("json_col"))
-    pipeline.extract(source)
-    pipeline.normalize(loader_file_format="parquet")
+    pipeline.extract(source, loader_file_format="parquet")
+    pipeline.normalize()
     pipeline.load()
 
     schema = pipeline.default_schema
@@ -879,9 +879,9 @@ def test_deferred_reflect_in_source(
     assert source.chat_message.columns == {}
 
     pipeline = make_pipeline("duckdb")
-    pipeline.extract(source)
+    pipeline.extract(source, loader_file_format="insert_values")
     # use insert values to convert parquet into INSERT
-    pipeline.normalize(loader_file_format="insert_values")
+    pipeline.normalize()
     pipeline.load()
     precision_table = pipeline.default_schema.get_table("has_precision")
     assert_precision_columns(
@@ -936,9 +936,9 @@ def test_deferred_reflect_in_resource(
     assert table.columns == {}
 
     pipeline = make_pipeline("duckdb")
-    pipeline.extract(table)
+    pipeline.extract(table, loader_file_format="insert_values")
     # use insert values to convert parquet into INSERT
-    pipeline.normalize(loader_file_format="insert_values")
+    pipeline.normalize()
     pipeline.load()
     precision_table = pipeline.default_schema.get_table("has_precision")
     assert_precision_columns(

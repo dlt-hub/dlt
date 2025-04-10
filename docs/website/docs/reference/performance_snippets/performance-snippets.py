@@ -21,7 +21,7 @@ def parallel_config_snippet() -> None:
     # this prevents process pool to run the initialization code again
     if __name__ == "__main__" or "PYTEST_CURRENT_TEST" in os.environ:
         pipeline = dlt.pipeline("parallel_load", destination="duckdb", dev_mode=True)
-        pipeline.extract(read_table(1000000))
+        pipeline.extract(read_table(1000000), loader_file_format="jsonl")
 
         load_id = pipeline.list_extracted_load_packages()[0]
         extracted_package = pipeline.get_load_package_info(load_id)
@@ -29,7 +29,7 @@ def parallel_config_snippet() -> None:
         extracted_jobs = extracted_package.jobs["new_jobs"]
         print([str(job.job_file_info) for job in extracted_jobs])
         # normalize and print counts
-        print(pipeline.normalize(loader_file_format="jsonl"))
+        print(pipeline.normalize())
         # print jobs in load package (10 + 1 as above)
         load_id = pipeline.list_normalized_load_packages()[0]
         print(pipeline.get_load_package_info(load_id))

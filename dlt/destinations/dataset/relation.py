@@ -1,12 +1,10 @@
-from typing import Any, Generator, Sequence, Union, TYPE_CHECKING
+from typing import Any, Generator, Sequence, Type, Union, TYPE_CHECKING
 from contextlib import contextmanager
-
 
 from dlt.common.destination.dataset import (
     SupportsReadableRelation,
 )
-from dlt.destinations.sql_client import SqlClientBase
-from dlt.common.schema import Schema
+from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import Self
 
@@ -15,14 +13,13 @@ from dlt.destinations.dataset.exceptions import (
     ReadableRelationUnknownColumnException,
 )
 
-
 if TYPE_CHECKING:
     from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
 else:
     ReadableDBAPIDataset = Any
 
 
-class BaseReadableDBAPIRelation(SupportsReadableRelation):
+class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     def __init__(
         self,
         *,
@@ -46,6 +43,10 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation):
     @property
     def sql_client(self) -> SqlClientBase[Any]:
         return self._dataset.sql_client
+
+    @property
+    def sql_client_class(self) -> Type[SqlClientBase[Any]]:
+        return self._dataset.sql_client_class
 
     def query(self) -> Any:
         # NOTE: converted from property to method due to:

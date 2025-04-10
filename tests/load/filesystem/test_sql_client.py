@@ -42,9 +42,6 @@ def _run_dataset_checks(
 ) -> None:
     total_records = 200
 
-    # duckdb will store secrets lower case, that's why we could not delete it
-    TEST_SECRET_NAME = "test_secret_" + uniq_id()
-
     # only some buckets have support for persistent secrets
     needs_persistent_secrets = (
         destination_config.bucket_url.startswith("s3")
@@ -144,6 +141,8 @@ def _run_dataset_checks(
     #
 
     duck_db_location = TEST_STORAGE_ROOT + "/" + uniq_id()
+    # duckdb will store secrets lower case, that's why we could not delete it
+    TEST_SECRET_NAME = "second_" + uniq_id()
 
     def _external_duckdb_connection() -> duckdb.DuckDBPyConnection:
         external_db = duckdb.connect(duck_db_location)
@@ -156,11 +155,13 @@ def _run_dataset_checks(
 
     def _fs_sql_client_for_external_db(
         connection: duckdb.DuckDBPyConnection,
+        persist_secrets: bool = False,
     ) -> FilesystemSqlClient:
         return FilesystemSqlClient(
             dataset_name="second",
-            fs_client=pipeline.destination_client(),  #  type: ignore
-            credentials=DuckDbCredentials(connection),
+            remote_client=pipeline.destination_client(),  #  type: ignore
+            cache_db=DuckDbCredentials(connection),
+            persist_secrets=persist_secrets,
         )
 
     # we create a duckdb with a table an see whether we can add more views from the fs client
@@ -181,7 +182,7 @@ def _run_dataset_checks(
     assert len(external_db.sql("SELECT * FROM first.items").fetchall()) == 3
 
     # test if view reflects source table accurately after it has changed
-    # conretely, this tests if an existing view is replaced with formats that need it, such as
+    # concretely, this tests if an existing view is replaced with formats that need it, such as
     # `iceberg` table format
     with fs_sql_client as sql_client:
         sql_client.create_views_for_tables({"arrow_all_types": "arrow_all_types"})
@@ -224,11 +225,19 @@ def _run_dataset_checks(
 
     # create secret
     external_db = _external_duckdb_connection()
-    fs_sql_client = _fs_sql_client_for_external_db(external_db)
+    fs_sql_client = _fs_sql_client_for_external_db(external_db, persist_secrets=True)
 
     try:
         with fs_sql_client as sql_client:
-            fs_sql_client.create_authentication(persistent=True, secret_name=TEST_SECRET_NAME)
+            # remove all previous secrets
+            for secret_name in fs_sql_client.list_secrets():
+                fs_sql_client.drop_secret(secret_name)
+
+            fs_sql_client.create_secret(
+                fs_sql_client.remote_client.config.bucket_url,
+                fs_sql_client.remote_client.config.credentials,
+                secret_name=TEST_SECRET_NAME,
+            )
         external_db.close()
 
         # now this should work
@@ -241,7 +250,7 @@ def _run_dataset_checks(
         # now drop the secrets again
         fs_sql_client = _fs_sql_client_for_external_db(external_db)
         with fs_sql_client as sql_client:
-            fs_sql_client.drop_authentication(TEST_SECRET_NAME)
+            fs_sql_client.drop_secret(TEST_SECRET_NAME)
         external_db.close()
 
         # fails again
@@ -252,11 +261,11 @@ def _run_dataset_checks(
                 == total_records
             )
         external_db.close()
-    finally:
+    except Exception:
         with duckdb.connect() as conn:
             fs_sql_client = _fs_sql_client_for_external_db(conn)
             with fs_sql_client as sql_client:
-                fs_sql_client.drop_authentication(TEST_SECRET_NAME)
+                fs_sql_client.drop_secret(TEST_SECRET_NAME)
 
 
 @pytest.mark.essential
@@ -365,8 +374,12 @@ def test_evolving_filesystem(
             f"Test only works for jsonl and parquet, given: {destination_config.file_format}"
         )
 
-    @dlt.resource(table_name="items")
+    @dlt.resource(table_name="items", file_format=destination_config.file_format)
     def items():
+        yield from [{"id": i} for i in range(20)]
+
+    @dlt.resource(file_format="csv")
+    def csv_items():
         yield from [{"id": i} for i in range(20)]
 
     pipeline = destination_config.setup_pipeline(
@@ -375,16 +388,21 @@ def test_evolving_filesystem(
         dev_mode=True,
     )
 
-    pipeline.run([items()], loader_file_format=destination_config.file_format)
+    pipeline.run([items(), csv_items()])
 
     df = pipeline.dataset().items.df()
     assert len(df.index) == 20
 
-    @dlt.resource(table_name="items")
+    # csv not available in dataset
+    assert pipeline.default_schema.get_table("csv_items")["file_format"] == "csv"
+    with pytest.raises(DatabaseUndefinedRelation):
+        pipeline.dataset().csv_items.df()
+
+    @dlt.resource(table_name="items", file_format=destination_config.file_format)
     def items2():
         yield from [{"id": i, "other_value": "Blah"} for i in range(20, 50)]
 
-    pipeline.run([items2()], loader_file_format=destination_config.file_format)
+    pipeline.run([items2()])
 
     # check df and arrow access
     assert len(pipeline.dataset().items.df().index) == 50

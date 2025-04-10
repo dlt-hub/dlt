@@ -11,7 +11,13 @@ from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.schema.typing import TColumnSchema, TColumnType, TLoaderMergeStrategy, TTableSchema
+from dlt.common.schema.typing import (
+    TColumnSchema,
+    TColumnType,
+    TLoaderMergeStrategy,
+    TLoaderReplaceStrategy,
+    TTableSchema,
+)
 from dlt.common.typing import TLoaderFileFormat
 from dlt.common.utils import without_none
 
@@ -32,6 +38,20 @@ def athena_merge_strategies_selector(
         return supported_merge_strategies
     else:
         return []
+
+
+def athena_replace_strategies_selector(
+    supported_replace_strategies: t.Sequence[TLoaderReplaceStrategy],
+    /,
+    *,
+    table_schema: TTableSchema,
+) -> t.Sequence[TLoaderReplaceStrategy]:
+    if table_schema.get("table_format") == "iceberg":
+        # always from staging table
+        return ["insert-from-staging"]
+    else:
+        # only truncate and insert for regular tables
+        return ["truncate-and-insert"]
 
 
 class AthenaTypeMapper(TypeMapperImpl):
@@ -141,6 +161,7 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
         caps.merge_strategies_selector = athena_merge_strategies_selector
+        caps.replace_strategies_selector = athena_replace_strategies_selector
         caps.sqlglot_dialect = "athena"
 
         return caps

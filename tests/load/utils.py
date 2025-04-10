@@ -38,9 +38,10 @@ from dlt.common.destination.client import (
     DestinationClientStagingConfiguration,
     WithStagingDataset,
     DestinationCapabilitiesContext,
+    DEFAULT_FILE_LAYOUT,
 )
 from dlt.common.destination import TLoaderFileFormat, Destination, TDestinationReferenceArg
-from dlt.common.destination.client import DEFAULT_FILE_LAYOUT
+from dlt.common.destination.exceptions import SqlClientNotAvailable
 from dlt.common.data_writers import DataWriter
 from dlt.common.pipeline import PipelineContext
 from dlt.common.schema import TTableSchemaColumns, Schema
@@ -56,7 +57,6 @@ from dlt.destinations.exceptions import CantExtractTablePrefix
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from dlt.pipeline.exceptions import SqlClientNotAvailable
 from tests.utils import (
     ACTIVE_DESTINATIONS,
     ACTIVE_TABLE_FORMATS,

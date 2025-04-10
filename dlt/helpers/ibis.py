@@ -169,7 +169,7 @@ def create_ibis_backend(
         sql_client = FilesystemSqlClient(
             fs_client,
             dataset_name=fs_client.dataset_name,
-            credentials=DuckDbCredentials(duckdb.connect()),
+            cache_db=DuckDbCredentials(duckdb.connect()),
         )
         # do not use context manager to not return and close the cloned connection
         duckdb_conn = sql_client.open_connection()

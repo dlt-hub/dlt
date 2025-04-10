@@ -26,7 +26,7 @@ def _make_pipeline(destination_name: str):
     destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
     ids=lambda x: x.name,
 )
-def test_rest_api_source(destination_config: DestinationTestConfiguration, request: Any) -> None:
+def test_rest_api_source(destination_config: DestinationTestConfiguration) -> None:
     config: RESTAPIConfig = {
         "client": {
             "base_url": "https://pokeapi.co/api/v2/",
@@ -48,7 +48,7 @@ def test_rest_api_source(destination_config: DestinationTestConfiguration, reque
         ],
     }
     data = rest_api_source(config)
-    pipeline = destination_config.setup_pipeline(request.node.name, dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_rest_api_source", dev_mode=True)
     load_info = pipeline.run(data)
     assert_load_info(load_info)
     table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
@@ -66,7 +66,7 @@ def test_rest_api_source(destination_config: DestinationTestConfiguration, reque
     destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
     ids=lambda x: x.name,
 )
-def test_dependent_resource(destination_config: DestinationTestConfiguration, request: Any) -> None:
+def test_dependent_resource(destination_config: DestinationTestConfiguration) -> None:
     config: RESTAPIConfig = {
         "client": {
             "base_url": "https://pokeapi.co/api/v2/",
@@ -108,7 +108,7 @@ def test_dependent_resource(destination_config: DestinationTestConfiguration, re
     }
 
     data = rest_api_source(config)
-    pipeline = destination_config.setup_pipeline(request.node.name, dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_dependent_resource", dev_mode=True)
     load_info = pipeline.run(data)
     assert_load_info(load_info)
     table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
@@ -119,6 +119,8 @@ def test_dependent_resource(destination_config: DestinationTestConfiguration, re
         "pokemon__types",
         "pokemon__stats",
         "pokemon__moves__version_group_details",
+        "pokemon__past_abilities",
+        "pokemon__past_abilities__abilities",
         "pokemon__moves",
         "pokemon__game_indices",
         "pokemon__forms",

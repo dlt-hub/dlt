@@ -1,6 +1,7 @@
 import base64
 import string
 import re
+from typing import Sequence
 
 from dlt.common.json import json
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
@@ -62,6 +63,13 @@ class GoogleSecretsProvider(VaultDocProvider):
     @property
     def name(self) -> str:
         return "Google Secrets"
+
+    @property
+    def locations(self) -> Sequence[str]:
+        if self.credentials:
+            return [str(self.credentials)]
+        else:
+            return super().locations
 
     def _look_vault(self, full_key: str, hint: type) -> str:
         try:

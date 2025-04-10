@@ -187,14 +187,14 @@ if __name__ == "__main__":
 
     # 1. extract
     print("##################################### START EXTRACT ########")
-    pipeline.extract(resources)
+    pipeline.extract(resources, loader_file_format="parquet")
     print(f"--Time elapsed: {pendulum.now() - startTime}")
 
     # 2. normalize
     print("##################################### START NORMALIZATION ########")
     if load_type == "replace":
         info = pipeline.normalize(
-            workers=2, loader_file_format="parquet"
+            workers=2,
         )  # https://dlthub.com/docs/blog/dlt-arrow-loading
     else:
         info = pipeline.normalize()

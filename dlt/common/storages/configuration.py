@@ -1,5 +1,6 @@
 import os
 import pathlib
+import posixpath
 from typing import Any, Literal, Optional, Type, ClassVar, Dict, Union
 from urllib.parse import urlparse, unquote, urlunparse
 
@@ -196,7 +197,27 @@ class FilesystemConfiguration(BaseConfiguration):
     def is_local_filesystem(self) -> bool:
         return self.protocol == "file"
 
+    @property
+    def pathlib(self) -> Any:
+        """Returns pathlib suitable for joining and other path ops"""
+        return os.path if self.is_local_path(self.bucket_url) else posixpath
+
     def on_resolved(self) -> None:
+        self.verify_bucket_url()
+
+    def on_partial(self) -> None:
+        if self.bucket_url:
+            self.verify_bucket_url()
+
+    def normalize_bucket_url(self) -> None:
+        """Normalizes bucket_url ie. by making local paths absolute and converting to file:"""
+        # save original url
+        self._orig_bucket_url = self.bucket_url
+        # this is just a path in a local file system
+        if self.is_local_path(self.bucket_url):
+            self.bucket_url = self.make_file_url(self.bucket_url)
+
+    def verify_bucket_url(self) -> None:
         url = urlparse(self.bucket_url)
         if not url.path and not url.netloc:
             raise ConfigurationValueError(
@@ -206,11 +227,9 @@ class FilesystemConfiguration(BaseConfiguration):
             )
         self.normalize_bucket_url()
 
-    def normalize_bucket_url(self) -> None:
-        """Normalizes bucket_url ie. by making local paths absolute"""
-        # this is just a path in a local file system
-        if self.is_local_path(self.bucket_url):
-            self.bucket_url = self.make_file_url(self.bucket_url)
+    def original_bucket_url(self) -> str:
+        """Returns bucket_url before normalization"""
+        return self._orig_bucket_url
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:

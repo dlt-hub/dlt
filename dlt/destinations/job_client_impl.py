@@ -21,6 +21,7 @@ import re
 
 from dlt.common import pendulum, logger
 from dlt.common.destination.capabilities import DataTypeMapper
+from dlt.common.destination.utils import resolve_replace_strategy
 from dlt.common.json import json
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
@@ -59,17 +60,20 @@ from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.job_impl import (
     ReferenceFollowupJobRequest,
 )
-from dlt.destinations.sql_jobs import SqlMergeFollowupJob, SqlStagingCopyFollowupJob
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob, SqlStagingReplaceFollowupJob
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.utils import (
     get_pipeline_state_query_columns,
     info_schema_null_to_bool,
     verify_schema_merge_disposition,
+    verify_schema_replace_disposition,
 )
 
 # this should suffice for now
 DDL_COMMANDS = ["ALTER", "CREATE", "DROP"]
+# TODO: move to respective sql clients
+UNLOGGED_COMMANDS = ["ALTER SCHEMA"]
 
 
 class SqlLoadJob(RunnableLoadJob):
@@ -85,22 +89,30 @@ class SqlLoadJob(RunnableLoadJob):
         with FileStorage.open_zipsafe_ro(self._file_path, "r", encoding="utf-8") as f:
             sql = f.read()
 
-        # Some clients (e.g. databricks) do not support multiple statements in one execute call
-        if not self._sql_client.capabilities.supports_multiple_statements:
+        with self.maybe_transaction(sql):
+            # Some clients (e.g. databricks) do not support multiple statements in one execute call
             self._sql_client.execute_many(self._split_fragments(sql))
-        # if we detect ddl transactions, only execute transaction if supported by client
-        elif (
-            not self._string_contains_ddl_queries(sql)
-            or self._sql_client.capabilities.supports_ddl_transactions
-        ):
-            # with sql_client.begin_transaction():
-            self._sql_client.execute_sql(sql)
+
+    @contextlib.contextmanager
+    def maybe_transaction(self, sql: str) -> Iterator[None]:
+        """Begins a transaction if sql client supports it, otherwise works in auto commit."""
+        if (
+            self._job_client.capabilities.supports_ddl_transactions
+            or not self._string_contains_ddl_queries(sql)
+        ) and not self._has_out_of_transaction_commands(sql):
+            with self._sql_client.begin_transaction():
+                yield
         else:
-            # sql_client.execute_sql(sql)
-            self._sql_client.execute_many(self._split_fragments(sql))
+            yield
 
     def _string_contains_ddl_queries(self, sql: str) -> bool:
         for cmd in DDL_COMMANDS:
+            if re.search(cmd, sql, re.IGNORECASE):
+                return True
+        return False
+
+    def _has_out_of_transaction_commands(self, sql: str) -> bool:
+        for cmd in UNLOGGED_COMMANDS:
             if re.search(cmd, sql, re.IGNORECASE):
                 return True
         return False
@@ -156,6 +168,10 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         self.sql_client = sql_client
         assert isinstance(config, DestinationClientDwhConfiguration)
         self.config: DestinationClientDwhConfiguration = config
+
+    @property
+    def sql_client_class(self) -> Type[SqlClientBase[Any]]:
+        return self._sql_client.__class__
 
     @property
     def sql_client(self) -> SqlClientBase[TNativeConn]:
@@ -225,11 +241,22 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         else:
             yield
 
+    def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
+        load_table = super().prepare_load_table(table_name)
+        # apply x-replace-strategy (still unofficial)
+        if load_table["write_disposition"] == "replace":
+            replace_strategy = resolve_replace_strategy(
+                load_table, self.config.replace_strategy, self.capabilities
+            )
+            assert replace_strategy, f"Must be able to get replace strategy for {table_name}"
+            load_table["x-replace-strategy"] = replace_strategy  # type: ignore[typeddict-unknown-key]
+        return load_table
+
     def should_truncate_table_before_load(self, table_name: str) -> bool:
         table = self.prepare_load_table(table_name)
         return (
             table["write_disposition"] == "replace"
-            and self.config.replace_strategy == "truncate-and-insert"
+            and table["x-replace-strategy"] == "truncate-and-insert"  # type: ignore[typeddict-item]
         )
 
     def _create_append_followup_jobs(
@@ -246,14 +273,9 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         jobs: List[FollowupJobRequest] = []
-        if self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]:
-            jobs.append(
-                SqlStagingCopyFollowupJob.from_table_chain(
-                    table_chain,
-                    self.sql_client,
-                    params={"replace": True, "replace_strategy": self.config.replace_strategy},
-                )
-            )
+        root_table = table_chain[0]
+        if root_table["x-replace-strategy"] in ["insert-from-staging", "staging-optimized"]:  # type: ignore[typeddict-item]
+            jobs.append(SqlStagingReplaceFollowupJob.from_table_chain(table_chain, self.sql_client))
         return jobs
 
     def create_table_chain_completed_followup_jobs(
@@ -610,12 +632,22 @@ WHERE """
                     hint_columns = [
                         self.sql_client.escape_column_name(c["name"])
                         for c in new_columns
-                        if c.get(hint, False)
+                        if not has_default_column_prop_value(hint, c.get(hint))
                     ]
-                    if hint in ["hard_delete", "dedup_sort", "merge_key"]:
+                    # some hints are not materialized in destination or may be materialized in alter
+                    # TODO: add this information to TColumnPropInfo
+                    if hint in [
+                        "hard_delete",
+                        "dedup_sort",
+                        "merge_key",
+                        "variant",
+                        "row_key",
+                        "parent_key",
+                        "root_key",
+                    ]:
                         # you may add those
                         pass
-                    elif hint == "null":
+                    elif hint == "nullable":
                         logger.warning(
                             f"Column(s) {hint_columns} with NOT NULL are being added to existing"
                             f" table {table_name}. If there's data in the table the operation"
@@ -726,6 +758,16 @@ WHERE """
             for exception in exceptions:
                 logger.error(str(exception))
             raise exceptions[0]
+        if exceptions := verify_schema_replace_disposition(
+            self.schema,
+            loaded_tables,
+            self.capabilities,
+            self.config.replace_strategy,
+            warnings=True,
+        ):
+            for exception in exceptions:
+                logger.error(str(exception))
+            raise exceptions[0]
         return loaded_tables
 
     def prepare_load_job_execution(self, job: RunnableLoadJob) -> None:
@@ -770,7 +812,7 @@ class SqlJobClientWithStagingDataset(SqlJobClientBase, WithStagingDataset):
         if table["write_disposition"] == "merge":
             return True
         elif table["write_disposition"] == "replace" and (
-            self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]
+            table["x-replace-strategy"] in ["insert-from-staging", "staging-optimized"]  # type: ignore[typeddict-item]
         ):
             return True
         return False

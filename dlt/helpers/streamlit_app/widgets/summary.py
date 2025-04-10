@@ -1,6 +1,6 @@
 import dlt
 import streamlit as st
-from dlt.pipeline.exceptions import SqlClientNotAvailable
+from dlt.common.destination.exceptions import SqlClientNotAvailable
 
 
 def pipeline_summary(pipeline: dlt.Pipeline) -> None:
