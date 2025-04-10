@@ -159,6 +159,6 @@ This will display the source and resource state slots for all known sources.
 
 **To partially reset the state:**
 
-- Use the `dlt pipeline drop <resource_name>` command to [drop the state and tables for a given resource](../reference/command-line-interface.md#dlt-pipeline-drop).
-- Use the `dlt pipeline drop --state-paths` command to [reset the state at a given path without touching the tables and data](../reference/command-line-interface.md#dlt-pipeline-drop).
+- Use the `dlt pipeline <pipeline_name> drop <resource_name>` command to [drop the state and tables for a given resource](../reference/command-line-interface.md#dlt-pipeline-drop).
+- Use the `dlt pipeline <pipeline_name> drop --state-paths` command to [reset the state at a given path without touching the tables and data](../reference/command-line-interface.md#dlt-pipeline-drop).
 
