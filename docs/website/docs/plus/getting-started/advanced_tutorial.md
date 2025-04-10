@@ -71,7 +71,7 @@ project:
   allow_undefined_entities: false
 ```
 
-If you now try to run the pipeline my_pipeline, you’ll encounter an error indicating that the dataset `my_pipeline_dataset` does not exist.
+If you now try to run the pipeline `my_pipeline`, you’ll encounter an error indicating that the dataset `my_pipeline_dataset` does not exist.
 To fix this, you need to define the dataset explicitly in the `dlt.yml` file:
 
 ```yaml
