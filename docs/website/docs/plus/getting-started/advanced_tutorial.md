@@ -31,7 +31,7 @@ pip install pandas numpy pyarrow streamlit dlt[duckdb] uv
 
 ## Implicit entities
 
-By default, dlt+ will automatically create entities such as datasets or destinations when they are requested by the user or the executed code..
+By default, dlt+ will automatically create entities such as datasets or destinations when they are requested by the user or the executed code.
 To see how this works, initialize a new project with: 
 ```sh
 dlt project init arrow duckdb --package my_dlt_project
