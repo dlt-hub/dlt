@@ -74,7 +74,7 @@ class TablePaginator:
         """First calculate the expected offset of the query, then execute the query.
         If the query fails, then check if page backoff is possible and execute the new query.
         Otherwise, update the offset to the one used when executing the query. This is to avoid
-        updating the offset before executing the query, which might fail, and thus lead to skipped rows.
+        updating the offset when a query fails, leading to skipped rows.
         """
         new_offset = self._get_new_offset()
         try:
