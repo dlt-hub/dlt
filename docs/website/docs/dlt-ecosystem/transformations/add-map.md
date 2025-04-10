@@ -1,5 +1,5 @@
 ---
-title: Transforming data with add_map
+title: Transforming data with `add_map`
 description: Apply lightweight python transformations to your data inline using `add_map`.
 keywords: [add_map, transform data, remove columns]
 ---
@@ -7,7 +7,7 @@ keywords: [add_map, transform data, remove columns]
 `add_map` is a method in dlt used to apply custom logic to each data item after extraction. It is typically used to modify records before they continue through the pipeline or are loaded to the destination. Common examples include transforming, enriching, validating, cleaning, restructuring, or anonymizing data early in the pipeline.
 
 
-## Method Signature
+## Method signature
 ### `add_map` method
 ```
 resource.add_map(
@@ -25,7 +25,7 @@ Use `add_map` to apply a function to each item extracted by a resource. It runs 
 
 This page covers how `add_map` works, where it fits in the pipeline, and how to use it in different scenarios.
 
-## Related Methods
+## Related methods
 
 In addition to `add_map`, dlt provides:
 
@@ -106,7 +106,7 @@ for user in transformed_users:
     print(user)
 ```
 
-**Expected Output**
+**Expected output**
 
 ```python
 {'id': 1, 'first_name': 'John', 'last_name': 'Doe', 'email': '<hashed_value>', 'full_name': 'John Doe'}
@@ -115,15 +115,17 @@ for user in transformed_users:
 
 By explicitly using `insert_at=1`, the email masking step (`mask_email`) is executed right after data extraction and before enrichment. This ensures sensitive data is handled securely at the earliest stage possible.
 
-### Note on Incremental Behavior
+### Note on Incremental behavior
 
 Use `insert_at` to control when your transformation runs in the pipeline and ensure it executes before incremental filtering. See [incremental loading documentation](../../general-usage/incremental-loading#transform-records-before-incremental-processing) for more details.
 
-### `add_map` vs `add_yield_map`
+## `add_map` vs `add_yield_map`
 
-The difference between `add_map` and `add_yield_map` appears when a transformation produces multiple records from one input.
+The difference between `add_map` and `add_yield_map` matters when a transformation returns multiple records from a single input.
 
-```python
+#### Example
+
+```py
 import dlt
 import pandas as pd
 
@@ -132,14 +134,12 @@ def orders():
     yield {"order_id": 100, "items": ["Laptop", "Mouse", "Keyboard"]}
     yield {"order_id": 101, "items": ["Monitor"]}
 
-# Returns a list per input record, implicitly flattened by add_map
-def split_items_map(order):
+# Function to split items into separate records
+def split_items(order):
     return [{"order_id": order["order_id"], "item": item} for item in order["items"]]
 
-mapped_orders = orders().add_map(split_items_map)
-
-# Intentionally using same function to show difference
-yield_mapped_orders = orders().add_yield_map(split_items_map)  
+mapped_orders = orders().add_map(split_items)
+yield_mapped_orders = orders().add_yield_map(split_items)
 
 print("Using add_map:")
 print(pd.DataFrame(mapped_orders))
@@ -148,33 +148,50 @@ print("Using add_yield_map:")
 print(pd.DataFrame(yield_mapped_orders))
 ```
 
-**Output (actual results):**
+#### Output
+Both methods produce the same output, because `dlt` automatically flattens the list returned by `add_map`.
 
-dlt automatically flattens lists returned by `add_map`. This makes `add_map` and `add_yield_map` appear similar. Without flattening, `add_map` would return one list per input, not separate rows.
-
-**Without flattening:**
-
-```
+```text
 Using add_map:
-0    [{'order_id': 100, 'item': 'Laptop'}, {'order_id': 100, 'item': 'Mouse'}, {'order_id': 100, 'item': 'Keyboard'}]
-1    [{'order_id': 101, 'item': 'Monitor'}]
+0  {'order_id': 100, 'item': 'Laptop'}
+1  {'order_id': 100, 'item': 'Mouse'}
+2  {'order_id': 100, 'item': 'Keyboard'}
+3  {'order_id': 101, 'item': 'Monitor'}
 
 Using add_yield_map:
-0    {'order_id': 100, 'item': 'Laptop'}
-1    {'order_id': 101, 'item': 'Monitor'}
-2    {'order_id': 100, 'item': 'Mouse'}
-3    {'order_id': 100, 'item': 'Keyboard'}
+0  {'order_id': 100, 'item': 'Laptop'}
+1  {'order_id': 100, 'item': 'Mouse'}
+2  {'order_id': 100, 'item': 'Keyboard'}
+3  {'order_id': 101, 'item': 'Monitor'}
 ```
 
-This is what the output would look like if dlt didn’t automatically flatten lists in `add_map`.
+#### Key Difference
 
-In contrast, `add_yield_map` always yields each record as a separate row, even without flattening.
+- **`add_map`**: The function should return a list. `dlt` flattens this list into separate records.
+- **`add_yield_map`**: The function should yield one record at a time.
 
-The difference is subtle but important. `add_map` treats the returned list as a single batch per input, preserving item grouping and order. `add_yield_map` handles each yielded record individually, which can interleave records from different inputs.
+If flattening did *not* occur, the output would differ:
 
-Use `add_yield_map` when you want to explicitly stream and yield multiple records from one input. It makes your intent clear and ensures consistent behavior in complex pipelines.
+```text
+Using add_map:
+0  [{'order_id': 100, 'item': 'Laptop'}, {'order_id': 100, 'item': 'Mouse'}, {'order_id': 100, 'item': 'Keyboard'}]
+1  [{'order_id': 101, 'item': 'Monitor'}]
 
-## Best Practices for Using `add_map`
+Using add_yield_map:
+0  {'order_id': 100, 'item': 'Laptop'}
+1  {'order_id': 100, 'item': 'Mouse'}
+2  {'order_id': 100, 'item': 'Keyboard'}
+3  {'order_id': 101, 'item': 'Monitor'}
+```
+
+#### When to Use Which
+
+- Use **`add_map`** if your function returns a list of records.
+- Use **`add_yield_map`** if your function yields records one at a time (e.g. streaming, filtering).
+
+`add_yield_map` lets you yield records one at a time, giving better control over processing. This is helpful when your logic requires conditional output, filtering, or more granular handling.
+
+## Best practices for using `add_map`
 
 - **Keep transformations simple:**
     Functions passed to `add_map` run on each record and should be stateless and lightweight. Use them for tasks like string cleanup or basic calculations. For heavier operations (like per-record API calls), batch the work or move it outside `add_map`, for example into a transformer resource or a post-load step.
@@ -190,5 +207,5 @@ Use `add_yield_map` when you want to explicitly stream and yield multiple record
     
     Pipeline steps are zero-indexed in the order they are added. Index `0` is usually the initial data extraction. To run a custom map first, set `insert_at=1`. For multiple custom steps, assign different indices (e.g., one at `1`, another at `2`). If you're unsure about the order, iterate over the resource or check the `dlt` logs to confirm how steps are applied.
     
-- **Advanced consideration: data formats**
+- **Advanced consideration - data formats**
     Most `dlt` sources yield dictionaries or lists of them. However, some backends, such as PyArrow, may return data as NumPy arrays or Arrow tables. In these cases, your `add_map` or `add_yield_map` function must handle the input format, possibly by converting it to a list of dicts or a pandas DataFrame. This is an advanced scenario, but important if your transformation fails due to unexpected input types.
