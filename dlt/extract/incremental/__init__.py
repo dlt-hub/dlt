@@ -547,7 +547,9 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         return self._make_or_get_transformer(JsonIncremental)
 
     def __call__(self, rows: TDataItems, meta: Any = None) -> Optional[TDataItems]:
-        if rows is None:
+        # NOTE: we also forward empty lists, so special empty list types are preserved
+        # example: MaterializedEmptyList
+        if rows is None or rows == []:
             return rows
         transformer = self._get_transformer(rows)
         if isinstance(rows, list):
