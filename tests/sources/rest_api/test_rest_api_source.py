@@ -81,7 +81,7 @@ def test_rest_api_source(destination_name: str, invocation_type: str) -> None:
 
     assert table_counts["pokemon_list"] == 1302
     assert table_counts["berry"] == 64
-    assert table_counts["location"] == 1039
+    assert table_counts["location"] == 1070
 
 
 @pytest.mark.parametrize("destination_name", ALL_DESTINATIONS)
