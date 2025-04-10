@@ -121,7 +121,7 @@ pipelines:
 If you try to run the `my_pipeline` pipeline now, you will receive an error stating that the dataset `my_pipeline_dataset` does not exist on the `duckdb` destination.
 That’s because when a dataset is explicitly defined, dlt+ will not automatically infer or allow additional destinations.
 You must include all intended destinations manually.
-To fix this, simply add `duckdb` to the list of allowed destinations for `my_pipeline_dataset` in your `dlt.yml` file:
+To fix this, add `duckdb` to the list of allowed destinations for `my_pipeline_dataset` in your `dlt.yml` file:
 
 ```yaml
 my_pipeline_dataset:
