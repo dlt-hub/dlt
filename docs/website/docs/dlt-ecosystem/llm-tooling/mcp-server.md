@@ -201,3 +201,35 @@ Select **Agent Mode** to enable the MCP server. The [configuration](https://docs
 ### Cline
 
 Follow [this tutorial](https://docs.cline.bot/mcp-servers/mcp-quickstart) to use the IDE's menu to add MCP servers.
+
+## Optional: SSE-transport mode
+
+If the above doesn't work for you, or maybe you're development setup or IDE is a different one.
+you can start the MCP-servers with SSE-transport mode. This mode allows the MCP server to be run in a separate process
+and communicate with the IDE via SSE (Server-Sent Events).
+
+Thus, you can exactly control the environment as well as the directory you're `dlt`-assistant is running in.
+You can launch it from your desired directory like this:
+```sh
+cd /path/to/your/dltProject
+uv tool run dlt mcp run_plus --sse --port 43655
+```
+
+Next, you need to point your IDE to the MCPs address: `http://localhost:43655/sse`.
+
+Cline for example, has an interface to connect to an MCP at a remote server just by adding the URL.
+
+For Cursor, you can connect to it using a forwarding proxy, e.g. this lightweight [mcp-proxy](https://github.com/sparfenyuk/mcp-proxy).
+Just go to cursor's MCP-settings, choose "add new global MCP server" and add this to your
+`mcp.json`:
+```json
+{
+  "mcpServers": {
+    "dltPlusProxy": {
+      "command": "uv",
+      "args": ["run", "mcp-proxy", "http://127.0.0.1:43655/sse"]
+      "env": {}
+    }
+  }
+}
+```
