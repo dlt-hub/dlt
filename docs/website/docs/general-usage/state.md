@@ -155,7 +155,7 @@ This will display the source and resource state slots for all known sources.
 
 - Drop the destination dataset to fully reset the pipeline.
 - [Set the `dev_mode` flag wh^en creating the pipeline](pipeline.md#do-experiments-with-dev-mode).
-- Use the `dlt pipeline drop --drop-all` command to [drop the state and tables for a given schema name](../reference/command-line-interface.md#dlt-pipeline-drop).
+- Use the `dlt pipeline <pipeline_name> drop --drop-all` command to [drop the state and tables for a given schema name](../reference/command-line-interface.md#dlt-pipeline-drop).
 
 **To partially reset the state:**
 
