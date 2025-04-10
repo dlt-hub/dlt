@@ -549,7 +549,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     def __call__(self, rows: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         # NOTE: we also forward empty lists, so special empty list types are preserved
         # example: MaterializedEmptyList
-        if rows is None or rows == []:
+        if rows is None or (isinstance(rows, list) and len(rows) == 0):
             return rows
         transformer = self._get_transformer(rows)
         if isinstance(rows, list):
