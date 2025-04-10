@@ -14,8 +14,6 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 from sqlalchemy.sql.sqltypes import TypeEngine
 import sqlalchemy as sa
 
-from pytest import raises
-
 
 def load_select_tables_from_database() -> None:
     """Use the sql_database source to reflect an entire database schema and load select tables from it.
@@ -78,9 +76,12 @@ def load_select_tables_from_paginated_database() -> None:
 
     # Add incremental config to the resources. "updated" is a timestamp column in these tables that gets used as a cursor
     source_1.family.apply_hints(
-        incremental=dlt.sources.incremental("updated"), primary_key="rfam_id"
+        incremental=dlt.sources.incremental("updated", row_order="asc"),
+        primary_key="rfam_id",
     )
-    source_1.clan.apply_hints(incremental=dlt.sources.incremental("updated"), primary_key="id")
+    source_1.clan.apply_hints(
+        incremental=dlt.sources.incremental("updated", row_order="asc"), primary_key="id"
+    )
 
     # Run the pipeline. The merge write disposition merges existing rows in the destination by primary key
     info = pipeline.run(source_1, write_disposition="merge")
@@ -88,20 +89,17 @@ def load_select_tables_from_paginated_database() -> None:
 
     # Load a table with replace write disposition. This overwrites the existing tables in destination
     source_2 = sql_database(credentials, page_size=500).with_resources("author")
-    source_2.author.apply_hints(incremental=dlt.sources.incremental("author_id"))
+    source_2.author.apply_hints(
+        incremental=dlt.sources.incremental("author_id", row_order="asc"), primary_key="author_id"
+    )
     info = pipeline.run(source_2, write_disposition="replace")
     print(info)
-
-    # Load another table with replace write disposition, but without primary key nor cursor.
-    with raises(PipelineStepFailed, match=r".*Incremental strategy.*"):
-        source_3 = sql_database(credentials, page_size=500).with_resources("features")
-        info = pipeline.run(source_3, write_disposition="replace")
 
     # Load a table incrementally with append write disposition
     # this is good when a table only has new rows inserted, but not updated
     source_4 = sql_database(credentials, page_size=500).with_resources("genome")
     source_4.genome.apply_hints(
-        incremental=dlt.sources.incremental("created"), primary_key=["upid"]
+        incremental=dlt.sources.incremental("created", row_order="asc"), primary_key=["upid"]
     )
 
     info = pipeline.run(source_4, write_disposition="append")
