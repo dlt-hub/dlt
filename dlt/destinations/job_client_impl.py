@@ -196,6 +196,11 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
                 )
                 top_level_select.expressions[i] = alias
                 columns.append(sqlglot.exp.to_identifier(alias_name))
+            elif isinstance(expr, sqlglot.exp.Alias):
+                alias_name = expr.alias
+                casefolded_alias = self._job_client.capabilities.casefold_identifier(alias_name)
+                expr.set("alias", casefolded_alias)
+                columns.append(sqlglot.exp.to_identifier(casefolded_alias))
 
         # Generate the normalized SELECT query
         normalized_select_query = parsed_select.sql(dialect=destination_dialect)

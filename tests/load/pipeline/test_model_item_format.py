@@ -14,8 +14,9 @@ from tests.pipeline.utils import assert_load_info
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.data_writers.writers import ModelWriter
 
-
 from dlt.pipeline.exceptions import PipelineStepFailed
+
+import sqlglot
 
 DESTINATIONS_SUPPORTING_MODEL = [
     "duckdb",
@@ -62,6 +63,64 @@ def test_simple_incremental(destination_config: DestinationTestConfiguration) ->
 
     with pytest.raises(PipelineStepFailed):
         pipeline.run([copied_table()])
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        subset=DESTINATIONS_SUPPORTING_MODEL,
+    ),
+    ids=lambda x: x.name,
+)
+def test_aliased_column(destination_config: DestinationTestConfiguration) -> None:
+    """
+    Test that a column in a SQL query can be aliased correctly and processed by the pipeline.
+    Specifically, this test ensures the resulting table contains the aliased column with the correct data.
+    """
+    pipeline = destination_config.setup_pipeline("test_model_item_format", dev_mode=False)
+    pipeline.run([{"a": i, "b": i + 1} for i in range(10)], table_name="example_table")
+
+    dataset = pipeline.dataset()
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+
+    # Define a resource that aliases column "a" as "b"
+    @dlt.resource()
+    def copied_table_with_a_as_b() -> Any:
+        query = dataset["example_table"][["a", "_dlt_load_id", "_dlt_id"]].query()
+        # Parse into AST
+        parsed = sqlglot.parse_one(query, read=select_dialect)
+        # Get first expression in the SELECT statement (e.g "a")
+        first_expr = parsed.expressions[0]
+        # Wrap the first expression with an alias: "a AS b"
+        parsed.expressions[0] = sqlglot.exp.Alias(this=first_expr, alias="b")
+        # Convert back to an SQL
+        query = parsed.sql(select_dialect)
+        sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
+        yield dlt.mark.with_hints(
+            sql_model,
+            hints=make_hints(columns={k: v for k, v in example_table_columns.items() if k != "a"}),
+        )
+
+    pipeline.run([copied_table_with_a_as_b()])
+
+    assert load_table_counts(pipeline, "copied_table_with_a_as_b", "example_table") == {
+        "copied_table_with_a_as_b": 10,
+        "example_table": 10,
+    }
+
+    assert set(pipeline.default_schema.tables["copied_table_with_a_as_b"]["columns"].keys()) == {
+        "b",
+        "_dlt_id",
+        "_dlt_load_id",
+    }
+
+    casefolder = pipeline.sql_client().capabilities.casefold_identifier
+
+    # The sum of "b" should match the sum of the original "a"
+    result_df = dataset["copied_table_with_a_as_b"].df()
+    assert result_df[casefolder("b")].sum() == sum(i for i in range(10))
 
 
 @pytest.mark.parametrize(
