@@ -1,138 +1,135 @@
-from typing import Optional
+from typing import TYPE_CHECKING, Any
 
 import sqlglot
 import sqlglot.expressions as sge
-from sqlglot.expressions import DataType as dt, DATA_TYPE
+from sqlglot.expressions import DataType, DATA_TYPE
 from sqlglot.schema import Schema as SQLGlotSchema, ensure_schema
 from sqlglot.optimizer.annotate_types import annotate_types
 from sqlglot.optimizer.qualify import qualify
 
-from dlt.common.schema.typing import TTableSchemaColumns, TColumnType
+from dlt.common.schema.typing import TTableSchemaColumns, TColumnSchema, TTableSchema
 from dlt.destinations.type_mapping import TypeMapperImpl
-from dlt.destinations.dataset import ReadableDBAPIDataset
+
+if TYPE_CHECKING:
+    from dlt.destinations.dataset import ReadableDBAPIDataset
+else:
+    ReadableDBAPIDataset = Any
 
 
-# TODO maybe we don't need a full on type mapper
-class SQLGlotTypeMapper(TypeMapperImpl):
-    sct_to_unbound_dbt = {
-        "json": "JSON",
-        "text": "TEXT",
-        "double": "DOUBLE",
-        "bool": "BOOLEAN",
-        "date": "DATE",
-        "timestamp": "TIMESTAMPTZ",
-        "bigint": "BIGINT",
-        "binary": "BINARY",
-        "time": "TIME",  # should we use TIMETZ ?
+SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, str] = {
+    # NESTED_TYPES
+    DataType.Type.OBJECT: "json",
+    DataType.Type.STRUCT: "json",
+    DataType.Type.NESTED: "json",
+    DataType.Type.UNION: "json",
+    DataType.Type.ARRAY: "json",
+    DataType.Type.LIST: "json",
+    # TEXT
+    DataType.Type.CHAR: "text",
+    DataType.Type.NCHAR: "text",
+    DataType.Type.NVARCHAR: "text",
+    DataType.Type.TEXT: "text",
+    DataType.Type.VARCHAR: "text",
+    DataType.Type.NAME: "text",
+    # SIGNED_INTEGER
+    DataType.Type.BIGINT: "bigint",
+    DataType.Type.INT: "bigint",
+    DataType.Type.INT128: "bigint",
+    DataType.Type.INT256: "bigint",
+    DataType.Type.MEDIUMINT: "bigint",
+    DataType.Type.SMALLINT: "bigint",
+    DataType.Type.TINYINT: "bigint",
+    # UNSIGNED_INTEGER
+    DataType.Type.UBIGINT: "bigint",
+    DataType.Type.UINT: "bigint",
+    DataType.Type.UINT128: "bigint",
+    DataType.Type.UINT256: "bigint",
+    DataType.Type.UMEDIUMINT: "bigint",
+    DataType.Type.USMALLINT: "bigint",
+    DataType.Type.UTINYINT: "bigint",
+    # other INTEGER
+    DataType.Type.BIT: "bigint",
+    # FLOAT
+    DataType.Type.DOUBLE: "double",
+    DataType.Type.FLOAT: "double",
+    # DECIMAL
+    DataType.Type.BIGDECIMAL: "decimal",
+    DataType.Type.DECIMAL: "decimal",
+    DataType.Type.DECIMAL32: "decimal",
+    DataType.Type.DECIMAL64: "decimal",
+    DataType.Type.DECIMAL128: "decimal",
+    DataType.Type.DECIMAL256: "decimal",
+    DataType.Type.MONEY: "decimal",
+    DataType.Type.SMALLMONEY: "decimal",
+    DataType.Type.UDECIMAL: "decimal",
+    DataType.Type.UDOUBLE: "decimal",
+    # TEMPORAL
+    DataType.Type.DATE: "date",
+    DataType.Type.DATE32: "date",
+    DataType.Type.DATETIME: "date",
+    DataType.Type.DATETIME2: "date",
+    DataType.Type.DATETIME64: "date",
+    DataType.Type.SMALLDATETIME: "date",
+    DataType.Type.TIMESTAMP: "timestamp",
+    DataType.Type.TIMESTAMPNTZ: "timestamp",
+    DataType.Type.TIMESTAMPLTZ: "timestamp",
+    DataType.Type.TIMESTAMPTZ: "timestamp",
+    DataType.Type.TIMESTAMP_MS: "timestamp",
+    DataType.Type.TIMESTAMP_NS: "timestamp",
+    DataType.Type.TIMESTAMP_S: "timestamp",
+    DataType.Type.TIME: "time",
+    DataType.Type.TIMETZ: "time",
+}
+
+
+def to_sqlglot_type(column: TColumnSchema, table: TTableSchema, type_mapper: TypeMapperImpl, dialect: str) -> DATA_TYPE:
+    destination_type = type_mapper.to_destination_type(column, table)
+    # TODO modify nullable arg_types on destination_type
+    sqlglot_type = DataType.build(destination_type, dialect=dialect)
+    # TODO verify how nullable is used exactly in sqlglot
+    if column.get("nullable") is not None:
+        sqlglot_type.arg_types["nullable"] = column["nullable"]
+
+    # TODO refine what metadata is tied to the DataType vs the Column expression
+    sqlglot_type._meta = {k: v for k, v in column.items() if k not in ["data_type", "name"]}
+    return sqlglot_type
+
+
+def from_sqlglot_type(column: sge.Column) -> TColumnSchema:
+    return {
+        "name": column.output_name,
+        "data_type": SQLGLOT_TO_DLT_TYPE_MAP[column.type.this],
+        **column.type.meta,
     }
 
-    # what is that for?
-    sct_to_dbt = {}
 
-    dbt_to_sct = {
-        dt.Type.BINARY: "binary",
-        dt.Type.BOOLEAN: "bool",
-        **{typ: "json" for typ in dt.NESTED_TYPES},  # array and struct
-        **{typ: "text" for typ in dt.TEXT_TYPES},
-        **{typ: "decimal" for typ in dt.REAL_TYPES},
-        **{typ: "double" for typ in dt.FLOAT_TYPES},
-        **{typ: "bigint" for typ in dt.INTEGER_TYPES},  # signed and unsigned
-        **{
-            typ: "date" for typ in dt.TEMPORAL_TYPES
-            if typ in [
-                dt.Type.DATE,
-                dt.Type.DATE32,
-                dt.Type.DATETIME,
-                dt.Type.DATETIME2,
-                dt.Type.DATETIME64,
-                dt.Type.SMALLDATETIME,
-            ]
-        },
-        **{
-            typ: "timestamp" for typ in dt.TEMPORAL_TYPES
-            if typ in [
-                dt.Type.TIMESTAMP,
-                dt.Type.TIMESTAMPNTZ,
-                dt.Type.TIMESTAMPLTZ,
-                dt.Type.TIMESTAMPTZ,
-                dt.Type.TIMESTAMP_MS,
-                dt.Type.TIMESTAMP_NS,
-                dt.Type.TIMESTAMP_S,
-            ]
-        },
-        **{typ: "time" for typ in [dt.Type.TIME, dt.Type.TIMETZ]},
-    }  # type: ignore
-    # NOTE not rquired at the moment
-    # def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
-
-    # def to_db_datetime_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
-
-    def from_destination_type(
-        self, db_type: DATA_TYPE, precision: Optional[int], scale: Optional[int]
-    ) -> TColumnType:
-        db_type = dt.build(db_type)
-        # NOTE can retrieve nullable from `db_type.arg_types["nullable"]`
-        return super().from_destination_type(db_type.this, precision, scale)
-
-    
-def create_sqlglot_schema(dataset: ReadableDBAPIDataset) -> SQLGlotSchema:
-    type_mapper = dataset._destination.capabilities().get_type_mapper()
-
-    mapping_schema = {}
+def create_sqlglot_schema(dataset: ReadableDBAPIDataset, dialect: str) -> SQLGlotSchema:
+    type_mapper: TypeMapperImpl = dataset._destination.capabilities().get_type_mapper()
+    # {table: {col: type}}
+    # NOTE to enable cross-dataset lineage, use {db: {table: ...}} or {catalog: {db: {table: ...}}}
+    mapping_schema: dict[str, dict[str, DATA_TYPE]] = {}
     for table_name, table in dataset.schema.tables.items():
         if mapping_schema.get(table_name) is None:
             mapping_schema[table_name] = {}
 
-        for column_name, column in table["columns"].items():  # type: ignore
-            mapping_schema[table_name][column_name] = type_mapper.to_destination_type(column, table)
+        for column_name, column in table["columns"].items():
+            mapping_schema[table_name][column_name] = to_sqlglot_type(
+                column, table, type_mapper, dialect
+            )
 
-    # NOTE we can use either: {table: {col: type}} or {db: ...} or {catalog: {db: ...}}
-    # catalog_name = dataset.sql_client.catalog_name
-    # dataset_name = dataset.dataset_name
     return ensure_schema(mapping_schema)
 
 
-def get_sqlglot_dialect(dataset: ReadableDBAPIDataset) -> str:
-    return dataset._destination.capabilities().sqlglot_dialect
-
-
+# TODO should we raise an exception for anonymous columns?
 def compute_columns_schema(
-    sql_query: str,
-    sqlglot_schema: SQLGlotSchema,
-    dialect: str,
-    type_mapper: TypeMapperImpl,
+    sql_query: str, sqlglot_schema: SQLGlotSchema, dialect: str
 ) -> TTableSchemaColumns:
     expression = sqlglot.maybe_parse(sql_query, dialect=dialect)
-    assert isinstance(expression, sge.Select)
+    if not isinstance(expression, sge.Select):
+        raise TypeError(
+            f"Received SQL expression of type {expression.type}. Only SELECT queries are accepted."
+        )
 
     expression = qualify(expression, schema=sqlglot_schema, dialect=dialect)
     expression = annotate_types(expression, schema=sqlglot_schema, dialect=dialect)
-
-    dlt_columns_schema: TTableSchemaColumns = {
-        str(column.output_name): type_mapper.from_destination_type(column.type, None, None)
-        for column in expression.selects
-    } # type: ignore
-
-    return dlt_columns_schema
-
-if __name__ == "__main__":
-    import dlt
-    from dlt.sources._single_file_templates.fruitshop_pipeline import fruitshop as fruitshop_source
-
-    # typical user code
-    pipeline = dlt.pipeline(pipeline_name="test_fruitshop", destination="duckdb", dev_mode=True)
-    pipeline.run(fruitshop_source())
-    dataset = pipeline.dataset(dataset_type="default")
-    # sql_query = dataset.customers.select("name", "city").query()
-    sql_query = "SELECT AVG(id) as mean_id, name, CAST(LEN(name) as DOUBLE) FROM customers"
-
-
-    dialect = get_sqlglot_dialect(dataset)
-    sqlglot_schema = create_sqlglot_schema(dataset)
-    dlt_types = compute_columns_schema(
-        sql_query,
-        sqlglot_schema,
-        dialect,
-        SQLGlotTypeMapper(dataset._destination.capabilities())
-    )
-    print()
+    return {column.output_name: from_sqlglot_type(column) for column in expression.selects}

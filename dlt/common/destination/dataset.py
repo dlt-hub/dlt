@@ -38,7 +38,9 @@ class SupportsReadableRelation(Protocol):
         """Represents relation as a query, currently always SQL"""
         ...
 
-    def compute_column_schema(self, **kwargs) -> TTableSchemaColumns:
+    # TODO think for a better name that matches the type `TTableSchemaColumns`
+    # `compute_table_columns_schema()` ?
+    def compute_columns_schema(self, **kwargs: Any) -> TTableSchemaColumns:
         """Return the expected dlt schema of the execution result of self.query()"""
         ...
 

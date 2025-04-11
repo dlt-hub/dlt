@@ -7,6 +7,7 @@ from dlt.common.destination.dataset import (
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import Self
+from dlt.transformations import lineage
 
 from dlt.destinations.dataset.exceptions import (
     ReadableRelationHasQueryException,
@@ -109,6 +110,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
 
     def query(self) -> Any:
         """build the query"""
+        # TODO reimplement this using SQLGLot instead of passing strings
         if self._provided_query:
             return self._provided_query
 
@@ -148,27 +150,10 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
 
     def compute_columns_schema(self) -> TTableSchemaColumns:
         """provide schema columns for the cursor, may be filtered by selected columns"""
-        dataset_schema = self._dataset.schema
-
-        columns_schema = (
-            dataset_schema.tables.get(self._table_name, {}).get("columns", {})
-            if dataset_schema
-            else {}
-        )
-
-        if not columns_schema:
-            return None
-        if not self._selected_columns:
-            return columns_schema
-
-        filtered_columns: TTableSchemaColumns = {}
-        for sc in self._selected_columns:
-            sc = dataset_schema.naming.normalize_path(sc)
-            if sc not in columns_schema.keys():
-                raise ReadableRelationUnknownColumnException(sc)
-            filtered_columns[sc] = columns_schema[sc]
-
-        return filtered_columns
+        dialect: str = self._dataset._destination.capabilities().sqlglot_dialect
+        # TODO store the SQLGlot schema on the dataset
+        sqlglot_schema = lineage.create_sqlglot_schema(self._dataset, dialect)
+        return lineage.compute_columns_schema(self.query(), sqlglot_schema, dialect)
 
     def __copy__(self) -> Self:
         return self.__class__(
