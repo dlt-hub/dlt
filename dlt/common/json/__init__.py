@@ -96,7 +96,8 @@ def _datetime_decoder(obj: str) -> datetime:
         # Backwards compatibility for data encoded with previous dlt version
         # fromisoformat does not support Z suffix (until py3.11)
         obj = obj[:-1] + "+00:00"
-    return pendulum.DateTime.fromisoformat(obj)
+    # TODO: should we check that this is in fact a datetime?
+    return pendulum.parse(obj)
 
 
 # define decoder for each prefix
