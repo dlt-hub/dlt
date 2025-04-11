@@ -111,7 +111,7 @@ def w_normalize_files(
             if item_format == "file":
                 # if we want to import file, create a spec that may be used only for importing
                 best_writer_spec = create_import_spec(
-                    parsed_file_name.file_format, items_supported_file_formats
+                    parsed_file_name.file_format, items_supported_file_formats  # type: ignore[arg-type]
                 )
 
             config_loader_file_format = config.loader_file_format

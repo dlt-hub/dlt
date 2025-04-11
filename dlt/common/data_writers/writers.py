@@ -188,9 +188,8 @@ class ModelWriter(DataWriter):
 
     def write_data(self, items: Sequence[TDataItem]) -> None:
         super().write_data(items)
-        self.items_count += len(items)
         for item in items:
-            dialect = item.dialect or (self._caps.sqlglot_dialect)
+            dialect = item.dialect or (self._caps.sqlglot_dialect if self._caps else None)
             query = item.query
             parsed_query = sqlglot.parse_one(query, read=dialect)
             normalized_query = parsed_query.sql(dialect=dialect)
