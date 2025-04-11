@@ -91,13 +91,16 @@ _TIME = chr(PUA_START + 7)
 PUA_START_UTF8_MAGIC = _DECIMAL.encode("utf-8")[:2]
 
 
-def _datetime_decoder(obj: str) -> datetime:
+def _datetime_decoder(obj: str) -> pendulum.DateTime:
     if obj.endswith("Z"):
         # Backwards compatibility for data encoded with previous dlt version
         # fromisoformat does not support Z suffix (until py3.11)
         obj = obj[:-1] + "+00:00"
-    # TODO: should we check that this is in fact a datetime?
-    return pendulum.parse(obj)
+    # tz=None sets no timezone if if it not specified on string
+    dt = pendulum.parse(obj, tz=None)
+    if not isinstance(dt, pendulum.DateTime):
+        raise ValueError(f"Expected pendulum.DateTime, got {type(dt)}")
+    return dt
 
 
 # define decoder for each prefix
