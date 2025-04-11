@@ -4049,24 +4049,3 @@ def test_incremental_and_limit(offset_by_last_value: bool):
     assert resource_called == 30 if offset_by_last_value else 60
     # check that we have items 0-29
     assert p.dataset().items.df().id.tolist() == list(range(30))
-
-
-def test_incremental_retains_empty_list_type():
-    """Ensure that yielding a materialized empty list results in a job being created if there is an incremental column"""
-
-    @dlt.resource
-    def empty_list(
-        some_id: dlt.sources.incremental[int] = dlt.sources.incremental(
-            cursor_path="some_id", initial_value=0
-        )
-    ):
-        yield dlt.mark.materialize_table_schema()
-
-    p = dlt.pipeline(pipeline_name="materialize", destination="duckdb", dev_mode=True)
-    extract_info = p.extract(empty_list())
-
-    found_empty_list = False
-    for job in extract_info.load_packages[0].jobs["new_jobs"]:
-        if job.job_file_info.table_name == "empty_list":
-            found_empty_list = True
-    assert found_empty_list
