@@ -36,6 +36,11 @@ class SupportsReadableRelation(Protocol):
 
     def query(self) -> Any:
         """Represents relation as a query, currently always SQL"""
+        ...
+
+    def compute_column_schema(self, **kwargs) -> TTableSchemaColumns:
+        """Return the expected dlt schema of the execution result of self.query()"""
+        ...
 
     def df(self, chunk_size: int = None) -> Optional[DataFrame]:
         """Fetches the results as data frame. For large queries the results may be chunked
