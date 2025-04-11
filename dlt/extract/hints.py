@@ -88,7 +88,7 @@ class TResourceHints(TResourceHintsBase, total=False):
 
 
 class HintsMeta:
-    __slots__ = ("hints", "create_table_variant", "data_item_format")
+    __slots__ = ("hints", "create_table_variant")
 
     def __init__(
         self,
@@ -104,7 +104,7 @@ class SqlModel(NamedTuple):
     dialect: Optional[str] = None
 
     @classmethod
-    def from_sqlglot(cls, query: str, dialect: Optional[str] = None) -> "SqlModel":
+    def from_query_string(cls, query: str, dialect: Optional[str] = None) -> "SqlModel":
         """
         Creates a SqlModel from a raw SQL query string using sqlglot.
         """

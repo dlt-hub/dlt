@@ -1,4 +1,5 @@
 # test the sql insert job loader, works only on duckdb for now
+import os
 
 from typing import Any
 import pytest
@@ -7,6 +8,7 @@ import dlt
 from tests.pipeline.utils import load_table_counts
 from dlt.extract.hints import make_hints, SqlModel
 from tests.load.utils import count_job_types, destinations_configs, DestinationTestConfiguration
+from tests.pipeline.utils import assert_load_info
 from dlt.common.schema.typing import TWriteDisposition
 
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -31,7 +33,7 @@ DESTINATIONS_SUPPORTING_MODEL = [
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        exclude=["athena", "dremio"],
+        subset=DESTINATIONS_SUPPORTING_MODEL,
     ),
     ids=lambda x: x.name,
 )
@@ -50,7 +52,7 @@ def test_simple_incremental(destination_config: DestinationTestConfiguration) ->
     def copied_table(incremental_field=dlt.sources.incremental("a")) -> Any:
         query = dataset["example_table"].limit(8).query()
         yield dlt.mark.with_hints(
-            SqlModel.from_sqlglot(query=query, dialect=select_dialect),
+            SqlModel.from_query_string(query=query, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),
         )
 
@@ -62,7 +64,7 @@ def test_simple_incremental(destination_config: DestinationTestConfiguration) ->
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        exclude=["athena", "dremio"],
+        subset=DESTINATIONS_SUPPORTING_MODEL,
     ),
     ids=lambda x: x.name,
 )
@@ -82,7 +84,7 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     @dlt.resource()
     def copied_table() -> Any:
         query = dataset["example_table"][["a", "_dlt_load_id", "_dlt_id"]].limit(5).query()
-        sql_model = SqlModel.from_sqlglot(query=query, dialect=select_dialect)
+        sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
         yield dlt.mark.with_hints(
             sql_model,
             hints=make_hints(columns={k: v for k, v in example_table_columns.items() if k != "b"}),
@@ -92,7 +94,7 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     def copied_table_2() -> Any:
         query = dataset["example_table"][["b", "_dlt_load_id", "_dlt_id"]].limit(7).query()
         yield dlt.mark.with_hints(
-            SqlModel.from_sqlglot(query=query, dialect=select_dialect),
+            SqlModel.from_query_string(query=query, dialect=select_dialect),
             hints=make_hints(columns={k: v for k, v in example_table_columns.items() if k != "a"}),
         )
 
@@ -100,7 +102,7 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     def copied_table_3() -> Any:
         query = dataset["example_table"].limit(8).query()
         yield dlt.mark.with_hints(
-            SqlModel.from_sqlglot(query=query, dialect=select_dialect),
+            SqlModel.from_query_string(query=query, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),
         )
 
@@ -138,7 +140,7 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        exclude=["athena", "dremio"],
+        subset=DESTINATIONS_SUPPORTING_MODEL,
     ),
     ids=lambda x: x.name,
 )
@@ -183,13 +185,13 @@ def test_write_dispositions(
     )
     def copied_table() -> Any:
         yield dlt.mark.with_hints(
-            SqlModel.from_sqlglot(query=query, dialect=select_dialect),
+            SqlModel.from_query_string(query=query, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),
         )
 
     pipeline.run([copied_table()])
 
-    # Snowflake is case sensitive
+    # Snowflake is typin sensitive
     if destination_config.destination_type == "snowflake":
         result_items = dataset["example_table_1"].df()["A"].tolist()
     else:
@@ -213,13 +215,11 @@ def test_write_dispositions(
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        exclude=["athena", "dremio"],
+        subset=DESTINATIONS_SUPPORTING_MODEL,
     ),
     ids=lambda x: x.name,
 )
 def test_insert_less_or_reversed_columns(destination_config: DestinationTestConfiguration) -> None:
-    # NOTE: at least for duckdb, the column count AND order of the select query must match
-    # the target table schema
     pipeline = destination_config.setup_pipeline("test_insert_less_columns", dev_mode=False)
 
     pipeline.run(
@@ -232,46 +232,74 @@ def test_insert_less_or_reversed_columns(destination_config: DestinationTestConf
 
     select_dialect = pipeline.destination.capabilities().sqlglot_dialect
 
-    # This should raise a column number mismatch error
+    # Test a model corresponding to a partial table without column "a"
+    partial_table_column_keys = [key for key in example_table_columns.keys() if key != "a"]
+
     @dlt.resource()
     def partial_insert() -> Any:
-        partial_table_column_keys = [key for key in example_table_columns.keys() if key != "a"]
         relation = dataset["example_table"][partial_table_column_keys]
         query = relation.query()
         yield dlt.mark.with_hints(
-            SqlModel.from_sqlglot(query=query, dialect=select_dialect),
-            hints=make_hints(columns=example_table_columns),
+            SqlModel.from_query_string(query=query, dialect=select_dialect),
+            hints=make_hints(columns={k: v for k, v in example_table_columns.items() if k != "a"}),
         )
 
-    with pytest.raises(PipelineStepFailed):
-        pipeline.run([partial_insert()])
+    load_info = pipeline.run([partial_insert()])
+    assert_load_info(load_info)
 
-    # This should raise a type mismatch.
-    # SQLite (via SQLAlchemy) is lenient with types, so instead of a type error,
-    # we get a NOT NULL constraint violation when inserting None from "a" into "_dlt_id".
+    partial_insert_df = dataset["partial_insert"].df()
+
+    casefolder = pipeline.sql_client().capabilities.casefold_identifier
+
+    expected_columns = [casefolder(key) for key in partial_table_column_keys]
+    actual_columns = list(partial_insert_df.columns)
+
+    # Check names and order
+    assert (
+        actual_columns == expected_columns
+    ), f"Column mismatch: {actual_columns} != {expected_columns}"
+
+    # Test a model corresponding to a table without reversed
+    reversed_table_column_keys = list(example_table_columns.keys())[::-1]
+
     @dlt.resource()
     def reversed_insert() -> Any:
-        reversed_table_column_keys = list(example_table_columns.keys())[::-1]
         relation = dataset["example_table"][reversed_table_column_keys]
         query = relation.query()
         yield dlt.mark.with_hints(
-            SqlModel.from_sqlglot(query=query, dialect=select_dialect),
-            hints=make_hints(columns=example_table_columns),
+            SqlModel.from_query_string(query=query, dialect=select_dialect),
+            hints=make_hints(columns=dict(reversed(example_table_columns.items()))),
         )
 
-    with pytest.raises(PipelineStepFailed):
-        pipeline.run([reversed_insert()])
+    load_info = pipeline.run([reversed_insert()])
+    assert_load_info(load_info)
+
+    reversed_insert_df = dataset["reversed_insert"].df()
+
+    expected_columns = [casefolder(key) for key in reversed_table_column_keys]
+
+    actual_columns = list(reversed_insert_df.columns)
+
+    # Check names and order
+    assert (
+        actual_columns == expected_columns
+    ), f"Column mismatch: {actual_columns} != {expected_columns}"
 
 
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        exclude=["athena", "dremio"],
+        subset=DESTINATIONS_SUPPORTING_MODEL,
     ),
     ids=lambda x: x.name,
 )
 def test_multiple_statements_per_resource(destination_config: DestinationTestConfiguration) -> None:
+    # Disable unique indexing for postgres, otherwise there will be a not null constraint error
+    # because we're copying from the same table
+    if destination_config.destination_type == "postgres":
+        os.environ["DESTINATION__POSTGRES__CREATE_INDEXES"] = "false"
+
     pipeline = destination_config.setup_pipeline(
         "test_multiple_statments_per_resource", dev_mode=False
     )
@@ -285,18 +313,17 @@ def test_multiple_statements_per_resource(destination_config: DestinationTestCon
 
     # create a resource that generates sql statements to create 2 new tables
     # we also need to supply all hints so the table can be created
-    # we enfore nullabl
     @dlt.resource()
     def copied_table() -> Any:
         query1 = dataset["example_table"].limit(5).query()
         yield dlt.mark.with_hints(
-            SqlModel.from_sqlglot(query=query1, dialect=select_dialect),
+            SqlModel.from_query_string(query=query1, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),
         )
 
         query2 = dataset["example_table"].limit(7).query()
         yield dlt.mark.with_hints(
-            SqlModel.from_sqlglot(query=query2, dialect=select_dialect),
+            SqlModel.from_query_string(query=query2, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),
         )
 
