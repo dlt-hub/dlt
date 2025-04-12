@@ -21,13 +21,19 @@ from tests.utils import TestDataItemFormat
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["postgres", "snowflake"]),
+    destinations_configs(
+        default_sql_configs=True,
+        all_buckets_filesystem_configs=True,
+        subset=["postgres", "snowflake", "filesystem"],
+    ),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("item_type", ["object", "table"])
 def test_load_csv(
     destination_config: DestinationTestConfiguration, item_type: TestDataItemFormat
 ) -> None:
+    # filter only default and parquet file formats not to run the same test case several times
+
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), dev_mode=True)
     # do not save state so the state job is not created
@@ -52,6 +58,9 @@ def test_load_csv(
     assert job.endswith("csv")
     assert_data_table_counts(pipeline, {"table": 5432 * 3})
     load_tables_to_dicts(pipeline, "table")
+
+    # read csv with data access
+    print(pipeline.dataset().row_counts().fetchall())
 
 
 @pytest.mark.parametrize(

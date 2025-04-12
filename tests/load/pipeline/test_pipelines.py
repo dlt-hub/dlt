@@ -53,7 +53,11 @@ pytestmark = pytest.mark.essential
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True),
+    destinations_configs(
+        default_sql_configs=True,
+        all_buckets_filesystem_configs=True,
+        table_format_filesystem_configs=True,
+    ),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("use_single_dataset", [True, False])
@@ -149,7 +153,11 @@ def test_default_pipeline_names(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True),
+    destinations_configs(
+        default_sql_configs=True,
+        all_buckets_filesystem_configs=True,
+        table_format_filesystem_configs=True,
+    ),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("use_single_dataset", [True, False])
@@ -209,7 +217,11 @@ def test_default_schema_name(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True),
+    destinations_configs(
+        default_sql_configs=True,
+        all_buckets_filesystem_configs=True,
+        table_format_filesystem_configs=True,
+    ),
     ids=lambda x: x.name,
 )
 def test_attach_pipeline(destination_config: DestinationTestConfiguration) -> None:
@@ -283,7 +295,11 @@ def test_skip_sync_schema_for_tables_without_columns(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True),
+    destinations_configs(
+        default_sql_configs=True,
+        all_buckets_filesystem_configs=True,
+        table_format_filesystem_configs=True,
+    ),
     ids=lambda x: x.name,
 )
 def test_run_dev_mode(destination_config: DestinationTestConfiguration) -> None:
@@ -322,7 +338,9 @@ def test_run_dev_mode(destination_config: DestinationTestConfiguration) -> None:
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True),
+    ids=lambda x: x.name,
 )
 def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None:
     dataset_name = "d" + uniq_id()
@@ -440,7 +458,11 @@ def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True),
+    destinations_configs(
+        default_sql_configs=True,
+        all_buckets_filesystem_configs=True,
+        table_format_filesystem_configs=True,
+    ),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("disable_compression", [True, False])
@@ -511,7 +533,10 @@ def test_source_max_nesting(destination_config: DestinationTestConfiguration) ->
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, all_staging_configs=True, with_file_format="parquet"
+        default_sql_configs=True,
+        all_staging_configs=True,
+        with_file_format="parquet",
+        table_format_filesystem_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -567,7 +592,12 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         column_schemas.pop("col7_precision")
 
     # apply the exact columns definitions so we process nested and wei types correctly!
-    @dlt.resource(table_name="data_types", write_disposition="merge", columns=column_schemas)
+    @dlt.resource(
+        table_name="data_types",
+        primary_key="col1",
+        write_disposition="merge",
+        columns=column_schemas,
+    )
     def my_resource():
         nonlocal data_types
         yield [data_types] * 10
@@ -619,7 +649,9 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True),
+    ids=lambda x: x.name,
 )
 def test_dataset_name_change(destination_config: DestinationTestConfiguration) -> None:
     destination_config.setup()
@@ -661,7 +693,9 @@ def test_dataset_name_change(destination_config: DestinationTestConfiguration) -
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_staging_configs=True, default_sql_configs=True),
+    destinations_configs(
+        default_staging_configs=True, default_sql_configs=True, table_format_filesystem_configs=True
+    ),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)

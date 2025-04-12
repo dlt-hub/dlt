@@ -1,7 +1,10 @@
 import pytest
 
 import dlt
-from dlt.common.destination.exceptions import OpenTableClientNotAvailable
+from dlt.common.destination.exceptions import (
+    OpenTableClientNotAvailable,
+    DestinationUndefinedEntity,
+)
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from tests.load.utils import (
     destinations_configs,
@@ -81,6 +84,7 @@ def test_is_open_table(destination_config: DestinationTestConfiguration) -> None
         # test is_open_table for the tables
         assert client.is_open_table(destination_config.table_format, "formatted_table")
         assert not client.is_open_table(destination_config.table_format, "unformatted_table")
+        assert not client.is_open_table(destination_config.table_format, "unknown_table")
 
         # test with incorrect format
         wrong_format = "iceberg" if destination_config.table_format == "delta" else "delta"
@@ -198,6 +202,16 @@ def test_load_open_table(destination_config: DestinationTestConfiguration) -> No
             assert len(arrow_table) == 5
             assert "id" in arrow_table.column_names
             assert "value" in arrow_table.column_names
+
+        # remove table from storage
+        client.drop_tables("open_table")
+
+        with pytest.raises(DestinationUndefinedEntity):
+            client.load_open_table(destination_config.table_format, "open_table")
+
+    # test non existing table, raises due to not being present in dlt schema
+    with pytest.raises(DestinationUndefinedEntity):
+        client.load_open_table(destination_config.table_format, "non_existing_table")
 
     # test open table client
     dataset_ = pipeline.dataset()
