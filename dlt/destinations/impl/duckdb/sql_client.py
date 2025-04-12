@@ -27,6 +27,7 @@ from dlt.destinations.exceptions import (
     DatabaseTransientException,
     DatabaseUndefinedRelation,
 )
+from dlt.destinations.impl.duckdb.exceptions import IcebergViewException
 from dlt.destinations.typing import DBApi, DBTransaction, DataFrame, ArrowTable
 from dlt.destinations.sql_client import (
     SqlClientBase,
@@ -208,6 +209,15 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                 raise DatabaseUndefinedRelation(ex)
             # duckdb raises TypeError on malformed query parameters
             return DatabaseTransientException(duckdb.ProgrammingError(ex))
+        elif isinstance(ex, duckdb.InternalException):
+            if "INTERNAL Error: Value::LIST(values)" in str(ex):
+                return IcebergViewException(
+                    ex,
+                    "duckdb Iceberg extension raises this error when empty (no data) Iceberg table"
+                    " is queried. https://github.com/duckdb/duckdb-iceberg/issues/65",
+                )
+            else:
+                return DatabaseTransientException(ex)
         elif isinstance(
             ex,
             (
@@ -467,21 +477,23 @@ class WithTableScanners(DuckDbSqlClient):
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
         # skip parametrized queries, we could also render them but currently user is not able to
         # do parametrized queries via dataset interface
-        if not args and not kwargs:
-            # find all tables to preload
-            expression = sqlglot.parse_one(query, read="duckdb")  # type: ignore
-            load_tables: Dict[str, str] = {}
-            for table in expression.find_all(exp.Table):
-                # sqlglot has tables without tables ie. schemas are tables
-                if not table.this:
-                    continue
-                schema = table.db
-                # add only tables from the dataset schema
-                if not schema or schema.lower() == self.dataset_name.lower():
-                    load_tables[table.name] = table.name
+        if args or kwargs:
+            # this is hack
+            query = query.replace("%s", "?")  # type: ignore
+        # find all tables to preload
+        expression = sqlglot.parse_one(query, read="duckdb")  # type: ignore
+        load_tables: Dict[str, str] = {}
+        for table in expression.find_all(exp.Table):
+            # sqlglot has tables without tables ie. schemas are tables
+            if not table.this:
+                continue
+            schema = table.db
+            # add only tables from the dataset schema
+            if schema or schema.lower() != self.dataset_name.lower():
+                load_tables[table.name] = table.name
 
-            if load_tables:
-                self.create_views_for_tables(load_tables)
+        if load_tables:
+            self.create_views_for_tables(load_tables)
         with super().execute_query(query, *args, **kwargs) as cursor:
             yield cursor
 
