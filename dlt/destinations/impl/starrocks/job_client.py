@@ -51,6 +51,7 @@ class StarrocksObjectStorageLoadJob(CopyRemoteFileLoadJob):
         _sql_client = self._job_client.sql_client
         # Copy the table to the current dataset (i.e. staging) if needed
         # This is a no-op if the table is already in the correct schema
+        logger.info(f'Starrocks: insert from storage files job for table {self.table.name}')
         table = self.table.to_metadata(
             self.table.metadata, schema=_sql_client.dataset_name  # type: ignore[attr-defined]
         )
@@ -88,11 +89,14 @@ class StarrocksObjectStorageLoadJob(CopyRemoteFileLoadJob):
                         {aws_connection_details}
                     )
                     '''
-            logger.info(stmt)
+            # logger.info(stmt)
 
             with _sql_client.begin_transaction():
+                logger.info('Starrocks: query INSERT INTO ... FROM FILES')
                 _sql_client.execute_sql(stmt)
+
             
+            logger.info(f'Starrocks: insert from storage files job for table {self.table.name} finished')
         else:
             raise DatabaseTransientException(Exception('Cannot Broker Load without staging credentials'))
     
@@ -116,24 +120,23 @@ class StarrocksStreamLoadJob(RunnableLoadJob, HasFollowupJobs):
                 "strip_outer_array": "true"
             }
             
-            for chunk in self._iter_data_item_chunks():
-                label = self.load_id.replace('.', '-') + '-' + secrets.token_hex(2)
-                headers['label'] = label
-
-                async with session.post(url_base + 'begin', expect100 = True, headers = headers) as resp:
-                    resp_dict = json.loads(await resp.text())
-                    if resp.status != 200 or resp_dict["Status"] != "OK":
-                        raise DatabaseTransientException(Exception('Failed to start Stream Load transaction'))
+            label = self.load_id.replace('.', '-') + '-' + secrets.token_hex(2)
+            headers['label'] = label
+            async with session.post(url_base + 'begin', expect100 = True, headers = headers) as resp:
+                resp_dict = json.loads(await resp.text())
+                if resp.status != 200 or resp_dict["Status"] != "OK":
+                    raise DatabaseTransientException(Exception('Failed to start Stream Load transaction'))
                 
+            for chunk in self._iter_data_item_chunks():
                 async with session.put(url_base + 'load', expect100 = True, headers = headers, data = json.dumps(chunk)) as resp:
                     resp_dict = json.loads(await resp.text())
                     if resp.status != 200 or resp_dict["Status"] != "OK":
                         raise DatabaseTransientException(Exception('Failed to send data to Stream Load transaction'))
 
-                async with session.post(url_base + 'commit', expect100 = True, headers = headers) as resp:
-                    if resp.status != 200 or resp_dict["Status"] != "OK":
-                        # print(resp_dict)
-                        raise DatabaseTransientException(Exception('Failed to commit Stream Load transaction'))
+            async with session.post(url_base + 'commit', expect100 = True, headers = headers) as resp:
+                if resp.status != 200 or resp_dict["Status"] != "OK":
+                    # print(resp_dict)
+                    raise DatabaseTransientException(Exception('Failed to commit Stream Load transaction'))
         
     def _open_load_file(self) -> IO[bytes]:
         return FileStorage.open_zipsafe_ro(self._file_path, "rb")
@@ -175,11 +178,12 @@ class StarrocksStreamLoadJob(RunnableLoadJob, HasFollowupJobs):
         _sql_client = self._job_client.sql_client
         # Copy the table to the current dataset (i.e. staging) if needed
         # This is a no-op if the table is already in the correct schema
+        logger.info('Starrocks: stream load job')
         table = self.table.to_metadata(
             self.table.metadata, schema=_sql_client.dataset_name  # type: ignore[attr-defined]
         )
 
-        # l = asyncio.get_running_loop()
+        # current_loop = asyncio.get_running_loop()
         asyncio.run(self.stream_load())
 
 class StarrocksJobClient(SqlalchemyJobClient, SupportsStagingDestination):

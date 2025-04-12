@@ -74,9 +74,6 @@ class starrocks(sqlalchemy):
         caps.naming_convention = "dlt.destinations.impl.starrocks.naming"
         caps.type_mapper = StarrocksTypeMapper
 
-        def get_type_mapper(self):
-            return caps.type_mapper
-
         return caps
 
 
