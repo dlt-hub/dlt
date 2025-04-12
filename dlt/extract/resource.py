@@ -484,7 +484,11 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
     def bind(self: TDltResourceImpl, *args: Any, **kwargs: Any) -> TDltResourceImpl:
         """Binds the parametrized resource to passed arguments. Modifies resource pipe in place. Does not evaluate generators or iterators."""
         if self._args_bound:
-            raise TypeError(f"Parametrized resource {self.name} is not callable")
+            raise TypeError(
+                f"Parametrized resource {self.name} is not callable. You can call and pass"
+                " arguments to a parametrized resource only once. Make sure you didn't call this"
+                " resource before."
+            )
 
         orig_gen = self._pipe.gen
         gen = self._pipe.bind_gen(*args, **kwargs)
@@ -532,7 +536,11 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
     def __call__(self: TDltResourceImpl, *args: Any, **kwargs: Any) -> TDltResourceImpl:
         """Binds the parametrized resources to passed arguments. Creates and returns a bound resource. Generators and iterators are not evaluated."""
         if self._args_bound:
-            raise TypeError(f"Parametrized resource {self.name} is not callable")
+            raise TypeError(
+                f"Parametrized resource {self.name} is not callable. You can call and pass"
+                " arguments to a parametrized resource only once. Make sure you didn't call this"
+                " resource before."
+            )
         r = self._clone()
         return r.bind(*args, **kwargs)
 
