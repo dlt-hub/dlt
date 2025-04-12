@@ -8,7 +8,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TColumnType
 
-from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlMergeFollowupJob, SqlJobParams
+from dlt.destinations.sql_jobs import SqlStagingReplaceFollowupJob, SqlMergeFollowupJob
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
@@ -22,13 +22,12 @@ VARCHAR_MAX_N: int = 4000
 VARBINARY_MAX_N: int = 8000
 
 
-class MsSqlStagingCopyJob(SqlStagingCopyFollowupJob):
+class MsSqlStagingReplaceJob(SqlStagingReplaceFollowupJob):
     @classmethod
     def generate_sql(
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
-        params: Optional[SqlJobParams] = None,
     ) -> List[str]:
         sql: List[str] = []
         for table in table_chain:
@@ -122,8 +121,9 @@ class MsSqlJobClient(InsertValuesJobClient):
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
-        if self.config.replace_strategy == "staging-optimized":
-            return [MsSqlStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
+        root_table = table_chain[0]
+        if root_table["x-replace-strategy"] == "staging-optimized":  # type: ignore[typeddict-item]
+            return [MsSqlStagingReplaceJob.from_table_chain(table_chain, self.sql_client)]
         return super()._create_replace_followup_jobs(table_chain)
 
     def _from_db_type(

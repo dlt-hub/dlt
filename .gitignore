@@ -16,6 +16,7 @@ secrets.toml
 *.duckdb
 *.wal
 logs/
+.continuerules
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/

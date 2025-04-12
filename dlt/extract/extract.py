@@ -18,7 +18,7 @@ from dlt.common.pipeline import (
     WithStepInfo,
     reset_resource_state,
 )
-from dlt.common.typing import TColumnNames
+from dlt.common.typing import TColumnNames, TLoaderFileFormat
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema import Schema, utils
@@ -61,6 +61,7 @@ def data_to_sources(
     primary_key: TColumnNames = None,
     table_format: TTableFormat = None,
     schema_contract: TSchemaContract = None,
+    loader_file_format: TLoaderFileFormat = None,
 ) -> List[DltSource]:
     """Creates a list of sources for data items present in `data` and applies specified hints to all resources.
 
@@ -76,6 +77,7 @@ def data_to_sources(
             primary_key=primary_key,
             schema_contract=schema_contract,
             table_format=table_format,
+            file_format=loader_file_format,
         )
 
     def apply_settings(source_: DltSource) -> None:

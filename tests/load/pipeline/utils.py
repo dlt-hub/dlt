@@ -2,8 +2,6 @@ import pytest
 
 from tests.load.utils import DestinationTestConfiguration
 
-REPLACE_STRATEGIES = ["truncate-and-insert", "insert-from-staging", "staging-optimized"]
-
 
 def skip_if_unsupported_replace_strategy(
     destination_config: DestinationTestConfiguration, replace_strategy: str
@@ -12,7 +10,17 @@ def skip_if_unsupported_replace_strategy(
     supported_replace_strategies = (
         destination_config.raw_capabilities().supported_replace_strategies
     )
-    if not supported_replace_strategies or replace_strategy not in supported_replace_strategies:
+    # hardcoded exclusions (that require table schema and selector to be used, here it is not available)
+    is_athena = destination_config.destination_type == "athena"
+    is_iceberg = destination_config.force_iceberg or destination_config.table_format == "iceberg"
+
+    if is_athena and not is_iceberg:
+        supported_replace_strategies = ["truncate-and-insert"]
+
+    if is_athena and is_iceberg:
+        supported_replace_strategies = ["insert-from-staging"]
+
+    if replace_strategy not in supported_replace_strategies:
         pytest.skip(
             f"Destination {destination_config.name} does not support the replace strategy"
             f" {replace_strategy}"

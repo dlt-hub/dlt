@@ -51,7 +51,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             "reference",
         ]
         caps.has_case_sensitive_identifiers = True
-        caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
+        caps.supported_replace_strategies = ["truncate-and-insert"]
         caps.sqlglot_dialect = "duckdb"
 
         return caps

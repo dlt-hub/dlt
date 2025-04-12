@@ -40,7 +40,7 @@ You can install Python 3.10 with `apt`.
 ```sh
 sudo apt update
 sudo apt install python3.10
-sudo apt install python3.10-venv
+pip install uv
 ```
 
   </TabItem>
@@ -51,6 +51,7 @@ On macOS, you can use [Homebrew](https://brew.sh) to install Python 3.10.
 ```sh
 brew update
 brew install python@3.10
+pip install uv
 ```
 
   </TabItem>
@@ -60,6 +61,7 @@ After installing [Python 3.10 (64-bit version) for Windows](https://www.python.o
 
 ```sh
 C:\> pip3 install -U pip
+C:\> pip3 install uv
 ```
 
   </TabItem>
@@ -74,46 +76,46 @@ This way, all the dependencies for your current project will be isolated from pa
 
   <TabItem value="ubuntu">
 
-Create a new virtual environment in your working folder. This will create an `./env` directory where your virtual environment will be stored:
+Create a new virtual environment in your working folder. This will create a `./venv` directory where your virtual environment will be stored:
 
 ```sh
-python -m venv ./env
+uv venv --python 3.10
 ```
 
 Activate the virtual environment:
 
 ```sh
-source ./env/bin/activate
+source .venv/bin/activate
 ```
 
   </TabItem>
   <TabItem value="macos">
 
-Create a new virtual environment in your working folder. This will create an `./env` directory where your virtual environment will be stored:
+Create a new virtual environment in your working folder. This will create a `./venv` directory where your virtual environment will be stored:
 
 ```sh
-python -m venv ./env
+uv venv --python 3.10
 ```
 
 Activate the virtual environment:
 
 ```sh
-source ./env/bin/activate
+source .venv/bin/activate
 ```
 
   </TabItem>
   <TabItem value="windows">
 
-Create a new virtual environment in your working folder. This will create an `./env` directory where your virtual environment will be stored:
+Create a new virtual environment in your working folder. This will create a `./venv` directory where your virtual environment will be stored:
 
 ```bat
-C:\> python -m venv ./env
+C:\> uv venv --python 3.10
 ```
 
 Activate the virtual environment:
 
 ```bat
-C:\> .\env\Scripts\activate
+C:\> .\venv\Scripts\activate
 ```
 
   </TabItem>
@@ -125,14 +127,14 @@ You can now install dlt+ in your virtual environment by running:
 
 ```sh
 # install the newest dlt version or upgrade the existing version to the newest one
-pip install -U dlt-plus
+uv pip install -U dlt-plus
 ```
 
 Please install a valid license before proceeding, as described under [licensing](#licensing).
 
 ## Licensing
 
-Once you have a valid license, you can make it available to `dlt+` using one of the following methods:
+Once you have a valid license, you can make it available to dlt+ using one of the following methods:
 
 1. **Environment variable**: set the license key as an environment variable:
 

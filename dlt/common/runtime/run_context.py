@@ -1,5 +1,6 @@
 import os
 import tempfile
+import warnings
 from types import ModuleType
 from typing import Any, ClassVar, Dict, List, Optional
 
@@ -137,9 +138,10 @@ def plug_run_context_impl(
 def global_dir() -> str:
     """Gets default directory where pipelines' data (working directories) will be stored
     1. if DLT_DATA_DIR is set in env then it is used
-    2. in user home directory: ~/.dlt/
-    3. if current user is root: in /var/dlt/
-    4. if current user does not have a home directory: in /tmp/dlt/
+    2. if XDG_DATA_HOME is set in env then it is used
+    3. in user home directory: ~/.dlt/
+    4. if current user is root: in /var/dlt/
+    5. if current user does not have a home directory: in /tmp/dlt/
     """
     if known_env.DLT_DATA_DIR in os.environ:
         return os.environ[known_env.DLT_DATA_DIR]
@@ -154,7 +156,17 @@ def global_dir() -> str:
         # no home dir - use temp
         return os.path.join(tempfile.gettempdir(), "dlt")
     else:
-        # if home directory is available use ~/.dlt/pipelines
+        # use XDG_DATA_HOME only if ~/.dlt doesn't exist
+        if "XDG_DATA_HOME" in os.environ:
+            if not os.path.isdir(os.path.join(home, DOT_DLT)):
+                return os.path.join(os.environ["XDG_DATA_HOME"], "dlt")
+            else:
+                warnings.warn(
+                    f"XDG_DATA_HOME is set to {os.environ['XDG_DATA_HOME']} but ~/.dlt already"
+                    " exists. Using ~/.dlt"
+                )
+
+        # else default to ~/.dlt
         return os.path.join(home, DOT_DLT)
 
 

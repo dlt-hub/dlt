@@ -63,7 +63,7 @@ class FilterItem(ItemTransform[bool]):
 
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         if isinstance(item, list):
-            # preserve empty lists
+            # preserve type of empty lists
             if len(item) == 0:
                 return item
 
@@ -89,6 +89,10 @@ class MapItem(ItemTransform[TDataItem]):
 
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         if isinstance(item, list):
+            # preserve type of empty lists
+            if len(item) == 0:
+                return item
+
             if self._f_meta:
                 return [self._f_meta(i, meta) for i in item]
             else:
@@ -107,6 +111,10 @@ class YieldMapItem(ItemTransform[Iterator[TDataItem]]):
 
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         if isinstance(item, list):
+            # preserve type of empty lists
+            if len(item) == 0:
+                yield item
+
             for i in item:
                 if self._f_meta:
                     yield from self._f_meta(i, meta)

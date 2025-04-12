@@ -65,9 +65,17 @@ def can_connect(bucket_url: str, credentials: TCredentialsMixin, mixin: Type[TCr
             bucket_url, credentials.to_object_store_rs_credentials()
         )
     elif mixin == WithPyicebergConfig:
-        credentials = cast(WithPyicebergConfig, credentials)
-        return can_connect_pyiceberg_fileio_config(
-            bucket_url, credentials.to_pyiceberg_fileio_config()
+        if not isinstance(credentials, WithPyicebergConfig):
+            raise UnsupportedAuthenticationMethodException(
+                "Service Account authentication not supported with `iceberg` table format. Use"
+                " OAuth authentication instead."
+            )
+        file_io = credentials.to_pyiceberg_fileio_config()
+        hash_direct_conn = can_connect_pyiceberg_fileio_config(bucket_url, file_io)
+        # pyiceberg provides reverse operation so go through it and test both
+        file_io_creds = credentials.from_pyiceberg_fileio_config(file_io)
+        return hash_direct_conn and can_connect_pyiceberg_fileio_config(
+            bucket_url, file_io_creds.to_pyiceberg_fileio_config()
         )
 
 
