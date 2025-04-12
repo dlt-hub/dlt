@@ -7,10 +7,13 @@ import pyarrow as pa
 
 from dlt.common import pendulum
 from dlt.common.libs.pyarrow import (
+    columns_to_arrow,
+    deserialize_type,
     get_column_type_from_py_arrow,
     py_arrow_to_table_schema_columns,
     from_arrow_scalar,
     get_py_arrow_timestamp,
+    serialize_type,
     to_arrow_scalar,
     get_py_arrow_datatype,
     remove_null_columns,
@@ -66,6 +69,212 @@ def test_py_arrow_to_table_schema_columns():
 
     # Resulting schema should match the original
     assert result == dlt_schema
+
+
+@pytest.mark.parametrize("supports_nested_types", (True, False))
+def test_py_arrow_to_table_schema_columns_nested_types(supports_nested_types: bool):
+    """Test py_arrow_to_table_schema_columns with various nested types, including dictionary and deeply nested structures."""
+    # Simple nested types
+    struct_type = pa.struct(
+        [pa.field("f1", pa.int32()), pa.field("f2", pa.string()), pa.field("f3", pa.bool_())]
+    )
+
+    list_type = pa.list_(pa.int64())
+    list_struct_type = pa.list_(struct_type)
+    map_type = pa.map_(pa.string(), pa.float64())
+
+    # Deep nesting
+    deep_nested_type = pa.list_(
+        pa.struct(
+            [
+                pa.field("nested_list", pa.list_(pa.int32())),
+                pa.field(
+                    "nested_map",
+                    pa.map_(
+                        pa.string(),
+                        pa.struct([pa.field("x", pa.float64()), pa.field("y", pa.string())]),
+                    ),
+                ),
+                pa.field("nested_dict", pa.dictionary(pa.int16(), pa.list_(pa.string()))),
+            ]
+        )
+    )
+
+    # Create schema with all these types
+    schema = pa.schema(
+        [
+            pa.field("struct_col", struct_type),
+            pa.field("list_col", list_type),
+            pa.field("list_struct_col", list_struct_type),
+            pa.field("map_col", map_type),
+            pa.field("deep_nested_col", deep_nested_type),
+        ]
+    )
+
+    # Convert to table schema columns
+    columns = py_arrow_to_table_schema_columns(schema)
+
+    # Verify all columns are correctly identified as JSON data type
+    for _, column in columns.items():
+        assert column["data_type"] == "json"
+        assert "x-nested-type" in column
+        assert column["x-nested-type"].startswith("arrow-ipc:")  # type: ignore[typeddict-item]
+
+    # Convert back to Arrow schema for roundtrip test
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.supports_nested_types = supports_nested_types
+    roundtrip_schema = columns_to_arrow(columns, caps)
+
+    # Compare original types with roundtrip types
+    for field_name in schema.names:
+        roundtrip_type = roundtrip_schema.field(field_name).type
+        if supports_nested_types:
+            original_type = schema.field(field_name).type
+            assert str(original_type) == str(
+                roundtrip_type
+            ), f"Types don't match for {field_name}: {original_type} vs {roundtrip_type}"
+        else:
+            assert roundtrip_type == pa.string()
+
+
+def test_nested_type_serialization_deserialization():
+    """Test that nested types can be correctly serialized and deserialized."""
+    # Create a complex nested type
+    nested_type = pa.struct(
+        [
+            pa.field("list_field", pa.list_(pa.int32())),
+            pa.field(
+                "struct_field",
+                pa.struct(
+                    [pa.field("nested_int", pa.int64()), pa.field("nested_string", pa.string())]
+                ),
+            ),
+            pa.field("map_field", pa.map_(pa.string(), pa.float64())),
+            pa.field("dict_field", pa.dictionary(pa.int8(), pa.string())),
+        ]
+    )
+
+    # Serialize the type
+    serialized = serialize_type(nested_type)
+
+    # Verify the serialized string format
+    assert serialized.startswith("arrow-ipc:")
+
+    # Deserialize and compare
+    deserialized = deserialize_type(serialized)
+
+    # Compare the string representations to verify equality
+    assert str(nested_type) == str(deserialized)
+
+    # Test with table schema conversion
+    schema = pa.schema([pa.field("nested_column", nested_type)])
+    columns = py_arrow_to_table_schema_columns(schema)
+
+    # Verify the column is marked as JSON and has the serialized type
+    assert columns["nested_column"]["data_type"] == "json"
+    assert "x-nested-type" in columns["nested_column"]
+
+    # Deserialize the stored type and compare
+    stored_type = deserialize_type(columns["nested_column"]["x-nested-type"])  # type: ignore[typeddict-item]
+    assert str(nested_type) == str(stored_type)
+
+    # Complete the roundtrip by converting back to Arrow
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.supports_nested_types = True
+    roundtrip_schema = columns_to_arrow(columns, caps)
+
+    # Verify the roundtrip
+    assert str(schema.field("nested_column").type) == str(
+        roundtrip_schema.field("nested_column").type
+    )
+
+
+def test_py_arrow_to_table_schema_columns_dict_in_struct():
+    """Test dictionary types nested inside struct types."""
+    # Create schema with dictionary inside struct
+    arrow_schema = pa.schema(
+        [
+            pa.field(
+                "struct_with_dict",
+                pa.struct(
+                    [
+                        pa.field("dict_field", pa.dictionary(pa.int32(), pa.string())),
+                        pa.field("normal_field", pa.int64()),
+                    ]
+                ),
+            ),
+        ]
+    )
+
+    # Convert to table schema columns
+    columns = py_arrow_to_table_schema_columns(arrow_schema)
+
+    # Struct with dict should be converted to json type with nested-type info
+    assert columns["struct_with_dict"]["data_type"] == "json"
+    assert "x-nested-type" in columns["struct_with_dict"]
+
+    # Roundtrip the schema
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.supports_nested_types = True
+    reconstructed_schema = columns_to_arrow(columns, caps, "UTC")
+
+    # The nested structure should be preserved
+    struct_type = reconstructed_schema.field("struct_with_dict").type
+    assert pa.types.is_struct(struct_type)
+
+    # Dictionary encoding may not be preserved, but the value type should be
+    dict_field_type = struct_type.field("dict_field").type
+    assert pa.types.is_string(dict_field_type.value_type)
+
+
+def test_py_arrow_to_table_schema_columns_nested_dict_types():
+    """Test dictionary types with nested value types."""
+    # Create schema with dictionary of nested types
+    nested_list_type = pa.list_(pa.list_(pa.int64()))
+    nested_struct_type = pa.struct([pa.field("a", pa.int32()), pa.field("b", pa.string())])
+
+    arrow_schema = pa.schema(
+        [
+            pa.field("dict_of_lists", pa.dictionary(pa.int32(), nested_list_type)),
+            pa.field("dict_of_structs", pa.dictionary(pa.int32(), nested_struct_type)),
+            pa.field("list_of_dicts", pa.list_(pa.dictionary(pa.int8(), pa.string()))),
+        ]
+    )
+
+    # Convert to table schema columns
+    columns = py_arrow_to_table_schema_columns(arrow_schema)
+
+    # Dict of lists and dict of structs should be converted to the value types
+    assert columns["dict_of_lists"]["data_type"] == "json"
+    assert columns["dict_of_structs"]["data_type"] == "json"
+    assert columns["list_of_dicts"]["data_type"] == "json"
+
+    # Each should have nested type information
+    for col in ["dict_of_lists", "dict_of_structs", "list_of_dicts"]:
+        assert "x-nested-type" in columns[col]
+
+    # Roundtrip and verify structure is preserved
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.supports_nested_types = True
+    reconstructed_schema = columns_to_arrow(columns, caps, "UTC")
+
+    # The structures should be preserved even if dictionary encoding is not
+    for i, field in enumerate(arrow_schema):
+        original_type = field.type
+        reconstructed_type = reconstructed_schema.field(i).type
+
+        # For dictionary types, compare the value types, when converting
+        # they are converted into their value type and then because type is nested
+        # it gets converted with arrow ipc
+        if pa.types.is_dictionary(original_type):
+            original_value_type = original_type.value_type
+            reconstructed_value_type = reconstructed_type
+
+            # Compare the representation of value types
+            assert str(original_value_type) == str(reconstructed_value_type)
+        else:
+            # For non-dictionary types, compare the full type
+            assert str(original_type) == str(reconstructed_type)
 
 
 def test_py_arrow_dict_to_column() -> None:
