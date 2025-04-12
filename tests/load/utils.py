@@ -32,6 +32,7 @@ from dlt.common.configuration.specs import (
 )
 from dlt.common.destination.client import (
     DestinationClientDwhConfiguration,
+    HasFollowupJobs,
     JobClientBase,
     RunnableLoadJob,
     LoadJob,
@@ -49,11 +50,12 @@ from dlt.common.schema.typing import TTableFormat
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
 from dlt.common.schema.utils import new_table, normalize_table_identifiers
 from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStorage
-from dlt.common.storages.load_package import create_load_id
+from dlt.common.storages.load_package import LoadJobInfo, create_load_id
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.exceptions import CantExtractTablePrefix
+from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
@@ -292,9 +294,7 @@ def destinations_configs(
     supports_merge: Optional[bool] = None,
     supports_dbt: Optional[bool] = None,
 ) -> List[DestinationTestConfiguration]:
-    # sanity check
-    for item in subset:
-        assert item in IMPLEMENTED_DESTINATIONS, f"Destination {item} is not implemented"
+    input_args = locals()
 
     # import filesystem destination to use named version for minio
     from dlt.destinations import filesystem
@@ -645,6 +645,15 @@ def destinations_configs(
                 )
             ]
 
+    try:
+        # register additional destinations from _addons.py which must be placed in the same folder
+        # as tests
+        from _addons import destinations_configs  # type: ignore[import-not-found]
+
+        destination_configs += destinations_configs(**input_args)
+    except ImportError:
+        pass
+
     # filter out non active destinations
     destination_configs = [
         conf for conf in destination_configs if conf.destination_type in ACTIVE_DESTINATIONS
@@ -820,20 +829,48 @@ def expect_load_file(
         0,
         file_format or client.capabilities.preferred_loader_file_format,
     ).file_name()
+    full_path = file_storage.make_full_path(file_name)
     if isinstance(query, str):
         query = query.encode("utf-8")  # type: ignore[assignment]
     file_storage.save(file_name, query)
     table = client.prepare_load_table(table_name)
     load_id = create_load_id()
-    job = client.create_load_job(table, file_storage.make_full_path(file_name), load_id)
 
-    if isinstance(job, RunnableLoadJob):
-        job.set_run_vars(load_id=load_id, schema=client.schema, load_table=table)
-        job.run_managed(client)
-    while job.state() == "running":
-        sleep(0.5)
-    assert job.file_name() == file_name
-    assert job.state() == status, f"Got {job.state()} with ({job.exception()})"
+    def _run_job(file_name_: str) -> LoadJob:
+        job = client.create_load_job(table, file_storage.make_full_path(file_name_), load_id)
+
+        if isinstance(job, RunnableLoadJob):
+            job.set_run_vars(load_id=load_id, schema=client.schema, load_table=table)
+            job.run_managed(client)
+        while job.state() == "running":
+            sleep(0.5)
+
+        # assert job.file_name() == file_name_
+        assert job.state() == status, f"Got {job.state()} with ({job.exception()})"
+
+        return job
+
+    if isinstance(client, WithStagingDataset) and client.should_load_data_to_staging_dataset(
+        table_name
+    ):
+        # load to staging dataset on merge
+        with client.with_staging_dataset():
+            job = _run_job(file_name)
+    else:
+        job = _run_job(file_name)
+    # execute table chain job
+    if chain_jobs := client.create_table_chain_completed_followup_jobs(
+        [table], [LoadJobInfo("completed_jobs", full_path, 0, 0, 0, job.job_file_info(), "")]  # type: ignore[arg-type]
+    ):
+        assert len(chain_jobs) == 1, "can't execute more than 1 chain job in this test"
+
+        _run_job(chain_jobs[0].new_file_path())
+
+    if isinstance(job, HasFollowupJobs):
+        if chain_jobs := job.create_followup_jobs("completed"):
+            assert len(chain_jobs) == 1, "can't execute more than 1 chain job in this test"
+            _run_job(chain_jobs[0].new_file_path())
+
     return job
 
 
@@ -914,6 +951,9 @@ def yield_client(
         )
     ):
         with destination.client(schema, dest_config) as client:  # type: ignore[assignment]
+            # open table scanners automatically, context manager above does not do that
+            if issubclass(client.sql_client_class, WithTableScanners):
+                client.sql_client.open_connection()
             yield client
 
 
@@ -939,11 +979,11 @@ def yield_client_with_storage(
         client.initialize_storage()
         yield client
         if client.is_storage_initialized():
-            client.sql_client.drop_dataset()
+            client.drop_storage()
         if isinstance(client, WithStagingDataset):
             with client.with_staging_dataset():
                 if client.is_storage_initialized():
-                    client.sql_client.drop_dataset()
+                    client.drop_storage()
 
 
 def delete_dataset(client: SqlClientBase[Any], normalized_dataset_name: str) -> None:
