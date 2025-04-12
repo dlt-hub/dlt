@@ -1,4 +1,4 @@
-from typing import Literal, Optional, TYPE_CHECKING
+from typing import Literal, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration

@@ -30,7 +30,7 @@ from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyClientConfi
 from dlt.destinations.impl.sqlalchemy.load_jobs import (
     SqlalchemyJsonLInsertJob,
     SqlalchemyParquetInsertJob,
-    SqlalchemyStagingCopyJob,
+    SqlalchemyReplaceJob,
     SqlalchemyMergeFollowupJob,
 )
 
@@ -49,7 +49,6 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
             config.normalize_staging_dataset_name(schema),
             config.credentials,
             capabilities,
-            engine_args=config.engine_args,
         )
 
         self.schema = schema
@@ -102,15 +101,12 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
-        if self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]:
+        root_table = table_chain[0]
+        if root_table["x-replace-strategy"] in ["insert-from-staging", "staging-optimized"]:  # type: ignore[typeddict-item]
             # Make sure all tables are generated in metadata before creating the job
             for table in table_chain:
                 self._to_table_object(table)
-            return [
-                SqlalchemyStagingCopyJob.from_table_chain(
-                    table_chain, self.sql_client, {"replace": True}
-                )
-            ]
+            return [SqlalchemyReplaceJob.from_table_chain(table_chain, self.sql_client)]
         return []
 
     def _create_merge_followup_jobs(

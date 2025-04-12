@@ -233,7 +233,7 @@ def sql_table(
         hints = {}
 
     return decorators.resource(
-        table_rows, name=table, write_disposition=write_disposition, **hints
+        table_rows, name=str(table), write_disposition=write_disposition, **hints
     )(
         engine,
         table_obj if table_obj is not None else table,  # Pass table name if reflection deferred

@@ -1,5 +1,7 @@
-from typing import Dict, Iterable, Optional
+from copy import copy
+from typing import Dict, Iterable, List, Optional, Sequence
 
+from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnHint, Schema
 from dlt.common.destination.client import (
@@ -8,7 +10,8 @@ from dlt.common.destination.client import (
     HasFollowupJobs,
     LoadJob,
 )
-from dlt.common.schema.typing import TColumnType, TTableFormat
+from dlt.common.schema.typing import TColumnSchema, TColumnType, TTableFormat
+from dlt.common.schema.utils import has_default_column_prop_value
 from dlt.common.storages.file_storage import FileStorage
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
@@ -81,3 +84,20 @@ class DuckDbClient(InsertValuesJobClient):
         self, pq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         return self.type_mapper.from_destination_type(pq_t, precision, scale)
+
+    # def _make_add_column_sql(
+    #     self, new_columns: Sequence[TColumnSchema], table: PreparedTableSchema = None
+    # ) -> List[str]:
+    #     # skip nullability on duckdb
+    #     new_columns = list(new_columns)
+    #     for idx, c in enumerate(new_columns):
+    #         if not has_default_column_prop_value("nullable", c.get("nullable")):
+    #             logger.warning(
+    #                 f"Adding new NOT NULL column '{c['name']}' to existing table '{table['name']}'"
+    #                 " on duckdb. NOT NULL will be ignored."
+    #             )
+    #             # make copy so original new column is not changed
+    #             new_columns[idx] = copy(c)
+    #             new_columns[idx]["nullable"] = True
+
+    #     return [f"ADD COLUMN {self._get_column_def_sql(c, table)}" for c in new_columns]

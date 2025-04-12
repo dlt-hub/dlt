@@ -37,6 +37,9 @@ def test_regular_keys() -> None:
         None,
         "pipelinex-secret_value",
     )
+    # check location
+    assert "chat-analytics" in provider.locations[0]
+
     assert provider.get_value("secret_value", AnyType, None) == (2137, "secret_value")
     assert provider.get_value("secret_key", AnyType, None, "api") == ("ABCD", "api-secret_key")
 

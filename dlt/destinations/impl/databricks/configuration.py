@@ -1,5 +1,5 @@
 import dataclasses
-from typing import ClassVar, Final, Optional, Any, Dict, List
+from typing import ClassVar, Final, Optional, Any, Dict, List, List, Dict, cast, Callable
 
 from dlt.common import logger
 from dlt.common.typing import TSecretStrValue
@@ -90,6 +90,16 @@ class DatabricksCredentials(CredentialsConfiguration):
                     "Please provide it in the configuration."
                 )
 
+    def _get_oauth_credentials(self) -> Optional[Callable[[], Dict[str, str]]]:
+        from databricks.sdk.core import Config, oauth_service_principal
+
+        config = Config(
+            host=f"https://{self.server_hostname}",
+            client_id=self.client_id,
+            client_secret=self.client_secret,
+        )
+        return cast(Callable[[], Dict[str, str]], oauth_service_principal(config))
+
     def to_connector_params(self) -> Dict[str, Any]:
         conn_params = dict(
             catalog=self.catalog,
@@ -106,6 +116,14 @@ class DatabricksCredentials(CredentialsConfiguration):
                 conn_params.get("_user_agent_entry") or self.user_agent_entry
             )
 
+        if self.client_id and self.client_secret:
+            conn_params["credentials_provider"] = self._get_oauth_credentials
+        elif callable(self.access_token):
+            # this is w.config.authenticator
+            conn_params["credentials_provider"] = lambda: self.access_token
+        else:
+            # this is access token
+            conn_params["access_token"] = self.access_token
         return conn_params
 
     def __str__(self) -> str:

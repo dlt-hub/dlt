@@ -4,10 +4,16 @@ from typing import Any, List, Dict, Type, Optional, Sequence, Tuple, cast
 
 from dlt.common import logger
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
-from dlt.common.destination.utils import resolve_merge_strategy
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace_strategy
 from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import SchemaCorruptedException
-from dlt.common.schema.typing import MERGE_STRATEGIES, TColumnType, TTableSchema
+from dlt.common.schema.typing import (
+    MERGE_STRATEGIES,
+    TColumnType,
+    TLoaderReplaceStrategy,
+    TTableSchema,
+)
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     get_first_column_name_with_prop,
@@ -82,9 +88,47 @@ def get_pipeline_state_query_columns() -> TTableSchema:
     return state_table
 
 
+def verify_schema_replace_disposition(
+    schema: Schema,
+    load_tables: Sequence[PreparedTableSchema],
+    capabilities: DestinationCapabilitiesContext,
+    required_strategy: TLoaderReplaceStrategy,
+    warnings: bool = True,
+) -> List[Exception]:
+    # log = logger.warning if warnings else logger.info
+    # collect all exceptions to show all problems in the schema
+    exception_log: List[Exception] = []
+
+    # verifies schema settings specific to sql job client
+    for table in load_tables:
+        # from now on validate only top level tables
+        if is_nested_table(table):
+            continue
+        table_name = table["name"]
+        if table["write_disposition"] == "replace":
+            if not resolve_replace_strategy(table, required_strategy, capabilities):
+                format_info = ""
+                if capabilities.supported_table_formats:
+                    format_info = (
+                        " Note that setting table format may allow you to pick other replace"
+                        " strategies. Available formats:"
+                        f" {', '.join(capabilities.supported_table_formats)}"
+                    )
+                exception_log.append(
+                    # Pick one of: {', '.join(supported_replace_strategies)} .
+                    SchemaCorruptedException(
+                        schema.name,
+                        f"Requested replace strategy {required_strategy} not available for table"
+                        f" {table_name}. "
+                        + format_info,
+                    )
+                )
+    return exception_log
+
+
 def verify_schema_merge_disposition(
     schema: Schema,
-    load_tables: Sequence[TTableSchema],
+    load_tables: Sequence[PreparedTableSchema],
     capabilities: DestinationCapabilitiesContext,
     warnings: bool = True,
 ) -> List[Exception]:
@@ -99,7 +143,7 @@ def verify_schema_merge_disposition(
             continue
 
         table_name = table["name"]
-        if table.get("write_disposition") == "merge":
+        if table["write_disposition"] == "merge":
             if "x-merge-strategy" in table and table["x-merge-strategy"] not in MERGE_STRATEGIES:  # type: ignore[typeddict-item]
                 exception_log.append(
                     SchemaCorruptedException(
