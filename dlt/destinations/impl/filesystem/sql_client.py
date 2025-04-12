@@ -44,7 +44,7 @@ class FilesystemSqlClient(WithTableScanners):
         if table_schema.get("table_format") in ("delta", "iceberg"):
             return True
         file_format = self.get_file_format(table_schema)
-        return file_format in ("jsonl", "parquet")
+        return file_format in ("jsonl", "parquet", "csv")
 
     def get_file_format(self, table_schema: PreparedTableSchema) -> TLoaderFileFormat:
         if table_schema["name"] in self.schema.dlt_table_names():
@@ -116,8 +116,20 @@ class FilesystemSqlClient(WithTableScanners):
         # discover whether compression is enabled
         compression = "" if is_compression_disabled() else ", compression = 'gzip'"
 
-        # dlt tables are never compressed for now...
-        if table_name in self.remote_client.schema.dlt_table_names():
+        dlt_table_names = self.remote_client.schema.dlt_table_names()
+
+        def _escape_column_name(col_name: str) -> str:
+            col_name = self.escape_column_name(col_name)
+            # dlt tables are stored as json and never normalized
+            if table_name in dlt_table_names:
+                col_name = col_name.lower()
+            return col_name
+
+        # get columns to select from table schema
+        columns = [_escape_column_name(c) for c in self.schema.get_table_columns(table_name).keys()]
+
+        if table_name in dlt_table_names:
+            # dlt tables are never compressed for now...
             compression = ""
 
         # create from statement
@@ -136,13 +148,15 @@ class FilesystemSqlClient(WithTableScanners):
                 last_metadata_file = get_last_metadata_file(
                     metadata_path, self.remote_client.fs_client, self.remote_client.config
                 )
-                from_statement = f"iceberg_scan('{last_metadata_file}', skip_schema_inference=True)"
+                from_statement = (
+                    f"iceberg_scan('{last_metadata_file}', skip_schema_inference=false)"
+                )
             else:
                 # skip schema inference to make nested data types work
                 # https://github.com/duckdb/duckdb_iceberg/issues/47
                 from_statement = (
                     f"iceberg_scan('{table_location}', version='?', allow_moved_paths = true,"
-                    " skip_schema_inference=true)"
+                    " skip_schema_inference=false)"
                 )
         else:
             # get file format from schema
@@ -159,21 +173,34 @@ class FilesystemSqlClient(WithTableScanners):
 
             if first_file_type == "parquet":
                 from_statement = f"read_parquet([{resolved_files_string}])"
-            elif first_file_type == "jsonl":
+            elif first_file_type in ("jsonl", "csv"):
                 # build columns definition
                 type_mapper = self.capabilities.get_type_mapper()
-                columns = ",".join(
+                columns_defs = self.schema.get_table_columns(table_name).values()
+                column_types = ",".join(
                     map(
                         lambda c: (
-                            f'{self.escape_column_name(c["name"])}:'
+                            f'{_escape_column_name(c["name"])}:'
                             f' "{type_mapper.to_destination_type(c, table_schema)}"'
                         ),
-                        self.remote_client.schema.tables[table_name]["columns"].values(),
+                        columns_defs,
                     )
                 )
-                from_statement = (
-                    f"read_json([{resolved_files_string}], columns = {{{columns}}}{compression})"
-                )
+                if first_file_type == "jsonl":
+                    # swap binary types
+                    for idx, column_def in enumerate(columns_defs):
+                        if column_def["data_type"] == "binary":
+                            columns[idx] = f"from_base64(decode({columns[idx]})) as {columns[idx]}"
+                    from_statement = (
+                        f"read_json([{resolved_files_string}], columns ="
+                        f" {{{column_types}}}{compression})"
+                    )
+                if first_file_type == "csv":
+                    from_statement = (
+                        f"read_csv([{resolved_files_string}], union_by_name=true, columns ="
+                        f" {{{column_types}}}{compression})"
+                    )
+
             else:
                 raise NotImplementedError(
                     f"Unknown filetype {first_file_type} for table {table_name}. Currently only"
@@ -184,6 +211,7 @@ class FilesystemSqlClient(WithTableScanners):
         # create table
         view_name = self.make_qualified_table_name(view_name)
         create_table_sql_base = (
-            f"CREATE OR REPLACE VIEW {view_name} AS SELECT * FROM {from_statement}"
+            f"CREATE OR REPLACE VIEW {view_name} AS SELECT {', '.join(columns)} FROM"
+            f" {from_statement}"
         )
         self._conn.execute(create_table_sql_base)
