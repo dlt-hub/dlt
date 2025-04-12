@@ -476,16 +476,84 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_limit_and_head(populated_pipeline: Pipeline) -> None:
-    table_relationship = populated_pipeline.dataset().items
+    dataset_ = populated_pipeline.dataset()
+
+    # test sql_client lifecycle
+    assert dataset_._sql_client is None
+
+    table_relationship = dataset_.items
+    assert dataset_._sql_client is None
 
     assert len(table_relationship.head().fetchall()) == 5
+    assert dataset_._sql_client is not None
+    # we close the connection after each use
+    assert dataset_._sql_client.native_connection is None
+
     assert len(table_relationship.limit(24).fetchall()) == 24
+    assert dataset_._sql_client.native_connection is None
 
     assert len(table_relationship.head().df().index) == 5
+    assert dataset_._sql_client.native_connection is None
+
     assert len(table_relationship.limit(24).df().index) == 24
+    assert dataset_._sql_client.native_connection is None
 
     assert table_relationship.head().arrow().num_rows == 5
+    assert dataset_._sql_client.native_connection is None
+
     assert table_relationship.limit(24).arrow().num_rows == 24
+    assert dataset_._sql_client.native_connection is None
+
+    for data_ in table_relationship.limit(24).iter_fetch(6):
+        assert len(data_) == 6
+        # connection kept open
+        assert dataset_._sql_client.native_connection is not None
+
+    # connection closed
+    assert dataset_._sql_client.native_connection is None
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_dataset_context_manager_keeps_connection(populated_pipeline: Pipeline) -> None:
+    with populated_pipeline.dataset() as dataset_:
+        # test sql_client lifecycle
+        assert dataset_._sql_client is not None
+
+        table_relationship = dataset_.items
+        assert dataset_._sql_client is not None
+
+        assert len(table_relationship.head().fetchall()) == 5
+        assert dataset_._sql_client is not None
+        # connection is kept
+        assert dataset_._sql_client.native_connection is not None
+
+        for data_ in table_relationship.limit(24).iter_fetch(6):
+            assert len(data_) == 6
+            # connection kept open
+            assert dataset_._sql_client.native_connection is not None
+
+    # connection closed
+    assert dataset_._sql_client is None
+
+    # open again
+    with dataset_:
+        assert dataset_._sql_client is not None
+        assert len(table_relationship.head().fetchall()) == 5
+        assert dataset_._sql_client is not None
+        # connection is kept
+        assert dataset_._sql_client.native_connection is not None
+
+        with pytest.raises(AssertionError):
+            with dataset_:
+                pass
+    assert dataset_._sql_client is None
 
 
 @pytest.mark.no_load
@@ -888,7 +956,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     assert "items" not in dataset.schema.tables
 
     # NOTE: this breaks the following test, it will need to be fixed somehow
-    # create a newer schema with different name and see wether this is loaded
+    # create a newer schema with different name and see whether this is loaded
     from dlt.common.schema import Schema
     from dlt.common.schema import utils
 

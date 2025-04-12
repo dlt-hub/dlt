@@ -1,3 +1,4 @@
+from types import TracebackType, MethodType
 from typing import Any, Type, Union, TYPE_CHECKING, List
 
 from dlt.common.destination.exceptions import OpenTableClientNotAvailable
@@ -12,6 +13,7 @@ from dlt.common.destination.dataset import (
 )
 from dlt.common.destination.typing import TDatasetType
 from dlt.common.schema import Schema
+from dlt.common.typing import Self
 
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation
@@ -24,7 +26,7 @@ else:
 
 
 class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
-    """Access to dataframes and arrowtables in the destination dataset via dbapi"""
+    """Access to dataframes and arrow tables in the destination dataset via dbapi"""
 
     def __init__(
         self,
@@ -159,7 +161,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
             return ReadableIbisRelation(  # type: ignore[abstract,return-value]
                 readable_dataset=self,
                 ibis_object=unbound_table,
-                columns_schema=self.schema.tables[table_name]["columns"],
+                columns_schema=self.schema.get_table(table_name)["columns"],
             )
 
         # fallback to the standard dbapi relation
@@ -201,3 +203,42 @@ class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
     def __getattr__(self, table_name: str) -> TReadableRelation:
         """access of table via property notation"""
         return self.table(table_name)
+
+    def __enter__(self) -> Self:
+        """Context manager used to open and close sql client and internal connection"""
+        assert not self._sql_client, "context manager can't be used when sql client is initialized"
+        if not self._sql_client:
+            self._ensure_client_and_schema()
+            # return sql_client wrapped so it will not call close on __exit__ as dataset is managing connections
+            # use internal class
+
+            NoCloseClient = type(
+                "NoCloseClient",
+                (self._sql_client.__class__,),
+                {
+                    "__exit__": (
+                        lambda self, exc_type, exc_val, exc_tb: None
+                    )  # No-operation: do not close the connection
+                },
+            )
+
+            # class NoCloseClient(self._sql_client.__class__):
+            #     def __exit__(
+            #         self,
+            #         exc_type: Type[BaseException],
+            #         exc_val: BaseException,
+            #         exc_tb: TracebackType,
+            #     ) -> None:
+            #         # No-operation: do not close the connection.
+            #         pass
+
+            self._sql_client.__class__ = NoCloseClient
+
+        self.sql_client.open_connection()
+        return self
+
+    def __exit__(
+        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+    ) -> None:
+        self.sql_client.close_connection()
+        self._sql_client = None

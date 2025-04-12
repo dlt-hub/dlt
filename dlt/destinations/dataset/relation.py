@@ -60,10 +60,10 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         """Gets a DBApiCursor for the current relation"""
         with self.sql_client as client:
             # this hacky code is needed for mssql to disable autocommit, read iterators
-            # will not work otherwise. in the future we should be able to create a readony
+            # will not work otherwise. in the future we should be able to create a readonly
             # client which will do this automatically
-            if hasattr(self.sql_client, "_conn") and hasattr(self.sql_client._conn, "autocommit"):
-                self.sql_client._conn.autocommit = False
+            if hasattr(self.sql_client.native_connection, "autocommit"):
+                self.sql_client.native_connection.autocommit = False
             with client.execute_query(self.query()) as cursor:
                 if columns_schema := self.columns_schema:
                     cursor.columns_schema = columns_schema
