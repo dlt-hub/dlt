@@ -238,8 +238,7 @@ def test_drop_command_resources_and_state(
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        table_format_filesystem_configs=True,
-        bucket_subset=(FILE_BUCKET,),
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -270,8 +269,7 @@ def test_drop_command_only_state(destination_config: DestinationTestConfiguratio
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        table_format_filesystem_configs=True,
-        bucket_subset=(FILE_BUCKET,),
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -299,8 +297,7 @@ def test_drop_command_only_tables(destination_config: DestinationTestConfigurati
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        table_format_filesystem_configs=True,
-        bucket_subset=(FILE_BUCKET,),
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -334,8 +331,7 @@ def test_drop_destination_tables_fails(destination_config: DestinationTestConfig
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        table_format_filesystem_configs=True,
-        bucket_subset=(FILE_BUCKET,),
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -372,8 +368,7 @@ def test_fail_after_drop_tables(destination_config: DestinationTestConfiguration
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        table_format_filesystem_configs=True,
-        bucket_subset=(FILE_BUCKET,),
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -422,8 +417,7 @@ def test_resource_regex(destination_config: DestinationTestConfiguration) -> Non
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        table_format_filesystem_configs=True,
-        bucket_subset=(FILE_BUCKET,),
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -444,9 +438,7 @@ def test_drop_nothing(destination_config: DestinationTestConfiguration) -> None:
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True, table_format_filesystem_configs=True, bucket_subset=(FILE_BUCKET,)
-    ),
+    destinations_configs(default_sql_configs=True, table_format_local_configs=True),
     ids=lambda x: x.name,
 )
 def test_drop_all_flag(destination_config: DestinationTestConfiguration) -> None:
@@ -477,8 +469,7 @@ def test_drop_all_flag(destination_config: DestinationTestConfiguration) -> None
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        table_format_filesystem_configs=True,
-        bucket_subset=(FILE_BUCKET,),
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -503,8 +494,7 @@ def test_run_pipeline_after_partial_drop(destination_config: DestinationTestConf
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        table_format_filesystem_configs=True,
-        bucket_subset=(FILE_BUCKET,),
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )

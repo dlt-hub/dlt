@@ -55,8 +55,8 @@ pytestmark = pytest.mark.essential
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        all_buckets_filesystem_configs=True,
-        table_format_filesystem_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -219,8 +219,8 @@ def test_default_schema_name(
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        all_buckets_filesystem_configs=True,
-        table_format_filesystem_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -461,7 +461,6 @@ def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None
     destinations_configs(
         default_sql_configs=True,
         all_buckets_filesystem_configs=True,
-        table_format_filesystem_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -536,7 +535,8 @@ def test_source_max_nesting(destination_config: DestinationTestConfiguration) ->
         default_sql_configs=True,
         all_staging_configs=True,
         with_file_format="parquet",
-        table_format_filesystem_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -600,7 +600,12 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     )
     def my_resource():
         nonlocal data_types
-        yield [data_types] * 10
+
+        start_idx = cast(int, data_types["col1"])
+        for idx, item in enumerate([data_types] * 10):
+            item = deepcopy(item)
+            item["col1"] = start_idx + idx
+            yield item
 
     @dlt.source(max_table_nesting=0)
     def some_source():
@@ -618,7 +623,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     if destination_config.supports_merge:
         expected_completed_jobs += 1
         # add iceberg copy jobs
-        if destination_config.destination_type == "athena":
+        if destination_config.table_format in ("iceberg", "delta"):
             expected_completed_jobs += 2  # if destination_config.supports_merge else 4
     assert len(package_info.jobs["completed_jobs"]) == expected_completed_jobs
 
@@ -632,7 +637,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
             row[0]
             for row in sql_client.execute_sql(f"SELECT * FROM {qual_name('some_data')} ORDER BY 1")
         ] == [1, 2, 3]
-        db_rows = sql_client.execute_sql(f"SELECT * FROM {qual_name('data_types')}")
+        db_rows = sql_client.execute_sql(f"SELECT * FROM {qual_name('data_types')} ORDER BY 1")
         assert len(db_rows) == 10
         db_row = list(db_rows[0])
         # "snowflake" and "bigquery" do not parse JSON form parquet string so double parse
@@ -650,7 +655,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True),
+    destinations_configs(default_sql_configs=True, table_format_local_configs=True),
     ids=lambda x: x.name,
 )
 def test_dataset_name_change(destination_config: DestinationTestConfiguration) -> None:

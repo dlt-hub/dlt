@@ -1,7 +1,7 @@
 # Tests destinations that can run without credentials.
 # i.e. local postgres, duckdb, filesystem (with local fs/memory bucket)
 
-name: dest | postgres, duckdb and fs
+name: dest | postgres, duckdb, fs, weaviate, qdrant
 
 on:
   pull_request:

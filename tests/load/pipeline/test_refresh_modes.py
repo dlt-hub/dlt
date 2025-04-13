@@ -103,10 +103,9 @@ def refresh_source(first_run: bool = True, drop_sources: bool = False):
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        subset=["duckdb", "filesystem"],
+        subset=["duckdb", "filesystem", "iceberg"],
         local_filesystem_configs=True,
-        table_format_filesystem_configs=True,
-        bucket_subset=(FILE_BUCKET,),
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -175,8 +174,7 @@ def test_refresh_drop_sources(
         default_sql_configs=True,
         local_filesystem_configs=True,
         subset=["duckdb", "filesystem", "iceberg"],
-        table_format_filesystem_configs=True,
-        bucket_subset=(FILE_BUCKET,),
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -227,8 +225,7 @@ def test_existing_schema_hash(destination_config: DestinationTestConfiguration):
         default_sql_configs=True,
         local_filesystem_configs=True,
         subset=["duckdb", "filesystem", "iceberg"],
-        table_format_filesystem_configs=True,
-        bucket_subset=(FILE_BUCKET,),
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -301,8 +298,7 @@ def test_refresh_drop_resources(
         default_sql_configs=True,
         local_filesystem_configs=True,
         subset=["duckdb", "filesystem", "iceberg"],
-        table_format_filesystem_configs=True,
-        bucket_subset=(FILE_BUCKET,),
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -371,8 +367,7 @@ def test_refresh_drop_data_only(destination_config: DestinationTestConfiguration
         default_sql_configs=True,
         local_filesystem_configs=True,
         subset=["duckdb", "filesystem", "iceberg"],
-        table_format_filesystem_configs=True,
-        bucket_subset=(FILE_BUCKET,),
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )

@@ -180,7 +180,6 @@ configs = destinations_configs(
     default_sql_configs=True,
     all_buckets_filesystem_configs=True,
     table_format_filesystem_configs=True,
-    bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
 )
 
 
@@ -482,7 +481,8 @@ def test_limit_and_head(populated_pipeline: Pipeline) -> None:
     assert dataset_._sql_client is None
 
     table_relationship = dataset_.items
-    assert dataset_._sql_client is None
+    # ibis relation creates client, default not
+    # assert dataset_._sql_client is None
 
     assert len(table_relationship.head().fetchall()) == 5
     assert dataset_._sql_client is not None
@@ -980,8 +980,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        bucket_subset=(FILE_BUCKET,),
-        table_format_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )

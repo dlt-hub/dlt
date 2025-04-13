@@ -27,6 +27,8 @@ from dlt.load.exceptions import LoadClientJobRetry
 
 from tests.cases import arrow_table_all_data_types, table_update_and_row, assert_all_data_types_row
 from tests.load.utils import (
+    ABFS_BUCKET,
+    AWS_BUCKET,
     destinations_configs,
     DestinationTestConfiguration,
     MEMORY_BUCKET,
@@ -81,43 +83,11 @@ def get_expected_actual(
     return (expected, actual)
 
 
-@pytest.mark.skip(
-    reason="pyarrow version check not needed anymore, since we have 17 as a dependency"
-)
-def test_delta_table_pyarrow_version_check() -> None:
-    """Tests pyarrow version checking for `delta` table format.
-
-    DependencyVersionException should be raised if pyarrow<17.0.0.
-    """
-    # test intentionally does not use destination_configs(), because that
-    # function automatically marks `delta` table format configs as
-    # `needspyarrow17`, which should not happen for this test to run in an
-    # environment where pyarrow<17.0.0
-
-    assert Version(pkg_version("pyarrow")) < Version("17.0.0"), "test assumes `pyarrow<17.0.0`"
-
-    @dlt.resource(table_format="delta")
-    def foo():
-        yield {"foo": 1, "bar": 2}
-
-    pipeline = dlt.pipeline(destination=filesystem(FILE_BUCKET))
-
-    with pytest.raises(PipelineStepFailed) as pip_ex:
-        pipeline.run(foo())
-    assert isinstance(pip_ex.value.__context__, LoadClientJobRetry)
-    assert (
-        "`pyarrow>=17.0.0` is needed for `delta` table format on `filesystem` destination"
-        in pip_ex.value.__context__.retry_message
-    )
-
-
 @pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
         table_format_filesystem_configs=True,
-        with_table_format=("delta", "iceberg"),
-        bucket_exclude=(MEMORY_BUCKET, SFTP_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -189,10 +159,8 @@ def test_table_format_core(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        table_format_filesystem_configs=True,
-        with_table_format=("delta", "iceberg"),
+        table_format_local_configs=True,
         subset=("filesystem",),
-        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -241,12 +209,11 @@ def test_preferred_table_format_caps(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        table_format_filesystem_configs=True,
+        table_format_local_configs=True,
         # job orchestration is same across table formats—no need to test all formats
         with_table_format="delta",
         # job orchestration is particular to filesystem open tables implementation
         subset=("filesystem",),
-        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -289,12 +256,11 @@ def test_table_format_does_not_contain_job_files(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        table_format_filesystem_configs=True,
+        table_format_local_configs=True,
         # job orchestration is same across table formats—no need to test all formats
         with_table_format="delta",
         # job orchestration is particular to filesystem open tables implementation
         subset=("filesystem",),
-        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -338,9 +304,7 @@ def test_table_format_multiple_files(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        table_format_filesystem_configs=True,
-        with_table_format=("delta", "iceberg"),
-        bucket_subset=(FILE_BUCKET,),
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -426,9 +390,7 @@ def test_table_format_child_tables(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        table_format_filesystem_configs=True,
-        with_table_format=("delta", "iceberg"),
-        bucket_subset=(FILE_BUCKET,),
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -562,9 +524,8 @@ def test_table_format_partitioning(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        table_format_filesystem_configs=True,
+        table_format_local_configs=True,
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -614,9 +575,7 @@ def test_delta_table_partitioning_arrow_load_id(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        table_format_filesystem_configs=True,
-        with_table_format=("delta", "iceberg"),
-        bucket_subset=(FILE_BUCKET,),
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -782,7 +741,7 @@ def test_table_format_schema_evolution(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format=("delta", "iceberg"),
-        bucket_subset=(FILE_BUCKET, AZ_BUCKET),
+        bucket_subset=(FILE_BUCKET, ABFS_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -882,10 +841,9 @@ def test_table_format_empty_source(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        table_format_filesystem_configs=True,
+        table_format_local_configs=True,
         # job orchestration is same across table formats—no need to test all formats
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -932,10 +890,9 @@ def test_table_format_mixed_source(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        table_format_filesystem_configs=True,
+        table_format_local_configs=True,
         # job orchestration is same across table formats—no need to test all formats
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -963,7 +920,7 @@ def test_table_format_dynamic_dispatch(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format=("delta", "iceberg"),
-        bucket_subset=(FILE_BUCKET, AZ_BUCKET),
+        bucket_subset=(FILE_BUCKET, AWS_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -1064,9 +1021,8 @@ def test_table_format_get_tables_helper(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        table_format_filesystem_configs=True,
+        table_format_local_configs=True,
         with_table_format="delta",
-        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )

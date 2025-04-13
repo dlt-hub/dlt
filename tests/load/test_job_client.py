@@ -209,7 +209,7 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
 @pytest.mark.parametrize("naming", TEST_NAMING_CONVENTIONS, indirect=True)
 @pytest.mark.parametrize(
     "client",
-    destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True),
+    destinations_configs(default_sql_configs=True, table_format_local_configs=True),
     indirect=True,
     ids=lambda x: x.name,
 )
@@ -521,7 +521,7 @@ def test_preserve_sql_column_order(client: SqlJobClientBase) -> None:
 @pytest.mark.parametrize("naming", TEST_NAMING_CONVENTIONS, indirect=True)
 @pytest.mark.parametrize(
     "client",
-    destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True),
+    destinations_configs(default_sql_configs=True, table_format_local_configs=True),
     indirect=True,
     ids=lambda x: x.name,
 )
@@ -644,7 +644,6 @@ def test_load_with_all_types(
     else:
         canonical_name = client.sql_client.make_qualified_table_name(table_name)
     # write row
-    print(data_row)
     with io.BytesIO() as f:
         write_dataset(client, f, [data_row], column_schemas)
         query = f.getvalue()
@@ -761,7 +760,7 @@ def test_write_dispositions(
                     file_format=prepared_root_table.get("file_format"),  # type: ignore[arg-type]
                 )
                 query = f.getvalue()
-            expect_load_file(client, file_storage, query, t)
+            expect_load_file(client, file_storage, query, t, file_format=prepared_root_table.get("file_format"))  # type: ignore[arg-type]
             db_rows = list(
                 client.sql_client.execute_sql(
                     f"SELECT * FROM {client.sql_client.make_qualified_table_name(t)} ORDER BY"

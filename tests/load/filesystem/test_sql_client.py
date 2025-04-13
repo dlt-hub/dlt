@@ -319,8 +319,6 @@ def test_read_interfaces_filesystem(
     destinations_configs(
         table_format_filesystem_configs=True,
         with_table_format=("delta", "iceberg"),
-        bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
-        # NOTE: delta does not work on memory buckets
     ),
     ids=lambda x: x.name,
 )

@@ -42,8 +42,7 @@ from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
     FILE_BUCKET,
-    AZ_BUCKET,
-    SFTP_BUCKET,
+    ABFS_BUCKET,
 )
 
 
@@ -67,7 +66,7 @@ def skip_if_not_supported(
         all_buckets_filesystem_configs=True,
         table_format_filesystem_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET, AZ_BUCKET),  # test one local, one remote
+        bucket_subset=(FILE_BUCKET, ABFS_BUCKET),  # test one local, one remote
     ),
     ids=lambda x: x.name,
 )
@@ -158,7 +157,7 @@ def test_merge_on_keys_in_schema_nested_hints(
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        table_format_filesystem_configs=True,
+        table_format_local_configs=True,
         supports_merge=True,
         bucket_subset=(FILE_BUCKET,),
     ),
@@ -272,9 +271,9 @@ def test_merge_record_updates(
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        table_format_filesystem_configs=True,
+        table_format_local_configs=True,
         supports_merge=True,
-        subset=("postgres", "snowflake"),
+        subset=("postgres", "snowflake", "filesystem", "iceberg"),
     ),
     ids=lambda x: x.name,
 )
@@ -391,9 +390,8 @@ def test_merge_primary_key_normalization(
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        table_format_filesystem_configs=True,
+        table_format_local_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -528,9 +526,8 @@ def test_merge_nested_records_inserted_deleted(
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        table_format_filesystem_configs=True,
+        table_format_local_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -635,9 +632,8 @@ def test_bring_your_own_dlt_id(
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        table_format_filesystem_configs=True,
+        table_format_local_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -820,7 +816,10 @@ def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, with_file_format="parquet", local_filesystem_configs=True
+        default_sql_configs=True,
+        with_file_format="parquet",
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -1090,9 +1089,8 @@ def test_no_deduplicate_only_merge_key(destination_config: DestinationTestConfig
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        table_format_filesystem_configs=True,
+        table_format_local_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -1570,20 +1568,13 @@ def test_merge_strategy_config() -> None:
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        table_format_filesystem_configs=True,
+        table_format_local_configs=True,
         supports_merge=True,
         subset=["postgres", "filesystem"],  # test one SQL and one non-SQL destination
     ),
     ids=lambda x: x.name,
 )
 def test_upsert_merge_strategy_config(destination_config: DestinationTestConfiguration) -> None:
-    if destination_config.destination_type == "filesystem":
-        # TODO: implement validation and remove this test exception
-        pytest.skip(
-            "`upsert` merge strategy configuration validation has not yet been"
-            " implemented for `fileystem` destination."
-        )
-
     @dlt.resource(write_disposition={"disposition": "merge", "strategy": "upsert"})
     def r():
         yield {"foo": "bar"}
@@ -1650,9 +1641,8 @@ def test_merge_key_null_values(destination_config: DestinationTestConfiguration)
     destinations_configs(
         default_sql_configs=True,
         local_filesystem_configs=True,
-        table_format_filesystem_configs=True,
+        table_format_local_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )

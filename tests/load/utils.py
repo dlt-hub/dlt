@@ -285,6 +285,7 @@ def destinations_configs(
     local_filesystem_configs: bool = False,
     all_buckets_filesystem_configs: bool = False,
     table_format_filesystem_configs: bool = False,
+    table_format_local_configs: bool = False,
     subset: Sequence[str] = (),
     bucket_subset: Sequence[str] = (),
     exclude: Sequence[str] = (),
@@ -609,8 +610,14 @@ def destinations_configs(
                 )
             ]
 
-    if table_format_filesystem_configs:
-        for bucket in DEFAULT_BUCKETS:
+    if table_format_filesystem_configs or table_format_local_configs:
+        if table_format_filesystem_configs:
+            table_buckets = set(DEFAULT_BUCKETS) - {SFTP_BUCKET, MEMORY_BUCKET}
+        else:
+            table_buckets = {FILE_BUCKET}
+
+        # NOTE: delta does not work on memory buckets
+        for bucket in table_buckets:
             destination_configs += [
                 DestinationTestConfiguration(
                     destination_type="filesystem",
@@ -823,11 +830,15 @@ def expect_load_file(
     status="completed",
     file_format: TLoaderFileFormat = None,
 ) -> LoadJob:
+    # recover spec used to write file
+    spec = DataWriter.writer_spec_from_file_format(
+        file_format or client.capabilities.preferred_loader_file_format, "object"
+    )
     file_name = ParsedLoadJobFileName(
         table_name,
         ParsedLoadJobFileName.new_file_id(),
         0,
-        file_format or client.capabilities.preferred_loader_file_format,
+        spec.file_format,
     ).file_name()
     full_path = file_storage.make_full_path(file_name)
     if isinstance(query, str):

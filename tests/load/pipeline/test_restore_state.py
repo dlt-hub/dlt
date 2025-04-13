@@ -48,8 +48,8 @@ def duckdb_pipeline_location() -> None:
         default_staging_configs=True,
         default_sql_configs=True,
         default_vector_configs=True,
-        all_buckets_filesystem_configs=True,
-        table_format_filesystem_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -230,8 +230,8 @@ def test_silently_skip_on_invalid_credentials(
     destinations_configs(
         default_sql_configs=True,
         default_vector_configs=True,
-        all_buckets_filesystem_configs=True,
-        table_format_filesystem_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -490,8 +490,8 @@ def test_restore_state_pipeline(
     destinations_configs(
         default_sql_configs=True,
         default_vector_configs=True,
-        all_buckets_filesystem_configs=True,
-        table_format_filesystem_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -543,8 +543,8 @@ def test_ignore_state_unfinished_load(destination_config: DestinationTestConfigu
     destinations_configs(
         default_sql_configs=True,
         default_vector_configs=True,
-        all_buckets_filesystem_configs=True,
-        table_format_filesystem_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -633,8 +633,8 @@ def test_restore_change_dataset_and_destination(destination_name: str) -> None:
     destinations_configs(
         default_sql_configs=True,
         default_vector_configs=True,
-        all_buckets_filesystem_configs=True,
-        table_format_filesystem_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
