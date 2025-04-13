@@ -17,7 +17,7 @@ from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
 from dlt.common.exceptions import TerminalValueError
 
-from dlt.destinations.exceptions import DatabaseUndefinedRelation
+from dlt.destinations.exceptions import DestinationUndefinedEntity
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.extract.exceptions import ResourceNameMissing
 from dlt.extract.source import DltSource
@@ -283,13 +283,13 @@ def test_skip_sync_schema_for_tables_without_columns(
 
     p.sync_schema()
 
-    with p._sql_job_client(schema) as job_client:
+    with p._get_destination_clients(schema)[0] as job_client:
         # there's some data at all
-        exists, _ = job_client.get_storage_table(VERSION_TABLE_NAME)
+        exists, _ = job_client.get_storage_table(VERSION_TABLE_NAME)  # type: ignore[attr-defined]
         assert exists is True
 
         # such tables are not created but silently ignored
-        exists, _ = job_client.get_storage_table("data_table")
+        exists, _ = job_client.get_storage_table("data_table")  # type: ignore[attr-defined]
         assert not exists
 
 
@@ -617,8 +617,10 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     assert package_info.state == "loaded"
     # all three jobs succeeded
     assert len(package_info.jobs["failed_jobs"]) == 0
-    # 3 tables + 1 state + 4 reference jobs if staging
+    # 3 tables + 1 state + 4 reference jobs if staging or table format
     expected_completed_jobs = 4 + 4 if pipeline.staging else 4
+    if destination_config.table_format:
+        expected_completed_jobs += 3  # reference jobs for all tables but not state
     # add sql merge job
     if destination_config.supports_merge:
         expected_completed_jobs += 1
@@ -718,19 +720,30 @@ def test_pipeline_upfront_tables_two_loads(
         dataset_name="test_pipeline_upfront_tables_two_loads",
         dev_mode=True,
     )
+    pipeline.destination.configuration
 
     @dlt.source
     def two_tables():
         @dlt.resource(
-            columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
+            columns=[{"name": "id", "data_type": "bigint", "nullable": True, "primary_key": True}],
             write_disposition="merge",
+            table_format=destination_config.table_format,
         )
         def table_1():
             yield {"id": 1}
 
         @dlt.resource(
-            columns=[{"name": "id", "data_type": "bigint", "nullable": True, "unique": True}],
+            columns=[
+                {
+                    "name": "id",
+                    "data_type": "bigint",
+                    "nullable": True,
+                    "unique": True,
+                    "primary_key": True,
+                }
+            ],
             write_disposition="merge",
+            table_format=destination_config.table_format,
         )
         def table_2():
             yield data_to_item_format("arrow-table", [{"id": 2}])
@@ -738,6 +751,7 @@ def test_pipeline_upfront_tables_two_loads(
         @dlt.resource(
             columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
             write_disposition="replace",
+            table_format=destination_config.table_format,
         )
         def table_3(make_data=False):
             if not make_data:
@@ -755,7 +769,7 @@ def test_pipeline_upfront_tables_two_loads(
     # push state, table 3 not created
     load_info_1 = pipeline.run(source.table_3, schema=schema, **destination_config.run_kwargs)
     assert_load_info(load_info_1)
-    with pytest.raises(DatabaseUndefinedRelation):
+    with pytest.raises(DestinationUndefinedEntity):
         load_table_counts(pipeline, "table_3")
     assert "x-normalizer" not in pipeline.default_schema.tables["table_3"]
     assert (
@@ -765,7 +779,7 @@ def test_pipeline_upfront_tables_two_loads(
     # load with one empty job, table 3 not created
     load_info = pipeline.run(source.table_3, **destination_config.run_kwargs)
     assert_load_info(load_info, expected_load_packages=0)
-    with pytest.raises(DatabaseUndefinedRelation):
+    with pytest.raises(DestinationUndefinedEntity):
         load_table_counts(pipeline, "table_3")
     # print(pipeline.default_schema.to_pretty_yaml())
 
@@ -777,9 +791,9 @@ def test_pipeline_upfront_tables_two_loads(
     assert "table_2" not in pipeline.last_trace.last_normalize_info.row_counts
     # only table_1 got created
     assert load_table_counts(pipeline, "table_1") == {"table_1": 1}
-    with pytest.raises(DatabaseUndefinedRelation):
+    with pytest.raises(DestinationUndefinedEntity):
         load_table_counts(pipeline, "table_2")
-    with pytest.raises(DatabaseUndefinedRelation):
+    with pytest.raises(DestinationUndefinedEntity):
         load_table_counts(pipeline, "table_3")
 
     # v4 = pipeline.default_schema.to_pretty_yaml()

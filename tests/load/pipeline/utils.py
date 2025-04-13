@@ -10,14 +10,15 @@ def skip_if_unsupported_replace_strategy(
     supported_replace_strategies = (
         destination_config.raw_capabilities().supported_replace_strategies
     )
-    # hardcoded exclusions (that require table schema and selector to be used, here it is not available)
+    # hardcoded exclusions (that require table schema and replace selector to be used, here it is not available)
     is_athena = destination_config.destination_type == "athena"
-    is_iceberg = destination_config.force_iceberg or destination_config.table_format == "iceberg"
+    is_filesystem = destination_config.destination_type == "filesystem"
+    is_open_table = destination_config.force_iceberg or destination_config.table_format
 
-    if is_athena and not is_iceberg:
+    if (is_athena or is_filesystem) and not is_open_table:
         supported_replace_strategies = ["truncate-and-insert"]
 
-    if is_athena and is_iceberg:
+    if is_athena and is_open_table:
         supported_replace_strategies = ["insert-from-staging"]
 
     if replace_strategy not in supported_replace_strategies:

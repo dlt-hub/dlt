@@ -55,7 +55,12 @@ def test_replace_disposition(
     offset = 1000
 
     # keep merge key with unknown column to test replace SQL generator
-    @dlt.resource(name="items", write_disposition="replace", primary_key="id")
+    @dlt.resource(
+        name="items",
+        write_disposition="replace",
+        primary_key="id",
+        table_format=destination_config.table_format,
+    )
     def load_items():
         # will produce 3 jobs for the main table with 40 items each
         # 6 jobs for the sub_items
@@ -81,7 +86,7 @@ def test_replace_disposition(
             }
 
     # append resource to see if we do not drop any tables
-    @dlt.resource(write_disposition="append")
+    @dlt.resource(write_disposition="append", table_format=destination_config.table_format)
     def append_items():
         nonlocal offset
         for _, index in enumerate(range(offset, offset + 12), 1):

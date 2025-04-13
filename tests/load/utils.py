@@ -621,7 +621,9 @@ def destinations_configs(
             destination_configs += [
                 DestinationTestConfiguration(
                     destination_type="filesystem",
-                    bucket_url=bucket,
+                    # so not set the bucket for GCS because we switch to s3 compat
+                    # note google s3 compat does not implement DeleteObjects so we cannot drop dataset at the end
+                    bucket_url=None if bucket == GCS_BUCKET else bucket,
                     extra_info=bucket,
                     table_format="delta",
                     supports_merge=True,
@@ -635,6 +637,10 @@ def destinations_configs(
                         if bucket == AWS_BUCKET
                         else None
                     ),
+                    # in case of delta on gcs we use the s3 compat layer for reading
+                    # for writing we still need to use the gc authentication, as delta_rs seems to use
+                    # methods on the s3 interface that are not implemented by gcs
+                    destination_name="filesystem_s3_gcs_comp" if bucket == GCS_BUCKET else None,
                 )
             ]
             if bucket == AZ_BUCKET:
@@ -727,17 +733,17 @@ def destinations_configs(
     ]
 
     # add marks
-    destination_configs = [
-        # TODO: fix this, probably via pytest plugin that processes parametrize params
-        cast(
-            DestinationTestConfiguration,
-            pytest.param(
-                conf,
-                marks=pytest.mark.needspyarrow17 if conf.table_format == "delta" else [],
-            ),
-        )
-        for conf in destination_configs
-    ]
+    # destination_configs = [
+    #     # TODO: fix this, probably via pytest plugin that processes parametrize params
+    #     cast(
+    #         DestinationTestConfiguration,
+    #         pytest.param(
+    #             conf,
+    #             marks=pytest.mark.needspyarrow17 if conf.table_format == "delta" else [],
+    #         ),
+    #     )
+    #     for conf in destination_configs
+    # ]
     return destination_configs
 
 
@@ -990,11 +996,17 @@ def yield_client_with_storage(
         client.initialize_storage()
         yield client
         if client.is_storage_initialized():
-            client.drop_storage()
+            try:
+                client.drop_storage()
+            except Exception as exc:
+                print(f"drop dataset {dataset_name}: {exc}")
         if isinstance(client, WithStagingDataset):
             with client.with_staging_dataset():
                 if client.is_storage_initialized():
-                    client.drop_storage()
+                    try:
+                        client.drop_storage()
+                    except Exception as exc:
+                        print(f"drop dataset {dataset_name} STAGING: {exc}")
 
 
 def delete_dataset(client: SqlClientBase[Any], normalized_dataset_name: str) -> None:

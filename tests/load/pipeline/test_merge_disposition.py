@@ -38,6 +38,7 @@ from tests.pipeline.utils import (
     assert_records_as_set,
 )
 from tests.load.utils import (
+    AWS_BUCKET,
     normalize_storage_table_cols,
     destinations_configs,
     DestinationTestConfiguration,
@@ -66,7 +67,7 @@ def skip_if_not_supported(
         all_buckets_filesystem_configs=True,
         table_format_filesystem_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET, ABFS_BUCKET),  # test one local, one remote
+        bucket_subset=(FILE_BUCKET, AWS_BUCKET),  # test one local, one remote
     ),
     ids=lambda x: x.name,
 )
@@ -820,6 +821,7 @@ def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -
         with_file_format="parquet",
         local_filesystem_configs=True,
         table_format_local_configs=True,
+        supports_merge=True,
     ),
     ids=lambda x: x.name,
 )

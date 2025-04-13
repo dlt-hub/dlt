@@ -153,19 +153,6 @@ def populated_pipeline(request, autouse_test_storage) -> Any:
     pipeline.run([1, 2, 3], table_name="digits", schema=Schema("aleph"))
     print(pipeline.last_trace.last_normalize_info)
 
-    # in case of delta on gcs we use the s3 compat layer for reading
-    # for writing we still need to use the gc authentication, as delta_rs seems to use
-    # methods on the s3 interface that are not implemented by gcs
-    if destination_config.bucket_url == GCS_BUCKET and destination_config.table_format == "delta":
-        gcp_bucket = filesystem(
-            GCS_BUCKET.replace("gs://", "s3://"), destination_name="filesystem_s3_gcs_comp"
-        )
-        access_pipeline = destination_config.setup_pipeline(
-            "read_pipeline", dataset_name="read_test", destination=gcp_bucket
-        )
-
-        pipeline.destination = access_pipeline.destination
-
     # return pipeline to test
     try:
         yield pipeline

@@ -156,6 +156,11 @@ def test_drop_command_resources_and_state(
 ) -> None:
     """Test the drop command with resource and state path options and
     verify correct data is deleted from destination and locally"""
+    if destination_config.destination_type == "filesystem" and destination_config.table_format:
+        pytest.skip(
+            "Cannot run this test on filesystem with open tables enabled, dlt tables are not open"
+            " tables"
+        )
     source: Any = droppable_source()
     if not in_source:
         source = list(source.selected_resources.values())
@@ -459,8 +464,8 @@ def test_drop_all_flag(destination_config: DestinationTestConfiguration) -> None
     assert_dropped_resources(attached, list(RESOURCE_TABLES))
 
     # Verify original _dlt tables were not deleted
-    with attached._sql_job_client(attached.default_schema) as client:
-        storage_tables = list(client.get_storage_tables(dlt_tables))
+    with attached._get_destination_clients(attached.default_schema)[0] as client:
+        storage_tables = list(client.get_storage_tables(dlt_tables))  # type: ignore[attr-defined]
         assert all(len(table[1]) > 0 for table in storage_tables)
 
 

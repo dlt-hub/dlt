@@ -391,10 +391,9 @@ def test_evolving_filesystem(
     df = pipeline.dataset().items.df()
     assert len(df.index) == 20
 
-    # csv not available in dataset
     assert pipeline.default_schema.get_table("csv_items")["file_format"] == "csv"
-    with pytest.raises(DatabaseUndefinedRelation):
-        pipeline.dataset().csv_items.df()
+
+    assert len(pipeline.dataset().csv_items.fetchall()) == 20
 
     @dlt.resource(table_name="items", file_format=destination_config.file_format)
     def items2():

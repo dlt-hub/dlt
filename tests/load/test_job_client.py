@@ -87,7 +87,6 @@ def naming(request) -> str:
     return None
 
 
-@pytest.mark.order(1)
 @pytest.mark.parametrize(
     "client",
     destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True),
@@ -98,7 +97,6 @@ def test_initialize_storage(client: SqlJobClientBase) -> None:
     assert client.is_storage_initialized()
 
 
-@pytest.mark.order(2)
 @pytest.mark.parametrize("naming", TEST_NAMING_CONVENTIONS, indirect=True)
 @pytest.mark.parametrize(
     "client",
@@ -122,7 +120,6 @@ def test_get_schema_on_empty_storage(naming: str, client: SqlJobClientBase) -> N
     assert [("no_table_1", {}), ("no_table_2", {})] == storage_tables
 
 
-@pytest.mark.order(3)
 @pytest.mark.parametrize(
     "client",
     destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True),
