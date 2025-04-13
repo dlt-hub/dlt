@@ -12,7 +12,7 @@ With REST API connectors being configuration-driven and vibe coding based on pro
 
 ## 1. Problem Definition & Feature Extraction
 
-Building a data pipeline can be separated into 2 distinct problems, each with their own challenges:
+Building a data pipeline can be separated into two distinct problems, each with their own challenges:
 
 1. **Extraction:** Identifying and gathering key configuration details from various sources.
 2. **Pipeline Construction:** Using those details to build a robust data ingestion pipeline.
@@ -28,19 +28,19 @@ The best source of information for building a pipeline, is another working pipel
 So here is the ranking of what sources you could use
 
 1. **Other pipelines**: Legacy pipelines, connectors from other languages or frameworks.
-2. **Docs + http responses**. Reading the docs, creating an initial working pipeline and then requesting from the api data so we can infer the rest of the missing info.
-3. **Scraped code, llm memory**: When nothing is available but a public api exists, such as apis that power public websites, we can try inferring how it is called from other websites’ code that calls it.
+2. **Docs + http responses**. Reading the docs, creating an initial working pipeline and then requesting from the API data so we can infer the rest of the missing info.
+3. **Scraped code, llm memory**: When nothing is available but a public API exists, such as APIs that power public websites, we can try inferring how it is called from other websites’ code that calls it.
 
 ### 1.2 Understanding the parameters
 
 Since there are only partial naming standards for these parameters, we describe the ones we use here.
 
-- **Top-Level Client Settings:**
+- **Top-Level client settings:**
     - **client.base_url:** The API’s root URL.
     - **client.auth:** Authentication details (token/credentials, reference to dlthub secrets).
     - **client.headers:** Required custom headers.
     - **client.paginator:** Pagination configuration (type such as "cursor", and associated parameters like `next_url_path`, `offset_param`, `limit_param`).
-- **Per-Resource Settings:**
+- **Per-resource settings:**
     - **name:** The resource/table name.
     - **endpoint.path:** The REST API endpoint’s path.
     - **endpoint.method:** HTTP method (defaults to GET if unspecified).
@@ -51,10 +51,10 @@ Since there are only partial naming standards for these parameters, we describe 
     - **endpoint.response_actions:** Handlers for varied HTTP status codes or responses.
     - **write_disposition:** Options like append, replace, or merge.
     - **primary_key:** Field(s) used for deduplication.
-    - **incremental:** Configuration parameters for incremental loading (start_param, end_param, cursor_path, etc.).
+    - **incremental:** Configuration parameters for incremental loading (`start_param`, `end_param`, `cursor_path`, etc.).
     - **include_from_parent:** Inheriting fields from parent resources.
     - **processing_steps:** Transformations (filters, mappings) applied to the records.
-- **Resource Relationships:**
+- **Resource relationships:**
     - Define parent-child relationships and how to reference fields using placeholders (for example when requesting details of an entity by ID).
 
 ## 2. Setting up Cursor for REST API connector generation
@@ -98,13 +98,17 @@ To improve accuracy, make sure any files or docs that could confound the search 
 
 ## 3. Running the workflow
 
-Before you start, it might be a good idea to scaffold a dlt pipeline by running dlt init with the rest api source: `dlt init rest_api duckdb`. Consider prompting for instructions how to make credentials for the source and add them to the project.
+Before you start, it might be a good idea to scaffold a dlt pipeline by running dlt init with the REST API source:
+
+`dlt init rest_api duckdb`
+
+Consider prompting for instructions how to make credentials for the source and add them to the project.
 
 1. **Initial prompt:**
-    - Make sure your cursor rule is added, dlt rest api docs are added and your source for information is added.
+    - Make sure your cursor rule is added, dlt REST API docs are added and your source for information is added.
     - Prompt something along the lines:
     
-        "Please build a REST API (dlthub) pipeline using the details from the documentation you added in context. Please include all endpoints you find and try to capture the incremental logic you can find. Use the build rest api cursor rule. Build it in a python file called “my_pipeline.py" 
+        "Please build a REST API (dlthub) pipeline using the details from the documentation you added in context. Please include all endpoints you find and try to capture the incremental logic you can find. Use the build REST API cursor rule. Build it in a python file called “my_pipeline.py" 
     
     - If it builds what looks like a sensible REST API source, go on with inspection. If not and if the LLM ended up writing random code, just start over.
 2. **Inspect the generated code:**
@@ -112,15 +116,15 @@ Before you start, it might be a good idea to scaffold a dlt pipeline by running 
     - Look into incremental loading configs, does it align with documentation, is it sensible?
 3. **Run and test the code:**
     - Execute the code in a controlled test environment.
-    - If it succeeds, double check the outputs and make double sure your incremental and pagination are correct - both of them could cause silent failures, where only some pages are loaded, or pagination never finishes (some apis re-start from page 0 once they finish pages), or the wrong incremental strategy removes records based on the wrong key, or the wrong data is extracted.  Writing some tests is probably a good idea at this point.
+    - If it succeeds, double check the outputs and make double sure your incremental and pagination are correct - both of them could cause silent failures, where only some pages are loaded, or pagination never finishes (some APIs re-start from page 0 once they finish pages), or the wrong incremental strategy removes records based on the wrong key, or the wrong data is extracted.  Writing some tests is probably a good idea at this point.
 4. **Error handling and recovery:**
     - If an error occurs, share the error message with Cursor’s LLM agent chat.
     - Let the LLM attempt to recover the error and repeat this process until the issue is resolved.
 5. **Iterative debugging:**
     - If errors persist after several attempts, review the error details manually.
-        - **Extraction issue**: Identify if any configuration details are missing from the feature extraction, and try to manually locate the missing information and provide it in the chat along with the error message.
-        - **Info in Responses**: Currently the REST API does not return full information about the api calls on failure, to prevent accidental leakage of sensitive information. We are considering adding a dev mode for enabling full responses in a future version. If you want to pass the full responses, consider building the pipeline in pure python first  to expose the api responses (you can prompt for it).
-        - **Implementation incorrect**: If the extracted details seem correct but the REST API source still isn’t implemented properly, ask the LLM to re-check the REST API documentation and locate the missing information.
+        - Extraction issue: Identify if any configuration details are missing from the feature extraction, and try to manually locate the missing information and provide it in the chat along with the error message.
+        - Info in Responses: Currently the REST API does not return full information about the API calls on failure, to prevent accidental leakage of sensitive information. We are considering adding a dev mode for enabling full responses in a future version. If you want to pass the full responses, consider building the pipeline in pure python first  to expose the API responses (you can prompt for it).
+        - Implementation incorrect: If the extracted details seem correct but the REST API source still isn’t implemented properly, ask the LLM to re-check the REST API documentation and locate the missing information.
 
 ## 4. Best practices and vibe coding tips
 
