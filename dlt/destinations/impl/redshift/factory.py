@@ -160,11 +160,13 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials: Credentials to connect to the redshift database. Can be an instance of `RedshiftCredentials` or
-                a connection string in the format `redshift://user:password@host:port/database`
-            staging_iam_role: IAM role to use for staging data in S3
-            has_case_sensitive_identifiers: Are case sensitive identifiers enabled for a database
-            **kwargs: Additional arguments passed to the destination config
+            credentials (Union[RedshiftCredentials, Dict[str, Any], str], optional): Credentials to connect to the redshift database. Can be an instance of `RedshiftCredentials` or
+                a connection string in the format `redshift://user:password@host:port/database`. Defaults to None.
+            staging_iam_role (Optional[str], optional): IAM role to use for staging data in S3. Defaults to None.
+            has_case_sensitive_identifiers (bool, optional): Whether case sensitive identifiers are enabled for the database. Defaults to False.
+            destination_name (Optional[str], optional): Name of the destination. Defaults to None.
+            environment (Optional[str], optional): Environment name. Defaults to None.
+            **kwargs (Any): Additional arguments passed to the destination config.
         """
         super().__init__(
             credentials=credentials,

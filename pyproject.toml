@@ -196,6 +196,7 @@ shapely = ">=2.0.6"
 pip = ">=24.0.0"
 # keep duckdb compatible with motherduck
 duckdb = "<1.3"
+pydoclint = "^0.6.5"
 
 [tool.poetry.group.sources]
 optional = true

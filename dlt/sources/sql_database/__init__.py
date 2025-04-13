@@ -188,7 +188,7 @@ def sql_table(
         type_adapter_callback(Optional[Callable]): Callable to override type inference when reflecting columns.
             Argument is a single sqlalchemy data type (`TypeEngine` instance) and it should return another sqlalchemy data type, or `None` (type will be inferred from data)
         included_columns (Optional[List[str]): List of column names to select from the table. If not provided, all columns are loaded.
-        query_adapter_callback(Optional[Callable[Select, Table], Select]): Callable to override the SELECT query used to fetch data from the table.
+        query_adapter_callback(Optional[TQueryAdapter]): Callable to override the SELECT query used to fetch data from the table.
             The callback receives the sqlalchemy `Select` and corresponding `Table`, 'Incremental` and `Engine` objects and should return the modified `Select` or `Text`.
         resolve_foreign_keys (bool): Translate foreign keys in the same schema to `references` table hints.
             May incur additional database calls as all referenced tables are reflected.
