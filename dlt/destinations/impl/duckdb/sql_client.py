@@ -8,7 +8,7 @@ import sqlglot.expressions as exp
 from urllib.parse import urlparse
 import math
 from contextlib import contextmanager
-from typing import Any, AnyStr, ClassVar, Dict, Iterator, Optional, Sequence, Generator, cast
+from typing import Any, AnyStr, ClassVar, Dict, Iterator, List, Optional, Sequence, Generator, cast
 
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -341,6 +341,7 @@ class WithTableScanners(DuckDbSqlClient):
             scope = scope.split("@")[0]
 
         protocol = urlparse(scope).scheme
+        sql: List[str] = []
 
         # add secrets required for creating views
         if protocol == "s3":
@@ -358,27 +359,27 @@ class WithTableScanners(DuckDbSqlClient):
                 endpoint = aws_creds.endpoint_url.replace("https://", "")
 
             s3_url_style = aws_creds.s3_url_style or "vhost"
-            self._conn.sql(f"""
-            CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
-                TYPE S3,
-                KEY_ID '{aws_creds.aws_access_key_id}',
-                SECRET '{aws_creds.aws_secret_access_key}',
-                SESSION_TOKEN '{session_token}',
-                REGION '{aws_creds.region_name}',
-                ENDPOINT '{endpoint}',
-                SCOPE '{scope}',
-                URL_STYLE '{s3_url_style}',
-                USE_SSL {use_ssl}
-            );""")
+            sql.append(f"""
+                CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
+                    TYPE S3,
+                    KEY_ID '{aws_creds.aws_access_key_id}',
+                    SECRET '{aws_creds.aws_secret_access_key}',
+                    SESSION_TOKEN '{session_token}',
+                    REGION '{aws_creds.region_name}',
+                    ENDPOINT '{endpoint}',
+                    SCOPE '{scope}',
+                    URL_STYLE '{s3_url_style}',
+                    USE_SSL {use_ssl}
+                );""")
 
         # azure with storage account creds
         elif protocol in ["az", "abfss"]:
             # the line below solves problems with certificate path lookup on linux
             # see duckdb docs
-            self._conn.sql("SET azure_transport_option_type = 'curl';")
+            sql.append("SET azure_transport_option_type = 'curl';")
 
             if isinstance(credentials, AzureCredentialsWithoutDefaults):
-                self._conn.sql(f"""
+                sql.append(f"""
                 CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                     TYPE AZURE,
                     CONNECTION_STRING 'AccountName={credentials.azure_storage_account_name};AccountKey={credentials.azure_storage_account_key}',
@@ -387,7 +388,7 @@ class WithTableScanners(DuckDbSqlClient):
 
             # azure with service principal creds
             elif isinstance(credentials, AzureServicePrincipalCredentialsWithoutDefaults):
-                self._conn.sql(f"""
+                sql.append(f"""
                 CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                     TYPE AZURE,
                     PROVIDER SERVICE_PRINCIPAL,
@@ -406,6 +407,7 @@ class WithTableScanners(DuckDbSqlClient):
         else:
             # could not create secret
             return False
+        self._conn.sql("\n".join(sql))
         return True
 
     def open_connection(self) -> duckdb.DuckDBPyConnection:

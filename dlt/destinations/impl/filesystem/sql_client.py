@@ -94,6 +94,7 @@ class FilesystemSqlClient(WithTableScanners):
                 self.remote_client.config.bucket_url, self.remote_client.config.credentials
             )
 
+        self._conn.sql("SET azure_transport_option_type = 'curl';")
         return self._conn
 
     def should_replace_view(self, view_name: str, table_schema: PreparedTableSchema) -> bool:
@@ -172,7 +173,7 @@ class FilesystemSqlClient(WithTableScanners):
                 resolved_files_string = ",".join(map(lambda f: f"'{protocol}://{f}'", files))
 
             if first_file_type == "parquet":
-                from_statement = f"read_parquet([{resolved_files_string}])"
+                from_statement = f"read_parquet([{resolved_files_string}], union_by_name=true)"
             elif first_file_type in ("jsonl", "csv"):
                 # build columns definition
                 type_mapper = self.capabilities.get_type_mapper()
@@ -196,6 +197,7 @@ class FilesystemSqlClient(WithTableScanners):
                         f" {{{column_types}}}{compression})"
                     )
                 if first_file_type == "csv":
+                    # TODO: use default csv_format config to set params below
                     from_statement = (
                         f"read_csv([{resolved_files_string}], union_by_name=true, columns ="
                         f" {{{column_types}}}{compression})"
