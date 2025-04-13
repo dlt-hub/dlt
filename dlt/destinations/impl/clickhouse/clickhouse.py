@@ -228,9 +228,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         hints_ = " ".join(
             self.active_hints.get(hint)
             for hint in self.active_hints.keys()
-            if c.get(cast(str, hint), False) is True
-            and hint not in ("primary_key", "sort")
-            and hint in self.active_hints
+            if c.get(cast(str, hint), False) is True and hint not in ("primary_key", "sort")
         )
 
         # Alter table statements only accept `Nullable` modifiers.

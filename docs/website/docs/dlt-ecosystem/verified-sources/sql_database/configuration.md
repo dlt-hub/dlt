@@ -280,7 +280,14 @@ The `SQLAlchemy` backend (the default) yields table data as a list of Python dic
 
 The `PyArrow` backend yields data as `Arrow` tables. It uses `SQLAlchemy` to read rows in batches but then immediately converts them into `ndarray`, transposes it, and sets it as columns in an `Arrow` table. This backend always fully reflects the database table and preserves original types (i.e., **decimal** / **numeric** data will be extracted without loss of precision). If the destination loads parquet files, this backend will skip the `dlt` normalizer, and you can gain two orders of magnitude (20x - 30x) speed increase.
 
-Note that if `pandas` is installed, we'll use it to convert `SQLAlchemy` tuples into `ndarray` as it seems to be 20-30% faster than using `numpy` directly.
+:::note
+To use the `backend="arrow"` configuration, you will need `numpy` installed. You can get another 20-30% speed increase by having `pandas` installed.
+The library `numpy` is a required dependency of `pandas` and `pyarrow<18.0.0`. To have all required dependencies, we suggest using this command:
+
+```sh
+pip install dlt[sql_database] pyarrow numpy pandas
+```
+:::
 
 ```py
 import dlt

@@ -22,9 +22,14 @@ from fsspec import AbstractFileSystem
 
 import dlt
 from dlt.common import logger, time, json, pendulum
-from dlt.common.destination.utils import resolve_merge_strategy
+from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace_strategy
 from dlt.common.metrics import LoadJobMetrics
-from dlt.common.schema.typing import C_DLT_LOAD_ID, TTableSchemaColumns, DLT_NAME_PREFIX
+from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
+    TTableFormat,
+    TTableSchemaColumns,
+    DLT_NAME_PREFIX,
+)
 from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables
@@ -41,6 +46,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.client import (
     FollowupJobRequest,
     PreparedTableSchema,
+    SupportsOpenTables,
     TLoadJobState,
     RunnableLoadJob,
     JobClientBase,
@@ -51,8 +57,11 @@ from dlt.common.destination.client import (
     StateInfo,
     LoadJob,
 )
-from dlt.common.destination.dataset import SupportsReadableRelation
-from dlt.common.destination.exceptions import DestinationUndefinedEntity
+from dlt.common.destination.exceptions import (
+    DestinationUndefinedEntity,
+    OpenTableCatalogNotSupported,
+    OpenTableFormatNotSupported,
+)
 
 from dlt.destinations.job_impl import (
     ReferenceFollowupJobRequest,
@@ -62,7 +71,10 @@ from dlt.destinations.job_impl import (
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations import path_utils
 from dlt.destinations.fs_client import FSClientBase
-from dlt.destinations.utils import verify_schema_merge_disposition
+from dlt.destinations.utils import (
+    verify_schema_merge_disposition,
+    verify_schema_replace_disposition,
+)
 
 INIT_FILE_NAME = "init"
 FILENAME_SEPARATOR = "__"
@@ -101,7 +113,7 @@ class FilesystemLoadJob(RunnableLoadJob):
             extra_placeholders=self._job_client.config.extra_placeholders,
         )
         # pick local filesystem pathlib or posix for buckets
-        pathlib = os.path if self.__is_local_filesystem else posixpath
+        pathlib = self._job_client.config.pathlib
         # path.join does not normalize separators and available
         # normalization functions are very invasive and may string the trailing separator
         return pathlib.join(  # type: ignore[no-any-return]
@@ -142,37 +154,42 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
     def run(self) -> None:
         # create Arrow dataset from Parquet files
         from dlt.common.libs.pyarrow import pyarrow as pa
-        from dlt.common.libs.deltalake import write_delta_table, merge_delta_table
+        from dlt.common.libs.deltalake import (
+            write_delta_table,
+            merge_delta_table,
+            DeltaTable,
+            deltalake_storage_options,
+        )
 
         logger.info(
             f"Will copy file(s) {self.file_paths} to delta table {self.make_remote_url()} [arrow"
             f" buffer: {pa.total_allocated_bytes()}]"
         )
         source_ds = self.arrow_dataset
-        delta_table = self._delta_table()
-
-        # explicitly check if there is data
-        # (https://github.com/delta-io/delta-rs/issues/2686)
-        if source_ds.head(1).num_rows == 0:
-            delta_table = self._create_or_evolve_delta_table(source_ds, delta_table)
+        location = self._job_client.get_open_table_location("delta", self.load_table_name)
+        storage_options = deltalake_storage_options(self._job_client.config)
+        if DeltaTable.is_deltatable(location, storage_options=storage_options):
+            delta_table: DeltaTable = self._job_client.load_open_table(
+                "delta", self.load_table_name
+            )
         else:
-            with source_ds.scanner().to_reader() as arrow_rbr:  # RecordBatchReader
-                if self._load_table["write_disposition"] == "merge" and delta_table is not None:
-                    merge_delta_table(
-                        table=delta_table,
-                        data=arrow_rbr,
-                        schema=self._load_table,
-                    )
-                else:
-                    write_delta_table(
-                        table_or_uri=(
-                            self.make_remote_url() if delta_table is None else delta_table
-                        ),
-                        data=arrow_rbr,
-                        write_disposition=self._load_table["write_disposition"],
-                        partition_by=self._partition_columns,
-                        storage_options=self._storage_options,
-                    )
+            delta_table = None
+
+        with source_ds.scanner().to_reader() as arrow_rbr:  # RecordBatchReader
+            if self._load_table["write_disposition"] == "merge" and delta_table is not None:
+                merge_delta_table(
+                    table=delta_table,
+                    data=arrow_rbr,
+                    schema=self._load_table,
+                )
+            else:
+                write_delta_table(
+                    table_or_uri=(self.make_remote_url() if delta_table is None else delta_table),
+                    data=arrow_rbr,
+                    write_disposition=self._load_table["write_disposition"],
+                    partition_by=self._partition_columns,
+                    storage_options=storage_options,
+                )
         # release memory ASAP by deleting objects explicitly
         del source_ds
         del delta_table
@@ -181,25 +198,11 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
             f" {pa.total_allocated_bytes()}]"
         )
 
-    @property
-    def _storage_options(self) -> Dict[str, str]:
-        from dlt.common.libs.deltalake import _deltalake_storage_options
-
-        return _deltalake_storage_options(self._job_client.config)
-
-    def _delta_table(self) -> Optional["DeltaTable"]:  # type: ignore[name-defined] # noqa: F821
-        from dlt.common.libs.deltalake import DeltaTable
-
-        if DeltaTable.is_deltatable(self.make_remote_url(), storage_options=self._storage_options):
-            return DeltaTable(self.make_remote_url(), storage_options=self._storage_options)
-        else:
-            return None
-
-    def _create_or_evolve_delta_table(self, arrow_ds: "Dataset", delta_table: "DeltaTable") -> "DeltaTable":  # type: ignore[name-defined] # noqa: F821
+    def _create_or_evolve_delta_table(self, arrow_ds: "Dataset", delta_table: "DeltaTable", storage_options: Dict[str, str]) -> "DeltaTable":  # type: ignore[name-defined] # noqa: F821
         from dlt.common.libs.deltalake import (
             DeltaTable,
             ensure_delta_compatible_arrow_schema,
-            _evolve_delta_table_schema,
+            evolve_delta_table_schema,
         )
 
         if delta_table is None:
@@ -208,36 +211,27 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
                 schema=ensure_delta_compatible_arrow_schema(arrow_ds.schema),
                 mode="overwrite",
                 partition_by=self._partition_columns,
-                storage_options=self._storage_options,
+                storage_options=storage_options,
             )
         else:
-            return _evolve_delta_table_schema(delta_table, arrow_ds.schema)
+            return evolve_delta_table_schema(delta_table, arrow_ds.schema)
 
 
 class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
     def run(self) -> None:
         from dlt.common.libs.pyiceberg import write_iceberg_table
 
-        write_iceberg_table(
-            table=self._iceberg_table(),
-            data=self.arrow_dataset.to_table(),
-            write_disposition=self._load_table["write_disposition"],
-        )
-
-    def _iceberg_table(self) -> "pyiceberg.table.Table":  # type: ignore[name-defined] # noqa: F821
-        from dlt.common.libs.pyiceberg import get_catalog
-
-        catalog = get_catalog(
-            client=self._job_client,
-            table_name=self.load_table_name,
+        table = self._job_client.load_open_table(
+            "iceberg",
+            self.load_table_name,
             schema=self.arrow_dataset.schema,
             partition_columns=self._partition_columns,
         )
-        return catalog.load_table(self.table_identifier)
-
-    @property
-    def table_identifier(self) -> str:
-        return f"{self._job_client.dataset_name}.{self.load_table_name}"
+        write_iceberg_table(
+            table=table,
+            data=self.arrow_dataset.to_table(),
+            write_disposition=self._load_table["write_disposition"],
+        )
 
 
 class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
@@ -253,10 +247,13 @@ class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
 
 
 class FilesystemClient(
-    FSClientBase, WithSqlClient, JobClientBase, WithStagingDataset, WithStateSync
+    FSClientBase,
+    WithSqlClient,
+    JobClientBase,
+    WithStagingDataset,
+    WithStateSync,
+    SupportsOpenTables,
 ):
-    """filesystem client storing jobs in memory"""
-
     fs_client: AbstractFileSystem
     # a path (without the scheme) to a location in the bucket where dataset is present
     bucket_path: str
@@ -286,13 +283,19 @@ class FilesystemClient(
         self._sql_client: SqlClientBase[Any] = None
 
     @property
+    def sql_client_class(self) -> Type[SqlClientBase[Any]]:
+        from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
+
+        return FilesystemSqlClient
+
+    @property
     def sql_client(self) -> SqlClientBase[Any]:
         # we use an inner import here, since the sql client depends on duckdb and will
         # only be used for read access on data, some users will not need the dependency
         from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
 
         if not self._sql_client:
-            self._sql_client = FilesystemSqlClient(self)
+            self._sql_client = FilesystemSqlClient(self, self.dataset_name)
         return self._sql_client
 
     @sql_client.setter
@@ -389,6 +392,16 @@ class FilesystemClient(
             for exception in exceptions:
                 logger.error(str(exception))
             raise exceptions[0]
+        if exceptions := verify_schema_replace_disposition(
+            self.schema,
+            loaded_tables,
+            self.capabilities,
+            self.config.replace_strategy,
+            warnings=True,
+        ):
+            for exception in exceptions:
+                logger.error(str(exception))
+            raise exceptions[0]
         return loaded_tables
 
     def update_stored_schema(
@@ -417,7 +430,7 @@ class FilesystemClient(
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
         table = super().prepare_load_table(table_name)
         if self.config.as_staging_destination:
-            if table["write_disposition"] == "merge":
+            if table["write_disposition"] in ("merge", "replace"):
                 table["write_disposition"] = "append"
             table.pop("table_format", None)
         merge_strategy = resolve_merge_strategy(self.schema.tables, table, self.capabilities)
@@ -427,6 +440,12 @@ class FilesystemClient(
                 table["write_disposition"] = "append"
             else:
                 table["x-merge-strategy"] = merge_strategy  # type: ignore[typeddict-unknown-key]
+        if table["write_disposition"] == "replace":
+            replace_strategy = resolve_replace_strategy(
+                table, self.config.replace_strategy, self.capabilities
+            )
+            assert replace_strategy, f"Must be able to get replace strategy for {table_name}"
+            table["x-replace-strategy"] = replace_strategy  # type: ignore[typeddict-unknown-key]
         if table["name"].startswith(DLT_NAME_PREFIX):
             table.pop("table_format", None)
         return table
@@ -778,3 +797,76 @@ class FilesystemClient(
                     pass
 
         return jobs
+
+    # SupportsOpenTables implementation
+
+    def load_open_table(self, table_format: TTableFormat, table_name: str, **kwargs: Any) -> Any:
+        """Locates, loads and returns native table client for table `table_name` in delta or iceberg formats"""
+
+        prepared_table = self.prepare_load_table(table_name)
+        detected_format = prepared_table.get("table_format")
+        if detected_format != table_format:
+            raise OpenTableFormatNotSupported(table_format, table_name, detected_format)
+
+        if table_format == "iceberg":
+            catalog = self.get_open_table_catalog("iceberg")
+            # TODO: move all the fs related code (metadata search, path conversion) to here
+            # TODO: if table is not in the catalog, load the static table
+            from dlt.common.libs.pyiceberg import create_or_evolve_table
+
+            table_id = f"{self.dataset_name}.{table_name}"
+
+            return create_or_evolve_table(
+                catalog=catalog,
+                client=self,
+                table_id=table_id,
+                table_location=self.get_open_table_location(table_format, table_name),
+                **kwargs,
+            )
+        elif table_format == "delta":
+            from dlt.common.libs.deltalake import deltalake_storage_options, DeltaTable
+
+            table_location = self.get_open_table_location(table_format, table_name)
+            return DeltaTable(
+                table_location, storage_options=deltalake_storage_options(self.config)
+            )
+        else:
+            raise NotImplementedError(
+                f"Cannot load tables in {table_format} format in filesystem destination."
+            )
+
+    def get_open_table_catalog(self, table_format: TTableFormat, catalog_name: str = None) -> Any:
+        """Gets a native catalog for a table `table_name` with format `table_format`
+
+        Returns: currently pyiceberg Catalog is supported
+        """
+        if table_format != "iceberg":
+            raise OpenTableCatalogNotSupported(table_format, "filesystem")
+
+        from dlt.common.libs.pyiceberg import get_sql_catalog, IcebergCatalog
+
+        # create in-memory catalog
+        catalog: IcebergCatalog = get_sql_catalog(
+            catalog_name or "default", "sqlite:///:memory:", self.config.credentials
+        )
+
+        # create namespace
+        catalog.create_namespace(self.dataset_name)
+
+        return catalog
+
+    def get_open_table_location(self, table_format: TTableFormat, table_name: str) -> str:
+        """All tables have location, also those in "native" table format."""
+        folder = self.get_table_dir(table_name)
+        location = self.make_remote_url(folder)
+        if self.config.is_local_filesystem and os.name == "nt":
+            # pyiceberg cannot deal with windows absolute urls
+            location = location.replace("file:///", "file://")
+        return location
+
+    def is_open_table(self, table_format: TTableFormat, table_name: str) -> bool:
+        if table_name in self.schema.dlt_table_names():
+            return False
+        prepared_table = self.prepare_load_table(table_name)
+        detected_format = prepared_table.get("table_format")
+        return table_format == detected_format

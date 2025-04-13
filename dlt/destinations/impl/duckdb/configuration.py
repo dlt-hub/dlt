@@ -25,7 +25,6 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
     read_only: bool = False  # open database read/write
 
     def borrow_conn(self, read_only: bool) -> Any:
-        # TODO: Can this be done in sql client instead?
         import duckdb
 
         if not hasattr(self, "_conn_lock"):

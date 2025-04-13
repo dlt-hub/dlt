@@ -12,20 +12,16 @@ from typing import (
     overload,
 )
 
+from dlt.common.typing import Self, Generic, TypeVar
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns
 
 
 if TYPE_CHECKING:
-    try:
-        from dlt.common.libs.pandas import DataFrame
-        from dlt.common.libs.pyarrow import Table as ArrowTable
-        from dlt.helpers.ibis import BaseBackend as IbisBackend
-    except MissingDependencyException:
-        DataFrame = Any
-        ArrowTable = Any
-        IbisBackend = Any
+    from dlt.common.libs.pandas import DataFrame
+    from dlt.common.libs.pyarrow import Table as ArrowTable
+    from dlt.helpers.ibis import BaseBackend as IbisBackend
 else:
     DataFrame = Any
     ArrowTable = Any
@@ -42,7 +38,6 @@ class SupportsReadableRelation(Protocol):
 
     """Represents relation as an query, currently always SQL"""
 
-    # accessing data
     def df(self, chunk_size: int = None) -> Optional[DataFrame]:
         """Fetches the results as data frame. For large queries the results may be chunked
 
@@ -88,25 +83,25 @@ class SupportsReadableRelation(Protocol):
         ...
 
     # modifying access parameters
-    def limit(self, limit: int, **kwargs: Any) -> "SupportsReadableRelation":
+    def limit(self, limit: int, **kwargs: Any) -> Self:
         """limit the result to 'limit' items"""
         ...
 
-    def head(self, limit: int = 5) -> "SupportsReadableRelation":
+    def head(self, limit: int = 5) -> Self:
         """limit the result to 5 items by default"""
         ...
 
-    def select(self, *columns: str) -> "SupportsReadableRelation":
+    def select(self, *columns: str) -> Self:
         """set which columns will be selected"""
         ...
 
     @overload
-    def __getitem__(self, column: str) -> "SupportsReadableRelation": ...
+    def __getitem__(self, column: str) -> Self: ...
 
     @overload
-    def __getitem__(self, columns: Sequence[str]) -> "SupportsReadableRelation": ...
+    def __getitem__(self, columns: Sequence[str]) -> Self: ...
 
-    def __getitem__(self, columns: Union[str, Sequence[str]]) -> "SupportsReadableRelation":
+    def __getitem__(self, columns: Union[str, Sequence[str]]) -> Self:
         """set which columns will be selected"""
         ...
 
@@ -114,7 +109,7 @@ class SupportsReadableRelation(Protocol):
         """get an attribute of the relation"""
         ...
 
-    def __copy__(self) -> "SupportsReadableRelation":
+    def __copy__(self) -> Self:
         """create a copy of the relation object"""
         ...
 
@@ -131,7 +126,10 @@ class DBApiCursor(SupportsReadableRelation):
     def close(self) -> None: ...
 
 
-class SupportsReadableDataset(Protocol):
+TReadableRelation = TypeVar("TReadableRelation", bound=SupportsReadableRelation, covariant=True)
+
+
+class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
     """A readable dataset retrieved from a destination, has support for creating readable relations for a query or table"""
 
     @property
@@ -142,9 +140,9 @@ class SupportsReadableDataset(Protocol):
 
     def __call__(self, query: Any) -> SupportsReadableRelation: ...
 
-    def __getitem__(self, table: str) -> SupportsReadableRelation: ...
+    def __getitem__(self, table: str) -> TReadableRelation: ...
 
-    def __getattr__(self, table: str) -> SupportsReadableRelation: ...
+    def __getattr__(self, table: str) -> TReadableRelation: ...
 
     def ibis(self) -> IbisBackend: ...
 

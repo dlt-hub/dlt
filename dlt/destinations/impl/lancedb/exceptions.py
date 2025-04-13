@@ -7,7 +7,7 @@ from lancedb.exceptions import MissingValueError, MissingColumnError  # type: ig
 
 from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
-    DestinationTerminalException,
+    DestinationTransientException,
 )
 from dlt.common.destination.client import JobClientBase
 from dlt.common.typing import TFun
@@ -25,6 +25,6 @@ def lancedb_error(f: TFun) -> TFun:
         ) as status_ex:
             raise DestinationUndefinedEntity(status_ex) from status_ex
         except Exception as e:
-            raise DestinationTerminalException(e) from e
+            raise DestinationTransientException(e) from e
 
     return _wrap  # type: ignore[return-value]

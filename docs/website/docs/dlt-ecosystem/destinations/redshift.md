@@ -114,6 +114,12 @@ has_case_sensitive_identifiers=true
 
 Redshift supports s3 as a file staging destination. `dlt` will upload files in the parquet format to s3 and ask Redshift to copy their data directly into the db. Please refer to the [S3 documentation](./filesystem.md#aws-s3) to learn how to set up your s3 bucket with the bucket_url and credentials. The `dlt` Redshift loader will use the AWS credentials provided for s3 to access the s3 bucket if not specified otherwise (see config options below). Alternatively to parquet files, you can also specify jsonl as the staging file format. For this, set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
 
+:::note
+If the S3 bucket is in a different region than your Redshift cluster:
+- You must set `region_name` in `[destination.filesystem.credentials]` in your `config.toml` file to ensure proper access
+- For Parquet files, cross-region COPY operations are not supported by Redshift, so the region setting will be ignored
+:::
+
 ## Identifier names and case sensitivity
 * Up to 127 characters
 * Case insensitive
