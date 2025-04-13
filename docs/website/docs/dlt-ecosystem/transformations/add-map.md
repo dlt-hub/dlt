@@ -9,7 +9,7 @@ keywords: [add_map, transform data, remove columns]
 
 ## Method signature
 ### `add_map` method
-```
+```py
 resource.add_map(
     item_map: ItemTransformFunc[TDataItem],
     insert_at: int = None
@@ -75,7 +75,7 @@ dlt pipelines execute in multiple stages. For example, data is typically yielded
 
 To ensure your transformations are applied before the incremental logic kicks in, it’s important to control the execution order using the `insert_at` parameter of the `add_map` function. This parameter lets you define exactly where your transformation logic is inserted within the pipeline.
 
-```python
+```py
 import dlt
 import hashlib
 
@@ -108,7 +108,7 @@ for user in transformed_users:
 
 **Expected output**
 
-```python
+```py
 {'id': 1, 'first_name': 'John', 'last_name': 'Doe', 'email': '<hashed_value>', 'full_name': 'John Doe'}
 {'id': 2, 'first_name': 'Jane', 'last_name': 'Smith', 'email': '<hashed_value>', 'full_name': 'Jane Smith'}
 ```
