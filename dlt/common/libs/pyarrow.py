@@ -285,7 +285,9 @@ def get_pyarrow_int(precision: Optional[int]) -> Any:
     return pyarrow.int64()
 
 
-def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
+def get_column_type_from_py_arrow(
+    dtype: pyarrow.DataType, caps: DestinationCapabilitiesContext
+) -> TColumnType:
     """Returns (data_type, precision, scale) tuple from pyarrow.DataType"""
     if pyarrow.types.is_string(dtype) or pyarrow.types.is_large_string(dtype):
         return dict(data_type="text")
@@ -332,11 +334,14 @@ def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
     elif pyarrow.types.is_decimal(dtype):
         return dict(data_type="decimal", precision=dtype.precision, scale=dtype.scale)
     elif pyarrow.types.is_nested(dtype):
-        return {"data_type": "json", "x-nested-type": serialize_type(dtype)}  # type: ignore[typeddict-unknown-key]
+        dt = dict(data_type="json")
+        if caps.supports_nested_types:
+            dt["x-nested-type"] = serialize_type(dtype)
+        return dt  # type: ignore[return-value]
     elif pyarrow.types.is_dictionary(dtype):
         # Dictionary types are essentially categorical encodings. The underlying value_type
         # dictates the "logical" type. We simply delegate to the underlying value_type.
-        return get_column_type_from_py_arrow(dtype.value_type)
+        return get_column_type_from_py_arrow(dtype.value_type, caps)
     else:
         raise UnsupportedArrowTypeException(arrow_type=dtype)
 
@@ -556,7 +561,9 @@ def get_normalized_arrow_fields_mapping(schema: pyarrow.Schema, naming: NamingCo
     return name_mapping
 
 
-def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColumns:
+def py_arrow_to_table_schema_columns(
+    schema: pyarrow.Schema, caps: DestinationCapabilitiesContext
+) -> TTableSchemaColumns:
     """Convert a PyArrow schema to a table schema columns dict.
 
     Args:
@@ -568,9 +575,9 @@ def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColu
     result: TTableSchemaColumns = {}
     for field in schema:
         try:
-            converted_type = get_column_type_from_py_arrow(field.type)
+            converted_type = get_column_type_from_py_arrow(field.type, caps)
         except UnsupportedArrowTypeException as e:
-            # modify attributes inplace to add context instead of reraising with `raise e`
+            # modify attributes inplace to add context instead of re-raising with `raise e`
             e.field_name = field.name
             raise
 

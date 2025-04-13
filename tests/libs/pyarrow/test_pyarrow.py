@@ -65,7 +65,7 @@ def test_py_arrow_to_table_schema_columns():
         ]
     )
 
-    result = py_arrow_to_table_schema_columns(arrow_schema)
+    result = py_arrow_to_table_schema_columns(arrow_schema, caps)
 
     # Resulting schema should match the original
     assert result == dlt_schema
@@ -74,6 +74,9 @@ def test_py_arrow_to_table_schema_columns():
 @pytest.mark.parametrize("supports_nested_types", (True, False))
 def test_py_arrow_to_table_schema_columns_nested_types(supports_nested_types: bool):
     """Test py_arrow_to_table_schema_columns with various nested types, including dictionary and deeply nested structures."""
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.supports_nested_types = supports_nested_types
+
     # Simple nested types
     struct_type = pa.struct(
         [pa.field("f1", pa.int32()), pa.field("f2", pa.string()), pa.field("f3", pa.bool_())]
@@ -112,17 +115,18 @@ def test_py_arrow_to_table_schema_columns_nested_types(supports_nested_types: bo
     )
 
     # Convert to table schema columns
-    columns = py_arrow_to_table_schema_columns(schema)
+    columns = py_arrow_to_table_schema_columns(schema, caps)
 
     # Verify all columns are correctly identified as JSON data type
     for _, column in columns.items():
         assert column["data_type"] == "json"
-        assert "x-nested-type" in column
-        assert column["x-nested-type"].startswith("arrow-ipc:")  # type: ignore[typeddict-item]
+        if supports_nested_types:
+            assert "x-nested-type" in column
+            assert column["x-nested-type"].startswith("arrow-ipc:")  # type: ignore[typeddict-item]
+        else:
+            assert "x-nested-type" not in column
 
     # Convert back to Arrow schema for roundtrip test
-    caps = DestinationCapabilitiesContext.generic_capabilities()
-    caps.supports_nested_types = supports_nested_types
     roundtrip_schema = columns_to_arrow(columns, caps)
 
     # Compare original types with roundtrip types
@@ -139,6 +143,9 @@ def test_py_arrow_to_table_schema_columns_nested_types(supports_nested_types: bo
 
 def test_nested_type_serialization_deserialization():
     """Test that nested types can be correctly serialized and deserialized."""
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.supports_nested_types = True
+
     # Create a complex nested type
     nested_type = pa.struct(
         [
@@ -168,7 +175,7 @@ def test_nested_type_serialization_deserialization():
 
     # Test with table schema conversion
     schema = pa.schema([pa.field("nested_column", nested_type)])
-    columns = py_arrow_to_table_schema_columns(schema)
+    columns = py_arrow_to_table_schema_columns(schema, caps)
 
     # Verify the column is marked as JSON and has the serialized type
     assert columns["nested_column"]["data_type"] == "json"
@@ -179,8 +186,6 @@ def test_nested_type_serialization_deserialization():
     assert str(nested_type) == str(stored_type)
 
     # Complete the roundtrip by converting back to Arrow
-    caps = DestinationCapabilitiesContext.generic_capabilities()
-    caps.supports_nested_types = True
     roundtrip_schema = columns_to_arrow(columns, caps)
 
     # Verify the roundtrip
@@ -191,6 +196,8 @@ def test_nested_type_serialization_deserialization():
 
 def test_py_arrow_to_table_schema_columns_dict_in_struct():
     """Test dictionary types nested inside struct types."""
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.supports_nested_types = True
     # Create schema with dictionary inside struct
     arrow_schema = pa.schema(
         [
@@ -207,15 +214,13 @@ def test_py_arrow_to_table_schema_columns_dict_in_struct():
     )
 
     # Convert to table schema columns
-    columns = py_arrow_to_table_schema_columns(arrow_schema)
+    columns = py_arrow_to_table_schema_columns(arrow_schema, caps)
 
     # Struct with dict should be converted to json type with nested-type info
     assert columns["struct_with_dict"]["data_type"] == "json"
     assert "x-nested-type" in columns["struct_with_dict"]
 
     # Roundtrip the schema
-    caps = DestinationCapabilitiesContext.generic_capabilities()
-    caps.supports_nested_types = True
     reconstructed_schema = columns_to_arrow(columns, caps, "UTC")
 
     # The nested structure should be preserved
@@ -229,6 +234,9 @@ def test_py_arrow_to_table_schema_columns_dict_in_struct():
 
 def test_py_arrow_to_table_schema_columns_nested_dict_types():
     """Test dictionary types with nested value types."""
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.supports_nested_types = True
+
     # Create schema with dictionary of nested types
     nested_list_type = pa.list_(pa.list_(pa.int64()))
     nested_struct_type = pa.struct([pa.field("a", pa.int32()), pa.field("b", pa.string())])
@@ -242,7 +250,7 @@ def test_py_arrow_to_table_schema_columns_nested_dict_types():
     )
 
     # Convert to table schema columns
-    columns = py_arrow_to_table_schema_columns(arrow_schema)
+    columns = py_arrow_to_table_schema_columns(arrow_schema, caps)
 
     # Dict of lists and dict of structs should be converted to the value types
     assert columns["dict_of_lists"]["data_type"] == "json"
@@ -254,8 +262,6 @@ def test_py_arrow_to_table_schema_columns_nested_dict_types():
         assert "x-nested-type" in columns[col]
 
     # Roundtrip and verify structure is preserved
-    caps = DestinationCapabilitiesContext.generic_capabilities()
-    caps.supports_nested_types = True
     reconstructed_schema = columns_to_arrow(columns, caps, "UTC")
 
     # The structures should be preserved even if dictionary encoding is not
@@ -281,7 +287,9 @@ def test_py_arrow_dict_to_column() -> None:
     array_1 = pa.array(["a", "b", "c"], type=pa.dictionary(pa.int8(), pa.string()))
     array_2 = pa.array([1, 2, 3], type=pa.dictionary(pa.int8(), pa.int64()))
     table = pa.table({"strings": array_1, "ints": array_2})
-    columns = py_arrow_to_table_schema_columns(table.schema)
+    columns = py_arrow_to_table_schema_columns(
+        table.schema, DestinationCapabilitiesContext.generic_capabilities()
+    )
     assert columns == {
         "strings": {"name": "strings", "nullable": True, "data_type": "text"},
         "ints": {"name": "ints", "nullable": True, "data_type": "bigint"},
@@ -345,7 +353,7 @@ def test_exception_for_unsupported_arrow_type() -> None:
     obj = pa.duration("s")
     # error on type conversion
     with pytest.raises(UnsupportedArrowTypeException):
-        get_column_type_from_py_arrow(obj)
+        get_column_type_from_py_arrow(obj, DestinationCapabilitiesContext.generic_capabilities())
 
 
 def test_exception_for_schema_with_unsupported_arrow_type() -> None:
@@ -358,7 +366,9 @@ def test_exception_for_schema_with_unsupported_arrow_type() -> None:
 
     # assert the exception is raised
     with pytest.raises(UnsupportedArrowTypeException) as excinfo:
-        py_arrow_to_table_schema_columns(table.schema)
+        py_arrow_to_table_schema_columns(
+            table.schema, DestinationCapabilitiesContext.generic_capabilities()
+        )
 
     (msg,) = excinfo.value.args
     assert "duration" in msg

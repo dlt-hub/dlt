@@ -433,7 +433,9 @@ class ArrowExtractor(Extractor):
                 else:
                     arrow_table = copy(computed_table)
                 try:
-                    arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(item.schema)
+                    arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(
+                        item.schema, self._caps
+                    )
                 except pyarrow.UnsupportedArrowTypeException as e:
                     e.table_name = str(arrow_table.get("name"))
                     raise
