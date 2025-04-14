@@ -73,6 +73,8 @@ Under `Cursor Settings` > `Features` > `Docs`, you will see the docs you ha
 
 We recommend adding the [dlthub docs from this URL](https://github.com/dlt-hub/dlt/tree/devel/docs), where various code examples are included.
 
+For the task of building REST API sources, we also created this [LLM-friendly documentation that you can add from this url.](https://github.com/dlt-hub/cursor-data-stack/tree/main/docs)
+
 ### 2.3 Adding rules to cursor
 
 Rules are like system prompts. In our experiments, when building a REST API pipeline, you want to keep the original rule of how to do it on during the whole process. For this, you can use global rules:
