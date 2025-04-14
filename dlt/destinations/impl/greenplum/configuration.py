@@ -14,7 +14,9 @@ from dlt.common.utils import digest128
 @configspec(init=False)
 @dataclasses.dataclass
 class GreenplumCredentials(ConnectionStringCredentials):
-    drivername: Final[str] = dataclasses.field(default="postgresql", init=False, repr=False, compare=False)  # type: ignore
+    drivername: Final[str] = dataclasses.field(
+        default="postgresql", init=False, repr=False, compare=False
+    )  # type: ignore
     database: str = None
     username: str = None
     password: TSecretStrValue = None
@@ -31,14 +33,12 @@ class GreenplumCredentials(ConnectionStringCredentials):
     def parse_native_representation(self, native_value: Any) -> None:
         # First use parent method to parse the connection string
         super().parse_native_representation(native_value)
-        
+
         # Then process additional parameters
         self.connect_timeout = int(
             self.query.get("connect_timeout", self.connect_timeout)
         )
-        self.client_encoding = self.query.get(
-            "client_encoding", self.client_encoding
-        )
+        self.client_encoding = self.query.get("client_encoding", self.client_encoding)
 
     def get_query(self) -> Dict[str, Any]:
         query = dict(super().get_query())
@@ -50,14 +50,14 @@ class GreenplumCredentials(ConnectionStringCredentials):
 
 @configspec
 @dataclasses.dataclass
-class GreenplumClientConfiguration(
-    DestinationClientDwhWithStagingConfiguration
-):
-    destination_type: Final[str] = dataclasses.field(default="greenplum", init=False, repr=False, compare=False)  # type: ignore
+class GreenplumClientConfiguration(DestinationClientDwhWithStagingConfiguration):
+    destination_type: Final[str] = dataclasses.field(
+        default="greenplum", init=False, repr=False, compare=False
+    )  # type: ignore
     credentials: GreenplumCredentials = None
 
     create_indexes: bool = True
-    
+
     # Greenplum specific table storage options
     appendonly: bool = True
     blocksize: int = 32768
@@ -65,6 +65,10 @@ class GreenplumClientConfiguration(
     compresslevel: int = 4
     orientation: str = "column"
     distribution_key: str = "_dlt_id"  # Default distribution key
+
+    # Geometry type options
+    default_srid: int = 4326  # Default SRID for geometry types
+    default_geometry_type: str = "Geometry"  # Default geometry type
 
     csv_format: Optional[CsvFormatConfiguration] = None
     """Optional csv format configuration"""

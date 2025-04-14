@@ -1,21 +1,27 @@
-version: '3'
+version: '3.9'
 services:
-  greenplum:
-    image: 'datagrip/greenplum:6.8.1'
-    container_name: test_greenplum
-    environment:
-      POSTGRES_USER: gpadmin
-      POSTGRES_PASSWORD: pivotal
-      POSTGRES_DB: test
+  greenplum-db:
+    image: polyakovrbc/greenplum-db-6
+    hostname: greenplum
+    container_name: greenplum
     ports:
-      - "5432:5432"
+      - '25432:5432'
+    #mem_limit: 4024m
+    #cpus: 4
+    expose:
+      - '25432'
     volumes:
-      - greenplum-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gpadmin -d test"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  greenplum-data: 
+      - '/data/greenplum/master:/data/master'
+      - '/data/greenplum/primary:/data/primary'
+      - '/data/greenplum/backups:/data/backups'
+    restart: always
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        echo "---------------------INIT DB-----------------------" ;
+        service ssh start;
+        chown -R gpadmin:gpadmin /data;
+        ls -al /data/ ;
+        su - gpadmin -c "source /opt/greenplum-db-6.19.1/greenplum_path.sh; /home/gpadmin/init.sh";
+        ping localhost

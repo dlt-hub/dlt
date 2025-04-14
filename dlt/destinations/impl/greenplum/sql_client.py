@@ -14,11 +14,11 @@ from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema.typing import TColumnSchema, TColumnType
 from dlt.common.wei import EVM_DECIMAL_PRECISION
-from dlt.destinations.impl.greenplum.greeenplum.adapter import (
-    GEOMETRY_HINT,
-    SRID_HINT,
+from dlt.destinations.impl.greenplum.greenplum_adapter import (
+    GreenplumStorageType,
+    HINT_TO_GREENPLUM_ATTR,
 )
-from dlt.destinations.impl.postgres.configuration import (
+from dlt.destinations.impl.greenplum.configuration import (
     GreenplumClientConfiguration,
     GreenplumCredentials,
 )
@@ -128,16 +128,11 @@ class GreenplumTypeMapper(TypeMapperImpl):
             and (precision, scale) == self.capabilities.wei_precision
         ):
             return dict(data_type="wei")
-        if db_type.startswith("geometry"):
-            return dict(data_type="text")
         return super().from_destination_type(db_type, precision, scale)
 
     def to_destination_type(
         self, column: TColumnSchema, table: PreparedTableSchema
     ) -> str:
-        if column.get(GEOMETRY_HINT):
-            srid = column.get(SRID_HINT, 4326)
-            return f"geometry(Geometry, {srid})"
         return super().to_destination_type(column, table)
 
 
@@ -151,7 +146,7 @@ class postgres(Destination[GreenplumClientConfiguration, "GreenplumClient"]):
         caps.supported_loader_file_formats = ["insert_values", "csv"]
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []
-        caps.type_mapper = PostgresTypeMapper
+        caps.type_mapper = GreenplumTypeMapper
         caps.escape_identifier = escape_postgres_identifier
         # postgres has case sensitive identifiers but by default
         # it folds them to lower case which makes them case insensitive
@@ -189,9 +184,7 @@ class postgres(Destination[GreenplumClientConfiguration, "GreenplumClient"]):
 
     def __init__(
         self,
-        credentials: t.Union[
-            GeenplumCredentials, t.Dict[str, t.Any], str
-        ] = None,
+        credentials: t.Union[GreenplumCredentials, t.Dict[str, t.Any], str] = None,
         create_indexes: bool = True,
         csv_format: t.Optional[CsvFormatConfiguration] = None,
         destination_name: t.Optional[str] = None,

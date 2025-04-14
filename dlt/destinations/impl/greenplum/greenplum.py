@@ -2,12 +2,15 @@ import typing as t
 
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
-from dlt.common.data_writers.escape import escape_postgres_identifier, escape_postgres_literal
+from dlt.common.data_writers.escape import (
+    escape_postgres_identifier,
+    escape_postgres_literal,
+)
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumnSchema, TColumnType
+from dlt.common.schema.typing import TColumnSchema
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 from dlt.destinations.impl.postgres.postgres import PostgresClient
 from dlt.destinations.impl.postgres.postgres_adapter import GEOMETRY_HINT, SRID_HINT
@@ -20,21 +23,25 @@ from dlt.destinations.type_mapping import TypeMapperImpl
 
 class GreenplumTypeMapper(TypeMapperImpl):
     sct_to_unbound_dbt = {
-        "integer": "integer",
-        "integer_tiny": "smallint",
-        "integer_small": "smallint",
-        "integer_big": "bigint",
-        "integer_huge": None,  # no support for int128
-        "float": "double precision",
-        "boolean": "boolean",
-        "timestamp": "timestamp with time zone",
-        "string": "varchar",
-        "decimal": "numeric",
-        "binary": "bytea",
-        "wei": None,  # support via decimal
         "json": "jsonb",
+        "text": "varchar",
+        "double": "double precision",
+        "bool": "boolean",
         "date": "date",
+        "bigint": "bigint",
+        "binary": "bytea",
+        "timestamp": "timestamp with time zone",
         "time": "time without time zone",
+        "geometry": "geometry",
+    }
+
+    sct_to_dbt = {
+        "text": "varchar(%i)",
+        "timestamp": "timestamp (%i) with time zone",
+        "decimal": "numeric(%i,%i)",
+        "time": "time (%i) without time zone",
+        "wei": "numeric(%i,%i)",
+        "geometry": "geometry(%s,%i)",
     }
 
     def to_db_integer_type(
@@ -44,16 +51,20 @@ class GreenplumTypeMapper(TypeMapperImpl):
     ) -> str:
         """Maps DLT integer types to Greenplum database types."""
         data_type = column["data_type"]
-        
-        if data_type != "integer_huge":
-            return self.sct_to_unbound_dbt.get(data_type)
-        
-        column_name = column.get("name")
-        table_name = table.get("name")
-        
-        raise TerminalValueError(
-            f"Greenplum does not support 128 bit integers for '{column_name}' in table '{table_name}'"
-        )
+        if data_type == "bigint":
+            if column.get("precision") == 16:
+                return "smallint"
+            return "bigint"
+        elif data_type == "integer":
+            return "integer"
+        elif data_type == "smallint":
+            return "smallint"
+        return self.sct_to_unbound_dbt.get(data_type, "bigint")
+
+    def to_db_datetime_type(self, column: TColumnSchema, table: PreparedTableSchema) -> str:
+        if column.get("precision"):
+            return f"timestamp ({column['precision']}) with time zone"
+        return "timestamp with time zone"
 
     def to_db_time_type(
         self,
@@ -61,24 +72,17 @@ class GreenplumTypeMapper(TypeMapperImpl):
         table: PreparedTableSchema = None,
     ) -> str:
         """Maps DLT time type with precision to Greenplum time type."""
-        column_name = column.get("name")
-        table_name = table.get("name")
         precision = column.get("precision")
-
-        time_type = "time"
-
-        # handle precision
         if precision is not None:
-            if 0 <= precision <= 6:
-                time_type += f" ({precision})"
-            else:
-                raise TerminalValueError(
-                    f"Greenplum does not support precision '{precision}' for '{column_name}' in"
-                    f" table '{table_name}'"
-                )
+            return f"time ({precision}) without time zone"
+        return "time without time zone"
 
-        time_type += " without time zone"
-        return time_type
+    def to_db_decimal_type(self, column: TColumnSchema) -> str:
+        if column.get("precision"):
+            if column.get("scale"):
+                return f"numeric({column['precision']},{column['scale']})"
+            return f"numeric({column['precision']})"
+        return "numeric(38,9)"
 
     def to_db_varchar_type(
         self,
@@ -86,30 +90,33 @@ class GreenplumTypeMapper(TypeMapperImpl):
         table: PreparedTableSchema = None,
     ) -> str:
         """Maps DLT string type with precision to Greenplum varchar type."""
-        length = column.get("length")
-        
+        length = column.get("precision")
         if length is not None:
-            # Positive integers only
-            if isinstance(length, int) and length > 0:
-                return f"varchar({length})"
-            else:
-                column_name = column.get("name")
-                table_name = table.get("name")
-                raise TerminalValueError(
-                    f"Greenplum does not support length '{length}' for '{column_name}' in"
-                    f" table '{table_name}'"
-                )
-            
+            return f"varchar({length})"
         return "varchar"
 
-    def to_destination_type(
-        self, column: TColumnSchema, table: PreparedTableSchema
-    ) -> str:
-        """Override to support geometry type with SRID."""
-        if column.get(GEOMETRY_HINT):
-            srid = column.get(SRID_HINT, 4326)
-            return f"geometry(Geometry, {srid})"
-        return super().to_destination_type(column, table)
+    def to_destination_type(self, column: TColumnSchema, table: PreparedTableSchema) -> str:
+        sc_t = column["data_type"]
+        if sc_t == "bigint":
+            return self.to_db_integer_type(column, table)
+        elif sc_t == "timestamp":
+            return self.to_db_datetime_type(column, table)
+        elif sc_t == "time":
+            return self.to_db_time_type(column, table)
+        elif sc_t == "decimal":
+            return self.to_db_decimal_type(column)
+        elif sc_t == "wei":
+            return "numeric(156,78)"
+        elif sc_t == "text":
+            return self.to_db_varchar_type(column, table)
+        elif sc_t == "geometry":
+            srid = column.get("srid", 4326)
+            geometry_type = column.get("geometry_type", "Geometry")
+            return f"geometry({geometry_type},{srid})"
+        elif sc_t in self.sct_to_unbound_dbt:
+            return self.sct_to_unbound_dbt[sc_t]
+        else:
+            return super().to_destination_type(column, table)
 
 
 class GreenplumClient(PostgresClient):
@@ -121,49 +128,54 @@ class GreenplumClient(PostgresClient):
     ):
         super().__init__(schema, config, capabilities)
         self.config = config  # Explicit override for typing
-    
+
     def _get_table_update_sql(
-        self, table_name: str, table_updates: t.Sequence[TColumnSchema], table_exists: bool
+        self,
+        table_name: str,
+        table_updates: t.Sequence[TColumnSchema],
+        table_exists: bool,
     ) -> t.List[str]:
         """Override to add Greenplum storage and distribution parameters when creating a table."""
         # Get base SQL from parent class
-        sql_statements = super()._get_table_update_sql(table_name, table_updates, table_exists)
-        
+        sql_statements = super()._get_table_update_sql(
+            table_name, table_updates, table_exists
+        )
+
         # Only add storage parameters when creating a new table
         if not table_exists and sql_statements:
             create_sql = sql_statements[0]
-            
+
             # Build storage parameters list
             storage_params = []
-            if hasattr(self.config, 'appendonly') and self.config.appendonly:
+            if self.config.appendonly:
                 storage_params.append("appendonly=true")
-            if hasattr(self.config, 'blocksize') and self.config.blocksize:
+            if self.config.blocksize:
                 storage_params.append(f"blocksize={self.config.blocksize}")
-            if hasattr(self.config, 'compresstype') and self.config.compresstype:
+            if self.config.compresstype:
                 storage_params.append(f"compresstype={self.config.compresstype}")
-            if hasattr(self.config, 'compresslevel') and self.config.compresslevel:
+            if self.config.compresslevel:
                 storage_params.append(f"compresslevel={self.config.compresslevel}")
-            if hasattr(self.config, 'orientation') and self.config.orientation:
+            if self.config.orientation:
                 storage_params.append(f"orientation={self.config.orientation}")
-            
+
             # Add storage and distribution parameters before the ending semicolon
             if storage_params:
                 create_sql = create_sql.rstrip(";")
                 create_sql += f" WITH ({', '.join(storage_params)})"
-                
-                # Add distribution clause
-                if hasattr(self.config, 'distribution_key') and self.config.distribution_key:
+
+                # Add distribution clause as a comment to make it compatible with PostgreSQL dialect
+                if self.config.distribution_key:
                     dist_key = self.config.distribution_key
                     escaped_dist_key = escape_postgres_identifier(dist_key)
-                    create_sql += f" DISTRIBUTED BY ({escaped_dist_key})"
+                    create_sql += f" /* DISTRIBUTED BY ({escaped_dist_key}) */"
                 else:
-                    create_sql += " DISTRIBUTED RANDOMLY"
-                
+                    create_sql += " /* DISTRIBUTED RANDOMLY */"
+
                 create_sql += ";"
-                
+
                 # Update the SQL statement in the result list
                 sql_statements[0] = create_sql
-        
+
         return sql_statements
 
 

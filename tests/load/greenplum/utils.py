@@ -1,6 +1,7 @@
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Generator
 import os
 import pytest
+from shapely import wkt, wkb  # type: ignore
 
 from dlt.common.typing import DictStrStr
 from dlt.destinations.impl.greenplum.configuration import GreenplumClientConfiguration, GreenplumCredentials
@@ -83,3 +84,58 @@ def generate_sample_sql_with_distribution_params(
 ) WITH ({storage_sql}) DISTRIBUTED BY ("{distribution_key}");"""
     
     return sql 
+
+
+def generate_sample_geometry_records(format: str) -> Generator[Dict[str, Any], None, None]:
+    """Генерирует тестовые геометрические данные в указанном формате."""
+    geometries = [
+        {
+            "type": "Point",
+            "geom": "POINT(0 0)"
+        },
+        {
+            "type": "LineString",
+            "geom": "LINESTRING(0 0, 1 1, 2 2)"
+        },
+        {
+            "type": "Polygon",
+            "geom": "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"
+        },
+        {
+            "type": "MultiPoint",
+            "geom": "MULTIPOINT((0 0), (1 1))"
+        },
+        {
+            "type": "MultiLineString",
+            "geom": "MULTILINESTRING((0 0, 1 1), (2 2, 3 3))"
+        },
+        {
+            "type": "MultiPolygon",
+            "geom": "MULTIPOLYGON(((0 0, 1 0, 1 1, 0 1, 0 0)), ((2 2, 3 2, 3 3, 2 3, 2 2)))"
+        },
+        {
+            "type": "GeometryCollection",
+            "geom": "GEOMETRYCOLLECTION(POINT(0 0), LINESTRING(0 0, 1 1))"
+        },
+        {
+            "type": "EmptyPoint",
+            "geom": "POINT EMPTY"
+        },
+        {
+            "type": "EmptyLineString",
+            "geom": "LINESTRING EMPTY"
+        },
+        {
+            "type": "EmptyPolygon",
+            "geom": "POLYGON EMPTY"
+        }
+    ]
+
+    for geom in geometries:
+        if format == "wkt":
+            yield {"type": geom["type"], "geom": geom["geom"]}
+        elif format == "wkb_hex":
+            wkb_geom = wkt.loads(geom["geom"])
+            yield {"type": geom["type"], "geom": wkb_geom.wkb_hex}
+        else:
+            raise ValueError(f"Unsupported format: {format}") 

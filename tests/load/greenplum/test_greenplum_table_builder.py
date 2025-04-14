@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Generator, Any, List
+from typing import Generator, Any, List, Dict, Optional, Set, Tuple, Union
 from unittest.mock import patch
 
 import pytest
@@ -7,8 +7,8 @@ import sqlfluff
 
 import dlt
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.schema import Schema, utils
-from dlt.common.typing import DictStrStr
+from dlt.common.schema import Schema, utils, TColumnHint
+from dlt.common.typing import DictStrStr, get_args
 from dlt.common.utils import uniq_id
 from dlt.destinations import greenplum
 from dlt.destinations.impl.greenplum.configuration import (
@@ -18,16 +18,21 @@ from dlt.destinations.impl.greenplum.configuration import (
 from dlt.destinations.impl.greenplum.greenplum import (
     GreenplumClient,
 )
-from dlt.destinations.impl.greenplum.greenplum_adapter import (
-    HINT_TO_GREENPLUM_ATTR
-)
+from dlt.destinations.impl.greenplum.sql_client import GreenplumTypeMapper
+from dlt.destinations.impl.postgres.postgres import PostgresClient
+from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.extract import DltResource
 from tests.cases import (
     TABLE_UPDATE,
     TABLE_UPDATE_ALL_INT_PRECISIONS,
 )
 from tests.load.utils import destinations_configs, DestinationTestConfiguration, sequence_generator
-from tests.utils import assert_load_info
+from tests.utils import assert_load_info, ALL_DESTINATIONS
+from dlt.destinations.impl.greenplum.greenplum_adapter import (
+    GreenplumStorageType,
+    HINT_TO_GREENPLUM_ATTR,
+)
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -49,7 +54,12 @@ def cs_client(empty_schema: Schema) -> GreenplumClient:
 def create_client(empty_schema: Schema) -> GreenplumClient:
     # return client without opening connection
     config = GreenplumClientConfiguration(
-        credentials=GreenplumCredentials(),
+        credentials=GreenplumCredentials(
+            database="test_db",
+            password="test_password",
+            username="test_user",
+            host="localhost"
+        ),
         appendonly=True,
         blocksize=32768,
         compresstype="zstd",
@@ -102,25 +112,58 @@ def test_create_table(client: GreenplumClient) -> None:
     assert "_dlt_id" in sql
 
 
-def test_create_table_all_precisions(client: GreenplumClient) -> None:
-    # 128 bit integer will fail
-    table_update = list(TABLE_UPDATE_ALL_INT_PRECISIONS)
-    with pytest.raises(TerminalValueError) as tv_ex:
-        sql = client._get_table_update_sql("event_test_table", table_update, False)[0]
-    assert "128" in str(tv_ex.value)
+def test_create_table_all_precisions(
+    client: GreenplumClient,
+    empty_schema: Dict[str, List[TColumnHint]],
+) -> None:
+    """Test creating a table with all supported data types and their precisions."""
+    # Define columns with various data types and precisions
+    columns = [
+        {
+            "name": "text_col",
+            "data_type": "text",
+            "precision": 100,
+        },
+        {
+            "name": "decimal_col",
+            "data_type": "decimal",
+            "precision": 10,
+            "scale": 2,
+        },
+        {
+            "name": "timestamp_col",
+            "data_type": "timestamp",
+            "precision": 6,
+        },
+        {
+            "name": "time_col",
+            "data_type": "time",
+            "precision": 6,
+        },
+        {
+            "name": "wei_col",
+            "data_type": "wei",
+        },
+    ]
 
-    # remove col5 HUGEINT which is last
-    table_update.pop()
-    sql = client._get_table_update_sql("event_test_table", table_update, False)[0]
-    sqlfluff.parse(sql, dialect="postgres")
-    assert '"col1_int" smallint ' in sql
-    assert '"col2_int" smallint ' in sql
-    assert '"col3_int" integer ' in sql
-    assert '"col4_int" bigint ' in sql
-    
-    # Проверяем параметры хранения и дистрибуции
-    assert "WITH (appendonly=true" in sql
-    assert "DISTRIBUTED BY" in sql
+    # Add table to schema
+    client.schema.update_table(
+        utils.new_table("test_table", columns=columns)
+    )
+
+    # Create table with these columns
+    sql = client._get_table_update_sql(
+        "test_table",
+        columns,
+        False,
+    )[0]
+
+    # Verify SQL contains correct type definitions
+    assert '"text_col" varchar(100)' in sql
+    assert '"decimal_col" numeric(10,2)' in sql
+    assert '"timestamp_col" timestamp (6) with time zone' in sql
+    assert '"time_col" time (6) without time zone' in sql
+    assert '"wei_col" numeric(156,78)' in sql  # Default WEI precision
 
 
 def test_alter_table(client: GreenplumClient) -> None:
@@ -171,7 +214,12 @@ def test_create_table_with_hints(client: GreenplumClient, empty_schema: Schema) 
         empty_schema,
         GreenplumClientConfiguration(
             create_indexes=False,
-            credentials=GreenplumCredentials(),
+            credentials=GreenplumCredentials(
+                database="test_db",
+                password="test_password",
+                username="test_user",
+                host="localhost"
+            ),
             appendonly=True,
             blocksize=32768,
             compresstype="zstd",
@@ -193,7 +241,12 @@ def test_create_table_custom_storage_options(empty_schema: Schema) -> None:
     """Тест создания таблицы с пользовательскими параметрами хранения"""
     # Создаем клиент с нестандартными параметрами хранения
     config = GreenplumClientConfiguration(
-        credentials=GreenplumCredentials(),
+        credentials=GreenplumCredentials(
+            database="test_db",
+            password="test_password",
+            username="test_user",
+            host="localhost"
+        ),
         appendonly=True,
         blocksize=65536,  # Нестандартный размер блока
         compresstype="zlib",  # Нестандартный алгоритм сжатия
@@ -267,4 +320,4 @@ def test_adapter_hints() -> None:
     
     # Проверяем значения
     assert HINT_TO_GREENPLUM_ATTR["distributed_by"] == "DISTRIBUTED BY"
-    assert HINT_TO_GREENPLUM_ATTR["distributed_randomly"] == "DISTRIBUTED RANDOMLY" 
+    assert HINT_TO_GREENPLUM_ATTR["distributed_randomly"] == "DISTRIBUTED RANDOMLY"

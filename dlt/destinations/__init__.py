@@ -17,6 +17,7 @@ from dlt.destinations.impl.databricks.factory import databricks
 from dlt.destinations.impl.dremio.factory import dremio
 from dlt.destinations.impl.clickhouse.factory import clickhouse
 from dlt.destinations.impl.sqlalchemy.factory import sqlalchemy
+from dlt.destinations.impl.greenplum.greenplum import greenplum
 
 
 __all__ = [
@@ -39,4 +40,10 @@ __all__ = [
     "clickhouse",
     "destination",
     "sqlalchemy",
+    "greenplum",
 ]
+
+def skip_if_not_active(destination: str) -> None:
+    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown skipped destination {destination}"
+    if destination not in ACTIVE_DESTINATIONS:
+        pytest.skip(f"{destination} not in ACTIVE_DESTINATIONS", allow_module_level=True)

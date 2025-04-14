@@ -9,5 +9,5 @@ GreenplumStorageType = Literal[
 
 HINT_TO_GREENPLUM_ATTR: Dict[TColumnHint, str] = {
     "distributed_by": "DISTRIBUTED BY",
-    "distributed_randomly": "DISTRIBUTED RANDOMLY"
+    "distributed_randomly": "DISTRIBUTED RANDOMLY",
 }

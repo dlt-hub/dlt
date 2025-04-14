@@ -1,4 +1,3 @@
-"""
-Tests for the Greenplum destination.
-Includes tests for storage parameters and distribution clauses.
-""" 
+from tests.utils import skip_if_not_active
+
+skip_if_not_active("greenplum")
