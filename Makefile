@@ -91,7 +91,9 @@ lint-docstrings:
 		dlt/sources/**/__init__.py \
 		dlt/extract/source.py \
 		dlt/common/destination/dataset.py \
-		dlt/destinations/impl/**/factory.py 
+		dlt/destinations/impl/**/factory.py \
+		dlt/pipeline/pipeline.py \
+		dlt/pipeline/__init__.py
 
 test:
 	poetry run pytest tests
