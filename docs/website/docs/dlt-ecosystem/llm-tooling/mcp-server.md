@@ -204,12 +204,10 @@ Follow [this tutorial](https://docs.cline.bot/mcp-servers/mcp-quickstart) to use
 
 ## Optional: SSE-transport mode
 
-If the above doesn't work for you, or maybe you're development setup or IDE is a different one.
-you can start the MCP-servers with SSE-transport mode. This mode allows the MCP server to be run in a separate process
-and communicate with the IDE via SSE (Server-Sent Events).
+If the above doesn't work for you, or your development setup or IDE differs, you can start the MCP-servers with SSE-transport mode. This mode allows the MCP server to be run in its own process and communicate with the IDE via SSE (Server-Sent Events).
 
-Thus, you can exactly control the environment as well as the directory you're `dlt`-assistant is running in.
-You can launch it from your desired directory like this:
+Thus, by choosing the directory and environment your `dlt`-assistant is started in, you can control the context it will be aware of. 
+Launch it from your desired directory like this:
 ```sh
 cd /path/to/your/dltProject
 uv tool run dlt mcp run_plus --sse --port 43655
@@ -220,7 +218,7 @@ Next, you need to point your IDE to the MCPs address: `http://localhost:43655/ss
 Cline for example, has an interface to connect to an MCP at a remote server just by adding the URL.
 
 For Cursor, you can connect to it using a forwarding proxy, e.g. this lightweight [mcp-proxy](https://github.com/sparfenyuk/mcp-proxy).
-Just go to cursor's MCP-settings, choose "add new global MCP server" and add this to your
+After installing it, just go to Cursor's MCP-settings, choose "add new global MCP server" and add this to your
 `mcp.json`:
 ```json
 {
@@ -232,4 +230,27 @@ Just go to cursor's MCP-settings, choose "add new global MCP server" and add thi
     }
   }
 }
+```
+
+for Continue, you can use a local-assistant and configure it such that Continue talks
+to the proxy via stdio and the proxy to your `dlt`-assistant via SSE:
+```yaml
+```json
+  "experimental": {
+    "modelContextProtocolServers": [
+      {
+        "transport": {
+          "type": "stdio",
+          "command": "uv",
+          "args": [
+            "tool",
+            "run",
+            "mcp-proxy",
+            "http://127.0.0.1:43655/sse"
+          ]
+        }
+      }
+    ]
+  }
+
 ```
