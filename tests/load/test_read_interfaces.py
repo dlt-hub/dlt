@@ -167,6 +167,7 @@ configs = destinations_configs(
     default_sql_configs=True,
     all_buckets_filesystem_configs=True,
     table_format_filesystem_configs=True,
+    bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
 )
 
 

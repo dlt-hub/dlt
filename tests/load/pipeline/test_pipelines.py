@@ -619,14 +619,15 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     assert len(package_info.jobs["failed_jobs"]) == 0
     # 3 tables + 1 state + 4 reference jobs if staging or table format
     expected_completed_jobs = 4 + 4 if pipeline.staging else 4
-    if destination_config.table_format:
-        expected_completed_jobs += 3  # reference jobs for all tables but not state
     # add sql merge job
     if destination_config.supports_merge:
         expected_completed_jobs += 1
         # add iceberg copy jobs
         if destination_config.table_format in ("iceberg", "delta"):
             expected_completed_jobs += 2  # if destination_config.supports_merge else 4
+    else:
+        if destination_config.table_format:
+            expected_completed_jobs += 3  # reference jobs for all tables but not state
     assert len(package_info.jobs["completed_jobs"]) == expected_completed_jobs
 
     with pipeline.sql_client() as sql_client:
