@@ -145,36 +145,36 @@ class GreenplumClient(PostgresClient):
         if not table_exists and sql_statements:
             create_sql = sql_statements[0]
 
-            # Build storage parameters list
-            storage_params = []
+            # Add storage and distribution parameters only for append-only tables
             if self.config.appendonly:
+                # Build storage parameters list
+                storage_params = []
                 storage_params.append("appendonly=true")
-            if self.config.blocksize:
-                storage_params.append(f"blocksize={self.config.blocksize}")
-            if self.config.compresstype:
-                storage_params.append(f"compresstype={self.config.compresstype}")
-            if self.config.compresslevel:
-                storage_params.append(f"compresslevel={self.config.compresslevel}")
-            if self.config.orientation:
-                storage_params.append(f"orientation={self.config.orientation}")
+                if self.config.blocksize:
+                    storage_params.append(f"blocksize={self.config.blocksize}")
+                if self.config.compresstype:
+                    storage_params.append(f"compresstype={self.config.compresstype}")
+                if self.config.compresslevel:
+                    storage_params.append(f"compresslevel={self.config.compresslevel}")
+                if self.config.orientation:
+                    storage_params.append(f"orientation={self.config.orientation}")
 
-            # Add storage and distribution parameters before the ending semicolon
-            if storage_params:
+                # Add storage parameters
                 create_sql = create_sql.rstrip(";")
                 create_sql += f" WITH ({', '.join(storage_params)})"
 
-                # Add distribution clause as a comment to make it compatible with PostgreSQL dialect
-                if self.config.distribution_key:
-                    dist_key = self.config.distribution_key
-                    escaped_dist_key = escape_postgres_identifier(dist_key)
-                    create_sql += f" /* DISTRIBUTED BY ({escaped_dist_key}) */"
-                else:
-                    create_sql += " /* DISTRIBUTED RANDOMLY */"
+            # Add distribution clause as a comment to make it compatible with PostgreSQL dialect
+            if self.config.distribution_key:
+                dist_key = self.config.distribution_key
+                escaped_dist_key = escape_postgres_identifier(dist_key)
+                create_sql += f" /* DISTRIBUTED BY ({escaped_dist_key}) */"
+            else:
+                create_sql += " /* DISTRIBUTED RANDOMLY */"
 
-                create_sql += ";"
+            create_sql += ";"
 
-                # Update the SQL statement in the result list
-                sql_statements[0] = create_sql
+            # Update the SQL statement in the result list
+            sql_statements[0] = create_sql
 
         return sql_statements
 
