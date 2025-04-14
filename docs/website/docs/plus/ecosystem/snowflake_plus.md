@@ -129,11 +129,7 @@ For more flexibility, you can also define custom placeholders using the `extra_p
 
 ### Examples
 
-1. Default pattern (if not specified):
-   ```
-   {dataset_name}/{table_name}
-   ```
-   This creates paths like `my_dataset/customers` in your external volume.
+1. Default pattern (if not specified, `{dataset_name}/{table_name}`) creates paths like `my_dataset/customers` in your external volume.
 
 2. Custom static path:
    ```yaml
@@ -153,7 +149,7 @@ For more flexibility, you can also define custom placeholders using the `extra_p
 
 When you provide a `base_location`, Snowflake uses it to create the paths where data and metadata are stored in your external cloud storage. The actual directory structure Snowflake creates follows this pattern:
 
-```
+```text
 STORAGE_BASE_URL/BASE_LOCATION.<randomId>/[data | metadata]/
 ```
 
