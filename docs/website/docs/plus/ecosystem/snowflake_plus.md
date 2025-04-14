@@ -109,7 +109,7 @@ The `snowflake_plus` destination extends the standard Snowflake configuration wi
 
 | Option | Description | Required | Default |
 |--------|-------------|----------|---------|
-| `iceberg_mode` | Controls which tables are created as Iceberg tables. Possible values: <br> - `"none"`: No tables are created as Iceberg tables <br> - `"data_tables"`: Only data tables (non-dlt system tables) are created as Iceberg tables <br> - `"all"`: All tables including dlt system tables are created as Iceberg tables | No | `"none"` |
+| `iceberg_mode` | Controls which tables are created as Iceberg tables. Possible values: <ul><li>`"all"`: All tables including dlt system tables are created as Iceberg tables</li><li>`"data_tables"`: Only data tables (non-dlt system tables) are created as Iceberg tables</li><li>`"none"`: No tables are created as Iceberg tables</li></ul> | No | `"none"` |
 | `external_volume` | The external volume to store Iceberg metadata | Yes | None |
 | `catalog` | The catalog to use for Iceberg tables | No | `"SNOWFLAKE"` |
 | `base_location` | Template string for the base location where Iceberg data is stored in the external volume. Supports placeholders like `{dataset_name}` and `{table_name}`. | No | `"{dataset_name}/{table_name}"` |
