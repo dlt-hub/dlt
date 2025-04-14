@@ -91,10 +91,7 @@ To improve accuracy, make sure any files or docs that could confound the search 
 
 ### 2.5 Documentation augmentation
 
-If existing documentation for a task is regularly ignored by LLMs, consider using reverse prompts to create optimised docs. Such optimised docs should ideally be single files that comprehensively deal with a topic. Example: `Please convert this documentation into a LLM friendly format: {docs}`
-
-For example, for dlt rest api conversion, we find better results when using LLM-friendly docs for harder topics like Pagination, Incremental.
-You can find some example LLM friendly docs [here](https://github.com/dlt-hub/cursor-dlt-example/tree/main/docs). This is an example of documentation that we use during prompting workflows such as "please double check the pagination error against our pagination doc".
+If existing documentation for a task is regularly ignored by LLMs, consider using reverse prompts outside of cursor to create LLM optimised docs, and then make those available to cursor as local documentation. You could use a RAG or something like DeepResearch for this task. You can then ask cursor to improve the cursor rules with this documentation.
 
 ## 3. Running the workflow
 
