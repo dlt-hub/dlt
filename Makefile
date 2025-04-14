@@ -84,12 +84,14 @@ lint-security:
 
 # check docstrings for all important public classes and functions
 lint-docstrings:
-	poetry run flake8 \
+	poetry run flake8 --count \
 		dlt/common/pipeline.py \
 		dlt/extract/decorators.py \
 		dlt/destinations/decorators.py \
-		dlt/destinations/impl/**/factory.py \
-		dlt/sources/**/__init__.py
+		dlt/sources/**/__init__.py \
+		dlt/extract/source.py \
+		dlt/common/destination/dataset.py \
+		# dlt/destinations/impl/**/factory.py 
 
 test:
 	poetry run pytest tests

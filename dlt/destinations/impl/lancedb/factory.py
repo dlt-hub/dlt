@@ -57,10 +57,20 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
     def __init__(
         self,
         credentials: t.Union[LanceDBCredentials, t.Dict[str, t.Any]] = None,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
+        destination_name: str = None,
+        environment: str = None,
         **kwargs: t.Any,
     ) -> None:
+        """Configure the LanceDB destination to use in a pipeline.
+
+        All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
+
+        Args:
+            credentials (Optional[Union[LanceDBCredentials, Dict[str, Any]]]): Credentials to connect to the LanceDB database. Can be an instance of `LanceDBCredentials` or
+                a dictionary with the credentials parameters.
+            destination_name (Optional[str]): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (Optional[str]): Environment of the destination
+        """
         super().__init__(
             credentials=credentials,
             destination_name=destination_name,

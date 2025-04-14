@@ -129,8 +129,8 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
         credentials: t.Union[MsSqlCredentials, t.Dict[str, t.Any], str] = None,
         create_indexes: bool = False,
         has_case_sensitive_identifiers: bool = False,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
+        destination_name: str = None,
+        environment: str = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the MsSql destination to use in a pipeline.
@@ -138,10 +138,12 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials: Credentials to connect to the mssql database. Can be an instance of `MsSqlCredentials` or
+            credentials (Optional[Union[MsSqlCredentials, Dict[str, Any], str]]): Credentials to connect to the mssql database. Can be an instance of `MsSqlCredentials` or
                 a connection string in the format `mssql://user:password@host:port/database`
-            create_indexes: Should unique indexes be created
-            has_case_sensitive_identifiers: Are identifiers used by mssql database case sensitive (following the collation)
+            create_indexes (Optional[bool]): Should unique indexes be created
+            has_case_sensitive_identifiers (Optional[bool]): Are identifiers used by mssql database case sensitive (following the collation)
+            destination_name (Optional[str]): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (Optional[str]): Environment of the destination
             **kwargs: Additional arguments passed to the destination config
         """
         super().__init__(

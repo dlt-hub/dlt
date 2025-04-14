@@ -166,9 +166,11 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
         variables and dlt config files.
 
         Args:
-            credentials: Credentials to connect to the clickhouse database.
+            credentials (Optional[Union[ClickHouseCredentials, str, Dict[str, Any], Type[Connection]]]): Credentials to connect to the clickhouse database.
                 Can be an instance of `ClickHouseCredentials`, or a connection string
                 in the format `clickhouse://user:password@host:port/database`.
+            destination_name (Optional[str]): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (Optional[str]): Environment of the destination
             **kwargs: Additional arguments passed to the destination config.
         """
         super().__init__(

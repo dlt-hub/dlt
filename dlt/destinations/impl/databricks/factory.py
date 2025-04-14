@@ -154,8 +154,8 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
         credentials: t.Union[DatabricksCredentials, t.Dict[str, t.Any], str] = None,
         is_staging_external_location: t.Optional[bool] = False,
         staging_credentials_name: t.Optional[str] = None,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
+        destination_name: str = None,
+        environment: str = None,
         staging_volume_name: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> None:
@@ -164,10 +164,12 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials: Credentials to connect to the databricks database. Can be an instance of `DatabricksCredentials` or
+            credentials (Optional[Union[DatabricksCredentials, Dict[str, Any], str]]): Credentials to connect to the databricks database. Can be an instance of `DatabricksCredentials` or
                 a connection string in the format `databricks://user:password@host:port/database`
-            is_staging_external_location: If true, the temporary credentials are not propagated to the COPY command
-            staging_credentials_name: If set, credentials with given name will be used in copy command
+            is_staging_external_location (Optional[bool]): If true, the temporary credentials are not propagated to the COPY command
+            staging_credentials_name (Optional[str]): If set, credentials with given name will be used in copy command
+            destination_name (Optional[str]): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (Optional[str]): Environment of the destination
             **kwargs: Additional arguments passed to the destination config
         """
         super().__init__(

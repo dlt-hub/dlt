@@ -151,8 +151,8 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
         credentials: t.Union[RedshiftCredentials, t.Dict[str, t.Any], str] = None,
         staging_iam_role: t.Optional[str] = None,
         has_case_sensitive_identifiers: bool = False,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
+        destination_name: str = None,
+        environment: str = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the Redshift destination to use in a pipeline.
@@ -164,8 +164,8 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
                 a connection string in the format `redshift://user:password@host:port/database`. Defaults to None.
             staging_iam_role (Optional[str], optional): IAM role to use for staging data in S3. Defaults to None.
             has_case_sensitive_identifiers (bool, optional): Whether case sensitive identifiers are enabled for the database. Defaults to False.
-            destination_name (Optional[str], optional): Name of the destination. Defaults to None.
-            environment (Optional[str], optional): Environment name. Defaults to None.
+            destination_name (str, optional): Name of the destination. Defaults to None.
+            environment (str, optional): Environment name. Defaults to None.
             **kwargs (Any): Additional arguments passed to the destination config.
         """
         super().__init__(

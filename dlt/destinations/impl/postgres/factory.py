@@ -170,8 +170,8 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         credentials: t.Union[PostgresCredentials, t.Dict[str, t.Any], str] = None,
         create_indexes: bool = True,
         csv_format: t.Optional[CsvFormatConfiguration] = None,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
+        destination_name: str = None,
+        environment: str = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the Postgres destination to use in a pipeline.
@@ -179,10 +179,12 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials: Credentials to connect to the postgres database. Can be an instance of `PostgresCredentials` or
+            credentials (Optional[Union[PostgresCredentials, Dict[str, Any], str]]): Credentials to connect to the postgres database. Can be an instance of `PostgresCredentials` or
                 a connection string in the format `postgres://user:password@host:port/database`
-            create_indexes: Should unique indexes be created
-            csv_format: Formatting options for csv file format
+            create_indexes (Optional[bool]): Should unique indexes be created
+            csv_format (Optional[CsvFormatConfiguration]): Formatting options for csv file format
+            destination_name (Optional[str]): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (Optional[str]): Environment of the destination
             **kwargs: Additional arguments passed to the destination config
         """
         super().__init__(

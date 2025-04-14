@@ -76,14 +76,30 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
     def __init__(
         self,
         destination_callable: t.Union[TDestinationCallable, str] = None,  # noqa: A003
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
+        destination_name: str = None,
+        environment: str = None,
         loader_file_format: TLoaderFileFormat = None,
         batch_size: int = 10,
         naming_convention: str = "direct",
         spec: t.Type[CustomDestinationClientConfiguration] = None,
         **kwargs: t.Any,
     ) -> None:
+        """Configure the destination to use in a pipeline.
+
+        The dlt.destination decorator wraps this and should preferably be used.
+
+        All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
+
+        Args:
+            destination_callable (Optional[Union[TDestinationCallable, str]]): The destination callable to use.
+            destination_name (Optional[str]): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (Optional[str]): Environment of the destination
+            loader_file_format (Optional[TLoaderFileFormat]): The file format to use for the loader
+            batch_size (Optional[int]): The batch size to use for the loader
+            naming_convention (Optional[str]): The naming convention to use for the loader
+            spec (Optional[Type[CustomDestinationClientConfiguration]]): The spec to use for the destination
+            **kwargs: Additional keyword arguments to pass to the destination
+        """
         if spec and not issubclass(spec, CustomDestinationClientConfiguration):
             raise TerminalValueError(
                 "A SPEC for a sink destination must use CustomDestinationClientConfiguration as a"

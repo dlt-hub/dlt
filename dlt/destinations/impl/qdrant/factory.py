@@ -53,10 +53,23 @@ class qdrant(Destination[QdrantClientConfiguration, "QdrantClient"]):
         credentials: t.Union["QdrantClient", QdrantCredentials, t.Dict[str, t.Any]] = None,
         location: str = None,
         path: str = None,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
+        destination_name: str = None,
+        environment: str = None,
         **kwargs: t.Any,
     ) -> None:
+        """Configure the Qdrant destination to use in a pipeline.
+
+        All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
+
+        Args:
+            credentials (Optional[Union[QdrantClient, QdrantCredentials, Dict[str, Any]]]): Credentials to connect to the Qdrant database. Can be an instance of `QdrantClient` or
+                a dictionary with the credentials parameters.
+            location (str, optional): The location of the Qdrant database.
+            path (str, optional): The path to the Qdrant database.
+            destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (str, optional): Environment of the destination
+            **kwargs (Any, optional): Additional arguments passed to the destination config
+        """
         super().__init__(
             credentials=credentials,
             location=location,

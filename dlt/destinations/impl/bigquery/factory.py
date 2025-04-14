@@ -138,8 +138,8 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
         credentials: t.Optional[GcpServiceAccountCredentials] = None,
         location: t.Optional[str] = None,
         has_case_sensitive_identifiers: bool = None,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
+        destination_name: str = None,
+        environment: str = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the MsSql destination to use in a pipeline.
@@ -147,10 +147,12 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials: Credentials to connect to the mssql database. Can be an instance of `GcpServiceAccountCredentials` or
+            credentials (Optional[Union[GcpServiceAccountCredentials, Dict[str, Any], str]]): Credentials to connect to the mssql database. Can be an instance of `GcpServiceAccountCredentials` or
                 a dict or string with service accounts credentials as used in the Google Cloud
-            location: A location where the datasets will be created, eg. "EU". The default is "US"
-            has_case_sensitive_identifiers: Is the dataset case-sensitive, defaults to True
+            location (Optional[str]): A location where the datasets will be created, eg. "EU". The default is "US"
+            has_case_sensitive_identifiers (Optional[bool]): Is the dataset case-sensitive, defaults to True
+            destination_name (Optional[str]): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (Optional[str]): Environment of the destination
             **kwargs: Additional arguments passed to the destination config
         """
         super().__init__(

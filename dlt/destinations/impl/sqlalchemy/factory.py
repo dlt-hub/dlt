@@ -130,8 +130,8 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         credentials: t.Union[SqlalchemyCredentials, t.Dict[str, t.Any], str, "Engine"] = None,
         create_unique_indexes: bool = False,
         create_primary_keys: bool = False,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
+        destination_name: str = None,
+        environment: str = None,
         engine_args: t.Optional[t.Dict[str, t.Any]] = None,
         **kwargs: t.Any,
     ) -> None:
@@ -144,12 +144,12 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
                 `SqlalchemyCredentials` or a connection string in the format `mysql://user:password@host:port/database`. Defaults to None.
             create_unique_indexes (bool, optional): Whether UNIQUE constraints should be created. Defaults to False.
             create_primary_keys (bool, optional): Whether PRIMARY KEY constraints should be created. Defaults to False.
-            destination_name (Optional[str], optional): The name of the destination. Defaults to None.
-            environment (Optional[str], optional): The environment to use. Defaults to None.
+            destination_name (str, optional): The name of the destination. Defaults to None.
+            environment (str, optional): The environment to use. Defaults to None.
             engine_args (Optional[Dict[str, Any]], optional): Additional arguments to pass to the SQLAlchemy engine. Defaults to None.
+            destination_name (str, optional): Name of the destination. Defaults to None.
+            environment (str, optional): Environment name. Defaults to None.
             **kwargs (Any): Additional arguments passed to the destination.
-        Returns:
-            None
         """
         super().__init__(
             credentials=credentials,

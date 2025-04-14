@@ -47,7 +47,6 @@ class SupportsReadableRelation(Protocol):
 
         Args:
             chunk_size (int, optional): Will chunk the results into several data frames. Defaults to None
-            **kwargs (Any): Additional parameters which will be passed to native data frame generation function.
 
         Returns:
             Optional[DataFrame]: A data frame with query results. If chunk_size > 0, None will be returned if there is no more data in results

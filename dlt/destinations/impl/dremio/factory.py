@@ -124,8 +124,8 @@ class dremio(Destination[DremioClientConfiguration, "DremioClient"]):
         self,
         credentials: t.Union[DremioCredentials, t.Dict[str, t.Any], str] = None,
         staging_data_source: str = None,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
+        destination_name: str = None,
+        environment: str = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the Dremio destination to use in a pipeline.
@@ -133,9 +133,11 @@ class dremio(Destination[DremioClientConfiguration, "DremioClient"]):
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials: Credentials to connect to the dremio database. Can be an instance of `DremioCredentials` or
+            credentials (Optional[Union[DremioCredentials, Dict[str, Any], str]]): Credentials to connect to the dremio database. Can be an instance of `DremioCredentials` or
                 a connection string in the format `dremio://user:password@host:port/database`
-            staging_data_source: The name of the "Object Storage" data source in Dremio containing the s3 bucket
+            staging_data_source (Optional[str]): The name of the "Object Storage" data source in Dremio containing the s3 bucket
+            destination_name (Optional[str]): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (Optional[str]): Environment of the destination
         """
         super().__init__(
             credentials=credentials,

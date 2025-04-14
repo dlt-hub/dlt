@@ -69,8 +69,8 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         layout: str = DEFAULT_FILE_LAYOUT,
         extra_placeholders: t.Optional[TExtraPlaceholders] = None,
         current_datetime: t.Optional[TCurrentDateTime] = None,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
+        destination_name: str = None,
+        environment: str = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the filesystem destination to use in a pipeline and load data to local or remote filesystem.
@@ -86,16 +86,18 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         - Memory fs: `memory://m`
 
         Args:
-            bucket_url: The fsspec compatible bucket url to use for the destination.
-            credentials: Credentials to connect to the filesystem. The type of credentials should correspond to
+            bucket_url (Optional[str]): The fsspec compatible bucket url to use for the destination.
+            credentials (Optional[Union[FileSystemCredentials, Dict[str, Any], Any]]): Credentials to connect to the filesystem. The type of credentials should correspond to
                 the bucket protocol. For example, for AWS S3, the credentials should be an instance of `AwsCredentials`.
                 A dictionary with the credentials parameters can also be provided.
-            layout (str): A layout of the files holding table data in the destination bucket/filesystem. Uses a set of pre-defined
+            layout (Optional[str]): A layout of the files holding table data in the destination bucket/filesystem. Uses a set of pre-defined
                 and user-defined (extra) placeholders. Please refer to https://dlthub.com/docs/dlt-ecosystem/destinations/filesystem#files-layout
             extra_placeholders (dict(str, str | callable)): A dictionary of extra placeholder names that can be used in the `layout` parameter. Names
                 are mapped to string values or to callables evaluated at runtime.
             current_datetime (DateTime | callable): current datetime used by date/time related placeholders. If not provided, load package creation timestamp
                 will be used.
+            destination_name (Optional[str]): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (Optional[str]): Environment of the destination
             **kwargs: Additional arguments passed to the destination config
         """
         super().__init__(

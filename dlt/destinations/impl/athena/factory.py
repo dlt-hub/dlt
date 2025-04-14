@@ -190,8 +190,8 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         credentials: t.Union[AwsCredentials, t.Dict[str, t.Any], t.Any] = None,
         athena_work_group: t.Optional[str] = None,
         aws_data_catalog: t.Optional[str] = "awsdatacatalog",
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
+        destination_name: str = None,
+        environment: str = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the Athena destination to use in a pipeline.
@@ -199,11 +199,13 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            query_result_bucket: S3 bucket to store query results in
-            credentials: AWS credentials to connect to the Athena database.
-            athena_work_group: Athena work group to use
-            aws_data_catalog: Athena data catalog to use
-            **kwargs: Additional arguments passed to the destination config
+            query_result_bucket (Optional[str]): S3 bucket to store query results in
+            credentials (Union[AwsCredentials, Dict[str, Any], Any]): AWS credentials to connect to the Athena database.
+            athena_work_group (Optional[str]): Athena work group to use
+            aws_data_catalog (Optional[str]): Athena data catalog to use
+            destination_name (Optional[str]): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (Optional[str]): Environment of the destination
+            **kwargs (Any): Additional arguments passed to the destination config
         """
         super().__init__(
             query_result_bucket=query_result_bucket,

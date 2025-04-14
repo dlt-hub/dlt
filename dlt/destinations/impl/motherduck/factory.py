@@ -57,8 +57,8 @@ class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"])
             MotherDuckCredentials, str, t.Dict[str, t.Any], "DuckDBPyConnection"
         ] = None,
         create_indexes: bool = False,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
+        destination_name: str = None,
+        environment: str = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the MotherDuck destination to use in a pipeline.
@@ -66,9 +66,11 @@ class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"])
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials: Credentials to connect to the MotherDuck database. Can be an instance of `MotherDuckCredentials` or
+            credentials (Optional[Union[MotherDuckCredentials, str, Dict[str, Any], DuckDBPyConnection]]): Credentials to connect to the MotherDuck database. Can be an instance of `MotherDuckCredentials` or
                 a connection string in the format `md:///<database_name>?token=<service token>`
-            create_indexes: Should unique indexes be created
+            create_indexes (Optional[bool]): Should unique indexes be created
+            destination_name (Optional[str]): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (Optional[str]): Environment of the destination
             **kwargs: Additional arguments passed to the destination config
         """
         super().__init__(

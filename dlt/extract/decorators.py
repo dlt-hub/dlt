@@ -389,7 +389,7 @@ def source(
     See https://dlthub.com/docs/general-usage/credentials/ for details.
 
     Args:
-        func: A function that returns a dlt resource or a list of those or a list of any data items that can be loaded by `dlt`.
+        func (Optional[AnyFun]): A function that returns a dlt resource or a list of those or a list of any data items that can be loaded by `dlt`.
 
         name (str, optional): A name of the source which is also the name of the associated schema. If not present, the function name will be used.
 
@@ -411,7 +411,7 @@ def source(
         _impl_cls (Type[TDltSourceImpl], optional): A custom implementation of DltSource, may be also used to providing just a typing stub
 
     Returns:
-        Wrapped decorated source function, see SourceFactory reference for additional wrapper capabilities
+        Any: Wrapped decorated source function, see SourceFactory reference for additional wrapper capabilities
     """
     if name and schema:
         raise ArgumentsOverloadException(
@@ -585,9 +585,9 @@ def resource(
     Note that if decorated function is an inner function, passing of the credentials will be disabled.
 
     Args:
-        data (Callable | Any, optional): a function to be decorated or a data compatible with `dlt` `run`.
+        data (Optional[Any], optional): a function to be decorated or a data compatible with `dlt` `run`.
 
-        name (str, optional): A name of the resource that by default also becomes the name of the table to which the data is loaded.
+        name (TTableHintTemplate[str], optional): A name of the resource that by default also becomes the name of the table to which the data is loaded.
             If not present, the name of the decorated function will be used.
 
         table_name (TTableHintTemplate[str], optional): An table name, if different from `name`.
@@ -600,50 +600,52 @@ def resource(
             Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        columns (Sequence[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas.
+        columns (TTableHintTemplate[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas.
             Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
             When the argument is a pydantic model, the model will be used to validate the data yielded by the resource as well.
 
-        primary_key (str | Sequence[str]): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
+        primary_key (TTableHintTemplate[TColumnNames], optional): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        merge_key (str | Sequence[str]): A column name or a list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to keep a single record for a given day.
+        merge_key (TTableHintTemplate[TColumnNames], optional): A column name or a list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to keep a single record for a given day.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        schema_contract (TSchemaContract, optional): Schema contract settings that will be applied to all resources of this source (if not overridden in the resource itself)
+        schema_contract (TTableHintTemplate[TSchemaContract], optional): Schema contract settings that will be applied to all resources of this source (if not overridden in the resource itself)
 
-        table_format (Literal["iceberg", "delta"], optional): Defines the storage format of the table. Currently only "iceberg" is supported on Athena, and "delta" on the filesystem.
+        table_format (TTableHintTemplate[TTableFormat], optional): Defines the storage format of the table. Currently only "iceberg" is supported on Athena, and "delta" on the filesystem.
             Other destinations ignore this hint.
 
-        file_format (Literal["preferred", ...], optional): Format of the file in which resource data is stored. Useful when importing external files. Use `preferred` to force
+        file_format (TTableHintTemplate[TFileFormat], optional): Format of the file in which resource data is stored. Useful when importing external files. Use `preferred` to force
             a file format that is preferred by the destination used. This setting superseded the `load_file_format` passed to pipeline `run` method.
 
-        references (TTableReferenceParam, optional): A list of references to other table's columns.
+        references (TTableHintTemplate[TTableReferenceParam], optional): A list of references to other table's columns.
             A list in the form of `[{'referenced_table': 'other_table', 'columns': ['other_col1', 'other_col2'], 'referenced_columns': ['col1', 'col2']}]`.
             Table and column names will be normalized according to the configured naming convention.
 
-        nested_hints (Dict[TTableNames, TResourceNestedHints], optional): Hints for nested tables created by this resource.
+        nested_hints (Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]], optional): Hints for nested tables created by this resource.
 
         selected (bool, optional): When `True` `dlt pipeline` will extract and load this resource, if `False`, the resource will be ignored.
 
         spec (Type[BaseConfiguration], optional): A specification of configuration and secret values required by the source.
 
-        standalone (bool, optional): Returns a wrapped decorated function that creates DltResource instance. Must be called before use. Cannot be part of a source.
-
-        data_from (TUnboundDltResource, optional): Allows to pipe data from one resource to another to build multi-step pipelines.
-
         parallelized (bool, optional): If `True`, the resource generator will be extracted in parallel with other resources.
             Transformers that return items are also parallelized. Defaults to `False`.
 
+        incremental (Optional[TIncrementalConfig], optional): An incremental configuration for the resource.
+
         _impl_cls (Type[TDltResourceImpl], optional): A custom implementation of DltResource, may be also used to providing just a typing stub
+
+        standalone (bool, optional): Returns a wrapped decorated function that creates DltResource instance. Must be called before use. Cannot be part of a source.
+
+        data_from (TUnboundDltResource, optional): Allows to pipe data from one resource to another to build multi-step pipelines.
 
     Raises:
         ResourceNameMissing: indicates that name of the resource cannot be inferred from the `data` being passed.
         InvalidResourceDataType: indicates that the `data` argument cannot be converted into `dlt resource`
 
     Returns:
-        TDltResourceImpl instance which may be loaded, iterated or combined with other resources into a pipeline.
+        Any: TDltResourceImpl instance which may be loaded, iterated or combined with other resources into a pipeline.
     """
 
     def make_resource(_name: str, _section: str, _data: Any) -> TDltResourceImpl:
@@ -948,11 +950,11 @@ def transformer(
     >>> list(players("GM") | player_profile)
 
     Args:
-        f (Callable): a function taking minimum one argument of TDataItems type which will receive data yielded from `data_from` resource.
+        f (Optional[Callable[Concatenate[TDataItem, TResourceFunParams], Any]]): a function taking minimum one argument of TDataItems type which will receive data yielded from `data_from` resource.
 
-        data_from (Callable | Any, optional): a resource that will send data to the decorated function `f`
+        data_from (TUnboundDltResource, optional): a resource that will send data to the decorated function `f`
 
-        name (str, optional): A name of the resource that by default also becomes the name of the table to which the data is loaded.
+        name (TTableHintTemplate[str], optional): A name of the resource that by default also becomes the name of the table to which the data is loaded.
             If not present, the name of the decorated function will be used.
 
         table_name (TTableHintTemplate[str], optional): An table name, if different from `name`.
@@ -960,35 +962,37 @@ def transformer(
 
         max_table_nesting (int, optional): A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
 
-        write_disposition (Literal["skip", "append", "replace", "merge"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
+        write_disposition (TTableHintTemplate[TWriteDisposition], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        columns (Sequence[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
+        columns (TTableHintTemplate[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        primary_key (str | Sequence[str]): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
+        primary_key (TTableHintTemplate[TColumnNames], optional): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        merge_key (str | Sequence[str]): A column name or a list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to keep a single record for a given day.
+        merge_key (TTableHintTemplate[TColumnNames], optional): A column name or a list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to keep a single record for a given day.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        schema_contract (TSchemaContract, optional): Schema contract settings that will be applied to all resources of this source (if not overridden in the resource itself)
+        schema_contract (TTableHintTemplate[TSchemaContract], optional): Schema contract settings that will be applied to all resources of this source (if not overridden in the resource itself)
 
-        table_format (Literal["iceberg", "delta"], optional): Defines the storage format of the table. Currently only "iceberg" is supported on Athena, and "delta" on the filesystem.
+        table_format (TTableHintTemplate[TTableFormat], optional): Defines the storage format of the table. Currently only "iceberg" is supported on Athena, and "delta" on the filesystem.
             Other destinations ignore this hint.
 
-        file_format (Literal["preferred", ...], optional): Format of the file in which resource data is stored. Useful when importing external files. Use `preferred` to force
+        file_format (TTableHintTemplate[TFileFormat], optional): Format of the file in which resource data is stored. Useful when importing external files. Use `preferred` to force
             a file format that is preferred by the destination used. This setting superseded the `load_file_format` passed to pipeline `run` method.
 
-        references (TTableReferenceParam, optional): A list of references to other table's columns.
+        references (TTableHintTemplate[TTableReferenceParam], optional): A list of references to other table's columns.
             A list in the form of `[{'referenced_table': 'other_table', 'columns': ['other_col1', 'other_col2'], 'referenced_columns': ['col1', 'col2']}]`.
             Table and column names will be normalized according to the configured naming convention.
 
-        nested_hints (Dict[TTableNames, TResourceNestedHints], optional): Hints for nested tables created by this resource.
+        nested_hints (Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]], optional): Hints for nested tables created by this resource.
 
         selected (bool, optional): When `True` `dlt pipeline` will extract and load this resource, if `False`, the resource will be ignored.
 
         spec (Type[BaseConfiguration], optional): A specification of configuration and secret values required by the source.
+
+        parallelized (bool, optional): When `True` the resource will be loaded in parallel.
 
         standalone (bool, optional): Returns a wrapped decorated function that creates DltResource instance. Must be called before use. Cannot be part of a source.
 
@@ -999,7 +1003,7 @@ def transformer(
         InvalidResourceDataType: indicates that the `data` argument cannot be converted into `dlt resource`
 
     Returns:
-        TDltResourceImpl instance which may be loaded, iterated or combined with other resources into a pipeline.
+        Any: TDltResourceImpl instance which may be loaded, iterated or combined with other resources into a pipeline.
     """
     if isinstance(f, DltResource):
         raise ValueError(

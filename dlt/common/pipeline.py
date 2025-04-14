@@ -752,8 +752,8 @@ def reset_resource_state(resource_name: str, source_state_: Optional[DictStrAny]
     """Resets the resource state with name `resource_name` by removing it from `source_state`
 
     Args:
-        resource_name: The resource key to reset
-        state: Optional source state dictionary to operate on. Use when working outside source context.
+        resource_name (str): The resource key to reset
+        source_state_ (Optional[DictStrAny]): Optional source state dictionary to operate on. Use when working outside source context.
     """
     state_ = source_state() if source_state_ is None else source_state_
     if "resources" in state_ and resource_name in state_["resources"]:

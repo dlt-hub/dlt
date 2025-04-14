@@ -144,8 +144,8 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
         csv_format: t.Optional[CsvFormatConfiguration] = None,
         query_tag: t.Optional[str] = None,
         create_indexes: bool = False,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
+        destination_name: str = None,
+        environment: str = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the Snowflake destination to use in a pipeline.
@@ -153,14 +153,15 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials: Credentials to connect to the snowflake database. Can be an instance of `SnowflakeCredentials` or
+            credentials (Optional[Union[SnowflakeCredentials, Dict[str, Any], str]]): Credentials to connect to the snowflake database. Can be an instance of `SnowflakeCredentials` or
                 a connection string in the format `snowflake://user:password@host:port/database`
-            stage_name: Name of an existing stage to use for loading data. Default uses implicit stage per table
-            keep_staged_files: Whether to delete or keep staged files after loading
-            csv_format: Optional csv format configuration
-            query_tag: A tag with placeholders to tag sessions executing jobs
-            create_indexes: Whether UNIQUE or PRIMARY KEY constrains should be created
-
+            stage_name (Optional[str]): Name of an existing stage to use for loading data. Default uses implicit stage per table
+            keep_staged_files (Optional[bool]): Whether to delete or keep staged files after loading
+            csv_format (Optional[CsvFormatConfiguration]): Optional csv format configuration
+            query_tag (Optional[str]): A tag with placeholders to tag sessions executing jobs
+            create_indexes (Optional[bool]): Whether UNIQUE or PRIMARY KEY constrains should be created
+            destination_name (str, optional): Name of the destination. Defaults to None.
+            environment (str, optional): Environment name. Defaults to None.
         """
         super().__init__(
             credentials=credentials,
