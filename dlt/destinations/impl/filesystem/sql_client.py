@@ -46,13 +46,11 @@ class FilesystemSqlClient(WithTableScanners):
         file_format = self.get_file_format(table_schema)
         return file_format in ("jsonl", "parquet", "csv")
 
-    def get_file_format(self, table_schema: PreparedTableSchema) -> TLoaderFileFormat:
+    def get_file_format(self, table_schema: PreparedTableSchema) -> str:
         if table_schema["name"] in self.schema.dlt_table_names():
             return "jsonl"
-        file_format = table_schema.get("file_format")
-        if not file_format or file_format == "preferred":
-            file_format = self.remote_client.capabilities.preferred_loader_file_format
-        return file_format
+        files = self.remote_client.list_table_files(table_schema["name"])
+        return os.path.splitext(files[0])[1][1:]
 
     def create_secret(
         self,
