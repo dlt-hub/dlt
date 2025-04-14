@@ -1,0 +1,21 @@
+version: '3'
+services:
+  greenplum:
+    image: 'datagrip/greenplum:6.8.1'
+    container_name: test_greenplum
+    environment:
+      POSTGRES_USER: gpadmin
+      POSTGRES_PASSWORD: pivotal
+      POSTGRES_DB: test
+    ports:
+      - "5432:5432"
+    volumes:
+      - greenplum-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gpadmin -d test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  greenplum-data: 
