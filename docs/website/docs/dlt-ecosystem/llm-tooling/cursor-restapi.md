@@ -89,12 +89,9 @@ To improve accuracy, make sure any files or docs that could confound the search 
 
 ### 2.5 Documentation augmentation
 
-- **Adding documentation:**
-    - Step-by-step process to add documentation into Cursor.
-- **Custom documentation tips:**
-    - How to add custom documents (e.g., file attachments).
-    - Using reverse prompt examples to help improve LLM retrieval.
-    - Guidelines for creating a standardized docs format to enhance data ingestion accuracy.
+If existing documentation for a task is regularly ignored by LLMs, consider using reverse prompts to create optimised docs. Such optimised docs should ideally be single files that comprehensively deal with a topic. Example: `Please convert this documentation into a LLM friendly format: {docs}`
+
+For example, for dlt rest api conversion, we find better results when using LLM-friendly docs for harder topics like Pagination, Incremental.
 
 ## 3. Running the workflow
 
