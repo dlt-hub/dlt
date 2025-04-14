@@ -108,7 +108,7 @@ You need to create an S3 bucket and a user who can access that bucket. dlt does 
 
 #### Using S3 compatible storage
 
-To use an S3 compatible storage other than AWS S3, such as [MinIO](https://min.io/), [Cloudflare R2](https://www.cloudflare.com/en-ca/developer-platform/r2/) or [Google 
+To use an S3 compatible storage other than AWS S3, such as [MinIO](https://min.io/), [Cloudflare R2](https://www.cloudflare.com/en-ca/developer-platform/r2/) or [Google
 Cloud Storage](https://cloud.google.com/storage/docs/interoperability), you may supply an `endpoint_url` in the config. This should be set along with AWS credentials:
 
 ```toml
@@ -625,9 +625,9 @@ You can choose the following file formats:
 
 ## Supported table formats
 
-You can choose the following [table formats](./delta-iceberg.md):
-* Delta table
-* Iceberg
+You can choose the following table formats:
+* [Delta table](./delta-iceberg.md)
+* [Iceberg](./iceberg.md)
 
 ## Syncing of dlt state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination). To this end, special folders and files will be created at your destination which hold information about your pipeline state, schemas, and completed loads. These folders DO NOT respect your settings in the layout section. When using filesystem as a staging destination, not all of these folders are created, as the state and schemas are managed in the regular way by the final destination you have configured.
