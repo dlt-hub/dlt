@@ -1,4 +1,4 @@
-import typing as t
+from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING, Sequence, Tuple
 
 from dlt.common import logger
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
@@ -11,9 +11,11 @@ from dlt.common.schema.typing import TColumnSchema, TColumnType
 from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.duckdb.configuration import DuckDbCredentials, DuckDbClientConfiguration
 
-if t.TYPE_CHECKING:
+if TYPE_CHECKING:
     from duckdb import DuckDBPyConnection
     from dlt.destinations.impl.duckdb.duck import DuckDbClient
+else:
+    DuckDBPyConnection = Any
 
 
 class DuckDbTypeMapper(TypeMapperImpl):
@@ -113,7 +115,7 @@ class DuckDbTypeMapper(TypeMapperImpl):
         )
 
     def from_destination_type(
-        self, db_type: str, precision: t.Optional[int], scale: t.Optional[int]
+        self, db_type: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         # duckdb provides the types with scale and precision
         db_type = db_type.split("(")[0].upper()
@@ -155,33 +157,31 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
         return caps
 
     @property
-    def client_class(self) -> t.Type["DuckDbClient"]:
+    def client_class(self) -> Type["DuckDbClient"]:
         from dlt.destinations.impl.duckdb.duck import DuckDbClient
 
         return DuckDbClient
 
     def __init__(
         self,
-        credentials: t.Union[
-            DuckDbCredentials, t.Dict[str, t.Any], str, "DuckDBPyConnection"
-        ] = None,
+        credentials: Union[DuckDbCredentials, Dict[str, Any], str, DuckDBPyConnection] = None,
         create_indexes: bool = False,
         destination_name: str = None,
         environment: str = None,
-        **kwargs: t.Any,
+        **kwargs: Any,
     ) -> None:
         """Configure the DuckDB destination to use in a pipeline.
 
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials (Optional[Union[DuckDbCredentials, Dict[str, Any], str, DuckDBPyConnection]]): Credentials to connect to the duckdb database. Can be an instance of `DuckDbCredentials` or
+            credentials (Union[DuckDbCredentials, Dict[str, Any], str, DuckDBPyConnection], optional): Credentials to connect to the duckdb database. Can be an instance of `DuckDbCredentials` or
                 a path to a database file. Use :pipeline: to create a duckdb
                 in the working folder of the pipeline
-            create_indexes (Optional[bool]): Should unique indexes be created, defaults to False
-            destination_name (Optional[str]): Name of the destination, can be used in config section to differentiate between multiple of the same type
-            environment (Optional[str]): Environment of the destination
-            **kwargs: Additional arguments passed to the destination config
+            create_indexes (bool, optional): Should unique indexes be created, defaults to False
+            destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (str, optional): Environment of the destination
+            **kwargs (Any): Additional arguments passed to the destination config
         """
         super().__init__(
             credentials=credentials,

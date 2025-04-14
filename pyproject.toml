@@ -288,6 +288,7 @@ lancedb = [
 openai = ">=1.45"
 connectorx = { version = ">=0.3.2" }
 modal = ">=0.64.170"
+pydoclint = "^0.6.5"
 
 [tool.black] # https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file
 line-length = 100

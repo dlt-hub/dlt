@@ -1,4 +1,4 @@
-import typing as t
+from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING
 
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
@@ -15,7 +15,7 @@ from dlt.destinations.impl.postgres.configuration import (
 from dlt.destinations.impl.postgres.postgres_adapter import GEOMETRY_HINT, SRID_HINT
 from dlt.destinations.type_mapping import TypeMapperImpl
 
-if t.TYPE_CHECKING:
+if TYPE_CHECKING:
     from dlt.destinations.impl.postgres.postgres import PostgresClient
 
 
@@ -107,7 +107,7 @@ class PostgresTypeMapper(TypeMapperImpl):
         return timestamp
 
     def from_destination_type(
-        self, db_type: str, precision: t.Optional[int] = None, scale: t.Optional[int] = None
+        self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
     ) -> TColumnType:
         if db_type == "numeric" and (precision, scale) == self.capabilities.wei_precision:
             return dict(data_type="wei")
@@ -160,32 +160,32 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         return caps
 
     @property
-    def client_class(self) -> t.Type["PostgresClient"]:
+    def client_class(self) -> Type["PostgresClient"]:
         from dlt.destinations.impl.postgres.postgres import PostgresClient
 
         return PostgresClient
 
     def __init__(
         self,
-        credentials: t.Union[PostgresCredentials, t.Dict[str, t.Any], str] = None,
+        credentials: Union[PostgresCredentials, Dict[str, Any], str] = None,
         create_indexes: bool = True,
-        csv_format: t.Optional[CsvFormatConfiguration] = None,
+        csv_format: Optional[CsvFormatConfiguration] = None,
         destination_name: str = None,
         environment: str = None,
-        **kwargs: t.Any,
+        **kwargs: Any,
     ) -> None:
         """Configure the Postgres destination to use in a pipeline.
 
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials (Optional[Union[PostgresCredentials, Dict[str, Any], str]]): Credentials to connect to the postgres database. Can be an instance of `PostgresCredentials` or
+            credentials (Union[PostgresCredentials, Dict[str, Any], str], optional): Credentials to connect to the postgres database. Can be an instance of `PostgresCredentials` or
                 a connection string in the format `postgres://user:password@host:port/database`
-            create_indexes (Optional[bool]): Should unique indexes be created
+            create_indexes (bool, optional): Should unique indexes be created
             csv_format (Optional[CsvFormatConfiguration]): Formatting options for csv file format
-            destination_name (Optional[str]): Name of the destination, can be used in config section to differentiate between multiple of the same type
-            environment (Optional[str]): Environment of the destination
-            **kwargs: Additional arguments passed to the destination config
+            destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (str, optional): Environment of the destination
+            **kwargs (Any): Additional arguments passed to the destination config
         """
         super().__init__(
             credentials=credentials,
