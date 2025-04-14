@@ -228,11 +228,16 @@ class StarrocksJobClient(SqlalchemyJobClient, SupportsStagingDestination):
         pk_columns = get_columns_names_with_prop(schema_table, "primary_key")
 
         if pk_columns:
-            # some databases (e.g. starrocks) requires primary key columns to be before other columns
+            # starrocks requires primary key columns to be before other columns
             table_columns_reordered = [ self._to_column_object(schema_table['columns'][c], schema_table) for c in pk_columns ]
             table_columns_reordered.extend([ c for c in table_columns if c.name not in pk_columns ])
             table_columns = table_columns_reordered
             table_columns.append(sa.PrimaryKeyConstraint(*pk_columns))  # type: ignore[arg-type]
+
+        # Automatically creating auto increment columns typically not useful for starrocks applications
+        # https://docs.sqlalchemy.org/en/20/dialects/mysql.html#auto-increment-behavior
+        for c in table_columns:
+            c.autoincrement = False
 
         return sa.Table(
             schema_table["name"],
