@@ -198,7 +198,7 @@ class StarrocksJobClient(SqlalchemyJobClient, SupportsStagingDestination):
             config.normalize_staging_dataset_name(schema),
             config.credentials,
             capabilities,
-            engine_args=config.engine_args,
+            # engine_args=config.engine_args,
         )
 
         self.schema = schema
