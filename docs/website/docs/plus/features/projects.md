@@ -190,6 +190,88 @@ As you may guess from the example above, you can use Python-style formatters to 
 * You can reference environment variables using the `{env.ENV_VARIABLE_NAME}` syntax.
 * Any of the project settings can be substituted as well.
 
+### implicit entities
+By default, dlt+ will automatically create entities such as datasets or destinations when they are requested by the user or the executed code.
+For example, a minimal `dlt.yml` configuration might look like this:
+```yaml
+sources:
+  arrow:
+    type: sources.arrow.source
+
+destinations:
+  duckdb:
+    type: duckdb
+
+pipelines:
+  my_pipeline:
+    source: arrow
+    destination: duckdb
+    dataset_name: my_pipeline_dataset
+```
+Running the following command executes the pipeline:
+```sh
+dlt pipeline my_pipeline run
+```
+In this case, the `my_pipeline_dataset` dataset is not declared explicitly, so dlt+ creates it automatically. The same applies to the `duckdb` destination if it is not defined outside of the pipeline configuration.
+
+Implicit creation of entities can be controlled using the `allow_undefined_entities` setting in the project configuration:
+
+```yaml
+project:
+  allow_undefined_entities: false
+```
+If `allow_undefined_entities` is set to `false`, dlt+ will no longer create missing entities automatically. 
+Datasets and destinations must be declared explicitly in the `dlt.yml` file:
+```yaml
+datasets:
+  my_pipeline_dataset:
+    destination:
+        - duckdb
+```
+
+Note: The destination field is an array, allowing you to specify one or more destinations where the dataset can be materialized. 
+
+### Managing Datasets and Destinations
+
+When datasets are explicitly declared in the `dlt.yml` file, the `destination` field must list all destinations where the dataset is allowed to be materialized. This applies even if `allow_undefined_entities` is set to `true`.
+Example:
+```yaml
+sources:
+  arrow:
+    type: sources.arrow.source
+
+destinations:
+  duckdb:
+    type: duckdb
+
+
+datasets:
+  my_pipeline_dataset:
+    destination:
+        - bigquery
+
+pipelines:
+  my_pipeline:
+    source: arrow
+    destination: duckdb
+    dataset_name: my_pipeline_dataset
+```
+In the above configuration, the dataset `my_pipeline_dataset` includes only `bigquery` as an allowed destination. If the pipeline specifies `duckdb` as the destination, dlt+ will return an error because `duckdb` is not listed for that dataset.
+All intended destinations must be listed explicitly in the `destination` field to avoid configuration errors.
+
+```yaml
+datasets:
+  my_pipeline_dataset:
+    destination:
+      - duckdb
+      - bigquery
+```
+:::tip
+If no destination is specified in a CLI command, dlt+ will use the first listed destination for that dataset by default.
+If implicit entities are allowed, dlt+ can also discover datasets defined only within pipelines and will use the pipeline's destination when creating the dataset.
+The same rule applies when retrieving datasets from the catalog in Python, more on that below.
+:::
+
 ### Other settings
 
 `dlt.yml` is a [dlt config provider](../../general-usage/credentials/setup.md), and you can use it in the same way you use `config.toml`.
@@ -241,7 +323,29 @@ pipelines:
     destination: filesystem
     dataset_name: bronze
 ```
+The current module provides access to various parts of your active dlt+ project:
 
+- `current.project()` - Retrieves the project configuration
+- `current.entities()` - Returns a factory with all instantiated entities
+- `current.catalog()` - Provides access to all defined datasets in the catalog
+- `current.runner()` - Allows you to run pipelines programmatically
+
+### Accessing project settings
+
+Here are a few examples of what you can access from the project object:
+```py
+# show the currently active profile
+print(current.project().current_profile)
+# show the main project dir
+print(current.project().project_dir)
+# show the project config
+print(current.project().config)
+# list explicitely defined datasets (also works with destinations, sources, pipelines etc.)
+print(current.project().datasets)
+```
+### Accessing entities
+Accessing entities in code works the same way as when referencing them in the `dlt.yml` file. 
+If allowed, implicit entities will be created and returned automatically. If not, an error will be raised.
 ```py
 import dlt_plus
 
@@ -250,8 +354,90 @@ pipeline = entities.create_pipeline("bronze_pipe")
 transformation = entities.create_transformation("stressed_transformation")
 ```
 Here, we access the entities manager, which allows you to create sources, destinations, pipelines, and other objects.
-You can also obtain the **catalog** with all created datasets via `dlt_plus.current.catalog()`, which makes it easy to
-[explore all of your data](data-access.md).
+### Running pipelines with the predefined source with the runner
+
+`dlt+` includes a pipeline runner, which is the same one used when you run pipelines from the CLI.  
+You can also use it directly in your code through the project context:
+
+```py
+# get the runner
+runner = current.runner()
+# run the "bronze_pipe" pipeline from the currently active project
+runner.run_pipeline("bronze_pipe")
+```
+
+### Accessing the catalog
+
+The catalog allows you to access all explicitly defined datasets:
+
+```py
+# get a dataset instance pointing to the default destination (first in dataset destinations list) and access data inside of it
+# Note: The dataset must already exist physically for this to work
+dataset = current.catalog().dataset("bronze")
+# get the row counts of all tables in the dataset as a dataframe
+print(dataset.row_counts().df())
+```
+
+:::tip
+Learn more about the available data access methods in DLT datasets by reading the [Python loaded data access guide](../../../general-usage/dataset-access/dataset). 
+It covers how to browse, filter tables, and retrieve data in various formats.
+:::
+
+### Writing data back to the catalog
+
+You can also write data to datasets in the dlt+ catalog. Each dataset has a `.save()` method that lets you write data back to it.  
+In the future, you'll be able to control which datasets are writable using contracts.
+Under the hood, `dlt+` runs an ad-hoc pipeline to handle the write operation.
+
+:::warning
+Writing data to the catalog is an **experimental feature**.  
+Use it with caution until it's fully stable.
+:::
+
+```py
+import pandas as pd
+# get a dataset from the catalog (it must already exist and be defined in dlt.yml)
+dataset = current.catalog().dataset("bronze")
+# Write a DataFrame to the "my_table" table in the dataset
+dataset.save(pd.DataFrame({"name": ["John", "Jane", "Jim"], "age": [30, 25, 35]}), table_name="my_table")
+```
+
+You can also read from an existing table and write the data to a new table, either in the same or another dataset:
+
+```py
+# get dataset from the catalog
+dataset = current.catalog().dataset("bronze")
+
+# This function reads data in chunks from an existing table and yields each chunk
+def transform_frames():
+    # Read the 'items' table in chunks of 1000 rows
+    for df in dataset.items.iter_df(chunk_size=1000):
+        # You can process the data here if needed
+        yield df
+
+# Write the data to a new table called "my_new_table"
+dataset.save(transform_frames, table_name="my_new_table")
+```
+
+### Switching profiles in code
+
+By default, when you access the project in code, it uses the default or pinned profile.  
+You can switch to a different profile using the `switch_profile` function.
+
+Here’s an example:
+
+```py   
+from dlt_plus import current
+from dlt_plus.project.run_context import switch_profile
+
+if __name__ == "__main__":
+    # Shows the current active profile
+    print(current.project().current_profile)
+    # Switch to the tests profile
+    switch_profile("tests")
+    # Now "tests" is the active profile, merged with the project config
+    print(current.project().current_profile)
+```
 
 ## Config and secrets
 
