@@ -73,7 +73,7 @@ Under `Cursor Settings` > `Features` > `Docs`, you will see the docs you ha
 
 We recommend adding the [dlthub docs from this URL](https://github.com/dlt-hub/dlt/tree/devel/docs), where various code examples are included.
 
-For the task of building REST API sources, we also created this [LLM-friendly documentation that you can add from this url.](https://github.com/dlt-hub/cursor-data-stack/tree/main/docs)
+For the task of building REST API sources, we also created this [LLM-friendly documentation that you can add from this url.](https://github.com/dlt-hub/cursor-dlt-example/tree/main/docs)
 
 ### 2.3 Adding rules to cursor
 
@@ -81,7 +81,7 @@ Rules are like system prompts. In our experiments, when building a REST API pipe
 
 Global rules can be added by modifying the `Rules for AI` section under `Cursor Settings` > `General` > `Rules for AI`. This is useful if you want to specify rules that should always be included in every project like output language, length of responses etc.
 
-[You can find a rule created for REST API building here.](https://github.com/dlt-hub/cursor-data-stack/blob/main/.cursor/rules/build-rest-api.mdc)
+[You can find a rule created for REST API building here.](https://github.com/dlt-hub/cursor-dlt-example/blob/main/.cursor/rules/build-rest-api.mdc)
 
 ### 2.4 Integrating local docs
 
@@ -94,7 +94,7 @@ To improve accuracy, make sure any files or docs that could confound the search 
 If existing documentation for a task is regularly ignored by LLMs, consider using reverse prompts to create optimised docs. Such optimised docs should ideally be single files that comprehensively deal with a topic. Example: `Please convert this documentation into a LLM friendly format: {docs}`
 
 For example, for dlt rest api conversion, we find better results when using LLM-friendly docs for harder topics like Pagination, Incremental.
-You can find some example LLM friendly docs [here](https://github.com/dlt-hub/cursor-data-stack/tree/main/docs). This is an example of documentation that we use during prompting workflows such as "please double check the pagination error against our pagination doc".
+You can find some example LLM friendly docs [here](https://github.com/dlt-hub/cursor-dlt-example/tree/main/docs). This is an example of documentation that we use during prompting workflows such as "please double check the pagination error against our pagination doc".
 
 ## 3. Running the workflow
 
