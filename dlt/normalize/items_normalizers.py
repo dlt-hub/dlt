@@ -64,7 +64,7 @@ class ItemsNormalizer:
 
 
 class ModelItemsNormalizer(ItemsNormalizer):
-    def _add_or_replace_column(
+    def _adjust_wth_dlt_columns(
         self,
         parsed_select: sqlglot.exp.Select,
         column_name: Literal["_dlt_load_id", "_dlt_id"],
@@ -111,6 +111,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
                 schema.naming,
             )
 
+            schema.update_table(partial_table, normalize_identifiers=False)
             table_updates = schema_update.setdefault(root_table_name, [])
             table_updates.append(partial_table)
 
@@ -130,21 +131,26 @@ class ModelItemsNormalizer(ItemsNormalizer):
         parsed_select = sqlglot.parse_one(select_statement, read=select_dialect)
         parsed_select = cast(sqlglot.exp.Select, parsed_select)
 
+        # normalize selected columns - basically all of them
+        schema = self.schema
+        table = schema.tables[root_table_name]
+        schema.update_table(table, normalize_identifiers=True)
+
         schema_updates = []
 
-        if self.config.json_normalizer.add_dlt_load_id:
+        if self.config.model_normalizer.add_dlt_load_id:
             dlt_load_id_alias = sqlglot.exp.Alias(
                 this=sqlglot.exp.Literal.string(self.load_id),
                 alias=sqlglot.exp.to_identifier("_dlt_load_id"),
             )
-            load_id_update = self._add_or_replace_column(
+            load_id_update = self._adjust_wth_dlt_columns(
                 parsed_select, "_dlt_load_id", dlt_load_id_alias, root_table_name
             )
             if load_id_update:
                 schema_updates.append(load_id_update)
 
         if (
-            self.config.json_normalizer.add_dlt_id
+            self.config.model_normalizer.add_dlt_id
             and self.config.destination_capabilities.sqlglot_dialect != "redshift"
         ):
             # TODO: redshift doesn't have an in-built function that generates unique values
@@ -158,7 +164,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
                 alias=sqlglot.exp.to_identifier("_dlt_id"),
             )
 
-            dlt_id_update = self._add_or_replace_column(
+            dlt_id_update = self._adjust_wth_dlt_columns(
                 parsed_select, "_dlt_id", dlt_id_alias, root_table_name
             )
 
