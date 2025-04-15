@@ -15,7 +15,7 @@ With REST API connectors being configuration-driven and vibe coding based on pro
 Building a data pipeline can be separated into two distinct problems, each with their own challenges:
 
 1. **Extraction:** Identifying and gathering key configuration details from various sources.
-2. **Pipeline Construction:** Using those details to build a robust data ingestion pipeline.
+2. **Pipeline construction:** Using those details to build a robust data ingestion pipeline.
 
 Consider these steps separately, as this will aid you in troubleshooting.
 
