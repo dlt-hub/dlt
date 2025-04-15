@@ -30,6 +30,7 @@ from typing import (
     List,
     Union,
     Iterable,
+    IO,
 )
 
 from dlt.common.exceptions import (
@@ -661,3 +662,26 @@ def is_typeerror_due_to_wrong_call(exc: Exception, func: AnyFun) -> bool:
 removeprefix = getattr(
     str, "removeprefix", lambda s_, p_: s_[len(p_) :] if s_.startswith(p_) else s_
 )
+
+
+def read_dialect_and_sql(
+    file_obj: IO[str],
+    fallback_dialect: Optional[str] = None,
+) -> Tuple[str, str]:
+    """
+    Reads the first line of a file for the dialect (after the first colon),
+    falls back to `fallback_dialect` if not found or empty,
+    and then reads the rest as the SQL statement.
+
+    Returns:
+        A tuple (dialect, sql_statement).
+    """
+    first_line = file_obj.readline()
+    # e.g. something like: "dialect: clickhouse\n"
+    parts = first_line.split(":", 1)
+    parsed_dialect = parts[1].strip() if len(parts) > 1 else ""
+
+    dialect = parsed_dialect if parsed_dialect else fallback_dialect
+
+    sql_statement = file_obj.read()
+    return dialect, sql_statement

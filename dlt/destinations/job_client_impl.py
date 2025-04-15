@@ -40,6 +40,7 @@ from dlt.common.schema.utils import (
     normalize_table_identifiers,
     version_table,
 )
+from dlt.common.utils import read_dialect_and_sql
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
@@ -147,10 +148,10 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
 
     def run(self) -> None:
         with FileStorage.open_zipsafe_ro(self._file_path, "r", encoding="utf-8") as f:
-            select_dialect = (
-                f.readline().split(":")[1].strip() or self._job_client.capabilities.sqlglot_dialect
+            select_dialect, select_statement = read_dialect_and_sql(
+                file_obj=f,
+                fallback_dialect=self._job_client.capabilities.sqlglot_dialect,  # caps are available at this point
             )
-            select_statement = f.read()
 
         sql_client = self._job_client.sql_client
         insert_statement = self._insert_statement_from_select_statement(
