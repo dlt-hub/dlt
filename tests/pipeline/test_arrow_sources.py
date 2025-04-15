@@ -610,3 +610,45 @@ def test_extract_json_normalize_parquet_adds_dlt_load_id():
 
         # Normalized file has _dlt_load_id
         assert pa.compute.all(pa.compute.equal(tbl["_dlt_load_id"], load_id)).as_py()
+
+
+def test_replace_existing_dlt_load_id():
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
+
+    # Create a table with an existing _dlt_load_id column
+    existing_load_id = "existing_load_id_value"
+    num_rows = 10
+    load_id_type = pa.dictionary(pa.int8(), pa.string())
+    table = pa.table(
+        {
+            "column1": [f"value_{i}" for i in range(num_rows)],
+            "_dlt_load_id": pa.array(
+                [existing_load_id] * num_rows, type=load_id_type
+            ),  # Dictionary-encoded _dlt_load_id
+        }
+    )
+
+    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb")
+
+    @dlt.resource
+    def some_data():
+        yield table
+
+    pipeline.extract(some_data())
+    pipeline.normalize()
+
+    # Retrieve the normalized table
+    load_id = pipeline.list_normalized_load_packages()[0]
+    storage = pipeline._get_load_storage()
+    jobs = storage.normalized_packages.list_new_jobs(load_id)
+    job = [j for j in jobs if "some_data" in j][0]
+    with storage.normalized_packages.storage.open_file(job, "rb") as f:
+        normalized_table = pa.parquet.read_table(f)
+
+        assert len(normalized_table) == num_rows
+
+        # Check if the _dlt_load_id column has been replaced with the correct load_id
+        assert pa.compute.all(pa.compute.equal(normalized_table["_dlt_load_id"], load_id)).as_py()
+
+        # Assert the other columns remain unchanged, just in case
+        assert normalized_table["column1"].to_pylist() == [f"value_{i}" for i in range(num_rows)]

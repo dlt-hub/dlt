@@ -420,7 +420,7 @@ def should_normalize_arrow_schema(
     columns: TTableSchemaColumns,
     naming: NamingConvention,
     add_load_id: bool = False,
-) -> Tuple[bool, Mapping[str, str], Dict[str, str], Dict[str, bool], bool, TTableSchemaColumns]:
+) -> Tuple[bool, Mapping[str, str], Dict[str, str], Dict[str, bool], TTableSchemaColumns]:
     """Figure out if any of the normalization steps must be executed. This prevents
     from rewriting arrow tables when no changes are needed. Refer to `normalize_py_arrow_item`
     for a list of normalizations. Note that `column` must be already normalized.
@@ -441,16 +441,6 @@ def should_normalize_arrow_schema(
     dlt_id_col = naming.normalize_identifier(C_DLT_ID)
     dlt_columns = {dlt_load_id_col, dlt_id_col}
 
-    # Do we need to add a load id column?
-    if add_load_id and dlt_load_id_col in columns:
-        try:
-            schema.field(dlt_load_id_col)
-            needs_load_id = False
-        except KeyError:
-            needs_load_id = True
-    else:
-        needs_load_id = False
-
     # remove all columns that are dlt columns but are not present in arrow schema. we do not want to add such columns
     # that should happen in the normalizer
     columns = {
@@ -459,18 +449,27 @@ def should_normalize_arrow_schema(
         if name not in dlt_columns or name in rev_mapping
     }
 
+    try:
+        has_dlt_load_id_field = schema.field(dlt_load_id_col) is not None
+    except KeyError:
+        has_dlt_load_id_field = False
+
     # check if nothing to rename
     skip_normalize = (
         (list(rename_mapping.keys()) == list(rename_mapping.values()) == list(columns.keys()))
         and not nullable_updates
-        and not needs_load_id
+        and (
+            (not add_load_id)
+            # ... OR we *do* need to add it, but we already have it in the schema,
+            # yet it is not listed among the new columns to add.
+            or (add_load_id and dlt_load_id_col not in columns and has_dlt_load_id_field)
+        )
     )
     return (
         not skip_normalize,
         rename_mapping,
         rev_mapping,
         nullable_updates,
-        needs_load_id,
         columns,
     )
 
@@ -492,55 +491,60 @@ def normalize_py_arrow_item(
     5. Add `_dlt_load_id` column if it is missing and `load_id` is provided
     """
     schema = item.schema
-    should_normalize, rename_mapping, rev_mapping, nullable_updates, needs_load_id, columns = (
+    should_normalize, rename_mapping, rev_mapping, nullable_updates, columns = (
         should_normalize_arrow_schema(schema, columns, naming, load_id is not None)
     )
-    if not should_normalize:
+    if not should_normalize and not load_id:
         return item
 
     new_fields = []
     new_columns = []
 
-    for column_name, column in columns.items():
-        # get original field name
-        field_name = rev_mapping.pop(column_name, column_name)
-        if field_name in rename_mapping:
+    if should_normalize:
+        for column_name, column in columns.items():
+            # get original field name
+            field_name = rev_mapping.pop(column_name, column_name)
+            if field_name in rename_mapping:
+                idx = schema.get_field_index(field_name)
+                new_field = schema.field(idx).with_name(column_name)
+                if column_name in nullable_updates:
+                    # Set field nullable to match column
+                    new_field = new_field.with_nullable(nullable_updates[column_name])
+                # use renamed field
+                new_fields.append(new_field)
+                new_columns.append(item.column(idx))
+            else:
+                # column does not exist in pyarrow. create empty field and column
+                new_field = pyarrow.field(
+                    column_name,
+                    get_py_arrow_datatype(column, caps, "UTC"),
+                    nullable=is_nullable_column(column),
+                )
+                new_fields.append(new_field)
+                new_columns.append(pyarrow.nulls(item.num_rows, type=new_field.type))
+
+        # add the remaining columns
+        for column_name, field_name in rev_mapping.items():
             idx = schema.get_field_index(field_name)
-            new_field = schema.field(idx).with_name(column_name)
-            if column_name in nullable_updates:
-                # Set field nullable to match column
-                new_field = new_field.with_nullable(nullable_updates[column_name])
             # use renamed field
-            new_fields.append(new_field)
+            new_fields.append(schema.field(idx).with_name(column_name))
             new_columns.append(item.column(idx))
-        else:
-            # column does not exist in pyarrow. create empty field and column
-            new_field = pyarrow.field(
-                column_name,
-                get_py_arrow_datatype(column, caps, "UTC"),
-                nullable=is_nullable_column(column),
-            )
-            new_fields.append(new_field)
-            new_columns.append(pyarrow.nulls(item.num_rows, type=new_field.type))
 
-    # add the remaining columns
-    for column_name, field_name in rev_mapping.items():
-        idx = schema.get_field_index(field_name)
-        # use renamed field
-        new_fields.append(schema.field(idx).with_name(column_name))
-        new_columns.append(item.column(idx))
-
-    if needs_load_id and load_id:
+    if load_id is not None:
+        dlt_load_id_col = naming.normalize_identifier(C_DLT_LOAD_ID)
         # Storage efficient type for a column with constant value
         load_id_type = pyarrow.dictionary(pyarrow.int8(), pyarrow.string())
-        new_fields.append(
-            pyarrow.field(
-                naming.normalize_identifier(C_DLT_LOAD_ID),
-                load_id_type,
-                nullable=False,
-            )
-        )
-        new_columns.append(pyarrow.array([load_id] * item.num_rows, type=load_id_type))
+        dlt_load_id_field = pyarrow.field(dlt_load_id_col, load_id_type, nullable=False)
+        # Check if _dlt_load_id exists
+        try:
+            idx = schema.get_field_index(dlt_load_id_col)
+            # Replace the existing column with the correct load_id
+            new_fields[idx] = dlt_load_id_field
+            new_columns[idx] = pyarrow.array([load_id] * item.num_rows, type=load_id_type)
+        except KeyError:
+            # Add _dlt_load_id if it does not exist
+            new_fields.append(dlt_load_id_field)
+            new_columns.append(pyarrow.array([load_id] * item.num_rows, type=load_id_type))
 
     # create desired type
     return item.__class__.from_arrays(new_columns, schema=pyarrow.schema(new_fields))
