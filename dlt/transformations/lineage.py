@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import sqlglot
 import sqlglot.expressions as sge
@@ -8,7 +8,12 @@ from sqlglot.optimizer.annotate_types import annotate_types
 from sqlglot.optimizer.qualify import qualify
 
 from dlt.common.schema.typing import TTableSchemaColumns, TColumnSchema, TTableSchema
-from dlt.destinations.type_mapping import TypeMapperImpl
+from dlt.destinations.type_mapping import DataTypeMapper
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.destination.capabilities import DataTypeMapper
+from dlt.common.destination.dataset import (
+    TReadableRelation,
+)
 
 if TYPE_CHECKING:
     from dlt.destinations.dataset import ReadableDBAPIDataset
@@ -24,6 +29,7 @@ SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, str] = {
     DataType.Type.UNION: "json",
     DataType.Type.ARRAY: "json",
     DataType.Type.LIST: "json",
+    DataType.Type.JSON: "json",
     # TEXT
     DataType.Type.CHAR: "text",
     DataType.Type.NCHAR: "text",
@@ -82,8 +88,10 @@ SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, str] = {
 }
 
 
-def to_sqlglot_type(column: TColumnSchema, table: TTableSchema, type_mapper: TypeMapperImpl, dialect: str) -> DATA_TYPE:
-    destination_type = type_mapper.to_destination_type(column, table)
+def to_sqlglot_type(
+    column: TColumnSchema, table: TTableSchema, type_mapper: DataTypeMapper, dialect: str
+) -> DATA_TYPE:
+    destination_type = type_mapper.to_destination_type(column, cast(PreparedTableSchema, table))
     # TODO modify nullable arg_types on destination_type
     sqlglot_type = DataType.build(destination_type, dialect=dialect)
     # TODO verify how nullable is used exactly in sqlglot
@@ -99,12 +107,14 @@ def from_sqlglot_type(column: sge.Column) -> TColumnSchema:
     return {
         "name": column.output_name,
         "data_type": SQLGLOT_TO_DLT_TYPE_MAP[column.type.this],
-        **column.type.meta,
+        **column.type.meta,  # type: ignore
     }
 
 
-def create_sqlglot_schema(dataset: ReadableDBAPIDataset, dialect: str) -> SQLGlotSchema:
-    type_mapper: TypeMapperImpl = dataset._destination.capabilities().get_type_mapper()
+def create_sqlglot_schema(
+    dataset: "ReadableDBAPIDataset[TReadableRelation]", dialect: str
+) -> SQLGlotSchema:
+    type_mapper: DataTypeMapper = dataset._destination.capabilities().get_type_mapper()
     # {table: {col: type}}
     # NOTE to enable cross-dataset lineage, use {db: {table: ...}} or {catalog: {db: {table: ...}}}
     mapping_schema: dict[str, dict[str, DATA_TYPE]] = {}
@@ -122,10 +132,12 @@ def create_sqlglot_schema(dataset: ReadableDBAPIDataset, dialect: str) -> SQLGlo
 
 # TODO should we raise an exception for anonymous columns?
 def compute_columns_schema(
-    sql_query: str, sqlglot_schema: SQLGlotSchema, dialect: str
+    sql_query: str, sqlglot_schema: SQLGlotSchema, dialect: str, allow_fail: bool = True
 ) -> TTableSchemaColumns:
-    expression = sqlglot.maybe_parse(sql_query, dialect=dialect)
+    expression: Any = sqlglot.maybe_parse(sql_query, dialect=dialect)
     if not isinstance(expression, sge.Select):
+        if allow_fail:
+            return {}
         raise TypeError(
             f"Received SQL expression of type {expression.type}. Only SELECT queries are accepted."
         )

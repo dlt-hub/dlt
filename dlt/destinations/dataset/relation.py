@@ -148,8 +148,16 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
     def columns_schema(self, new_value: TTableSchemaColumns) -> None:
         raise NotImplementedError("columns schema in ReadableDBAPIRelation can only be computed")
 
-    def compute_columns_schema(self) -> TTableSchemaColumns:
+    def compute_columns_schema(self, **kwargs: Any) -> TTableSchemaColumns:
         """provide schema columns for the cursor, may be filtered by selected columns"""
+
+        # NOTE: if we do not have a schema, we cannot compute the columns schema
+        if (
+            self._dataset.schema is None
+            or self._dataset.schema.tables.get(self._table_name) is None
+        ):
+            return {}
+
         dialect: str = self._dataset._destination.capabilities().sqlglot_dialect
         # TODO store the SQLGlot schema on the dataset
         sqlglot_schema = lineage.create_sqlglot_schema(self._dataset, dialect)

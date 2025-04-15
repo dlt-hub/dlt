@@ -64,7 +64,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
     def columns_schema(self, new_value: TTableSchemaColumns) -> None:
         raise NotImplementedError("columns schema in ReadableDBAPIRelation can only be computed")
 
-    def compute_columns_schema(self) -> TTableSchemaColumns:
+    def compute_columns_schema(self, **kwargs: Any) -> TTableSchemaColumns:
         """provide schema columns for the cursor, may be filtered by selected columns"""
         # TODO: provide column lineage tracing with sqlglot lineage
         return self._columns_schema
