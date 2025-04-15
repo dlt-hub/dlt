@@ -10,7 +10,7 @@ The purpose of this document is to explain how to build REST API connectors with
 
 With REST API connectors being configuration-driven and vibe coding based on prompts, users don't necessarily need to know how to code. However, it is important to understand how an API is represented and how data should be structured at the destination, such as managing incremental loading configurations. This foundational knowledge ensures that even non-developers can effectively contribute to building and maintaining these data pipelines.
 
-## 1. Problem Definition & Feature Extraction
+## 1. Problem definition & feature extraction
 
 Building a data pipeline can be separated into two distinct problems, each with their own challenges:
 
