@@ -650,8 +650,10 @@ If you are reading this on the docs website, you are looking at the rendered ver
 class AiCommand(SupportsCliCommand):
     command = "ai"
     help_string = "Use AI-powered development tools and utilities"
-    # docs_url = 
-    description = "The `dlt ai` command provides commands to configure your LLM-enabled IDE and MCP server."
+    # docs_url =
+    description = (
+        "The `dlt ai` command provides commands to configure your LLM-enabled IDE and MCP server."
+    )
 
     def configure_parser(self, ai_cmd: argparse.ArgumentParser) -> None:
         self.parser = ai_cmd
@@ -661,7 +663,8 @@ class AiCommand(SupportsCliCommand):
         )
 
         setup_cmd = ai_subparsers.add_parser(
-            "setup", help="Generate IDE-specific configuration and rules files",
+            "setup",
+            help="Generate IDE-specific configuration and rules files",
         )
         setup_cmd.add_argument("ide", choices=SUPPORTED_IDES, help="IDE to configure.")
         setup_cmd.add_argument(
@@ -676,9 +679,10 @@ class AiCommand(SupportsCliCommand):
         )
         # TODO support MCP-proxy configuration
         # ai_mcp_cmd = ai_subparsers.add_parser("mcp", help="Launch the dlt MCP server")
-    
+
     def execute(self, args: argparse.Namespace) -> None:
         ai_setup_command_wrapper(ide=args.ide, branch=args.branch, repo=args.location)
+
 
 #
 # Register all commands
