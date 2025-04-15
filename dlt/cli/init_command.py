@@ -313,7 +313,7 @@ def init_command(
     eject_source: bool = False,
     dry_run: bool = False,
     skip_example_pipeline_script: bool = False,
-) -> Tuple[Dict[str, str], Dict[str, WritableConfigValue], Dict[str, WritableConfigValue],]:
+) -> Tuple[Dict[str, str], Dict[str, WritableConfigValue], Dict[str, WritableConfigValue], files_ops.TSourceType]:
     run_ctx = run_context.active()
     destination_storage_path = run_ctx.run_dir
     settings_dir = run_ctx.settings_dir
@@ -343,7 +343,35 @@ def init_pipeline_at_destination(
     destination_storage_path: str = None,
     settings_dir: str = None,
     sources_dir: str = None,
-) -> Tuple[Dict[str, str], Dict[str, WritableConfigValue], Dict[str, WritableConfigValue],]:
+) -> Tuple[Dict[str, str], Dict[str, WritableConfigValue], Dict[str, WritableConfigValue], files_ops.TSourceType]:
+    """
+    Initializes a pipeline at the specified destination by setting up the required files, configurations, and dependencies.
+
+    This function handles the discovery of the source type (template, core, or verified), prepares the destination storage,
+    resolves conflicts for existing files, and generates necessary configuration files (e.g., `config.toml`, `secrets.toml`).
+    It also validates compatibility with the installed dlt version and optionally creates an example pipeline script,
+    that loads data from the source to a specifiable destination.
+
+    Args:
+        - source_name (str): The name of the source to initialize.
+        - destination_type (str): The type of destination (e.g., "bigquery", "redshift").
+        - repo_location (str): The location of the verified sources repository.
+        - branch (str, optional): The branch of the repository to use. Defaults to None.
+        - eject_source (bool, optional): Whether to eject the source code. Defaults to False.
+        - dry_run (bool, optional): If True, no files are modified, and the changes are returned as a preview. Defaults to False.
+        - skip_example_pipeline_script (bool, optional): If True, skips creating the example pipeline script. Defaults to False.
+        - destination_storage_path (str, optional): Path to the destination storage. Defaults to None.
+        - settings_dir (str, optional): Path to the settings directory. Defaults to None.
+        - sources_dir (str, optional): Path to the sources directory. Defaults to None.
+
+    Returns:
+        Tuple[Dict[str, str], Dict[str, WritableConfigValue], Dict[str, WritableConfigValue], files_ops.TSourceType]:
+            A tuple containing:
+            - A dictionary of copied files (destination path -> source path).
+            - A dictionary of required configuration values.
+            - A dictionary of required secrets.
+            - The type of the source (e.g., "template", "core", "verified").
+    """
     # try to import the destination and get config spec
     destination_reference = Destination.from_reference(destination_type)
     destination_spec = destination_reference.spec
@@ -410,7 +438,7 @@ def init_pipeline_at_destination(
             )
         if not remote_deleted and not remote_modified:
             fmt.echo("No files to update, exiting")
-            return None, None, None
+            return None, None, None, None
 
         if remote_index["is_dirty"]:
             fmt.warning(
@@ -449,7 +477,7 @@ def init_pipeline_at_destination(
                 "Pipeline script %s already exists, exiting"
                 % source_configuration.dest_pipeline_script
             )
-            return None, None, None
+            return None, None, None, None
 
     # add .dlt/*.toml files to be copied
     # source_configuration.files.extend(
@@ -474,7 +502,7 @@ def init_pipeline_at_destination(
                 "You can update dlt with: pip3 install -U"
                 f' "{source_configuration.requirements.dlt_requirement_base}"'
             )
-            return None, None, None
+            return None, None, None, None
 
     # read module source and parse it
     visitor = utils.parse_init_script(
@@ -648,11 +676,16 @@ def init_pipeline_at_destination(
     if dry_run:
         files_to_create: Dict[str, str] = {}
         for source_path, dest_path in copy_files:
-            files_to_create[dest_path] = dest_storage.load(source_path)
+            try:
+                files_to_create[dest_path] = dest_storage.load(source_path)
+            except UnicodeDecodeError:
+                fmt.warning(
+                    f"File {source_path} was skipped not a text file. It will not be copied to {dest_path}"
+                )
         if not skip_example_pipeline_script:
             files_to_create[pipeline_script_target_path] = dest_script_source
         # todo: handle remote index changes?
-        return files_to_create, required_config, required_secrets
+        return files_to_create, required_config, required_secrets, source_type
 
     # modify storage
     else:
@@ -691,4 +724,4 @@ def init_pipeline_at_destination(
             dest_storage.save(utils.REQUIREMENTS_TXT, requirements_txt)
 
         copied_files: Dict[str, str] = {dest_path: src_path for src_path, dest_path in copy_files}
-        return copied_files, required_config, required_secrets
+        return copied_files, required_config, required_secrets, source_type
