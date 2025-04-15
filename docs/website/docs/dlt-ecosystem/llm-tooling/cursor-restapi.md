@@ -120,7 +120,7 @@ Consider prompting for instructions how to make credentials for the source and a
 5. **Iterative debugging:**
     - If errors persist after several attempts, review the error details manually.
         - Extraction issue: Identify if any configuration details are missing from the feature extraction, and try to manually locate the missing information and provide it in the chat along with the error message.
-        - Info in Responses: Currently the REST API does not return full information about the API calls on failure, to prevent accidental leakage of sensitive information. We are considering adding a dev mode for enabling full responses in a future version. If you want to pass the full responses, consider building the pipeline in pure python first  to expose the API responses (you can prompt for it).
+        - Info in responses: Currently the REST API does not return full information about the API calls on failure, to prevent accidental leakage of sensitive information. We are considering adding a dev mode for enabling full responses in a future version. If you want to pass the full responses, consider building the pipeline in pure python first  to expose the API responses (you can prompt for it).
         - Implementation incorrect: If the extracted details seem correct but the REST API source still isn’t implemented properly, ask the LLM to re-check the REST API documentation and locate the missing information.
 
 ## 4. Best practices and vibe coding tips
