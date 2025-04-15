@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Union
 import yaml
 import os
 import click
@@ -160,5 +160,5 @@ def telemetry_change_status_command_wrapper(enabled: bool) -> None:
 
 
 @utils.track_command("ai_setup", False)
-def ai_setup_command_wrapper(ide: TSupportedIde) -> None:
-    ai_setup_command(ide)
+def ai_setup_command_wrapper(ide: TSupportedIde, branch: Union[str, None], repo: str) -> None:
+    ai_setup_command(ide, branch=branch, repo=repo)

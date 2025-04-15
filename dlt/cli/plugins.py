@@ -651,24 +651,34 @@ class AiCommand(SupportsCliCommand):
     command = "ai"
     help_string = "Use AI-powered development tools and utilities"
     # docs_url = 
-    description = "The `dlt ai` command provides commands to launch the MCP server and "
+    description = "The `dlt ai` command provides commands to configure your LLM-enabled IDE and MCP server."
 
     def configure_parser(self, ai_cmd: argparse.ArgumentParser) -> None:
         self.parser = ai_cmd
 
-        ai_cmd.add_argument("ide", choices=SUPPORTED_IDES)
-
         ai_subparsers = ai_cmd.add_subparsers(
             title="Available subcommands", dest="operation", required=False
         )
-        ai_subparsers.add_parser(
+
+        setup_cmd = ai_subparsers.add_parser(
             "setup", help="Generate IDE-specific configuration and rules files",
+        )
+        setup_cmd.add_argument("ide", choices=SUPPORTED_IDES, help="IDE to configure.")
+        setup_cmd.add_argument(
+            "--location",
+            default=DEFAULT_VERIFIED_SOURCES_REPO,
+            help="Advanced. Specify Git URL or local path to rules files and config.",
+        )
+        setup_cmd.add_argument(
+            "--branch",
+            default=None,
+            help="Advanced. Specify Git branch to fetch rules files and config.",
         )
         # TODO support MCP-proxy configuration
         # ai_mcp_cmd = ai_subparsers.add_parser("mcp", help="Launch the dlt MCP server")
     
     def execute(self, args: argparse.Namespace) -> None:
-        ai_setup_command_wrapper(args.ide)
+        ai_setup_command_wrapper(ide=args.ide, branch=args.branch, repo=args.location)
 
 #
 # Register all commands
