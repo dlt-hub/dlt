@@ -85,7 +85,7 @@ Global rules can be added by modifying the `Rules for AI` section under `Curs
 
 ### 2.4 Integrating local docs
 
-If you have local docs in a folder in your codebase, Cursor will automatically index them unless they are added to `.gitignore` or `.cusrsorignore` files.
+If you have local docs in a folder in your codebase, Cursor will automatically index them unless they are added to `.gitignore` or `.cursorignore` files.
 
 To improve accuracy, make sure any files or docs that could confound the search are ignored.
 
