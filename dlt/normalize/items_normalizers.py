@@ -1,5 +1,8 @@
-from typing import List, Dict, Set, Any
+from typing import List, Dict, Set, Any, cast, Literal, Optional
 from abc import abstractmethod
+
+import sqlglot
+import sqlglot.expressions
 
 from dlt.common import logger
 from dlt.common.json import json
@@ -10,11 +13,18 @@ from dlt.common.normalizers.json.relational import DataItemNormalizer as Relatio
 from dlt.common.runtime import signals
 from dlt.common.schema.typing import (
     C_DLT_ID,
+    C_DLT_LOAD_ID,
     TSchemaEvolutionMode,
     TTableSchemaColumns,
     TSchemaContractDict,
 )
-from dlt.common.schema.utils import dlt_id_column, has_table_seen_data, normalize_table_identifiers
+from dlt.common.schema.utils import (
+    dlt_id_column,
+    dlt_load_id_column,
+    has_table_seen_data,
+    normalize_table_identifiers,
+)
+from dlt.common.utils import read_dialect_and_sql
 from dlt.common.storages import NormalizeStorage
 from dlt.common.storages.data_item_storage import DataItemStorage
 from dlt.common.storages.load_package import ParsedLoadJobFileName
@@ -22,6 +32,7 @@ from dlt.common.typing import DictStrAny, TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.normalizers.utils import generate_dlt_ids
+from dlt.extract.hints import SqlModel
 
 from dlt.normalize.configuration import NormalizeConfiguration
 
@@ -50,6 +61,120 @@ class ItemsNormalizer:
 
     @abstractmethod
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]: ...
+
+
+class ModelItemsNormalizer(ItemsNormalizer):
+    def _add_or_replace_column(
+        self,
+        parsed_select: sqlglot.exp.Select,
+        column_name: Literal["_dlt_load_id", "_dlt_id"],
+        alias_expression: sqlglot.exp.Alias,
+        root_table_name: str,
+    ) -> Optional[TSchemaUpdate]:
+        """
+        Adds or replaces a column in the SELECT clause of a parsed SQL query and
+        returns a single TSchemaUpdate if a new column was added, otherwise None.
+        """
+        schema = self.schema
+        schema_update: TSchemaUpdate = {}
+
+        column_replaced = False
+        for i, select in enumerate(parsed_select.selects):
+            # Check if the column already exists
+            select_alias = (
+                select.alias_or_name.lower()
+                if isinstance(select, sqlglot.exp.Alias)
+                else (
+                    select.output_name.lower() if isinstance(select, sqlglot.exp.Column) else None
+                )
+            )
+
+            if select_alias == column_name:
+                # Replace the existing column
+                parsed_select.selects[i] = alias_expression
+                column_replaced = True
+                break
+
+        if not column_replaced:
+            # Append the column if it doesn't exist
+            parsed_select.selects.append(alias_expression)
+
+            partial_table = normalize_table_identifiers(
+                {
+                    "name": root_table_name,
+                    "columns": {
+                        column_name: (
+                            dlt_id_column() if column_name == "_dlt_id" else dlt_load_id_column()
+                        )
+                    },
+                },
+                schema.naming,
+            )
+
+            table_updates = schema_update.setdefault(root_table_name, [])
+            table_updates.append(partial_table)
+
+            return schema_update
+
+        return None
+
+    def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]:
+        with self.normalize_storage.extracted_packages.storage.open_file(
+            extracted_items_file, "r"
+        ) as f:
+            select_dialect, select_statement = read_dialect_and_sql(
+                file_obj=f,
+                fallback_dialect=self.config.destination_capabilities.sqlglot_dialect,  # caps are available at this point
+            )
+
+        parsed_select = sqlglot.parse_one(select_statement, read=select_dialect)
+        parsed_select = cast(sqlglot.exp.Select, parsed_select)
+
+        schema_updates = []
+
+        if self.config.json_normalizer.add_dlt_load_id:
+            dlt_load_id_alias = sqlglot.exp.Alias(
+                this=sqlglot.exp.Literal.string(self.load_id),
+                alias=sqlglot.exp.to_identifier("_dlt_load_id"),
+            )
+            load_id_update = self._add_or_replace_column(
+                parsed_select, "_dlt_load_id", dlt_load_id_alias, root_table_name
+            )
+            if load_id_update:
+                schema_updates.append(load_id_update)
+
+        if (
+            self.config.json_normalizer.add_dlt_id
+            and self.config.destination_capabilities.sqlglot_dialect != "redshift"
+        ):
+            # TODO: redshift doesn't have an in-built function that generates unique values
+            function_name = (
+                "generateUUIDv4"
+                if self.config.destination_capabilities.sqlglot_dialect == "clickhouse"
+                else "UUID"
+            )
+            dlt_id_alias = sqlglot.exp.Alias(
+                this=sqlglot.exp.func(function_name),
+                alias=sqlglot.exp.to_identifier("_dlt_id"),
+            )
+
+            dlt_id_update = self._add_or_replace_column(
+                parsed_select, "_dlt_id", dlt_id_alias, root_table_name
+            )
+
+            if dlt_id_update:
+                schema_updates.append(dlt_id_update)
+
+        normalized_query = parsed_select.sql(dialect=select_dialect)
+        self.item_storage.write_data_item(
+            self.load_id,
+            self.schema.name,
+            root_table_name,
+            SqlModel.from_query_string(normalized_query, select_dialect),
+            {},
+        )
+
+        return schema_updates
 
 
 class JsonLItemsNormalizer(ItemsNormalizer):
