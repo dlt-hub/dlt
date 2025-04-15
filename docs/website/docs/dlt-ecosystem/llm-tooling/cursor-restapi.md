@@ -35,7 +35,7 @@ So here is the ranking of what sources you could use
 
 Since there are only partial naming standards for these parameters, we describe the ones we use here.
 
-- **Top-Level client settings:**
+- **Top-level client settings:**
     - **client.base_url:** The API’s root URL.
     - **client.auth:** Authentication details (token/credentials, reference to dlthub secrets).
     - **client.headers:** Required custom headers.
