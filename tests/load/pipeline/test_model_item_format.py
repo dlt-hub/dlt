@@ -38,19 +38,6 @@ DESTINATIONS_SUPPORTING_MODEL = [
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        exclude=["athena", "dremio"],
-        subset=[
-            "snowflake",
-            "duckdb",
-            "bigquery",
-        ],
-    ),
-    ids=lambda x: x.name,
-)
-@pytest.mark.parametrize(
-    "other_destination_config",
-    destinations_configs(
-        default_sql_configs=True,
         subset=DESTINATIONS_SUPPORTING_MODEL,
     ),
     ids=lambda x: x.name,
@@ -188,7 +175,6 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
         )
 
     # Create a copied table with all columns
-    # TODO: this will fail because of the star select
     @dlt.resource()
     def copied_table() -> Any:
         query = dataset["example_table"].limit(8).query()
@@ -198,26 +184,22 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
         )
 
     # run sql jobs
-    #    pipeline.run([copied_table_no_b(), reversed_table(), copied_table()])
-    pipeline.run([copied_table_no_b(), reversed_table()])
+    pipeline.run([copied_table_no_b(), reversed_table(), copied_table()])
 
     # Validate row counts for all tables
     assert load_table_counts(
-        pipeline,
-        "copied_table_no_b",
-        "reversed_table",
-        "example_table",  # "copied_table",
+        pipeline, "copied_table_no_b", "reversed_table", "copied_table", "example_table"
     ) == {
         "copied_table_no_b": 5,
         "reversed_table": 7,
-        #        "copied_table": 8,
+        "copied_table": 8,
         "example_table": 10,
     }
 
     # Validate that all tables were created
     assert "copied_table_no_b" in pipeline.default_schema.tables
     assert "reversed_table" in pipeline.default_schema.tables
-    #    assert "copied_table" in pipeline.default_schema.tables
+    assert "copied_table" in pipeline.default_schema.tables
 
     # Validate columns for the table without column "b"
     assert set(pipeline.default_schema.tables["copied_table_no_b"]["columns"].keys()) == {
@@ -236,18 +218,18 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     ), f"Column mismatch: {actual_columns} != {expected_columns}"
 
     # Validate that the copied table includes all columns
-    #    assert set(pipeline.default_schema.tables["copied_table"]["columns"].keys()) == {
-    #        "a",
-    #        "b",
-    #        "_dlt_id",
-    #        "_dlt_load_id",
-    #    }
+    assert set(pipeline.default_schema.tables["copied_table"]["columns"].keys()) == {
+        "a",
+        "b",
+        "_dlt_id",
+        "_dlt_load_id",
+    }
 
     # Validate that each table has exactly one model job
     assert count_job_types(pipeline) == {
         "copied_table_no_b": {"model": 1},
         "reversed_table": {"model": 1},
-        #        "copied_table": {"model": 1},
+        "copied_table": {"model": 1},
     }
 
 
@@ -443,7 +425,7 @@ def test_copying_table_with_dropped_column(
     - The resulting table contains all expected columns, including dlt ones.
     - Row counts and model job counts are correct.
     """
-    if drop_column == "_dlt_id" and destination_config.name == "redshift":
+    if drop_column == "_dlt_id" and destination_config.destination_type == "redshift":
         pytest.skip("Redshift doesn't have an in-built UUID generation required for _dlt_id")
 
     table_suffix = "no_dlt_id" if drop_column == "_dlt_id" else "dlt_id"
