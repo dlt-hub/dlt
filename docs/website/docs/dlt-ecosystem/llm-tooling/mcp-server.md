@@ -234,8 +234,8 @@ After installing it, just go to Cursor's MCP-settings, choose "add new global MC
 
 for Continue, you can use a local-assistant and configure it such that Continue talks
 to the proxy via stdio and the proxy to your `dlt`-assistant via SSE:
-```yaml
 ```json
+{
   "experimental": {
     "modelContextProtocolServers": [
       {
@@ -252,5 +252,5 @@ to the proxy via stdio and the proxy to your `dlt`-assistant via SSE:
       }
     ]
   }
-
+}
 ```
