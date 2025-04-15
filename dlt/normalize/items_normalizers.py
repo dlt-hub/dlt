@@ -64,40 +64,63 @@ class ItemsNormalizer:
 
 
 class ModelItemsNormalizer(ItemsNormalizer):
-    def _adjust_wth_dlt_columns(
+    def _adjust_with_dlt_columns(
         self,
         parsed_select: sqlglot.exp.Select,
-        column_name: Literal["_dlt_load_id", "_dlt_id"],
-        alias_expression: sqlglot.exp.Alias,
         root_table_name: str,
     ) -> Optional[TSchemaUpdate]:
-        """
-        Adds or replaces a column in the SELECT clause of a parsed SQL query and
-        returns a single TSchemaUpdate if a new column was added, otherwise None.
-        """
-        schema = self.schema
-        schema_update: TSchemaUpdate = {}
+        if len(parsed_select.selects) == 1 and isinstance(
+            parsed_select.selects[0], sqlglot.exp.Star
+        ):
+            logger.warning(
+                f"Skipping adding dlt columns to model query {parsed_select.sql()}: contains only a"
+                " star expression, so column names are unknown."
+            )
+            return None
 
-        column_replaced = False
-        for i, select in enumerate(parsed_select.selects):
-            # Check if the column already exists
-            select_alias = (
-                select.alias_or_name.lower()
-                if isinstance(select, sqlglot.exp.Alias)
-                else (
-                    select.output_name.lower() if isinstance(select, sqlglot.exp.Column) else None
-                )
+        schema_update: TSchemaUpdate = {}
+        schema = self.schema
+        dialect = self.config.destination_capabilities.sqlglot_dialect
+
+        # Build aliases based on config
+        dlt_columns: dict[str, Optional[sqlglot.exp.Alias]] = {}
+
+        if self.config.model_normalizer.add_dlt_load_id:
+            dlt_columns["_dlt_load_id"] = sqlglot.exp.Alias(
+                this=sqlglot.exp.Literal.string(self.load_id),
+                alias=sqlglot.exp.to_identifier("_dlt_load_id"),
             )
 
-            if select_alias == column_name:
-                # Replace the existing column
-                parsed_select.selects[i] = alias_expression
-                column_replaced = True
-                break
+        if self.config.model_normalizer.add_dlt_id and dialect != "redshift":
+            function_name = "generateUUIDv4" if dialect == "clickhouse" else "UUID"
+            dlt_columns["_dlt_id"] = sqlglot.exp.Alias(
+                this=sqlglot.exp.func(function_name),
+                alias=sqlglot.exp.to_identifier("_dlt_id"),
+            )
 
-        if not column_replaced:
-            # Append the column if it doesn't exist
-            parsed_select.selects.append(alias_expression)
+        # Replace if exists, otherwise append
+        for i, select in enumerate(parsed_select.selects):
+            for column_name, alias_expr in dlt_columns.items():
+                if alias_expr is None:
+                    continue
+                select_alias = (
+                    select.alias_or_name.lower()
+                    if isinstance(select, sqlglot.exp.Alias)
+                    else (
+                        select.output_name.lower()
+                        if isinstance(select, sqlglot.exp.Column)
+                        else None
+                    )
+                )
+                if select_alias == column_name:
+                    parsed_select.selects[i] = alias_expr
+                    dlt_columns[column_name] = None  # Mark as replaced
+
+        # Append any not-replaced aliases and update schema
+        for column_name, alias_expr in dlt_columns.items():
+            if alias_expr is None:
+                continue
+            parsed_select.selects.append(alias_expr)
 
             partial_table = normalize_table_identifiers(
                 {
@@ -110,14 +133,11 @@ class ModelItemsNormalizer(ItemsNormalizer):
                 },
                 schema.naming,
             )
-
             schema.update_table(partial_table, normalize_identifiers=False)
             table_updates = schema_update.setdefault(root_table_name, [])
             table_updates.append(partial_table)
 
-            return schema_update
-
-        return None
+        return schema_update if schema_update else None
 
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]:
         with self.normalize_storage.extracted_packages.storage.open_file(
@@ -138,38 +158,9 @@ class ModelItemsNormalizer(ItemsNormalizer):
 
         schema_updates = []
 
-        if self.config.model_normalizer.add_dlt_load_id:
-            dlt_load_id_alias = sqlglot.exp.Alias(
-                this=sqlglot.exp.Literal.string(self.load_id),
-                alias=sqlglot.exp.to_identifier("_dlt_load_id"),
-            )
-            load_id_update = self._adjust_wth_dlt_columns(
-                parsed_select, "_dlt_load_id", dlt_load_id_alias, root_table_name
-            )
-            if load_id_update:
-                schema_updates.append(load_id_update)
-
-        if (
-            self.config.model_normalizer.add_dlt_id
-            and self.config.destination_capabilities.sqlglot_dialect != "redshift"
-        ):
-            # TODO: redshift doesn't have an in-built function that generates unique values
-            function_name = (
-                "generateUUIDv4"
-                if self.config.destination_capabilities.sqlglot_dialect == "clickhouse"
-                else "UUID"
-            )
-            dlt_id_alias = sqlglot.exp.Alias(
-                this=sqlglot.exp.func(function_name),
-                alias=sqlglot.exp.to_identifier("_dlt_id"),
-            )
-
-            dlt_id_update = self._adjust_wth_dlt_columns(
-                parsed_select, "_dlt_id", dlt_id_alias, root_table_name
-            )
-
-            if dlt_id_update:
-                schema_updates.append(dlt_id_update)
+        dlt_col_update = self._adjust_with_dlt_columns(parsed_select, root_table_name)
+        if dlt_col_update:
+            schema_updates.append(dlt_col_update)
 
         normalized_query = parsed_select.sql(dialect=select_dialect)
         self.item_storage.write_data_item(
