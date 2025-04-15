@@ -1,14 +1,14 @@
 ---
-title: REST API connectors with Cursor
-description: This doc explains how to build REST API connectors with Cursor
+title: REST API Sources with Cursor
+description: This doc explains how to build REST API Sources with Cursor
 keywords: [cursor, llm, restapi, ai]
 ---
 
 ## Overview
 
-The purpose of this document is to explain how to build REST API connectors with Cursor and dlt. While the focus here is on REST APIs, this approach can be generalized to other connector types such as Python connectors. We choose REST APIs because they are ideal for this process, they are inherently self-documenting, exposing endpoints and methods in a way that enables us to easily troubleshoot and refine our vibe coding.
+The purpose of this document is to explain how to build REST API sources with Cursor and dlt. While the focus here is on REST APIs, this approach can be generalized to other source types such as Python imperative/full code dlthub sources. We choose REST APIs because they are ideal for this process, they are inherently self-documenting, exposing endpoints and methods in a way that enables us to easily troubleshoot and refine our vibe coding.
 
-With REST API connectors being configuration-driven and vibe coding based on prompts, users don't necessarily need to know how to code. However, it is important to understand how an API is represented and how data should be structured at the destination, such as managing incremental loading configurations. This foundational knowledge ensures that even non-developers can effectively contribute to building and maintaining these data pipelines.
+With REST API sources being configuration-driven and vibe coding based on prompts, users don't necessarily need to know how to code. However, it is important to understand how an API is represented and how data should be structured at the destination, such as managing incremental loading configurations. This foundational knowledge ensures that even non-developers can effectively contribute to building and maintaining these data pipelines.
 
 ## 1. Problem definition & feature extraction
 
@@ -27,7 +27,7 @@ The best source of information for building a pipeline, is another working pipel
 
 So here is the ranking of what sources you could use
 
-1. **Other pipelines**: Legacy pipelines, connectors from other languages or frameworks.
+1. **Other pipelines**: Legacy pipelines, sources and connectors from other languages or frameworks, or any code that shows how to request, such as API wrappers.
 2. **Docs + http responses**. Reading the docs, creating an initial working pipeline and then requesting from the API data so we can infer the rest of the missing info.
 3. **Scraped code, llm memory**: When nothing is available but a public API exists, such as APIs that power public websites, we can try inferring how it is called from other websites’ code that calls it.
 
@@ -57,13 +57,13 @@ Since there are only partial naming standards for these parameters, we describe 
 - **Resource relationships:**
     - Define parent-child relationships and how to reference fields using placeholders (for example when requesting details of an entity by ID).
 
-## 2. Setting up Cursor for REST API connector generation
+## 2. Setting up Cursor for REST API source generation
 
 ### 2.1 Understanding Cursor
 
-Cursor is an AI-powered IDE built on Visual Studio Code that accelerates your workflow by integrating intelligent features into a familiar editor. This enables you to build REST API connectors with dlt through prompt-based code generation, clear handling of parameters (such as endpoints, authentication, and pagination), and real-time code validation.
+Cursor is an AI-powered IDE built on Visual Studio Code that accelerates your workflow by integrating intelligent features into a familiar editor. This enables you to build REST API sources with dlt through prompt-based code generation, clear handling of parameters (such as endpoints, authentication, and pagination), and real-time code validation.
 
-This produces self-documenting, self-maintaining, and easy to troubleshoot connectors.
+This produces self-documenting, self-maintaining, and easy to troubleshoot sources.
 
 ### 2.2 Configuring Cursor with documentation
 
@@ -143,7 +143,7 @@ Below, find some tips that might help when vice coding REST API or python pipeli
         
 - **Use checklists, no, really.**
     
-    Before publishing any new pipeline or connector, confirm:
+    Before publishing any new pipeline or source, confirm:
     
     - [ ]  All `client` configs (auth keys, tokens, endpoints) are present and correct.
     - [ ]  `resource` settings match the expected schema and entity structure.
@@ -178,7 +178,7 @@ Below, find some tips that might help when vice coding REST API or python pipeli
         
     - **Model drift**: GPT-4, Claude, and other models don’t behave the same. Outputs vary in subtle ways. Always test prompts across models if switching.
 - **When changing models or seeing weird behavior:**
-    - Reduce the scope: instead of asking “write the full connector,” say “write the pagination logic.”
+    - Reduce the scope: instead of asking “write the full source,” say “write the pagination logic.”
     - Switch from creative mode (broad prompts) to constrained mode (e.g., give a template and ask it to fill it in).
     - Run diffs between old and new LLM outputs to detect accidental regressions, especially if you fine-tuned prompts.
 
