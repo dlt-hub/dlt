@@ -67,7 +67,6 @@ If the **type** cannot be resolved, dlt+ will provide you with a detailed list o
 so you can make required corrections.
 :::
 
-
 ### Destinations
 
 The destinations section defines dlt destinations in a similar way to how you would define them in a pure Python dlt project. As with sources, you can also create a `destinations/` folder and reference custom implementations of destinations inside it.
@@ -222,8 +221,9 @@ datasets:
     destination:
         - duckdb
 ```
-
-Note: The destination field is an array, allowing you to specify one or more destinations where the dataset can be materialized. 
+:::Note
+The destination field is an array, allowing you to specify one or more destinations where the dataset can be materialized. 
+:::
 
 ### Managing Datasets and Destinations
 
@@ -306,6 +306,7 @@ You can clean up your working files with the `dlt project --profile name clean` 
 :::
 
 ## 🧪 Python API to interact with dlt+ project
+
 You can access any dlt+ project entity or function via the Python interface. In the example below:
 ```yaml
 transformations:
@@ -338,6 +339,7 @@ print(current.project().config)
 print(current.project().datasets)
 ```
 ### Accessing entities
+
 Accessing entities in code works the same way as when referencing them in the `dlt.yml` file. 
 If allowed, implicit entities will be created and returned automatically. If not, an error will be raised.
 ```py
@@ -348,6 +350,7 @@ pipeline = entities.get_pipeline("bronze_pipe")
 transformation = entities.get_transformation("stressed_transformation")
 ```
 Here, we access the entities manager, which allows you to create sources, destinations, pipelines, and other objects.
+
 ### Running pipelines with the predefined source with the runner
 
 `dlt+` includes a pipeline runner, which is the same one used when you run pipelines from the CLI.  
