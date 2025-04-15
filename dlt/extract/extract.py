@@ -45,7 +45,7 @@ from dlt.extract.source import DltSource
 from dlt.extract.reference import SourceReference
 from dlt.extract.resource import DltResource
 from dlt.extract.storage import ExtractStorage
-from dlt.extract.extractors import ObjectExtractor, ArrowExtractor, Extractor
+from dlt.extract.extractors import ObjectExtractor, ArrowExtractor, Extractor, ModelExtractor
 from dlt.extract.utils import get_data_item_format
 
 
@@ -344,6 +344,9 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             ),
             "arrow": ArrowExtractor(
                 load_id, self.extract_storage.item_storages["arrow"], schema, collector=collector
+            ),
+            "model": ModelExtractor(
+                load_id, self.extract_storage.item_storages["model"], schema, collector=collector
             ),
         }
         # make sure we close storage on exception
