@@ -109,7 +109,7 @@ Consider prompting for instructions how to make credentials for the source and a
     
     - If it builds what looks like a sensible REST API source, go on with inspection. If not and if the LLM ended up writing random code, just start over.
 2. **Inspect the generated code:**
-    - Look into the endpoints that were added. Often the LLM will stop after adding a bunch, so you might need to prompt “did you add all the endpoints? please do”.
+    - Look into the endpoints that were added. Often the LLM will stop after adding a bunch, so you might need to prompt “Did you add all the endpoints? Please do”.
     - Look into incremental loading configs, does it align with documentation, is it sensible?
 3. **Run and test the code:**
     - Execute the code in a controlled test environment.
