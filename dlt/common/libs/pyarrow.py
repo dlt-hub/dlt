@@ -463,7 +463,8 @@ def should_normalize_arrow_schema(
     skip_normalize = (
         (list(rename_mapping.keys()) == list(rename_mapping.values()) == list(columns.keys()))
         and not nullable_updates
-        and not needs_load_id
+        #        and not needs_load_id
+        and not add_load_id
     )
     return (
         not skip_normalize,
@@ -495,7 +496,7 @@ def normalize_py_arrow_item(
     should_normalize, rename_mapping, rev_mapping, nullable_updates, needs_load_id, columns = (
         should_normalize_arrow_schema(schema, columns, naming, load_id is not None)
     )
-    if not should_normalize:
+    if not should_normalize and not load_id:
         return item
 
     new_fields = []
