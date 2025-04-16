@@ -2,7 +2,7 @@
 name: docs | snippets & examples
 
 on:
-  pull_request_target:
+  pull_request:
     branches:
       - master
       - devel
@@ -108,15 +108,15 @@ jobs:
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction -E duckdb -E weaviate -E parquet -E qdrant -E bigquery -E postgres -E lancedb --with docs,sentry-sdk --without airflow -E s3
 
-      # NOTE: there seems to be a conflict between pydoclint and pydoc-markdown dependencies
-      - name: Force uninstall pydoclint
-        run: poetry run pip uninstall pydoclint -y
-
       - name: create secrets.toml for examples
         run: pwd && echo "$DLT_SECRETS_TOML" > docs/examples/.dlt/secrets.toml
 
       - name: create secrets.toml for snippets
         run: pwd && echo "$DLT_SECRETS_TOML" > docs/website/docs/.dlt/secrets.toml
+
+      # NOTE: there seems to be a conflict between pydoclint and pydoc-markdown dependencies
+      - name: Force uninstall pydoclint
+        run: poetry run pip uninstall pydoclint -y
 
       - name: Run linter and tests on snippets
         run: make lint-and-test-snippets
