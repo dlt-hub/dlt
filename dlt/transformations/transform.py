@@ -19,7 +19,6 @@ from dlt.transformations.exceptions import (
     IncompatibleDatasetsException,
 )
 from dlt.destinations.dataset import ReadableDBAPIDataset
-from dlt_plus.destinations.dataset import WritableDataset
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.extract.hints import make_hints
 from dlt.common.destination.dataset import SupportsReadableDataset
@@ -90,21 +89,21 @@ def make_transform_resource(
 
     # build transform function
     def transform_function(*args: Any, **kwargs: Any) -> Iterator[TDataItems]:
-        datasets: List[WritableDataset] = []
+        datasets: List[ReadableDBAPIDataset[Any]] = []
 
         for arg in args:
             if isinstance(arg, ReadableDBAPIDataset):
-                datasets.append(WritableDataset.from_dataset(arg))
+                datasets.append(arg)
 
         # NOTE: there may be cases where some other dataset is used to get a starting
         # point and it will be on a different destination.
-        if datasets:
-            for d in datasets:
-                if not d.is_same_phyiscal_destination(datasets[0]):
-                    raise IncompatibleDatasetsException(
-                        "All datasets used in transformation must be on the"
-                        + " same physical destination."
-                    )
+        # if datasets:
+        #     for d in datasets:
+        #         if not d.is_same_phyiscal_destination(datasets[0]):
+        #             raise IncompatibleDatasetsException(
+        #                 "All datasets used in transformation must be on the"
+        #                 + " same physical destination."
+        #             )
 
         # Check that if sql transformation is used, destination dataset is on
         # same physical destination

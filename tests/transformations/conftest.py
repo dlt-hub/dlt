@@ -5,7 +5,6 @@ from random import randrange, choice
 
 import dlt
 
-from dlt_plus.destinations.dataset import WritableDataset
 from dlt.destinations import duckdb
 
 
@@ -17,12 +16,6 @@ def pipeline_1() -> dlt.Pipeline:
         dataset_name="example_dataset",
         dev_mode=True,
     )
-
-
-@pytest.fixture(scope="function")
-def populated_dataset(pipeline_1: dlt.Pipeline) -> WritableDataset:
-    pipeline_1.run([{"a": i} for i in range(10)], table_name="example_table")
-    return WritableDataset.from_dataset(pipeline_1.dataset())
 
 
 @pytest.fixture(scope="function")

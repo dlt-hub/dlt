@@ -1,7 +1,7 @@
-from dlt_plus.common.exceptions import DltPlusException
+from dlt.common.exceptions import DltException
 
 
-class TransformException(DltPlusException):
+class TransformException(DltException):
     def __init__(self, msg: str):
         super().__init__(msg)
 
