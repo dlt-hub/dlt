@@ -577,7 +577,9 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
     assert arrow_table.schema.field("decimal").type.precision == expected_decimal_precision
     assert arrow_table.schema.field("other_decimal").type.precision == expected_decimal_precision_2
 
-    with pytest.raises(ReadableRelationUnknownColumnException):
+    import sqlglot
+
+    with pytest.raises(sqlglot.errors.OptimizeError):
         arrow_table = table_relationship.select("unknown_column").head().arrow()
 
 

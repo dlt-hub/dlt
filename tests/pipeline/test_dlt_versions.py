@@ -548,6 +548,3 @@ def test_normalize_path_separator_legacy_behavior(test_storage: FileStorage) -> 
                     "_dlt_id",
                     "_dlt_load_id",
                 }
-                # datasets must be the same
-                data_ = pipeline.dataset().issues_2.select("issue_id", "id").fetchall()
-                print(data_)

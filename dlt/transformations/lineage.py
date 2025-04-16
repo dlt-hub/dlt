@@ -85,12 +85,17 @@ SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, str] = {
     DataType.Type.TIMESTAMP_S: "timestamp",
     DataType.Type.TIME: "time",
     DataType.Type.TIMETZ: "time",
+    # BOOLEAN
+    DataType.Type.BOOLEAN: "bool",
 }
 
 
 def to_sqlglot_type(
     column: TColumnSchema, table: TTableSchema, type_mapper: DataTypeMapper, dialect: str
 ) -> DATA_TYPE:
+    if not column.get("data_type"):
+        return None
+
     destination_type = type_mapper.to_destination_type(column, cast(PreparedTableSchema, table))
     # TODO modify nullable arg_types on destination_type
     sqlglot_type = DataType.build(destination_type, dialect=dialect)
@@ -123,9 +128,8 @@ def create_sqlglot_schema(
             mapping_schema[table_name] = {}
 
         for column_name, column in table["columns"].items():
-            mapping_schema[table_name][column_name] = to_sqlglot_type(
-                column, table, type_mapper, dialect
-            )
+            if sqlglot_type := to_sqlglot_type(column, table, type_mapper, dialect):
+                mapping_schema[table_name][column_name] = sqlglot_type
 
     return ensure_schema(mapping_schema)
 
