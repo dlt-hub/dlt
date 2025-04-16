@@ -10,6 +10,7 @@ from typing import (
     Tuple,
     AnyStr,
     overload,
+    runtime_checkable,
 )
 
 from dlt.common.typing import Self, Generic, TypeVar
@@ -28,6 +29,7 @@ else:
     IbisBackend = Any
 
 
+@runtime_checkable
 class SupportsReadableRelation(Protocol):
     """A readable relation retrieved from a destination that supports it"""
 

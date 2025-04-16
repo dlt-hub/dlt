@@ -21,7 +21,7 @@ from dlt.transformations.exceptions import (
 from dlt.destinations.dataset import ReadableDBAPIDataset
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.extract.hints import make_hints
-from dlt.common.destination.dataset import SupportsReadableDataset
+from dlt.common.destination.dataset import SupportsReadableDataset, SupportsReadableRelation
 from dlt.extract import DltResource
 from dlt.common.typing import Concatenate
 from dlt.transformations.configuration import TransformConfiguration
@@ -123,7 +123,8 @@ def make_transform_resource(
         if isinstance(transformation_result, str):
             select_query = transformation_result
         elif hasattr(transformation_result, "query"):
-            select_query = transformation_result.query()
+            if isinstance(transformation_result, SupportsReadableRelation):
+                select_query = transformation_result.query()
         else:
             raise ValueError(
                 (
@@ -137,9 +138,11 @@ def make_transform_resource(
         computed_columns: TTableSchemaColumns = {}
         all_columns: TTableSchemaColumns = columns or {}
         if lineage_mode in ["strict", "best_effort"]:
-            # from dlt.transformations.lineage_helpers import compute_resulting_dlt_table_schema
-
-            computed_columns = {}
+            if not isinstance(transformation_result, SupportsReadableRelation):
+                raise ValueError(
+                    "Lineage only supported for classes that implement SupportsReadableRelation"
+                )
+            computed_columns = transformation_result.compute_columns_schema()
 
             # compute_resulting_dlt_table_schema(
             #     select_query,
@@ -162,11 +165,9 @@ def make_transform_resource(
                 #     # dialect=dataset.dialect, # TODO: provide dialect?
                 # )
 
-                column_names: List[str] = []
-
                 # search all columns and see if there are some unknown ones
                 unknown_column_types = [
-                    c for c in column_names if all_columns.get(c, {}).get("data_type") is None
+                    name for name, c in all_columns.items() if c.get("data_type") is None
                 ]
 
                 if unknown_column_types:
@@ -175,9 +176,6 @@ def make_transform_resource(
                         + "Please run with strict lineage or provide data type hints "
                         + f"for following columns: {unknown_column_types}"
                     )
-
-                # recreate columns dict in correct order
-                all_columns = {c: all_columns[c] for c in column_names}
 
         # for sql transformations we yield an sql select query with column hints
         if resolved_transformation_type == "sql":

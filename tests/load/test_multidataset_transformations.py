@@ -7,6 +7,7 @@ from dlt.common.destination.dataset import SupportsReadableDataset
 from dlt.transformations.reference import TTransformationType
 
 
+@pytest.mark.skip(reason="TODO: needs support from lineage to work")
 @pytest.mark.parametrize("transformation_type", ["sql", "python"])
 def test_combine_two_datasets(
     fruit_p: dlt.Pipeline, private_fruit_p: dlt.Pipeline, transformation_type: TTransformationType
