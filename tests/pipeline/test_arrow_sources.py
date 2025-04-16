@@ -612,21 +612,36 @@ def test_extract_json_normalize_parquet_adds_dlt_load_id():
         assert pa.compute.all(pa.compute.equal(tbl["_dlt_load_id"], load_id)).as_py()
 
 
-def test_replace_existing_dlt_load_id():
-    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
+@pytest.mark.parametrize(
+    "has_dlt_column, add_dlt_load_id",
+    [
+        (True, True),  # Input has _dlt_load_id and we want to add it
+        (True, False),  # Input has _dlt_load_id and we don't want to add it
+        (False, True),  # Input doesn't have _dlt_load_id and we want to add it
+        (False, False),  # Input doesn't have _dlt_load_id and we don't want to add it
+    ],
+)
+def test_replace_or_keep_existing_dlt_load_id(has_dlt_column: bool, add_dlt_load_id: bool):
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = str(add_dlt_load_id)
 
-    # Create a table with an existing _dlt_load_id column
-    existing_load_id = "existing_load_id_value"
+    # Create input data
     num_rows = 10
+    existing_load_id = "existing_load_id"
     load_id_type = pa.dictionary(pa.int8(), pa.string())
-    table = pa.table(
-        {
-            "column1": [f"value_{i}" for i in range(num_rows)],
-            "_dlt_load_id": pa.array(
-                [existing_load_id] * num_rows, type=load_id_type
-            ),  # Dictionary-encoded _dlt_load_id
-        }
-    )
+
+    if has_dlt_column:
+        table = pa.table(
+            {
+                "column1": [f"value_{i}" for i in range(num_rows)],
+                "_dlt_load_id": pa.array([existing_load_id] * num_rows, type=load_id_type),
+            }
+        )
+    else:
+        table = pa.table(
+            {
+                "column1": [f"value_{i}" for i in range(num_rows)],
+            }
+        )
 
     pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb")
 
@@ -647,8 +662,20 @@ def test_replace_existing_dlt_load_id():
 
         assert len(normalized_table) == num_rows
 
-        # Check if the _dlt_load_id column has been replaced with the correct load_id
-        assert pa.compute.all(pa.compute.equal(normalized_table["_dlt_load_id"], load_id)).as_py()
+        if add_dlt_load_id:
+            assert "_dlt_load_id" in normalized_table.schema.names
+            # Check if the _dlt_load_id column has been replaced with the correct load_id
+            assert pa.compute.all(
+                pa.compute.equal(normalized_table["_dlt_load_id"], load_id)
+            ).as_py()
+        elif has_dlt_column and not add_dlt_load_id:
+            assert "_dlt_load_id" in normalized_table.schema.names
+            # Check if the _dlt_load_id column has not been replaced
+            assert pa.compute.all(
+                pa.compute.equal(normalized_table["_dlt_load_id"], existing_load_id)
+            ).as_py()
+        elif not has_dlt_column and not add_dlt_load_id:
+            assert "_dlt_load_id" not in normalized_table.schema.names
 
         # Assert the other columns remain unchanged, just in case
         assert normalized_table["column1"].to_pylist() == [f"value_{i}" for i in range(num_rows)]

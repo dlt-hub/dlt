@@ -420,7 +420,7 @@ def should_normalize_arrow_schema(
     columns: TTableSchemaColumns,
     naming: NamingConvention,
     add_load_id: bool = False,
-) -> Tuple[bool, Mapping[str, str], Dict[str, str], Dict[str, bool], bool, TTableSchemaColumns]:
+) -> Tuple[bool, Mapping[str, str], Dict[str, str], Dict[str, bool], TTableSchemaColumns]:
     """Figure out if any of the normalization steps must be executed. This prevents
     from rewriting arrow tables when no changes are needed. Refer to `normalize_py_arrow_item`
     for a list of normalizations. Note that `column` must be already normalized.
@@ -441,16 +441,6 @@ def should_normalize_arrow_schema(
     dlt_id_col = naming.normalize_identifier(C_DLT_ID)
     dlt_columns = {dlt_load_id_col, dlt_id_col}
 
-    # Do we need to add a load id column?
-    if add_load_id and dlt_load_id_col in columns:
-        try:
-            schema.field(dlt_load_id_col)
-            needs_load_id = False
-        except KeyError:
-            needs_load_id = True
-    else:
-        needs_load_id = False
-
     # remove all columns that are dlt columns but are not present in arrow schema. we do not want to add such columns
     # that should happen in the normalizer
     columns = {
@@ -463,7 +453,6 @@ def should_normalize_arrow_schema(
     skip_normalize = (
         (list(rename_mapping.keys()) == list(rename_mapping.values()) == list(columns.keys()))
         and not nullable_updates
-        #        and not needs_load_id
         and not add_load_id
     )
     return (
@@ -471,7 +460,6 @@ def should_normalize_arrow_schema(
         rename_mapping,
         rev_mapping,
         nullable_updates,
-        needs_load_id,
         columns,
     )
 
@@ -493,7 +481,7 @@ def normalize_py_arrow_item(
     5. Add `_dlt_load_id` column if it is missing and `load_id` is provided
     """
     schema = item.schema
-    should_normalize, rename_mapping, rev_mapping, nullable_updates, needs_load_id, columns = (
+    should_normalize, rename_mapping, rev_mapping, nullable_updates, columns = (
         should_normalize_arrow_schema(schema, columns, naming, load_id is not None)
     )
     if not should_normalize and not load_id:
