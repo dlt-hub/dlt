@@ -313,7 +313,12 @@ def init_command(
     eject_source: bool = False,
     dry_run: bool = False,
     skip_example_pipeline_script: bool = False,
-) -> Tuple[Dict[str, str], Dict[str, WritableConfigValue], Dict[str, WritableConfigValue], files_ops.TSourceType]:
+) -> Tuple[
+    Dict[str, str],
+    Dict[str, WritableConfigValue],
+    Dict[str, WritableConfigValue],
+    files_ops.TSourceType,
+]:
     run_ctx = run_context.active()
     destination_storage_path = run_ctx.run_dir
     settings_dir = run_ctx.settings_dir
@@ -343,7 +348,12 @@ def init_pipeline_at_destination(
     destination_storage_path: str = None,
     settings_dir: str = None,
     sources_dir: str = None,
-) -> Tuple[Dict[str, str], Dict[str, WritableConfigValue], Dict[str, WritableConfigValue], files_ops.TSourceType]:
+) -> Tuple[
+    Dict[str, str],
+    Dict[str, WritableConfigValue],
+    Dict[str, WritableConfigValue],
+    files_ops.TSourceType,
+]:
     """
     Initializes a pipeline at the specified destination by setting up the required files, configurations, and dependencies.
 
@@ -680,7 +690,8 @@ def init_pipeline_at_destination(
                 files_to_create[dest_path] = dest_storage.load(source_path)
             except UnicodeDecodeError:
                 fmt.warning(
-                    f"File {source_path} was skipped not a text file. It will not be copied to {dest_path}"
+                    f"File {source_path} was skipped not a text file. It will not be copied to"
+                    f" {dest_path}"
                 )
         if not skip_example_pipeline_script:
             files_to_create[pipeline_script_target_path] = dest_script_source
