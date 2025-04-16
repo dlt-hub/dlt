@@ -100,6 +100,7 @@ def to_sqlglot_type(
         return None
 
     destination_type = type_mapper.to_destination_type(column, cast(PreparedTableSchema, table))
+
     # TODO modify nullable arg_types on destination_type
     sqlglot_type = DataType.build(destination_type, dialect=dialect)
     # TODO verify how nullable is used exactly in sqlglot

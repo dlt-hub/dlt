@@ -10,8 +10,10 @@ from dlt.transformations import lineage
 from tests.utils import autouse_test_storage
 
 from dlt.destinations import duckdb
+from tests.load.utils import destinations_configs, DestinationTestConfiguration
 
 
+# TODO: add all data types for one table
 @pytest.fixture
 def example_schema(autouse_test_storage) -> Schema:
     s = Schema("d1")
@@ -42,10 +44,20 @@ def example_schema(autouse_test_storage) -> Schema:
     return s
 
 
-def test_various_queries(example_schema: Schema):
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        # TODO: see if we can get sqlalchemy to work
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        exclude=["sqlalchemy"],
+    ),
+    ids=lambda x: x.name,
+)
+def test_various_queries(destination_config: DestinationTestConfiguration, example_schema: Schema):
     # setup
     # TODO: run for all supported destinations
-    destination = duckdb(credentials=":memory:")
+    destination = destination_config.destination_factory()
     dialect = destination.capabilities().sqlglot_dialect
     DATASET_NAME = "d1"
     sqlglot_schema = lineage.create_sqlglot_schema(
@@ -55,10 +67,13 @@ def test_various_queries(example_schema: Schema):
         destination.capabilities().get_type_mapper(),
     )
 
+    # TODO: investigate if we can fix this
+    id_result_type = "bigint" if ("snowflake" not in destination_config.name) else "decimal"
+
     # test star select
     sql_query = "SELECT * FROM customers"
     assert lineage.compute_columns_schema(sql_query, sqlglot_schema, "duckdb") == {
-        "id": {"name": "id", "data_type": "bigint"},
+        "id": {"name": "id", "data_type": id_result_type},
         "name": {"name": "name", "data_type": "text", "x-pii": True},
         "email": {"name": "email", "data_type": "text", "nullable": True},
     }
@@ -66,7 +81,7 @@ def test_various_queries(example_schema: Schema):
     # test select with fully qualified table and column names
     sql_query = "SELECT d1.customers.id, d1.customers.name, d1.customers.email FROM d1.customers"
     assert lineage.compute_columns_schema(sql_query, sqlglot_schema, "duckdb") == {
-        "id": {"name": "id", "data_type": "bigint"},
+        "id": {"name": "id", "data_type": id_result_type},
         "name": {"name": "name", "data_type": "text", "x-pii": True},
         "email": {"name": "email", "data_type": "text", "nullable": True},
     }
