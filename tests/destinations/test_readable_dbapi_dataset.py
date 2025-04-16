@@ -129,7 +129,7 @@ def test_computed_schema_columns(dataset_type: TDatasetType) -> None:
     import sqlglot
 
     with pytest.raises(sqlglot.errors.OptimizeError):
-        relation["unknown_columns"]
+        relation["unknown_columns"].compute_columns_schema()
 
 
 @pytest.mark.parametrize("dataset_type", ("default",))

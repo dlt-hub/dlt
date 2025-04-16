@@ -702,7 +702,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
             'SELECT "t0"."id", "t0"."decimal", "t0"."id" * 2 AS "new_col" FROM'
             ' "dataset"."items" AS "t0"'
         ),
-        None,
+        ["id", "decimal", "new_col"],
     )
 
     # mutating table (add a new column computed from existing columns)
@@ -710,13 +710,16 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         items_table.mutate(double_id=items_table.id * 2).select("id", "double_id")
     ) == (
         'SELECT "t0"."id", "t0"."id" * 2 AS "double_id" FROM "dataset"."items" AS "t0"',
-        None,
+        ["id", "double_id"],
     )
 
     # mutating table add new static column
     assert sql_from_expr(
         items_table.mutate(new_col=ibis.literal("static_value")).select("id", "new_col")
-    ) == ('SELECT "t0"."id", \'static_value\' AS "new_col" FROM "dataset"."items" AS "t0"', None)
+    ) == (
+        'SELECT "t0"."id", \'static_value\' AS "new_col" FROM "dataset"."items" AS "t0"',
+        ["id", "new_col"],
+    )
 
     # check filtering (preserves all columns)
     assert sql_from_expr(items_table.filter(items_table.id < 10)) == (
@@ -753,7 +756,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
             ' COUNT(*) AS "CountStar(items)" FROM "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1"'
             ' WHERE "t1"."CountStar(items)" >= 1000'
         ),
-        None,
+        ["id", "sum_id"],
     )
 
     # sorting and ordering
@@ -790,7 +793,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
             'SELECT "t2"."id", "t3"."double_id" FROM "dataset"."items" AS "t2" INNER JOIN'
             ' "dataset"."double_items" AS "t3" ON "t2"."id" = "t3"."id"'
         ),
-        None,
+        ["id", "double_id"],
     )
 
     # subqueries
@@ -811,7 +814,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
             ' "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1" ORDER BY "t1"."decimal_count" DESC'
             " LIMIT 10"
         ),
-        None,
+        ["decimal", "decimal_count"],
     )
 
 
