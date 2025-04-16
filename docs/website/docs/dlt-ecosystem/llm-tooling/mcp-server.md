@@ -239,7 +239,7 @@ For example, Cursor would use this config.
         "tool",
         "run",
         "mcp-proxy",
-        "http://127.0.0.1:43655/sse",
+        "http://127.0.0.1:43655/sse"
       ]
     } 
   }
