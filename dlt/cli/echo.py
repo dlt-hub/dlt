@@ -29,7 +29,7 @@ def suppress_echo() -> Iterator[None]:
     original_echo, original_secho = echo, secho
     original_error, original_warning, original_note = error, warning, note
 
-    def noop(*args, **kwargs):
+    def noop(*args: Any, **kwargs: Any) -> None:
         pass
 
     echo = secho = error = warning = note = noop

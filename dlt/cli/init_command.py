@@ -312,7 +312,7 @@ def init_command(
     branch: str = None,
     eject_source: bool = False,
     dry_run: bool = False,
-    skip_example_pipeline_script: bool = False,
+    add_example_pipeline_script: bool = True,
 ) -> Tuple[
     Dict[str, str],
     Dict[str, WritableConfigValue],
@@ -330,7 +330,7 @@ def init_command(
         branch,
         eject_source,
         dry_run,
-        skip_example_pipeline_script,
+        add_example_pipeline_script,
         destination_storage_path,
         settings_dir,
         sources_dir,
@@ -344,7 +344,7 @@ def init_pipeline_at_destination(
     branch: str = None,
     eject_source: bool = False,
     dry_run: bool = False,
-    skip_example_pipeline_script: bool = False,
+    add_example_pipeline_script: bool = True,
     destination_storage_path: str = None,
     settings_dir: str = None,
     sources_dir: str = None,
@@ -598,7 +598,7 @@ def init_pipeline_at_destination(
             )
 
     # add destination spec to required secrets
-    if not skip_example_pipeline_script:
+    if add_example_pipeline_script:
         required_secrets["destinations:" + destination_type] = WritableConfigValue(
             destination_type, destination_spec, None, ("destination",)
         )
@@ -693,7 +693,7 @@ def init_pipeline_at_destination(
                     f"File {source_path} was skipped not a text file. It will not be copied to"
                     f" {dest_path}"
                 )
-        if not skip_example_pipeline_script:
+        if add_example_pipeline_script:
             files_to_create[pipeline_script_target_path] = dest_script_source
         # todo: handle remote index changes?
         return files_to_create, required_config, required_secrets, source_type
@@ -714,7 +714,7 @@ def init_pipeline_at_destination(
         # create example script
         if (
             not dest_storage.has_file(source_configuration.dest_pipeline_script)
-            and not skip_example_pipeline_script
+            and add_example_pipeline_script
         ):
             dest_storage.save(pipeline_script_target_path, dest_script_source)
 
