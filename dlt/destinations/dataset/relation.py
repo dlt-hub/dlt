@@ -90,6 +90,10 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         if self._dataset.schema is None:
             return {}
 
+        # TODO: sqlalchemy is not supported at this point
+        if self._dataset._destination.destination_type == "dlt.destinations.sqlalchemy":
+            return {}
+
         dialect: str = self._dataset._destination.capabilities().sqlglot_dialect
         # TODO store the SQLGlot schema on the dataset
         d = self._dataset
