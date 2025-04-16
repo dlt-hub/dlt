@@ -92,7 +92,10 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
 
         dialect: str = self._dataset._destination.capabilities().sqlglot_dialect
         # TODO store the SQLGlot schema on the dataset
-        sqlglot_schema = lineage.create_sqlglot_schema(self._dataset, dialect)
+        d = self._dataset
+        sqlglot_schema = lineage.create_sqlglot_schema(
+            d.dataset_name, d.schema, dialect, d._destination.capabilities().get_type_mapper()
+        )
         return lineage.compute_columns_schema(self.query(), sqlglot_schema, dialect)
 
     @property

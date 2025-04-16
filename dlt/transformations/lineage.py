@@ -8,6 +8,7 @@ from sqlglot.optimizer.annotate_types import annotate_types
 from sqlglot.optimizer.qualify import qualify
 
 from dlt.common.schema.typing import TTableSchemaColumns, TColumnSchema, TTableSchema
+from dlt.common.schema import Schema
 from dlt.destinations.type_mapping import DataTypeMapper
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.destination.capabilities import DataTypeMapper
@@ -121,21 +122,20 @@ def from_sqlglot_type(column: sge.Column) -> TColumnSchema:
 
 
 def create_sqlglot_schema(
-    dataset: "ReadableDBAPIDataset[TReadableRelation]", dialect: str
+    dataset_name: str, schema: Schema, dialect: str, destination_type_mapper: DataTypeMapper
 ) -> SQLGlotSchema:
-    type_mapper: DataTypeMapper = dataset._destination.capabilities().get_type_mapper()
     # {table: {col: type}}
     # NOTE to enable cross-dataset lineage, use {db: {table: ...}} or {catalog: {db: {table: ...}}}
     mapping_schema: dict[str, dict[str, DATA_TYPE]] = {}
-    for table_name, table in dataset.schema.tables.items():
+    for table_name, table in schema.tables.items():
         if mapping_schema.get(table_name) is None:
             mapping_schema[table_name] = {}
 
         for column_name, column in table["columns"].items():
-            if sqlglot_type := to_sqlglot_type(column, table, type_mapper, dialect):
+            if sqlglot_type := to_sqlglot_type(column, table, destination_type_mapper, dialect):
                 mapping_schema[table_name][column_name] = sqlglot_type
 
-    return ensure_schema(mapping_schema)
+    return ensure_schema({dataset_name: mapping_schema})
 
 
 # TODO should we raise an exception for anonymous columns?

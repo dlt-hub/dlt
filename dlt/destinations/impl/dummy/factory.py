@@ -8,6 +8,7 @@ from dlt.destinations.impl.dummy.configuration import (
     DummyClientConfiguration,
     DummyClientCredentials,
 )
+from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.dummy.dummy import DummyClient
@@ -67,6 +68,11 @@ class dummy(Destination[DummyClientConfiguration, "DummyClient"]):
         caps.preferred_loader_file_format = config.loader_file_format
         caps.supported_loader_file_formats = additional_formats + [config.loader_file_format]
         caps.supported_staging_file_formats = additional_formats + [config.loader_file_format]
+        caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
+        caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
+        from dlt.destinations.impl.duckdb.factory import DuckDbTypeMapper
+
+        caps.type_mapper = DuckDbTypeMapper
         return caps
 
 
