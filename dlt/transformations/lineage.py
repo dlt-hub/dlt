@@ -87,6 +87,8 @@ SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, str] = {
     DataType.Type.TIMETZ: "time",
     # BOOLEAN
     DataType.Type.BOOLEAN: "bool",
+    # UKNOWN
+    DataType.Type.UNKNOWN: None,
 }
 
 
@@ -109,11 +111,13 @@ def to_sqlglot_type(
 
 
 def from_sqlglot_type(column: sge.Column) -> TColumnSchema:
-    return {
+    col = {
         "name": column.output_name,
-        "data_type": SQLGLOT_TO_DLT_TYPE_MAP[column.type.this],
-        **column.type.meta,  # type: ignore
+        **column.type.meta,
     }
+    if data_type := SQLGLOT_TO_DLT_TYPE_MAP[column.type.this]:
+        col["data_type"] = data_type
+    return cast(TColumnSchema, col)
 
 
 def create_sqlglot_schema(

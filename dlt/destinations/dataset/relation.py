@@ -83,6 +83,26 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
 
         return _wrap
 
+    def compute_columns_schema(self, **kwargs: Any) -> TTableSchemaColumns:
+        """provide schema columns for the cursor, may be filtered by selected columns"""
+
+        # NOTE: if we do not have a schema, we cannot compute the columns schema
+        if self._dataset.schema is None:
+            return {}
+
+        dialect: str = self._dataset._destination.capabilities().sqlglot_dialect
+        # TODO store the SQLGlot schema on the dataset
+        sqlglot_schema = lineage.create_sqlglot_schema(self._dataset, dialect)
+        return lineage.compute_columns_schema(self.query(), sqlglot_schema, dialect)
+
+    @property
+    def columns_schema(self) -> TTableSchemaColumns:
+        return self.compute_columns_schema()
+
+    @columns_schema.setter
+    def columns_schema(self, new_value: TTableSchemaColumns) -> None:
+        raise NotImplementedError("Columns Schema may not be set")
+
 
 class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
     def __init__(
@@ -139,26 +159,6 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
             )
 
         return f"SELECT {maybe_limit_clause_1} {selector} FROM {table_name} {maybe_limit_clause_2}"
-
-    @property
-    def columns_schema(self) -> TTableSchemaColumns:
-        return self.compute_columns_schema()
-
-    @columns_schema.setter
-    def columns_schema(self, new_value: TTableSchemaColumns) -> None:
-        raise NotImplementedError("columns schema in ReadableDBAPIRelation can only be computed")
-
-    def compute_columns_schema(self, **kwargs: Any) -> TTableSchemaColumns:
-        """provide schema columns for the cursor, may be filtered by selected columns"""
-
-        # NOTE: if we do not have a schema, we cannot compute the columns schema
-        if self._dataset.schema is None:
-            return {}
-
-        dialect: str = self._dataset._destination.capabilities().sqlglot_dialect
-        # TODO store the SQLGlot schema on the dataset
-        sqlglot_schema = lineage.create_sqlglot_schema(self._dataset, dialect)
-        return lineage.compute_columns_schema(self.query(), sqlglot_schema, dialect)
 
     def __copy__(self) -> Self:
         return self.__class__(

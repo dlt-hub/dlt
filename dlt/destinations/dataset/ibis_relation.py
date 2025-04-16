@@ -56,19 +56,6 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         sql = sqlglot.transpile(sql, write=target_dialect)[0]
         return sql
 
-    @property
-    def columns_schema(self) -> TTableSchemaColumns:
-        return self.compute_columns_schema()
-
-    @columns_schema.setter
-    def columns_schema(self, new_value: TTableSchemaColumns) -> None:
-        raise NotImplementedError("columns schema in ReadableDBAPIRelation can only be computed")
-
-    def compute_columns_schema(self, **kwargs: Any) -> TTableSchemaColumns:
-        """provide schema columns for the cursor, may be filtered by selected columns"""
-        # TODO: provide column lineage tracing with sqlglot lineage
-        return self._columns_schema
-
     def _proxy_expression_method(self, method_name: str, *args: Any, **kwargs: Any) -> Any:
         """Proxy method calls to the underlying ibis expression, allowing to wrap the resulting expression in a new relation"""
 
