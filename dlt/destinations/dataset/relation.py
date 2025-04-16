@@ -1,6 +1,8 @@
 from typing import Any, Generator, Sequence, Type, Union, TYPE_CHECKING
 from contextlib import contextmanager
 
+import sqlglot
+
 from dlt.common.destination.dataset import (
     SupportsReadableRelation,
 )
@@ -93,17 +95,24 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         ):
             return {}
 
-        # TODO: sqlalchemy is not supported at this point
-        if self._dataset._destination.destination_type == "dlt.destinations.sqlalchemy":
-            return {}
-
+        # TODO: sqlalchemy does not work with their internal types
+        # for now we do a hack and transpile to duckdb
         dialect: str = self._dataset._destination.capabilities().sqlglot_dialect
+        query = self.query()
+        type_mapper = self._dataset._destination.capabilities().get_type_mapper()
+        if self._dataset._destination.destination_type == "dlt.destinations.sqlalchemy":
+            query = sqlglot.transpile(query, read=dialect, write="duckdb")[0]
+            dialect = "duckdb"
+            from dlt.destinations import duckdb
+
+            type_mapper = duckdb().capabilities().get_type_mapper()
+
         # TODO store the SQLGlot schema on the dataset
         d = self._dataset
         sqlglot_schema = lineage.create_sqlglot_schema(
-            d.dataset_name, d.schema, dialect, d._destination.capabilities().get_type_mapper()
+            d.dataset_name, d.schema, dialect, type_mapper
         )
-        return lineage.compute_columns_schema(self.query(), sqlglot_schema, dialect)
+        return lineage.compute_columns_schema(query, sqlglot_schema, dialect)
 
     @property
     def columns_schema(self) -> TTableSchemaColumns:

@@ -56,7 +56,6 @@ def example_schema(autouse_test_storage) -> Schema:
 )
 def test_various_queries(destination_config: DestinationTestConfiguration, example_schema: Schema):
     # setup
-    # TODO: run for all supported destinations
     destination = destination_config.destination_factory()
     dialect = destination.capabilities().sqlglot_dialect
     DATASET_NAME = "d1"
