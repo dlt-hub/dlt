@@ -192,30 +192,37 @@ def _welcome_message(
     source_configuration: SourceConfiguration,
     dependency_system: str,
     is_new_source: bool,
+    added_pipeline_script: bool = True,
 ) -> None:
+    new_entity_type = "pipeline" if destination_type else "source"
     fmt.echo()
     if source_configuration.source_type in ["template", "core"]:
-        fmt.echo("Your new pipeline %s is ready to be customized!" % fmt.bold(source_name))
         fmt.echo(
-            "* Review and change how dlt loads your data in %s"
-            % fmt.bold(source_configuration.dest_pipeline_script)
+            "Your new %s %s is ready to be customized!" % (new_entity_type, fmt.bold(source_name))
         )
+        if added_pipeline_script:
+            fmt.echo(
+                "* Review and change how dlt loads your data in %s"
+                % fmt.bold(source_configuration.dest_pipeline_script)
+            )
     else:
         if is_new_source:
             fmt.echo("Verified source %s was added to your project!" % fmt.bold(source_name))
-            fmt.echo(
-                "* See the usage examples and code snippets to copy from %s"
-                % fmt.bold(source_configuration.dest_pipeline_script)
-            )
+            if added_pipeline_script:
+                fmt.echo(
+                    "* See the usage examples and code snippets to copy from %s"
+                    % fmt.bold(source_configuration.dest_pipeline_script)
+                )
         else:
             fmt.echo(
                 "Verified source %s was updated to the newest version!" % fmt.bold(source_name)
             )
 
     if is_new_source:
+        destination_str = " for %s" % fmt.bold(destination_type) if destination_type else ""
         fmt.echo(
-            "* Add credentials for %s and other secrets in %s"
-            % (fmt.bold(destination_type), fmt.bold(utils.make_dlt_settings_path(SECRETS_TOML)))
+            "* Add credentials%s and other secrets to %s"
+            % (destination_str, fmt.bold(utils.make_dlt_settings_path(SECRETS_TOML)))
         )
 
     if destination_type == "destination":
@@ -230,10 +237,12 @@ def _welcome_message(
         compiled_requirements = source_configuration.requirements.compiled()
         for dep in compiled_requirements:
             fmt.echo("  " + fmt.bold(dep))
-        fmt.echo(
-            "  If the dlt dependency is already added, make sure you install the extra for %s to it"
-            % fmt.bold(destination_type)
-        )
+        if destination_type:
+            fmt.echo(
+                "  If the dlt dependency is already added, make sure you install the extra for %s"
+                " to it"
+                % fmt.bold(destination_type)
+            )
         if dependency_system == utils.REQUIREMENTS_TXT:
             qs = "' '"
             fmt.echo(
@@ -250,7 +259,7 @@ def _welcome_message(
             % (fmt.bold(utils.REQUIREMENTS_TXT), utils.REQUIREMENTS_TXT)
         )
 
-    if is_new_source:
+    if is_new_source and new_entity_type == "pipeline":
         fmt.echo(
             "* Read %s for more information"
             % fmt.bold("https://dlthub.com/docs/walkthroughs/create-a-pipeline")
@@ -383,8 +392,9 @@ def init_pipeline_at_destination(
             - The type of the source (e.g., "template", "core", "verified").
     """
     # try to import the destination and get config spec
-    destination_reference = Destination.from_reference(destination_type)
-    destination_spec = destination_reference.spec
+    if destination_type:
+        destination_reference = Destination.from_reference(destination_type)
+        destination_spec = destination_reference.spec
 
     # lookup core storages
     core_sources_storage = _get_core_sources_storage()
@@ -495,7 +505,8 @@ def init_pipeline_at_destination(
     # )
 
     # add dlt extras line to requirements
-    source_configuration.requirements.update_dlt_extras(destination_type)
+    if destination_type:
+        source_configuration.requirements.update_dlt_extras(destination_type)
 
     # Check compatibility with installed dlt
     if not source_configuration.requirements.is_installed_dlt_compatible():
@@ -539,7 +550,7 @@ def init_pipeline_at_destination(
     transformed_nodes = source_detection.find_call_arguments_to_replace(
         visitor,
         [
-            ("destination", destination_type),
+            ("destination", destination_type or "duckdb"),
         ],
         source_configuration.src_pipeline_script,
     )
@@ -598,7 +609,7 @@ def init_pipeline_at_destination(
             )
 
     # add destination spec to required secrets
-    if add_example_pipeline_script:
+    if destination_type and add_example_pipeline_script:
         required_secrets["destinations:" + destination_type] = WritableConfigValue(
             destination_type, destination_spec, None, ("destination",)
         )
@@ -632,9 +643,10 @@ def init_pipeline_at_destination(
                     " --eject flag to revert to the old behavior." % (fmt.bold(source_name))
                 )
         elif source_configuration.source_type == "verified":
+            new_entity_type = "a new pipeline with" if destination_type else ""
             fmt.echo(
-                "Creating and configuring a new pipeline with the verified source %s (%s)"
-                % (fmt.bold(source_name), source_configuration.doc)
+                "Creating and configuring %s the verified source %s (%s)"
+                % (new_entity_type, fmt.bold(source_name), source_configuration.doc)
             )
         else:
             if source_configuration.is_default_template:
@@ -656,7 +668,12 @@ def init_pipeline_at_destination(
 
     dependency_system = _get_dependency_system(dest_storage)
     _welcome_message(
-        source_name, destination_type, source_configuration, dependency_system, is_new_source
+        source_name,
+        destination_type,
+        source_configuration,
+        dependency_system,
+        is_new_source,
+        add_example_pipeline_script,
     )
 
     # copy files at the very end
