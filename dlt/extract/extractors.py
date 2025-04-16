@@ -400,9 +400,9 @@ class ArrowExtractor(Extractor):
 
     def _add_dlt_load_id_column(
         self,
-        item: TAnyArrowItem,
+        item: "TAnyArrowItem",
         columns: TTableSchemaColumns = None,
-    ) -> TAnyArrowItem:
+    ) -> "TAnyArrowItem":
         """
         Adds or replaces the `_dlt_load_id` column.
         """
