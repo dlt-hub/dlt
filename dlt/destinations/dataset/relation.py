@@ -152,10 +152,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         """provide schema columns for the cursor, may be filtered by selected columns"""
 
         # NOTE: if we do not have a schema, we cannot compute the columns schema
-        if (
-            self._dataset.schema is None
-            or self._dataset.schema.tables.get(self._table_name) is None
-        ):
+        if self._dataset.schema is None:
             return {}
 
         dialect: str = self._dataset._destination.capabilities().sqlglot_dialect
