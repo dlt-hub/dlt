@@ -4,9 +4,7 @@ loaders:
     packages: ["dlt"]
 processors:
   - type: filter
-    skip_empty_modules: true
-    expression: not name.startswith("dlt.cli") and not name.startswith("dlt.normalize") and not name.startswith("dlt.load") and default()
-  - type: crossref
+    expression: not name.startswith("dlt.cli") and not name.startswith("dlt.normalize") and not name.startswith("dlt.load") and not name.startswith("dlt.reflection") and default()
   - type: pydoc_markdown_dlt.DltProcessor
 renderer:
   type: docusaurus
@@ -24,3 +22,5 @@ renderer:
       type: github
       repo: dlt-hub/dlt
       root: ../..
+    source_format: "[View source on GitHub]({url})"
+
