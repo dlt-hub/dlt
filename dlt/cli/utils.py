@@ -1,6 +1,6 @@
 import ast
 import os
-from typing import Callable
+from typing import Callable, Literal, Optional
 
 from dlt.common.reflection.utils import set_ast_parents
 from dlt.common.typing import TFun
@@ -21,6 +21,7 @@ AIRFLOW_DAGS_FOLDER = os.path.join("dags")
 AIRFLOW_BUILD_FOLDER = os.path.join("build")
 LOCAL_COMMAND_REPO_FOLDER = "repos"
 MODULE_INIT = "__init__.py"
+TDependencySystem = Literal["requirements.txt", "pyproject.toml"]
 
 
 def parse_init_script(
