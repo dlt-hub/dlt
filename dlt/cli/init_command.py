@@ -190,7 +190,7 @@ def _welcome_message(
     source_name: str,
     destination_type: str,
     source_configuration: SourceConfiguration,
-    dependency_system: utils.TDependencySystem,
+    dependency_system: str,
     is_new_source: bool,
     added_pipeline_script: bool = True,
 ) -> None:
@@ -357,7 +357,7 @@ def init_pipeline_at_destination(
     destination_storage_path: str = None,
     settings_dir: str = None,
     sources_dir: str = None,
-    target_dependency_system: utils.TDependencySystem = None,
+    target_dependency_system: str = None,
 ) -> Tuple[
     Dict[str, str],
     Dict[str, WritableConfigValue],
@@ -383,8 +383,8 @@ def init_pipeline_at_destination(
         - destination_storage_path (str, optional): Path to the destination storage. Defaults to None.
         - settings_dir (str, optional): Path to the settings directory. Defaults to None.
         - sources_dir (str, optional): Path to the sources directory. Defaults to None.
-        - target_dependency_system (str, optional): Additional context used to adjust the welcome message. Options are 
-            `requirements.txt` or `pyproject.toml`, Defaults is None, in which case it will be determined based on the destination storage.
+        - target_dependency_system (str, optional): Additional context used to adjust the welcome message. Valid options are
+            `requirements.txt` or `pyproject.toml`, Default to None, in which case it will be determined based on the destination storage.
 
     Returns:
         Tuple[Dict[str, str], Dict[str, WritableConfigValue], Dict[str, WritableConfigValue], files_ops.TSourceType]:
