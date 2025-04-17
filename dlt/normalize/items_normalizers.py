@@ -278,16 +278,28 @@ class ModelItemsNormalizer(ItemsNormalizer):
 
         # 2. normalize selected column names. If a star expression was found,
         # the columns are already normalized
+        # TODO: make this better
         if not star_expr_handled:
             self._normalize_selected_columns(parsed_select)
 
+        if star_expr_handled:
+            parsed_select = star_expr_handled
+
         # 3. add dlt columns
         schema_updates = []
-        dlt_col_update = self._adjust_with_dlt_columns(
-            star_expr_handled if star_expr_handled else parsed_select, root_table_name
-        )
+        dlt_col_update = self._adjust_with_dlt_columns(parsed_select, root_table_name)
         if dlt_col_update:
             schema_updates.append(dlt_col_update)
+
+        # 4. normalize selected column names again
+        # because the dlt columns may have been added
+        # TODO: make this better
+        norm_schema_column_names = [
+            self.config.destination_capabilities.casefold_identifier(key)
+            for key in self.schema.get_table_columns(root_table_name).keys()
+        ]
+
+        normalized_query = parsed_select.sql(dialect=select_dialect)
 
         # 4. match schema and select statement
         schema_match_select_update = self._match_schema_and_select_statement(
