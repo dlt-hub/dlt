@@ -31,7 +31,6 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         """Create a lazy evaluated relation to for the dataset of a destination"""
 
         self._dataset = readable_dataset
-        self._table_name = None
 
         # wire protocol functions
         self.df = self._wrap_func("df")  # type: ignore
@@ -86,33 +85,58 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
 
         return _wrap
 
-    def compute_columns_schema(self, **kwargs: Any) -> TTableSchemaColumns:
-        """provide schema columns for the cursor, may be filtered by selected columns"""
+    def compute_columns_schema(
+        self,
+        allow_unknown_columns: bool = True,
+        allow_anonymous_columns: bool = True,
+        allow_fail: bool = True,
+        **kwargs: Any,
+    ) -> TTableSchemaColumns:
+        """Provides the expected columns schema for the query
+
+        Args:
+            allow_unknown_columns (bool): If False, raise if any column types are not known
+            allow_anonymous_columns (bool): If False, raise if any columns have auto assigned names
+            allow_fail (bool): If False, will raise if for some reason no columns can be computed
+        """
 
         # NOTE: if we do not have a schema, we cannot compute the columns schema
         if self._dataset.schema is None or (
-            self._table_name and self._table_name not in self._dataset.schema.tables.keys()
+            hasattr(self, "_table_name")
+            and self._table_name
+            and self._table_name not in self._dataset.schema.tables.keys()
         ):
             return {}
 
-        # TODO: sqlalchemy does not work with their internal types
-        # for now we do a hack and transpile to duckdb
+        # TODO: sqlalchemy does not work with their internal types, so we go via duckdb
+        # TODO: snowflake has some bug in sqlglot lineage, so we go via duckdb
+        # TODO: clickhouse has some bug in sqlglot lineage, so we go via duckdb
         dialect: str = self._dataset._destination.capabilities().sqlglot_dialect
         query = self.query()
-        type_mapper = self._dataset._destination.capabilities().get_type_mapper()
-        if self._dataset._destination.destination_type == "dlt.destinations.sqlalchemy":
+        caps = self._dataset._destination.capabilities()
+        if self._dataset._destination.destination_type in [
+            "dlt.destinations.sqlalchemy",
+            "dlt.destinations.snowflake",
+            "dlt.destinations.clickhouse",
+        ]:
             query = sqlglot.transpile(query, read=dialect, write="duckdb")[0]
             dialect = "duckdb"
             from dlt.destinations import duckdb
 
-            type_mapper = duckdb().capabilities().get_type_mapper()
+            caps = duckdb().capabilities()
 
-        # TODO store the SQLGlot schema on the dataset
+        # TODO: maybe store the SQLGlot schema on the dataset
+        # TODO: support joins between datasets
         d = self._dataset
-        sqlglot_schema = lineage.create_sqlglot_schema(
-            d.dataset_name, d.schema, dialect, type_mapper
+        sqlglot_schema = lineage.create_sqlglot_schema(d.dataset_name, d.schema, dialect, caps)
+        return lineage.compute_columns_schema(
+            query,
+            sqlglot_schema,
+            dialect,
+            allow_unknown_columns=allow_unknown_columns,
+            allow_anonymous_columns=allow_anonymous_columns,
+            allow_fail=allow_fail,
         )
-        return lineage.compute_columns_schema(query, sqlglot_schema, dialect)
 
     @property
     def columns_schema(self) -> TTableSchemaColumns:
@@ -143,7 +167,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         super().__init__(readable_dataset=readable_dataset)
 
         self._provided_query = provided_query
-        self._table_name = table_name  # type: ignore
+        self._table_name = table_name
         self._limit = limit
         self._selected_columns = selected_columns
 

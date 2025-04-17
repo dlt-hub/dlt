@@ -47,10 +47,10 @@ def example_schema(autouse_test_storage) -> Schema:
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        # TODO: see if we can get sqlalchemy to work
+        # TODO: see if we can get sqlalchemy, snowflake to work natively
         default_sql_configs=True,
         local_filesystem_configs=True,
-        exclude=["sqlalchemy"],
+        exclude=["sqlalchemy", "snowflake", "clickhouse"],
     ),
     ids=lambda x: x.name,
 )
@@ -63,7 +63,7 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
         DATASET_NAME,
         example_schema,
         dialect,
-        destination.capabilities().get_type_mapper(),
+        destination.capabilities(),
     )
 
     # TODO: investigate if we can fix this
@@ -71,15 +71,15 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
 
     # test star select
     sql_query = "SELECT * FROM customers"
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, "duckdb") == {
+    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, dialect) == {
         "id": {"name": "id", "data_type": id_result_type},
         "name": {"name": "name", "data_type": "text", "x-pii": True},
         "email": {"name": "email", "data_type": "text", "nullable": True},
     }
 
     # test select with fully qualified table and column names
-    sql_query = "SELECT d1.customers.id, d1.customers.name, d1.customers.email FROM d1.customers"
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, "duckdb") == {
+    sql_query = "SELECT ID, d1.customers.name, d1.customers.email FROM d1.customers"
+    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, dialect) == {
         "id": {"name": "id", "data_type": id_result_type},
         "name": {"name": "name", "data_type": "text", "x-pii": True},
         "email": {"name": "email", "data_type": "text", "nullable": True},
@@ -87,7 +87,7 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
 
     # test select with casting and avg
     sql_query = "SELECT AVG(id) as mean_id, name, email, CAST(LEN(name) as DOUBLE) FROM customers"
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, "duckdb") == {
+    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, dialect) == {
         "mean_id": {"name": "mean_id", "data_type": "double"},
         "name": {"name": "name", "data_type": "text", "x-pii": True},
         "email": {"name": "email", "data_type": "text", "nullable": True},
@@ -96,7 +96,7 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
 
     # test concat
     sql_query = "SELECT CONCAT(name, email) as concat FROM customers"
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, "duckdb") == {
+    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, dialect) == {
         "concat": {"name": "concat", "data_type": "text"},
     }
 

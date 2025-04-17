@@ -15,6 +15,7 @@ from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.destination.dataset import (
     TReadableRelation,
 )
+from dlt.common.destination import DestinationCapabilitiesContext
 
 if TYPE_CHECKING:
     from dlt.destinations.dataset import ReadableDBAPIDataset
@@ -123,17 +124,17 @@ def from_sqlglot_type(column: sge.Column) -> TColumnSchema:
 
 
 def create_sqlglot_schema(
-    dataset_name: str, schema: Schema, dialect: str, destination_type_mapper: DataTypeMapper
+    dataset_name: str, schema: Schema, dialect: str, caps: DestinationCapabilitiesContext
 ) -> SQLGlotSchema:
-    # {table: {col: type}}
-    # NOTE to enable cross-dataset lineage, use {db: {table: ...}} or {catalog: {db: {table: ...}}}
+    # {dataset: {table: {col: type}}}
+    type_mapper = caps.get_type_mapper()
     mapping_schema: dict[str, dict[str, DATA_TYPE]] = {}
     for table_name, table in schema.tables.items():
         if mapping_schema.get(table_name) is None:
             mapping_schema[table_name] = {}
 
         for column_name, column in table["columns"].items():
-            if sqlglot_type := to_sqlglot_type(column, table, destination_type_mapper, dialect):
+            if sqlglot_type := to_sqlglot_type(column, table, type_mapper, dialect):
                 mapping_schema[table_name][column_name] = sqlglot_type
 
     return ensure_schema({dataset_name: mapping_schema})
@@ -141,7 +142,12 @@ def create_sqlglot_schema(
 
 # TODO should we raise an exception for anonymous columns?
 def compute_columns_schema(
-    sql_query: str, sqlglot_schema: SQLGlotSchema, dialect: str, allow_fail: bool = True
+    sql_query: str,
+    sqlglot_schema: SQLGlotSchema,
+    dialect: str,
+    allow_unknown_columns: bool = True,
+    allow_anonymous_columns: bool = True,
+    allow_fail: bool = True,
 ) -> TTableSchemaColumns:
     expression: Any = sqlglot.maybe_parse(sql_query, dialect=dialect)
     if not isinstance(expression, sge.Select):

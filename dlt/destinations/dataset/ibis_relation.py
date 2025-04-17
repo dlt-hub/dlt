@@ -29,12 +29,10 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         *,
         readable_dataset: "ReadableDBAPIDataset",
         ibis_object: IbisEpr = None,
-        columns_schema: TTableSchemaColumns = None,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
         super().__init__(readable_dataset=readable_dataset)
         self._ibis_object = ibis_object
-        self._columns_schema = columns_schema
 
     def query(self) -> Any:
         """build the query"""
@@ -84,18 +82,8 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         # Call it with provided args
         result = method(*args, **kwargs)
 
-        # calculate columns schema for the result, some operations we know will not change the schema
-        # and select will just reduce the amount of column
-        columns_schema = None
-        if method_name == "select":
-            columns_schema = self._get_filtered_columns_schema(args)
-        elif method_name in ["filter", "limit", "order_by", "head"]:
-            columns_schema = self._columns_schema
-
         # If result is an ibis expression, wrap it in a new relation else return raw result
-        return self.__class__(
-            readable_dataset=self._dataset, ibis_object=result, columns_schema=columns_schema
-        )
+        return self.__class__(readable_dataset=self._dataset, ibis_object=result)
 
     def __getattr__(self, name: str) -> Any:
         """Wrap all callable attributes of the expression"""
@@ -126,18 +114,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         return self.__class__(
             readable_dataset=self._dataset,
             ibis_object=expr,
-            columns_schema=self._get_filtered_columns_schema(columns),
         )
-
-    def _get_filtered_columns_schema(self, columns: Sequence[str]) -> TTableSchemaColumns:
-        if not self._columns_schema:
-            return None
-        try:
-            return {col: self._columns_schema[col] for col in columns}
-        except KeyError:
-            # NOTE: select statements can contain new columns not present in the original schema
-            # here we just break the column schema inheritance chain
-            return None
 
     # forward ibis methods defined on interface
     def limit(self, limit: int, **kwargs: Any) -> "ReadableIbisRelation":
