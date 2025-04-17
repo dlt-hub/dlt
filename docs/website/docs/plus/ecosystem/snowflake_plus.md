@@ -153,7 +153,7 @@ When you provide a `base_location`, Snowflake uses it to create the paths where 
 STORAGE_BASE_URL/BASE_LOCATION.<randomId>/[data | metadata]/
 ```
 
-Where `<randomId>` is a random, Snowflake-generated 8-character string appended to create a unique directory.
+Where `<randomId>` is a random Snowflake-generated 8-character string appended to create a unique directory.
 
 For more details on how Snowflake organizes Iceberg table files in external storage, see the [Snowflake documentation on data and metadata directories](https://docs.snowflake.com/en/user-guide/tables-iceberg-storage#data-and-metadata-directories).
 
