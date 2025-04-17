@@ -529,7 +529,7 @@ def test_data_writer_load(naming: str, client: SqlJobClientBase, file_storage: F
     canonical_name = client.sql_client.make_qualified_table_name(table_name)
     # write only first row
     with io.BytesIO() as f:
-        write_dataset(client, f, [rows[0]], client.schema.get_table(table_name)["columns"])
+        write_dataset(client, f, [rows[0]], client.schema.get_table(table_name))
         query = f.getvalue()
     expect_load_file(client, file_storage, query, table_name)
     db_row = client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0]
@@ -537,7 +537,7 @@ def test_data_writer_load(naming: str, client: SqlJobClientBase, file_storage: F
     assert list(db_row) == list(rows[0].values())
     # write second row that contains two nulls
     with io.BytesIO() as f:
-        write_dataset(client, f, [rows[1]], client.schema.get_table(table_name)["columns"])
+        write_dataset(client, f, [rows[1]], client.schema.get_table(table_name))
         query = f.getvalue()
     expect_load_file(client, file_storage, query, table_name)
     f_int_name = client.schema.naming.normalize_identifier("f_int")
@@ -562,7 +562,7 @@ def test_data_writer_string_escape(client: SqlJobClientBase, file_storage: FileS
     inj_str = f", NULL'); DROP TABLE {canonical_name} --"
     row["f_str"] = inj_str
     with io.BytesIO() as f:
-        write_dataset(client, f, [rows[0]], client.schema.get_table(table_name)["columns"])
+        write_dataset(client, f, [rows[0]], client.schema.get_table(table_name))
         query = f.getvalue()
     expect_load_file(client, file_storage, query, table_name)
     db_row = client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0]
@@ -583,7 +583,7 @@ def test_data_writer_string_escape_edge(
     rows, table_name = prepare_schema(client, "weird_rows")
     canonical_name = client.sql_client.make_qualified_table_name(table_name)
     with io.BytesIO() as f:
-        write_dataset(client, f, rows, client.schema.get_table(table_name)["columns"])
+        write_dataset(client, f, rows, client.schema.get_table(table_name))
         query = f.getvalue()
     expect_load_file(client, file_storage, query, table_name)
     for i in range(1, len(rows) + 1):
@@ -619,7 +619,6 @@ def test_load_with_all_types(
     )
     # get normalized schema
     table_name = partial["name"]
-    column_schemas = partial["columns"]
     normalize_rows([data_row], client.schema.naming)
     client.schema._bump_version()
     client.update_stored_schema()
@@ -642,7 +641,7 @@ def test_load_with_all_types(
         canonical_name = client.sql_client.make_qualified_table_name(table_name)
     # write row
     with io.BytesIO() as f:
-        write_dataset(client, f, [data_row], column_schemas)
+        write_dataset(client, f, [data_row], partial)
         query = f.getvalue()
     # print(client.schema.to_pretty_yaml())
     expect_load_file(client, file_storage, query, table_name)
@@ -654,7 +653,7 @@ def test_load_with_all_types(
         assert_all_data_types_row(
             db_row,
             data_row,
-            schema=column_schemas,
+            schema=partial["columns"],
             allow_base64_binary=client.config.destination_type in ["clickhouse", "filesystem"],
         )
 
@@ -753,7 +752,7 @@ def test_write_dispositions(
                     client,
                     f,
                     [data_row],
-                    prepared_root_table["columns"],
+                    client.schema.get_table(t),
                     file_format=prepared_root_table.get("file_format"),  # type: ignore[arg-type]
                 )
                 query = f.getvalue()
@@ -775,7 +774,9 @@ def test_write_dispositions(
                 # merge data should be copied to destination dataset
                 assert len(db_rows) == 1
                 # check staging
-                if isinstance(client, WithStagingDataset):
+                if isinstance(
+                    client, WithStagingDataset
+                ) and client.should_load_data_to_staging_dataset(t):
                     with client.with_staging_dataset():
                         db_rows = list(
                             client.sql_client.execute_sql(
@@ -804,7 +805,7 @@ def test_get_resumed_job(client: SqlJobClientBase, file_storage: FileStorage) ->
     }
     print(client.schema.get_table(user_table_name)["columns"])
     with io.BytesIO() as f:
-        write_dataset(client, f, [load_json], client.schema.get_table(user_table_name)["columns"])
+        write_dataset(client, f, [load_json], client.schema.get_table(user_table_name))
         dataset = f.getvalue()
     job = expect_load_file(client, file_storage, dataset, user_table_name)
     # now try to retrieve the job
@@ -898,7 +899,7 @@ def test_get_stored_state(
         norm_doc = {client.schema.naming.normalize_identifier(k): v for k, v in doc.items()}
         with io.BytesIO() as f:
             # use normalized columns
-            write_dataset(client, f, [norm_doc], partial["columns"])
+            write_dataset(client, f, [norm_doc], partial)
             query = f.getvalue()
         expect_load_file(client, file_storage, query, partial["name"])
         client.complete_load("_load_id")
@@ -933,7 +934,7 @@ def test_many_schemas_single_dataset(
                 _client,
                 f,
                 [user_row],
-                _client.schema.tables["event_user"]["columns"],
+                _client.schema.tables["event_user"],
                 file_format=destination_config.file_format,
             )
             query = f.getvalue()
@@ -969,6 +970,9 @@ def test_many_schemas_single_dataset(
             assert len(schema_update) > 0
 
         _load_something(client, 1)
+        # seen data got added - must add schema again
+        client.schema._bump_version()
+        schema_update = client.update_stored_schema()
 
         # event_2 schema with identical event table
         event_schema = client.schema
@@ -985,10 +989,10 @@ def test_many_schemas_single_dataset(
             assert schema_update == {}
         # two different schemas in dataset
         assert event_schema.version_hash != event_2_schema.version_hash
-        ev_1_info = client.get_stored_schema_by_hash(event_schema.version_hash)
-        assert ev_1_info.schema_name == "event"
         ev_2_info = client.get_stored_schema_by_hash(event_2_schema.version_hash)
         assert ev_2_info.schema_name == "event_2"
+        ev_1_info = client.get_stored_schema_by_hash(event_schema.version_hash)
+        assert ev_1_info.schema_name == "event"
         # two rows because we load to the same table
         _load_something(client, 2)
 

@@ -523,7 +523,7 @@ def test_client_methods(
     destination_config: DestinationTestConfiguration,
     layout: str,
 ) -> None:
-    p = destination_config.setup_pipeline("access", dataset_name="incremental_test")
+    p = destination_config.setup_pipeline("access", dataset_name="incremental_test", dev_mode=True)
     os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
 
     @dlt.resource()

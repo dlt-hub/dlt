@@ -46,7 +46,7 @@ from dlt.common.destination.exceptions import SqlClientNotAvailable
 from dlt.common.data_writers import DataWriter
 from dlt.common.pipeline import PipelineContext
 from dlt.common.schema import TTableSchemaColumns, Schema
-from dlt.common.schema.typing import TTableFormat
+from dlt.common.schema.typing import TTableFormat, TTableSchema
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
 from dlt.common.schema.utils import new_table, normalize_table_identifiers
 from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStorage
@@ -623,7 +623,9 @@ def destinations_configs(
                     destination_type="filesystem",
                     # so not set the bucket for GCS because we switch to s3 compat
                     # note google s3 compat does not implement DeleteObjects so we cannot drop dataset at the end
-                    bucket_url=None if bucket == GCS_BUCKET else bucket,
+                    bucket_url=(
+                        GCS_BUCKET.replace("gs://", "s3://") if bucket == GCS_BUCKET else bucket
+                    ),
                     extra_info=bucket,
                     table_format="delta",
                     supports_merge=True,
@@ -779,7 +781,6 @@ def drop_pipeline_data(p: dlt.Pipeline) -> None:
                     except Exception as exc:
                         print(exc)
 
-    # drop_func = _drop_dataset_fs if _is_filesystem(p) else _drop_dataset_sql
     # take all schemas and if destination was set
     if p.destination:
         if p.config.use_single_dataset:
@@ -1030,7 +1031,7 @@ def write_dataset(
     client: JobClientBase,
     f: IO[bytes],
     rows: Union[List[Dict[str, Any]], List[StrAny]],
-    columns_schema: TTableSchemaColumns,
+    table_schema: TTableSchema,
     file_format: TLoaderFileFormat = None,
 ) -> None:
     spec = DataWriter.writer_spec_from_file_format(
@@ -1043,7 +1044,8 @@ def write_dataset(
     # remove None values
     for idx, row in enumerate(rows):
         rows[idx] = {k: v for k, v in row.items() if v is not None}
-    writer.write_all(columns_schema, rows)
+    table_schema["x-normalizer"] = {"seen-data": True}
+    writer.write_all(table_schema["columns"], rows)
     writer.close()
 
 

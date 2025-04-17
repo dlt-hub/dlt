@@ -38,7 +38,7 @@ def _run_dataset_checks(
     destination_config: DestinationTestConfiguration,
     secret_directory: str,
     table_format: Optional[TTableFormat] = None,
-    alternate_access_pipeline: Pipeline = None,
+    # alternate_access_pipeline: Pipeline = None,
 ) -> None:
     total_records = 200
 
@@ -87,10 +87,6 @@ def _run_dataset_checks(
 
     # run source
     pipeline.run(source(), loader_file_format=destination_config.file_format)
-
-    if alternate_access_pipeline:
-        orig_dest = pipeline.destination
-        pipeline.destination = alternate_access_pipeline.destination
 
     import duckdb
     from duckdb import HTTPException, IOException, InvalidInputException
@@ -187,9 +183,7 @@ def _run_dataset_checks(
     with fs_sql_client as sql_client:
         sql_client.create_views_for_tables({"arrow_all_types": "arrow_all_types"})
     assert external_db.sql("FROM second.arrow_all_types;").arrow().num_rows == total_records
-    if alternate_access_pipeline:
-        # switch back for the write path
-        pipeline.destination = orig_dest
+
     pipeline.run(  # run pipeline again to add rows to source table
         source().with_resources("arrow_all_types"),
         loader_file_format=destination_config.file_format,
@@ -333,25 +327,12 @@ def test_table_formats(
         dev_mode=True,
     )
 
-    # in case of gcs we use the s3 compat layer for reading
-    # for writing we still need to use the gc authentication, as delta_rs seems to use
-    # methods on the s3 interface that are not implemented by gcs
-    # s3 compat layer does not work with `iceberg` table format
-    access_pipeline = pipeline
-    if destination_config.bucket_url == GCS_BUCKET and destination_config.table_format != "iceberg":
-        gcp_bucket = filesystem(
-            GCS_BUCKET.replace("gs://", "s3://"), destination_name="filesystem_s3_gcs_comp"
-        )
-        access_pipeline = destination_config.setup_pipeline(
-            "read_pipeline", dataset_name="read_test", dev_mode=True, destination=gcp_bucket
-        )
-
     _run_dataset_checks(
         pipeline,
         destination_config,
         secret_directory=secret_directory,
         table_format=destination_config.table_format,
-        alternate_access_pipeline=access_pipeline,
+        # alternate_access_pipeline=access_pipeline,
     )
 
 

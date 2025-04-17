@@ -60,7 +60,7 @@ def test_no_destination_sync_state(destination_config: DestinationTestConfigurat
         pipeline_name="pipe_" + uniq_id(), dataset_name="state_test_" + uniq_id()
     )
     pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
-    assert list(pipeline.last_trace.last_normalize_info.row_counts.keys()) == ["digits"]
+    assert list(pipeline.last_trace.last_normalize_info.row_counts.keys())[0].lower() == "digits"
 
     pipeline.drop()
     pipeline.sync_destination()

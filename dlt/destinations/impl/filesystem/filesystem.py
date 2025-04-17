@@ -507,8 +507,8 @@ class FilesystemClient(
         table_dir = self.get_table_dir(table_name)
         # we need the table prefix so we separate table files if in the same folder
         table_prefix = self.get_table_prefix(table_name)
-        if not self.fs_client.exists(table_prefix):
-            raise DestinationUndefinedEntity(table_prefix)
+        # if not self.fs_client.exists(table_prefix):
+        #     raise DestinationUndefinedEntity(table_prefix)
         return self.list_files_with_prefixes(table_dir, [table_prefix])
 
     def list_files_with_prefixes(self, table_dir: str, prefixes: List[str]) -> List[str]:
@@ -906,6 +906,9 @@ class FilesystemClient(
     def is_open_table(self, table_format: TTableFormat, table_name: str) -> bool:
         if table_name in self.schema.dlt_table_names():
             return False
-        prepared_table = self.prepare_load_table(table_name)
+        try:
+            prepared_table = self.prepare_load_table(table_name)
+        except TableNotFound:
+            return False
         detected_format = prepared_table.get("table_format")
         return table_format == detected_format

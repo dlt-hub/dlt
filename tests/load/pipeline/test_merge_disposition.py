@@ -30,6 +30,7 @@ from dlt.sources.helpers.transform import skip_first, take_first
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.normalize.exceptions import NormalizeJobFailed
 
+from tests.load.pipeline.utils import skip_if_unsupported_merge_strategy
 from tests.pipeline.utils import (
     assert_load_info,
     load_table_counts,
@@ -45,18 +46,6 @@ from tests.load.utils import (
     FILE_BUCKET,
     ABFS_BUCKET,
 )
-
-
-def skip_if_not_supported(
-    merge_strategy: TLoaderMergeStrategy,
-    destination: AnyDestination,
-) -> None:
-    # resolve_merge_strategy
-    if merge_strategy not in destination.capabilities().supported_merge_strategies:
-        pytest.skip(
-            f"`{merge_strategy}` merge strategy not supported for `{destination.destination_name}`"
-            " destination."
-        )
 
 
 @pytest.mark.essential
@@ -77,9 +66,9 @@ def test_merge_on_keys_in_schema_nested_hints(
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
     """Tests merge disposition on an annotated schema, no annotations on resource"""
-    p = destination_config.setup_pipeline("eth_2", dev_mode=True)
+    skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
 
-    skip_if_not_supported(merge_strategy, p.destination)
+    p = destination_config.setup_pipeline("eth_2", dev_mode=True)
 
     with open("tests/common/cases/schemas/eth/ethereum_schema_v11.yml", "r", encoding="utf-8") as f:
         schema = dlt.Schema.from_dict(yaml.safe_load(f))
@@ -169,9 +158,9 @@ def test_merge_record_updates(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
-    p = destination_config.setup_pipeline("test_merge_record_updates", dev_mode=True)
+    skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
 
-    skip_if_not_supported(merge_strategy, p.destination)
+    p = destination_config.setup_pipeline("test_merge_record_updates", dev_mode=True)
 
     @dlt.resource(
         table_name="parent",
@@ -283,9 +272,8 @@ def test_merge_primary_key_normalization(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
+    skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
     p = destination_config.setup_pipeline("test_merge_record_updates", dev_mode=True)
-
-    skip_if_not_supported(merge_strategy, p.destination)
 
     @dlt.resource(
         table_name="parent",
@@ -401,11 +389,11 @@ def test_merge_nested_records_inserted_deleted(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
+    skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
+
     p = destination_config.setup_pipeline(
         "test_merge_nested_records_inserted_deleted", dev_mode=True
     )
-
-    skip_if_not_supported(merge_strategy, p.destination)
 
     @dlt.resource(
         table_name="parent",
@@ -537,11 +525,11 @@ def test_bring_your_own_dlt_id(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
+    skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
+
     p = destination_config.setup_pipeline(
         "test_merge_nested_records_inserted_deleted", dev_mode=True
     )
-
-    skip_if_not_supported(merge_strategy, p.destination)
 
     # sets _dlt_id as both primary key and row key.
     @dlt.resource(
@@ -643,8 +631,9 @@ def test_merge_on_ad_hoc_primary_key(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
+    skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
+
     p = destination_config.setup_pipeline("github_1", dev_mode=True)
-    skip_if_not_supported(merge_strategy, p.destination)
 
     @dlt.resource(
         table_name="issues",
@@ -700,7 +689,9 @@ def github():
 
 @pytest.mark.essential
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
 )
 def test_merge_source_compound_keys_and_changes(
     destination_config: DestinationTestConfiguration,
@@ -842,7 +833,7 @@ def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration)
     assert_load_info(info)
     # make sure it was parquet or sql transforms
     expected_formats = ["parquet"]
-    if p.staging:
+    if p.staging or destination_config.table_format:
         # allow references if staging is present
         expected_formats.append("reference")
     files = p.get_load_package_info(p.list_completed_load_packages()[0]).jobs["completed_jobs"]
@@ -850,7 +841,8 @@ def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration)
 
     github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     expected_rows = 100
-    if not destination_config.supports_merge:
+    # if table_format is set we use upsert which does not deduplicate input data
+    if not destination_config.supports_merge or destination_config.table_format:
         expected_rows *= 2
     assert github_1_counts["issues"] == expected_rows
 
@@ -1101,11 +1093,12 @@ def test_nested_column_missing(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
-    if destination_config.table_format == "delta":
+    if destination_config.table_format:
         pytest.skip(
             "Record updates that involve removing elements from a nested"
-            " column is not supported for `delta` table format."
+            " column is not supported for open table destinations."
         )
+    skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
 
     table_name = "test_nested_column_missing"
 
@@ -1119,7 +1112,6 @@ def test_nested_column_missing(
         yield data
 
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
-    skip_if_not_supported(merge_strategy, p.destination)
 
     data = [
         {"id": 1, "simple": "foo", "nested": [1, 2, 3]},
@@ -1154,6 +1146,7 @@ def test_hard_delete_hint(
 ) -> None:
     if merge_strategy == "upsert" and key_type != "primary_key":
         pytest.skip("`upsert` merge strategy requires `primary_key`")
+    skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
     # no_key setting will have the effect that hard deletes have no effect, since hard delete records
     # can not be matched
     table_name = "test_hard_delete_hint"
@@ -1175,7 +1168,6 @@ def test_hard_delete_hint(
         pass
 
     p = destination_config.setup_pipeline(f"abstract_{key_type}", dev_mode=True)
-    skip_if_not_supported(merge_strategy, p.destination)
 
     # insert two records
     data = [
@@ -1316,6 +1308,8 @@ def test_hard_delete_hint_config(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
+    skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
+
     table_name = "test_hard_delete_hint_non_bool"
 
     @dlt.resource(
@@ -1330,7 +1324,6 @@ def test_hard_delete_hint_config(
         yield data
 
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
-    skip_if_not_supported(merge_strategy, p.destination)
 
     # insert two records
     data = [
@@ -1653,9 +1646,9 @@ def test_merge_arrow(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
-    pipeline = destination_config.setup_pipeline("merge_arrow", dev_mode=True)
+    skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
 
-    skip_if_not_supported(merge_strategy, pipeline.destination)
+    pipeline = destination_config.setup_pipeline("merge_arrow", dev_mode=True)
 
     @dlt.resource(
         write_disposition={"disposition": "merge", "strategy": merge_strategy},

@@ -265,6 +265,7 @@ def assert_all_data_types_row(
                 db_mapping[binary_col] = bytes(db_mapping[binary_col])
 
     # `delta` table format stores `wei` type as string
+    # reason: decimal256 not supported so we convert to string
     if "col8" in db_mapping:
         if isinstance(db_mapping["col8"], str):
             db_mapping["col8"] = int(db_mapping["col8"])
@@ -292,6 +293,7 @@ def assert_all_data_types_row(
 
     for key, expected in expected_rows.items():
         actual = db_mapping[key]
+        print(f"Expected {expected} but got {actual} for column {key}")
         assert expected == actual, f"Expected {expected} but got {actual} for column {key}"
 
     assert db_mapping == expected_rows

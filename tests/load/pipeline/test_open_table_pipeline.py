@@ -576,6 +576,7 @@ def test_delta_table_partitioning_arrow_load_id(
     "destination_config",
     destinations_configs(
         table_format_local_configs=True,
+        supports_merge=True,
     ),
     ids=lambda x: x.name,
 )
@@ -584,7 +585,7 @@ def test_delta_table_partitioning_arrow_load_id(
     (
         "append",
         "replace",
-        pytest.param({"disposition": "merge", "strategy": "upsert"}, id="upsert"),
+        "merge",
     ),
 )
 def test_table_format_schema_evolution(
@@ -592,11 +593,6 @@ def test_table_format_schema_evolution(
     write_disposition: TWriteDisposition,
 ) -> None:
     """Tests schema evolution (adding new columns) for `delta` and `iceberg` table formats."""
-    if destination_config.table_format == "iceberg" and write_disposition == {
-        "disposition": "merge",
-        "strategy": "upsert",
-    }:
-        pytest.skip("`upsert` currently not implemented for `iceberg`")
 
     from dlt.common.libs.pyarrow import pyarrow
 
@@ -703,7 +699,7 @@ def test_table_format_schema_evolution(
         expected_num_rows = 3
     elif write_disposition == "replace":
         expected_num_rows = 0
-    elif write_disposition == {"disposition": "merge", "strategy": "upsert"}:
+    elif write_disposition == "merge":
         expected_num_rows = 2
     assert actual.num_rows == expected_num_rows
     # new column should have NULLs only
@@ -715,9 +711,15 @@ def test_table_format_schema_evolution(
     # load 4 - load nested types
     info = pipeline.run(evolving_table(arrow_table))
 
+    if write_disposition == "merge":
+        # PKs will overwrite two new rows
+        expected_num_rows += 0
+    else:
+        expected_num_rows += 2
+
     # get data via sql_client from may different parquet files, including nested types
     # duckdb can't do that if schema inference is skipped so it is enabled by default
-    assert pipeline.dataset().evolving_table.arrow().num_rows == expected_num_rows + 2
+    assert pipeline.dataset().evolving_table.arrow().num_rows == expected_num_rows
 
 
 @pytest.mark.parametrize(

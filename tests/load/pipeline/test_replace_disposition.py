@@ -3,7 +3,7 @@ import dlt, os, pytest
 from dlt.common.utils import uniq_id
 from pytest_mock import MockerFixture
 
-from dlt.common.schema.typing import REPLACE_STRATEGIES
+from dlt.common.schema.typing import REPLACE_STRATEGIES, TLoaderReplaceStrategy
 
 from tests.pipeline.utils import assert_load_info, load_table_counts, load_tables_to_dicts
 from tests.load.utils import (
@@ -23,7 +23,7 @@ from tests.load.pipeline.utils import skip_if_unsupported_replace_strategy
 )
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
 def test_replace_disposition(
-    destination_config: DestinationTestConfiguration, replace_strategy: str
+    destination_config: DestinationTestConfiguration, replace_strategy: TLoaderReplaceStrategy
 ) -> None:
     skip_if_unsupported_replace_strategy(destination_config, replace_strategy)
 
@@ -242,7 +242,7 @@ def test_replace_disposition(
 )
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
 def test_replace_table_clearing(
-    destination_config: DestinationTestConfiguration, replace_strategy: str
+    destination_config: DestinationTestConfiguration, replace_strategy: TLoaderReplaceStrategy
 ) -> None:
     skip_if_unsupported_replace_strategy(destination_config, replace_strategy)
 
@@ -393,7 +393,9 @@ def test_replace_table_clearing(
 )
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
 def test_replace_sql_queries(
-    destination_config: DestinationTestConfiguration, replace_strategy: str, mocker: MockerFixture
+    destination_config: DestinationTestConfiguration,
+    replace_strategy: TLoaderReplaceStrategy,
+    mocker: MockerFixture,
 ) -> None:
     skip_if_unsupported_replace_strategy(destination_config, replace_strategy)
 

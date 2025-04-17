@@ -11,7 +11,7 @@ from dlt.common.pipeline import SupportsPipeline
 from dlt.common.destination import Destination
 from dlt.common.destination.client import WithStagingDataset
 from dlt.common.schema.schema import Schema
-from dlt.common.schema.typing import VERSION_TABLE_NAME, REPLACE_STRATEGIES
+from dlt.common.schema.typing import VERSION_TABLE_NAME, REPLACE_STRATEGIES, TLoaderReplaceStrategy
 from dlt.common.schema.utils import new_table
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
@@ -590,6 +590,12 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     if destination_config.destination_type in ("redshift", "dremio"):
         data_types.pop("col7_precision")
         column_schemas.pop("col7_precision")
+    if destination_config.destination_type == "filesystem" and not destination_config.table_format:
+        # duckdb view will be crated over parquet file
+        # parquet file contains decimal256 (wei) which gets converted to float64 and we lose
+        # precision, drop column to avoid test
+        data_types.pop("col8")
+        column_schemas.pop("col8")
 
     # apply the exact columns definitions so we process nested and wei types correctly!
     @dlt.resource(
@@ -643,6 +649,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         db_rows = sql_client.execute_sql(f"SELECT * FROM {qual_name('data_types')} ORDER BY 1")
         assert len(db_rows) == 10
         db_row = list(db_rows[0])
+        print(db_row)
         # "snowflake" and "bigquery" do not parse JSON form parquet string so double parse
         assert_all_data_types_row(
             db_row,
@@ -708,7 +715,7 @@ def test_dataset_name_change(destination_config: DestinationTestConfiguration) -
 )
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
 def test_pipeline_upfront_tables_two_loads(
-    destination_config: DestinationTestConfiguration, replace_strategy: str
+    destination_config: DestinationTestConfiguration, replace_strategy: TLoaderReplaceStrategy
 ) -> None:
     skip_if_unsupported_replace_strategy(destination_config, replace_strategy)
 
@@ -721,12 +728,11 @@ def test_pipeline_upfront_tables_two_loads(
         dataset_name="test_pipeline_upfront_tables_two_loads",
         dev_mode=True,
     )
-    pipeline.destination.configuration
 
     @dlt.source
     def two_tables():
         @dlt.resource(
-            columns=[{"name": "id", "data_type": "bigint", "nullable": True, "primary_key": True}],
+            columns=[{"name": "id", "data_type": "bigint", "nullable": False, "primary_key": True}],
             write_disposition="merge",
             table_format=destination_config.table_format,
         )
@@ -738,7 +744,7 @@ def test_pipeline_upfront_tables_two_loads(
                 {
                     "name": "id",
                     "data_type": "bigint",
-                    "nullable": True,
+                    "nullable": False,
                     "unique": True,
                     "primary_key": True,
                 }
@@ -750,7 +756,7 @@ def test_pipeline_upfront_tables_two_loads(
             yield data_to_item_format("arrow-table", [{"id": 2}])
 
         @dlt.resource(
-            columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
+            columns=[{"name": "id", "data_type": "bigint", "nullable": False}],
             write_disposition="replace",
             table_format=destination_config.table_format,
         )

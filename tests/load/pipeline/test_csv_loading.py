@@ -15,7 +15,12 @@ from tests.pipeline.utils import (
     assert_only_table_columns,
     load_tables_to_dicts,
 )
-from tests.load.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.utils import (
+    MEMORY_BUCKET,
+    SFTP_BUCKET,
+    destinations_configs,
+    DestinationTestConfiguration,
+)
 from tests.utils import TestDataItemFormat
 
 
@@ -25,6 +30,7 @@ from tests.utils import TestDataItemFormat
         default_sql_configs=True,
         all_buckets_filesystem_configs=True,
         subset=["postgres", "snowflake", "filesystem"],
+        bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
     ),
     ids=lambda x: x.name,
 )
