@@ -398,6 +398,42 @@ class ArrowExtractor(Extractor):
 
         return item
 
+    def _add_dlt_load_id_column(
+        self,
+        item: "TAnyArrowItem",
+        columns: TTableSchemaColumns = None,
+    ) -> "TAnyArrowItem":
+        """
+        Adds or replaces the `_dlt_load_id` column.
+        """
+        replacement_load_id = self.load_id if self._normalize_config.add_dlt_load_id else None
+        if replacement_load_id is not None:
+            dlt_load_id_col_name = self.naming.normalize_identifier(C_DLT_LOAD_ID)
+
+            idx = item.schema.get_field_index(dlt_load_id_col_name)
+            # if the column already exists and is in columns, get rid of it
+            if idx != -1 and dlt_load_id_col_name in columns:
+                item = pyarrow.remove_columns(item, dlt_load_id_col_name)
+
+            # get pyarrow.string() type
+            pyarrow_string = pyarrow.get_py_arrow_datatype(
+                columns[dlt_load_id_col_name],
+                self._caps,
+                "UTC",  # ts is irrelevant to get pyarrow string, but it's required...
+            )
+
+            # add the column with the new value at previous index or append
+            item = pyarrow.add_constant_column(
+                item=item,
+                name=dlt_load_id_col_name,
+                data_type=pyarrow_string,
+                value=replacement_load_id,
+                nullable=False,
+                index=idx,
+            )
+
+        return item
+
     def _write_item(
         self,
         table_name: str,
