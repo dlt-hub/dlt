@@ -16,7 +16,7 @@ TSupportedIde = Literal[
     "claude_desktop",
 ]
 
-SUPPORTED_IDES: Set[TSupportedIde] = set(get_args(TSupportedIde))
+SUPPORTED_IDES: Set[TSupportedIde] = list(get_args(TSupportedIde))  # type: ignore
 VERIFIED_SOURCES_AI_BASE_DIR = "ai"
 
 # TODO Claude Desktop: rules need to be named `CLAUDE.md`, allow command to append to it

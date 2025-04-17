@@ -700,7 +700,7 @@ Generate IDE-specific configuration and rules files.
 **Usage**
 ```sh
 dlt ai setup [-h] [--location LOCATION] [--branch BRANCH]
-    {continue,cursor,cline,claude_desktop}
+    {cursor,continue,cline,claude_desktop}
 ```
 
 **Description**
