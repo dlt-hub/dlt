@@ -167,8 +167,6 @@ class SqlalchemyClient(SqlClientBase[Connection]):
 
     @property
     def native_connection(self) -> Connection:
-        if not self._current_connection:
-            raise LoadClientNotConnected(type(self).__name__, self.dataset_name)
         return self._current_connection
 
     def _in_transaction(self) -> bool:
