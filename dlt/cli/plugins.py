@@ -665,6 +665,9 @@ class AiCommand(SupportsCliCommand):
         setup_cmd = ai_subparsers.add_parser(
             "setup",
             help="Generate IDE-specific configuration and rules files",
+            description="""Get AI rules files and configuration into your local project for the selected IDE.
+Files are fetched from https://github.com/dlt-hub/verified-sources by default.
+""",
         )
         setup_cmd.add_argument("ide", choices=SUPPORTED_IDES, help="IDE to configure.")
         setup_cmd.add_argument(
