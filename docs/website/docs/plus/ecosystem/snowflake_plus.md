@@ -129,7 +129,7 @@ For more flexibility, you can also define custom placeholders using the `extra_p
 
 ### Examples
 
-1. Default pattern (if not specified, `{dataset_name}/{table_name}`) creates paths like `my_dataset/customers` in your external volume.
+1. The default pattern `{dataset_name}/{table_name}` creates paths like `my_dataset/customers` in your external volume.
 
 2. Custom static path:
    ```yaml
