@@ -209,6 +209,16 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                 raise DatabaseUndefinedRelation(ex)
             # duckdb raises TypeError on malformed query parameters
             return DatabaseTransientException(duckdb.ProgrammingError(ex))
+        elif isinstance(ex, duckdb.IOException):
+            if (
+                "read from delta table" in str(ex) and "No files in log segment" in str(ex)
+            ) or "Path does not exist" in str(ex):
+                # delta scanner with no delta data and metadata exist in the location
+                return DatabaseUndefinedRelation(ex)
+            if "Could not guess Iceberg table version" in str(ex):
+                # same but iceberg
+                return DatabaseUndefinedRelation(ex)
+            return DatabaseTransientException(ex)
         elif isinstance(ex, duckdb.InternalException):
             if "INTERNAL Error: Value::LIST(values)" in str(ex):
                 return IcebergViewException(
@@ -281,6 +291,7 @@ class WithTableScanners(DuckDbSqlClient):
         escaped_bucket_name = regex.sub("", scope.lower())
         return f"{self.dataset_name}_{escaped_bucket_name}"
 
+    @raise_database_error
     def list_secrets(self) -> Sequence[str]:
         """List secrets that belong to this dataset"""
         secrets = self._conn.sql(
@@ -288,6 +299,7 @@ class WithTableScanners(DuckDbSqlClient):
         ).fetchall()
         return [s[0] for s in secrets]
 
+    @raise_database_error
     def drop_secret(self, secret_name: str) -> None:
         if not secret_name.startswith(self.dataset_name):
             raise ValueError(
@@ -296,6 +308,7 @@ class WithTableScanners(DuckDbSqlClient):
 
         self._conn.sql(f"DROP SECRET {secret_name}")
 
+    @raise_database_error
     def create_secret(
         self,
         scope: str,
@@ -453,11 +466,15 @@ class WithTableScanners(DuckDbSqlClient):
 
         # this also gets all views
         existing_tables = [tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall()]
+        # map only tables with data
+        tables_with_data = self.schema.dlt_table_names() + self.schema.data_table_names(
+            seen_data_only=True
+        )
 
         for table_name in tables.keys():
             view_name = tables[table_name]
 
-            if table_name not in self.schema.tables:
+            if table_name not in tables_with_data:
                 # unknown views will not be created
                 continue
             # NOTE: if this is staging configuration then `prepare_load_table` will remove some info

@@ -5,6 +5,7 @@ from fsspec import AbstractFileSystem
 
 from dlt import version
 from dlt.common import logger
+from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.time import precise_time
 from dlt.common.libs.pyarrow import cast_arrow_schema_types
 from dlt.common.libs.utils import load_open_tables
@@ -168,7 +169,7 @@ def get_last_metadata_file(
     # TODO: implement faster way to obtain `last_metadata_file` (listing is slow)
     metadata_files = [f for f in fs_client.ls(metadata_path) if f.endswith(".json")]
     if len(metadata_files) == 0:
-        raise FileNotFoundError(metadata_path)
+        raise DestinationUndefinedEntity(FileNotFoundError(metadata_path))
     return make_location(sorted(metadata_files)[-1], config)
 
 

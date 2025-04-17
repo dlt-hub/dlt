@@ -10,6 +10,7 @@ from dlt.common import Decimal
 from typing import List
 from functools import reduce
 
+from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableFormat
 from dlt.common.storages.exceptions import SchemaNotFoundError
@@ -24,7 +25,7 @@ from tests.load.utils import (
     MEMORY_BUCKET,
 )
 from dlt.destinations import filesystem
-from tests.utils import TEST_STORAGE_ROOT, clean_test_storage
+from tests.utils import TEST_STORAGE_ROOT, clean_test_storage, load_table_counts
 from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
 from dlt.destinations.dataset.exceptions import (
     ReadableRelationUnknownColumnException,
@@ -962,6 +963,62 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     )
     assert dataset.schema.name == "some_other_schema"
     assert "other_table" in dataset.schema.tables
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    configs,
+    ids=lambda x: x.name,
+)
+def test_read_not_materialized_table(destination_config: DestinationTestConfiguration):
+    @dlt.source
+    def two_tables():
+        @dlt.resource(
+            columns=[{"name": "id", "data_type": "bigint", "nullable": True, "primary_key": True}],
+            write_disposition="append",
+            table_format=destination_config.table_format,
+        )
+        def table_1():
+            yield {"id": 1}
+
+        @dlt.resource(
+            columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
+            write_disposition="replace",
+            table_format=destination_config.table_format,
+        )
+        def table_3(make_data=False):
+            return
+            yield
+
+        return table_1, table_3
+
+    pipeline = destination_config.setup_pipeline(
+        "test_pipeline_upfront_tables_two_loads",
+        dataset_name="test_pipeline_upfront_tables_two_loads",
+        dev_mode=True,
+    )
+
+    # create table without any data in it and try to access it. destination should not know this table
+    # expected behavior is that table is not found
+    schema = two_tables().discover_schema()
+
+    # now we use this schema but load just one resource
+    source = two_tables()
+    # push state, table 3 not created
+    pipeline.run(source.table_3, schema=schema, **destination_config.run_kwargs)
+
+    with pytest.raises(DestinationUndefinedEntity):
+        pipeline.dataset().table_3.fetchall()
+
+    # now set table_3 so it has seen data
+    with pipeline.dataset() as dataset_:
+        schema = dataset_.schema
+        schema.tables["table_3"]["x-normalizer"] = {"seen-data": True}
+
+    # forces sql_client to map views. but data does not exist so must raise same exceptions
+    with pytest.raises(DestinationUndefinedEntity):
+        pipeline.dataset().table_3.fetchall()
 
 
 @pytest.mark.essential
