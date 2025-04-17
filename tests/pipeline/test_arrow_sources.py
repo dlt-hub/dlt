@@ -50,7 +50,7 @@ def test_extract_and_normalize(item_type: TPythonTableFormat, is_list: bool):
         else:
             yield item
 
-    pipeline.extract(some_data())
+    pipeline.extract(some_data(), loader_file_format="parquet")
     norm_storage = pipeline._get_normalize_storage()
     extract_files = [
         fn for fn in norm_storage.list_files_to_normalize_sorted() if fn.endswith(".parquet")
@@ -61,7 +61,7 @@ def test_extract_and_normalize(item_type: TPythonTableFormat, is_list: bool):
     with norm_storage.extracted_packages.storage.open_file(extract_files[0], "rb") as f:
         extracted_bytes = f.read()
 
-    info = pipeline.normalize(loader_file_format="parquet")
+    info = pipeline.normalize()
 
     assert info.row_counts["some_data"] == len(records)
 
@@ -280,8 +280,8 @@ def test_normalize_with_dlt_columns(item_type: TPythonTableFormat):
 
     pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb")
 
-    pipeline.extract(some_data())
-    pipeline.normalize(loader_file_format="parquet")
+    pipeline.extract(some_data(), loader_file_format="parquet")
+    pipeline.normalize()
 
     load_id = pipeline.list_normalized_load_packages()[0]
     storage = pipeline._get_load_storage()
@@ -362,7 +362,9 @@ def test_normalize_reorder_columns_separate_packages(item_type: TPythonTableForm
         shuffled_names.append("binary")
         assert actual_tbl_shuffled.schema.names == shuffled_names
 
-    extract_info = pipeline.extract(_to_item(table), table_name="table")
+    extract_info = pipeline.extract(
+        _to_item(table), table_name="table", loader_file_format="parquet"
+    )
     job_file = extract_info.load_packages[0].jobs["new_jobs"][0].file_path
     with storage.extracted_packages.storage.open_file(job_file, "rb") as f:
         actual_tbl = pa.parquet.read_table(f)
@@ -371,7 +373,7 @@ def test_normalize_reorder_columns_separate_packages(item_type: TPythonTableForm
         assert actual_tbl.schema.equals(actual_tbl_shuffled.schema)
 
     # now normalize everything to parquet
-    normalize_info = pipeline.normalize(loader_file_format="parquet")
+    normalize_info = pipeline.normalize()
     print(normalize_info.asstr(verbosity=2))
     # we should have 3 load packages
     assert len(normalize_info.load_packages) == 3
@@ -399,12 +401,13 @@ def test_normalize_reorder_columns_single_package(item_type: TPythonTableFormat)
     extract_info = pipeline.extract(
         [_to_item(shuffled_removed_column), _to_item(shuffled_table), _to_item(table)],
         table_name="table",
+        loader_file_format="parquet",
     )
     assert len(extract_info.load_packages) == 1
     # there was a schema change (binary column was added)
     assert len(extract_info.load_packages[0].jobs["new_jobs"]) == 2
 
-    normalize_info = pipeline.normalize(loader_file_format="parquet")
+    normalize_info = pipeline.normalize()
     assert len(normalize_info.load_packages) == 1
     assert normalize_info.row_counts["table"] == 5432 * 3
     # we have 2 jobs: one was imported and second one had to be normalized
@@ -442,6 +445,7 @@ def test_normalize_reorder_columns_single_batch(item_type: TPythonTableFormat) -
     extract_info = pipeline.extract(
         [[_to_item(shuffled_removed_column), _to_item(shuffled_table), _to_item(table)]],
         table_name="table",
+        loader_file_format="parquet",
     )
     assert len(extract_info.load_packages) == 1
     # all arrow tables got normalized to the same schema so no rotation
@@ -459,7 +463,7 @@ def test_normalize_reorder_columns_single_batch(item_type: TPythonTableFormat) -
         # must be exactly shuffled_schema like in all other cases
         assert actual_tbl.schema.names == shuffled_names
 
-    normalize_info = pipeline.normalize(loader_file_format="parquet")
+    normalize_info = pipeline.normalize()
     assert len(normalize_info.load_packages) == 1
     assert normalize_info.row_counts["table"] == 5432 * 3
     # one job below that was imported without normalization
@@ -593,8 +597,8 @@ def test_extract_json_normalize_parquet_adds_dlt_load_id():
 
     pipeline: dlt.Pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb")
 
-    pipeline.extract(some_data())
-    n_info = pipeline.normalize(loader_file_format="parquet")
+    pipeline.extract(some_data(), loader_file_format="parquet")
+    n_info = pipeline.normalize()
 
     load_id = n_info.loads_ids[0]
     jobs = n_info.load_packages[0].jobs["new_jobs"]

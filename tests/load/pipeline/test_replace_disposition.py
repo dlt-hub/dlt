@@ -1,16 +1,16 @@
 from typing import Dict
-import yaml
 import dlt, os, pytest
 from dlt.common.utils import uniq_id
 from pytest_mock import MockerFixture
 
+from dlt.common.schema.typing import REPLACE_STRATEGIES
+
 from tests.pipeline.utils import assert_load_info, load_table_counts, load_tables_to_dicts
 from tests.load.utils import (
-    drop_active_pipeline_data,
     destinations_configs,
     DestinationTestConfiguration,
 )
-from tests.load.pipeline.utils import REPLACE_STRATEGIES, skip_if_unsupported_replace_strategy
+from tests.load.pipeline.utils import skip_if_unsupported_replace_strategy
 
 
 @pytest.mark.essential
@@ -377,6 +377,7 @@ def test_replace_table_clearing(
     }
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -391,35 +392,42 @@ def test_replace_sql_queries(
 ) -> None:
     skip_if_unsupported_replace_strategy(destination_config, replace_strategy)
 
-    from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob
+    from dlt.destinations.sql_jobs import SqlStagingFollowupJob, SqlStagingReplaceFollowupJob
 
     os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
 
-    clone_sql_generator_spy = mocker.spy(SqlStagingCopyFollowupJob, "_generate_clone_sql")
-    insert_sql_generator_spy = mocker.spy(SqlStagingCopyFollowupJob, "_generate_insert_sql")
+    clone_sql_generator_spy = mocker.spy(SqlStagingReplaceFollowupJob, "_generate_clone_sql")
+    insert_sql_generator_spy = mocker.spy(SqlStagingFollowupJob, "_generate_insert_sql")
 
     dest_type = destination_config.destination_type
     destination_spy = None
 
     if dest_type == "sqlalchemy":
-        from dlt.destinations.impl.sqlalchemy.load_jobs import SqlalchemyStagingCopyJob
+        from dlt.destinations.impl.sqlalchemy.load_jobs import SqlalchemyReplaceJob
 
-        destination_spy = mocker.spy(SqlalchemyStagingCopyJob, "generate_sql")
+        destination_spy = mocker.spy(SqlalchemyReplaceJob, "generate_sql")
 
     elif dest_type == "postgres":
-        from dlt.destinations.impl.postgres.postgres import PostgresStagingCopyJob
+        from dlt.destinations.impl.postgres.postgres import PostgresStagingReplaceJob
 
-        destination_spy = mocker.spy(PostgresStagingCopyJob, "generate_sql")
+        destination_spy = mocker.spy(PostgresStagingReplaceJob, "generate_sql")
 
     elif dest_type == "mssql":
-        from dlt.destinations.impl.mssql.mssql import MsSqlStagingCopyJob
+        from dlt.destinations.impl.mssql.mssql import MsSqlStagingReplaceJob
 
-        destination_spy = mocker.spy(MsSqlStagingCopyJob, "generate_sql")
+        destination_spy = mocker.spy(MsSqlStagingReplaceJob, "generate_sql")
 
     pipeline = destination_config.setup_pipeline("insert_from_staging_test", dev_mode=True)
-    load_info = pipeline.run([{"id": 1}], table_name="my_table", write_disposition="replace")
-
+    load_info = pipeline.run(
+        [{"id": 1}],
+        table_name="my_table",
+        write_disposition="replace",
+        **destination_config.run_kwargs,
+    )
     assert_load_info(load_info)
+
+    # make sure data got loaded
+    assert len(pipeline.dataset().my_table.fetchall()) == 1
 
     if replace_strategy == "truncate-and-insert":
         if dest_type == "sqlalchemy":

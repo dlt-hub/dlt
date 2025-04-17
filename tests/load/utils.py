@@ -38,9 +38,10 @@ from dlt.common.destination.client import (
     DestinationClientStagingConfiguration,
     WithStagingDataset,
     DestinationCapabilitiesContext,
+    DEFAULT_FILE_LAYOUT,
 )
 from dlt.common.destination import TLoaderFileFormat, Destination, TDestinationReferenceArg
-from dlt.common.destination.client import DEFAULT_FILE_LAYOUT
+from dlt.common.destination.exceptions import SqlClientNotAvailable
 from dlt.common.data_writers import DataWriter
 from dlt.common.pipeline import PipelineContext
 from dlt.common.schema import TTableSchemaColumns, Schema
@@ -56,7 +57,6 @@ from dlt.destinations.exceptions import CantExtractTablePrefix
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from dlt.pipeline.exceptions import SqlClientNotAvailable
 from tests.utils import (
     ACTIVE_DESTINATIONS,
     ACTIVE_TABLE_FORMATS,
@@ -530,6 +530,14 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
                 extra_info="credential-forwarding",
+            ),
+            DestinationTestConfiguration(
+                destination_type="redshift",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AWS_BUCKET,
+                staging_iam_role="arn:aws:iam::267388281016:role/redshift_s3_read",
+                extra_info="s3-role",
             ),
             DestinationTestConfiguration(
                 destination_type="snowflake",
@@ -1045,3 +1053,24 @@ def normalize_storage_table_cols(
         new_table(table_name, columns=cols.values()), schema.naming  # type: ignore[arg-type]
     )
     return storage_table["columns"]
+
+
+def count_job_types(p: dlt.Pipeline) -> Dict[str, Dict[str, Any]]:
+    """
+    gets a list of loaded jobs by type for each table
+    this is useful for testing to check that the correct transformations were used
+    """
+
+    jobs = p.last_trace.last_load_info.load_packages[0].jobs["completed_jobs"]
+    tables: Dict[str, Dict[str, Any]] = {}
+
+    for j in jobs:
+        file_format = j.job_file_info.file_format
+        table_name = j.job_file_info.table_name
+        if table_name.startswith("_dlt"):
+            continue
+        tables.setdefault(table_name, {})[file_format] = (
+            tables.get(table_name, {}).get(file_format, 0) + 1
+        )
+
+    return tables

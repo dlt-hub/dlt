@@ -81,6 +81,7 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
             name,
             self._config_toml.unwrap,
             supports_secrets,
+            self._toml_paths,
         )
 
     def _resolve_toml_paths(self, file_name: str, resolvable_dirs: List[str]) -> List[str]:

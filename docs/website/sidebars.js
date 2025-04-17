@@ -245,6 +245,7 @@ const sidebars = {
         'dlt-ecosystem/destinations/clickhouse',
         'dlt-ecosystem/destinations/filesystem',
         'dlt-ecosystem/destinations/delta-iceberg',
+        'dlt-ecosystem/destinations/iceberg',
         'dlt-ecosystem/destinations/postgres',
         'dlt-ecosystem/destinations/redshift',
         'dlt-ecosystem/destinations/snowflake',
@@ -282,6 +283,7 @@ const sidebars = {
           },
           items: [
             "dlt-ecosystem/llm-tooling/mcp-server",
+            "dlt-ecosystem/llm-tooling/cursor-restapi",
           ]
         },
         {

@@ -1,5 +1,6 @@
 import platform
 import os
+from dlt.common import logger
 
 from dlt.destinations.utils import is_compression_disabled
 
@@ -73,6 +74,10 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client
         # we assume s3 credentials where provided for the staging
+        aws_region = (
+            self._staging_credentials.get("region_name", "") if self._staging_credentials else ""
+        )
+        region = f"region '{aws_region}'" if aws_region else ""
         credentials = ""
         if self._staging_iam_role:
             credentials = f"IAM_ROLE '{self._staging_iam_role}'"
@@ -85,7 +90,6 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
                 "CREDENTIALS"
                 f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
             )
-
         # get format
         ext = os.path.splitext(self._bucket_path)[1][1:]
         file_type = ""
@@ -96,6 +100,15 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             dateformat = "dateformat 'auto' timeformat 'auto'"
             compression = "" if is_compression_disabled() else "GZIP"
         elif ext == "parquet":
+            # Redshift doesn't support copying across regions for columnar data formats
+            # https://docs.aws.amazon.com/redshift/latest/dg/copy-usage_notes-copy-from-columnar.html  # noqa: E501
+            if region:
+                logger.warning(
+                    "Redshift doesn't support copying Parquet files across regions. The region"
+                    " parameter will be ignored."
+                )
+                region = ""
+
             file_type = "PARQUET"
             # if table contains json types then SUPER field will be used.
             # https://docs.aws.amazon.com/redshift/latest/dg/ingest-super.html
@@ -112,7 +125,8 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
                 {file_type}
                 {dateformat}
                 {compression}
-                {credentials} MAXERROR 0;""")
+                {credentials}
+                {region} MAXERROR 0;""")
 
 
 class RedshiftMergeJob(SqlMergeFollowupJob):

@@ -11,9 +11,12 @@ from typing import List
 from functools import reduce
 
 from dlt.common.schema.schema import Schema
+from dlt.common.schema.typing import TTableFormat
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.file_storage import FileStorage
+from dlt.extract.source import DltSource
 from tests.load.utils import (
+    FILE_BUCKET,
     destinations_configs,
     DestinationTestConfiguration,
     GCS_BUCKET,
@@ -32,26 +35,86 @@ from dlt.destinations.dataset import dataset as _dataset
 EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
 
 
-def _total_records(p: Pipeline) -> int:
+def _total_records(destination_type: str) -> int:
     """how many records to load for a given pipeline"""
-    if p.destination.destination_type == "dlt.destinations.bigquery":
+    if destination_type == "dlt.destinations.bigquery":
         return 80
-    elif p.destination.destination_type == "dlt.destinations.mssql":
+    elif destination_type == "dlt.destinations.mssql":
         return 1000
     return 3000
 
 
-def _chunk_size(p: Pipeline) -> int:
+def _chunk_size(destination_type: str) -> int:
     """chunk size for a given pipeline"""
-    if p.destination.destination_type == "dlt.destinations.bigquery":
+    if destination_type == "dlt.destinations.bigquery":
         return 50
-    elif p.destination.destination_type == "dlt.destinations.mssql":
+    elif destination_type == "dlt.destinations.mssql":
         return 700
     return 2048
 
 
 def _expected_chunk_count(p: Pipeline) -> List[int]:
-    return [_chunk_size(p), _total_records(p) - _chunk_size(p)]
+    destination_type = p.destination.destination_type
+    chunk_size = _chunk_size(destination_type)
+    total_records = _total_records(destination_type)
+
+    return [
+        chunk_size,
+        total_records - chunk_size,
+    ]
+
+
+def create_test_source(destination_type: str, table_format: TTableFormat) -> DltSource:
+    total_records = _total_records(destination_type)
+
+    # TODO: this test should test ALL data types using our standard fixture
+    #       step 1 would be to just let it run and see we do not have exceptions
+
+    @dlt.source()
+    def source():
+        @dlt.resource(
+            table_format=table_format,
+            write_disposition="replace",
+            columns={
+                "id": {"data_type": "bigint"},
+                # we add a decimal with precision to see wether the hints are preserved
+                "decimal": {"data_type": "decimal", "precision": 10, "scale": 3},
+                "other_decimal": {"data_type": "decimal", "precision": 12, "scale": 3},
+            },
+        )
+        def items():
+            yield from [
+                {
+                    "id": i,
+                    "children": [{"id": i + 100}, {"id": i + 1000}],
+                    "decimal": Decimal("10.433"),
+                    "other_decimal": Decimal("10.433"),
+                }
+                for i in range(total_records)
+            ]
+
+        @dlt.resource(
+            table_format=table_format,
+            write_disposition="replace",
+            columns={
+                "id": {"data_type": "bigint"},
+                "double_id": {"data_type": "bigint"},
+                "di_decimal": {"data_type": "decimal", "precision": 7, "scale": 3},
+            },
+        )
+        def double_items():
+            yield from [
+                {
+                    "id": i,
+                    "double_id": i * 2,
+                    "di_decimal": Decimal("10.433"),
+                }
+                for i in range(total_records)
+            ]
+
+        return [items, double_items]
+
+    return source()
 
 
 # this also disables autouse_test_storage on function level which destroys some tests here
@@ -79,63 +142,16 @@ def populated_pipeline(request, autouse_test_storage) -> Any:
         "read_pipeline", dataset_name="read_test", dev_mode=True
     )
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "700"
-    total_records = _total_records(pipeline)
-
-    # TODO: this test should test ALL data types using our standard fixture
-    #       step 1 would be to just let it run and see we do not have exceptions
-
-    @dlt.source()
-    def source():
-        @dlt.resource(
-            table_format=destination_config.table_format,
-            write_disposition="replace",
-            columns={
-                "id": {"data_type": "bigint"},
-                # we add a decimal with precision to see wether the hints are preserved
-                "decimal": {"data_type": "decimal", "precision": 10, "scale": 3},
-                "other_decimal": {"data_type": "decimal", "precision": 12, "scale": 3},
-            },
-        )
-        def items():
-            yield from [
-                {
-                    "id": i,
-                    "children": [{"id": i + 100}, {"id": i + 1000}],
-                    "decimal": Decimal("10.433"),
-                    "other_decimal": Decimal("10.433"),
-                }
-                for i in range(total_records)
-            ]
-
-        @dlt.resource(
-            table_format=destination_config.table_format,
-            write_disposition="replace",
-            columns={
-                "id": {"data_type": "bigint"},
-                "double_id": {"data_type": "bigint"},
-                "di_decimal": {"data_type": "decimal", "precision": 7, "scale": 3},
-            },
-        )
-        def double_items():
-            yield from [
-                {
-                    "id": i,
-                    "double_id": i * 2,
-                    "di_decimal": Decimal("10.433"),
-                }
-                for i in range(total_records)
-            ]
-
-        return [items, double_items]
-
     # run source
-    s = source()
+    s = create_test_source(pipeline.destination.destination_type, destination_config.table_format)
     pipeline.run(s, loader_file_format=destination_config.file_format)
+    print(pipeline.last_trace.last_normalize_info)
     # create a second schema in the pipeline
     # NOTE: that generates additional load package and then another one for the state
     # NOTE: "aleph" schema is now the newest schema in the dataset and we assume that later in the tests
     # TODO: we need some kind of idea for multi-schema datasets
     pipeline.run([1, 2, 3], table_name="digits", schema=Schema("aleph"))
+    print(pipeline.last_trace.last_normalize_info)
 
     # in case of delta on gcs we use the s3 compat layer for reading
     # for writing we still need to use the gc authentication, as delta_rs seems to use
@@ -151,10 +167,11 @@ def populated_pipeline(request, autouse_test_storage) -> Any:
         pipeline.destination = access_pipeline.destination
 
     # return pipeline to test
-    yield pipeline
-
-    # NOTE: we need to drop pipeline data here since we are keeping the pipelines around for the whole module
-    drop_pipeline_data(pipeline)
+    try:
+        yield pipeline
+    finally:
+        # NOTE: we need to drop pipeline data here since we are keeping the pipelines around for the whole module
+        drop_pipeline_data(pipeline)
 
 
 # NOTE: we collect all destination configs centrally, this way the session based
@@ -195,8 +212,8 @@ def test_explicit_dataset_type_selection(populated_pipeline: Pipeline):
 )
 def test_arrow_access(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset().items
-    total_records = _total_records(populated_pipeline)
-    chunk_size = _chunk_size(populated_pipeline)
+    total_records = _total_records(populated_pipeline.destination.destination_type)
+    chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
 
     # full table
@@ -228,8 +245,8 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
 def test_dataframe_access(populated_pipeline: Pipeline) -> None:
     # access via key
     table_relationship = populated_pipeline.dataset()["items"]
-    total_records = _total_records(populated_pipeline)
-    chunk_size = _chunk_size(populated_pipeline)
+    total_records = _total_records(populated_pipeline.destination.destination_type)
+    chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
     skip_df_chunk_size_check = (
         populated_pipeline.destination.destination_type == "dlt.destinations.filesystem"
@@ -267,8 +284,8 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
 def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
     # check fetch accessors
     table_relationship = populated_pipeline.dataset().items
-    total_records = _total_records(populated_pipeline)
-    chunk_size = _chunk_size(populated_pipeline)
+    total_records = _total_records(populated_pipeline.destination.destination_type)
+    chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
 
     # check accessing one item
@@ -344,7 +361,7 @@ def test_loads_table_access(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_row_counts(populated_pipeline: Pipeline) -> None:
-    total_records = _total_records(populated_pipeline)
+    total_records = _total_records(populated_pipeline.destination.destination_type)
 
     dataset = populated_pipeline.dataset()
     # default is all data tables
@@ -551,7 +568,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
 
     # now we should get the more powerful ibis relation
     dataset = populated_pipeline.dataset()
-    total_records = _total_records(populated_pipeline)
+    total_records = _total_records(populated_pipeline.destination.destination_type)
 
     items_table = dataset["items"]
     double_items_table = dataset["double_items"]
@@ -755,10 +772,10 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
         pytest.raises(NotImplementedError)
         return
     except Exception as e:
-        pytest.fail(f"Unexpected error rasied: {e}")
+        pytest.fail(f"Unexpected error raised: {e}")
 
     try:
-        total_records = _total_records(populated_pipeline)
+        total_records = _total_records(populated_pipeline.destination.destination_type)
 
         map_i = lambda x: x
         if populated_pipeline.destination.destination_type == "dlt.destinations.snowflake":
@@ -826,7 +843,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
-    total_records = _total_records(populated_pipeline)
+    total_records = _total_records(populated_pipeline.destination.destination_type)
 
     # check dataset factory
     dataset = _dataset(
@@ -889,3 +906,33 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     )
     assert dataset.schema.name == "some_other_schema"
     assert "other_table" in dataset.schema.tables
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        bucket_subset=(FILE_BUCKET,),
+        table_format_filesystem_configs=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_naming_convention_propagation(destination_config: DestinationTestConfiguration):
+    destination_ = destination_config.destination_factory(
+        naming_convention="tests.common.cases.normalizers.title_case"
+    )
+
+    pipeline = destination_config.setup_pipeline(
+        "read_pipeline", dataset_name="Read_test", dev_mode=True, destination=destination_
+    )
+
+    s = create_test_source(destination_config.destination_type, destination_config.table_format)
+    pipeline.run(s, loader_file_format=destination_config.file_format)
+
+    dataset_ = pipeline.dataset()
+    df = dataset_.ItemS.df()
+    assert df.columns.tolist()[0] == "ID"
+    with dataset_.sql_client as client:
+        assert client.dataset_name.startswith("Read_test")
+        tables = client.native_connection.sql("SHOW TABLES;")
+        assert "ItemS" in str(tables)

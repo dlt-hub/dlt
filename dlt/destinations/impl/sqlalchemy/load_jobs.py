@@ -10,7 +10,7 @@ from dlt.common.destination.client import (
 )
 from dlt.common.storages import FileStorage
 from dlt.common.json import json, PY_DATETIME_DECODERS
-from dlt.destinations.sql_jobs import SqlFollowupJob, SqlJobParams
+from dlt.destinations.sql_jobs import SqlFollowupJob
 
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
 from dlt.destinations.impl.sqlalchemy.merge_job import SqlalchemyMergeFollowupJob
@@ -101,13 +101,12 @@ class SqlalchemyParquetInsertJob(SqlalchemyJsonLInsertJob):
                 yield chunk.to_pylist()
 
 
-class SqlalchemyStagingCopyJob(SqlFollowupJob):
+class SqlalchemyReplaceJob(SqlFollowupJob):
     @classmethod
     def generate_sql(
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlalchemyClient,  # type: ignore[override]
-        params: SqlJobParams,
     ) -> List[str]:
         statements: List[str] = []
         for table in table_chain:
@@ -116,11 +115,10 @@ class SqlalchemyStagingCopyJob(SqlFollowupJob):
             staging_table_obj = table_obj.to_metadata(
                 sql_client.metadata, schema=sql_client.staging_dataset_name
             )
-            if params["replace"]:
-                stmt = str(table_obj.delete().compile(dialect=sql_client.dialect))
-                if not stmt.endswith(";"):
-                    stmt += ";"
-                statements.append(stmt)
+            stmt = str(table_obj.delete().compile(dialect=sql_client.dialect))
+            if not stmt.endswith(";"):
+                stmt += ";"
+            statements.append(stmt)
 
             stmt = str(
                 table_obj.insert()
@@ -140,6 +138,6 @@ class SqlalchemyStagingCopyJob(SqlFollowupJob):
 __all__ = [
     "SqlalchemyJsonLInsertJob",
     "SqlalchemyParquetInsertJob",
-    "SqlalchemyStagingCopyJob",
+    "SqlalchemyReplaceJob",
     "SqlalchemyMergeFollowupJob",
 ]

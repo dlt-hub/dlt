@@ -19,7 +19,6 @@ import sqlalchemy as sa
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import ResourceClosedError
 
-from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
@@ -105,10 +104,8 @@ class DbApiProps:
 
 
 class SqlalchemyClient(SqlClientBase[Connection]):
-    external_engine: bool = False
     dbapi = DbApiProps  # type: ignore[assignment]
     migrations: Optional[MigrationMaker] = None  # lazy init as needed
-    _engine: Optional[sa.engine.Engine] = None
 
     def __init__(
         self,
@@ -116,20 +113,9 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         staging_dataset_name: str,
         credentials: SqlalchemyCredentials,
         capabilities: DestinationCapabilitiesContext,
-        engine_args: Optional[Dict[str, Any]] = None,
     ) -> None:
         super().__init__(credentials.database, dataset_name, staging_dataset_name, capabilities)
         self.credentials = credentials
-
-        self.engine_args = engine_args or {}
-
-        if credentials.engine:
-            self._engine = credentials.engine
-            self.external_engine = True
-        else:
-            # Default to nullpool because we don't use connection pooling
-            self.engine_args.setdefault("poolclass", sa.pool.NullPool)
-
         self._current_connection: Optional[Connection] = None
         self._current_transaction: Optional[SqlaTransactionWrapper] = None
         self.metadata = sa.MetaData()
@@ -138,13 +124,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
 
     @property
     def engine(self) -> sa.engine.Engine:
-        # Create engine lazily
-        if self._engine is not None:
-            return self._engine
-        self._engine = sa.create_engine(
-            self.credentials.to_url().render_as_string(hide_password=False), **self.engine_args
-        )
-        return self._engine
+        return self.credentials.engine
 
     @property
     def dialect(self) -> sa.engine.interfaces.Dialect:
@@ -156,21 +136,34 @@ class SqlalchemyClient(SqlClientBase[Connection]):
 
     def open_connection(self) -> Connection:
         if self._current_connection is None:
-            self._current_connection = self.engine.connect()
+            self._current_connection = self.credentials.borrow_conn()
             if self.dialect_name == "sqlite":
                 self._sqlite_reattach_dataset_if_exists(self.dataset_name)
         return self._current_connection
 
     def close_connection(self) -> None:
-        if not self.external_engine:
-            try:
-                if self._current_connection is not None:
-                    self._current_connection.close()
-                self.engine.dispose()
-            finally:
-                self._sqlite_attached_datasets.clear()
-                self._current_connection = None
-                self._current_transaction = None
+        # rollback any transactions
+        try:
+            if self._in_transaction():
+                self.rollback_transaction()
+        except Exception:
+            pass
+        finally:
+            self._current_transaction = None
+        # detach databases
+        try:
+            if self.dialect_name == "sqlite":
+                for dataset_name in list(self._sqlite_attached_datasets):
+                    self._sqlite_detach_dataset(dataset_name)
+        except Exception:
+            # close internal connection. that will detach all datasets
+            self._current_connection.connection.close()
+
+        try:
+            if self._current_connection is not None:
+                self.credentials.return_conn(self._current_connection)
+        finally:
+            self._current_connection = None
 
     @property
     def native_connection(self) -> Connection:
@@ -212,7 +205,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
 
     @contextmanager
     @raise_database_error
-    def _transaction(self) -> Iterator[DBTransaction]:
+    def _ensure_transaction(self) -> Iterator[DBTransaction]:
         """Context manager yielding either a new or the currently open transaction.
         New transaction will be committed/rolled back on exit.
         If the transaction is already open, finalization is handled by the top level context manager.
@@ -224,20 +217,19 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             yield tx
 
     def has_dataset(self) -> bool:
-        with self._transaction():
+        with self._ensure_transaction():
             schema_names = self.engine.dialect.get_schema_names(self._current_connection)  # type: ignore[attr-defined]
         return self.dataset_name in schema_names
 
     def _sqlite_dataset_filename(self, dataset_name: str) -> str:
-        db_name = self.engine.url.database
-        current_file_path = Path(db_name)
+        current_file_path = Path(self.database_name)
         return str(
             current_file_path.parent
             / f"{current_file_path.stem}__{dataset_name}{current_file_path.suffix}"
         )
 
     def _sqlite_is_memory_db(self) -> bool:
-        return self.engine.url.database == ":memory:"
+        return self.database_name in (":memory:", "")
 
     def _sqlite_reattach_dataset_if_exists(self, dataset_name: str) -> None:
         """Re-attach previously created databases for a new sqlite connection"""
@@ -256,11 +248,11 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         else:
             new_db_fn = self._sqlite_dataset_filename(dataset_name)
 
-        if dataset_name != "main":  # main is the current file, it is always attached
-            statement = "ATTACH DATABASE :fn AS :name"
-            self.execute_sql(statement, fn=new_db_fn, name=dataset_name)
-        # WAL mode is applied to all currently attached databases
-        self.execute_sql("PRAGMA journal_mode=WAL")
+            if dataset_name != "main":  # main is the current file, it is always attached
+                statement = "ATTACH DATABASE :fn AS :name"
+                self.execute_sql(statement, fn=new_db_fn, name=dataset_name)
+            # WAL mode is applied to all currently attached databases
+            self.execute_sql("PRAGMA journal_mode=WAL")
         self._sqlite_attached_datasets.add(dataset_name)
 
     def _sqlite_drop_dataset(self, dataset_name: str) -> None:
@@ -271,15 +263,18 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         rows = self.execute_sql("PRAGMA database_list")
         dbs = {row[1]: row[2] for row in rows}  # db_name: filename
         if dataset_name != "main":  # main is the default database, it cannot be detached
-            statement = "DETACH DATABASE :name"
-            self.execute_sql(statement, name=dataset_name)
-            self._sqlite_attached_datasets.discard(dataset_name)
+            self._sqlite_detach_dataset(dataset_name)
 
         fn = dbs[dataset_name]
         if not fn:  # It's a memory database, nothing to do
             return
         # Delete the database file
         Path(fn).unlink()
+
+    def _sqlite_detach_dataset(self, dataset_name: str) -> None:
+        statement = "DETACH DATABASE :name"
+        self.execute_sql(statement, name=dataset_name)
+        self._sqlite_attached_datasets.discard(dataset_name)
 
     @contextmanager
     def with_alternative_dataset_name(
@@ -337,7 +332,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         if kwargs:
             # sqla2 takes either a dict or list of dicts
             args = (kwargs,)
-        with self._transaction():
+        with self._ensure_transaction():
             yield SqlaDbApiCursor(self._current_connection.execute(query, *args))  # type: ignore[call-overload, abstract]
 
     def get_existing_table(self, table_name: str) -> Optional[sa.Table]:
@@ -346,7 +341,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         return self.metadata.tables.get(key)  # type: ignore[no-any-return]
 
     def create_table(self, table_obj: sa.Table) -> None:
-        with self._transaction():
+        with self._ensure_transaction():
             table_obj.create(self._current_connection)
 
     def _make_qualified_table_name(self, table: sa.Table, escape: bool = True) -> str:
@@ -386,10 +381,6 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             return self.dialect.identifier_preparer.format_column(sa.Column(column_name))  # type: ignore[attr-defined,no-any-return]
         return column_name
 
-    def compile_column_def(self, column: sa.Column) -> str:
-        """Compile a column definition including type for ADD COLUMN clause"""
-        return str(sa.schema.CreateColumn(column).compile(self.engine))
-
     def reflect_table(
         self,
         table_name: str,
@@ -400,7 +391,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         if metadata is None:
             metadata = self.metadata
         try:
-            with self._transaction():
+            with self._ensure_transaction():
                 table = sa.Table(
                     table_name,
                     metadata,
@@ -472,17 +463,22 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             for pat_ in patterns:
                 if pat_ in msg:
                     return DatabaseUndefinedRelation(e)
-
-            if "syntax" in msg:
-                return DatabaseTransientException(e)
-            elif isinstance(e, (sa.exc.OperationalError, sa.exc.IntegrityError)):
-                return DatabaseTerminalException(e)
+            terminal_patterns = [
+                "no such",
+                "not found",
+                "not exist",
+                "unknown",
+            ]
+            for pat_ in terminal_patterns:
+                if pat_ in msg:
+                    return DatabaseTerminalException(e)
             return DatabaseTransientException(e)
+        elif isinstance(e, sa.exc.IntegrityError):
+            return DatabaseTerminalException(e)
         elif isinstance(e, sa.exc.SQLAlchemyError):
             return DatabaseTransientException(e)
         else:
             return e
-        # return DatabaseTerminalException(e)
 
     def _ensure_native_conn(self) -> None:
         if not self.native_connection:

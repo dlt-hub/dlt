@@ -193,3 +193,55 @@ class DestinationInvalidFileFormat(DestinationTerminalException):
             f"Destination {destination_type} cannot process file {file_name} with format"
             f" {file_format}: {message}"
         )
+
+
+class OpenTableFormatNotSupported(DestinationTerminalException):
+    def __init__(self, table_format: str, table_name: str, detected_table_format: str):
+        self.table_format = table_format
+        self.table_name = table_name
+        self.detected_table_format = detected_table_format
+        if detected_table_format:
+            msg = (
+                f"Table {table_name} is stored as {detected_table_format} while {table_format} was"
+                " requested"
+            )
+        else:
+            msg = f"Table {table_name} is not stored in any known open table format."
+        super().__init__(msg)
+
+
+class OpenTableCatalogNotSupported(DestinationTerminalException):
+    def __init__(self, table_format: str, destination_type: str):
+        self.table_format = table_format
+        self.destination_type = destination_type
+        super().__init__(
+            f"Catalog not supported for table format {table_format} in {destination_type} "
+            "destination"
+        )
+
+
+class SqlClientNotAvailable(DestinationTerminalException):
+    def __init__(self, pipeline_name: str, destination_name: str) -> None:
+        super().__init__(
+            pipeline_name,
+            f"SQL Client not available for destination {destination_name} in pipeline"
+            f" {pipeline_name}",
+        )
+
+
+class OpenTableClientNotAvailable(DestinationTerminalException):
+    def __init__(self, dataset_name: str, destination_name: str) -> None:
+        super().__init__(
+            dataset_name,
+            f"Open table client not available for destination {destination_name} in dataset"
+            f" {dataset_name}",
+        )
+
+
+class FSClientNotAvailable(DestinationTerminalException):
+    def __init__(self, pipeline_name: str, destination_name: str) -> None:
+        super().__init__(
+            pipeline_name,
+            f"Filesystem Client not available for destination {destination_name} in pipeline"
+            f" {pipeline_name}",
+        )

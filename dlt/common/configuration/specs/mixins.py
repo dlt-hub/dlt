@@ -1,6 +1,8 @@
 from typing import Dict, Any
 from abc import abstractmethod, ABC
 
+from dlt.common.typing import Self
+
 
 class WithObjectStoreRsCredentials(ABC):
     @abstractmethod
@@ -11,7 +13,6 @@ class WithObjectStoreRsCredentials(ABC):
 
         https://docs.rs/object_store/latest/object_store/
         """
-        pass
 
 
 class WithPyicebergConfig(ABC):
@@ -21,4 +22,10 @@ class WithPyicebergConfig(ABC):
 
         https://py.iceberg.apache.org/configuration/#fileio
         """
-        pass
+
+    @classmethod
+    @abstractmethod
+    def from_pyiceberg_fileio_config(cls, file_io: Dict[str, Any]) -> Self:
+        """Returns credentials instance from FileIO. If `file_io` does
+        not fit into given credential type, credentials remain unresolved.
+        """
