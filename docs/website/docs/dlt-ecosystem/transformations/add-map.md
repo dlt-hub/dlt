@@ -10,10 +10,9 @@ keywords: [add_map, transform data, remove columns]
 ## Method signature
 ### `add_map` method
 ```py
-resource.add_map(
-    item_map: ItemTransformFunc[TDataItem],
-    insert_at: int = None
-) -> TDltResourceImpl
+def add_map(item_map: ItemTransformFunc[TDataItem],
+            insert_at: int = None) -> TDltResourceImpl:
+    ...
 ```
 
 Use `add_map` to apply a function to each item extracted by a resource. It runs your logic on every record before it continues through the pipeline.
