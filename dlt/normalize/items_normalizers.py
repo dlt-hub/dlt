@@ -69,36 +69,30 @@ class ModelItemsNormalizer(ItemsNormalizer):
         parsed_select: sqlglot.exp.Select,
         root_table_name: str,
     ) -> Optional[TSchemaUpdate]:
-        if len(parsed_select.selects) == 1 and isinstance(
-            parsed_select.selects[0], sqlglot.exp.Star
-        ):
-            logger.warning(
-                f"Skipping adding dlt columns to model query {parsed_select.sql()}: contains only a"
-                " star expression, so column names are unknown."
-            )
-            return None
-
         schema_update: TSchemaUpdate = {}
         schema = self.schema
         dialect = self.config.destination_capabilities.sqlglot_dialect
 
-        # Build aliases based on config
+        # Build dlt column aliases based on config
         dlt_columns: dict[str, Optional[sqlglot.exp.Alias]] = {}
 
+        NORM_C_DLT_LOAD_ID = self.config.destination_capabilities.casefold_identifier(C_DLT_LOAD_ID)
+        NORM_C_DLT_ID = self.config.destination_capabilities.casefold_identifier(C_DLT_ID)
+
         if self.config.model_normalizer.add_dlt_load_id:
-            dlt_columns["_dlt_load_id"] = sqlglot.exp.Alias(
+            dlt_columns[C_DLT_LOAD_ID] = sqlglot.exp.Alias(
                 this=sqlglot.exp.Literal.string(self.load_id),
-                alias=sqlglot.exp.to_identifier("_dlt_load_id"),
+                alias=sqlglot.exp.to_identifier(NORM_C_DLT_LOAD_ID),
             )
 
         if self.config.model_normalizer.add_dlt_id and dialect != "redshift":
             function_name = "generateUUIDv4" if dialect == "clickhouse" else "UUID"
-            dlt_columns["_dlt_id"] = sqlglot.exp.Alias(
+            dlt_columns[C_DLT_ID] = sqlglot.exp.Alias(
                 this=sqlglot.exp.func(function_name),
-                alias=sqlglot.exp.to_identifier("_dlt_id"),
+                alias=sqlglot.exp.to_identifier(NORM_C_DLT_ID),
             )
 
-        # Replace if exists, otherwise append
+        # Replace if dlt columns exist in the select statement, otherwise append
         for i, select in enumerate(parsed_select.selects):
             for column_name, alias_expr in dlt_columns.items():
                 if alias_expr is None:
@@ -116,7 +110,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
                     parsed_select.selects[i] = alias_expr
                     dlt_columns[column_name] = None  # Mark as replaced
 
-        # Append any not-replaced aliases and update schema
+        # Append any not-replaced dlt column aliases and update schema
         for column_name, alias_expr in dlt_columns.items():
             if alias_expr is None:
                 continue
@@ -133,11 +127,135 @@ class ModelItemsNormalizer(ItemsNormalizer):
                 },
                 schema.naming,
             )
-            schema.update_table(partial_table, normalize_identifiers=False)
+            schema.update_table(partial_table)
             table_updates = schema_update.setdefault(root_table_name, [])
             table_updates.append(partial_table)
 
         return schema_update if schema_update else None
+
+    def _normalize_selected_columns(
+        self,
+        parsed_select: sqlglot.exp.Select,
+    ) -> None:
+        """
+        1. referenced column names will be normalized according to `naming`, that is, the casefold_identifier
+        NOTE: We casefold the aliases in the ModelLoadJob.
+        """
+        for i, select in enumerate(parsed_select.selects):
+            if isinstance(select, sqlglot.exp.Alias):
+                col_expr = select.this
+                original_name = col_expr.name
+                normalized_name = self.config.destination_capabilities.casefold_identifier(
+                    original_name
+                )
+                if normalized_name != original_name:
+                    normalized_col = col_expr.copy()
+                    normalized_col.set("this", sqlglot.exp.to_identifier(normalized_name))
+                    parsed_select.selects[i] = sqlglot.exp.Alias(
+                        this=normalized_col,
+                        alias=select.alias,
+                    )
+            elif isinstance(select, sqlglot.exp.Column):
+                original_name = select.name
+                normalized_name = self.config.destination_capabilities.casefold_identifier(
+                    original_name
+                )
+                if normalized_name != original_name:
+                    normalized_col = select.copy()
+                    normalized_col.set("name", sqlglot.exp.to_identifier(normalized_name))
+                    parsed_select.selects[i] = normalized_col
+
+    def _match_schema_and_select_statement(
+        self,
+        parsed_select: sqlglot.exp.Select,
+        root_table_name: str,
+        norm_col_names: List[str],
+    ) -> Optional[TSchemaUpdate]:
+        """
+        Ensures the SELECT statement matches the schema by:
+        1. Reordering the schema to match the SELECT statement if the keys are the same but the order is different.
+        2. Adding columns to the SELECT statement if they are missing but present in the schema.
+        3. Removing columns from the SELECT statement if they are present in the SELECT statement but not in the schema.
+        """
+        schema_update: TSchemaUpdate = {}
+        schema = self.schema
+
+        selected_column_names = [select.alias_or_name for select in parsed_select.selects]
+
+        if norm_col_names == selected_column_names:
+            # Perfect match: same columns, same order
+            return None
+
+        elif selected_column_names == ["*"]:
+            # Nothing to do here  because it's still a star expression
+            # and wasn't replaced with explicit columns upstream
+            return None
+
+        selected_set = set(selected_column_names)
+        schema_set = set(norm_col_names)
+
+        missing_cols = [col for col in norm_col_names if col not in selected_set]
+        extra_cols = [col for col in selected_column_names if col not in schema_set]
+
+        # Step 1: Remove extra columns
+        if extra_cols:
+            new_selects = [
+                sel for sel in parsed_select.selects if sel.alias_or_name not in extra_cols
+            ]
+            parsed_select.selects.clear()
+            parsed_select.selects.extend(new_selects)
+            selected_column_names = [sel.alias_or_name for sel in parsed_select.selects]
+
+        # Step 2: Insert missing columns at correct positions
+        for col in missing_cols:
+            ordinal = norm_col_names.index(col)  # desired position
+            parsed_select.selects.insert(
+                ordinal,
+                sqlglot.exp.Alias(
+                    this=sqlglot.exp.null(),
+                    alias=sqlglot.exp.to_identifier(col),
+                ),
+            )
+            selected_column_names.insert(ordinal, col)
+
+        # Step 3: Reorder schema to match SELECT
+        reordered_columns = {
+            col: schema.get_table_columns(root_table_name)[col] for col in selected_column_names
+        }
+
+        partial_table = normalize_table_identifiers(
+            {
+                "name": root_table_name,
+                "columns": reordered_columns,
+            },
+            schema.naming,
+        )
+        schema.update_table(partial_table)
+        schema_update.setdefault(root_table_name, []).append(partial_table)
+
+        return schema_update if schema_update else None
+
+    def _handle_star_expression(
+        self,
+        parsed_select: sqlglot.exp.Select,
+        norm_col_names: List[str],
+    ) -> Optional[sqlglot.exp.Select]:
+        """
+        Replaces a star (*) expression in the SELECT statement with explicit column names
+        from the schema for the given table. Logs a warning if no columns are available.
+        """
+        if len(parsed_select.selects) == 1 and isinstance(
+            parsed_select.selects[0], sqlglot.exp.Star
+        ):
+            logger.warning(
+                f"A star expression is present in the model query {parsed_select.sql()}."
+                "Replacing it with the schema columns."
+            )
+            parsed_select = sqlglot.exp.select(
+                *[sqlglot.exp.Column(this=sqlglot.exp.to_identifier(col)) for col in norm_col_names]
+            )
+            return parsed_select
+        return None
 
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]:
         with self.normalize_storage.extracted_packages.storage.open_file(
@@ -150,17 +268,33 @@ class ModelItemsNormalizer(ItemsNormalizer):
 
         parsed_select = sqlglot.parse_one(select_statement, read=select_dialect)
         parsed_select = cast(sqlglot.exp.Select, parsed_select)
+        norm_schema_column_names = [
+            self.config.destination_capabilities.casefold_identifier(key)
+            for key in self.schema.get_table_columns(root_table_name).keys()
+        ]
 
-        # normalize selected columns - basically all of them
-        schema = self.schema
-        table = schema.tables[root_table_name]
-        schema.update_table(table, normalize_identifiers=True)
+        # 1. handle star expression
+        star_expr_handled = self._handle_star_expression(parsed_select, norm_schema_column_names)
 
+        # 2. normalize selected column names. If a star expression was found,
+        # the columns are already normalized
+        if not star_expr_handled:
+            self._normalize_selected_columns(parsed_select)
+
+        # 3. add dlt columns
         schema_updates = []
-
-        dlt_col_update = self._adjust_with_dlt_columns(parsed_select, root_table_name)
+        dlt_col_update = self._adjust_with_dlt_columns(
+            star_expr_handled if star_expr_handled else parsed_select, root_table_name
+        )
         if dlt_col_update:
             schema_updates.append(dlt_col_update)
+
+        # 4. match schema and select statement
+        schema_match_select_update = self._match_schema_and_select_statement(
+            parsed_select, root_table_name, norm_schema_column_names
+        )
+        if schema_match_select_update:
+            schema_updates.append(schema_match_select_update)
 
         normalized_query = parsed_select.sql(dialect=select_dialect)
         self.item_storage.write_data_item(
