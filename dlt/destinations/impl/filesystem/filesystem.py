@@ -509,7 +509,10 @@ class FilesystemClient(
         table_prefix = self.get_table_prefix(table_name)
         # if not self.fs_client.exists(table_prefix):
         #     raise DestinationUndefinedEntity(table_prefix)
-        return self.list_files_with_prefixes(table_dir, [table_prefix])
+        try:
+            return self.list_files_with_prefixes(table_dir, [table_prefix])
+        except FileNotFoundError as file_ex:
+            raise DestinationUndefinedEntity(file_ex)
 
     def list_files_with_prefixes(self, table_dir: str, prefixes: List[str]) -> List[str]:
         """returns all files in a directory that match given prefixes"""

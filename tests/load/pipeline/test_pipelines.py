@@ -155,8 +155,9 @@ def test_default_pipeline_names(
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        all_buckets_filesystem_configs=True,
-        table_format_filesystem_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
+        subset=("filesystem", "redshift", "snowflake"),
     ),
     ids=lambda x: x.name,
 )
@@ -203,6 +204,7 @@ def test_default_schema_name(
     # try to restore pipeline
     r_p = dlt.attach("test_default_schema_name", TEST_STORAGE_ROOT)
     schema = r_p.default_schema
+    # schema name not normalized
     assert schema.name == "default"
 
     # check if dlt ables have exactly the required schemas

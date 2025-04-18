@@ -193,7 +193,7 @@ def test_load_case_sensitive_data(client: WeaviateClient, file_storage: FileStor
     data_clash = {"col1": 72187328, "coL1": 726171}
     # write row
     with io.BytesIO() as f:
-        write_dataset(client, f, [data_clash], client.schema.get_table("col_class"))
+        write_dataset(client, f, [data_clash], client.schema.get_table("ColClass"))
         query = f.getvalue().decode()
     class_name = client.schema.naming.normalize_table_identifier(class_name)
     job = expect_load_file(client, file_storage, query, class_name, "failed")
@@ -219,7 +219,7 @@ def test_load_case_sensitive_data_ci(ci_client: WeaviateClient, file_storage: Fi
 
     # write row
     with io.BytesIO() as f:
-        write_dataset(ci_client, f, [data_clash], ci_client.schema.get_table("col_class"))
+        write_dataset(ci_client, f, [data_clash], ci_client.schema.get_table("ColClass"))
         query = f.getvalue().decode()
     class_name = ci_client.schema.naming.normalize_table_identifier(class_name)
     expect_load_file(ci_client, file_storage, query, class_name)
