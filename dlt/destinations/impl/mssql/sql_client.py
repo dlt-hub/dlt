@@ -161,6 +161,10 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
             yield DBApiCursorImpl(curr)  # type: ignore[abstract]
         except pyodbc.Error as outer:
             raise outer
+        finally:
+            # always close cursor
+            if curr:
+                curr.close()
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:

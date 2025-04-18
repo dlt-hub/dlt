@@ -499,6 +499,10 @@ def test_limit_and_head(populated_pipeline: Pipeline) -> None:
     # connection closed
     assert dataset_._sql_client.native_connection is None
 
+    chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
+    list(table_relationship.iter_fetch(chunk_size=chunk_size))
+    assert dataset_._sql_client.native_connection is None
+
 
 @pytest.mark.no_load
 @pytest.mark.essential
