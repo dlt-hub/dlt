@@ -27,7 +27,6 @@ from dlt.common.configuration import inject_section, known_sections
 from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
-    ConfigFieldMissingException,
     ContextDefaultCannotBeCreated,
 )
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
@@ -99,7 +98,6 @@ from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
 from dlt.destinations.configuration import WithLocalFiles
-from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.extract import DltSource
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import Extract, data_to_sources
@@ -112,8 +110,7 @@ from dlt.destinations.dataset import (
     dataset,
     get_destination_clients,
 )
-from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
-from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
+from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
 
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
@@ -1728,26 +1725,29 @@ class Pipeline(SupportsPipeline):
             "working_dir": self.working_dir,
         }
 
+    # NOTE: I expect that we'll merge all relations into one. and then we'll be able to get rid
+    #  of overload and dataset_type
+
     @overload
     def dataset(
         self,
         schema: Union[Schema, str, None] = None,
         dataset_type: Literal["ibis"] = "ibis",
-    ) -> ReadableDBAPIDataset[ReadableIbisRelation]: ...
+    ) -> ReadableDBAPIDataset: ...
 
     @overload
     def dataset(
         self,
         schema: Union[Schema, str, None] = None,
         dataset_type: Literal["default"] = "default",
-    ) -> ReadableDBAPIDataset[ReadableDBAPIRelation]: ...
+    ) -> ReadableDBAPIDataset: ...
 
     @overload
     def dataset(
         self,
         schema: Union[Schema, str, None] = None,
         dataset_type: TDatasetType = "auto",
-    ) -> ReadableDBAPIDataset[ReadableIbisRelation]: ...
+    ) -> ReadableDBAPIDataset: ...
 
     def dataset(
         self, schema: Union[Schema, str, None] = None, dataset_type: TDatasetType = "auto"

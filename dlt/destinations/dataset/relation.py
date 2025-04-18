@@ -23,7 +23,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     def __init__(
         self,
         *,
-        readable_dataset: "ReadableDBAPIDataset[SupportsReadableRelation]",
+        readable_dataset: "ReadableDBAPIDataset",
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
 
@@ -59,11 +59,6 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     def cursor(self) -> Generator[SupportsReadableRelation, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
         with self.sql_client as client:
-            # this hacky code is needed for mssql to disable autocommit, read iterators
-            # will not work otherwise. in the future we should be able to create a readonly
-            # client which will do this automatically
-            if hasattr(self.sql_client.native_connection, "autocommit"):
-                self.sql_client.native_connection.autocommit = False
             with client.execute_query(self.query()) as cursor:
                 if columns_schema := self.columns_schema:
                     cursor.columns_schema = columns_schema
@@ -92,7 +87,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
     def __init__(
         self,
         *,
-        readable_dataset: "ReadableDBAPIDataset[SupportsReadableRelation]",
+        readable_dataset: "ReadableDBAPIDataset",
         provided_query: Any = None,
         table_name: str = None,
         limit: int = None,

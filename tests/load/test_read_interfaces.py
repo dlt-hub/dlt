@@ -24,9 +24,7 @@ from tests.load.utils import (
     SFTP_BUCKET,
     MEMORY_BUCKET,
 )
-from dlt.destinations import filesystem
-from tests.utils import TEST_STORAGE_ROOT, clean_test_storage, load_table_counts
-from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
+from tests.utils import TEST_STORAGE_ROOT, clean_test_storage
 from dlt.destinations.dataset.exceptions import (
     ReadableRelationUnknownColumnException,
 )

@@ -9,13 +9,13 @@ from dlt.common.destination.client import JobClientBase, SupportsOpenTables, Wit
 from dlt.common.destination.dataset import (
     SupportsReadableRelation,
     SupportsReadableDataset,
-    TReadableRelation,
 )
 from dlt.common.destination.typing import TDatasetType
 from dlt.common.schema import Schema
 from dlt.common.typing import Self
 
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
+from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
 
@@ -25,7 +25,7 @@ else:
     IbisBackend = Any
 
 
-class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
+class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
     """Access to dataframes and arrow tables in the destination dataset via dbapi"""
 
     def __init__(
@@ -151,14 +151,14 @@ class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
         # TODO: accept other query types and return a right relation: sqlglot (DBAPI) and ibis (Expr)
         return ReadableDBAPIRelation(readable_dataset=self, provided_query=query)  # type: ignore[abstract]
 
-    def table(self, table_name: str) -> TReadableRelation:
+    def table(self, table_name: str) -> ReadableIbisRelation:
         # we can create an ibis powered relation if ibis is available
         if self._dataset_type == "ibis":
             from dlt.helpers.ibis import create_unbound_ibis_table
             from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 
             unbound_table = create_unbound_ibis_table(self.sql_client, self.schema, table_name)
-            return ReadableIbisRelation(  # type: ignore[abstract,return-value]
+            return ReadableIbisRelation(  # type: ignore[abstract]
                 readable_dataset=self,
                 ibis_object=unbound_table,
                 columns_schema=self.schema.get_table(table_name)["columns"],
@@ -196,11 +196,11 @@ class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
         # Execute query and build result dict
         return self(query)
 
-    def __getitem__(self, table_name: str) -> TReadableRelation:
+    def __getitem__(self, table_name: str) -> ReadableIbisRelation:
         """access of table via dict notation"""
         return self.table(table_name)
 
-    def __getattr__(self, table_name: str) -> TReadableRelation:
+    def __getattr__(self, table_name: str) -> ReadableIbisRelation:
         """access of table via property notation"""
         return self.table(table_name)
 
