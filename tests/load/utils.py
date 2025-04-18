@@ -1118,3 +1118,24 @@ def normalize_storage_table_cols(
         new_table(table_name, columns=cols.values()), schema.naming  # type: ignore[arg-type]
     )
     return storage_table["columns"]
+
+
+def count_job_types(p: dlt.Pipeline) -> Dict[str, Dict[str, Any]]:
+    """
+    gets a list of loaded jobs by type for each table
+    this is useful for testing to check that the correct transformations were used
+    """
+
+    jobs = p.last_trace.last_load_info.load_packages[0].jobs["completed_jobs"]
+    tables: Dict[str, Dict[str, Any]] = {}
+
+    for j in jobs:
+        file_format = j.job_file_info.file_format
+        table_name = j.job_file_info.table_name
+        if table_name.startswith("_dlt"):
+            continue
+        tables.setdefault(table_name, {})[file_format] = (
+            tables.get(table_name, {}).get(file_format, 0) + 1
+        )
+
+    return tables

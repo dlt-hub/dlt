@@ -59,7 +59,9 @@ def test_clone_with_commit_id(test_storage: FileStorage) -> None:
     assert test_storage.has_folder("awesome_repo")
     # cannot pull detached head
     with pytest.raises(GitError):
-        ensure_remote_head(repo_path, with_git_command=None)
+        ensure_remote_head(
+            repo_path, branch="7f88000be2d4f265c83465fec4b0b3613af347dd", with_git_command=None
+        )
 
 
 def test_clone_with_wrong_branch(test_storage: FileStorage) -> None:
@@ -107,6 +109,20 @@ def test_fresh_repo_files_branch_change(test_storage: FileStorage) -> None:
         assert is_clean_and_synced(repo)
     # change to main
     repo_storage = get_fresh_repo_files(AWESOME_REPO, test_storage.storage_path, branch="main")
+    with get_repo(repo_storage.storage_path) as repo:
+        assert repo.active_branch.name == "main"
+        assert not is_dirty(repo)
+        assert is_clean_and_synced(repo)
+
+
+def test_fresh_repo_files_branch_change_to_default(test_storage: FileStorage) -> None:
+    repo_storage = get_fresh_repo_files(AWESOME_REPO, test_storage.storage_path, branch="gh-pages")
+    with get_repo(repo_storage.storage_path) as repo:
+        assert repo.active_branch.name == "gh-pages"
+        assert not is_dirty(repo)
+        assert is_clean_and_synced(repo)
+    # change to main
+    repo_storage = get_fresh_repo_files(AWESOME_REPO, test_storage.storage_path)
     with get_repo(repo_storage.storage_path) as repo:
         assert repo.active_branch.name == "main"
         assert not is_dirty(repo)

@@ -31,7 +31,7 @@ Creates, adds, inspects and deploys dlt pipelines. Further help is available at 
 ```sh
 dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
     [--non-interactive] [--debug]
-    {telemetry,schema,pipeline,init,render-docs,deploy} ...
+    {telemetry,schema,pipeline,init,render-docs,deploy,ai} ...
 ```
 
 <details>
@@ -53,6 +53,7 @@ dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
 * [`init`](#dlt-init) - Creates a pipeline project in the current folder by adding existing verified source or creating a new one from template.
 * [`render-docs`](#dlt-render-docs) - Renders markdown version of cli docs
 * [`deploy`](#dlt-deploy) - Creates a deployment package for a selected pipeline script
+* [`ai`](#dlt-ai) - Use ai-powered development tools and utilities
 
 </details>
 
@@ -662,6 +663,63 @@ Inherits arguments from [`dlt deploy`](#dlt-deploy).
 * `--location LOCATION` - Advanced. uses a specific url or local path to pipelines repository.
 * `--branch BRANCH` - Advanced. uses specific branch of the deploy repository to fetch the template.
 * `--secrets-format {env,toml}` - Format of the secrets
+
+</details>
+
+## `dlt ai`
+
+Use AI-powered development tools and utilities.
+
+**Usage**
+```sh
+dlt ai [-h] {setup} ...
+```
+
+**Description**
+
+The `dlt ai` command provides commands to configure your LLM-enabled IDE and MCP server.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt`](#dlt).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+**Available subcommands**
+* [`setup`](#dlt-ai-setup) - Generate ide-specific configuration and rules files
+
+</details>
+
+### `dlt ai setup`
+
+Generate IDE-specific configuration and rules files.
+
+**Usage**
+```sh
+dlt ai setup [-h] [--location LOCATION] [--branch BRANCH]
+    {cursor,continue,cline,claude_desktop}
+```
+
+**Description**
+
+Get AI rules files and configuration into your local project for the selected IDE.
+Files are fetched from https://github.com/dlt-hub/verified-sources by default.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt ai`](#dlt-ai).
+
+**Positional arguments**
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--location LOCATION` - Advanced. specify git url or local path to rules files and config.
+* `--branch BRANCH` - Advanced. specify git branch to fetch rules files and config.
 
 </details>
 

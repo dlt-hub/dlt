@@ -31,6 +31,8 @@ from dlt.common.pipeline import (
     pipeline_state,
 )
 from dlt.common.utils import flatten_list_or_items, get_callable_name, uniq_id
+from dlt.common.data_writers import TDataItemFormat
+
 from dlt.common.schema.typing import TTableSchema
 from dlt.extract.utils import wrap_async_iterator, wrap_parallel_iterator
 
@@ -74,7 +76,9 @@ def with_table_name(item: TDataItems, table_name: str) -> DataItemWithMeta:
 
 
 def with_hints(
-    item: TDataItems, hints: TResourceHints, create_table_variant: bool = False
+    item: TDataItems,
+    hints: TResourceHints = None,
+    create_table_variant: bool = False,
 ) -> DataItemWithMeta:
     """Marks `item` to update the resource with specified `hints`.
 
