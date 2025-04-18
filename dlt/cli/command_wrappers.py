@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Union
 import yaml
 import os
 import click
@@ -25,7 +25,7 @@ from dlt.cli.telemetry_command import (
     change_telemetry_status_command,
     telemetry_status_command,
 )
-from dlt.cli import debug
+from dlt.cli.ai_command import ai_setup_command, TSupportedIde
 
 try:
     from dlt.cli import deploy_command
@@ -157,3 +157,8 @@ def telemetry_change_status_command_wrapper(enabled: bool) -> None:
         change_telemetry_status_command(enabled)
     except Exception as ex:
         raise CliCommandException(docs_url=DLT_TELEMETRY_DOCS_URL, raiseable_exception=ex)
+
+
+@utils.track_command("ai_setup", False)
+def ai_setup_command_wrapper(ide: TSupportedIde, branch: Union[str, None], repo: str) -> None:
+    ai_setup_command(ide, branch=branch, repo=repo)

@@ -57,6 +57,13 @@ def is_dirty(repo: Repo) -> bool:
 #     return len(status.splitlines()) > 1
 
 
+def get_default_branch(repo: Repo) -> str:
+    origin = repo.remotes.origin
+    # Get the remote's HEAD reference (default branch)
+    default_ref = origin.refs.HEAD  # symbolic ref like 'origin/main'
+    return default_ref.reference.name.split("/")[-1]  # extract branch
+
+
 def ensure_remote_head(
     repo_path: str, branch: Optional[str] = None, with_git_command: Optional[str] = None
 ) -> None:
@@ -67,8 +74,7 @@ def ensure_remote_head(
         # use custom environment if specified
         with repo.git.custom_environment(GIT_SSH_COMMAND=with_git_command):
             # checkout branch before fetching
-            if branch:
-                repo.git.checkout(branch)
+            repo.git.checkout(branch or get_default_branch(repo))
             # update origin
             repo.remote().pull()
             if not is_clean_and_synced(repo):
