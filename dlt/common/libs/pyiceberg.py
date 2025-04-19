@@ -167,7 +167,10 @@ def get_last_metadata_file(
     metadata_path: str, fs_client: AbstractFileSystem, config: FilesystemConfiguration
 ) -> str:
     # TODO: implement faster way to obtain `last_metadata_file` (listing is slow)
-    metadata_files = [f for f in fs_client.ls(metadata_path) if f.endswith(".json")]
+    try:
+        metadata_files = [f for f in fs_client.ls(metadata_path) if f.endswith(".json")]
+    except FileNotFoundError:
+        raise DestinationUndefinedEntity(FileNotFoundError(metadata_path))
     if len(metadata_files) == 0:
         raise DestinationUndefinedEntity(FileNotFoundError(metadata_path))
     return make_location(sorted(metadata_files)[-1], config)

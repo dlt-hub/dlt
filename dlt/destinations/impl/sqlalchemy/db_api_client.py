@@ -331,7 +331,11 @@ class SqlalchemyClient(SqlClientBase[Connection]):
             # sqla2 takes either a dict or list of dicts
             args = (kwargs,)
         with self._ensure_transaction():
-            yield SqlaDbApiCursor(self._current_connection.execute(query, *args))  # type: ignore[call-overload, abstract]
+            cur = self._current_connection.execute(query, *args)  # type: ignore[call-overload]
+            try:
+                yield SqlaDbApiCursor(cur)  # type: ignore[abstract]
+            finally:
+                cur.close()
 
     def get_existing_table(self, table_name: str) -> Optional[sa.Table]:
         """Get a table object from metadata if it exists"""

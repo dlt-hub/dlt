@@ -4,6 +4,7 @@ import re
 import duckdb
 
 from dlt.common import logger
+from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.storages.configuration import FileSystemCredentials
 
@@ -47,9 +48,12 @@ class FilesystemSqlClient(WithTableScanners):
         return file_format in ("jsonl", "parquet", "csv")
 
     def get_file_format(self, table_schema: PreparedTableSchema) -> str:
-        if table_schema["name"] in self.schema.dlt_table_names():
+        table_name = table_schema["name"]
+        if table_name in self.schema.dlt_table_names():
             return "jsonl"
-        files = self.remote_client.list_table_files(table_schema["name"])
+        files = self.remote_client.list_table_files(table_name)
+        if len(files) == 0:
+            raise DestinationUndefinedEntity(table_name)
         return os.path.splitext(files[0])[1][1:]
 
     def create_secret(

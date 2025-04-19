@@ -153,18 +153,11 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         if args:
             # TODO: this is bad. See duckdb & athena also
             query = query.replace("%s", "?")
-        curr = self._conn.cursor()
-        try:
+        with self._conn.cursor() as curr:
             # unpack because empty tuple gets interpreted as a single argument
             # https://github.com/mkleehammer/pyodbc/wiki/Features-beyond-the-DB-API#passing-parameters
             curr.execute(query, *args)
             yield DBApiCursorImpl(curr)  # type: ignore[abstract]
-        except pyodbc.Error as outer:
-            raise outer
-        finally:
-            # always close cursor
-            if curr:
-                curr.close()
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:

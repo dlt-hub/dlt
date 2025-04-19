@@ -297,19 +297,20 @@ class AthenaSQLClient(SqlClientBase[Connection]):
             query, db_args = self._convert_to_old_pyformat(query, args)
             if kwargs:
                 db_args.update(kwargs)
-        cursor = self._conn.cursor(formatter=DLTAthenaFormatter())
-        for query_line in query.split(";"):
-            if query_line.strip():
-                try:
-                    cursor.execute(query_line, db_args)
-                # catch key error only here, this will show up if we have a missing parameter
-                except KeyError:
-                    raise DatabaseTransientException(OperationalError())
 
-        # TODO: (important) allow to use PandasCursor and ArrowCursor to get fast data access
-        #    the problem: you need to set the cursor type upfront. so if user uses wrong cursor
-        #    we won't be able to dynamically change it.
-        yield DBApiCursorImpl(cursor)  # type: ignore
+        with self._conn.cursor(formatter=DLTAthenaFormatter()) as cursor:
+            for query_line in query.split(";"):
+                if query_line.strip():
+                    try:
+                        cursor.execute(query_line, db_args)
+                    # catch key error only here, this will show up if we have a missing parameter
+                    except KeyError:
+                        raise DatabaseTransientException(OperationalError())
+
+            # TODO: (important) allow to use PandasCursor and ArrowCursor to get fast data access
+            #    the problem: you need to set the cursor type upfront. so if user uses wrong cursor
+            #    we won't be able to dynamically change it.
+            yield DBApiCursorImpl(cursor)  # type: ignore
 
 
 class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
