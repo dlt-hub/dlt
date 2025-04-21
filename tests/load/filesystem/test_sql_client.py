@@ -38,7 +38,6 @@ def _run_dataset_checks(
     destination_config: DestinationTestConfiguration,
     secret_directory: str,
     table_format: Optional[TTableFormat] = None,
-    # alternate_access_pipeline: Pipeline = None,
 ) -> None:
     total_records = 200
 
@@ -332,7 +331,6 @@ def test_table_formats(
         destination_config,
         secret_directory=secret_directory,
         table_format=destination_config.table_format,
-        # alternate_access_pipeline=access_pipeline,
     )
 
 

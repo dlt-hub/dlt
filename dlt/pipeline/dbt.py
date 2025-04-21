@@ -93,9 +93,9 @@ def package(
         else Schema(normalize_schema_name(pipeline.dataset_name or pipeline.pipeline_name))
     )
     job_client = pipeline._get_destination_clients(schema)[0]
+    # check if config supports datasets
     if not isinstance(job_client.config, DestinationClientDwhConfiguration):
         raise DatasetNotAvailable(pipeline.destination.destination_description)
-    # check if config supports datasets
     if not venv:
         venv = Venv.restore_current()
     return _package_runner(

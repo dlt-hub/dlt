@@ -293,7 +293,7 @@ def assert_all_data_types_row(
 
     for key, expected in expected_rows.items():
         actual = db_mapping[key]
-        print(f"Expected {expected} but got {actual} for column {key}")
+        # print(f"Expected {expected} but got {actual} for column {key}")
         assert expected == actual, f"Expected {expected} but got {actual} for column {key}"
 
     assert db_mapping == expected_rows

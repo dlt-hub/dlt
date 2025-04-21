@@ -222,16 +222,6 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
                 },
             )
 
-            # class NoCloseClient(self._sql_client.__class__):
-            #     def __exit__(
-            #         self,
-            #         exc_type: Type[BaseException],
-            #         exc_val: BaseException,
-            #         exc_tb: TracebackType,
-            #     ) -> None:
-            #         # No-operation: do not close the connection.
-            #         pass
-
             self._sql_client.__class__ = NoCloseClient
 
         self.sql_client.open_connection()

@@ -507,8 +507,6 @@ class FilesystemClient(
         table_dir = self.get_table_dir(table_name)
         # we need the table prefix so we separate table files if in the same folder
         table_prefix = self.get_table_prefix(table_name)
-        # if not self.fs_client.exists(table_prefix):
-        #     raise DestinationUndefinedEntity(table_prefix)
         try:
             return self.list_files_with_prefixes(table_dir, [table_prefix])
         except FileNotFoundError as file_ex:
@@ -610,7 +608,6 @@ class FilesystemClient(
         self, table_name: str, pipeline_name: str = None
     ) -> Iterator[Tuple[str, List[str]]]:
         dirname = self.get_table_dir(table_name)
-        #
         if not self.fs_client.exists(self.pathlib.join(dirname, INIT_FILE_NAME)):
             raise DestinationUndefinedEntity({"dir": dirname})
         for filepath in self.list_table_files(table_name):

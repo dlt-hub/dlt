@@ -651,7 +651,6 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         db_rows = sql_client.execute_sql(f"SELECT * FROM {qual_name('data_types')} ORDER BY 1")
         assert len(db_rows) == 10
         db_row = list(db_rows[0])
-        print(db_row)
         # "snowflake" and "bigquery" do not parse JSON form parquet string so double parse
         assert_all_data_types_row(
             db_row,

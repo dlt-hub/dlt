@@ -734,18 +734,6 @@ def destinations_configs(
         conf for conf in destination_configs if conf.name not in EXCLUDED_DESTINATION_CONFIGURATIONS
     ]
 
-    # add marks
-    # destination_configs = [
-    #     # TODO: fix this, probably via pytest plugin that processes parametrize params
-    #     cast(
-    #         DestinationTestConfiguration,
-    #         pytest.param(
-    #             conf,
-    #             marks=pytest.mark.needspyarrow17 if conf.table_format == "delta" else [],
-    #         ),
-    #     )
-    #     for conf in destination_configs
-    # ]
     return destination_configs
 
 
