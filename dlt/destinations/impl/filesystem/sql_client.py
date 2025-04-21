@@ -6,6 +6,7 @@ import duckdb
 from dlt.common import logger
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.schema.utils import is_nullable_column
 from dlt.common.storages.configuration import FileSystemCredentials
 
 from dlt.common.typing import TLoaderFileFormat
@@ -200,8 +201,20 @@ class FilesystemSqlClient(WithTableScanners):
                     )
                 if first_file_type == "csv":
                     # TODO: use default csv_format config to set params below
+                    not_null_columns = [
+                        _escape_column_name(c["name"])
+                        for c in columns_defs
+                        if not is_nullable_column(c)
+                    ]
+                    if not_null_columns:
+                        force_not_null = f"force_not_null=[{','.join(not_null_columns)}],"
+                    else:
+                        force_not_null = ""
+                    # use `types` (and not `columns`) options below. columns does not
+                    # work with multiple csv files with evolving schemas. they disable
+                    # autodetect and lock schema for all files
                     from_statement = (
-                        f"read_csv([{resolved_files_string}], union_by_name=true, columns ="
+                        f"read_csv([{resolved_files_string}],{force_not_null} union_by_name=true,header=true,null_padding=true,types="
                         f" {{{column_types}}}{compression})"
                     )
 

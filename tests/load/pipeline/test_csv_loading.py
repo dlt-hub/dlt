@@ -66,7 +66,7 @@ def test_load_csv(
     load_tables_to_dicts(pipeline, "table")
 
     # read csv with data access
-    print(pipeline.dataset().row_counts().fetchall())
+    assert len(pipeline.dataset()["table"].fetchall()) == 5432 * 3
 
 
 @pytest.mark.parametrize(
