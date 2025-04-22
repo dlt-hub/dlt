@@ -92,6 +92,7 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
         # Parse into AST
         parsed = sqlglot.parse_one(query, read=select_dialect)
         # Get first expression in the SELECT statement (e.g "a")
+        query = parsed.sql(select_dialect)
         first_expr = parsed.expressions[0]
         # Clickhouse aliases by default, so special handling is needed
         if isinstance(first_expr, sqlglot.exp.Alias):
