@@ -445,8 +445,8 @@ def test_copying_table_with_dropped_column(
     - The resulting table contains all expected columns, including dlt ones.
     - Row counts and model job counts are correct.
     """
-    if drop_column == "_dlt_id" and destination_config.destination_type == "redshift":
-        pytest.skip("Redshift doesn't have an in-built UUID generation required for _dlt_id")
+    #    if drop_column == "_dlt_id" and destination_config.destination_type == "redshift":
+    #        pytest.skip("Redshift doesn't have an in-built UUID generation required for _dlt_id")
 
     table_suffix = "no_dlt_id" if drop_column == "_dlt_id" else "dlt_id"
     target_table_name = f"copied_table_{table_suffix}"
@@ -484,7 +484,7 @@ def test_copying_table_with_dropped_column(
     assert target_table_name in pipeline.default_schema.tables
     assert "example_table" in pipeline.default_schema.tables
 
-    # Validate columns for the table without column "b"
+    # Validate columns for the table
     assert set(pipeline.default_schema.tables[target_table_name]["columns"].keys()) == {
         "a",
         "b",
