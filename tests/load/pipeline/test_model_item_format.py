@@ -132,62 +132,6 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        subset=["snowflake"],
-    ),
-    ids=lambda x: x.name,
-)
-def test_to_delete_snowflake(destination_config: DestinationTestConfiguration) -> None:
-    # populate a table with two columns each with 10 items and retrieve dataset
-    pipeline = destination_config.setup_pipeline("test_model_item_format", dev_mode=False)
-
-    pipeline.run([{"a": i, "b": i + 1} for i in range(10)], table_name="example_table")
-    dataset = pipeline.dataset()
-
-    # Retrieve the SQL dialect and schema information
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
-    example_table_columns = dataset.schema.tables["example_table"]["columns"]
-
-    # Define resources for different SQL model jobs
-    # We also need to supply all hints so the table can be created
-    # Create a copied table without column "b"
-    @dlt.resource()
-    def copied_table_no_b() -> Any:
-        query = dataset["example_table"][["a", "_dlt_load_id", "_dlt_id"]].limit(5).query()
-        sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
-        yield dlt.mark.with_hints(
-            sql_model,
-            hints=make_hints(columns={k: v for k, v in example_table_columns.items() if k != "b"}),
-        )
-
-    # run sql jobs
-    pipeline.run([copied_table_no_b()])
-
-    # Validate row counts for all tables
-    assert load_table_counts(pipeline, "copied_table_no_b", "example_table") == {
-        "copied_table_no_b": 5,
-        "example_table": 10,
-    }
-
-    # Validate that all tables were created
-    assert "copied_table_no_b" in pipeline.default_schema.tables
-
-    # Validate columns for the table without column "b"
-    assert set(pipeline.default_schema.tables["copied_table_no_b"]["columns"].keys()) == {
-        "a",
-        "_dlt_id",
-        "_dlt_load_id",
-    }
-
-    # Validate that each table has exactly one model job
-    assert count_job_types(pipeline) == {
-        "copied_table_no_b": {"model": 1},
-    }
-
-
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
         subset=DESTINATIONS_SUPPORTING_MODEL,
     ),
     ids=lambda x: x.name,
@@ -481,8 +425,8 @@ def test_copying_table_with_dropped_column(
     - The resulting table contains all expected columns, including dlt ones.
     - Row counts and model job counts are correct.
     """
-    if drop_column == "_dlt_id" and destination_config.destination_type == "redshift":
-        pytest.skip("Redshift doesn't have an in-built UUID generation required for _dlt_id")
+    #    if drop_column == "_dlt_id" and destination_config.destination_type == "redshift":
+    #        pytest.skip("Redshift doesn't have an in-built UUID generation required for _dlt_id")
 
     table_suffix = "no_dlt_id" if drop_column == "_dlt_id" else "dlt_id"
     target_table_name = f"copied_table_{table_suffix}"
@@ -520,7 +464,7 @@ def test_copying_table_with_dropped_column(
     assert target_table_name in pipeline.default_schema.tables
     assert "example_table" in pipeline.default_schema.tables
 
-    # Validate columns for the table without column "b"
+    # Validate columns for the table
     assert set(pipeline.default_schema.tables[target_table_name]["columns"].keys()) == {
         "a",
         "b",
