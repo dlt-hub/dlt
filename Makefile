@@ -57,7 +57,6 @@ lint:
 
 format:
 	poetry run black dlt docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
-	# poetry run isort ./
 
 lint-snippets:
 	cd docs/tools && poetry run python check_embedded_snippets.py full
