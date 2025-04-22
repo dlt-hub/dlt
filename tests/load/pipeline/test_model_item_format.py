@@ -93,8 +93,13 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
         parsed = sqlglot.parse_one(query, read=select_dialect)
         # Get first expression in the SELECT statement (e.g "a")
         first_expr = parsed.expressions[0]
+        # Clickhouse aliases by default, so special handling is needed
+        if isinstance(first_expr, sqlglot.exp.Alias):
+            original_expr = first_expr.this
+        else:
+            original_expr = first_expr
         # Wrap the first expression with an alias: "a AS b"
-        parsed.expressions[0] = sqlglot.exp.Alias(this=first_expr, alias="b")
+        parsed.expressions[0] = sqlglot.exp.Alias(this=original_expr, alias="b")
         # Convert back to an SQL
         query = parsed.sql(select_dialect)
         sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
