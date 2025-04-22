@@ -28,14 +28,6 @@ from dlt.destinations.sql_client import SqlClientBase
 from dlt.common.destination.exceptions import DestinationTransientException
 
 
-class SqlJobParams(TypedDict, total=False):
-    replace: Optional[bool]
-    table_chain_create_table_statements: Dict[str, Sequence[str]]
-
-
-DEFAULTS: SqlJobParams = {"replace": False}
-
-
 class SqlJobCreationException(DestinationTransientException):
     def __init__(
         self, original_exception: Exception, table_chain: Sequence[PreparedTableSchema]
@@ -50,20 +42,18 @@ class SqlJobCreationException(DestinationTransientException):
 
 
 class SqlFollowupJob(FollowupJobRequestImpl):
-    """Sql base job for jobs that rely on the whole tablechain"""
+    """Sql base job for jobs that rely on the whole table chain"""
 
     @classmethod
     def from_table_chain(
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
-        params: Optional[SqlJobParams] = None,
     ) -> FollowupJobRequestImpl:
         """Generates a list of sql statements, that will be executed by the sql client when the job is executed in the loader.
 
         The `table_chain` contains a list of schemas of nested tables, ordered by the ancestry (the root of the tree is first on the list).
         """
-        params = cast(SqlJobParams, {**DEFAULTS, **(params or {})})
         root_table = table_chain[0]
         file_info = ParsedLoadJobFileName(
             root_table["name"], ParsedLoadJobFileName.new_file_id(), 0, "sql"
@@ -73,8 +63,7 @@ class SqlFollowupJob(FollowupJobRequestImpl):
             # Remove line breaks from multiline statements and write one SQL statement per line in output file
             # to support clients that need to execute one statement at a time (i.e. snowflake)
             sql = [
-                " ".join(stmt.splitlines())
-                for stmt in cls.generate_sql(table_chain, sql_client, params)
+                " ".join(stmt.splitlines()) for stmt in cls.generate_sql(table_chain, sql_client)
             ]
             job = cls(file_info.file_name())
             job._save_text_file("\n".join(sql))
@@ -88,13 +77,41 @@ class SqlFollowupJob(FollowupJobRequestImpl):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
-        params: Optional[SqlJobParams] = None,
     ) -> List[str]:
         pass
 
 
-class SqlStagingCopyFollowupJob(SqlFollowupJob):
+class SqlStagingFollowupJob(SqlFollowupJob):
     """Generates a list of sql statements that copy the data from staging dataset into destination dataset."""
+
+    @classmethod
+    def _generate_insert_sql(
+        cls,
+        table_chain: Sequence[PreparedTableSchema],
+        sql_client: SqlClientBase[Any],
+        truncate_first: bool,
+    ) -> List[str]:
+        sql: List[str] = []
+        for table in table_chain:
+            with sql_client.with_staging_dataset():
+                staging_table_name = sql_client.make_qualified_table_name(table["name"])
+            table_name = sql_client.make_qualified_table_name(table["name"])
+            columns = ", ".join(
+                map(
+                    sql_client.escape_column_name,
+                    get_columns_names_with_prop(table, "name"),
+                )
+            )
+            if truncate_first:
+                sql.append(sql_client._truncate_table_sql(table_name))
+            sql.append(
+                f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM {staging_table_name};"
+            )
+        return sql
+
+
+class SqlStagingReplaceFollowupJob(SqlStagingFollowupJob):
+    """Generates a list of sql statements that replace the data from staging dataset into destination dataset."""
 
     @classmethod
     def _generate_clone_sql(
@@ -114,40 +131,31 @@ class SqlStagingCopyFollowupJob(SqlFollowupJob):
         return sql
 
     @classmethod
-    def _generate_insert_sql(
+    def generate_sql(
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
-        params: SqlJobParams = None,
     ) -> List[str]:
-        sql: List[str] = []
-        for table in table_chain:
-            with sql_client.with_staging_dataset():
-                staging_table_name = sql_client.make_qualified_table_name(table["name"])
-            table_name = sql_client.make_qualified_table_name(table["name"])
-            columns = ", ".join(
-                map(
-                    sql_client.escape_column_name,
-                    get_columns_names_with_prop(table, "name"),
-                )
-            )
-            if params["replace"]:
-                sql.append(sql_client._truncate_table_sql(table_name))
-            sql.append(
-                f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM {staging_table_name};"
-            )
-        return sql
+        root_table = table_chain[0]
+        if (
+            root_table["x-replace-strategy"] == "staging-optimized"  # type: ignore[typeddict-item]
+            and sql_client.capabilities.supports_clone_table
+        ):
+            return cls._generate_clone_sql(table_chain, sql_client)
+
+        return cls._generate_insert_sql(table_chain, sql_client, truncate_first=True)
+
+
+class SqlStagingCopyFollowupJob(SqlStagingFollowupJob):
+    """Generates a list of sql statements that copy the data from staging dataset into destination dataset."""
 
     @classmethod
     def generate_sql(
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
-        params: SqlJobParams = None,
     ) -> List[str]:
-        if params["replace"] and sql_client.capabilities.supports_clone_table:
-            return cls._generate_clone_sql(table_chain, sql_client)
-        return cls._generate_insert_sql(table_chain, sql_client, params)
+        return cls._generate_insert_sql(table_chain, sql_client, truncate_first=False)
 
 
 class SqlMergeFollowupJob(SqlFollowupJob):
@@ -161,7 +169,6 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         cls,
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
-        params: Optional[SqlJobParams] = None,
     ) -> List[str]:
         # resolve only root table
         root_table = table_chain[0]
@@ -234,7 +241,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         Returns temp table name for cases where special names are required like SQLServer.
         """
         sql: List[str] = []
-        temp_table_name = cls._new_temp_table_name("delete_" + table_name, sql_client)
+        temp_table_name = cls._new_temp_table_name(table_name, "delete", sql_client)
         select_statement = f"SELECT d.{unique_column} {key_table_clauses[0]}"
         sql.append(cls._to_temp_table(select_statement, temp_table_name))
         for clause in key_table_clauses[1:]:
@@ -320,7 +327,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         condition: str = None,
         condition_columns: Sequence[str] = None,
     ) -> Tuple[List[str], str]:
-        temp_table_name = cls._new_temp_table_name("insert_" + table_name, sql_client)
+        temp_table_name = cls._new_temp_table_name(table_name, "insert", sql_client)
         if len(primary_keys) > 0:
             # deduplicate
             select_sql = cls.gen_select_from_dedup_sql(
@@ -365,8 +372,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         )
 
     @classmethod
-    def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
-        return cls._shorten_table_name(f"{name_prefix}_{uniq_id()}", sql_client)
+    def _new_temp_table_name(cls, table_name: str, op: str, sql_client: SqlClientBase[Any]) -> str:
+        return cls._shorten_table_name(f"{table_name}_{op}_{uniq_id()}", sql_client)
 
     @classmethod
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
@@ -379,7 +386,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         Returns:
             sql statement that inserts data from selects into temp table
         """
-        return f"CREATE TEMP TABLE {temp_table_name} AS {select_sql};"
+        return f"CREATE TEMPORARY TABLE {temp_table_name} AS {select_sql};"
 
     @classmethod
     def gen_update_table_prefix(cls, table_name: str) -> str:

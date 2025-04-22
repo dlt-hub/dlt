@@ -18,19 +18,6 @@ from dlt.sources.rest_api.typing import (
     RESTAPIConfig,
 )
 
-try:
-    from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
-except ImportError:
-    from dlt.sources.helpers.rest_client.paginators import (
-        JSONResponsePaginator as JSONLinkPaginator,
-    )
-
-
-try:
-    from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
-except ImportError:
-    pass
-
 
 def test_bind_path_param() -> None:
     three_params: EndpointResource = {
@@ -128,7 +115,7 @@ def test_process_parent_data_item() -> None:
         resolved_params=resolved_params,
     )
     assert processed_data.params == {"orig_id": "12345"}
-    assert processed_data.json == {"orig_id": "12345"}
+    assert processed_data.json == {"orig_id": 12345}
     assert processed_data.headers == {"X-Id": "12345"}
 
     processed_data = process_parent_data_item(
@@ -174,7 +161,7 @@ def test_process_parent_data_item() -> None:
     )
     assert processed_data.path == "dlt-hub/dlt/issues/comments"
     assert processed_data.params == {"id": "12345"}
-    assert processed_data.json == {"id": "12345"}
+    assert processed_data.json == {"id": 12345}
     assert processed_data.headers == {"X-Id": "12345"}
 
     # Test nested data

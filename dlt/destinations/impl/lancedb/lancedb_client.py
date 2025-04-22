@@ -22,10 +22,10 @@ from lancedb import DBConnection
 from lancedb.common import DATA  # type: ignore
 from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction  # type: ignore
 from lancedb.query import LanceQueryBuilder  # type: ignore
-from numpy import ndarray
 from pyarrow import Array, ChunkedArray, ArrowInvalid
 
 from dlt.common import json, pendulum, logger
+from dlt.common.libs.numpy import numpy
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
@@ -85,9 +85,9 @@ from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.type_mapping import TypeMapperImpl
 
 if TYPE_CHECKING:
-    NDArray = ndarray[Any, Any]
+    NDArray = numpy.ndarray[Any, Any]
 else:
-    NDArray = ndarray
+    NDArray = numpy.ndarray
 
 TIMESTAMP_PRECISION_TO_UNIT: Dict[int, str] = {0: "s", 3: "ms", 6: "us", 9: "ns"}
 UNIT_TO_TIMESTAMP_PRECISION: Dict[str, int] = {v: k for k, v in TIMESTAMP_PRECISION_TO_UNIT.items()}
@@ -694,7 +694,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 self.schema.naming.normalize_identifier("schema_name"): self.schema.name,
                 self.schema.naming.normalize_identifier("status"): 0,
                 self.schema.naming.normalize_identifier("inserted_at"): pendulum.now(),
-                self.schema.naming.normalize_identifier("schema_version_hash"): None,
+                self.schema.naming.normalize_identifier(
+                    "schema_version_hash"
+                ): self.schema.version_hash,
             }
         ]
         fq_loads_table_name = self.make_qualified_table_name(self.schema.loads_table_name)

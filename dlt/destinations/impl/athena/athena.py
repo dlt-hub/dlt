@@ -43,7 +43,11 @@ from dlt.common.destination import DestinationCapabilitiesContext, PreparedTable
 from dlt.common.destination.client import FollowupJobRequest, SupportsStagingDestination, LoadJob
 from dlt.common.destination.dataset import DBApiCursor
 from dlt.common.data_writers.escape import escape_hive_identifier
-from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlMergeFollowupJob
+from dlt.destinations.sql_jobs import (
+    SqlStagingCopyFollowupJob,
+    SqlStagingReplaceFollowupJob,
+    SqlMergeFollowupJob,
+)
 
 from dlt.destinations.typing import DBApi, DBTransaction
 from dlt.destinations.exceptions import (
@@ -62,6 +66,7 @@ from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs, Finalize
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
 from dlt.destinations import path_utils
 from dlt.destinations.impl.athena.athena_adapter import PARTITION_HINT
+from dlt.destinations.utils import get_deterministic_temp_table_name
 
 
 # add a formatter for pendulum to be used by pyathen dbapi
@@ -96,11 +101,13 @@ class DLTAthenaFormatter(DefaultParameterFormatter):
 
 class AthenaMergeJob(SqlMergeFollowupJob):
     @classmethod
-    def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
+    def _new_temp_table_name(cls, table_name: str, op: str, sql_client: SqlClientBase[Any]) -> str:
         # reproducible name so we know which table to drop
         with sql_client.with_staging_dataset():
             return sql_client.make_qualified_table_name(
-                cls._shorten_table_name(name_prefix, sql_client)
+                cls._shorten_table_name(
+                    get_deterministic_temp_table_name(table_name, op), sql_client
+                )
             )
 
     @classmethod
@@ -177,13 +184,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
 
     @raise_open_connection_error
     def open_connection(self) -> Connection:
-        native_credentials = self.config.credentials.to_native_representation()
-        self._conn = connect(
-            schema_name=self.dataset_name,
-            s3_staging_dir=self.config.query_result_bucket,
-            work_group=self.config.athena_work_group,
-            **native_credentials,
-        )
+        self._conn = connect(schema_name=self.dataset_name, **self.config.to_connector_params())
         return self._conn
 
     def close_connection(self) -> None:
@@ -296,16 +297,20 @@ class AthenaSQLClient(SqlClientBase[Connection]):
             query, db_args = self._convert_to_old_pyformat(query, args)
             if kwargs:
                 db_args.update(kwargs)
-        cursor = self._conn.cursor(formatter=DLTAthenaFormatter())
-        for query_line in query.split(";"):
-            if query_line.strip():
-                try:
-                    cursor.execute(query_line, db_args)
-                # catch key error only here, this will show up if we have a missing parameter
-                except KeyError:
-                    raise DatabaseTransientException(OperationalError())
 
-        yield DBApiCursorImpl(cursor)  # type: ignore
+        with self._conn.cursor(formatter=DLTAthenaFormatter()) as cursor:
+            for query_line in query.split(";"):
+                if query_line.strip():
+                    try:
+                        cursor.execute(query_line, db_args)
+                    # catch key error only here, this will show up if we have a missing parameter
+                    except KeyError:
+                        raise DatabaseTransientException(OperationalError())
+
+            # TODO: (important) allow to use PandasCursor and ArrowCursor to get fast data access
+            #    the problem: you need to set the cursor type upfront. so if user uses wrong cursor
+            #    we won't be able to dynamically change it.
+            yield DBApiCursorImpl(cursor)  # type: ignore
 
 
 class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
@@ -317,7 +322,7 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     ) -> None:
         # verify if staging layout is valid for Athena
         # this will raise if the table prefix is not properly defined
-        # we actually that {table_name} is first, no {schema_name} is allowed
+        # we actually make sure that {table_name} is first, no {schema_name} is allowed
         if config.staging_config:
             self.table_prefix_layout = path_utils.get_table_prefix_layout(
                 config.staging_config.layout,
@@ -376,24 +381,27 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         create_iceberg = self._is_iceberg_table(table, self.in_staging_dataset_mode)
         columns = ", ".join([self._get_column_def_sql(c, table) for c in new_columns])
 
-        # create unique tag for iceberg table so it is never recreated in the same folder
-        # athena requires some kind of special cleaning (or that is a bug) so we cannot refresh
-        # iceberg tables without it
-        location_tag = uniq_id(6) if create_iceberg else ""
-        # this will fail if the table prefix is not properly defined
-        table_prefix = self.table_prefix_layout.format(table_name=table_name + location_tag)
-        location = f"{bucket}/{dataset}/{table_prefix}"
-
         # use qualified table names
         qualified_table_name = self.sql_client.make_qualified_ddl_table_name(table_name)
         if generate_alter:
             # alter table to add new columns at the end
             sql.append(f"""ALTER TABLE {qualified_table_name} ADD COLUMNS ({columns});""")
         else:
+            table_prefix = self.table_prefix_layout.format(table_name=table_name)
             if create_iceberg:
                 partition_clause = self._iceberg_partition_clause(
                     cast(Optional[Dict[str, str]], table.get(PARTITION_HINT))
                 )
+                # create unique tag for iceberg table so it is never recreated in the same folder
+                # athena requires some kind of special cleaning (or that is a bug) so we cannot refresh
+                # iceberg tables without it, by default tag is not added
+                location = f"{bucket}/" + self.config.table_location_layout.format(
+                    dataset_name=dataset,
+                    table_name=table_prefix.rstrip("/"),
+                    location_tag=uniq_id(6),
+                )
+                logger.info(f"Will create ICEBERG table {table_name} in {location}")
+                # this will fail if the table prefix is not properly defined
                 sql.append(f"""{self._make_create_table(qualified_table_name, table)}
                         ({columns})
                         {partition_clause}
@@ -405,6 +413,9 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
             #             ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
             #             LOCATION '{location}';""")
             else:
+                # external tables always here
+                location = f"{bucket}/{dataset}/{table_prefix}"
+                logger.info(f"Will create EXTERNAL table {table_name} from {location}")
                 sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}
                         ({columns})
                         STORED AS PARQUET
@@ -428,22 +439,14 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         if self._is_iceberg_table(table_chain[0]):
-            return [
-                SqlStagingCopyFollowupJob.from_table_chain(
-                    table_chain, self.sql_client, {"replace": False}
-                )
-            ]
+            return [SqlStagingCopyFollowupJob.from_table_chain(table_chain, self.sql_client)]
         return super()._create_append_followup_jobs(table_chain)
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         if self._is_iceberg_table(table_chain[0]):
-            return [
-                SqlStagingCopyFollowupJob.from_table_chain(
-                    table_chain, self.sql_client, {"replace": True}
-                )
-            ]
+            return [SqlStagingReplaceFollowupJob.from_table_chain(table_chain, self.sql_client)]
         return super()._create_replace_followup_jobs(table_chain)
 
     def _create_merge_followup_jobs(

@@ -1,7 +1,7 @@
 import os
 from copy import deepcopy
 from textwrap import dedent
-from typing import Optional, List, Sequence, cast
+from typing import Any, Optional, List, Sequence, cast
 from urllib.parse import urlparse
 
 import clickhouse_connect
@@ -54,8 +54,9 @@ from dlt.destinations.job_client_impl import (
     SqlJobClientWithStagingDataset,
 )
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest, FinalizedLoadJobWithFollowupJobs
+from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
-from dlt.destinations.utils import is_compression_disabled
+from dlt.destinations.utils import get_deterministic_temp_table_name, is_compression_disabled
 
 
 class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -73,7 +74,6 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
     def run(self) -> None:
         client = self._job_client.sql_client
 
-        qualified_table_name = client.make_qualified_table_name(self.load_table_name)
         bucket_path = None
         file_name = self._file_name
 
@@ -106,6 +106,8 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                     f"ClickHouse connection failed due to {e}.",
                 ) from e
             return
+
+        qualified_table_name = client.make_qualified_table_name(self.load_table_name)
 
         # Auto does not work for jsonl, get info from config for buckets
         # NOTE: we should not really be accessing the config this way, but for
@@ -172,8 +174,21 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
 
 class ClickHouseMergeJob(SqlMergeFollowupJob):
     @classmethod
+    def _new_temp_table_name(cls, table_name: str, op: str, sql_client: SqlClientBase[Any]) -> str:
+        # reproducible name so we know which table to drop
+        with sql_client.with_staging_dataset():
+            return sql_client.make_qualified_table_name(
+                cls._shorten_table_name(
+                    get_deterministic_temp_table_name(table_name, op), sql_client
+                )
+            )
+
+    @classmethod
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
-        return f"CREATE TABLE {temp_table_name} ENGINE = Memory AS {select_sql};"
+        return (
+            f"DROP TABLE IF EXISTS {temp_table_name} SYNC; CREATE TABLE {temp_table_name} ENGINE ="
+            f" Memory AS {select_sql};"
+        )
 
     @classmethod
     def gen_key_table_clauses(
@@ -228,9 +243,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         hints_ = " ".join(
             self.active_hints.get(hint)
             for hint in self.active_hints.keys()
-            if c.get(cast(str, hint), False) is True
-            and hint not in ("primary_key", "sort")
-            and hint in self.active_hints
+            if c.get(cast(str, hint), False) is True and hint not in ("primary_key", "sort")
         )
 
         # Alter table statements only accept `Nullable` modifiers.

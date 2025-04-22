@@ -33,7 +33,10 @@ pytestmark = pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, default_staging_configs=True, all_staging_configs=True
+        default_sql_configs=True,
+        default_staging_configs=True,
+        all_staging_configs=True,
+        table_format_filesystem_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -269,7 +272,11 @@ def test_load_arrow_with_not_null_columns(
 
     pipeline = destination_config.setup_pipeline("arrow_" + uniq_id())
 
-    pipeline.extract(some_data(), table_format=destination_config.table_format)
+    pipeline.extract(
+        some_data(),
+        table_format=destination_config.table_format,
+        loader_file_format=destination_config.file_format,
+    )
 
     norm_storage = pipeline._get_normalize_storage()
     extract_files = [
@@ -285,7 +292,7 @@ def test_load_arrow_with_not_null_columns(
         assert result_tbl.schema.field("int").nullable is False
         assert result_tbl.schema.field("int").type == pa.int64()
 
-    pipeline.normalize(loader_file_format=destination_config.file_format)
+    pipeline.normalize()
     # Load is successful
     info = pipeline.load()
     assert_load_info(info)

@@ -309,17 +309,16 @@ SELECT 1
         return "", f"LIMIT {limit}"
 
 
-class WithSqlClient(JobClientBase):
+class WithSqlClient(ABC):
     @property
     @abstractmethod
-    def sql_client(self) -> SqlClientBase[TNativeConn]: ...
+    def sql_client(self) -> SqlClientBase[TNativeConn]:
+        pass
 
-    def __enter__(self) -> "WithSqlClient":
-        return self
-
-    def __exit__(
-        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
-    ) -> None:
+    # Sqlclient type so we know when WithTableScanners is implemented
+    @property
+    @abstractmethod
+    def sql_client_class(self) -> Type[SqlClientBase[TNativeConn]]:
         pass
 
 
@@ -334,6 +333,7 @@ class DBApiCursorImpl(DBApiCursor):
         self.fetchall = curr.fetchall  # type: ignore
         self.fetchmany = curr.fetchmany  # type: ignore
         self.fetchone = curr.fetchone  # type: ignore
+        self.close = curr.close  # type: ignore
 
         self._set_default_schema_columns()
 

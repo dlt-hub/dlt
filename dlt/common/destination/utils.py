@@ -13,9 +13,15 @@ from dlt.common.destination.capabilities import DestinationCapabilitiesContext, 
 from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import (
     SchemaIdentifierNormalizationCollision,
-    UnknownTableException,
+    TableNotFound,
 )
-from dlt.common.schema.typing import TColumnType, TLoaderMergeStrategy, TSchemaTables, TTableSchema
+from dlt.common.schema.typing import (
+    TColumnType,
+    TLoaderMergeStrategy,
+    TLoaderReplaceStrategy,
+    TSchemaTables,
+    TTableSchema,
+)
 from dlt.common.schema.utils import (
     fill_hints_from_parent_and_clone_table,
     get_merge_strategy,
@@ -204,6 +210,8 @@ def prepare_load_table(
     """Prepares a table schema to be loaded by filling missing hints and doing other modifications requires by given destination.
 
     `destination_capabilities` are injected from context if not explicitly passed.
+
+    Returns: prepared table, note: `table` is cloned
     """
     table_name = table["name"]
     try:
@@ -221,7 +229,31 @@ def prepare_load_table(
 
         return prep_table  # type: ignore[return-value]
     except KeyError:
-        raise UnknownTableException("<>", table_name)
+        raise TableNotFound("<>", table_name)
+
+
+def resolve_replace_strategy(
+    table: PreparedTableSchema,
+    required_strategy: Optional[TLoaderReplaceStrategy],
+    destination_capabilities: Optional[DestinationCapabilitiesContext],
+) -> Optional[TLoaderReplaceStrategy]:
+    """Returns replace strategy for the supplied prepared table and destination capabilities.
+    If `required_strategy` cannot be fulfilled or capabilities do not support replace, None is returned.
+    """
+    supported_replace_strategies = (
+        destination_capabilities.replace_strategies_selector(
+            destination_capabilities.supported_replace_strategies, table_schema=table
+        )
+        if destination_capabilities.replace_strategies_selector
+        else destination_capabilities.supported_replace_strategies
+    )
+    if not supported_replace_strategies:
+        return None
+
+    if required_strategy and required_strategy not in supported_replace_strategies:
+        return None
+
+    return required_strategy or supported_replace_strategies[0]
 
 
 @with_config

@@ -62,7 +62,7 @@ class ImportFileMeta(HintsMeta):
         hints: TResourceHints = None,
         create_table_variant: bool = None,
     ) -> None:
-        super().__init__(hints, create_table_variant)
+        super().__init__(hints=hints, create_table_variant=create_table_variant)
         self.file_path = file_path
         self.metrics = metrics
         self.file_format = file_format
@@ -304,6 +304,12 @@ class ObjectExtractor(Extractor):
     pass
 
 
+class ModelExtractor(Extractor):
+    """Extracts text items and writes them row by row into a text file"""
+
+    pass
+
+
 class ArrowExtractor(Extractor):
     """Extracts arrow data items into parquet. Normalizes arrow items column names.
     Compares the arrow schema to actual dlt table schema to reorder the columns and to
@@ -433,7 +439,9 @@ class ArrowExtractor(Extractor):
                 else:
                     arrow_table = copy(computed_table)
                 try:
-                    arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(item.schema)
+                    arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(
+                        item.schema, self._caps
+                    )
                 except pyarrow.UnsupportedArrowTypeException as e:
                     e.table_name = str(arrow_table.get("name"))
                     raise

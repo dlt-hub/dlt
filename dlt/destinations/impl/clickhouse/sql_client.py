@@ -62,6 +62,8 @@ TRANSACTIONS_UNSUPPORTED_WARNING_MESSAGE = (
 class ClickHouseDBApiCursorImpl(DBApiCursorImpl):
     native_cursor: DictCursor
 
+    # TODO: implement arrow reading
+
 
 class ClickHouseSqlClient(
     SqlClientBase[clickhouse_driver.dbapi.connection.Connection], DBTransaction
@@ -136,8 +138,9 @@ class ClickHouseSqlClient(
         sentinel_table_type = cast(TTableEngineType, self.config.table_engine_type)
         self.execute_sql(f"""
             CREATE TABLE {sentinel_table_name}
-            (_dlt_id String NOT NULL PRIMARY KEY)
+            (_dlt_id String NOT NULL)
             ENGINE={TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(sentinel_table_type)}
+            PRIMARY KEY _dlt_id
             COMMENT 'internal dlt sentinel table'""")
 
     def drop_dataset(self) -> None:

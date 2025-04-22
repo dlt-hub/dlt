@@ -1,6 +1,6 @@
 import tomlkit
 import yaml
-from typing import Any, Callable, Dict, MutableMapping, Optional, Tuple, Type
+from typing import Any, Callable, Dict, MutableMapping, Sequence, Optional, Tuple, Type
 
 from dlt.common.configuration.utils import auto_cast, auto_config_fragment
 from dlt.common.utils import update_dict_nested
@@ -136,7 +136,11 @@ class BaseDocProvider(ConfigProvider):
 
 class CustomLoaderDocProvider(BaseDocProvider):
     def __init__(
-        self, name: str, loader: Callable[[], Dict[str, Any]], supports_secrets: bool = True
+        self,
+        name: str,
+        loader: Callable[[], Dict[str, Any]],
+        supports_secrets: bool = True,
+        locations: Sequence[str] = None,
     ) -> None:
         """Provider that calls `loader` function to get a Python dict with config/secret values to be queried.
         The `loader` function typically loads a string (ie. from file), parses it (ie. as toml or yaml), does additional
@@ -154,6 +158,7 @@ class CustomLoaderDocProvider(BaseDocProvider):
         """
         self._name = name
         self._supports_secrets = supports_secrets
+        self._locations = locations
         super().__init__(loader())
 
     @property
@@ -167,3 +172,7 @@ class CustomLoaderDocProvider(BaseDocProvider):
     @property
     def is_writable(self) -> bool:
         return True
+
+    @property
+    def locations(self) -> Sequence[str]:
+        return self._locations

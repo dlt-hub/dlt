@@ -5,8 +5,9 @@ from typing_extensions import Self
 
 import dlt
 import dlt.common
+from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.typing import Annotated
-from dlt.common.configuration.specs.base_configuration import NotResolved
+from dlt.common.configuration.specs.base_configuration import NotResolved, configspec
 from dlt.common.destination.client import DestinationClientConfiguration
 from dlt.common.pipeline import SupportsPipeline
 
@@ -18,6 +19,7 @@ LEGACY_DB_PATH_LOCAL_STATE_KEY = "duckdb_database"
 class WithLocalFiles(DestinationClientConfiguration):
     local_dir: Annotated[str, NotResolved()] = None
     # needed by duckdb
+    # TODO: deprecate this in 2.0
     pipeline_name: Annotated[Optional[str], NotResolved()] = None
     pipeline_working_dir: Annotated[Optional[str], NotResolved()] = None
     legacy_db_path: Annotated[Optional[str], NotResolved()] = None
@@ -37,7 +39,8 @@ class WithLocalFiles(DestinationClientConfiguration):
     def on_partial(self) -> None:
         if not self.local_dir:
             self.local_dir = os.path.abspath(dlt.current.run_context().local_dir)
-            self.resolve()
+            if not self.is_partial():
+                self.resolve()
 
     def make_location(self, configured_location: str, default_location_pat: str) -> str:
         # do not set any paths for external database
@@ -54,8 +57,7 @@ class WithLocalFiles(DestinationClientConfiguration):
             if self.pipeline_working_dir:
                 return os.path.join(self.pipeline_working_dir, default_location)
             raise RuntimeError(
-                "Attempting to use special duckdb database location :pipeline: outside of pipeline"
-                " context."
+                "Attempting to use special location :pipeline: outside of pipeline context."
             )
         else:
             # if explicit path is absolute, use it
@@ -78,3 +80,24 @@ class WithLocalFiles(DestinationClientConfiguration):
                 return self.legacy_db_path
             # use tmp path as root, not cwd
             return os.path.join(self.local_dir, configured_location or default_location)
+
+
+@configspec
+class FilesystemConfigurationWithLocalFiles(FilesystemConfiguration, WithLocalFiles):  # type: ignore[misc]
+    def normalize_bucket_url(self) -> None:
+        # here we deal with normalized file:// local paths
+        if self.is_local_filesystem:
+            # convert to native path
+            try:
+                local_file_path = self.make_local_path(self.bucket_url)
+            except ValueError:
+                local_file_path = self.bucket_url
+            relocated_path = self.make_location(local_file_path, "%s")
+            # convert back into file:// schema if relocated
+            if local_file_path != relocated_path:
+                if self.bucket_url.startswith("file:"):
+                    self.bucket_url = self.make_file_url(relocated_path)
+                else:
+                    self.bucket_url = relocated_path
+        # modified local path before it is normalized
+        super().normalize_bucket_url()

@@ -4,6 +4,7 @@ from dlt.common.configuration.specs import (
     GcpCredentials,
     AwsCredentials,
     AzureCredentials,
+    AzureServicePrincipalCredentials,
 )
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs import OAuth2Credentials

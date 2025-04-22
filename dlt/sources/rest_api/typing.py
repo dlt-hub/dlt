@@ -10,9 +10,6 @@ from typing import (
 
 from dlt.common import jsonpath
 from dlt.common.typing import TypedDict
-from dlt.common.schema.typing import (
-    TAnySchemaColumns,
-)
 from dlt.common.incremental.typing import IncrementalArgs
 from dlt.extract.items import TTableHintTemplate
 from dlt.extract.hints import TResourceHintsBase
@@ -28,20 +25,13 @@ from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
 
 from dlt.sources.helpers.rest_client.paginators import (
     BasePaginator,
+    JSONLinkPaginator,
     HeaderLinkPaginator,
     JSONResponseCursorPaginator,
     OffsetPaginator,
     PageNumberPaginator,
     SinglePagePaginator,
 )
-
-
-try:
-    from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
-except ImportError:
-    from dlt.sources.helpers.rest_client.paginators import (
-        JSONResponsePaginator as JSONLinkPaginator,
-    )
 
 from dlt.sources.helpers.rest_client.auth import (
     HttpBasicAuth,
@@ -70,9 +60,11 @@ class PageNumberPaginatorConfig(PaginatorTypeConfig, total=False):
     """A paginator that uses page number-based pagination strategy."""
 
     base_page: Optional[int]
+    page: Optional[int]
     page_param: Optional[str]
     total_path: Optional[jsonpath.TJsonPath]
     maximum_page: Optional[int]
+    stop_after_empty_page: Optional[bool]
 
 
 class OffsetPaginatorConfig(PaginatorTypeConfig, total=False):
@@ -84,6 +76,7 @@ class OffsetPaginatorConfig(PaginatorTypeConfig, total=False):
     limit_param: Optional[str]
     total_path: Optional[jsonpath.TJsonPath]
     maximum_offset: Optional[int]
+    stop_after_empty_page: Optional[bool]
 
 
 class HeaderLinkPaginatorConfig(PaginatorTypeConfig, total=False):
@@ -106,6 +99,7 @@ class JSONResponseCursorPaginatorConfig(PaginatorTypeConfig, total=False):
 
     cursor_path: Optional[jsonpath.TJsonPath]
     cursor_param: Optional[str]
+    cursor_body_path: Optional[jsonpath.TJsonPath]
 
 
 PaginatorConfig = Union[

@@ -43,7 +43,7 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         # https://www.sqlalchemyql.org/docs/current/limits.html
         caps = DestinationCapabilitiesContext.generic_capabilities()
         caps.preferred_loader_file_format = "typed-jsonl"
-        caps.supported_loader_file_formats = ["typed-jsonl", "parquet"]
+        caps.supported_loader_file_formats = ["typed-jsonl", "parquet", "model"]
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []
         caps.has_case_sensitive_identifiers = True
@@ -73,52 +73,51 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         config: SqlalchemyClientConfiguration,
         naming: t.Optional[NamingConvention],
     ) -> DestinationCapabilitiesContext:
-        caps = super(sqlalchemy, cls).adjust_capabilities(caps, config, naming)
         dialect = config.get_dialect()
-        if dialect is None:
-            return caps
-        backend_name = config.get_backend_name()
+        if dialect is not None:
+            backend_name = config.get_backend_name()
 
-        caps.max_identifier_length = dialect.max_identifier_length
-        caps.max_column_identifier_length = dialect.max_identifier_length
-        caps.supports_native_boolean = dialect.supports_native_boolean
+            caps.max_identifier_length = dialect.max_identifier_length
+            caps.max_column_identifier_length = dialect.max_identifier_length
+            caps.supports_native_boolean = dialect.supports_native_boolean
 
-        if dialect.name == "mysql" or backend_name in ("mysql", "mariadb"):
-            # correct max identifier length
-            # dialect uses 255 (max length for aliases) instead of 64 (max length of identifiers)
-            caps.max_identifier_length = 64
-            caps.format_datetime_literal = _format_mysql_datetime_literal
-            caps.sqlglot_dialect = "mysql"
+            if dialect.name == "mysql" or backend_name in ("mysql", "mariadb"):
+                # correct max identifier length
+                # dialect uses 255 (max length for aliases) instead of 64 (max length of identifiers)
+                caps.max_identifier_length = 64
+                caps.max_column_identifier_length = 64
+                caps.format_datetime_literal = _format_mysql_datetime_literal
+                caps.sqlglot_dialect = "mysql"
 
-        elif backend_name in [
-            "oracle",
-            "redshift",
-            "drill",
-            "druid",
-            "presto",
-            "hive",
-            "trino",
-            "clickhouse",
-            "databricks",
-            "bigquery",
-            "snowflake",
-            "doris",
-            "risingwave",
-            "starrocks",
-            "sqlite",
-        ]:
-            caps.sqlglot_dialect = backend_name
+            elif backend_name in [
+                "oracle",
+                "redshift",
+                "drill",
+                "druid",
+                "presto",
+                "hive",
+                "trino",
+                "clickhouse",
+                "databricks",
+                "bigquery",
+                "snowflake",
+                "doris",
+                "risingwave",
+                "starrocks",
+                "sqlite",
+            ]:
+                caps.sqlglot_dialect = backend_name
 
-        elif backend_name == "postgresql":
-            caps.sqlglot_dialect = "postgres"
-        elif backend_name == "awsathena":
-            caps.sqlglot_dialect = "athena"
-        elif backend_name == "mssql":
-            caps.sqlglot_dialect = "tsql"
-        elif backend_name == "teradatasql":
-            caps.sqlglot_dialect = "teradata"
+            elif backend_name == "postgresql":
+                caps.sqlglot_dialect = "postgres"
+            elif backend_name == "awsathena":
+                caps.sqlglot_dialect = "athena"
+            elif backend_name == "mssql":
+                caps.sqlglot_dialect = "tsql"
+            elif backend_name == "teradatasql":
+                caps.sqlglot_dialect = "teradata"
 
-        return caps
+        return super(sqlalchemy, cls).adjust_capabilities(caps, config, naming)
 
     @property
     def client_class(self) -> t.Type["SqlalchemyJobClient"]:

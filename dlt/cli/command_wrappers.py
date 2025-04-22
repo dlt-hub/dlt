@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Union
 import yaml
 import os
 import click
@@ -16,6 +16,7 @@ from dlt.cli.exceptions import CliCommandException
 from dlt.cli.init_command import (
     init_command,
     list_sources_command,
+    list_destinations_command,
     DLT_INIT_DOCS_URL,
 )
 from dlt.cli.pipeline_command import pipeline_command, DLT_PIPELINE_COMMAND_DOCS_URL
@@ -24,7 +25,7 @@ from dlt.cli.telemetry_command import (
     change_telemetry_status_command,
     telemetry_status_command,
 )
-from dlt.cli import debug
+from dlt.cli.ai_command import ai_setup_command, TSupportedIde
 
 try:
     from dlt.cli import deploy_command
@@ -57,6 +58,11 @@ def init_command_wrapper(
 @utils.track_command("list_sources", False)
 def list_sources_command_wrapper(repo_location: str, branch: str) -> None:
     list_sources_command(repo_location, branch)
+
+
+@utils.track_command("list_destinations", False)
+def list_destinations_command_wrapper() -> None:
+    list_destinations_command()
 
 
 @utils.track_command("pipeline", True, "operation")
@@ -151,3 +157,8 @@ def telemetry_change_status_command_wrapper(enabled: bool) -> None:
         change_telemetry_status_command(enabled)
     except Exception as ex:
         raise CliCommandException(docs_url=DLT_TELEMETRY_DOCS_URL, raiseable_exception=ex)
+
+
+@utils.track_command("ai_setup", False)
+def ai_setup_command_wrapper(ide: TSupportedIde, branch: Union[str, None], repo: str) -> None:
+    ai_setup_command(ide, branch=branch, repo=repo)

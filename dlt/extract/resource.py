@@ -31,6 +31,8 @@ from dlt.common.pipeline import (
     pipeline_state,
 )
 from dlt.common.utils import flatten_list_or_items, get_callable_name, uniq_id
+from dlt.common.data_writers import TDataItemFormat
+
 from dlt.common.schema.typing import TTableSchema
 from dlt.extract.utils import wrap_async_iterator, wrap_parallel_iterator
 
@@ -74,7 +76,9 @@ def with_table_name(item: TDataItems, table_name: str) -> DataItemWithMeta:
 
 
 def with_hints(
-    item: TDataItems, hints: TResourceHints, create_table_variant: bool = False
+    item: TDataItems,
+    hints: TResourceHints = None,
+    create_table_variant: bool = False,
 ) -> DataItemWithMeta:
     """Marks `item` to update the resource with specified `hints`.
 
@@ -484,7 +488,11 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
     def bind(self: TDltResourceImpl, *args: Any, **kwargs: Any) -> TDltResourceImpl:
         """Binds the parametrized resource to passed arguments. Modifies resource pipe in place. Does not evaluate generators or iterators."""
         if self._args_bound:
-            raise TypeError(f"Parametrized resource {self.name} is not callable")
+            raise TypeError(
+                f"Parametrized resource {self.name} is not callable. You can call and pass"
+                " arguments to a parametrized resource only once. Make sure you didn't call this"
+                " resource before."
+            )
 
         orig_gen = self._pipe.gen
         gen = self._pipe.bind_gen(*args, **kwargs)
@@ -532,7 +540,11 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
     def __call__(self: TDltResourceImpl, *args: Any, **kwargs: Any) -> TDltResourceImpl:
         """Binds the parametrized resources to passed arguments. Creates and returns a bound resource. Generators and iterators are not evaluated."""
         if self._args_bound:
-            raise TypeError(f"Parametrized resource {self.name} is not callable")
+            raise TypeError(
+                f"Parametrized resource {self.name} is not callable. You can call and pass"
+                " arguments to a parametrized resource only once. Make sure you didn't call this"
+                " resource before."
+            )
         r = self._clone()
         return r.bind(*args, **kwargs)
 

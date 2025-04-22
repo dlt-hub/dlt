@@ -1,25 +1,19 @@
-from typing import Any, Iterator, AnyStr, List, cast, TYPE_CHECKING, Dict
+from typing import Any, TYPE_CHECKING
 import os
 import re
 import duckdb
-import semver
-from pathlib import Path
-import sqlglot
-import sqlglot.expressions as exp
-from contextlib import contextmanager
 
 from dlt.common import logger
-from dlt.common.destination.dataset import DBApiCursor
-from dlt.common.storages.fsspec_filesystem import AZURE_BLOB_STORAGE_PROTOCOLS
+from dlt.common.destination.exceptions import DestinationUndefinedEntity
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.schema.utils import is_nullable_column
+from dlt.common.storages.configuration import FileSystemCredentials
 
+from dlt.common.typing import TLoaderFileFormat
 from dlt.destinations.sql_client import raise_database_error
-from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
-from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory, DuckDbCredentials
-from dlt.common.configuration.specs import (
-    AwsCredentials,
-    AzureServicePrincipalCredentialsWithoutDefaults,
-    AzureCredentialsWithoutDefaults,
-)
+from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
+from dlt.destinations.impl.duckdb.factory import DuckDbCredentials
+
 from dlt.destinations.utils import is_compression_disabled
 
 SUPPORTED_PROTOCOLS = ["gs", "gcs", "s3", "file", "memory", "az", "abfss"]
@@ -30,349 +24,211 @@ else:
     FilesystemClient = Any
 
 
-class FilesystemSqlClient(DuckDbSqlClient):
-    memory_db: duckdb.DuckDBPyConnection = None
-    """Internally created in-mem database in case external is not provided"""
-
+class FilesystemSqlClient(WithTableScanners):
     def __init__(
         self,
-        fs_client: FilesystemClient,
-        dataset_name: str = None,
-        credentials: DuckDbCredentials = None,
+        remote_client: FilesystemClient,
+        dataset_name: str,
+        cache_db: DuckDbCredentials = None,
+        persist_secrets: bool = False,
     ) -> None:
-        # if no credentials are passed from the outside
-        # we know to keep an in memory instance here
-        if not credentials:
-            self.memory_db = duckdb.connect(":memory:")
-            credentials = DuckDbCredentials(self.memory_db)
-
-        super().__init__(
-            dataset_name=dataset_name or fs_client.dataset_name,
-            staging_dataset_name=None,
-            credentials=credentials,
-            capabilities=duckdb_factory()._raw_capabilities(),
-        )
-        self.fs_client = fs_client
-
-        if self.fs_client.config.protocol not in SUPPORTED_PROTOCOLS:
+        if remote_client.config.protocol not in SUPPORTED_PROTOCOLS:
             raise NotImplementedError(
-                f"Protocol {self.fs_client.config.protocol} currently not supported for"
+                f"Protocol {remote_client.config.protocol} currently not supported for"
                 f" FilesystemSqlClient. Supported protocols are {SUPPORTED_PROTOCOLS}."
             )
+        super().__init__(remote_client, dataset_name, cache_db, persist_secrets=persist_secrets)
+        self.remote_client: FilesystemClient = remote_client
+        self.is_abfss = self.remote_client.config.protocol == "abfss"
+        self.iceberg_initialized = False
 
-    def _create_default_secret_name(self) -> str:
-        regex = re.compile("[^a-zA-Z]")
-        escaped_bucket_name = regex.sub("", self.fs_client.config.bucket_url.lower())
-        return f"secret_{escaped_bucket_name}"
+    def can_create_view(self, table_schema: PreparedTableSchema) -> bool:
+        if table_schema.get("table_format") in ("delta", "iceberg"):
+            return True
+        file_format = self.get_file_format(table_schema)
+        return file_format in ("jsonl", "parquet", "csv")
 
-    def drop_authentication(self, secret_name: str = None) -> None:
-        if not secret_name:
-            secret_name = self._create_default_secret_name()
-        self._conn.sql(f"DROP PERSISTENT SECRET IF EXISTS {secret_name}")
+    def get_file_format(self, table_schema: PreparedTableSchema) -> str:
+        table_name = table_schema["name"]
+        if table_name in self.schema.dlt_table_names():
+            return "jsonl"
+        files = self.remote_client.list_table_files(table_name)
+        if len(files) == 0:
+            raise DestinationUndefinedEntity(table_name)
+        return os.path.splitext(files[0])[1][1:]
 
-    def create_authentication(self, persistent: bool = False, secret_name: str = None) -> None:
-        #  home dir is a bad choice, it should be more explicit
-        if not secret_name:
-            secret_name = self._create_default_secret_name()
-
-        if persistent and self.memory_db:
-            raise Exception("Creating persistent secrets for in memory db is not allowed.")
-
-        secrets_path = Path(
-            self._conn.sql(
-                "SELECT current_setting('secret_directory') AS secret_directory;"
-            ).fetchone()[0]
-        )
-
-        is_default_secrets_directory = (
-            len(secrets_path.parts) >= 2
-            and secrets_path.parts[-1] == "stored_secrets"
-            and secrets_path.parts[-2] == ".duckdb"
-        )
-
-        if is_default_secrets_directory and persistent:
-            logger.warn(
-                "You are persisting duckdb secrets but are storing them in the default folder"
-                f" {secrets_path}. These secrets are saved there unencrypted, we"
-                " recommend using a custom secret directory."
-            )
-
-        persistent_stmt = ""
-        if persistent:
-            persistent_stmt = " PERSISTENT "
-
-        # abfss buckets have an @ compontent
-        scope = self.fs_client.config.bucket_url
-        if "@" in scope:
-            scope = scope.split("@")[0]
-
-        # add secrets required for creating views
-        if self.fs_client.config.protocol == "s3":
-            aws_creds = cast(AwsCredentials, self.fs_client.config.credentials)
-            session_token = (
-                "" if aws_creds.aws_session_token is None else aws_creds.aws_session_token
-            )
-
-            use_ssl = "true"
-            endpoint = "s3.amazonaws.com"
-            if aws_creds.endpoint_url and "http://" in aws_creds.endpoint_url:
-                use_ssl = "false"
-                endpoint = aws_creds.endpoint_url.replace("http://", "")
-            elif aws_creds.endpoint_url and "https://" in aws_creds.endpoint_url:
-                endpoint = aws_creds.endpoint_url.replace("https://", "")
-
-            s3_url_style = aws_creds.s3_url_style or "vhost"
-
-            self._conn.sql(f"""
-            CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
-                TYPE S3,
-                KEY_ID '{aws_creds.aws_access_key_id}',
-                SECRET '{aws_creds.aws_secret_access_key}',
-                SESSION_TOKEN '{session_token}',
-                REGION '{aws_creds.region_name}',
-                ENDPOINT '{endpoint}',
-                SCOPE '{scope}',
-                URL_STYLE '{s3_url_style}',
-                USE_SSL {use_ssl}
-            );""")
-
-        # azure with storage account creds
-        elif self.fs_client.config.protocol in ["az", "abfss"] and isinstance(
-            self.fs_client.config.credentials, AzureCredentialsWithoutDefaults
-        ):
-            azsa_creds = self.fs_client.config.credentials
-            self._conn.sql(f"""
-            CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
-                TYPE AZURE,
-                CONNECTION_STRING 'AccountName={azsa_creds.azure_storage_account_name};AccountKey={azsa_creds.azure_storage_account_key}',
-                SCOPE '{scope}'
-            );""")
-
-        # azure with service principal creds
-        elif self.fs_client.config.protocol in ["az", "abfss"] and isinstance(
-            self.fs_client.config.credentials, AzureServicePrincipalCredentialsWithoutDefaults
-        ):
-            azsp_creds = self.fs_client.config.credentials
-            self._conn.sql(f"""
-            CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
-                TYPE AZURE,
-                PROVIDER SERVICE_PRINCIPAL,
-                TENANT_ID '{azsp_creds.azure_tenant_id}',
-                CLIENT_ID '{azsp_creds.azure_client_id}',
-                CLIENT_SECRET '{azsp_creds.azure_client_secret}',
-                ACCOUNT_NAME '{azsp_creds.azure_storage_account_name}',
-                SCOPE '{scope}'
-            );""")
-        elif persistent:
-            raise Exception(
-                "Cannot create persistent secret for filesystem protocol"
-                f" {self.fs_client.config.protocol}. If you are trying to use persistent secrets"
-                " with gs/gcs, please use the s3 compatibility layer."
-            )
-
-        # native google storage implementation is not supported..
-        elif self.fs_client.config.protocol in ["gs", "gcs"]:
-            logger.warn(
-                "For gs/gcs access via duckdb please use the gs/gcs s3 compatibility layer if"
-                " possible (not supported when using `iceberg` table format). Falling back to"
-                " fsspec."
-            )
-            self._conn.register_filesystem(self.fs_client.fs_client)
-
-        # for memory we also need to register filesystem
-        elif self.fs_client.config.protocol == "memory":
-            self._conn.register_filesystem(self.fs_client.fs_client)
+    def create_secret(
+        self,
+        scope: str,
+        credentials: FileSystemCredentials,
+        secret_name: str = None,
+    ) -> bool:
+        protocol = self.remote_client.config.protocol
+        if protocol == "file":
+            return True
+        if not super().create_secret(scope, credentials, secret_name=secret_name):
+            # native google storage implementation is not supported..
+            if protocol in ["gs", "gcs"]:
+                logger.warn(
+                    "For gs/gcs access via duckdb please use the gs/gcs s3 compatibility layer if"
+                    " possible (not supported when using `iceberg` table format). Falling back to"
+                    " fsspec."
+                )
+                self._conn.register_filesystem(self.remote_client.fs_client)
+            # for memory we also need to register filesystem
+            elif protocol == "memory":
+                self._conn.register_filesystem(self.remote_client.fs_client)
+            elif protocol == "file":
+                # authentication for local filesystem not needed
+                pass
+            else:
+                raise ValueError(
+                    f"Cannot create secret or register filesystem for protocol {protocol}"
+                )
+        return True
 
     def open_connection(self) -> duckdb.DuckDBPyConnection:
-        # we keep the in memory instance around, so if this prop is set, return it
         first_connection = self.credentials.never_borrowed
         super().open_connection()
 
         if first_connection:
-            # set up dataset
-            if not self.has_dataset():
-                self.create_dataset()
-            self._conn.sql(f"USE {self.fully_qualified_dataset_name()}")
-            self.create_authentication()
+            # create single authentication for the whole client
+            self.create_secret(
+                self.remote_client.config.bucket_url, self.remote_client.config.credentials
+            )
 
-        # the line below solves problems with certificate path lookup on linux
-        # see duckdb docs
-        if self.fs_client.config.protocol in AZURE_BLOB_STORAGE_PROTOCOLS:
-            self._conn.sql("SET azure_transport_option_type = 'curl';")
-
-        # this is a hack to re-enable iceberg settings that get lost when
-        # duckdb connection is closed. each clone needs settings to happen again
-        # self._conn is opened and closed in the relation.cursor()
-        try:
-            self._conn.execute("SET unsafe_enable_version_guessing=true;")
-        except Exception:
-            pass
-
+        self._conn.sql("SET azure_transport_option_type = 'curl';")
         return self._conn
 
-    def create_views_for_all_tables(self) -> None:
-        self.create_views_for_tables({v: v for v in self.fs_client.schema.tables.keys()})
+    def should_replace_view(self, view_name: str, table_schema: PreparedTableSchema) -> bool:
+        # we use alternative method to get snapshot on abfss and we need to replace
+        # the view each time to control the freshness (abfss cannot glob)
+        return self.is_abfss  # and table_format == "iceberg"
 
     @raise_database_error
-    def create_views_for_tables(self, tables: Dict[str, str]) -> None:
-        """Add the required tables as views to the duckdb in memory instance"""
-
-        # this also gets all views
-        existing_tables = [tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall()]
-        is_abfss = self.fs_client.config.protocol == "abfss"
-        iceberg_initialized = False
-
+    def create_view(self, view_name: str, table_schema: PreparedTableSchema) -> None:
         # NOTE: data freshness
         # iceberg - currently we glob the most recent snapshot (via built in duckdb mechanism) so data is fresh
         #           (but not very efficient)
         # delta - newest version is always read
         # files - newest files
+        table_name = table_schema["name"]
+        table_format = table_schema.get("table_format")
+        protocol = self.remote_client.config.protocol
+        table_location = self.remote_client.get_open_table_location(table_format, table_name)
 
-        # create all tables in duck instance
-        for table_name in tables.keys():
-            view_name = tables[table_name]
+        # discover whether compression is enabled
+        compression = "" if is_compression_disabled() else ", compression = 'gzip'"
 
-            if table_name not in self.fs_client.schema.tables:
-                # unknown views will not be created
-                continue
-            # NOTE: if this is staging configuration then `prepare_load_table` will remove some info
-            # from table schema, if we ever extend this to handle staging destination, this needs to change
-            schema_table = self.fs_client.prepare_load_table(table_name)
-            table_format = schema_table.get("table_format")
+        dlt_table_names = self.remote_client.schema.dlt_table_names()
 
-            # we use alternative method to get snapshot on abfss and we need to replace
-            # the view each time to control the freshness (abfss cannot glob)
-            needs_replace = is_abfss  # and table_format == "iceberg"
-            # skip if view already exists and does not need to be replaced each time
-            if view_name in existing_tables and not needs_replace:
-                continue
+        def _escape_column_name(col_name: str) -> str:
+            col_name = self.escape_column_name(col_name)
+            # dlt tables are stored as json and never normalized
+            if table_name in dlt_table_names:
+                col_name = col_name.lower()
+            return col_name
 
-            # discover file type
-            folder = self.fs_client.get_table_dir(table_name)
-            protocol = (
-                "" if self.fs_client.is_local_filesystem else f"{self.fs_client.config.protocol}://"
-            )
-            resolved_folder = f"{protocol}{folder}"
+        # get columns to select from table schema
+        columns = [_escape_column_name(c) for c in self.schema.get_table_columns(table_name).keys()]
 
-            # discover whether compression is enabled
-            compression = "" if is_compression_disabled() else ", compression = 'gzip'"
-
+        if table_name in dlt_table_names:
             # dlt tables are never compressed for now...
-            if table_name in self.fs_client.schema.dlt_table_names():
-                compression = ""
+            compression = ""
 
-            # create from statement
-            from_statement = ""
-            if table_format == "delta":
-                from_statement = f"delta_scan('{resolved_folder}')"
-            elif table_format == "iceberg":
-                if not iceberg_initialized:
-                    self._setup_iceberg(self._conn)
-                    iceberg_initialized = True
-                # TODO: get version from a catalog if implemented
+        # create from statement
+        from_statement = ""
+        if table_format == "delta":
+            from_statement = f"delta_scan('{table_location}')"
+        elif table_format == "iceberg":
+            if not self.iceberg_initialized:
+                self._setup_iceberg(self._conn)
+                self.iceberg_initialized = True
+            if self.is_abfss:
+                # duckdb can't glob on abfss 🤯
+                from dlt.common.libs.pyiceberg import get_last_metadata_file
 
-                if is_abfss:
-                    # duckdb can't glob on abfss 🤯
-                    from dlt.common.libs.pyiceberg import _get_last_metadata_file
-
-                    metadata_path = f"{resolved_folder}/metadata"
-                    last_metadata_file = _get_last_metadata_file(metadata_path, self.fs_client)
-                    from_statement = (
-                        f"iceberg_scan('{last_metadata_file}', skip_schema_inference=True)"
-                    )
-                else:
-                    # skip schema inference to make nested data types work
-                    # https://github.com/duckdb/duckdb_iceberg/issues/47
-                    from_statement = (
-                        f"iceberg_scan('{resolved_folder}', version='?', allow_moved_paths = true,"
-                        " skip_schema_inference=True)"
-                    )
+                metadata_path = f"{table_location}/metadata"
+                last_metadata_file = get_last_metadata_file(
+                    metadata_path, self.remote_client.fs_client, self.remote_client.config
+                )
+                from_statement = (
+                    f"iceberg_scan('{last_metadata_file}', skip_schema_inference=false)"
+                )
             else:
-                # discover file type
-                files = self.fs_client.list_table_files(table_name)
-                first_file_type = os.path.splitext(files[0])[1][1:]
+                # skip schema inference to make nested data types work
+                # https://github.com/duckdb/duckdb_iceberg/issues/47
+                from_statement = (
+                    f"iceberg_scan('{table_location}', version='?', allow_moved_paths = true,"
+                    " skip_schema_inference=false)"
+                )
+        else:
+            # get file format from schema
+            # NOTE: this does not support cases where table contains many different file formats
+            first_file_type = self.get_file_format(table_schema)
 
-                # build files string
-                supports_wildcard_notation = self.fs_client.config.protocol != "abfss"
-                resolved_files_string = f"'{resolved_folder}/**/*.{first_file_type}'"
-                if not supports_wildcard_notation:
-                    resolved_files_string = ",".join(map(lambda f: f"'{protocol}{f}'", files))
+            # build files string
+            supports_wildcard_notation = not self.is_abfss
 
-                if first_file_type == "parquet":
-                    from_statement = f"read_parquet([{resolved_files_string}])"
-                elif first_file_type == "jsonl":
-                    # build columns definition
-                    type_mapper = self.capabilities.get_type_mapper()
-                    columns = ",".join(
-                        map(
-                            lambda c: (
-                                f'{self.escape_column_name(c["name"])}:'
-                                f' "{type_mapper.to_destination_type(c, schema_table)}"'
-                            ),
-                            self.fs_client.schema.tables[table_name]["columns"].values(),
-                        )
+            resolved_files_string = f"'{table_location}/**/*.{first_file_type}'"
+            if not supports_wildcard_notation:
+                files = self.remote_client.list_table_files(table_name)
+                resolved_files_string = ",".join(map(lambda f: f"'{protocol}://{f}'", files))
+
+            if first_file_type == "parquet":
+                from_statement = f"read_parquet([{resolved_files_string}], union_by_name=true)"
+            elif first_file_type in ("jsonl", "csv"):
+                # build columns definition
+                type_mapper = self.capabilities.get_type_mapper()
+                columns_defs = self.schema.get_table_columns(table_name).values()
+                column_types = ",".join(
+                    map(
+                        lambda c: (
+                            f'{_escape_column_name(c["name"])}:'
+                            f' "{type_mapper.to_destination_type(c, table_schema)}"'
+                        ),
+                        columns_defs,
                     )
+                )
+                if first_file_type == "jsonl":
+                    # swap binary types
+                    for idx, column_def in enumerate(columns_defs):
+                        if column_def["data_type"] == "binary":
+                            columns[idx] = f"from_base64(decode({columns[idx]})) as {columns[idx]}"
                     from_statement = (
                         f"read_json([{resolved_files_string}], columns ="
-                        f" {{{columns}}}{compression})"
+                        f" {{{column_types}}}{compression})"
                     )
-                else:
-                    raise NotImplementedError(
-                        f"Unknown filetype {first_file_type} for table {table_name}. Currently only"
-                        " jsonl and parquet files as well as delta and iceberg tables are"
-                        " supported."
+                if first_file_type == "csv":
+                    # TODO: use default csv_format config to set params below
+                    not_null_columns = [
+                        _escape_column_name(c["name"])
+                        for c in columns_defs
+                        if not is_nullable_column(c)
+                    ]
+                    if not_null_columns:
+                        force_not_null = f"force_not_null=[{','.join(not_null_columns)}],"
+                    else:
+                        force_not_null = ""
+                    # use `types` (and not `columns`) options below. columns does not
+                    # work with multiple csv files with evolving schemas. they disable
+                    # autodetect and lock schema for all files
+                    from_statement = (
+                        f"read_csv([{resolved_files_string}],{force_not_null} union_by_name=true,header=true,null_padding=true,types="
+                        f" {{{column_types}}}{compression})"
                     )
 
-            # create table
-            view_name = self.make_qualified_table_name(view_name)
-            create_table_sql_base = (
-                f"CREATE OR REPLACE VIEW {view_name} AS SELECT * FROM {from_statement}"
-            )
-            self._conn.execute(create_table_sql_base)
+            else:
+                raise NotImplementedError(
+                    f"Unknown filetype {first_file_type} for table {table_name}. Currently only"
+                    " jsonl and parquet files as well as delta and iceberg tables are"
+                    " supported."
+                )
 
-    @contextmanager
-    @raise_database_error
-    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
-        # skip parametrized queries, we could also render them but currently user is not able to
-        # do parametrized queries via dataset interface
-        if not args and not kwargs:
-            # find all tables to preload
-            expression = sqlglot.parse_one(query, read="duckdb")  # type: ignore
-            load_tables: Dict[str, str] = {}
-            for table in expression.find_all(exp.Table):
-                # sqlglot has tables without tables ie. schemas are tables
-                if not table.this:
-                    continue
-                schema = table.db
-                # add only tables from the dataset schema
-                if not schema or schema.lower() == self.dataset_name.lower():
-                    load_tables[table.name] = table.name
-
-            if load_tables:
-                self.create_views_for_tables(load_tables)
-        with super().execute_query(query, *args, **kwargs) as cursor:
-            yield cursor
-
-    @staticmethod
-    def _setup_iceberg(conn: duckdb.DuckDBPyConnection) -> None:
-        if semver.Version.parse(duckdb.__version__) <= semver.Version.parse("1.1.2"):
-            raise NotImplementedError(
-                f"Iceberg scanner for duckdb {duckdb.__version__} does not implement recent"
-                " snapshot discovery. Please install duckdb >= 1.1.3"
-            )
-        # needed to make persistent secrets work in new connection
-        # https://github.com/duckdb/duckdb_iceberg/issues/83
-        conn.execute("FROM duckdb_secrets();")
-
-        # `duckdb_iceberg` extension does not support autoloading
-        # https://github.com/duckdb/duckdb_iceberg/issues/71
-        if semver.Version.parse(duckdb.__version__) < semver.Version.parse("1.2.0"):
-            conn.execute("INSTALL Iceberg FROM core_nightly; LOAD iceberg;")
-
-        # allow unsafe version resolution
-        conn.execute("SET unsafe_enable_version_guessing=true;")
-
-    def __del__(self) -> None:
-        if self.memory_db:
-            self.memory_db.close()
-            self.memory_db = None
+        # create table
+        view_name = self.make_qualified_table_name(view_name)
+        create_table_sql_base = (
+            f"CREATE OR REPLACE VIEW {view_name} AS SELECT {', '.join(columns)} FROM"
+            f" {from_statement}"
+        )
+        self._conn.execute(create_table_sql_base)

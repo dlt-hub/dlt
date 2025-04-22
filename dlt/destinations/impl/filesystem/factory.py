@@ -2,7 +2,7 @@ import typing as t
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext, TLoaderFileFormat
 from dlt.common.destination.client import DEFAULT_FILE_LAYOUT
-from dlt.common.schema.typing import TLoaderMergeStrategy, TTableSchema
+from dlt.common.schema.typing import TLoaderMergeStrategy, TLoaderReplaceStrategy, TTableSchema
 from dlt.common.storages.configuration import FileSystemCredentials
 
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
@@ -36,6 +36,20 @@ def filesystem_merge_strategies_selector(
         return []
 
 
+def filesystem_replace_strategies_selector(
+    supported_replace_strategies: t.Sequence[TLoaderReplaceStrategy],
+    /,
+    *,
+    table_schema: TTableSchema,
+) -> t.Sequence[TLoaderReplaceStrategy]:
+    if table_schema.get("table_format") in ("iceberg", "delta"):
+        # always from staging table
+        return ["insert-from-staging"]
+    else:
+        # only truncate and insert for regular tables
+        return ["truncate-and-insert"]
+
+
 class filesystem(Destination[FilesystemDestinationClientConfiguration, "FilesystemClient"]):
     spec = FilesystemDestinationClientConfiguration
 
@@ -51,8 +65,11 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             "reference",
         ]
         caps.has_case_sensitive_identifiers = True
+        # for delta and iceberg this is copy from staging, use replace strategy selector
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
+        caps.replace_strategies_selector = filesystem_replace_strategies_selector
         caps.sqlglot_dialect = "duckdb"
+        caps.supports_nested_types = True
 
         return caps
 

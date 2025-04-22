@@ -13,11 +13,14 @@ from dlt.cli.exceptions import CliCommandException
 from dlt.cli.command_wrappers import (
     init_command_wrapper,
     list_sources_command_wrapper,
+    list_destinations_command_wrapper,
     pipeline_command_wrapper,
     schema_command_wrapper,
     telemetry_status_command_wrapper,
     deploy_command_wrapper,
+    ai_setup_command_wrapper,
 )
+from dlt.cli.ai_command import SUPPORTED_IDES
 from dlt.cli.docs_command import render_argparse_markdown
 from dlt.cli.command_wrappers import (
     DLT_PIPELINE_COMMAND_DOCS_URL,
@@ -82,6 +85,12 @@ version if run again with an existing `source` name. You will be warned if files
             ),
         )
         parser.add_argument(
+            "--list-destinations",
+            default=False,
+            action="store_true",
+            help="Shows the name of all core dlt destinations.",
+        )
+        parser.add_argument(
             "source",
             nargs="?",
             help=(
@@ -120,6 +129,8 @@ version if run again with an existing `source` name. You will be warned if files
     def execute(self, args: argparse.Namespace) -> None:
         if args.list_sources:
             list_sources_command_wrapper(args.location, args.branch)
+        elif args.list_destinations:
+            list_destinations_command_wrapper()
         else:
             if not args.source or not args.destination:
                 self.parser.print_usage()
@@ -636,6 +647,46 @@ If you are reading this on the docs website, you are looking at the rendered ver
             fmt.note("Docs page updated.")
 
 
+class AiCommand(SupportsCliCommand):
+    command = "ai"
+    help_string = "Use AI-powered development tools and utilities"
+    # docs_url =
+    description = (
+        "The `dlt ai` command provides commands to configure your LLM-enabled IDE and MCP server."
+    )
+
+    def configure_parser(self, ai_cmd: argparse.ArgumentParser) -> None:
+        self.parser = ai_cmd
+
+        ai_subparsers = ai_cmd.add_subparsers(
+            title="Available subcommands", dest="operation", required=False
+        )
+
+        setup_cmd = ai_subparsers.add_parser(
+            "setup",
+            help="Generate IDE-specific configuration and rules files",
+            description="""Get AI rules files and configuration into your local project for the selected IDE.
+Files are fetched from https://github.com/dlt-hub/verified-sources by default.
+""",
+        )
+        setup_cmd.add_argument("ide", choices=SUPPORTED_IDES, help="IDE to configure.")
+        setup_cmd.add_argument(
+            "--location",
+            default=DEFAULT_VERIFIED_SOURCES_REPO,
+            help="Advanced. Specify Git URL or local path to rules files and config.",
+        )
+        setup_cmd.add_argument(
+            "--branch",
+            default=None,
+            help="Advanced. Specify Git branch to fetch rules files and config.",
+        )
+        # TODO support MCP-proxy configuration
+        # ai_mcp_cmd = ai_subparsers.add_parser("mcp", help="Launch the dlt MCP server")
+
+    def execute(self, args: argparse.Namespace) -> None:
+        ai_setup_command_wrapper(ide=args.ide, branch=args.branch, repo=args.location)
+
+
 #
 # Register all commands
 #
@@ -667,3 +718,8 @@ def plug_cli_deploy() -> Type[SupportsCliCommand]:
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_docs() -> Type[SupportsCliCommand]:
     return CliDocsCommand
+
+
+@plugins.hookimpl(specname="plug_cli")
+def plug_cli_ai() -> Type[SupportsCliCommand]:
+    return AiCommand

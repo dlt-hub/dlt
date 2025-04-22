@@ -39,12 +39,13 @@ from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.schema.utils import is_nullable_column
 from dlt.common.typing import StrAny, TDataItem
 
+import sqlglot
 
 if TYPE_CHECKING:
     from dlt.common.libs.pyarrow import pyarrow as pa
 
 
-TDataItemFormat = Literal["arrow", "object", "file"]
+TDataItemFormat = Literal["arrow", "object", "file", "model"]
 TWriter = TypeVar("TWriter", bound="DataWriter")
 
 
@@ -56,9 +57,11 @@ class FileWriterSpec(NamedTuple):
     file_extension: str
     is_binary_format: bool
     supports_schema_changes: Literal["True", "Buffer", "False"]
-    """File format supports changes of schema: True - at any moment, Buffer - in memory buffer before opening file,  False - not at all"""
+    """File format supports changes of schema: True - at any moment, Buffer - in memory buffer before opening file, False - not at all"""
     requires_destination_capabilities: bool = False
     supports_compression: bool = False
+    file_max_items: Optional[int] = None
+    """Set an upper limit on the number of items in one file"""
 
 
 EMPTY_DATA_WRITER_METRICS = DataWriterMetrics("", 0, 0, 2**32, 0.0)
@@ -115,6 +118,8 @@ class DataWriter(abc.ABC):
             return "object"
         elif extension == "parquet":
             return "arrow"
+        elif extension == "model":
+            return "model"
         # those files may be imported by normalizer as is
         elif extension in LOADER_FILE_FORMATS:
             return "file"
@@ -172,6 +177,35 @@ class JsonlWriter(DataWriter):
             is_binary_format=True,
             supports_schema_changes="True",
             supports_compression=True,
+        )
+
+
+class ModelWriter(DataWriter):
+    """Writes incoming items row by row into a text file and ensures a trailing ;"""
+
+    def write_header(self, columns_schema: TTableSchemaColumns) -> None:
+        pass
+
+    def write_data(self, items: Sequence[TDataItem]) -> None:
+        super().write_data(items)
+        for item in items:
+            dialect = item.dialect or (self._caps.sqlglot_dialect if self._caps else None)
+            query = item.query
+            parsed_query = sqlglot.parse_one(query, read=dialect)
+            normalized_query = parsed_query.sql(dialect=dialect)
+            self._f.write("dialect: " + (dialect or "") + "\n" + normalized_query + "\n")
+
+    @classmethod
+    def writer_spec(cls) -> FileWriterSpec:
+        return FileWriterSpec(
+            "model",
+            "model",
+            file_extension="model",
+            is_binary_format=False,
+            supports_schema_changes="True",
+            supports_compression=False,
+            # NOTE: we create a new model file for each sql row
+            file_max_items=1,
         )
 
 
@@ -670,6 +704,7 @@ ALL_WRITERS: List[Type[DataWriter]] = [
     ArrowToJsonlWriter,
     ArrowToTypedJsonlListWriter,
     ArrowToCsvWriter,
+    ModelWriter,
 ]
 
 WRITER_SPECS: Dict[FileWriterSpec, Type[DataWriter]] = {
@@ -688,6 +723,11 @@ NATIVE_FORMAT_WRITERS: Dict[TDataItemFormat, Tuple[Type[DataWriter], ...]] = {
         writer
         for writer in ALL_WRITERS
         if writer.writer_spec().data_item_format == "arrow" and is_native_writer(writer)
+    ),
+    "model": tuple(
+        writer
+        for writer in ALL_WRITERS
+        if writer.writer_spec().data_item_format == "model" and is_native_writer(writer)
     ),
 }
 

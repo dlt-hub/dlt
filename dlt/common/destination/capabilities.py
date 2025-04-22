@@ -65,6 +65,18 @@ class MergeStrategySelector(Protocol):
     ) -> Sequence["TLoaderMergeStrategy"]: ...
 
 
+class ReplaceStrategySelector(Protocol):
+    """Selects right set of replace strategies for a given table schema"""
+
+    @staticmethod
+    def __call__(
+        supported_replace_strategies: Sequence[TLoaderReplaceStrategy],
+        /,
+        *,
+        table_schema: TTableSchema,
+    ) -> Sequence["TLoaderReplaceStrategy"]: ...
+
+
 class DataTypeMapper(ABC):
     def __init__(self, capabilities: "DestinationCapabilitiesContext") -> None:
         """Maps dlt data types into destination data types"""
@@ -171,6 +183,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supported_merge_strategies: Sequence[TLoaderMergeStrategy] = None
     merge_strategies_selector: MergeStrategySelector = None
     supported_replace_strategies: Sequence[TLoaderReplaceStrategy] = None
+    replace_strategies_selector: ReplaceStrategySelector = None
 
     max_parallel_load_jobs: Optional[int] = None
     """The destination can set the maximum amount of parallel load jobs being executed"""
@@ -182,6 +195,9 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
 
     supports_native_boolean: bool = True
     """The destination supports a native boolean type, otherwise bool columns are usually stored as integers"""
+
+    supports_nested_types: bool = False
+    """Tells if destination can write nested types, currently only destinations storing parquet are supported"""
 
     sqlglot_dialect: Optional[str] = None
     """The SQL dialect used by sqlglot to transpile a query to match the destination syntax."""
