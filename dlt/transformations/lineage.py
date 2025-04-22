@@ -16,6 +16,7 @@ from dlt.common.destination.dataset import (
     TReadableRelation,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.destinations.sql_client import SqlClientBase
 
 if TYPE_CHECKING:
     from dlt.destinations.dataset import ReadableDBAPIDataset
@@ -124,12 +125,16 @@ def from_sqlglot_type(column: sge.Column) -> TColumnSchema:
 
 
 def create_sqlglot_schema(
-    dataset_name: str, schema: Schema, dialect: str, caps: DestinationCapabilitiesContext
+    sql_client: SqlClientBase[Any],
+    schema: Schema,
+    dialect: str,
+    caps: DestinationCapabilitiesContext,
 ) -> SQLGlotSchema:
     # {dataset: {table: {col: type}}}
     type_mapper = caps.get_type_mapper()
     mapping_schema: dict[str, dict[str, DATA_TYPE]] = {}
     for table_name, table in schema.tables.items():
+        table_name = sql_client.make_qualified_table_name_path(table_name, escape=False)[-1]
         if mapping_schema.get(table_name) is None:
             mapping_schema[table_name] = {}
 
@@ -137,7 +142,16 @@ def create_sqlglot_schema(
             if sqlglot_type := to_sqlglot_type(column, table, type_mapper, dialect):
                 mapping_schema[table_name][column_name] = sqlglot_type
 
-    return ensure_schema({dataset_name: mapping_schema})
+    dataset_catalog = sql_client.make_qualified_table_name_path(None, escape=False)
+
+    if len(dataset_catalog) == 2:
+        catalog, database = dataset_catalog
+        nested_schema = {catalog: {database: mapping_schema}}
+    else:
+        (database,) = dataset_catalog
+        nested_schema = {database: mapping_schema}  # type: ignore
+
+    return ensure_schema(nested_schema)
 
 
 # TODO should we raise an exception for anonymous columns?

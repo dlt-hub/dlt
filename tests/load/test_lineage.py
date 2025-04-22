@@ -56,11 +56,10 @@ def example_schema(autouse_test_storage) -> Schema:
 )
 def test_various_queries(destination_config: DestinationTestConfiguration, example_schema: Schema):
     # setup
-    destination = destination_config.destination_factory()
+    destination = destination_config.destination_factory(dataset_name="d1")
     dialect = destination.capabilities().sqlglot_dialect
-    DATASET_NAME = "d1"
     sqlglot_schema = lineage.create_sqlglot_schema(
-        DATASET_NAME,
+        destination.client(example_schema).sql_client,
         example_schema,
         dialect,
         destination.capabilities(),
