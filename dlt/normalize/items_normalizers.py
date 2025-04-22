@@ -159,7 +159,8 @@ class ModelItemsNormalizer(ItemsNormalizer):
         """
         Ensures that the selected columns in the SQL statement are normalized according to the
         according to `naming`, that is, the casefold_identifier.
-        NOTE: We casefold the aliases in the ModelLoadJob.
+        NOTE: We casefold the aliases in the ModelLoadJob. That logic needs to be moved here.
+        So this function is wrong we cannot change names in the original model.
         """
         for i, select in enumerate(parsed_select.selects):
             if isinstance(select, sqlglot.exp.Alias):
