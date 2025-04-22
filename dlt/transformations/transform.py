@@ -89,7 +89,7 @@ def make_transform_resource(
 
     # build transform function
     def transform_function(*args: Any, **kwargs: Any) -> Iterator[TDataItems]:
-        datasets: List[ReadableDBAPIDataset[Any]] = []
+        datasets: List[ReadableDBAPIDataset] = []
 
         for arg in args:
             if isinstance(arg, ReadableDBAPIDataset):

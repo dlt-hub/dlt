@@ -8,8 +8,7 @@ from dlt.transformations.reference import TLineageMode, TTransformationType
 from dlt.extract.exceptions import ResourceExtractionError
 
 from dlt.common.destination.dataset import SupportsReadableDataset
-from tests.transformations.utils import row_counts
-from tests.transformations.conftest import EXPECTED_FRUIT_ROW_COUNTS
+from tests.load.transformations.utils import row_counts, EXPECTED_FRUIT_ROW_COUNTS
 
 
 @pytest.mark.parametrize("transformation_type", ["sql", "python"])

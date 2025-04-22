@@ -1,41 +1,36 @@
+import dlt
+from random import randrange, choice
 from typing import Any
 
-import pytest
-from random import randrange, choice
+from dlt.common.destination.dataset import SupportsReadableDataset
 
-import dlt
-
-from dlt.destinations import duckdb
-
-
-@pytest.fixture(scope="function")
-def pipeline_1() -> dlt.Pipeline:
-    return dlt.pipeline(
-        pipeline_name="example_pipeline",
-        destination="duckdb",
-        dataset_name="example_dataset",
-        dev_mode=True,
-    )
+from tests.load.utils import (
+    FILE_BUCKET,
+    destinations_configs,
+    SFTP_BUCKET,
+    MEMORY_BUCKET,
+)
 
 
-@pytest.fixture(scope="function")
-def dest_p() -> dlt.Pipeline:
-    return dlt.pipeline(
-        pipeline_name="example_pipeline",
-        destination="duckdb",
-        dataset_name="example_dataset",
-        dev_mode=True,
-    )
+# helpers
+def row_counts(dataset: SupportsReadableDataset[Any], tables: list[str] = None) -> dict[str, int]:
+    counts = dataset.row_counts(table_names=tables).arrow().to_pydict()
+    return {t: c for t, c in zip(counts["table_name"], counts["row_count"])}
 
 
-#
-# Populated fruitshop pipeline, we could create a proper fixture for this for speed
-# maybe jsonl filesystem source
-#
+transformation_configs = destinations_configs(
+    default_sql_configs=True,
+    all_buckets_filesystem_configs=True,
+    table_format_filesystem_configs=True,
+    exclude=[
+        "athena",  # NOTE: athena iceberg will probably work, we need to implement the model files for it
+        "sqlalchemy_sqlite-no-staging",  # NOTE: sqlalchemy has no uuid support
+    ],
+    bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
+)
 
 
-@pytest.fixture(scope="function")
-def fruit_p() -> dlt.Pipeline:
+def load_fruit_dataset(p: dlt.Pipeline) -> None:
     raw_items = [
         {"id": 1, "name": "banana", "price": 10},
         {"id": 2, "name": "apple", "price": 25},
@@ -103,19 +98,10 @@ def fruit_p() -> dlt.Pipeline:
                 "items": order_items,
             }
 
-    pipeline = dlt.pipeline(
-        pipeline_name="fruitshop_pipeline",
-        destination=duckdb(credentials="fruits.db"),
-        dataset_name="fruitshop_dataset",
-        dev_mode=True,
-    )
-
-    pipeline.run([customers(), items(), purchases(), store_locations()])
-    return pipeline
+    p.run([customers(), items(), purchases(), store_locations()])
 
 
-@pytest.fixture(scope="function")
-def private_fruit_p() -> dlt.Pipeline:
+def load_private_fruit_dataset(p: dlt.Pipeline) -> None:
     """second pipeline that loads some stuff to the same duckdb file but other dataset"""
 
     @dlt.resource(name="customers_ages", primary_key="id", write_disposition="merge")
@@ -128,17 +114,7 @@ def private_fruit_p() -> dlt.Pipeline:
         ]
 
     customers_ages.apply_hints(columns={"age": {"x-pii-2": True}})  # type: ignore
-
-    pipeline = dlt.pipeline(
-        pipeline_name="private_fruitshop_pipeline",
-        destination=duckdb(credentials="fruits.db"),
-        dataset_name="fruitshop_dataset_private",
-        dev_mode=True,
-    )
-
-    pipeline.run([customers_ages()])
-
-    return pipeline
+    p.run([customers_ages()])
 
 
 EXPECTED_FRUIT_ROW_COUNTS = {

@@ -11,9 +11,21 @@ from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.transformations.reference import TTransformationType
 from dlt.pipeline.exceptions import PipelineStepFailed
 
+from tests.load.utils import (
+    FILE_BUCKET,
+    destinations_configs,
+    SFTP_BUCKET,
+    MEMORY_BUCKET,
+    DestinationTestConfiguration,
+)
+
 # from dlt.transformations.exceptions import MaterializationTypeMismatch
-from tests.transformations.conftest import EXPECTED_FRUIT_ROW_COUNTS
-from tests.transformations.utils import row_counts
+from tests.load.transformations.utils import (
+    row_counts,
+    transformation_configs,
+    load_fruit_dataset,
+    EXPECTED_FRUIT_ROW_COUNTS,
+)
 
 
 def _get_job_types(p: dlt.Pipeline, stage: str = "loaded") -> Dict[str, Dict[str, Any]]:
@@ -43,24 +55,52 @@ def _get_job_types(p: dlt.Pipeline, stage: str = "loaded") -> Dict[str, Dict[str
 
 
 @pytest.mark.parametrize("transformation_type", ["sql", "python"])
-def test_simple_sql_transformations(
-    fruit_p: dlt.Pipeline, transformation_type: TTransformationType
+@pytest.mark.parametrize(
+    "destination_config",
+    transformation_configs,
+    ids=lambda x: x.name,
+)
+def test_simple_query_transformations(
+    transformation_type: TTransformationType, destination_config: DestinationTestConfiguration
 ) -> None:
+    if destination_config.destination_type == "filesystem" and transformation_type == "sql":
+        pytest.skip("Filesystem destination does not support sql transformations")
+
+    # setup incoming data and transformed data pipelines
+    fruit_p = destination_config.setup_pipeline(
+        "fruit_pipeline", dataset_name="source", use_single_dataset=False, dev_mode=True
+    )
+    dest_p = destination_config.setup_pipeline(
+        "fruit_pipeline",
+        dataset_name="transformed",
+        use_single_dataset=False,
+        # for filesystem destination we load to a duckdb on python transformations
+        destination="duckdb" if destination_config.destination_type == "filesystem" else None,
+        dev_mode=True,
+    )
+
+    # populate fruit pipeline
+    load_fruit_dataset(fruit_p)
+
     @dlt.transformation(transformation_type=transformation_type)
     def copied_purchases(dataset: SupportsReadableDataset[Any]) -> Any:
         return dataset["purchases"].limit(5)
 
-    # transform into same dataset
-    fruit_p.run(copied_purchases(fruit_p.dataset()))
+    # transform into transformed dataset
+    dest_p.run(copied_purchases(fruit_p.dataset()))
 
-    assert row_counts(fruit_p.dataset(), ["purchases", "copied_purchases"]) == {
-        "purchases": EXPECTED_FRUIT_ROW_COUNTS["purchases"],
+    assert row_counts(dest_p.dataset(), ["copied_purchases"]) == {
         "copied_purchases": 5,
     }
 
     # verify the right transformation was run
-    assert _get_job_types(fruit_p) == {
-        "copied_purchases": {"model": 1} if transformation_type == "sql" else {"parquet": 1}
+    item_format = (
+        "parquet"
+        if destination_config.destination_type not in ["mssql", "synapse"]
+        else "insert_values"
+    )
+    assert _get_job_types(dest_p) == {
+        "copied_purchases": {"model": 1} if transformation_type == "sql" else {item_format: 1}
     }
 
 
@@ -218,7 +258,7 @@ def test_transform_to_other_dataset_same_dest(
 @pytest.mark.skip(
     reason=(
         "TODO: lineage got better, so I need a better way to figure out an unknown column type for"
-        " this test"
+        " this test. @zilto says all types are always known now, so maybe it is not possible."
     )
 )
 def test_sql_transformation_with_unknown_column_types(
