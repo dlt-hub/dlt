@@ -100,11 +100,10 @@ Under `Cursor Settings` > `Features` > `Docs`, you will see the docs you ha
 
 We recommend adding documentation scoped for specific task. Here you may try:
 * REST API Source documentation: https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/
-* Core `dlt` concepts & usage: https://dlthub.com/docs/general-usage/resource 
+* Core `dlt` concepts & usage: https://dlthub.com/docs/general-usage/resource (optional)
 
 
 We observed that cursor is not able to ingest full `dlt` docs (there are bug reports in cursor about their docs crawler). Also putting too much information into the agent context will prevent generation of correct code.
-
 
 ### 2.4 Integrating local docs
 
@@ -115,6 +114,17 @@ To improve accuracy, make sure any files or docs that could confound the search 
 ### 2.5 Documentation augmentation
 
 If existing documentation for a task is regularly ignored by LLMs, consider using reverse prompts outside of cursor to create LLM optimised docs, and then make those available to cursor as local documentation. You could use a RAG or something like DeepResearch for this task. You can then ask cursor to improve the cursor rules with this documentation.
+
+### 2.6 Model and context selection
+
+We had best results with Claude 3.7-sonnet (which requires paid version of Cursor). Weaker models were not able to comprehend the required 
+context in full and were not able to use tools and follow workflows consistently.
+
+We typically put the following in the context:
+1. docs: REST API Source documentation
+2. example `rest_api_pipeline.py`
+3. yaml definitions, openAPI specs or references to files implementing legacy data source
+4. we've noticed that it make sense to copy initial section from `build-rest-api` rule, which Claude follows pretty well.
 
 ## 3. Running the workflow
 
