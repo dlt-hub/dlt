@@ -76,7 +76,6 @@ def test_deltalake_storage_options() -> None:
     assert deltalake_storage_options(config)["aws_access_key_id"] == "i_will_overwrite"
 
 
-@pytest.mark.needspyarrow17
 @pytest.mark.parametrize("arrow_data_type", (pa.Table, pa.RecordBatchReader))
 def test_write_delta_table(
     filesystem_client,

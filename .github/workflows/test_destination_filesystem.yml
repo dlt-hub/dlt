@@ -50,7 +50,7 @@ jobs:
     uses: ./.github/workflows/get_docs_changes.yml
 
   run_loader:
-    name: dest | redshift, postgres and fs tests
+    name: dest | fs tests
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:

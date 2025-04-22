@@ -21,7 +21,7 @@ from tests.pipeline.utils import (
     assert_only_table_columns,
     table_exists,
 )
-from tests.load.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.utils import FILE_BUCKET, destinations_configs, DestinationTestConfiguration
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -102,7 +102,10 @@ def refresh_source(first_run: bool = True, drop_sources: bool = False):
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, subset=["duckdb", "filesystem"], local_filesystem_configs=True
+        default_sql_configs=True,
+        subset=["duckdb", "filesystem", "iceberg"],
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -168,7 +171,10 @@ def test_refresh_drop_sources(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, local_filesystem_configs=True, subset=["duckdb", "filesystem"]
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        subset=["duckdb", "filesystem", "iceberg"],
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -216,7 +222,10 @@ def test_existing_schema_hash(destination_config: DestinationTestConfiguration):
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, local_filesystem_configs=True, subset=["duckdb", "filesystem"]
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        subset=["duckdb", "filesystem", "iceberg"],
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -286,7 +295,10 @@ def test_refresh_drop_resources(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, local_filesystem_configs=True, subset=["duckdb", "filesystem"]
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        subset=["duckdb", "filesystem", "iceberg"],
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -352,7 +364,10 @@ def test_refresh_drop_data_only(destination_config: DestinationTestConfiguration
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, local_filesystem_configs=True, subset=["duckdb", "filesystem"]
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        subset=["duckdb", "filesystem", "iceberg"],
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )

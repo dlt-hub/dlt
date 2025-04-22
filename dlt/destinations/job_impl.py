@@ -62,7 +62,7 @@ class FollowupJobRequestImpl(FollowupJobRequest):
     def __init__(self, file_name: str) -> None:
         self._file_path = os.path.join(tempfile.gettempdir(), file_name)
         self._parsed_file_name = ParsedLoadJobFileName.parse(file_name)
-        # we only accept jobs that we can scheduleas new or mark as failed..
+        # we only accept jobs that we can schedule as new or mark as failed.
 
     def _save_text_file(self, data: str) -> None:
         with open(self._file_path, "w", encoding="utf-8") as f:

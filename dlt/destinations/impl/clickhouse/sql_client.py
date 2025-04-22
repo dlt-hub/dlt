@@ -62,6 +62,8 @@ TRANSACTIONS_UNSUPPORTED_WARNING_MESSAGE = (
 class ClickHouseDBApiCursorImpl(DBApiCursorImpl):
     native_cursor: DictCursor
 
+    # TODO: implement arrow reading
+
 
 class ClickHouseSqlClient(
     SqlClientBase[clickhouse_driver.dbapi.connection.Connection], DBTransaction

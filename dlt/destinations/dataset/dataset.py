@@ -1,3 +1,4 @@
+from types import TracebackType, MethodType
 from typing import Any, Type, Union, TYPE_CHECKING, List
 
 from dlt.common.destination.exceptions import OpenTableClientNotAvailable
@@ -8,12 +9,13 @@ from dlt.common.destination.client import JobClientBase, SupportsOpenTables, Wit
 from dlt.common.destination.dataset import (
     SupportsReadableRelation,
     SupportsReadableDataset,
-    TReadableRelation,
 )
 from dlt.common.destination.typing import TDatasetType
 from dlt.common.schema import Schema
+from dlt.common.typing import Self
 
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
+from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
 
@@ -23,8 +25,8 @@ else:
     IbisBackend = Any
 
 
-class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
-    """Access to dataframes and arrowtables in the destination dataset via dbapi"""
+class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
+    """Access to dataframes and arrow tables in the destination dataset via dbapi"""
 
     def __init__(
         self,
@@ -149,17 +151,17 @@ class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
         # TODO: accept other query types and return a right relation: sqlglot (DBAPI) and ibis (Expr)
         return ReadableDBAPIRelation(readable_dataset=self, provided_query=query)  # type: ignore[abstract]
 
-    def table(self, table_name: str) -> TReadableRelation:
+    def table(self, table_name: str) -> ReadableIbisRelation:
         # we can create an ibis powered relation if ibis is available
         if self._dataset_type == "ibis":
             from dlt.helpers.ibis import create_unbound_ibis_table
             from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 
             unbound_table = create_unbound_ibis_table(self.sql_client, self.schema, table_name)
-            return ReadableIbisRelation(  # type: ignore[abstract,return-value]
+            return ReadableIbisRelation(  # type: ignore[abstract]
                 readable_dataset=self,
                 ibis_object=unbound_table,
-                columns_schema=self.schema.tables[table_name]["columns"],
+                columns_schema=self.schema.get_table(table_name)["columns"],
             )
 
         # fallback to the standard dbapi relation
@@ -194,10 +196,39 @@ class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
         # Execute query and build result dict
         return self(query)
 
-    def __getitem__(self, table_name: str) -> TReadableRelation:
+    def __getitem__(self, table_name: str) -> ReadableIbisRelation:
         """access of table via dict notation"""
         return self.table(table_name)
 
-    def __getattr__(self, table_name: str) -> TReadableRelation:
+    def __getattr__(self, table_name: str) -> ReadableIbisRelation:
         """access of table via property notation"""
         return self.table(table_name)
+
+    def __enter__(self) -> Self:
+        """Context manager used to open and close sql client and internal connection"""
+        assert not self._sql_client, "context manager can't be used when sql client is initialized"
+        if not self._sql_client:
+            self._ensure_client_and_schema()
+            # return sql_client wrapped so it will not call close on __exit__ as dataset is managing connections
+            # use internal class
+
+            NoCloseClient = type(
+                "NoCloseClient",
+                (self._sql_client.__class__,),
+                {
+                    "__exit__": (
+                        lambda self, exc_type, exc_val, exc_tb: None
+                    )  # No-operation: do not close the connection
+                },
+            )
+
+            self._sql_client.__class__ = NoCloseClient
+
+        self.sql_client.open_connection()
+        return self
+
+    def __exit__(
+        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+    ) -> None:
+        self.sql_client.close_connection()
+        self._sql_client = None

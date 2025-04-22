@@ -121,6 +121,11 @@ class SqlLoadJob(RunnableLoadJob):
         for cmd in UNLOGGED_COMMANDS:
             if re.search(cmd, sql, re.IGNORECASE):
                 return True
+        # disable transaction on synapse when doing sql jobs, to enable:
+        # TODO: 1. disable transaction if temp table is created via select into
+        # 2. swap TRUNCATE for delete in replace jobs
+        if "SynapseClient" in self._job_client.__class__.__name__:
+            return True
         return False
 
     def _split_fragments(self, sql: str) -> List[str]:

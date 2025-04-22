@@ -24,13 +24,16 @@ import dlt
 from dlt.common import logger, time, json, pendulum
 from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace_strategy
 from dlt.common.metrics import LoadJobMetrics
+from dlt.common.schema.exceptions import TableNotFound
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
     TTableFormat,
     TTableSchemaColumns,
     DLT_NAME_PREFIX,
 )
+from dlt.common.storages.exceptions import CurrentLoadPackageStateNotAvailable
 from dlt.common.storages.fsspec_filesystem import glob_files
+from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.utils import get_columns_names_with_prop
@@ -103,13 +106,20 @@ class FilesystemLoadJob(RunnableLoadJob):
 
     def make_remote_path(self) -> str:
         """Returns path on the remote filesystem to which copy the file, without scheme. For local filesystem a native path is used"""
+
+        # package state is optional
+        try:
+            package_timestamp = current_load_package()["state"]["created_at"]
+        except CurrentLoadPackageStateNotAvailable:
+            package_timestamp = None
+
         destination_file_name = path_utils.create_path(
             self._job_client.config.layout,
             self._file_name,
             self._job_client.schema.name,
             self._load_id,
             current_datetime=self._job_client.config.current_datetime,
-            load_package_timestamp=dlt.current.load_package()["state"]["created_at"],
+            load_package_timestamp=package_timestamp,
             extra_placeholders=self._job_client.config.extra_placeholders,
         )
         # pick local filesystem pathlib or posix for buckets
@@ -166,13 +176,12 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
             f" buffer: {pa.total_allocated_bytes()}]"
         )
         source_ds = self.arrow_dataset
-        location = self._job_client.get_open_table_location("delta", self.load_table_name)
         storage_options = deltalake_storage_options(self._job_client.config)
-        if DeltaTable.is_deltatable(location, storage_options=storage_options):
+        try:
             delta_table: DeltaTable = self._job_client.load_open_table(
                 "delta", self.load_table_name
             )
-        else:
+        except DestinationUndefinedEntity:
             delta_table = None
 
         with source_ds.scanner().to_reader() as arrow_rbr:  # RecordBatchReader
@@ -183,8 +192,9 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     schema=self._load_table,
                 )
             else:
+                location = self._job_client.get_open_table_location("delta", self.load_table_name)
                 write_delta_table(
-                    table_or_uri=(self.make_remote_url() if delta_table is None else delta_table),
+                    table_or_uri=location if delta_table is None else delta_table,
                     data=arrow_rbr,
                     write_disposition=self._load_table["write_disposition"],
                     partition_by=self._partition_columns,
@@ -198,35 +208,31 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
             f" {pa.total_allocated_bytes()}]"
         )
 
-    def _create_or_evolve_delta_table(self, arrow_ds: "Dataset", delta_table: "DeltaTable", storage_options: Dict[str, str]) -> "DeltaTable":  # type: ignore[name-defined] # noqa: F821
-        from dlt.common.libs.deltalake import (
-            DeltaTable,
-            ensure_delta_compatible_arrow_schema,
-            evolve_delta_table_schema,
-        )
-
-        if delta_table is None:
-            return DeltaTable.create(
-                table_uri=self.make_remote_url(),
-                schema=ensure_delta_compatible_arrow_schema(arrow_ds.schema),
-                mode="overwrite",
-                partition_by=self._partition_columns,
-                storage_options=storage_options,
-            )
-        else:
-            return evolve_delta_table_schema(delta_table, arrow_ds.schema)
-
 
 class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
     def run(self) -> None:
-        from dlt.common.libs.pyiceberg import write_iceberg_table
+        from dlt.common.libs.pyiceberg import write_iceberg_table, create_table
 
-        table = self._job_client.load_open_table(
-            "iceberg",
-            self.load_table_name,
-            schema=self.arrow_dataset.schema,
-            partition_columns=self._partition_columns,
-        )
+        try:
+            table = self._job_client.load_open_table(
+                "iceberg",
+                self.load_table_name,
+                schema=self.arrow_dataset.schema,
+            )
+        except DestinationUndefinedEntity:
+            location = self._job_client.get_open_table_location("iceberg", self.load_table_name)
+            table_id = f"{self._job_client.dataset_name}.{self.load_table_name}"
+            create_table(
+                self._job_client.get_open_table_catalog("iceberg"),
+                table_id,
+                table_location=location,
+                schema=self.arrow_dataset.schema,
+                partition_columns=self._partition_columns,
+            )
+            # run again with created table
+            self.run()
+            return
+
         write_iceberg_table(
             table=table,
             data=self.arrow_dataset.to_table(),
@@ -281,6 +287,8 @@ class FilesystemClient(
         self.table_prefix_layout = path_utils.get_table_prefix_layout(config.layout)
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
         self._sql_client: SqlClientBase[Any] = None
+        # iceberg catalog
+        self._catalog: Any = None
 
     @property
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
@@ -347,29 +355,40 @@ class FilesystemClient(
     def get_storage_tables(
         self, table_names: Iterable[str]
     ) -> Iterable[Tuple[str, TTableSchemaColumns]]:
-        """Yields tables that have files in storage, does not return column schemas"""
+        """Yields tables that have files in storage, returns columns from current schema"""
         for table_name in table_names:
-            if len(self.list_table_files(table_name)) > 0:
-                yield (table_name, {"_column": {}})
+            table_dir = self.get_table_dir(table_name)
+            if self.fs_client.exists(table_dir) and (
+                self.fs_client.exists(self.pathlib.join(table_dir, INIT_FILE_NAME))
+                or len(self.list_table_files(table_name)) > 0
+            ):
+                if table_name in self.schema.tables:
+                    yield (table_name, self.schema.get_table_columns(table_name))
+                else:
+                    yield (table_name, {"_column": {}})
             else:
                 # if no columns we assume that table does not exist
                 yield (table_name, {})
+
+    def get_storage_table(self, table_name: str) -> Tuple[str, TTableSchemaColumns]:
+        return list(self.get_storage_tables([table_name]))[0]
 
     def truncate_tables(self, table_names: List[str]) -> None:
         """Truncate a set of regular tables with given `table_names`"""
         table_dirs = set(self.get_table_dirs(table_names))
         table_prefixes = [self.get_table_prefix(t) for t in table_names]
         for table_dir in table_dirs:
-            for table_file in self.list_files_with_prefixes(table_dir, table_prefixes):
-                # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
-                # print(f"DEL {table_file}")
-                try:
-                    self._delete_file(table_file)
-                except FileNotFoundError:
-                    logger.info(
-                        f"Directory or path to truncate tables {table_names} does not exist but"
-                        " it should have been created previously!"
-                    )
+            if self.fs_client.exists(table_dir):
+                for table_file in self.list_files_with_prefixes(table_dir, table_prefixes):
+                    # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
+                    # print(f"DEL {table_file}")
+                    try:
+                        self._delete_file(table_file)
+                    except FileNotFoundError:
+                        logger.info(
+                            f"Directory or path to truncate tables {table_names} does not exist but"
+                            " it should have been created previously!"
+                        )
 
     def _delete_file(self, file_path: str) -> None:
         try:
@@ -421,7 +440,14 @@ class FilesystemClient(
 
         # don't store schema when used as staging
         if not self.config.as_staging_destination:
-            self._store_current_schema()
+            # check if schema with hash exists
+            current_hash = self.schema.stored_version_hash
+            if not self._get_stored_schema_by_hash_or_newest(current_hash):
+                logger.info(
+                    f"Schema with hash {self.schema.stored_version_hash} not found in the storage."
+                    " upgrading"
+                )
+                self._update_schema_in_storage(self.schema)
 
         # we assume that expected_update == applied_update so table schemas in dest were not
         # externally changed
@@ -481,7 +507,10 @@ class FilesystemClient(
         table_dir = self.get_table_dir(table_name)
         # we need the table prefix so we separate table files if in the same folder
         table_prefix = self.get_table_prefix(table_name)
-        return self.list_files_with_prefixes(table_dir, [table_prefix])
+        try:
+            return self.list_files_with_prefixes(table_dir, [table_prefix])
+        except FileNotFoundError as file_ex:
+            raise DestinationUndefinedEntity(file_ex)
 
     def list_files_with_prefixes(self, table_dir: str, prefixes: List[str]) -> List[str]:
         """returns all files in a directory that match given prefixes"""
@@ -654,7 +683,11 @@ class FilesystemClient(
             return
 
         # get state doc from current pipeline
-        pipeline_state_doc = current_load_package()["state"].get("pipeline_state")
+        try:
+            pipeline_state_doc = current_load_package()["state"].get("pipeline_state")
+        except CurrentLoadPackageStateNotAvailable:
+            pipeline_state_doc = None
+
         if not pipeline_state_doc:
             return
 
@@ -732,33 +765,28 @@ class FilesystemClient(
                     break
 
             if selected_path:
-                return StorageSchemaInfo(
-                    **json.loads(self.fs_client.read_text(selected_path, encoding="utf-8"))
-                )
+                info = json.loads(self.fs_client.read_text(selected_path, encoding="utf-8"))
+                info["inserted_at"] = ensure_pendulum_datetime(info["inserted_at"])
+                return StorageSchemaInfo(**info)
         except DestinationUndefinedEntity:
             # ignore missing table
             pass
 
         return None
 
-    def _store_current_schema(self) -> None:
-        # check if schema with hash exists
-        current_hash = self.schema.stored_version_hash
-        if self._get_stored_schema_by_hash_or_newest(current_hash):
-            return
-
+    def _update_schema_in_storage(self, schema: Schema) -> None:
         # get paths
         schema_id = str(time.precise_time())
-        filepath = self._get_schema_file_name(self.schema.stored_version_hash, schema_id)
+        filepath = self._get_schema_file_name(schema.stored_version_hash, schema_id)
 
         # TODO: duplicate of weaviate implementation, should be abstracted out
         version_info = {
-            "version_hash": self.schema.stored_version_hash,
-            "schema_name": self.schema.name,
-            "version": self.schema.version,
-            "engine_version": self.schema.ENGINE_VERSION,
+            "version_hash": schema.stored_version_hash,
+            "schema_name": schema.name,
+            "version": schema.version,
+            "engine_version": schema.ENGINE_VERSION,
             "inserted_at": pendulum.now(),
-            "schema": json.dumps(self.schema.to_dict()),
+            "schema": json.dumps(schema.to_dict()),
         }
 
         # we always keep tabs on what the current schema is
@@ -803,33 +831,40 @@ class FilesystemClient(
     def load_open_table(self, table_format: TTableFormat, table_name: str, **kwargs: Any) -> Any:
         """Locates, loads and returns native table client for table `table_name` in delta or iceberg formats"""
 
-        prepared_table = self.prepare_load_table(table_name)
+        try:
+            prepared_table = self.prepare_load_table(table_name)
+        except TableNotFound:
+            raise DestinationUndefinedEntity(table_name)
         detected_format = prepared_table.get("table_format")
         if detected_format != table_format:
             raise OpenTableFormatNotSupported(table_format, table_name, detected_format)
+        table_location = self.get_open_table_location(table_format, table_name)
 
         if table_format == "iceberg":
             catalog = self.get_open_table_catalog("iceberg")
             # TODO: move all the fs related code (metadata search, path conversion) to here
             # TODO: if table is not in the catalog, load the static table
-            from dlt.common.libs.pyiceberg import create_or_evolve_table
+            from dlt.common.libs.pyiceberg import evolve_table, NoSuchTableError
 
             table_id = f"{self.dataset_name}.{table_name}"
-
-            return create_or_evolve_table(
-                catalog=catalog,
-                client=self,
-                table_id=table_id,
-                table_location=self.get_open_table_location(table_format, table_name),
-                **kwargs,
-            )
+            try:
+                return evolve_table(
+                    catalog=catalog,
+                    client=self,
+                    table_id=table_id,
+                    table_location=table_location,
+                    **kwargs,
+                )
+            except (NoSuchTableError, FileNotFoundError):
+                raise DestinationUndefinedEntity(table_name)
         elif table_format == "delta":
             from dlt.common.libs.deltalake import deltalake_storage_options, DeltaTable
 
-            table_location = self.get_open_table_location(table_format, table_name)
-            return DeltaTable(
-                table_location, storage_options=deltalake_storage_options(self.config)
-            )
+            storage_options = deltalake_storage_options(self.config)
+
+            if not DeltaTable.is_deltatable(table_location, storage_options):
+                raise DestinationUndefinedEntity(table_name)
+            return DeltaTable(table_location, storage_options=storage_options)
         else:
             raise NotImplementedError(
                 f"Cannot load tables in {table_format} format in filesystem destination."
@@ -843,10 +878,14 @@ class FilesystemClient(
         if table_format != "iceberg":
             raise OpenTableCatalogNotSupported(table_format, "filesystem")
 
+        if self._catalog:
+            return self._catalog
+
         from dlt.common.libs.pyiceberg import get_sql_catalog, IcebergCatalog
 
         # create in-memory catalog
-        catalog: IcebergCatalog = get_sql_catalog(
+        catalog: IcebergCatalog
+        catalog = self._catalog = get_sql_catalog(
             catalog_name or "default", "sqlite:///:memory:", self.config.credentials
         )
 
@@ -867,6 +906,9 @@ class FilesystemClient(
     def is_open_table(self, table_format: TTableFormat, table_name: str) -> bool:
         if table_name in self.schema.dlt_table_names():
             return False
-        prepared_table = self.prepare_load_table(table_name)
+        try:
+            prepared_table = self.prepare_load_table(table_name)
+        except TableNotFound:
+            return False
         detected_format = prepared_table.get("table_format")
         return table_format == detected_format

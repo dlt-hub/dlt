@@ -57,6 +57,11 @@ def ai_setup_command(
         if src_sub_path.is_dir():
             continue
 
+        if src_sub_path.name == ".message":
+            # display message, do not copy
+            fmt.echo(src_sub_path.read_text(encoding="utf-8"))
+            continue
+
         copied_files += 1
         dest_file_path = dest_dir / src_sub_path.relative_to(src_dir)
         if dest_file_path.exists():

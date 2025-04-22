@@ -241,7 +241,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         Returns temp table name for cases where special names are required like SQLServer.
         """
         sql: List[str] = []
-        temp_table_name = cls._new_temp_table_name("delete_" + table_name, sql_client)
+        temp_table_name = cls._new_temp_table_name(table_name, "delete", sql_client)
         select_statement = f"SELECT d.{unique_column} {key_table_clauses[0]}"
         sql.append(cls._to_temp_table(select_statement, temp_table_name))
         for clause in key_table_clauses[1:]:
@@ -327,7 +327,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         condition: str = None,
         condition_columns: Sequence[str] = None,
     ) -> Tuple[List[str], str]:
-        temp_table_name = cls._new_temp_table_name("insert_" + table_name, sql_client)
+        temp_table_name = cls._new_temp_table_name(table_name, "insert", sql_client)
         if len(primary_keys) > 0:
             # deduplicate
             select_sql = cls.gen_select_from_dedup_sql(
@@ -372,8 +372,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         )
 
     @classmethod
-    def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
-        return cls._shorten_table_name(f"{name_prefix}_{uniq_id()}", sql_client)
+    def _new_temp_table_name(cls, table_name: str, op: str, sql_client: SqlClientBase[Any]) -> str:
+        return cls._shorten_table_name(f"{table_name}_{op}_{uniq_id()}", sql_client)
 
     @classmethod
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
@@ -386,7 +386,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         Returns:
             sql statement that inserts data from selects into temp table
         """
-        return f"CREATE TEMP TABLE {temp_table_name} AS {select_sql};"
+        return f"CREATE TEMPORARY TABLE {temp_table_name} AS {select_sql};"
 
     @classmethod
     def gen_update_table_prefix(cls, table_name: str) -> str:

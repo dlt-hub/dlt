@@ -2,6 +2,7 @@ import abc
 import contextlib
 from typing import Any, Dict, Optional, Tuple
 
+from dlt.common import logger
 from dlt.common.typing import AnyType
 from dlt.common.pendulum import pendulum
 from dlt.common.configuration.specs import known_sections
@@ -52,53 +53,23 @@ class VaultDocProvider(BaseDocProvider):
 
         value, _ = super().get_value(key, hint, pipeline_name, *sections)
         if value is None:
-            # only secrets hints are handled
-            # TODO: we need to refine how we filer out non-secrets
-            #    at the least we should load known fragments for fields
-            #    that are part of a secret (ie. coming from Credentials)
             if self.only_secrets and not is_secret_hint(hint) and hint is not AnyType:
-                return None, full_key
-
-            if pipeline_name:
-                # loads dlt_secrets_toml for particular pipeline
-                lookup_fk = self.get_key_name(SECRETS_TOML_KEY, pipeline_name)
-                self._update_from_vault(lookup_fk, "", AnyType, pipeline_name, ())
-
-            # generate auxiliary paths to get from vault
-            for known_section in [known_sections.SOURCES, known_sections.DESTINATION]:
-
-                def _look_at_idx(idx: int, full_path: Tuple[str, ...], pipeline_name: str) -> None:
-                    lookup_key = full_path[idx]
-                    lookup_sections = full_path[:idx]
-                    lookup_fk = self.get_key_name(lookup_key, *lookup_sections)
-                    self._update_from_vault(
-                        lookup_fk, lookup_key, AnyType, pipeline_name, lookup_sections
-                    )
-
-                def _lookup_paths(pipeline_name_: str, known_section_: str) -> None:
-                    with contextlib.suppress(ValueError):
-                        full_path = sections + (key,)
-                        if pipeline_name_:
-                            full_path = (pipeline_name_,) + full_path
-                        idx = full_path.index(known_section_)
-                        _look_at_idx(idx, full_path, pipeline_name_)
-                        # if there's element after index then also try it (destination name / source name)
-                        if len(full_path) - 1 > idx:
-                            _look_at_idx(idx + 1, full_path, pipeline_name_)
-
-                # first query the shortest paths so the longer paths can override it
-                _lookup_paths(None, known_section)  # check sources and sources.<source_name>
-                if pipeline_name:
-                    _lookup_paths(
-                        pipeline_name, known_section
-                    )  # check <pipeline_name>.sources and <pipeline_name>.sources.<source_name>
-
-        value, _ = super().get_value(key, hint, pipeline_name, *sections)
-        # skip checking the exact path if we check only toml fragments
-        if value is None and not self.only_toml_fragments:
-            # look for key in the vault and update the toml document
-            self._update_from_vault(full_key, key, hint, pipeline_name, sections)
-            value, _ = super().get_value(key, hint, pipeline_name, *sections)
+                # for non secrets still probe destination. and destination.name before bailing out
+                if len(sections) > 1 and sections[0] in [
+                    known_sections.SOURCES,
+                    known_sections.DESTINATION,
+                ]:
+                    self._load_fragments(sections[1], pipeline_name, sections[0])
+                    value, _ = super().get_value(key, hint, pipeline_name, *sections)
+            else:
+                # only secrets hints are handled fully
+                self._load_fragments(key, pipeline_name, *sections)
+                value, _ = super().get_value(key, hint, pipeline_name, *sections)
+                # skip checking the exact path if we check only toml fragments
+                if value is None and not self.only_toml_fragments:
+                    # look for key in the vault and update the toml document
+                    self._update_from_vault(full_key, key, hint, pipeline_name, sections)
+                    value, _ = super().get_value(key, hint, pipeline_name, *sections)
 
         return value, full_key
 
@@ -108,6 +79,47 @@ class VaultDocProvider(BaseDocProvider):
 
     def clear_lookup_cache(self) -> None:
         self._vault_lookups.clear()
+
+    def _load_fragments(self, key: str, pipeline_name: str, *sections: str) -> None:
+        """Load known toml fragments from the vault
+        * pipeline scoped SECRETS TOML KEY
+        * destination and sources key
+        * destination.<name> and sources.<name> key
+        * the above scoped to pipeline
+        """
+        if pipeline_name:
+            # loads dlt_secrets_toml for particular pipeline
+            lookup_fk = self.get_key_name(SECRETS_TOML_KEY, pipeline_name)
+            self._update_from_vault(lookup_fk, "", AnyType, pipeline_name, ())
+
+        # generate auxiliary paths to get from vault
+        for known_section in [known_sections.SOURCES, known_sections.DESTINATION]:
+
+            def _look_at_idx(idx: int, full_path: Tuple[str, ...], pipeline_name: str) -> None:
+                lookup_key = full_path[idx]
+                lookup_sections = full_path[:idx]
+                lookup_fk = self.get_key_name(lookup_key, *lookup_sections)
+                self._update_from_vault(
+                    lookup_fk, lookup_key, AnyType, pipeline_name, lookup_sections
+                )
+
+            def _lookup_paths(pipeline_name_: str, known_section_: str) -> None:
+                with contextlib.suppress(ValueError):
+                    full_path = sections + (key,)
+                    if pipeline_name_:
+                        full_path = (pipeline_name_,) + full_path
+                    idx = full_path.index(known_section_)
+                    _look_at_idx(idx, full_path, pipeline_name_)
+                    # if there's element after index then also try it (destination name / source name)
+                    if len(full_path) - 1 > idx:
+                        _look_at_idx(idx + 1, full_path, pipeline_name_)
+
+            # first query the shortest paths so the longer paths can override it
+            _lookup_paths(None, known_section)  # check sources and sources.<source_name>
+            if pipeline_name:
+                _lookup_paths(
+                    pipeline_name, known_section
+                )  # check <pipeline_name>.sources and <pipeline_name>.sources.<source_name>
 
     @abc.abstractmethod
     def _look_vault(self, full_key: str, hint: type) -> str:
@@ -119,6 +131,7 @@ class VaultDocProvider(BaseDocProvider):
         if full_key in self._vault_lookups:
             return
         # print(f"tries '{key}' {pipeline_name} | {sections} at '{full_key}'")
+        logger.info(f"Vault provider {self.name} will make a request for {full_key}")
         secret = self._look_vault(full_key, hint)
         self._vault_lookups[full_key] = pendulum.now()
         if secret is not None:

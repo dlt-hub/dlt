@@ -196,6 +196,9 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supports_native_boolean: bool = True
     """The destination supports a native boolean type, otherwise bool columns are usually stored as integers"""
 
+    supports_nested_types: bool = False
+    """Tells if destination can write nested types, currently only destinations storing parquet are supported"""
+
     sqlglot_dialect: Optional[str] = None
     """The SQL dialect used by sqlglot to transpile a query to match the destination syntax."""
 

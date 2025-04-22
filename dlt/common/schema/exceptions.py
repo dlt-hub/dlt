@@ -191,10 +191,10 @@ class DataValidationError(SchemaException):
         self.data_item = data_item
 
 
-class UnknownTableException(KeyError, SchemaException):
+class TableNotFound(KeyError, SchemaException):
     def __init__(self, schema_name: str, table_name: str) -> None:
         self.table_name = table_name
-        super().__init__(schema_name, f"Trying to access unknown table {table_name}.")
+        super().__init__(schema_name, f"Table not found: {table_name}")
 
 
 class TableIdentifiersFrozen(SchemaException):

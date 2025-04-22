@@ -1,8 +1,12 @@
 import pytest
 
 import dlt
-from dlt.common.destination.exceptions import OpenTableClientNotAvailable
-from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
+from dlt.common.destination.client import SupportsOpenTables
+from dlt.common.destination.exceptions import (
+    OpenTableClientNotAvailable,
+    DestinationUndefinedEntity,
+)
+
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
@@ -34,7 +38,7 @@ def test_get_open_table_location(destination_config: DestinationTestConfiguratio
     pipeline.run([1, 2, 3], table_name=table_name)
 
     with pipeline.destination_client() as client:
-        assert isinstance(client, FilesystemClient)
+        assert isinstance(client, SupportsOpenTables)
         location = client.get_open_table_location(destination_config.table_format, table_name)
 
         # location should be a URL with the correct protocol
@@ -76,15 +80,20 @@ def test_is_open_table(destination_config: DestinationTestConfiguration) -> None
 
     # get client using context manager
     with pipeline.destination_client() as client:
-        assert isinstance(client, FilesystemClient)
+        assert isinstance(client, SupportsOpenTables)
 
         # test is_open_table for the tables
         assert client.is_open_table(destination_config.table_format, "formatted_table")
-        assert not client.is_open_table(destination_config.table_format, "unformatted_table")
+        assert not client.is_open_table(destination_config.table_format, "unknown_table")
 
         # test with incorrect format
         wrong_format = "iceberg" if destination_config.table_format == "delta" else "delta"
         assert not client.is_open_table(wrong_format, "formatted_table")  # type: ignore[arg-type]
+
+        # if destinations allows for any other table formats, tests this
+        prepared_table = client.prepare_load_table("unformatted_table")
+        if prepared_table.get("table_format") not in ("delta", "iceberg"):
+            assert not client.is_open_table(destination_config.table_format, "unformatted_table")
 
 
 @pytest.mark.parametrize(
@@ -106,7 +115,7 @@ def test_get_open_table_catalog(destination_config: DestinationTestConfiguration
 
     # get client using context manager
     with pipeline.destination_client() as client:
-        assert isinstance(client, FilesystemClient)
+        assert isinstance(client, SupportsOpenTables)
 
         if destination_config.table_format == "iceberg":
             # get catalog for iceberg
@@ -159,7 +168,7 @@ def test_load_open_table(destination_config: DestinationTestConfiguration) -> No
 
     # get client using context manager
     with pipeline.destination_client() as client:
-        assert isinstance(client, FilesystemClient)
+        assert isinstance(client, SupportsOpenTables)
 
         # load the table
         table = client.load_open_table(destination_config.table_format, "open_table")
@@ -198,6 +207,16 @@ def test_load_open_table(destination_config: DestinationTestConfiguration) -> No
             assert len(arrow_table) == 5
             assert "id" in arrow_table.column_names
             assert "value" in arrow_table.column_names
+
+        # remove table from storage
+        client.drop_tables("open_table")  # type: ignore[attr-defined]
+
+        with pytest.raises(DestinationUndefinedEntity):
+            client.load_open_table(destination_config.table_format, "open_table")
+
+    # test non existing table, raises due to not being present in dlt schema
+    with pytest.raises(DestinationUndefinedEntity):
+        client.load_open_table(destination_config.table_format, "non_existing_table")
 
     # test open table client
     dataset_ = pipeline.dataset()
@@ -246,7 +265,7 @@ def test_table_operations(destination_config: DestinationTestConfiguration) -> N
 
     # get client using context manager
     with pipeline.destination_client() as client:
-        assert isinstance(client, FilesystemClient)
+        assert isinstance(client, SupportsOpenTables)
 
         # load the table
         table = client.load_open_table(destination_config.table_format, "data_table")
@@ -314,7 +333,7 @@ def test_open_table_format_not_supported(destination_config: DestinationTestConf
 
     # get client using context manager
     with pipeline.destination_client() as client:
-        assert isinstance(client, FilesystemClient)
+        assert isinstance(client, SupportsOpenTables)
 
         # try to load table with incorrect format
         wrong_table = (
@@ -349,7 +368,7 @@ def test_native_table_not_open_table(destination_config: DestinationTestConfigur
 
     # get client using context manager
     with pipeline.destination_client() as client:
-        assert isinstance(client, FilesystemClient)
+        assert isinstance(client, SupportsOpenTables)
 
         # check it's not recognized as an open table
         assert not client.is_open_table("delta", "native_table")
