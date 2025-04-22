@@ -842,7 +842,9 @@ def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration)
     github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     expected_rows = 100
     # if table_format is set we use upsert which does not deduplicate input data
-    if not destination_config.supports_merge or destination_config.table_format:
+    if not destination_config.supports_merge or (
+        destination_config.table_format and destination_config.destination_type != "athena"
+    ):
         expected_rows *= 2
     assert github_1_counts["issues"] == expected_rows
 
