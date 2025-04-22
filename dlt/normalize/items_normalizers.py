@@ -69,6 +69,12 @@ class ModelItemsNormalizer(ItemsNormalizer):
         parsed_select: sqlglot.exp.Select,
         root_table_name: str,
     ) -> Optional[TSchemaUpdate]:
+        """
+        Ensures the SELECT statement includes the required dlt columns by:
+        1. Adding dlt columns to the SELECT statement if they are missing.
+        2. Replacing dlt column references in the SELECT statement with a constant or a function.
+        3. Updating the schema to reflect the addition of dlt columns.
+        """
         schema_update: TSchemaUpdate = {}
         schema = self.schema
         dialect = self.config.destination_capabilities.sqlglot_dialect
@@ -85,10 +91,23 @@ class ModelItemsNormalizer(ItemsNormalizer):
                 alias=sqlglot.exp.to_identifier(NORM_C_DLT_LOAD_ID),
             )
 
-        if self.config.model_normalizer.add_dlt_id and dialect != "redshift":
-            function_name = "generateUUIDv4" if dialect == "clickhouse" else "UUID"
+        if self.config.model_normalizer.add_dlt_id:
+            if dialect == "redshift":
+                row_num = sqlglot.exp.Window(
+                    this=sqlglot.exp.Anonymous(this="row_number"),
+                    partition_by=None,
+                    order=None,
+                )
+                casted_row_num = sqlglot.exp.Cast(
+                    this=row_num, to=sqlglot.exp.DataType.build("TEXT")
+                )
+                func_expr = sqlglot.exp.func("MD5", casted_row_num)
+            elif dialect == "clickhouse":
+                func_expr = sqlglot.exp.func("generateUUIDv4")
+            else:
+                func_expr = sqlglot.exp.func("UUID")
             dlt_columns[C_DLT_ID] = sqlglot.exp.Alias(
-                this=sqlglot.exp.func(function_name),
+                this=func_expr,
                 alias=sqlglot.exp.to_identifier(NORM_C_DLT_ID),
             )
 
@@ -138,7 +157,8 @@ class ModelItemsNormalizer(ItemsNormalizer):
         parsed_select: sqlglot.exp.Select,
     ) -> None:
         """
-        1. referenced column names will be normalized according to `naming`, that is, the casefold_identifier
+        Ensures that the selected columns in the SQL statement are normalized according to the
+        according to `naming`, that is, the casefold_identifier.
         NOTE: We casefold the aliases in the ModelLoadJob.
         """
         for i, select in enumerate(parsed_select.selects):
@@ -242,7 +262,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
     ) -> Optional[sqlglot.exp.Select]:
         """
         Replaces a star (*) expression in the SELECT statement with explicit column names
-        from the schema for the given table. Logs a warning if no columns are available.
+        from the schema for the given table. Logs a warning if no columns are available in the schema either.
         """
         if len(parsed_select.selects) == 1 and isinstance(
             parsed_select.selects[0], sqlglot.exp.Star
@@ -251,8 +271,9 @@ class ModelItemsNormalizer(ItemsNormalizer):
                 f"A star expression is present in the model query {parsed_select.sql()}."
                 "Replacing it with the schema columns."
             )
-            parsed_select = sqlglot.exp.select(
-                *[sqlglot.exp.Column(this=sqlglot.exp.to_identifier(col)) for col in norm_col_names]
+            parsed_select.set(
+                "expressions",
+                [sqlglot.exp.Column(this=sqlglot.exp.to_identifier(col)) for col in norm_col_names],
             )
             return parsed_select
         return None
@@ -274,16 +295,13 @@ class ModelItemsNormalizer(ItemsNormalizer):
         ]
 
         # 1. handle star expression
-        star_expr_handled = self._handle_star_expression(parsed_select, norm_schema_column_names)
+        star_expr_replaced = self._handle_star_expression(parsed_select, norm_schema_column_names)
 
-        # 2. normalize selected column names. If a star expression was found,
+        # 2. normalize selected column names. If a star expression was replaced,
         # the columns are already normalized
         # TODO: make this better
-        if not star_expr_handled:
+        if not star_expr_replaced:
             self._normalize_selected_columns(parsed_select)
-
-        if star_expr_handled:
-            parsed_select = star_expr_handled
 
         # 3. add dlt columns
         schema_updates = []
@@ -298,8 +316,6 @@ class ModelItemsNormalizer(ItemsNormalizer):
             self.config.destination_capabilities.casefold_identifier(key)
             for key in self.schema.get_table_columns(root_table_name).keys()
         ]
-
-        normalized_query = parsed_select.sql(dialect=select_dialect)
 
         # 4. match schema and select statement
         schema_match_select_update = self._match_schema_and_select_statement(
