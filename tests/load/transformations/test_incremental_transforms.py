@@ -82,7 +82,6 @@ def test_state_based_incremental_transform(
     @dlt.transformation(
         transformation_type=transformation_type,
         write_disposition="append",
-        columns={"double_items": {"data_type": "bigint"}},
     )
     def transformed_items(dataset: SupportsReadableDataset[Any]) -> Any:
         # get last stored processed load id
@@ -133,7 +132,6 @@ def test_primary_key_based_incremental_transform(
     @dlt.transformation(
         transformation_type=transformation_type,
         write_disposition="append",
-        columns={"double_items": {"data_type": "bigint"}},
     )
     def transformed_items(dataset: SupportsReadableDataset[Any]) -> Any:
         # get newest primary key but only if table exists
@@ -188,7 +186,6 @@ def test_load_id_based_incremental_transform(
     @dlt.transformation(
         transformation_type=transformation_type,
         write_disposition="append",
-        columns={"double_items": {"data_type": "bigint"}},
     )
     def transformed_items(dataset: SupportsReadableDataset[Any]) -> Any:
         # get newest primary key but only if table exists

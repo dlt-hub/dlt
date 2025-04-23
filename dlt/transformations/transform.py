@@ -68,6 +68,7 @@ def make_transform_resource(
     # resolve defaults etc
     chunk_size = chunk_size or DEFAULT_CHUNK_SIZE
     lineage_mode = lineage_mode or "best_effort"
+
     # resolve type of transformation
     # TODO: react to capabilities of the destination, maybe inside the transform function
     transformation_function_type = "python" if inspect.isgeneratorfunction(func) else "sql"
@@ -91,10 +92,12 @@ def make_transform_resource(
     def transform_function(*args: Any, **kwargs: Any) -> Iterator[TDataItems]:
         datasets: List[ReadableDBAPIDataset] = []
 
+        #
         for arg in args:
             if isinstance(arg, ReadableDBAPIDataset):
                 datasets.append(arg)
 
+        # TODO: implement is phyiscal destination check
         # NOTE: there may be cases where some other dataset is used to get a starting
         # point and it will be on a different destination.
         # if datasets:
@@ -115,8 +118,6 @@ def make_transform_resource(
         #         + " must be on the same physical destination."
         #     )
 
-        # schemas: Dict[str, Schema] = {dataset.dataset_name: dataset.schema for dataset in datasets}
-
         # extract query from transform function
         select_query: str = None
         transformation_result: Any = func(*args, **kwargs)
@@ -129,7 +130,7 @@ def make_transform_resource(
             raise ValueError(
                 (
                     "Sql Transformation %s returned an invalid type: %s. Please either "
-                    + "return a valid sql string or a dlt readable relation."
+                    + "return a valid sql string or a SupportsReadableRelation instance."
                 )
                 % (name, type(transformation_result))
             )
@@ -138,33 +139,18 @@ def make_transform_resource(
         computed_columns: TTableSchemaColumns = {}
         all_columns: TTableSchemaColumns = columns or {}
         if lineage_mode in ["strict", "best_effort"]:
+            # TODO: proper error
             if not isinstance(transformation_result, SupportsReadableRelation):
                 raise ValueError(
                     "Lineage only supported for classes that implement SupportsReadableRelation"
                 )
+
+            # lineage
             computed_columns = transformation_result.compute_columns_schema()
-
-            # compute_resulting_dlt_table_schema(
-            #     select_query,
-            #     schemas,
-            #     # dialect=dataset.dialect, # TODO: provide dialect
-            #     allow_unknown_origins=lineage_mode == "best_effort",
-            # )
-
             all_columns = {**computed_columns, **(columns or {})}
 
             # for sql transfomrations all column types must be known
             if resolved_transformation_type == "sql":
-                # from dlt.transformations.lineage_helpers import (
-                #     compute_resulting_column_names_from_select,
-                # )
-
-                # column_names = compute_resulting_column_names_from_select(
-                #     select_query,
-                #     schemas,
-                #     # dialect=dataset.dialect, # TODO: provide dialect?
-                # )
-
                 # search all columns and see if there are some unknown ones
                 unknown_column_types = [
                     name for name, c in all_columns.items() if c.get("data_type") is None
@@ -207,6 +193,7 @@ def make_transform_resource(
             _impl_cls=DltTransformResource,
         ),
     )
+
     # set some extra attributes
     resource.transformation_type = resolved_transformation_type
     return resource
