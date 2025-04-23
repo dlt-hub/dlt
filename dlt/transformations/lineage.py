@@ -88,6 +88,8 @@ SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, str] = {
     DataType.Type.TIMESTAMP_S: "timestamp",
     DataType.Type.TIME: "time",
     DataType.Type.TIMETZ: "time",
+    # binary
+    DataType.Type.VARBINARY: "binary",
     # BOOLEAN
     DataType.Type.BOOLEAN: "bool",
     # UKNOWN
