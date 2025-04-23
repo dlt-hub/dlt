@@ -4,6 +4,10 @@ import dlt
 from dlt.extract.hints import TDataItem
 from dlt.common.destination.dataset import SupportsReadableDataset
 
+from tests.load.utils import DestinationTestConfiguration
+from tests.load.transformations.utils import transformation_configs, setup_transformation_pipelines
+from dlt.pipeline.exceptions import PipelineNeverRan
+
 
 @pytest.fixture
 def inc_p() -> dlt.Pipeline:
@@ -60,13 +64,20 @@ def _assert_transformed_data(inc_p: dlt.Pipeline, expected_data: list[Any]) -> N
     )
 
 
-# TODO: we have a bug with column order in sql based transformations, so test python only
-# for now
+@pytest.mark.parametrize(
+    "destination_config",
+    transformation_configs(),
+    ids=lambda x: x.name,
+)
 @pytest.mark.parametrize("transformation_type", ["python", "sql"])
-def test_state_based_incremental_transform(inc_p: dlt.Pipeline, transformation_type: Any) -> None:
+def test_state_based_incremental_transform(
+    destination_config: DestinationTestConfiguration, transformation_type: Any
+) -> None:
     """
     Here we demonstrate how to use the resource state for transform incrementals
     """
+    # get pipelines and populate fruit pipeline
+    inc_p, dest_p = setup_transformation_pipelines(destination_config, transformation_type)
 
     @dlt.transformation(
         transformation_type=transformation_type,
@@ -93,24 +104,31 @@ def test_state_based_incremental_transform(inc_p: dlt.Pipeline, transformation_t
 
     # first round
     inc_p.run(first_load())
-    inc_p.run(transformed_items(inc_p.dataset()))
-    _assert_transformed_data(inc_p, EXPECTED_TRANSFORMED_DATA_FIRST_LOAD)
+    dest_p.run(transformed_items(inc_p.dataset()))
+    _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_FIRST_LOAD)
 
     # second round
     inc_p.run(inc_load())
-    inc_p.run(transformed_items(inc_p.dataset()))
-    _assert_transformed_data(inc_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)
+    dest_p.run(transformed_items(inc_p.dataset()))
+    _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)
 
 
+@pytest.mark.parametrize(
+    "destination_config",
+    transformation_configs(),
+    ids=lambda x: x.name,
+)
 @pytest.mark.parametrize("transformation_type", ["python", "sql"])
 def test_primary_key_based_incremental_transform(
-    inc_p: dlt.Pipeline, transformation_type: Any
+    destination_config: DestinationTestConfiguration, transformation_type: Any
 ) -> None:
     """
     Here we demonstrate how to look up the newest primary key in the output dataset
     and use it to filter the rows that were already processed, only works if primary key
     is incrementing reliably
     """
+    # get pipelines and populate fruit pipeline
+    inc_p, dest_p = setup_transformation_pipelines(destination_config, transformation_type)
 
     @dlt.transformation(
         transformation_type=transformation_type,
@@ -119,15 +137,19 @@ def test_primary_key_based_incremental_transform(
     )
     def transformed_items(dataset: SupportsReadableDataset[Any]) -> Any:
         # get newest primary key but only if table exists
-        output_dataset = dlt.current.pipeline().dataset()
 
         max_pimary_key = 0
-        if output_dataset.schema.tables.get("transformed_items"):
-            max_pimary_key = (
-                output_dataset.transformed_items.id.max()
-                .df()
-                .to_dict(orient="records")[0]["Max(id)"]
-            )
+
+        try:
+            output_dataset = dlt.current.pipeline().dataset()
+            if output_dataset.schema.tables.get("transformed_items"):
+                max_pimary_key = (
+                    output_dataset.transformed_items.id.max()
+                    .df()
+                    .to_dict(orient="records")[0]["Max(id)"]
+                )
+        except PipelineNeverRan:
+            pass
 
         # return filtered transformation
         items_table = dataset.items
@@ -137,22 +159,31 @@ def test_primary_key_based_incremental_transform(
 
     # first round
     inc_p.run(first_load())
-    inc_p.run(transformed_items(inc_p.dataset()))
-    _assert_transformed_data(inc_p, EXPECTED_TRANSFORMED_DATA_FIRST_LOAD)
+    dest_p.run(transformed_items(inc_p.dataset()))
+    _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_FIRST_LOAD)
 
     # second round
     inc_p.run(inc_load())
-    inc_p.run(transformed_items(inc_p.dataset()))
-    _assert_transformed_data(inc_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)
+    dest_p.run(transformed_items(inc_p.dataset()))
+    _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)
 
 
-@pytest.mark.parametrize("transformation_type", ["python"])  # , "sql"])
-def test_load_id_based_incremental_transform(inc_p: dlt.Pipeline, transformation_type: Any) -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    transformation_configs(),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("transformation_type", ["python", "sql"])
+def test_load_id_based_incremental_transform(
+    destination_config: DestinationTestConfiguration, transformation_type: Any
+) -> None:
     """
     Here we demonstrate how to look up the newest load_id in the output dataset
     and use it to filter the rows that were already processed, very similar to
     the above
     """
+    # get pipelines and populate fruit pipeline
+    inc_p, dest_p = setup_transformation_pipelines(destination_config, transformation_type)
 
     @dlt.transformation(
         transformation_type=transformation_type,
@@ -161,15 +192,19 @@ def test_load_id_based_incremental_transform(inc_p: dlt.Pipeline, transformation
     )
     def transformed_items(dataset: SupportsReadableDataset[Any]) -> Any:
         # get newest primary key but only if table exists
-        output_dataset = dlt.current.pipeline().dataset()
 
         max_load_id = "0"
-        if output_dataset.schema.tables.get("transformed_items"):
-            max_load_id = (
-                output_dataset.transformed_items._dlt_load_id.max()
-                .df()
-                .to_dict(orient="records")[0]["Max(_dlt_load_id)"]
-            )
+
+        try:
+            output_dataset = dlt.current.pipeline().dataset()
+            if output_dataset.schema.tables.get("transformed_items"):
+                max_load_id = (
+                    output_dataset.transformed_items._dlt_load_id.max()
+                    .df()
+                    .to_dict(orient="records")[0]["Max(_dlt_load_id)"]
+                )
+        except PipelineNeverRan:
+            pass
 
         # return filtered transformation
         items_table = dataset.items
@@ -179,10 +214,10 @@ def test_load_id_based_incremental_transform(inc_p: dlt.Pipeline, transformation
 
     # first round
     inc_p.run(first_load())
-    inc_p.run(transformed_items(inc_p.dataset()))
-    _assert_transformed_data(inc_p, EXPECTED_TRANSFORMED_DATA_FIRST_LOAD)
+    dest_p.run(transformed_items(inc_p.dataset()))
+    _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_FIRST_LOAD)
 
     # second round
     inc_p.run(inc_load())
-    inc_p.run(transformed_items(inc_p.dataset()))
-    _assert_transformed_data(inc_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)
+    dest_p.run(transformed_items(inc_p.dataset()))
+    _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)

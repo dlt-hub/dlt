@@ -698,6 +698,7 @@ def destinations_configs(
         destination_configs = [
             conf for conf in destination_configs if conf.destination_type not in exclude
         ]
+        destination_configs = [conf for conf in destination_configs if conf.name not in exclude]
     if bucket_exclude:
         destination_configs = [
             conf

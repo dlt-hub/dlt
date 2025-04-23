@@ -96,11 +96,11 @@ jobs:
         run: poetry install --no-interaction --with sentry-sdk
 
       - run: |
-          poetry run pytest tests/common tests/normalize tests/reflection tests/plugins tests/transformations tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py
+          poetry run pytest tests/common tests/normalize tests/reflection tests/plugins tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py
         if: runner.os != 'Windows'
         name: Run common tests with minimum dependencies Linux/MAC
       - run: |
-          poetry run pytest tests/common tests/normalize tests/reflection tests/plugins tests/transformations tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py -m "not forked"
+          poetry run pytest tests/common tests/normalize tests/reflection tests/plugins tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py -m "not forked"
         if: runner.os == 'Windows'
         name: Run common tests with minimum dependencies Windows
         shell: cmd
@@ -109,11 +109,11 @@ jobs:
         run: poetry install --no-interaction -E duckdb --with sentry-sdk
 
       - run: |
-          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py
+          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py tests/transformations
         if: runner.os != 'Windows'
         name: Run pipeline smoke tests with minimum deps Linux/MAC
       - run: |
-          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py -m "not forked"
+          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py tests/transformations -m "not forked"
         if: runner.os == 'Windows'
         name: Run smoke tests with minimum deps Windows
         shell: cmd
