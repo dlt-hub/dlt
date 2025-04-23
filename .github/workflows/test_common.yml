@@ -109,11 +109,11 @@ jobs:
         run: poetry install --no-interaction -E duckdb --with sentry-sdk
 
       - run: |
-          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py tests/transformations
+          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py
         if: runner.os != 'Windows'
         name: Run pipeline smoke tests with minimum deps Linux/MAC
       - run: |
-          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py tests/transformations -m "not forked"
+          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py -m "not forked"
         if: runner.os == 'Windows'
         name: Run smoke tests with minimum deps Windows
         shell: cmd
@@ -135,11 +135,11 @@ jobs:
         run: poetry install --no-interaction -E duckdb -E cli -E parquet -E deltalake -E sql_database --with sentry-sdk,pipeline,sources
 
       - run: |
-          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources
+          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources tests/transformations
         if: runner.os != 'Windows'
         name: Run extract and pipeline tests Linux/MAC
       - run: |
-          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources -m "not forked"
+          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources tests/transformations -m "not forked"
         if: runner.os == 'Windows'
         name: Run extract tests Windows
         shell: cmd

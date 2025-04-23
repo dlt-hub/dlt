@@ -19,6 +19,7 @@ from tests.load.utils import DestinationTestConfiguration
 
 
 # NOTE: move to duckdb only transformation tests
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     transformation_configs(),
@@ -54,6 +55,7 @@ def test_simple_lineage(
 
 
 # NOTE: move to duckdb only transformation tests
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     transformation_configs(),

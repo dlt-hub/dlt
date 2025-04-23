@@ -23,6 +23,7 @@ from tests.load.transformations.utils import (
 )
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize("transformation_type", ["sql", "python"])
 @pytest.mark.parametrize(
     "destination_config",
@@ -59,6 +60,7 @@ def test_simple_query_transformations(
 
 
 # NOTE: move to duckdb only transformation tests
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     transformation_configs(),
@@ -84,6 +86,7 @@ def test_simple_python_transformations(destination_config: DestinationTestConfig
 
 
 # NOTE: move to duckdb only transformation tests
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     transformation_configs(),
@@ -126,6 +129,7 @@ def test_grouped_sql_transformations(destination_config: DestinationTestConfigur
 
 
 # NOTE: move to duckdb only transformation tests
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     transformation_configs(),
@@ -164,6 +168,7 @@ def test_replace_sql_transformations(destination_config: DestinationTestConfigur
 
 
 # NOTE: move to duckdb only transformation tests
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     transformation_configs(),
@@ -206,6 +211,7 @@ def test_append_sql_transformations(destination_config: DestinationTestConfigura
     )
 )
 # NOTE: move to duckdb only transformation tests
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     transformation_configs(),

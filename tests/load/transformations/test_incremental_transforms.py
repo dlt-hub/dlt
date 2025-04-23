@@ -64,6 +64,7 @@ def _assert_transformed_data(inc_p: dlt.Pipeline, expected_data: list[Any]) -> N
     )
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     transformation_configs(),
@@ -112,6 +113,7 @@ def test_state_based_incremental_transform(
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     transformation_configs(),
@@ -166,6 +168,7 @@ def test_primary_key_based_incremental_transform(
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     transformation_configs(),
