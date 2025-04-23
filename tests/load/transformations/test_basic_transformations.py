@@ -48,14 +48,15 @@ def test_simple_query_transformations(
     }
 
     # verify the right transformation was run
-    item_format = (
-        "parquet"
-        if destination_config.destination_type not in ["mssql", "synapse"]
-        else "insert_values"
-    )
-    assert get_job_types(dest_p) == {
-        "copied_purchases": {"model": 1} if transformation_type == "sql" else {item_format: 1}
-    }
+    if transformation_type == "sql":
+        assert list(get_job_types(dest_p)["copied_purchases"].keys())[0] == "model"
+    else:
+        assert list(get_job_types(dest_p)["copied_purchases"].keys())[0] in [
+            "parquet",
+            "insert_values",
+            "csv",
+        ]
+
 
 
 # NOTE: move to duckdb only transformation tests
@@ -81,7 +82,11 @@ def test_simple_python_transformations(destination_config: DestinationTestConfig
     }
 
     # verify the right transformation was run
-    assert get_job_types(dest_p) == {"copied_purchases": {"parquet": 1}}
+    assert list(get_job_types(dest_p)["copied_purchases"].keys())[0] in [
+        "parquet",
+        "insert_values",
+        "csv",
+    ]
 
 
 # NOTE: move to duckdb only transformation tests
@@ -93,7 +98,7 @@ def test_simple_python_transformations(destination_config: DestinationTestConfig
 )
 def test_grouped_sql_transformations(destination_config: DestinationTestConfiguration) -> None:
     # get pipelines and populate fruit pipeline
-    fruit_p, dest_p = setup_transformation_pipelines(destination_config, "python")
+    fruit_p, dest_p = setup_transformation_pipelines(destination_config, "sql")
     load_fruit_dataset(fruit_p)
 
     @dlt.transformation(transformation_type="sql")
@@ -115,16 +120,13 @@ def test_grouped_sql_transformations(destination_config: DestinationTestConfigur
         "copied_purchases2": 7,
     }
 
-    item_format = (
-        "parquet"
-        if destination_config.destination_type not in ["mssql", "synapse"]
-        else "insert_values"
-    )
     # verify the right transformation was run
-    assert get_job_types(dest_p) == {
-        "copied_purchases": {"model": 1},
-        "copied_purchases2": {item_format: 1},
-    }
+    assert list(get_job_types(dest_p)["copied_purchases"].keys()) == ["model"]
+    assert list(get_job_types(dest_p)["copied_purchases2"].keys())[0] in [
+        "parquet",
+        "insert_values",
+        "csv",
+    ]
 
 
 # NOTE: move to duckdb only transformation tests

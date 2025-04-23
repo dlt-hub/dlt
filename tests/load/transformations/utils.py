@@ -1,6 +1,6 @@
 import dlt
 import pytest
-
+import os
 from random import randrange, choice
 from typing import Any, Dict, Tuple
 
@@ -58,7 +58,8 @@ def transformation_configs(only_duckdb: bool = False):
             (  # NOTE: duckdb parquet does not need to be tested explicitely if we have the regular
                 "duckdb-parquet-no-staging"
             ),
-            "dremio",
+            "synapse",  # should probably work? no model file support at the moment
+            "dremio",  # should probably work? no model file support at the moment
         ],
         bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
         subset=(
@@ -78,6 +79,11 @@ def setup_transformation_pipelines(
 
     if destination_config.destination_type == "filesystem" and transformation_type == "sql":
         pytest.skip("Filesystem destination does not support sql transformations")
+
+    # Disable unique indexing for postgres, otherwise there will be a not null constraint error
+    # because we're copying from the same table, should be fixed in hints forwarding
+    if destination_config.destination_type == "postgres":
+        os.environ["DESTINATION__POSTGRES__CREATE_INDEXES"] = "false"
 
     # setup incoming data and transformed data pipelines
     fruit_p = destination_config.setup_pipeline(

@@ -55,13 +55,18 @@ EXPECTED_TRANSFORMED_DATA_SECOND_LOAD = [
 
 
 def _assert_transformed_data(inc_p: dlt.Pipeline, expected_data: list[Any]) -> None:
-    assert (
+    found_data = (
         inc_p.dataset()
         .transformed_items.select("id", "double_items")
         .df()
         .to_dict(orient="records")
-        == expected_data
     )
+
+    # make all dict keys lowercase for our favorite snowflake
+    found_data = [{k.lower(): v for k, v in d.items()} for d in found_data]
+    sorted_found_data = sorted(found_data, key=lambda x: x["id"])
+
+    assert sorted_found_data == expected_data
 
 
 @pytest.mark.essential
