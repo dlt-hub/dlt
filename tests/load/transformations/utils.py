@@ -58,6 +58,7 @@ def transformation_configs(only_duckdb: bool = False):
             (  # NOTE: duckdb parquet does not need to be tested explicitely if we have the regular
                 "duckdb-parquet-no-staging"
             ),
+            "dremio",
         ],
         bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
         subset=(
