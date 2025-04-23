@@ -84,32 +84,37 @@ def test_state_based_incremental_transform(
         transformation_type=transformation_type,
         write_disposition="append",
     )
-    def transformed_items(dataset: SupportsReadableDataset[Any]) -> Any:
+    def transformed_items(dataset: SupportsReadableDataset[Any], last_loaded_load_id: str) -> Any:
         # get last stored processed load id
         LAST_PROCESSED_LOAD_ID = "last_processed_load_id"
         last_processed_load_id = dlt.current.resource_state().get(LAST_PROCESSED_LOAD_ID, "0")
         items_table = dataset.items
 
-        # NOTE: getting this one value is a bit complicated.., probably there is a better way to
-        # do this
-        max_load_id = (
-            items_table._dlt_load_id.max().df().to_dict(orient="records")[0]["Max(_dlt_load_id)"]
-        )
+        max_load_id = list(
+            items_table._dlt_load_id.max().df().to_dict(orient="records")[0].values()
+        )[0]
         dlt.current.resource_state()[LAST_PROCESSED_LOAD_ID] = max_load_id
 
         # return filtered transformation
-        return items_table.filter(items_table._dlt_load_id > last_processed_load_id).mutate(
-            double_items=items_table.id * 2
-        )
+        return items_table.filter(
+            items_table._dlt_load_id > last_processed_load_id,
+            items_table._dlt_load_id <= last_loaded_load_id,
+        ).mutate(double_items=items_table.id * 2)
 
     # first round
     inc_p.run(first_load())
-    dest_p.run(transformed_items(inc_p.dataset()))
+    last_loaded_load_id = list(
+        inc_p.dataset()._dlt_loads.load_id.max().df().to_dict(orient="records")[0].values()
+    )[0]
+    dest_p.run(transformed_items(inc_p.dataset(), last_loaded_load_id))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_FIRST_LOAD)
 
     # second round
     inc_p.run(inc_load())
-    dest_p.run(transformed_items(inc_p.dataset()))
+    last_loaded_load_id = list(
+        inc_p.dataset()._dlt_loads.load_id.max().df().to_dict(orient="records")[0].values()
+    )[0]
+    dest_p.run(transformed_items(inc_p.dataset(), last_loaded_load_id))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)
 
 
@@ -137,17 +142,16 @@ def test_primary_key_based_incremental_transform(
     )
     def transformed_items(dataset: SupportsReadableDataset[Any]) -> Any:
         # get newest primary key but only if table exists
-
         max_pimary_key = 0
-
         try:
             output_dataset = dlt.current.pipeline().dataset()
             if output_dataset.schema.tables.get("transformed_items"):
-                max_pimary_key = (
+                max_pimary_key = list(
                     output_dataset.transformed_items.id.max()
                     .df()
-                    .to_dict(orient="records")[0]["Max(id)"]
-                )
+                    .to_dict(orient="records")[0]
+                    .values()
+                )[0]
         except PipelineNeverRan:
             pass
 
@@ -190,34 +194,39 @@ def test_load_id_based_incremental_transform(
         transformation_type=transformation_type,
         write_disposition="append",
     )
-    def transformed_items(dataset: SupportsReadableDataset[Any]) -> Any:
+    def transformed_items(dataset: SupportsReadableDataset[Any], last_loaded_load_id: str) -> Any:
         # get newest primary key but only if table exists
-
         max_load_id = "0"
-
         try:
             output_dataset = dlt.current.pipeline().dataset()
             if output_dataset.schema.tables.get("transformed_items"):
-                max_load_id = (
+                max_load_id = list(
                     output_dataset.transformed_items._dlt_load_id.max()
                     .df()
-                    .to_dict(orient="records")[0]["Max(_dlt_load_id)"]
-                )
+                    .to_dict(orient="records")[0]
+                    .values()
+                )[0]
         except PipelineNeverRan:
             pass
 
         # return filtered transformation
         items_table = dataset.items
-        return items_table.filter(items_table._dlt_load_id > max_load_id).mutate(
-            double_items=items_table.id * 2
-        )
+        return items_table.filter(
+            items_table._dlt_load_id > max_load_id, items_table._dlt_load_id <= last_loaded_load_id
+        ).mutate(double_items=items_table.id * 2)
 
     # first round
     inc_p.run(first_load())
-    dest_p.run(transformed_items(inc_p.dataset()))
+    last_loaded_load_id = list(
+        inc_p.dataset()._dlt_loads.load_id.max().df().to_dict(orient="records")[0].values()
+    )[0]
+    dest_p.run(transformed_items(inc_p.dataset(), last_loaded_load_id))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_FIRST_LOAD)
 
     # second round
     inc_p.run(inc_load())
-    dest_p.run(transformed_items(inc_p.dataset()))
+    last_loaded_load_id = list(
+        inc_p.dataset()._dlt_loads.load_id.max().df().to_dict(orient="records")[0].values()
+    )[0]
+    dest_p.run(transformed_items(inc_p.dataset(), last_loaded_load_id))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)

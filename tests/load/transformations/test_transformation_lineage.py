@@ -4,7 +4,7 @@ from typing import Any
 
 import dlt
 
-from dlt.transformations.reference import TLineageMode, TTransformationType
+from dlt.transformations.typing import TLineageMode, TTransformationType
 from dlt.extract.exceptions import ResourceExtractionError
 
 from dlt.common.destination.dataset import SupportsReadableDataset

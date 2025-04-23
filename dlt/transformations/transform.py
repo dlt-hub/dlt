@@ -1,13 +1,12 @@
 import inspect
-from typing import Callable, Any, Type, Optional, cast, Iterator, List, Dict
+from typing import Callable, Any, Type, Optional, cast, Iterator, List
 
 from dlt.common.typing import TDataItems
-from dlt import Schema
 
 import dlt
 from dlt.extract.incremental import TIncrementalConfig
 
-from dlt.transformations.reference import (
+from dlt.transformations.typing import (
     TTransformationType,
     TTransformationFunParams,
     TLineageMode,
@@ -16,7 +15,7 @@ from dlt.transformations.exceptions import (
     TransformationTypeMismatch,
     LineageFailedException,
     UnknownColumnTypesException,
-    IncompatibleDatasetsException,
+    TransformationInvalidReturnTypeException,
 )
 from dlt.destinations.dataset import ReadableDBAPIDataset
 from dlt.common.schema.typing import TTableSchemaColumns
@@ -70,7 +69,6 @@ def make_transform_resource(
     lineage_mode = lineage_mode or "best_effort"
 
     # resolve type of transformation
-    # TODO: react to capabilities of the destination, maybe inside the transform function
     transformation_function_type = "python" if inspect.isgeneratorfunction(func) else "sql"
     resolved_transformation_type = transformation_type
     if not resolved_transformation_type:
@@ -83,16 +81,15 @@ def make_transform_resource(
             + "readablerelation and not be a generator function"
         )
 
-    if lineage_mode == "strict" and transformation_function_type == "python":
+    if lineage_mode in ["strict"] and transformation_function_type == "python":
         raise LineageFailedException(
             "Lineage mode 'strict' is only supported for sql transformations"
         )
 
     # build transform function
     def transform_function(*args: Any, **kwargs: Any) -> Iterator[TDataItems]:
+        # collect all datasets from args
         datasets: List[ReadableDBAPIDataset] = []
-
-        #
         for arg in args:
             if isinstance(arg, ReadableDBAPIDataset):
                 datasets.append(arg)
@@ -127,7 +124,7 @@ def make_transform_resource(
             if isinstance(transformation_result, SupportsReadableRelation):
                 select_query = transformation_result.query()
         else:
-            raise ValueError(
+            raise TransformationInvalidReturnTypeException(
                 (
                     "Sql Transformation %s returned an invalid type: %s. Please either "
                     + "return a valid sql string or a SupportsReadableRelation instance."
@@ -139,9 +136,8 @@ def make_transform_resource(
         computed_columns: TTableSchemaColumns = {}
         all_columns: TTableSchemaColumns = columns or {}
         if lineage_mode in ["strict", "best_effort"]:
-            # TODO: proper error
             if not isinstance(transformation_result, SupportsReadableRelation):
-                raise ValueError(
+                raise LineageFailedException(
                     "Lineage only supported for classes that implement SupportsReadableRelation"
                 )
 
@@ -158,8 +154,8 @@ def make_transform_resource(
 
                 if unknown_column_types:
                     raise UnknownColumnTypesException(
-                        "For sql transformations all column types must be known. "
-                        + "Please run with strict lineage or provide data type hints "
+                        "For sql transformations all data_types of columns must be known. "
+                        + "Please run with strict lineage or provide data_type hints "
                         + f"for following columns: {unknown_column_types}"
                     )
 

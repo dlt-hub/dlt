@@ -7,13 +7,12 @@ import dlt
 from dlt.common.destination.dataset import SupportsReadableDataset
 from dlt.pipeline.exceptions import PipelineStepFailed
 
-from dlt.transformations.reference import TTransformationType
+from dlt.transformations.typing import TTransformationType
 
 from tests.load.utils import (
     DestinationTestConfiguration,
 )
 
-# from dlt.transformations.exceptions import MaterializationTypeMismatch
 from tests.load.transformations.utils import (
     row_counts,
     get_job_types,

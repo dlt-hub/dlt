@@ -4,7 +4,7 @@ import dlt
 import pytest
 
 from dlt.common.destination.dataset import SupportsReadableDataset
-from dlt.transformations.reference import TTransformationType
+from dlt.transformations.typing import TTransformationType
 
 
 @pytest.mark.essential

@@ -11,11 +11,6 @@ class TransformationTypeMismatch(TransformException):
         super().__init__(msg)
 
 
-class MaterializationTypeMismatch(TransformException):
-    def __init__(self, msg: str):
-        super().__init__(msg)
-
-
 class LineageFailedException(TransformException):
     def __init__(self, msg: str):
         super().__init__(msg)
@@ -27,5 +22,10 @@ class UnknownColumnTypesException(TransformException):
 
 
 class IncompatibleDatasetsException(TransformException):
+    def __init__(self, msg: str):
+        super().__init__(msg)
+
+
+class TransformationInvalidReturnTypeException(TransformException):
     def __init__(self, msg: str):
         super().__init__(msg)

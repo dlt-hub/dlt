@@ -13,7 +13,7 @@ from dlt.common.schema.typing import (
     TTableReferenceParam,
 )
 
-from dlt.transformations.reference import (
+from dlt.transformations.typing import (
     TTransformationType,
     TTransformationFunParams,
     TLineageMode,

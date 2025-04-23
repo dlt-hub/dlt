@@ -4,7 +4,7 @@ from typing import Any
 
 import dlt
 
-from dlt.transformations.reference import TTransformationType
+from dlt.transformations.typing import TTransformationType
 from dlt.common.destination.dataset import SupportsReadableDataset
 
 from tests.load.utils import DestinationTestConfiguration
