@@ -37,11 +37,11 @@ def filesystem_merge_strategies_selector(
 
 
 def filesystem_replace_strategies_selector(
-    supported_replace_strategies: t.Sequence[TLoaderReplaceStrategy],
+    supported_replace_strategies: Sequence[TLoaderReplaceStrategy],
     /,
     *,
     table_schema: TTableSchema,
-) -> t.Sequence[TLoaderReplaceStrategy]:
+) -> Sequence[TLoaderReplaceStrategy]:
     if table_schema.get("table_format") in ("iceberg", "delta"):
         # always from staging table
         return ["insert-from-staging"]
