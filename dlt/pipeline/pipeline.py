@@ -59,6 +59,7 @@ from dlt.common.storages import (
     PackageStorage,
     LoadJobInfo,
     LoadPackageInfo,
+    ParsedLoadJobFileName,
 )
 from dlt.common.destination import (
     Destination,
@@ -580,15 +581,39 @@ class Pipeline(SupportsPipeline):
             raise_on_failed_jobs=raise_on_failed_jobs,
             _load_storage_config=self._load_storage_config(),
         )
-        load_step: Load = Load(
-            self._destination,
-            staging_destination=self._staging,
-            collector=self.collector,
-            is_storage_owner=False,
-            config=load_config,
-            initial_client_config=client.config,
-            initial_staging_client_config=staging_client.config if staging_client else None,
-        )
+
+        # check if we have model format and if so, we skip staging
+        load_packages = self._get_load_storage().list_normalized_packages()
+        is_model_format = False
+        if load_packages:
+            load_id = load_packages[0]
+            job_files = self._get_load_storage().normalized_packages.list_new_jobs(load_id)
+            if job_files:
+                job_info = ParsedLoadJobFileName.parse(job_files[0])
+                is_model_format = job_info.file_format == "model"
+
+        load_step: Load
+
+        if is_model_format:
+            load_step = Load(
+                self._destination,
+                staging_destination=None,
+                collector=self.collector,
+                is_storage_owner=False,
+                config=load_config,
+                initial_client_config=client.config,
+                initial_staging_client_config=None,
+            )
+        else:
+            load_step = Load(
+                self._destination,
+                staging_destination=self._staging,
+                collector=self.collector,
+                is_storage_owner=False,
+                config=load_config,
+                initial_client_config=client.config,
+                initial_staging_client_config=staging_client.config if staging_client else None,
+            )
         try:
             with signals.delayed_signals():
                 runner.run_pool(load_step.config, load_step)
@@ -1364,7 +1389,10 @@ class Pipeline(SupportsPipeline):
 
         if (
             self._destination
-            and not self._destination.capabilities().supported_loader_file_formats
+            and (
+                not self._destination.capabilities().supported_loader_file_formats
+                or self._destination.capabilities().supported_loader_file_formats == ["model"]
+            )
             and not staging
             and not self._staging
         ):
