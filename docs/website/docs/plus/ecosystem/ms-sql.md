@@ -99,6 +99,17 @@ pipeline = dlt.pipeline(
 pipeline.run(initial_resource)
 ```
 
+By default, the _DLT_DELETED or the _DLT_SYS_CHANGE_VERSION columns are only created by the incremental change tracking resource when there are changes. If you want these to be created during the initial load, you can configure this with `apply_hints` as follows:
+
+```py
+initial_resource.apply_hints(
+        columns=[
+            {"name": "_dlt_sys_change_version", "data_type": "bigint"},
+            {"name": "_dlt_deleted", "data_type": "text", "precision": 10},
+        ]
+    )
+```
+
 Next, configure the incremental resource for the first run with the `create_change_tracking_table` function and run it **once**:
 
 ```py
@@ -184,6 +195,15 @@ def single_table_initial_load(connection_url: str, schema_name: str, table_name:
     # you do not miss any records
     tracking_version = get_current_change_tracking_version(engine)
     print(f"will track from: {tracking_version}")  # noqa
+
+    # Apply hints to create _DLT_DELETED and _DLT_SYS_CHANGE_VERSION columns on the initial load
+    # This is an optional step
+    initial_resource.apply_hints(
+        columns=[
+            {"name": "_dlt_sys_change_version", "data_type": "bigint"},
+            {"name": "_dlt_deleted", "data_type": "text", "precision": 10},
+        ]
+    )
 
     # Run the pipeline for the initial load
     # NOTE: we always drop data and state from the destination on initial load
