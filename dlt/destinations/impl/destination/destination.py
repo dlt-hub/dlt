@@ -60,7 +60,7 @@ class DestinationClient(JobClientBase):
 
         skipped_columns: List[str] = []
         if self.config.skip_dlt_columns_and_tables:
-            for column in list(self.schema.tables[table["name"]]["columns"].keys()):
+            for column in list(self.schema.get_table(table["name"])["columns"].keys()):
                 if column.startswith(self.schema._dlt_tables_prefix):
                     skipped_columns.append(column)
 

@@ -46,13 +46,13 @@ def test_iceberg_partition_hints():
     pipeline.extract([partitioned_table, not_partitioned_table])
     pipeline.normalize()
 
-    with pipeline._sql_job_client(pipeline.default_schema) as client:
-        sql_partitioned = client._get_table_update_sql(
+    with pipeline.destination_client() as client:
+        sql_partitioned = client._get_table_update_sql(  # type: ignore[attr-defined]
             "partitioned_table",
             list(pipeline.default_schema.tables["partitioned_table"]["columns"].values()),
             False,
         )[0]
-        sql_not_partitioned = client._get_table_update_sql(
+        sql_not_partitioned = client._get_table_update_sql(  # type: ignore[attr-defined]
             "not_partitioned_table",
             list(pipeline.default_schema.tables["not_partitioned_table"]["columns"].values()),
             False,

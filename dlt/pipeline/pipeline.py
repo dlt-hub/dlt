@@ -27,7 +27,6 @@ from dlt.common.configuration import inject_section, known_sections
 from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
-    ConfigFieldMissingException,
     ContextDefaultCannotBeCreated,
 )
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
@@ -99,7 +98,6 @@ from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
 from dlt.destinations.configuration import WithLocalFiles
-from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.extract import DltSource
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import Extract, data_to_sources
@@ -112,8 +110,7 @@ from dlt.destinations.dataset import (
     dataset,
     get_destination_clients,
 )
-from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
-from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
+from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
 
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
@@ -1016,13 +1013,6 @@ class Pipeline(SupportsPipeline):
         The client is authenticated and defaults all queries to dataset_name used by the pipeline. You can provide alternative
         `schema_name` which will be used to normalize dataset name.
         """
-        # if not self.default_schema_name and not schema_name:
-        #     raise PipelineConfigMissing(
-        #         self.pipeline_name,
-        #         "default_schema_name",
-        #         "load",
-        #         "Sql Client is not available in a pipeline without a default schema. Extract some data first or restore the pipeline from the destination using 'restore_from_destination' flag. There's also `_inject_schema` method for advanced users."
-        #     )
         schema = self._get_schema_or_create(schema_name)
         client = self._get_destination_clients(schema)[0]
         if isinstance(client, WithSqlClient):
@@ -1107,13 +1097,6 @@ class Pipeline(SupportsPipeline):
             return self.default_schema
         with self._maybe_destination_capabilities():
             return Schema(self.pipeline_name)
-
-    def _sql_job_client(self, schema: Schema) -> SqlJobClientBase:
-        client = self._get_destination_clients(schema)[0]
-        if isinstance(client, SqlJobClientBase):
-            return client
-        else:
-            raise SqlClientNotAvailable(self.pipeline_name, self._destination.destination_name)
 
     def _get_normalize_storage(self) -> NormalizeStorage:
         return NormalizeStorage(True, self._normalize_storage_config())
@@ -1516,20 +1499,6 @@ class Pipeline(SupportsPipeline):
             # do not set the state hash, this will happen on first merge
             return default_pipeline_state()
 
-    def _optional_sql_job_client(self, schema_name: str) -> Optional[SqlJobClientBase]:
-        try:
-            return self._sql_job_client(Schema(schema_name))
-        except PipelineConfigMissing as pip_ex:
-            # fallback to regular init if destination not configured
-            logger.info(f"Sql Client not available: {pip_ex}")
-        except SqlClientNotAvailable:
-            # fallback is sql client not available for destination
-            logger.info("Client not available because destination does not support sql client")
-        except ConfigFieldMissingException:
-            # probably credentials are missing
-            logger.info("Client not available due to missing credentials")
-        return None
-
     def _restore_state_from_destination(self) -> Optional[TPipelineState]:
         # if state is not present locally, take the state from the destination
         dataset_name = self.dataset_name
@@ -1756,26 +1725,29 @@ class Pipeline(SupportsPipeline):
             "working_dir": self.working_dir,
         }
 
+    # NOTE: I expect that we'll merge all relations into one. and then we'll be able to get rid
+    #  of overload and dataset_type
+
     @overload
     def dataset(
         self,
         schema: Union[Schema, str, None] = None,
         dataset_type: Literal["ibis"] = "ibis",
-    ) -> ReadableDBAPIDataset[ReadableIbisRelation]: ...
+    ) -> ReadableDBAPIDataset: ...
 
     @overload
     def dataset(
         self,
         schema: Union[Schema, str, None] = None,
         dataset_type: Literal["default"] = "default",
-    ) -> ReadableDBAPIDataset[ReadableDBAPIRelation]: ...
+    ) -> ReadableDBAPIDataset: ...
 
     @overload
     def dataset(
         self,
         schema: Union[Schema, str, None] = None,
         dataset_type: TDatasetType = "auto",
-    ) -> ReadableDBAPIDataset[ReadableIbisRelation]: ...
+    ) -> ReadableDBAPIDataset: ...
 
     def dataset(
         self, schema: Union[Schema, str, None] = None, dataset_type: TDatasetType = "auto"

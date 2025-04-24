@@ -131,7 +131,7 @@ def _load_file(client: FSClientBase, filepath) -> List[Dict[str, Any]]:
     # check if this is a file we want to read
     file_name_items = filepath.split(".")
     ext = file_name_items[-1]
-    if ext not in ["jsonl", "insert_values", "parquet"]:
+    if ext not in ["jsonl", "insert_values", "parquet", "csv"]:
         return []
 
     # load jsonl
@@ -169,6 +169,21 @@ def _load_file(client: FSClientBase, filepath) -> List[Dict[str, Any]]:
                     result[item_count][column_name] = item
                 item_count += 1
             count += 1
+    elif ext == "csv":
+        import csv
+
+        file_text = client.read_text(filepath)
+        csv_reader = csv.reader(io.StringIO(file_text))
+
+        # first row contains headers
+        # NOTE: we support default dlt dialect for csv
+        headers = next(csv_reader, [])
+
+        for row in csv_reader:
+            if row:  # skip empty rows
+                # convert values using auto_cast to handle types appropriately
+                values = map(auto_cast, row)
+                result.append(dict(zip(headers, values)))
 
     return result
 
@@ -235,7 +250,7 @@ def _load_tables_to_dicts_sql(
         columns = schema.get_table_columns(table_name).keys()
         query_columns = ",".join(map(p.sql_client().escape_column_name, columns))
 
-        with p.sql_client() as c:
+        with p.sql_client(schema_name=schema_name) as c:
             query_columns = ",".join(map(c.escape_column_name, columns))
             f_q_table_name = c.make_qualified_table_name(table_name)
             query = f"SELECT {query_columns} FROM {f_q_table_name}"

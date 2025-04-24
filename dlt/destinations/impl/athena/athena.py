@@ -66,6 +66,7 @@ from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs, Finalize
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
 from dlt.destinations import path_utils
 from dlt.destinations.impl.athena.athena_adapter import PARTITION_HINT
+from dlt.destinations.utils import get_deterministic_temp_table_name
 
 
 # add a formatter for pendulum to be used by pyathen dbapi
@@ -100,11 +101,13 @@ class DLTAthenaFormatter(DefaultParameterFormatter):
 
 class AthenaMergeJob(SqlMergeFollowupJob):
     @classmethod
-    def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
+    def _new_temp_table_name(cls, table_name: str, op: str, sql_client: SqlClientBase[Any]) -> str:
         # reproducible name so we know which table to drop
         with sql_client.with_staging_dataset():
             return sql_client.make_qualified_table_name(
-                cls._shorten_table_name(name_prefix, sql_client)
+                cls._shorten_table_name(
+                    get_deterministic_temp_table_name(table_name, op), sql_client
+                )
             )
 
     @classmethod
@@ -294,19 +297,20 @@ class AthenaSQLClient(SqlClientBase[Connection]):
             query, db_args = self._convert_to_old_pyformat(query, args)
             if kwargs:
                 db_args.update(kwargs)
-        cursor = self._conn.cursor(formatter=DLTAthenaFormatter())
-        for query_line in query.split(";"):
-            if query_line.strip():
-                try:
-                    cursor.execute(query_line, db_args)
-                # catch key error only here, this will show up if we have a missing parameter
-                except KeyError:
-                    raise DatabaseTransientException(OperationalError())
 
-        # TODO: (important) allow to use PandasCursor and ArrowCursor to get fast data access
-        #    the problem: you need to set the cursor type upfront. so if user uses wrong cursor
-        #    we won't be able to dynamically change it.
-        yield DBApiCursorImpl(cursor)  # type: ignore
+        with self._conn.cursor(formatter=DLTAthenaFormatter()) as cursor:
+            for query_line in query.split(";"):
+                if query_line.strip():
+                    try:
+                        cursor.execute(query_line, db_args)
+                    # catch key error only here, this will show up if we have a missing parameter
+                    except KeyError:
+                        raise DatabaseTransientException(OperationalError())
+
+            # TODO: (important) allow to use PandasCursor and ArrowCursor to get fast data access
+            #    the problem: you need to set the cursor type upfront. so if user uses wrong cursor
+            #    we won't be able to dynamically change it.
+            yield DBApiCursorImpl(cursor)  # type: ignore
 
 
 class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):

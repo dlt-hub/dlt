@@ -10,6 +10,8 @@ The purpose of this document is to explain how to build REST API sources with Cu
 
 With REST API sources being configuration-driven and vibe coding based on prompts, users don't necessarily need to know how to code. However, it is important to understand how an API is represented and how data should be structured at the destination, such as managing incremental loading configurations. This foundational knowledge ensures that even non-developers can effectively contribute to building and maintaining these data pipelines.
 
+We also introduce experimental [dlt ai](../../reference/command-line-interface.md#dlt-ai-setup) command that distributes relevant cursor rules.
+
 ## 1. Problem definition & feature extraction
 
 Building a data pipeline can be separated into two distinct problems, each with their own challenges:
@@ -28,6 +30,7 @@ The best source of information for building a pipeline, is another working pipel
 So here is the ranking of what sources you could use
 
 1. **Other pipelines**: Legacy pipelines, sources and connectors from other languages or frameworks, or any code that shows how to request, such as API wrappers.
+2. **OpenAPI spec**: Contains very detailed specification of all endpoints and authentication, but does not provide info on pagination, incremental loading or primary keys for data entities.
 2. **Docs + http responses**. Reading the docs, creating an initial working pipeline and then requesting from the API data so we can infer the rest of the missing info.
 3. **Scraped code, llm memory**: When nothing is available but a public API exists, such as APIs that power public websites, we can try inferring how it is called from other websites’ code that calls it.
 
@@ -65,23 +68,42 @@ Cursor is an AI-powered IDE built on Visual Studio Code that accelerates your wo
 
 This produces self-documenting, self-maintaining, and easy to troubleshoot sources.
 
-### 2.2 Configuring Cursor with documentation
+### 2.2 Adding rules to cursor
 
-Assuming you have Cursor installed, you can access settings by clicking the cog setttings icon at the top right corner of the IDE.
+We bundled a set of cursor rules that help building REST API pipelines with `dlt`. To use them, you should start by [initializing a new `dlt` project](../../walkthroughs/create-a-pipeline.md):
+```sh
+dlt init rest_api duckdb
+```
+This will add `rest_api_pipeline.py` to your current folder with pretty detailed usage examples. We see improvements in generated code if this file is
+added to the cursor agent context.
+
+Now you can add a set of project rules we use to develop REST API sources:
+```sh
+dlt ai setup cursor
+```
+
+They are pretty useful when converting OpenAPI specs or legacy source code into `dlt` pipelines. Some rules are always included,
+others are triggered by the agent based on their descriptions. You can review your project rules by looking in `.cursor/rules` folder
+or in Cursor Settings >> Rules.
+
+:::note
+🚧 This command is a work in progress and currently only adds rules focused on REST API Source. We plan for more code editors,
+`dlt` use cases and mcp tools to be added this way so command options will surely change.
+
+We are also happy to get improvements. Make a PR with an update [here](https://github.com/dlt-hub/verified-sources/ai).
+:::
+
+
+### 2.3 Configuring Cursor with documentation
 
 Under `Cursor Settings` > `Features` > `Docs`, you will see the docs you have added. You can edit, delete, or add new docs here.
 
-We recommend adding the [dlthub docs from this URL](https://github.com/dlt-hub/dlt/tree/devel/docs), where various code examples are included.
+We recommend adding documentation scoped for specific task. Here you may try:
+* REST API Source documentation: https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/
+* Core `dlt` concepts & usage: https://dlthub.com/docs/general-usage/resource (optional)
 
-For the task of building REST API sources, we also created this [LLM-friendly documentation that you can add from this url.](https://github.com/dlt-hub/cursor-dlt-example/tree/main/docs)
 
-### 2.3 Adding rules to cursor
-
-Rules are like system prompts. In our experiments, when building a REST API pipeline, you want to keep the original rule of how to do it on during the whole process. For this, you can use global rules:
-
-Global rules can be added by modifying the `Rules for AI` section under `Cursor Settings` > `General` > `Rules for AI`. This is useful if you want to specify rules that should always be included in every project like output language, length of responses etc.
-
-[You can find a rule created for REST API building here.](https://github.com/dlt-hub/cursor-dlt-example/blob/main/.cursor/rules/build-rest-api.mdc)
+We observed that cursor is not able to ingest full `dlt` docs (there are bug reports in cursor about their docs crawler). Also putting too much information into the agent context will prevent generation of correct code.
 
 ### 2.4 Integrating local docs
 
@@ -92,6 +114,17 @@ To improve accuracy, make sure any files or docs that could confound the search 
 ### 2.5 Documentation augmentation
 
 If existing documentation for a task is regularly ignored by LLMs, consider using reverse prompts outside of cursor to create LLM optimised docs, and then make those available to cursor as local documentation. You could use a RAG or something like DeepResearch for this task. You can then ask cursor to improve the cursor rules with this documentation.
+
+### 2.6 Model and context selection
+
+We had best results with Claude 3.7-sonnet (which requires paid version of Cursor). Weaker models were not able to comprehend the required 
+context in full and were not able to use tools and follow workflows consistently.
+
+We typically put the following in the context:
+1. docs: REST API Source documentation
+2. example `rest_api_pipeline.py`
+3. yaml definitions, openAPI specs or references to files implementing legacy data source
+4. we've noticed that it make sense to copy initial section from `build-rest-api` rule, which Claude follows pretty well.
 
 ## 3. Running the workflow
 

@@ -333,6 +333,7 @@ class DBApiCursorImpl(DBApiCursor):
         self.fetchall = curr.fetchall  # type: ignore
         self.fetchmany = curr.fetchmany  # type: ignore
         self.fetchone = curr.fetchone  # type: ignore
+        self.close = curr.close  # type: ignore
 
         self._set_default_schema_columns()
 
