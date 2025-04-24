@@ -497,17 +497,39 @@ class SupportsPipeline(Protocol):
 
     @property
     def state(self) -> TPipelineState:
-        """Returns dictionary with pipeline state"""
+        """Returns dictionary with current pipeline state
+
+        Returns:
+            TPipelineState: The current pipeline state
+        """
 
     @property
     def schemas(self) -> Mapping[str, Schema]:
-        """Mapping of all pipeline schemas"""
+        """Returns all known schemas of the pipeline
+
+        Returns:
+            Mapping[str, Schema]: A mapping of schema names to their corresponding Schema objects
+        """
 
     def get_local_state_val(self, key: str) -> Any:
-        """Gets value from local state. Local state is not synchronized with destination."""
+        """Gets value from local state. Local state is not synchronized with destination.
+
+        Args:
+            key (str): The key to get the value from
+
+        Returns:
+            Any: The value from the local state
+        """
 
     def destination_client(self, schema_name: str = None) -> JobClientBase:
-        """Get the destination job client for the configured destination"""
+        """Get the destination job client for the configured destination
+
+        Args:
+            schema_name (str, optional): The name of the schema to get the client for. Defaults to None.
+
+        Returns:
+            JobClientBase: The destination job client
+        """
 
     def run(
         self,
@@ -523,7 +545,25 @@ class SupportsPipeline(Protocol):
         schema: Schema = None,
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
-    ) -> LoadInfo: ...
+    ) -> LoadInfo:
+        """Loads the data into the destination
+
+        Args:
+            data (Any): The data to load. Can be a DltSource, DltResource or any iterable of data items.
+            destination (TDestinationReferenceArg, optional): The destination to load the data to.
+            dataset_name (str, optional): The name of the dataset to load the data to.
+            credentials (Any, optional): The credentials to use to load the data.
+            table_name (str, optional): The name of the table to load the data to.
+            write_disposition (TWriteDispositionConfig, optional): The write disposition to use to load the data.
+            columns (Sequence[TColumnSchema], optional): A list of column hints.
+            primary_key (TColumnNames, optional): A list of column names to be used as primary key.
+            schema (Schema, optional): A schema to use to load the data. Defaults to the schema configured in the pipeline.
+            loader_file_format (TLoaderFileFormat, optional): The file format to use to load the data. Defaults to preferred loader file format of the destination.
+            schema_contract (TSchemaContract, optional): The schema contract to use to load the data.
+
+        Returns:
+            LoadInfo: Information on the load operation
+        """
 
     def _set_context(self, is_active: bool) -> None:
         """Called when pipeline context activated or deactivate"""

@@ -1060,7 +1060,11 @@ def _get_source_section_name(m: ModuleType) -> str:
 
 
 def get_source_schema() -> Schema:
-    """When executed from the function decorated with @dlt.source, returns a writable source Schema"""
+    """Should be executed from inside the function decorated with @dlt.resource
+
+    Returns:
+        Schema: The current writeable source schema
+    """
     try:
         return Container()[SourceSchemaInjectableContext].schema
     except ContextDefaultCannotBeCreated:
@@ -1068,7 +1072,11 @@ def get_source_schema() -> Schema:
 
 
 def get_source() -> DltSource:
-    """When executed from the function decorated with @dlt.resource, returns currently extracted source"""
+    """Should be executed from inside the function decorated with @dlt.resource
+
+    Returns:
+        DltSource: The current writable source object
+    """
     try:
         return Container()[SourceInjectableContext].source
     except ContextDefaultCannotBeCreated:
