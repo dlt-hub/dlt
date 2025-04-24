@@ -1,5 +1,7 @@
 import os
 import contextlib
+from dlt.common.destination.client import DestinationClientDwhConfiguration
+from dlt.common.destination.exceptions import DatasetNotAvailable
 from dlt.common.exceptions import VenvNotFound
 from dlt.common.runners import Venv
 from dlt.common.schema import Schema
@@ -90,7 +92,10 @@ def package(
         if pipeline.default_schema_name
         else Schema(normalize_schema_name(pipeline.dataset_name or pipeline.pipeline_name))
     )
-    job_client = pipeline._sql_job_client(schema)
+    job_client = pipeline._get_destination_clients(schema)[0]
+    # check if config supports datasets
+    if not isinstance(job_client.config, DestinationClientDwhConfiguration):
+        raise DatasetNotAvailable(pipeline.destination.destination_description)
     if not venv:
         venv = Venv.restore_current()
     return _package_runner(

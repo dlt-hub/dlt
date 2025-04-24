@@ -1,3 +1,5 @@
+import base64
+import gzip
 from datetime import datetime, date  # noqa: I251
 from pendulum.tz import UTC
 from typing import (
@@ -202,8 +204,10 @@ def get_py_arrow_datatype(
     elif column_type == "binary":
         return pyarrow.binary(column.get("precision") or -1)
     elif column_type == "json":
-        # return pyarrow.struct([pyarrow.field('json', pyarrow.string())])
-        return pyarrow.string()
+        if (nested_type := column.get("x-nested-type")) and caps.supports_nested_types:
+            return deserialize_type(nested_type)  # type: ignore[arg-type]
+        else:
+            return pyarrow.string()
     elif column_type == "decimal":
         precision, scale = column.get("precision"), column.get("scale")
         if (precision is None) and (scale is None):
@@ -281,7 +285,9 @@ def get_pyarrow_int(precision: Optional[int]) -> Any:
     return pyarrow.int64()
 
 
-def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
+def get_column_type_from_py_arrow(
+    dtype: pyarrow.DataType, caps: DestinationCapabilitiesContext
+) -> TColumnType:
     """Returns (data_type, precision, scale) tuple from pyarrow.DataType"""
     if pyarrow.types.is_string(dtype) or pyarrow.types.is_large_string(dtype):
         return dict(data_type="text")
@@ -328,13 +334,33 @@ def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
     elif pyarrow.types.is_decimal(dtype):
         return dict(data_type="decimal", precision=dtype.precision, scale=dtype.scale)
     elif pyarrow.types.is_nested(dtype):
-        return dict(data_type="json")
+        dt = dict(data_type="json")
+        if caps.supports_nested_types:
+            dt["x-nested-type"] = serialize_type(dtype)
+        return dt  # type: ignore[return-value]
     elif pyarrow.types.is_dictionary(dtype):
         # Dictionary types are essentially categorical encodings. The underlying value_type
         # dictates the "logical" type. We simply delegate to the underlying value_type.
-        return get_column_type_from_py_arrow(dtype.value_type)
+        return get_column_type_from_py_arrow(dtype.value_type, caps)
     else:
         raise UnsupportedArrowTypeException(arrow_type=dtype)
+
+
+def serialize_type(dtype: pyarrow.DataType) -> str:
+    """Serializes arrow type via arrow ipc as base64 str"""
+    schema = pyarrow.schema([pyarrow.field("c", dtype)])
+    return "arrow-ipc:" + base64.b64encode(gzip.compress(schema.serialize().to_pybytes())).decode(
+        "ascii"
+    )
+
+
+def deserialize_type(type_str: str) -> pyarrow.DataType:
+    if type_str.startswith("arrow-ipc:"):
+        decompressed = gzip.decompress(base64.b64decode(type_str[10:]))
+        schema = pyarrow.ipc.read_schema(pyarrow.BufferReader(decompressed))
+        return schema.field(0).type
+    else:
+        raise TypeError("Cannot deserialize pyarrow type, only arrow-ipc is supported")
 
 
 def remove_null_columns(item: TAnyArrowItem) -> TAnyArrowItem:
@@ -535,7 +561,9 @@ def get_normalized_arrow_fields_mapping(schema: pyarrow.Schema, naming: NamingCo
     return name_mapping
 
 
-def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColumns:
+def py_arrow_to_table_schema_columns(
+    schema: pyarrow.Schema, caps: DestinationCapabilitiesContext
+) -> TTableSchemaColumns:
     """Convert a PyArrow schema to a table schema columns dict.
 
     Args:
@@ -547,9 +575,9 @@ def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColu
     result: TTableSchemaColumns = {}
     for field in schema:
         try:
-            converted_type = get_column_type_from_py_arrow(field.type)
+            converted_type = get_column_type_from_py_arrow(field.type, caps)
         except UnsupportedArrowTypeException as e:
-            # modify attributes inplace to add context instead of reraising with `raise e`
+            # modify attributes inplace to add context instead of re-raising with `raise e`
             e.field_name = field.name
             raise
 
@@ -575,13 +603,14 @@ def columns_to_arrow(
         pyarrow.Schema: pyarrow schema
 
     """
+    caps = caps or DestinationCapabilitiesContext.generic_capabilities()
     return pyarrow.schema(
         [
             pyarrow.field(
                 name,
                 get_py_arrow_datatype(
                     schema_item,
-                    caps or DestinationCapabilitiesContext.generic_capabilities(),
+                    caps,
                     timestamp_timezone,
                 ),
                 nullable=schema_item.get("nullable", True),

@@ -32,6 +32,7 @@ from dlt.common.configuration.specs import (
 )
 from dlt.common.destination.client import (
     DestinationClientDwhConfiguration,
+    HasFollowupJobs,
     JobClientBase,
     RunnableLoadJob,
     LoadJob,
@@ -45,15 +46,16 @@ from dlt.common.destination.exceptions import SqlClientNotAvailable
 from dlt.common.data_writers import DataWriter
 from dlt.common.pipeline import PipelineContext
 from dlt.common.schema import TTableSchemaColumns, Schema
-from dlt.common.schema.typing import TTableFormat
+from dlt.common.schema.typing import TTableFormat, TTableSchema
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
 from dlt.common.schema.utils import new_table, normalize_table_identifiers
 from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStorage
-from dlt.common.storages.load_package import create_load_id
+from dlt.common.storages.load_package import LoadJobInfo, create_load_id
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.exceptions import CantExtractTablePrefix
+from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
@@ -283,6 +285,7 @@ def destinations_configs(
     local_filesystem_configs: bool = False,
     all_buckets_filesystem_configs: bool = False,
     table_format_filesystem_configs: bool = False,
+    table_format_local_configs: bool = False,
     subset: Sequence[str] = (),
     bucket_subset: Sequence[str] = (),
     exclude: Sequence[str] = (),
@@ -292,9 +295,7 @@ def destinations_configs(
     supports_merge: Optional[bool] = None,
     supports_dbt: Optional[bool] = None,
 ) -> List[DestinationTestConfiguration]:
-    # sanity check
-    for item in subset:
-        assert item in IMPLEMENTED_DESTINATIONS, f"Destination {item} is not implemented"
+    input_args = locals()
 
     # import filesystem destination to use named version for minio
     from dlt.destinations import filesystem
@@ -609,12 +610,22 @@ def destinations_configs(
                 )
             ]
 
-    if table_format_filesystem_configs:
-        for bucket in DEFAULT_BUCKETS:
+    if table_format_filesystem_configs or table_format_local_configs:
+        if table_format_filesystem_configs:
+            table_buckets = set(DEFAULT_BUCKETS) - {SFTP_BUCKET, MEMORY_BUCKET}
+        else:
+            table_buckets = {FILE_BUCKET}
+
+        # NOTE: delta does not work on memory buckets
+        for bucket in table_buckets:
             destination_configs += [
                 DestinationTestConfiguration(
                     destination_type="filesystem",
-                    bucket_url=bucket,
+                    # so not set the bucket for GCS because we switch to s3 compat
+                    # note google s3 compat does not implement DeleteObjects so we cannot drop dataset at the end
+                    bucket_url=(
+                        GCS_BUCKET.replace("gs://", "s3://") if bucket == GCS_BUCKET else bucket
+                    ),
                     extra_info=bucket,
                     table_format="delta",
                     supports_merge=True,
@@ -628,6 +639,10 @@ def destinations_configs(
                         if bucket == AWS_BUCKET
                         else None
                     ),
+                    # in case of delta on gcs we use the s3 compat layer for reading
+                    # for writing we still need to use the gc authentication, as delta_rs seems to use
+                    # methods on the s3 interface that are not implemented by gcs
+                    destination_name="filesystem_s3_gcs_comp" if bucket == GCS_BUCKET else None,
                 )
             ]
             if bucket == AZ_BUCKET:
@@ -644,6 +659,15 @@ def destinations_configs(
                     destination_name="fsgcpoauth" if bucket == GCS_BUCKET else None,
                 )
             ]
+
+    try:
+        # register additional destinations from _addons.py which must be placed in the same folder
+        # as tests
+        from _addons import destinations_configs  # type: ignore[import-not-found]
+
+        destination_configs += destinations_configs(**input_args)
+    except ImportError:
+        pass
 
     # filter out non active destinations
     destination_configs = [
@@ -710,18 +734,6 @@ def destinations_configs(
         conf for conf in destination_configs if conf.name not in EXCLUDED_DESTINATION_CONFIGURATIONS
     ]
 
-    # add marks
-    destination_configs = [
-        # TODO: fix this, probably via pytest plugin that processes parametrize params
-        cast(
-            DestinationTestConfiguration,
-            pytest.param(
-                conf,
-                marks=pytest.mark.needspyarrow17 if conf.table_format == "delta" else [],
-            ),
-        )
-        for conf in destination_configs
-    ]
     return destination_configs
 
 
@@ -757,7 +769,6 @@ def drop_pipeline_data(p: dlt.Pipeline) -> None:
                     except Exception as exc:
                         print(exc)
 
-    # drop_func = _drop_dataset_fs if _is_filesystem(p) else _drop_dataset_sql
     # take all schemas and if destination was set
     if p.destination:
         if p.config.use_single_dataset:
@@ -814,26 +825,58 @@ def expect_load_file(
     status="completed",
     file_format: TLoaderFileFormat = None,
 ) -> LoadJob:
+    # recover spec used to write file
+    spec = DataWriter.writer_spec_from_file_format(
+        file_format or client.capabilities.preferred_loader_file_format, "object"
+    )
     file_name = ParsedLoadJobFileName(
         table_name,
         ParsedLoadJobFileName.new_file_id(),
         0,
-        file_format or client.capabilities.preferred_loader_file_format,
+        spec.file_format,
     ).file_name()
+    full_path = file_storage.make_full_path(file_name)
     if isinstance(query, str):
         query = query.encode("utf-8")  # type: ignore[assignment]
     file_storage.save(file_name, query)
     table = client.prepare_load_table(table_name)
     load_id = create_load_id()
-    job = client.create_load_job(table, file_storage.make_full_path(file_name), load_id)
 
-    if isinstance(job, RunnableLoadJob):
-        job.set_run_vars(load_id=load_id, schema=client.schema, load_table=table)
-        job.run_managed(client)
-    while job.state() == "running":
-        sleep(0.5)
-    assert job.file_name() == file_name
-    assert job.state() == status, f"Got {job.state()} with ({job.exception()})"
+    def _run_job(file_name_: str) -> LoadJob:
+        job = client.create_load_job(table, file_storage.make_full_path(file_name_), load_id)
+
+        if isinstance(job, RunnableLoadJob):
+            job.set_run_vars(load_id=load_id, schema=client.schema, load_table=table)
+            job.run_managed(client)
+        while job.state() == "running":
+            sleep(0.5)
+
+        # assert job.file_name() == file_name_
+        assert job.state() == status, f"Got {job.state()} with ({job.exception()})"
+
+        return job
+
+    if isinstance(client, WithStagingDataset) and client.should_load_data_to_staging_dataset(
+        table_name
+    ):
+        # load to staging dataset on merge
+        with client.with_staging_dataset():
+            job = _run_job(file_name)
+    else:
+        job = _run_job(file_name)
+    # execute table chain job
+    if chain_jobs := client.create_table_chain_completed_followup_jobs(
+        [table], [LoadJobInfo("completed_jobs", full_path, 0, 0, 0, job.job_file_info(), "")]  # type: ignore[arg-type]
+    ):
+        assert len(chain_jobs) == 1, "can't execute more than 1 chain job in this test"
+
+        _run_job(chain_jobs[0].new_file_path())
+
+    if isinstance(job, HasFollowupJobs):
+        if chain_jobs := job.create_followup_jobs("completed"):
+            assert len(chain_jobs) == 1, "can't execute more than 1 chain job in this test"
+            _run_job(chain_jobs[0].new_file_path())
+
     return job
 
 
@@ -914,6 +957,9 @@ def yield_client(
         )
     ):
         with destination.client(schema, dest_config) as client:  # type: ignore[assignment]
+            # open table scanners automatically, context manager above does not do that
+            if issubclass(client.sql_client_class, WithTableScanners):
+                client.sql_client.open_connection()
             yield client
 
 
@@ -939,11 +985,17 @@ def yield_client_with_storage(
         client.initialize_storage()
         yield client
         if client.is_storage_initialized():
-            client.sql_client.drop_dataset()
+            try:
+                client.drop_storage()
+            except Exception as exc:
+                print(f"drop dataset {dataset_name}: {exc}")
         if isinstance(client, WithStagingDataset):
             with client.with_staging_dataset():
                 if client.is_storage_initialized():
-                    client.sql_client.drop_dataset()
+                    try:
+                        client.drop_storage()
+                    except Exception as exc:
+                        print(f"drop dataset {dataset_name} STAGING: {exc}")
 
 
 def delete_dataset(client: SqlClientBase[Any], normalized_dataset_name: str) -> None:
@@ -967,7 +1019,7 @@ def write_dataset(
     client: JobClientBase,
     f: IO[bytes],
     rows: Union[List[Dict[str, Any]], List[StrAny]],
-    columns_schema: TTableSchemaColumns,
+    table_schema: TTableSchema,
     file_format: TLoaderFileFormat = None,
 ) -> None:
     spec = DataWriter.writer_spec_from_file_format(
@@ -980,7 +1032,8 @@ def write_dataset(
     # remove None values
     for idx, row in enumerate(rows):
         rows[idx] = {k: v for k, v in row.items() if v is not None}
-    writer.write_all(columns_schema, rows)
+    table_schema["x-normalizer"] = {"seen-data": True}
+    writer.write_all(table_schema["columns"], rows)
     writer.close()
 
 
@@ -1053,3 +1106,24 @@ def normalize_storage_table_cols(
         new_table(table_name, columns=cols.values()), schema.naming  # type: ignore[arg-type]
     )
     return storage_table["columns"]
+
+
+def count_job_types(p: dlt.Pipeline) -> Dict[str, Dict[str, Any]]:
+    """
+    gets a list of loaded jobs by type for each table
+    this is useful for testing to check that the correct transformations were used
+    """
+
+    jobs = p.last_trace.last_load_info.load_packages[0].jobs["completed_jobs"]
+    tables: Dict[str, Dict[str, Any]] = {}
+
+    for j in jobs:
+        file_format = j.job_file_info.file_format
+        table_name = j.job_file_info.table_name
+        if table_name.startswith("_dlt"):
+            continue
+        tables.setdefault(table_name, {})[file_format] = (
+            tables.get(table_name, {}).get(file_format, 0) + 1
+        )
+
+    return tables

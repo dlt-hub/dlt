@@ -129,7 +129,7 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         # https://www.postgresql.org/docs/current/limits.html
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "insert_values"
-        caps.supported_loader_file_formats = ["insert_values", "csv"]
+        caps.supported_loader_file_formats = ["insert_values", "csv", "model"]
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []
         caps.type_mapper = PostgresTypeMapper

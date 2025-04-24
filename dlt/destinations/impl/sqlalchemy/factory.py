@@ -45,7 +45,7 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         # https://www.sqlalchemyql.org/docs/current/limits.html
         caps = DestinationCapabilitiesContext.generic_capabilities()
         caps.preferred_loader_file_format = "typed-jsonl"
-        caps.supported_loader_file_formats = ["typed-jsonl", "parquet"]
+        caps.supported_loader_file_formats = ["typed-jsonl", "parquet", "model"]
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []
         caps.has_case_sensitive_identifiers = True

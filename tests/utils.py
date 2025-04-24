@@ -75,6 +75,16 @@ NON_SQL_DESTINATIONS = {
     "lancedb",
     "destination",
 }
+
+try:
+    # register additional destinations from _addons.py which must be placed in the same folder
+    # as tests
+    from _addons import register_destinations  # type: ignore[import-not-found]
+
+    register_destinations(IMPLEMENTED_DESTINATIONS, NON_SQL_DESTINATIONS)
+except ImportError:
+    pass
+
 SQL_DESTINATIONS = IMPLEMENTED_DESTINATIONS - NON_SQL_DESTINATIONS
 
 # exclude destination configs (for now used for athena and athena iceberg separation)

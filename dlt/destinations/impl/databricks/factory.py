@@ -108,7 +108,7 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "parquet"
-        caps.supported_loader_file_formats = ["jsonl", "parquet"]
+        caps.supported_loader_file_formats = ["jsonl", "parquet", "model"]
         caps.preferred_staging_file_format = "parquet"
         caps.supported_staging_file_formats = ["jsonl", "parquet"]
         caps.supported_table_formats = ["delta"]

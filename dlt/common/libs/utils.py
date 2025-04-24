@@ -10,16 +10,19 @@ def load_open_tables(
     table_format: TTableFormat,
     *tables: str,
     schema_name: Optional[str] = None,
+    include_dlt_tables: bool = False,
 ) -> Dict[str, Any]:
     with pipeline.destination_client(schema_name=schema_name) as client:
         assert isinstance(
             client, SupportsOpenTables
         ), "This requires destination that supports open tables via SupportsOpenTables interface."
 
+        all_tables = (
+            client.schema.tables.values() if include_dlt_tables else client.schema.data_tables()
+        )
+
         schema_open_tables = [
-            t["name"]
-            for t in client.schema.tables.values()
-            if client.is_open_table(table_format, t["name"])
+            t["name"] for t in all_tables if client.is_open_table(table_format, t["name"])
         ]
         if len(tables) > 0:
             invalid_tables = set(tables) - set(schema_open_tables)

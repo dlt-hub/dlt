@@ -659,8 +659,16 @@ class SupportsOpenTables(ABC):
     def load_open_table(self, table_format: TTableFormat, table_name: str, **kwargs: Any) -> Any:
         """Loads table `table_name` metadata via catalog or directly and returns populated and authenticated
         table client. Currently pyiceberg Table or DeltaTable is returned.
+        * table must be present in schema of job client
+        * table must physically exist in storage
+        * table may be present in associated catalog and may be automatically registered if destination configuration allows for that
+        * otherwise table is not found
+
+        raised DestinationUndefinedEntity if table not found
         """
 
     @abstractmethod
     def is_open_table(self, table_format: TTableFormat, table_name: str) -> bool:
-        """Checks if `table_name` is stored with open table format `table_format`"""
+        """Checks if `table_name` is stored with open table format `table_format`. Does not load table. Does not check if
+        table exists
+        """

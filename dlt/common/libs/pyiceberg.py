@@ -5,6 +5,7 @@ from fsspec import AbstractFileSystem
 
 from dlt import version
 from dlt.common import logger
+from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.time import precise_time
 from dlt.common.libs.pyarrow import cast_arrow_schema_types
 from dlt.common.libs.utils import load_open_tables
@@ -34,7 +35,7 @@ except ModuleNotFoundError:
 
 def ensure_iceberg_compatible_arrow_schema(schema: pa.Schema) -> pa.Schema:
     ARROW_TO_ICEBERG_COMPATIBLE_ARROW_TYPE_MAP = {
-        pa.types.is_time: pa.string(),
+        pa.types.is_time32: pa.time64("us"),
         pa.types.is_decimal256: pa.string(),  # pyarrow does not allow downcasting to decimal128
         pa.types.is_dictionary: lambda t_: t_.value_type,
     }
@@ -90,47 +91,70 @@ def get_sql_catalog(
 #     """Converts local absolute paths into file urls."""
 
 
-def create_or_evolve_table(
+def evolve_table(
     catalog: IcebergCatalog,
     client: FilesystemClient,
     table_id: str,
     table_location: str,
     schema: Optional[pa.Schema] = None,
-    partition_columns: Optional[List[str]] = None,
 ) -> IcebergTable:
-    # add table to catalog
-    metadata_path = f"{table_location}/metadata"
-    if client.fs_client.exists(metadata_path):
-        # found metadata; register existing table
-        table = register_table(table_id, metadata_path, catalog, client.fs_client, client.config)
-
-        # evolve schema
-        if schema is not None:
-            with table.update_schema() as update:
-                update.union_by_name(ensure_iceberg_compatible_arrow_schema(schema))
-    else:
-        # found no metadata; create new table
-        if schema is None:
-            raise NoSuchTableError(table_id)
-
-        with catalog.create_table_transaction(
-            table_id,
-            schema=ensure_iceberg_compatible_arrow_schema(schema),
-            location=table_location,
-        ) as txn:
-            # add partitioning
-            with txn.update_spec() as update_spec:
-                for col in partition_columns:
-                    update_spec.add_identity(col)
+    try:
         table = catalog.load_table(table_id)
+    except NoSuchTableError:
+        # add table to catalog
+        metadata_path = f"{table_location}/metadata"
+        if client.fs_client.exists(metadata_path):
+            # found metadata; register existing table
+            table = register_table(
+                table_id, metadata_path, catalog, client.fs_client, client.config
+            )
+        else:
+            raise
+
+    # evolve schema
+    if schema is not None:
+        with table.update_schema() as update:
+            update.union_by_name(ensure_iceberg_compatible_arrow_schema(schema))
 
     return table
 
 
+def create_table(
+    catalog: IcebergCatalog,
+    table_id: str,
+    table_location: str,
+    schema: pa.Schema,
+    partition_columns: Optional[List[str]] = None,
+) -> None:
+    # found no metadata; create new table
+
+    with catalog.create_table_transaction(
+        table_id,
+        schema=ensure_iceberg_compatible_arrow_schema(schema),
+        location=table_location,
+    ) as txn:
+        # add partitioning
+        with txn.update_spec() as update_spec:
+            for col in partition_columns:
+                update_spec.add_identity(col)
+
+
 def get_iceberg_tables(
-    pipeline: SupportsPipeline, *tables: str, schema_name: Optional[str] = None
+    pipeline: SupportsPipeline,
+    *tables: str,
+    schema_name: Optional[str] = None,
+    include_dlt_tables: bool = False,
 ) -> Dict[str, IcebergTable]:
-    return load_open_tables(pipeline, "iceberg", *tables, schema_name=schema_name)
+    """Returns Iceberg tables in `pipeline.default_schema (default)` or `schema_name` as `pyiceberg.Table` objects.
+
+    Returned object is a dictionary with table names as keys and `Tables` objects as values.
+    Optionally filters dictionary by table names specified as `*tables*`.
+    Raises ValueError if table name specified as `*tables` is not found. You may try to switch to other
+    schemas via `schema_name` argument.
+    """
+    return load_open_tables(
+        pipeline, "iceberg", *tables, schema_name=schema_name, include_dlt_tables=include_dlt_tables
+    )
 
 
 def _get_fileio_config(credentials: CredentialsConfiguration) -> Dict[str, Any]:
@@ -143,7 +167,12 @@ def get_last_metadata_file(
     metadata_path: str, fs_client: AbstractFileSystem, config: FilesystemConfiguration
 ) -> str:
     # TODO: implement faster way to obtain `last_metadata_file` (listing is slow)
-    metadata_files = [f for f in fs_client.ls(metadata_path) if f.endswith(".json")]
+    try:
+        metadata_files = [f for f in fs_client.ls(metadata_path) if f.endswith(".json")]
+    except FileNotFoundError:
+        raise DestinationUndefinedEntity(FileNotFoundError(metadata_path))
+    if len(metadata_files) == 0:
+        raise DestinationUndefinedEntity(FileNotFoundError(metadata_path))
     return make_location(sorted(metadata_files)[-1], config)
 
 

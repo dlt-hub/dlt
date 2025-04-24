@@ -9,3 +9,13 @@ class InvalidInMemoryDuckdbCredentials(DestinationTerminalException):
             '\nconn = duckdb.connect(":memory:")\n'
             'dlt.pipeline(pipeline_name="...", destination=dlt.destinations.duckdb(conn)'
         )
+
+
+class IcebergViewException(DestinationTerminalException):
+    def __init__(self, dbapi_exception: Exception, note: str) -> None:
+        self.note = note
+        super().__init__(dbapi_exception)
+
+    def __str__(self) -> str:
+        msg = super().__str__()
+        return f"{self.note}\n{msg}"

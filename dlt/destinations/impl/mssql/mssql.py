@@ -72,8 +72,8 @@ class MsSqlMergeJob(SqlMergeFollowupJob):
         return f"SELECT * INTO {temp_table_name} FROM ({select_sql}) as t;"
 
     @classmethod
-    def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
-        return SqlMergeFollowupJob._new_temp_table_name("#" + name_prefix, sql_client)
+    def _new_temp_table_name(cls, table_name: str, op: str, sql_client: SqlClientBase[Any]) -> str:
+        return SqlMergeFollowupJob._new_temp_table_name("#" + table_name, op, sql_client)
 
 
 class MsSqlJobClient(InsertValuesJobClient):

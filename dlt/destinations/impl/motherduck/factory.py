@@ -24,7 +24,7 @@ class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"])
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "parquet"
-        caps.supported_loader_file_formats = ["parquet", "insert_values", "jsonl"]
+        caps.supported_loader_file_formats = ["parquet", "insert_values", "jsonl", "model"]
         caps.type_mapper = DuckDbTypeMapper
         caps.escape_identifier = escape_postgres_identifier
         # all identifiers are case insensitive but are stored as is

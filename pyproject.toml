@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "1.9.1a0"
+version = "1.10.0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Anton Burnashev <anton@dlthub.com>", "David Scharf <david@dlthub.com>" ]
@@ -233,12 +233,11 @@ optional = true
 [tool.poetry.group.airflow.dependencies]
 apache-airflow = {version = "^2.8.0", markers = "python_version < '3.12'"}
 
-# TODO: restore when ibis allows pyarrow 18
-# [tool.poetry.group.ibis]
-#optional = true
+[tool.poetry.group.ibis]
+optional = true
 
-#[tool.poetry.group.ibis.dependencies]
-# ibis-framework = { version = ">=9.0.0,<10.0.0", markers = "python_version >= '3.10'", extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse"]}
+[tool.poetry.group.ibis.dependencies]
+ibis-framework = { version = ">=10.3.0", markers = "python_version >= '3.10'", extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse", "databricks"]}
 
 [tool.poetry.group.providers]
 optional = true
