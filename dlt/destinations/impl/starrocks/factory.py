@@ -1,4 +1,5 @@
 from typing import Type, Union, Dict, Optional, Any
+from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.destinations.impl.starrocks.configuration import (
     StarrocksClientConfiguration,
     StarrocksCredentials
@@ -9,8 +10,10 @@ from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.destinations.impl.sqlalchemy.factory import sqlalchemy
 from dlt.common.schema.typing import TColumnSchema
 from dlt.common.destination.typing import PreparedTableSchema
+import sqlalchemy as sa
 from sqlalchemy.sql import sqltypes
-from sqlalchemy.types import VARCHAR, BIGINT, DATETIME, DOUBLE, BOOLEAN, BINARY, JSON, DECIMAL, DATE, DATETIME
+from sqlalchemy.types import VARCHAR, BIGINT, DATETIME, DOUBLE, BOOLEAN, BINARY, JSON, DATE, DATETIME
+from starrocks.datatype import DECIMAL
 
 class StarrocksTypeMapper(TypeMapperImpl):
     sct_to_unbound_dbt = {
@@ -28,6 +31,7 @@ class StarrocksTypeMapper(TypeMapperImpl):
 
     sct_to_dbt = {
         "text": "VARCHAR(%i)",
+        "decimal": "DECIMAL(%i,%i)"
     }
 
     dbt_to_sct = {
@@ -38,6 +42,11 @@ class StarrocksTypeMapper(TypeMapperImpl):
     ) -> sqltypes.TypeEngine:
         return super().to_destination_type(column, table)
 
+    def to_db_decimal_type(self, column: TColumnSchema) -> sa.types.TypeEngine:
+        precision, scale = column.get("precision"), column.get("scale")
+        if precision is None and scale is None:
+            precision, scale = self.capabilities.decimal_precision
+        return DECIMAL(precision, scale)
     
 
 class starrocks(sqlalchemy):
@@ -72,6 +81,7 @@ class starrocks(sqlalchemy):
         caps.supported_staging_file_formats = ["parquet"]
         caps.sqlglog_dialect = "starrocks"
         caps.naming_convention = "dlt.destinations.impl.starrocks.naming"
+        caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
         caps.type_mapper = StarrocksTypeMapper
 
         return caps
