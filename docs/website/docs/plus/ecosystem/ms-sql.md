@@ -99,7 +99,7 @@ pipeline = dlt.pipeline(
 pipeline.run(initial_resource)
 ```
 
-By default, the _DLT_DELETED or the _DLT_SYS_CHANGE_VERSION columns are only created by the incremental change tracking resource when there are changes. If you want these to be created during the initial load, you can configure this with `apply_hints` as follows:
+By default, the `_DLT_DELETED` or the `_DLT_SYS_CHANGE_VERSION` columns are only created by the incremental change tracking resource when there are changes. If you want these to be created during the initial load, you can configure this with `apply_hints` before running the pipeline as follows:
 
 ```py
 initial_resource.apply_hints(
