@@ -65,7 +65,8 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
         destination.capabilities(),
     )
 
-    # TODO: investigate if we can fix this
+    # TODO: investigate if we can fix this, this is a side effect of going via duckdb dialect
+    # in snowflake bigint is the same as decimal(19,0)
     id_result_type = "bigint" if ("snowflake" not in destination_config.name) else "decimal"
 
     # test star select

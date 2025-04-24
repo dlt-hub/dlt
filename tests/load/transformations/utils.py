@@ -18,6 +18,8 @@ from tests.load.utils import (
 # helpers
 def row_counts(dataset: SupportsReadableDataset[Any], tables: list[str] = None) -> dict[str, int]:
     counts = dataset.row_counts(table_names=tables).arrow().to_pydict()
+    # make all keys lowercase for snowflake
+    counts = {k.lower(): v for k, v in counts.items()}
     return {t: c for t, c in zip(counts["table_name"], counts["row_count"])}
 
 
@@ -58,8 +60,8 @@ def transformation_configs(only_duckdb: bool = False):
             (  # NOTE: duckdb parquet does not need to be tested explicitely if we have the regular
                 "duckdb-parquet-no-staging"
             ),
-            "synapse",  # should probably work? no model file support at the moment
-            "dremio",  # should probably work? no model file support at the moment
+            "synapse",  # should probably work? no model file support at the moment. revisit soon :)
+            "dremio",  # should probably work? no model file support at the moment. different type of sql client
         ],
         bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
         subset=(

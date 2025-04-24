@@ -58,7 +58,6 @@ def test_simple_query_transformations(
         ]
 
 
-
 # NOTE: move to duckdb only transformation tests
 @pytest.mark.essential
 @pytest.mark.parametrize(
