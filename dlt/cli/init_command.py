@@ -738,12 +738,14 @@ def init_pipeline_at_destination(
         ):
             dest_storage.save(pipeline_script_target_path, dest_script_source)
 
-        # generate tomls with comments
+        # generate secret toml with comments
         secrets_prov = SecretsTomlProvider(settings_dir)
         write_values(secrets_prov._config_toml, required_secrets.values(), overwrite_existing=False)
 
+        # generate config.toml with runtime settings (log_level and dlthub_telemetry)
         config_prov = ConfigTomlProvider(settings_dir)
-        write_values(config_prov._config_toml, required_config.values(), overwrite_existing=False)
+        runtime_configs = {k: v for k, v in required_config.items() if k.startswith("runtime")}
+        write_values(config_prov._config_toml, runtime_configs.values(), overwrite_existing=False)
 
         # write toml files
         secrets_prov.write_toml()
