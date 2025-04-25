@@ -98,6 +98,7 @@ class RangePaginator(BasePaginator):
         total_path: Optional[jsonpath.TJsonPath] = None,
         error_message_items: str = "items",
         stop_after_empty_page: Optional[bool] = True,
+        via_json_body: bool = False,
     ):
         """
         Args:
@@ -119,7 +120,9 @@ class RangePaginator(BasePaginator):
             error_message_items (str): The name of the items in the error message.
                 Defaults to 'items'.
             stop_after_empty_page (bool): Whether pagination should stop when
-              a page contains no result items. Defaults to `True`.
+                a page contains no result items. Defaults to `True`.
+            via_json_body (bool): Whether to pass the pagination parameter in the
+                JSON body. Defaults to `False`.
         """
         super().__init__()
         if total_path is None and maximum_value is None and not stop_after_empty_page:
@@ -136,6 +139,7 @@ class RangePaginator(BasePaginator):
         self.total_path = jsonpath.compile_path(total_path) if total_path else None
         self.error_message_items = error_message_items
         self.stop_after_empty_page = stop_after_empty_page
+        self.via_json_body = via_json_body
 
     def init_request(self, request: Request) -> None:
         self._has_next_page = True
@@ -183,9 +187,14 @@ class RangePaginator(BasePaginator):
         )
 
     def update_request(self, request: Request) -> None:
-        if request.params is None:
-            request.params = {}
-        request.params[self.param_name] = self.current_value
+        if self.via_json_body:
+            if request.json is None:
+                request.json = {}
+            request.json[self.param_name] = self.current_value
+        else:
+            if request.params is None:
+                request.params = {}
+            request.params[self.param_name] = self.current_value
 
 
 class PageNumberPaginator(RangePaginator):
@@ -244,6 +253,7 @@ class PageNumberPaginator(RangePaginator):
         total_path: Optional[jsonpath.TJsonPath] = "total",
         maximum_page: Optional[int] = None,
         stop_after_empty_page: Optional[bool] = True,
+        via_json_body: bool = False,
     ):
         """
         Args:
@@ -262,7 +272,9 @@ class PageNumberPaginator(RangePaginator):
                 data is available. This allows you to limit the maximum number
                 of pages for pagination. Defaults to None.
             stop_after_empty_page (bool): Whether pagination should stop when
-              a page contains no result items. Defaults to `True`.
+                a page contains no result items. Defaults to `True`.
+            via_json_body (bool): Whether to pass the pagination parameter in the
+                JSON body. Defaults to `False`.
         """
         if total_path is None and maximum_page is None and not stop_after_empty_page:
             raise ValueError(
@@ -280,6 +292,7 @@ class PageNumberPaginator(RangePaginator):
             maximum_value=maximum_page,
             error_message_items="pages",
             stop_after_empty_page=stop_after_empty_page,
+            via_json_body=via_json_body,
         )
 
     def __str__(self) -> str:
@@ -351,6 +364,7 @@ class OffsetPaginator(RangePaginator):
         total_path: Optional[jsonpath.TJsonPath] = "total",
         maximum_offset: Optional[int] = None,
         stop_after_empty_page: Optional[bool] = True,
+        via_json_body: bool = False,
     ) -> None:
         """
         Args:
@@ -369,7 +383,9 @@ class OffsetPaginator(RangePaginator):
                 even if more data is available. This allows you to limit the
                 maximum range for pagination. Defaults to None.
             stop_after_empty_page (bool): Whether pagination should stop when
-              a page contains no result items. Defaults to `True`.
+                a page contains no result items. Defaults to `True`.
+            via_json_body (bool): Whether to pass the pagination parameter in the
+                JSON body. Defaults to `False`.
         """
         if total_path is None and maximum_offset is None and not stop_after_empty_page:
             raise ValueError(
@@ -383,13 +399,17 @@ class OffsetPaginator(RangePaginator):
             value_step=limit,
             maximum_value=maximum_offset,
             stop_after_empty_page=stop_after_empty_page,
+            via_json_body=via_json_body,
         )
         self.limit_param = limit_param
         self.limit = limit
 
     def update_request(self, request: Request) -> None:
         super().update_request(request)
-        request.params[self.limit_param] = self.limit
+        if self.via_json_body:
+            request.json[self.limit_param] = self.limit
+        else:
+            request.params[self.limit_param] = self.limit
 
     def __str__(self) -> str:
         return (
