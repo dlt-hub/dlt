@@ -140,10 +140,7 @@ class RangePaginator(BasePaginator):
     def init_request(self, request: Request) -> None:
         self._has_next_page = True
         self.current_value = self.initial_value
-        if request.params is None:
-            request.params = {}
-
-        request.params[self.param_name] = self.current_value
+        self.update_request(request)
 
     def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
         if self._stop_after_this_page(data):
@@ -389,10 +386,6 @@ class OffsetPaginator(RangePaginator):
         )
         self.limit_param = limit_param
         self.limit = limit
-
-    def init_request(self, request: Request) -> None:
-        super().init_request(request)
-        request.params[self.limit_param] = self.limit
 
     def update_request(self, request: Request) -> None:
         super().update_request(request)
