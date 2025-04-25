@@ -202,23 +202,14 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
                 " using a SELECT statement."
             )
 
-        # Casefold column names according to destination and wrap them in aliases
+        # Get identifiers for the columns in the INSERT statement
+        # Normalizer aliased all selections, unless it was a star
         columns = []
-        for i, expr in enumerate(top_level_select.expressions):
-            if isinstance(expr, sqlglot.exp.Column):
-                original_name = expr.name
-                alias_name = self._job_client.capabilities.casefold_identifier(original_name)
-                alias = sqlglot.exp.Alias(
-                    this=expr.copy(),
-                    alias=sqlglot.exp.to_identifier(alias_name),
-                )
-                top_level_select.expressions[i] = alias
-                columns.append(sqlglot.exp.to_identifier(alias_name))
-            elif isinstance(expr, sqlglot.exp.Alias):
-                alias_name = expr.alias
-                casefolded_alias = self._job_client.capabilities.casefold_identifier(alias_name)
-                expr.set("alias", casefolded_alias)
-                columns.append(sqlglot.exp.to_identifier(casefolded_alias))
+        for _, expr in enumerate(top_level_select.expressions):
+            if isinstance(expr, sqlglot.exp.Star):
+                break
+            alias_name = expr.alias
+            columns.append(sqlglot.exp.to_identifier(alias_name))
 
         # Build final INSERT
         query = sqlglot.expressions.insert(
