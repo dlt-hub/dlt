@@ -7,7 +7,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 
 `dlt` automatically extracts configuration settings and secrets based on flexible [naming conventions](#naming-convention).
 
-It then [injects](advanced/#injection-mechanism) these values where needed in functions decorated with `@dlt.source`, `@dlt.resource`, or `@dlt.destination`.
+It then [injects](../advanced/#injection-mechanism) these values where needed in functions decorated with `@dlt.source`, `@dlt.resource`, or `@dlt.destination`.
 
 :::note
 * **Configuration** refers to non-sensitive settings that define a data pipeline's behavior. These include file paths, database hosts, timeouts, API URLs, and performance settings.
