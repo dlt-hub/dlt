@@ -641,15 +641,18 @@ def add_constant_column(
         nullable: Whether the new column is nullable
         value: The value to fill the new column with
         index: The index at which to insert the new column. Defaults to -1 (append)
+    Note:
+        This function creates a dictionary field for the new column, which is memory-efficient
+        when the column contains a single repeated value.
+        The column is created as a DictionaryArray with int8 indices.
     """
-    try:
-        from dlt.common.libs.numpy import numpy as np
-    except MissingDependencyException:
-        raise MissingDependencyException(
-            "dlt pyarrow helpers", ["numpy"], "Numpy is required for this pyarrow operation"
-        )
     dictionary = pyarrow.array([value], type=data_type)
-    indices = pyarrow.array(np.zeros(item.num_rows, dtype="int8"))
+    zero_buffer = pyarrow.py_buffer(b"\x00" * item.num_rows)
+    indices = pyarrow.Array.from_buffers(
+        pyarrow.int8(),
+        item.num_rows,
+        [None, zero_buffer],  # None validity bitmap means arrow assumes all entries are valid
+    )
     dict_array = pyarrow.DictionaryArray.from_arrays(indices, dictionary)
 
     field = pyarrow.field(name, dict_array.type, nullable=nullable)
