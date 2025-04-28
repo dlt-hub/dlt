@@ -577,14 +577,6 @@ def destinations_configs(
             DestinationTestConfiguration(
                 destination_type="filesystem",
                 bucket_url=FILE_BUCKET,
-                file_format="insert_values",
-                supports_merge=False,
-            )
-        ]
-        destination_configs += [
-            DestinationTestConfiguration(
-                destination_type="filesystem",
-                bucket_url=FILE_BUCKET,
                 file_format="parquet",
                 supports_merge=False,
             )
@@ -606,7 +598,7 @@ def destinations_configs(
                     bucket_url=bucket,
                     extra_info=bucket,
                     supports_merge=False,
-                    file_format="parquet",
+                    file_format="parquet",  # keep parquet as default, test utils are setup for this
                 )
             ]
 

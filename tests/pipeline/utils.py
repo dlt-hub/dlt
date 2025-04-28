@@ -3,6 +3,7 @@ import pytest
 import random
 from os import environ
 import io
+import os
 
 import dlt
 from dlt.common import json, sleep
@@ -120,144 +121,59 @@ def _is_filesystem(p: dlt.Pipeline) -> bool:
     return p.destination.destination_name == "filesystem"
 
 
-def _load_file(client: FSClientBase, filepath) -> List[Dict[str, Any]]:
+def _is_sftp(p: dlt.Pipeline) -> bool:
+    if not p.destination:
+        return False
+    return (
+        p.destination.destination_name == "filesystem"
+        and p.destination_client().config.protocol == "sftp"  # type: ignore[attr-defined]
+    )
+
+
+def _load_jsonl_file(client: FSClientBase, filepath) -> List[Dict[str, Any]]:
     """
-    util function to load a filesystem destination file and return parsed content
-    values may not be cast to the right type, especially for insert_values, please
-    make sure to do conversions and casting if needed in your tests
+    load jsonl files into items list
     """
-    result: List[Dict[str, Any]] = []
 
     # check if this is a file we want to read
-    file_name_items = filepath.split(".")
-    ext = file_name_items[-1]
-    if ext not in ["jsonl", "insert_values", "parquet", "csv"]:
+    if os.path.splitext(filepath)[1] not in [".jsonl"]:
         return []
 
-    # load jsonl
-    if ext == "jsonl":
-        file_text = client.read_text(filepath)
-        for line in file_text.split("\n"):
-            if line:
-                result.append(json.loads(line))
-
-    # load insert_values (this is a bit volatile if the exact format of the source file changes)
-    elif ext == "insert_values":
-        file_text = client.read_text(filepath)
-        lines = file_text.split("\n")
-        cols = lines[0][15:-2].split(",")
-        for line in lines[2:]:
-            if line:
-                values = map(auto_cast, line[1:-3].split(","))
-                result.append(dict(zip(cols, values)))
-
-    # load parquet
-    elif ext == "parquet":
-        import pyarrow.parquet as pq
-
-        file_bytes = client.read_bytes(filepath)
-        table = pq.read_table(io.BytesIO(file_bytes))
-        cols = table.column_names
-        count = 0
-        for column in table:
-            column_name = cols[count]
-            item_count = 0
-            for item in column.to_pylist():
-                if len(result) <= item_count:
-                    result.append({column_name: item})
-                else:
-                    result[item_count][column_name] = item
-                item_count += 1
-            count += 1
-    elif ext == "csv":
-        import csv
-
-        file_text = client.read_text(filepath)
-        csv_reader = csv.reader(io.StringIO(file_text))
-
-        # first row contains headers
-        # NOTE: we support default dlt dialect for csv
-        headers = next(csv_reader, [])
-
-        for row in csv_reader:
-            if row:  # skip empty rows
-                # convert values using auto_cast to handle types appropriately
-                values = map(auto_cast, row)
-                result.append(dict(zip(headers, values)))
-
+    # load jsonl into list
+    result: List[Dict[str, Any]] = []
+    for line in client.read_text(filepath).split("\n"):
+        if line:
+            result.append(json.loads(line))
     return result
 
 
 #
 # Load table dicts
 #
-
-
 def _load_tables_to_dicts_fs(
     p: dlt.Pipeline, *table_names: str, schema_name: str = None
 ) -> Dict[str, List[Dict[str, Any]]]:
-    """For now this will expect the standard layout in the filesystem destination, if changed the results will not be correct"""
+    """Load all files from fs client, only needed for sftp destinations"""
     client = p._fs_client(schema_name=schema_name)
-    assert isinstance(client, FilesystemClient)
-
-    result: Dict[str, Any] = {}
-
-    delta_table_names = [
-        table_name
-        for table_name in table_names
-        if get_table_format(client.schema.tables, table_name) == "delta"
-    ]
-    if len(delta_table_names) > 0:
-        from dlt.common.libs.deltalake import get_delta_tables
-
-        delta_tables = get_delta_tables(p, *table_names, schema_name=schema_name)
-
-    iceberg_table_names = [
-        table_name
-        for table_name in table_names
-        if get_table_format(client.schema.tables, table_name) == "iceberg"
-    ]
-    if len(iceberg_table_names) > 0:
-        from dlt.common.libs.pyiceberg import get_iceberg_tables
-
-        iceberg_tables = get_iceberg_tables(p, *table_names, schema_name=schema_name)
+    result: Dict[str, List[Dict[str, Any]]] = {}
 
     for table_name in table_names:
-        if table_name in client.schema.data_table_names() and table_name in delta_table_names:
-            dt = delta_tables[table_name]
-            result[table_name] = dt.to_pyarrow_table().to_pylist()
-        elif table_name in client.schema.data_table_names() and table_name in iceberg_table_names:
-            it = iceberg_tables[table_name]
-            result[table_name] = it.scan().to_arrow().to_pylist()
-        else:
-            table_files = client.list_table_files(table_name)
-            for file in table_files:
-                items = _load_file(client, file)
-                if table_name in result:
-                    result[table_name] = result[table_name] + items
-                else:
-                    result[table_name] = items
+        for file in client.list_table_files(table_name):
+            result[table_name] = result.get(table_name, []) + _load_jsonl_file(client, file)
+
     return result
 
 
 def _load_tables_to_dicts_sql(
     p: dlt.Pipeline, *table_names: str, schema_name: str = None
 ) -> Dict[str, List[Dict[str, Any]]]:
-    result = {}
-    schema = p.default_schema if not schema_name else p.schemas[schema_name]
+    """Uses dataset to load full table into python dicts"""
+    result: Dict[str, List[Dict[str, Any]]] = {}
     for table_name in table_names:
-        table_rows = []
-        columns = schema.get_table_columns(table_name).keys()
-        query_columns = ",".join(map(p.sql_client().escape_column_name, columns))
-
-        with p.sql_client(schema_name=schema_name) as c:
-            query_columns = ",".join(map(c.escape_column_name, columns))
-            f_q_table_name = c.make_qualified_table_name(table_name)
-            query = f"SELECT {query_columns} FROM {f_q_table_name}"
-            with c.execute_query(query) as cur:
-                for row in list(cur.fetchall()):
-                    table_rows.append(dict(zip(columns, row)))
-        result[table_name] = table_rows
+        relation = p.dataset(schema=schema_name)[table_name]
+        columns = list(relation.columns_schema.keys())
+        for row in relation.fetchall():
+            result[table_name] = result.get(table_name, []) + [dict(zip(columns, row))]
     return result
 
 
@@ -275,7 +191,8 @@ def load_tables_to_dicts(
         """Sort list of dictionaries by dictionary key."""
         return sorted(list_, key=lambda d: d[sortkey])
 
-    if _is_filesystem(p):
+    # filesystem with sftp requires a fallback
+    if _is_sftp(p):
         result = _load_tables_to_dicts_fs(p, *table_names, schema_name=schema_name)
     else:
         result = _load_tables_to_dicts_sql(p, *table_names, schema_name=schema_name)
@@ -310,28 +227,14 @@ def assert_only_table_columns(
 #
 def _load_table_counts_fs(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
     file_tables = _load_tables_to_dicts_fs(p, *table_names)
-    result = {}
-    for table_name, items in file_tables.items():
-        result[table_name] = len(items)
-    return result
-
-
-def _load_table_counts_sql(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
-    with p.sql_client() as c:
-        qualified_names = [c.make_qualified_table_name(name) for name in table_names]
-        query = "\nUNION ALL\n".join(
-            [
-                f"SELECT '{name}' as name, COUNT(1) as c FROM {q_name}"
-                for name, q_name in zip(table_names, qualified_names)
-            ]
-        )
-        with c.execute_query(query) as cur:
-            rows = list(cur.fetchall())
-            return {r[0]: r[1] for r in rows}
+    return {table_name: len(items) for table_name, items in file_tables.items()}
 
 
 def load_table_counts(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
     """Returns row counts for `table_names` as dict"""
+    # filesystem with sftp requires a fallback
+    if _is_sftp(p):
+        return _load_table_counts_fs(p, *table_names)
     counts = p.dataset().row_counts(table_names=list(table_names)).fetchall()
     return {row[0]: row[1] for row in counts}
 
@@ -496,21 +399,3 @@ def assert_schema_on_data(
             set(col["name"] for col in table_columns.values() if col["nullable"])
             == columns_with_nulls
         ), "Some columns didn't receive NULLs which is required"
-
-
-def load_table_distinct_counts(
-    p: dlt.Pipeline, distinct_column: str, *table_names: str
-) -> DictStrAny:
-    """Returns counts of distinct values for column `distinct_column` for `table_names` as dict"""
-    with p.sql_client() as c:
-        query = "\nUNION ALL\n".join(
-            [
-                f"SELECT '{name}' as name, COUNT(DISTINCT {distinct_column}) as c FROM"
-                f" {c.make_qualified_table_name(name)}"
-                for name in table_names
-            ]
-        )
-
-        with c.execute_query(query) as cur:
-            rows = list(cur.fetchall())
-            return {r[0]: r[1] for r in rows}
