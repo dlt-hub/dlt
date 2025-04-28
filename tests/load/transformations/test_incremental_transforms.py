@@ -216,3 +216,37 @@ def test_load_id_based_incremental_transform(
     os.environ["LAST_LOADED_LOAD_ID"] = inc_p.dataset()._dlt_loads.load_id.max().scalar()
     dest_p.run(transformation_source(inc_p.dataset()))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    transformation_configs(),
+    ids=lambda x: x.name,
+)
+def test_merge_based_incremental_transform(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Here we technically don't trasnform incrementally but transform all the data and merge it on the primary key"""
+
+    # get pipelines and populate fruit pipeline
+    inc_p, dest_p = setup_transformation_pipelines(destination_config)
+
+    @dlt.transformation(
+        write_disposition="merge",
+        primary_key="id",
+    )
+    def transformed_items(dataset: dlt.Dataset) -> Any:
+        # return filtered transformation
+        items_table = dataset.items
+        return items_table.mutate(double_items=items_table.id * 2)
+
+    # first round
+    inc_p.run(first_load())
+    dest_p.run(transformed_items(inc_p.dataset()))
+    _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_FIRST_LOAD)
+
+    # second round
+    inc_p.run(inc_load())
+    dest_p.run(transformed_items(inc_p.dataset()))
+    _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)
