@@ -224,19 +224,31 @@ def assert_only_table_columns(
 # Load table counts
 #
 
+
 def load_table_counts(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
     """Returns row counts for `table_names` as dict, if no table names are given, all data tables are counted"""
     if not table_names:
         table_names = [table["name"] for table in p.default_schema.data_tables()]  # type: ignore[assignment]
-        
+
     # filesystem with sftp requires a fallback
     if _is_sftp(p):
         file_tables = _load_tables_to_dicts_fs(p, *table_names)
         return {table_name: len(items) for table_name, items in file_tables.items()}
-    
+
     # otherwise we can use the dataset row counts
     counts = p.dataset().row_counts(table_names=list(table_names)).fetchall()
     return {row[0]: row[1] for row in counts}
+
+
+def assert_empty_tables(p: dlt.Pipeline, *table_names: str) -> None:
+    """Asserts that all tables in `table_names` are empty, interprets DestinationUndefinedEntity as empty
+    which unifies filesystem and sql destinations behavior
+    """
+    for table in table_names:
+        try:
+            assert load_table_counts(p, table) == {table: 0}
+        except DestinationUndefinedEntity:
+            pass
 
 
 def assert_table_counts(p: dlt.Pipeline, expected_counts: DictStrAny, *table_names: str) -> None:

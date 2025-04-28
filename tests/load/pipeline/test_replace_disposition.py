@@ -5,7 +5,12 @@ from pytest_mock import MockerFixture
 
 from dlt.common.schema.typing import REPLACE_STRATEGIES, TLoaderReplaceStrategy
 
-from tests.pipeline.utils import assert_load_info, load_table_counts, load_tables_to_dicts
+from tests.pipeline.utils import (
+    assert_load_info,
+    load_table_counts,
+    load_tables_to_dicts,
+    assert_empty_tables,
+)
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
@@ -157,18 +162,11 @@ def test_replace_disposition(
     dlt_loads += 1
 
     # table and child tables should be cleared
-    table_counts = load_table_counts(pipeline, *pipeline.default_schema.tables.keys())
-    assert norm_table_counts(
-        table_counts, "items__sub_items", "items__sub_items__sub_sub_items"
-    ) == {
+    table_counts = load_table_counts(pipeline, "append_items")
+    assert table_counts == {
         "append_items": 36,
-        "items": 0,
-        "items__sub_items": 0,
-        "items__sub_items__sub_sub_items": 0,
-        "_dlt_pipeline_state": state_records,
-        "_dlt_loads": dlt_loads,
-        "_dlt_version": dlt_versions,
     }
+    assert_empty_tables(pipeline, "items", "items__sub_items", "items__sub_items__sub_sub_items")
     # check trace
     assert pipeline.last_trace.last_normalize_info.row_counts == {
         "append_items": 12,
@@ -219,18 +217,11 @@ def test_replace_disposition(
     }
 
     # old pipeline -> shares completed loads and versions table
-    table_counts = load_table_counts(pipeline, *pipeline.default_schema.tables.keys())
-    assert norm_table_counts(
-        table_counts, "items__sub_items", "items__sub_items__sub_sub_items"
-    ) == {
+    table_counts = load_table_counts(pipeline, "append_items")
+    assert table_counts == {
         "append_items": 48,
-        "items": 0,
-        "items__sub_items": 0,
-        "items__sub_items__sub_sub_items": 0,
-        "_dlt_pipeline_state": state_records + 1,
-        "_dlt_loads": dlt_loads,  #  next load
-        "_dlt_version": dlt_versions + 1,  # new table name -> new schema
     }
+    assert_empty_tables(pipeline, "items", "items__sub_items", "items__sub_items__sub_sub_items")
 
 
 @pytest.mark.parametrize(
@@ -312,15 +303,15 @@ def test_replace_table_clearing(
 
     # regular call
     pipeline.run([items_with_subitems, static_items], **destination_config.run_kwargs)
-    table_counts = load_table_counts(
-        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
-    )
-    assert table_counts["items"] == 1
-    assert table_counts["items__sub_items"] == 2
-    assert table_counts["other_items"] == 1
-    assert table_counts["other_items__sub_items"] == 2
-    assert table_counts["static_items"] == 1
-    assert table_counts["static_items__sub_items"] == 2
+    assert load_table_counts(pipeline) == {
+        "items": 1,
+        "items__sub_items": 2,
+        "other_items": 1,
+        "other_items__sub_items": 2,
+        "static_items": 1,
+        "static_items__sub_items": 2,
+    }
+
     # check trace
     assert pipeline.last_trace.last_normalize_info.row_counts == {
         "items": 1,
@@ -334,15 +325,15 @@ def test_replace_table_clearing(
 
     # see if child table gets cleared
     pipeline.run(items_without_subitems, **destination_config.run_kwargs)
-    table_counts = load_table_counts(
-        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
-    )
-    assert table_counts["items"] == 1
-    assert table_counts.get("items__sub_items", 0) == 0
-    assert table_counts["other_items"] == 1
-    assert table_counts.get("other_items__sub_items", 0) == 0
-    assert table_counts["static_items"] == 1
-    assert table_counts["static_items__sub_items"] == 2
+    assert load_table_counts(
+        pipeline, "items", "other_items", "static_items", "static_items__sub_items"
+    ) == {
+        "items": 1,
+        "other_items": 1,
+        "static_items": 1,
+        "static_items__sub_items": 2,
+    }
+    assert_empty_tables(pipeline, "items__sub_items", "other_items__sub_items")
     # check trace
     assert pipeline.last_trace.last_normalize_info.row_counts == {"items": 1, "other_items": 1}
 
@@ -350,29 +341,24 @@ def test_replace_table_clearing(
     for empty_resource in [yield_none, no_yield, yield_empty_list]:
         pipeline.run(items_with_subitems, **destination_config.run_kwargs)
         pipeline.run(empty_resource, **destination_config.run_kwargs)
-        table_counts = load_table_counts(
-            pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
-        )
-        assert table_counts.get("items", 0) == 0
-        assert table_counts.get("items__sub_items", 0) == 0
-        assert table_counts.get("other_items", 0) == 0
-        assert table_counts.get("other_items__sub_items", 0) == 0
-        assert table_counts["static_items"] == 1
-        assert table_counts["static_items__sub_items"] == 2
+        assert load_table_counts(pipeline, "static_items", "static_items__sub_items") == {
+            "static_items": 1,
+            "static_items__sub_items": 2,
+        }
+        assert_empty_tables(pipeline, "items", "other_items", "other_items__sub_items")
         # check trace
         assert pipeline.last_trace.last_normalize_info.row_counts == {"items": 0, "other_items": 0}
 
     # see if yielding something next to other none entries still goes into db
     pipeline.run(items_with_subitems_yield_none, **destination_config.run_kwargs)
-    table_counts = load_table_counts(
-        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
-    )
-    assert table_counts["items"] == 1
-    assert table_counts["items__sub_items"] == 2
-    assert table_counts["other_items"] == 1
-    assert table_counts["other_items__sub_items"] == 2
-    assert table_counts["static_items"] == 1
-    assert table_counts["static_items__sub_items"] == 2
+    assert load_table_counts(pipeline) == {
+        "items": 1,
+        "items__sub_items": 2,
+        "other_items": 1,
+        "other_items__sub_items": 2,
+        "static_items": 1,
+        "static_items__sub_items": 2,
+    }
     # check trace
     assert pipeline.last_trace.last_normalize_info.row_counts == {
         "items": 1,
