@@ -843,22 +843,28 @@ def convert_numpy_to_arrow(
                     data_type=dlt_data_type,
                     inferred_arrow_type=inferred_arrow_type,
                     details=(
-                        "Insufficient decimal precision. Consider setting `precision` and `scale`"
-                        " hints: https://dlthub.com/docs/general-usage/schema/#tables-and-columns"
+                        f"Insufficient decimal precision {error_msg}. Consider setting `precision`"
+                        " and `scale` hints:"
+                        " https://dlthub.com/docs/general-usage/schema/#tables-and-columns"
                     ),
                 ) from e
 
             elif (
-                "to utf8 using function cast_string" in error_msg
-                and dlt_data_type in ("json", "text")
-                and pa.types.is_string(inferred_arrow_type)
-            ):
+                ("to utf8 using function cast_string" in error_msg and dlt_data_type == "text")
+                or dlt_data_type == "json"
+            ) and pa.types.is_string(inferred_arrow_type):
                 # this is handled by fallback case 3
                 logger.warning(
                     f"Received `data_type='{dlt_data_type}'`, data requires serialization to"
                     " string, slowing extraction. Cast the JSON field to STRING in your database"
                     " system to improve performance. For example, create and extract data from an"
                     " SQL VIEW that SELECT with CAST."
+                )
+            else:
+                raise PyToArrowConversionException(
+                    data_type=dlt_data_type,
+                    inferred_arrow_type=inferred_arrow_type,
+                    details=f"This conversion is currently unsupported by dlt ({error_msg})",
                 )
 
     # case 2: encode Sequence and Mapping types (list, tuples, set, dict, etc.) to JSON strings
@@ -888,10 +894,10 @@ def convert_numpy_to_arrow(
     if arrow_array is None and dlt_data_type is None:
         try:
             arrow_array = pa.array(column_data)
-        except (pa.ArrowInvalid, pyarrow.ArrowTypeError):
+        except (pa.ArrowInvalid, pyarrow.ArrowTypeError) as e:
             logger.warning(
-                "Type can't be inferred by `pyarrow`. Values will be encoded as in a loop, slowing"
-                " extraction."
+                f"Type can't be inferred by `pyarrow` {e.args[0]}. Values will be encoded as in a"
+                " loop, slowing extraction."
             )
             encoded_values: list[Union[None, Mapping[Any, Any], Sequence[Any], str]] = []
             for value in column_data:
@@ -917,13 +923,6 @@ def convert_numpy_to_arrow(
                     ) from e
 
             arrow_array = pa.array(encoded_values)
-
-    if arrow_array is None:
-        raise PyToArrowConversionException(
-            data_type=dlt_data_type,
-            inferred_arrow_type=inferred_arrow_type,
-            details="This data type seems currently unsupported by dlt. Please open a GitHub issue",
-        )
 
     return arrow_array
 
