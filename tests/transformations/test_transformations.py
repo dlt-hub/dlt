@@ -10,9 +10,12 @@ from tests.load.utils import DestinationTestConfiguration
 from tests.load.transformations.utils import (
     transformation_configs,
     setup_transformation_pipelines,
-    load_fruit_dataset,
     row_counts,
     get_job_types,
+)
+
+from dlt.sources._single_file_templates.fruitshop_pipeline import (
+    fruitshop as fruitshop_source,
 )
 
 
@@ -24,7 +27,7 @@ from tests.load.transformations.utils import (
 def test_simple_query_transformations(destination_config: DestinationTestConfiguration) -> None:
     # get pipelines andpopulate fruit pipeline
     fruit_p, dest_p = setup_transformation_pipelines(destination_config)
-    load_fruit_dataset(fruit_p)
+    fruit_p.run(fruitshop_source())
 
     @dlt.transformation()
     def copied_purchases(dataset: SupportsReadableDataset[Any]) -> Any:

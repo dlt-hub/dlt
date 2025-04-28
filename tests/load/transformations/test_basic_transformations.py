@@ -16,8 +16,11 @@ from tests.load.transformations.utils import (
     row_counts,
     get_job_types,
     transformation_configs,
-    load_fruit_dataset,
     setup_transformation_pipelines,
+)
+
+from dlt.sources._single_file_templates.fruitshop_pipeline import (
+    fruitshop as fruitshop_source,
 )
 
 
@@ -30,22 +33,22 @@ from tests.load.transformations.utils import (
 def test_simple_query_transformations(destination_config: DestinationTestConfiguration) -> None:
     # get pipelines andpopulate fruit pipeline
     fruit_p, dest_p = setup_transformation_pipelines(destination_config)
-    load_fruit_dataset(fruit_p)
+    fruit_p.run(fruitshop_source())
 
     @dlt.transformation()
-    def copied_purchases(dataset: dlt.Dataset) -> Any:
-        return dataset["purchases"].limit(5)
+    def copied_customers(dataset: dlt.Dataset) -> Any:
+        return dataset["customers"].limit(5)
 
     # transform into transformed dataset
-    dest_p.run(copied_purchases(fruit_p.dataset()))
+    dest_p.run(copied_customers(fruit_p.dataset()))
 
-    assert row_counts(dest_p.dataset(), ["copied_purchases"]) == {
-        "copied_purchases": 5,
+    assert row_counts(dest_p.dataset(), ["copied_customers"]) == {
+        "copied_customers": 5,
     }
 
     # verify the right transformation was run
     assert (
-        list(get_job_types(dest_p)["copied_purchases"].keys())[0] == "parquet"
+        list(get_job_types(dest_p)["copied_customers"].keys())[0] == "parquet"
         if destination_config.destination_type == "filesystem"
         else "model"
     )
@@ -61,36 +64,36 @@ def test_simple_query_transformations(destination_config: DestinationTestConfigu
 def test_grouped_transformations(destination_config: DestinationTestConfiguration) -> None:
     # get pipelines and populate fruit pipeline
     fruit_p, dest_p = setup_transformation_pipelines(destination_config)
-    load_fruit_dataset(fruit_p)
+    fruit_p.run(fruitshop_source())
 
     @dlt.transformation()
-    def copied_purchases(dataset: dlt.Dataset) -> Any:
-        return dataset["purchases"].limit(5)
+    def copied_customers(dataset: dlt.Dataset) -> Any:
+        return dataset["customers"].limit(5)
 
     @dlt.transformation()
-    def copied_purchases2(dataset: dlt.Dataset) -> Any:
-        return dataset["purchases"].limit(7)
+    def copied_customers2(dataset: dlt.Dataset) -> Any:
+        return dataset["customers"].limit(7)
 
     @dlt.source()
     def transformations(dataset: dlt.Dataset) -> List[Any]:
-        return [copied_purchases(dataset), copied_purchases2(dataset)]
+        return [copied_customers(dataset), copied_customers2(dataset)]
 
     dest_p.run(transformations(fruit_p.dataset()))
 
-    assert row_counts(dest_p.dataset(), ["copied_purchases", "copied_purchases2"]) == {
-        "copied_purchases": 5,
-        "copied_purchases2": 7,
+    assert row_counts(dest_p.dataset(), ["copied_customers", "copied_customers2"]) == {
+        "copied_customers": 5,
+        "copied_customers2": 7,
     }
 
     # verify the right transformation was run
     assert (
-        list(get_job_types(dest_p)["copied_purchases"].keys())[0] == "parquet"
+        list(get_job_types(dest_p)["copied_customers"].keys())[0] == "parquet"
         if destination_config.destination_type == "filesystem"
         else "model"
     )
 
     assert (
-        list(get_job_types(dest_p)["copied_purchases2"].keys())[0] == "parquet"
+        list(get_job_types(dest_p)["copied_customers2"].keys())[0] == "parquet"
         if destination_config.destination_type == "filesystem"
         else "model"
     )
@@ -106,31 +109,31 @@ def test_grouped_transformations(destination_config: DestinationTestConfiguratio
 def test_replace_sql_transformations(destination_config: DestinationTestConfiguration) -> None:
     # get pipelines and populate fruit pipeline
     fruit_p, dest_p = setup_transformation_pipelines(destination_config)
-    load_fruit_dataset(fruit_p)
+    fruit_p.run(fruitshop_source())
 
     @dlt.transformation(write_disposition="replace")
-    def copied_purchases(dataset: dlt.Dataset) -> Any:
-        return dataset["purchases"].limit(5)
+    def copied_customers(dataset: dlt.Dataset) -> Any:
+        return dataset["customers"].limit(5)
 
     # transform into same dataset
-    dest_p.run(copied_purchases(fruit_p.dataset()))
+    dest_p.run(copied_customers(fruit_p.dataset()))
 
-    assert row_counts(dest_p.dataset(), ["copied_purchases"]) == {
-        "copied_purchases": 5,
+    assert row_counts(dest_p.dataset(), ["copied_customers"]) == {
+        "copied_customers": 5,
     }
 
     # overwrite with different setting
     @dlt.transformation(
         write_disposition="replace",
-        table_name="copied_purchases",
+        table_name="copied_customers",
     )
-    def copied_purchases_updated(dataset: dlt.Dataset) -> Any:
-        return dataset["purchases"].limit(3)
+    def copied_customers_updated(dataset: dlt.Dataset) -> Any:
+        return dataset["customers"].limit(3)
 
     # transform into same dataset
-    dest_p.run(copied_purchases_updated(fruit_p.dataset()))
-    assert row_counts(dest_p.dataset(), ["copied_purchases"]) == {
-        "copied_purchases": 3,
+    dest_p.run(copied_customers_updated(fruit_p.dataset()))
+    assert row_counts(dest_p.dataset(), ["copied_customers"]) == {
+        "copied_customers": 3,
     }
 
 
@@ -144,28 +147,28 @@ def test_replace_sql_transformations(destination_config: DestinationTestConfigur
 def test_append_sql_transformations(destination_config: DestinationTestConfiguration) -> None:
     # get pipelines and populate fruit pipeline
     fruit_p, dest_p = setup_transformation_pipelines(destination_config)
-    load_fruit_dataset(fruit_p)
+    fruit_p.run(fruitshop_source())
 
     @dlt.transformation(write_disposition="append")
-    def copied_purchases(dataset: dlt.Dataset) -> Any:
-        return dataset["purchases"].limit(5)
+    def copied_customers(dataset: dlt.Dataset) -> Any:
+        return dataset["customers"].limit(5)
 
     # transform into same dataset
-    dest_p.run(copied_purchases(fruit_p.dataset()))
+    dest_p.run(copied_customers(fruit_p.dataset()))
 
-    assert row_counts(dest_p.dataset(), ["copied_purchases"]) == {
-        "copied_purchases": 5,
+    assert row_counts(dest_p.dataset(), ["copied_customers"]) == {
+        "copied_customers": 5,
     }
 
-    @dlt.transformation(write_disposition="append", table_name="copied_purchases")
+    @dlt.transformation(write_disposition="append", table_name="copied_customers")
     def copied_table_updated(dataset: dlt.Dataset) -> Any:
-        return dataset["purchases"].limit(7)
+        return dataset["customers"].limit(7)
 
     # transform into same dataset
     dest_p.run(copied_table_updated(fruit_p.dataset()))
 
-    assert row_counts(dest_p.dataset(), ["copied_purchases"]) == {
-        "copied_purchases": 12,
+    assert row_counts(dest_p.dataset(), ["copied_customers"]) == {
+        "copied_customers": 12,
     }
 
 
@@ -187,11 +190,11 @@ def test_sql_transformation_with_unknown_column_types(
 ) -> None:
     # get pipelines and populate fruit pipeline
     fruit_p, dest_p = setup_transformation_pipelines(destination_config)
-    load_fruit_dataset(fruit_p)
+    fruit_p.run(fruitshop_source())
 
     @dlt.transformation()
     def mutated_purchases(dataset: dlt.Dataset) -> Any:
-        return dataset["purchases"].mutate(new_col=5).limit(5)
+        return dataset["customers"].mutate(new_col=5).limit(5)
 
     # problem should already be detected at extraction time
     with pytest.raises(PipelineStepFailed):
@@ -199,7 +202,7 @@ def test_sql_transformation_with_unknown_column_types(
 
     @dlt.transformation()
     def mutated_purchases_with_hints(dataset: dlt.Dataset) -> Any:
-        return dataset["purchases"].mutate(new_col=5).limit(5)
+        return dataset["customers"].mutate(new_col=5).limit(5)
 
     dest_p.run(mutated_purchases_with_hints(fruit_p.dataset()))
     assert row_counts(dest_p.dataset(), ["mutated_purchases_with_hints"]) == {

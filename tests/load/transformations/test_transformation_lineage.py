@@ -7,11 +7,12 @@ import dlt
 from tests.load.transformations.utils import (
     row_counts,
     transformation_configs,
-    EXPECTED_FRUIT_ROW_COUNTS,
     setup_transformation_pipelines,
-    load_fruit_dataset,
 )
 from tests.load.utils import DestinationTestConfiguration
+from dlt.sources._single_file_templates.fruitshop_pipeline import (
+    fruitshop as fruitshop_source,
+)
 
 
 # NOTE: move to duckdb only transformation tests
@@ -26,7 +27,9 @@ def test_simple_lineage(
 ) -> None:
     # get pipelines and populate fruit pipeline
     fruit_p, dest_p = setup_transformation_pipelines(destination_config)
-    load_fruit_dataset(fruit_p)
+    s = fruitshop_source()
+    s.customers.apply_hints(columns={"name": {"x-pii": True}})  # type: ignore
+    fruit_p.run(s)
 
     @dlt.transformation(write_disposition="append")
     def enriched_purchases(dataset: dlt.Dataset) -> Any:
@@ -37,9 +40,7 @@ def test_simple_lineage(
     dest_p.run(enriched_purchases(fruit_p.dataset()))
 
     # check the rowcounts in the dest
-    assert row_counts(dest_p.dataset(), tables=["enriched_purchases"]) == {
-        "enriched_purchases": EXPECTED_FRUIT_ROW_COUNTS["purchases"]
-    }
+    assert row_counts(dest_p.dataset(), tables=["enriched_purchases"]) == {"enriched_purchases": 3}
 
     # check that ppi column hint was preserved for name col
     assert dest_p.dataset().schema.tables["enriched_purchases"]["columns"]["name"]["x-pii"] is True  # type: ignore
