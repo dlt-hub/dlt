@@ -93,3 +93,22 @@ def test_client_has_dataset(client: ClickHouseClient) -> None:
         _assert_has_dataset()
     finally:
         client.config.dataset_table_separator = separator
+
+
+def test_client_table_name_and_paths(client: ClickHouseClient) -> None:
+    dataset_name = client.sql_client.dataset_name
+    separator = client.config.dataset_table_separator
+
+    assert client.sql_client.make_qualified_table_name_path(None, escape=False) == ["dlt"]
+    assert client.sql_client.make_qualified_table_name_path("test_table", escape=False) == [
+        "dlt",
+        f"{dataset_name}{separator}test_table",
+    ]
+
+    client.config.dataset_table_separator = separator = "###"
+
+    assert client.sql_client.make_qualified_table_name_path(None, escape=False) == ["dlt"]
+    assert client.sql_client.make_qualified_table_name_path("test_table", escape=False) == [
+        "dlt",
+        f"{dataset_name}{separator}test_table",
+    ]
