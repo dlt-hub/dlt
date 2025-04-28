@@ -75,8 +75,7 @@ def test_rest_api_source(destination_name: str, invocation_type: str) -> None:
     load_info = pipeline.run(data)
     print(load_info)
     assert_load_info(load_info)
-    table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
-    table_counts = load_table_counts(pipeline, *table_names)
+    table_counts = load_table_counts(pipeline)
 
     assert table_counts.keys() == {"pokemon_list", "berry", "location"}
 
@@ -135,8 +134,7 @@ def test_dependent_resource(destination_name: str, invocation_type: str) -> None
     pipeline = _make_pipeline(destination_name)
     load_info = pipeline.run(data)
     assert_load_info(load_info)
-    table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
-    table_counts = load_table_counts(pipeline, *table_names)
+    table_counts = load_table_counts(pipeline)
 
     assert set(table_counts.keys()) == {
         "pokemon",

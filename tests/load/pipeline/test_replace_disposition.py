@@ -136,9 +136,7 @@ def test_replace_disposition(
     }
 
     # check we really have the replaced data in our destination
-    table_dicts = load_tables_to_dicts(
-        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
-    )
+    table_dicts = load_tables_to_dicts(pipeline)
     assert {x for i, x in enumerate(range(1000, 1120), 1)} == {
         int(x["id"]) for x in table_dicts["items"]
     }

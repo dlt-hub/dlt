@@ -178,8 +178,7 @@ def test_load_mock_api(mock_api_server, config):
     load_info = pipeline.run(mock_source)
     print(load_info)
     assert_load_info(load_info)
-    table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
-    table_counts = load_table_counts(pipeline, *table_names)
+    table_counts = load_table_counts(pipeline)
 
     assert table_counts.keys() == {"posts", "post_comments", "post_details"}
 
@@ -880,8 +879,7 @@ def test_interpolate_parent_values_in_path_and_json_body(mock_api_server):
     load_info = pipeline.run(mock_source)
     print(load_info)
     assert_load_info(load_info)
-    table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
-    table_counts = load_table_counts(pipeline, *table_names)
+    table_counts = load_table_counts(pipeline)
     assert table_counts.keys() == {"posts", "post_details"}
     assert table_counts["posts"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
     assert table_counts["post_details"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
@@ -1038,8 +1036,7 @@ def test_load_mock_api_typeddict_config(mock_api_server, config):
 
     load_info = pipeline.run(mock_source)
     assert_load_info(load_info)
-    table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
-    table_counts = load_table_counts(pipeline, *table_names)
+    table_counts = load_table_counts(pipeline)
 
     assert table_counts.keys() == {"posts", "post_comments"}
 

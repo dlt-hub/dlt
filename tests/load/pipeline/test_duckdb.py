@@ -40,9 +40,7 @@ def test_duck_case_names(destination_config: DestinationTestConfiguration) -> No
         table_name="🦚Peacocks🦚",
         **destination_config.run_kwargs,
     )
-    table_counts = load_table_counts(
-        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
-    )
+    table_counts = load_table_counts(pipeline)
     assert table_counts == {
         "📆 Schedule": 3,
         "🦚Peacock": 1,
