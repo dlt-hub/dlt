@@ -3,7 +3,6 @@ from typing import Any
 import dlt
 import pytest
 
-from dlt.common.destination.dataset import SupportsReadableDataset
 from dlt.transformations.typing import TTransformationType
 
 
@@ -14,9 +13,7 @@ def test_combine_two_datasets(
     fruit_p: dlt.Pipeline, private_fruit_p: dlt.Pipeline, transformation_type: TTransformationType
 ) -> None:
     @dlt.transformation(transformation_type=transformation_type)
-    def customers_with_ages(
-        dataset: SupportsReadableDataset[Any], dataset2: SupportsReadableDataset[Any]
-    ) -> Any:
+    def customers_with_ages(dataset: dlt.Dataset, dataset2: dlt.Dataset) -> Any:
         return dataset["customers"].join(
             dataset2["customers_ages"], dataset["customers"].id == dataset2["customers_ages"].id
         )

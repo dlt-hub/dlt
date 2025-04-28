@@ -70,9 +70,7 @@ class dummy(Destination[DummyClientConfiguration, "DummyClient"]):
         caps.supported_staging_file_formats = additional_formats + [config.loader_file_format]
         caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
         caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
-        from dlt.destinations.impl.duckdb.factory import DuckDbTypeMapper
 
-        caps.type_mapper = DuckDbTypeMapper
         return caps
 
 

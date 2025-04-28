@@ -4,7 +4,6 @@ from typing import Any, List
 
 import dlt
 
-from dlt.common.destination.dataset import SupportsReadableDataset
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from dlt.transformations.typing import TTransformationType
@@ -37,7 +36,7 @@ def test_simple_query_transformations(
     load_fruit_dataset(fruit_p)
 
     @dlt.transformation(transformation_type=transformation_type)
-    def copied_purchases(dataset: SupportsReadableDataset[Any]) -> Any:
+    def copied_purchases(dataset: dlt.Dataset) -> Any:
         return dataset["purchases"].limit(5)
 
     # transform into transformed dataset
@@ -71,7 +70,7 @@ def test_simple_python_transformations(destination_config: DestinationTestConfig
     load_fruit_dataset(fruit_p)
 
     @dlt.transformation(transformation_type="python")
-    def copied_purchases(dataset: SupportsReadableDataset[Any]) -> Any:
+    def copied_purchases(dataset: dlt.Dataset) -> Any:
         yield from dataset["purchases"].limit(5).iter_arrow(500)
 
     dest_p.run(copied_purchases(fruit_p.dataset()))
@@ -101,15 +100,15 @@ def test_grouped_sql_transformations(destination_config: DestinationTestConfigur
     load_fruit_dataset(fruit_p)
 
     @dlt.transformation(transformation_type="sql")
-    def copied_purchases(dataset: SupportsReadableDataset[Any]) -> Any:
+    def copied_purchases(dataset: dlt.Dataset) -> Any:
         return dataset["purchases"].limit(5)
 
     @dlt.transformation(transformation_type="python")
-    def copied_purchases2(dataset: SupportsReadableDataset[Any]) -> Any:
+    def copied_purchases2(dataset: dlt.Dataset) -> Any:
         return dataset["purchases"].limit(7)
 
     @dlt.source()
-    def transformations(dataset: SupportsReadableDataset[Any]) -> List[Any]:
+    def transformations(dataset: dlt.Dataset) -> List[Any]:
         return [copied_purchases(dataset), copied_purchases2(dataset)]
 
     dest_p.run(transformations(fruit_p.dataset()))
@@ -141,7 +140,7 @@ def test_replace_sql_transformations(destination_config: DestinationTestConfigur
     load_fruit_dataset(fruit_p)
 
     @dlt.transformation(write_disposition="replace", transformation_type="sql")
-    def copied_purchases(dataset: SupportsReadableDataset[Any]) -> Any:
+    def copied_purchases(dataset: dlt.Dataset) -> Any:
         return dataset["purchases"].limit(5)
 
     # transform into same dataset
@@ -157,7 +156,7 @@ def test_replace_sql_transformations(destination_config: DestinationTestConfigur
         table_name="copied_purchases",
         transformation_type="sql",
     )
-    def copied_purchases_updated(dataset: SupportsReadableDataset[Any]) -> Any:
+    def copied_purchases_updated(dataset: dlt.Dataset) -> Any:
         return dataset["purchases"].limit(3)
 
     # transform into same dataset
@@ -180,7 +179,7 @@ def test_append_sql_transformations(destination_config: DestinationTestConfigura
     load_fruit_dataset(fruit_p)
 
     @dlt.transformation(write_disposition="append", transformation_type="sql")
-    def copied_purchases(dataset: SupportsReadableDataset[Any]) -> Any:
+    def copied_purchases(dataset: dlt.Dataset) -> Any:
         return dataset["purchases"].limit(5)
 
     # transform into same dataset
@@ -193,7 +192,7 @@ def test_append_sql_transformations(destination_config: DestinationTestConfigura
     @dlt.transformation(
         write_disposition="append", table_name="copied_purchases", transformation_type="sql"
     )
-    def copied_table_updated(dataset: SupportsReadableDataset[Any]) -> Any:
+    def copied_table_updated(dataset: dlt.Dataset) -> Any:
         return dataset["purchases"].limit(7)
 
     # transform into same dataset
@@ -225,7 +224,7 @@ def test_sql_transformation_with_unknown_column_types(
     load_fruit_dataset(fruit_p)
 
     @dlt.transformation(transformation_type="sql")
-    def mutated_purchases(dataset: SupportsReadableDataset[Any]) -> Any:
+    def mutated_purchases(dataset: dlt.Dataset) -> Any:
         return dataset["purchases"].mutate(new_col=5).limit(5)
 
     # problem should already be detected at extraction time
@@ -233,7 +232,7 @@ def test_sql_transformation_with_unknown_column_types(
         dest_p.extract(mutated_purchases(fruit_p.dataset()))
 
     @dlt.transformation(transformation_type="sql")
-    def mutated_purchases_with_hints(dataset: SupportsReadableDataset[Any]) -> Any:
+    def mutated_purchases_with_hints(dataset: dlt.Dataset) -> Any:
         return dataset["purchases"].mutate(new_col=5).limit(5)
 
     dest_p.run(mutated_purchases_with_hints(fruit_p.dataset()))

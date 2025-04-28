@@ -2,7 +2,6 @@ import pytest
 from typing import Any, Iterator
 import dlt
 from dlt.extract.hints import TDataItem
-from dlt.common.destination.dataset import SupportsReadableDataset
 
 from tests.load.utils import DestinationTestConfiguration
 from tests.load.transformations.utils import transformation_configs, setup_transformation_pipelines
@@ -89,7 +88,7 @@ def test_state_based_incremental_transform(
         transformation_type=transformation_type,
         write_disposition="append",
     )
-    def transformed_items(dataset: SupportsReadableDataset[Any], last_loaded_load_id: str) -> Any:
+    def transformed_items(dataset: dlt.Dataset, last_loaded_load_id: str) -> Any:
         # get last stored processed load id
         LAST_PROCESSED_LOAD_ID = "last_processed_load_id"
         last_processed_load_id = dlt.current.resource_state().get(LAST_PROCESSED_LOAD_ID, "0")
@@ -141,7 +140,7 @@ def test_primary_key_based_incremental_transform(
         transformation_type=transformation_type,
         write_disposition="append",
     )
-    def transformed_items(dataset: SupportsReadableDataset[Any]) -> Any:
+    def transformed_items(dataset: dlt.Dataset) -> Any:
         # get newest primary key but only if table exists
         max_pimary_key = 0
         try:
@@ -190,7 +189,7 @@ def test_load_id_based_incremental_transform(
         transformation_type=transformation_type,
         write_disposition="append",
     )
-    def transformed_items(dataset: SupportsReadableDataset[Any], last_loaded_load_id: str) -> Any:
+    def transformed_items(dataset: dlt.Dataset, last_loaded_load_id: str) -> Any:
         # get newest primary key but only if table exists
         max_load_id = "0"
         try:

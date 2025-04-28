@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, cast, Optional
 
 import sqlglot
 import sqlglot.expressions as sge
@@ -7,7 +7,13 @@ from sqlglot.schema import Schema as SQLGlotSchema, ensure_schema
 from sqlglot.optimizer.annotate_types import annotate_types
 from sqlglot.optimizer.qualify import qualify
 
-from dlt.common.schema.typing import TTableSchemaColumns, TColumnSchema, TTableSchema
+from dlt.common.schema.typing import (
+    TTableSchemaColumns,
+    TColumnSchema,
+    TTableSchema,
+    TColumnType,
+    TDataType,
+)
 from dlt.common.schema import Schema
 from dlt.destinations.type_mapping import DataTypeMapper
 from dlt.common.destination.typing import PreparedTableSchema
@@ -24,7 +30,7 @@ else:
     ReadableDBAPIDataset = Any
 
 
-SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, str] = {
+SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, Optional[TDataType]] = {
     # NESTED_TYPES
     DataType.Type.OBJECT: "json",
     DataType.Type.STRUCT: "json",

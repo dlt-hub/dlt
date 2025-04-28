@@ -31,6 +31,7 @@ from dlt import sources
 from dlt.extract.decorators import source, resource, transformer, defer
 from dlt.destinations.decorators import destination
 from dlt.transformations.decorators import transformation
+from dlt.destinations.dataset import dataset, ReadableDBAPIDataset as Dataset
 
 from dlt.pipeline import (
     pipeline as _pipeline,
@@ -80,6 +81,8 @@ __all__ = [
     "TCredentials",
     "sources",
     "destinations",
+    "Dataset",
+    "dataset",
 ]
 
 # verify that no injection context was created

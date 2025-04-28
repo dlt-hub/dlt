@@ -58,13 +58,9 @@ def make_transform_resource(
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
     standalone: bool = False,
-    # transformation specific
-    transformation_type: TTransformationType = None,
-    chunk_size: int = None,
-    lineage_mode: TLineageMode = None,
 ) -> DltTransformResource:
     # resolve defaults etc
-    chunk_size = chunk_size or DEFAULT_CHUNK_SIZE
+    chunk_size = DEFAULT_CHUNK_SIZE
     lineage_mode = lineage_mode or "best_effort"
 
     # resolve type of transformation

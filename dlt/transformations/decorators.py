@@ -41,10 +41,6 @@ def transformation(
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
     standalone: bool = False,
-    # transformation specific
-    transformation_type: TTransformationType = None,
-    chunk_size: int = None,
-    lineage_mode: TLineageMode = None,
 ) -> Callable[[Callable[TTransformationFunParams, Any]], DltTransformResource,]: ...
 
 
@@ -66,10 +62,6 @@ def transformation(
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
     standalone: bool = False,
-    # transformation specific
-    transformation_type: TTransformationType = None,
-    chunk_size: int = None,
-    lineage_mode: TLineageMode = None,
 ) -> Callable[[Callable[TTransformationFunParams, Any]], DltTransformResource,]: ...
 
 
@@ -90,10 +82,6 @@ def transformation(
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
     standalone: bool = False,
-    # transformation specific
-    transformation_type: TTransformationType = None,
-    chunk_size: int = None,
-    lineage_mode: TLineageMode = None,
 ) -> Any:
     """
     Decorator to mark a function as a transformation. Returns a DltTransformation object.
@@ -121,9 +109,6 @@ def transformation(
             parallelized=parallelized,
             incremental=incremental,
             standalone=standalone,
-            transformation_type=transformation_type,
-            chunk_size=chunk_size,
-            lineage_mode=lineage_mode,
         )
 
     if func is None:

@@ -7,7 +7,6 @@ import dlt
 from dlt.transformations.typing import TLineageMode, TTransformationType
 from dlt.extract.exceptions import ResourceExtractionError
 
-from dlt.common.destination.dataset import SupportsReadableDataset
 from tests.load.transformations.utils import (
     row_counts,
     transformation_configs,
@@ -35,7 +34,7 @@ def test_simple_lineage(
     load_fruit_dataset(fruit_p)
 
     @dlt.transformation(write_disposition="append", transformation_type=transformation_type)
-    def enriched_purchases(dataset: SupportsReadableDataset[Any]) -> Any:
+    def enriched_purchases(dataset: dlt.Dataset) -> Any:
         purchases = dataset["purchases"]
         customers = dataset["customers"]
         return purchases.join(customers, purchases.customer_id == customers.id)
@@ -79,7 +78,7 @@ def test_lineage_modes(
     @dlt.transformation(
         write_disposition="append", transformation_type="python", lineage_mode=lineage_mode
     )
-    def enriched_purchases(dataset: SupportsReadableDataset[Any]) -> Any:
+    def enriched_purchases(dataset: dlt.Dataset) -> Any:
         purchases = dataset["purchases"]
         customers = dataset["customers"]
         joined_table = purchases.join(customers, purchases.customer_id == customers.id)

@@ -100,6 +100,13 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
             )
         return self._table_client
 
+    def is_same_physical_destination(self, other: "ReadableDBAPIDataset") -> bool:
+        """
+        Returns true if the other dataset is on the same physical destination
+        helpful if we want to run sql queries without extracting the data
+        """
+        return str(self.destination_client.config) == str(other.destination_client.config)
+
     def _destination_client(self, schema: Schema) -> JobClientBase:
         return get_destination_clients(
             schema, destination=self._destination, destination_dataset_name=self._dataset_name
