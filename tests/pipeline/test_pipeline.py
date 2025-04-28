@@ -60,7 +60,9 @@ from dlt.pipeline.helpers import retry_load
 
 from dlt.pipeline.pipeline import Pipeline
 from tests.common.utils import TEST_SENTRY_DSN
-from tests.utils import TEST_STORAGE_ROOT, load_table_counts
+from tests.utils import TEST_STORAGE_ROOT
+from tests.pipeline.utils import assert_load_info, load_table_counts
+
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
     assert_data_table_counts,

@@ -8,7 +8,8 @@ from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
 from dlt.sources.rest_api import rest_api_source, rest_api
 
 from tests.common.configuration.utils import environment, toml_providers
-from tests.utils import ALL_DESTINATIONS, assert_load_info, load_table_counts
+from tests.utils import ALL_DESTINATIONS
+from tests.pipeline.utils import assert_load_info, load_table_counts
 
 
 def _make_pipeline(destination_name: str):

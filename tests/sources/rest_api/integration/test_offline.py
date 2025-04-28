@@ -17,7 +17,7 @@ from dlt.sources.rest_api import (
     rest_api_source,
 )
 from tests.sources.rest_api.conftest import DEFAULT_PAGE_SIZE, DEFAULT_TOTAL_PAGES
-from tests.utils import assert_load_info, assert_query_data, load_table_counts
+from tests.pipeline.utils import assert_load_info, load_table_counts, assert_query_data
 
 
 @pytest.mark.parametrize(
