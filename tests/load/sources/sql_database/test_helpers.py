@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Callable, Any, Literal
+from typing import Callable, Any, Literal, Optional
 from dataclasses import dataclass
 
 import pytest
@@ -8,8 +8,10 @@ import dlt
 from dlt.common.typing import TDataItem
 
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.utils import uniq_id
 
 try:
+    from dlt.sources.sql_database import sql_table
     from dlt.sources.sql_database.helpers import TableLoader, TableBackend
     from dlt.sources.sql_database.schema_types import table_to_columns
     from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
@@ -23,6 +25,7 @@ class MockIncremental:
     last_value: Any
     last_value_func: Callable[[Any], Any]
     cursor_path: str
+    primary_key: str = None
     row_order: str = None
     end_value: Any = None
     on_cursor_value_missing: str = "raise"
@@ -43,6 +46,51 @@ def test_cursor_or_unique_column_not_in_table(
             table,
             table_to_columns(table),
             incremental=dlt.sources.incremental("not_a_column"),
+        )
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+def test_row_order_not_defined(sql_source_db: SQLAlchemySourceDB, backend: TableBackend) -> None:
+    incremental = MockIncremental(
+        last_value=dlt.common.pendulum.now(),
+        last_value_func=max,
+        cursor_path="created_at",
+    )
+
+    table = sql_source_db.get_table("chat_message")
+
+    with pytest.raises(ValueError, match="Row order must be specified .*"):
+        TableLoader(
+            sql_source_db.engine,
+            backend,
+            table,
+            table_to_columns(table),
+            incremental=incremental,  # type: ignore[arg-type]
+            page_size=1000,
+        )
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+def test_primary_key_column_not_defined(
+    sql_source_db: SQLAlchemySourceDB, backend: TableBackend
+) -> None:
+    incremental = MockIncremental(
+        last_value=dlt.common.pendulum.now(),
+        last_value_func=max,
+        cursor_path="created_at",
+        row_order="asc",
+    )
+
+    table = sql_source_db.get_table("chat_message")
+
+    with pytest.raises(ValueError, match="Primary keys must be specified .*"):
+        TableLoader(
+            sql_source_db.engine,
+            backend,
+            table,
+            table_to_columns(table),
+            incremental=incremental,  # type: ignore[arg-type]
+            page_size=1000,
         )
 
 
