@@ -196,6 +196,18 @@ def test_explicit_dataset_type_selection(populated_pipeline: Pipeline):
     indirect=True,
     ids=lambda x: x.name,
 )
+def test_scalar(populated_pipeline: Pipeline) -> None:
+    assert populated_pipeline.dataset().items.count().scalar() == 3000
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
 def test_arrow_access(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset().items
     total_records = _total_records(populated_pipeline.destination.destination_type)

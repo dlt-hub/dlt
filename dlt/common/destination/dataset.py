@@ -91,6 +91,10 @@ class SupportsReadableRelation(ABC):
         """fetch first item as python tuple"""
         raise NotImplementedError("Fetch one is not supported for this relation")
 
+    def scalar(self) -> Any:
+        """fetch first value of first column on first row as python primitive"""
+        return self.fetchone()[0]
+
     # modifying access parameters
     def limit(self, limit: int, **kwargs: Any) -> Self:
         """limit the result to 'limit' items"""

@@ -95,9 +95,7 @@ def test_state_based_incremental_transform(
         last_processed_load_id = dlt.current.resource_state().get(LAST_PROCESSED_LOAD_ID, "0")
         items_table = dataset.items
 
-        max_load_id = list(
-            items_table._dlt_load_id.max().df().to_dict(orient="records")[0].values()
-        )[0]
+        max_load_id = items_table._dlt_load_id.max().scalar()
         dlt.current.resource_state()[LAST_PROCESSED_LOAD_ID] = max_load_id
 
         # return filtered transformation
@@ -108,17 +106,15 @@ def test_state_based_incremental_transform(
 
     # first round
     inc_p.run(first_load())
-    last_loaded_load_id = list(
-        inc_p.dataset()._dlt_loads.load_id.max().df().to_dict(orient="records")[0].values()
-    )[0]
+    last_loaded_load_id = inc_p.dataset()._dlt_loads.load_id.max().scalar()
+
     dest_p.run(transformed_items(inc_p.dataset(), last_loaded_load_id))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_FIRST_LOAD)
 
     # second round
     inc_p.run(inc_load())
-    last_loaded_load_id = list(
-        inc_p.dataset()._dlt_loads.load_id.max().df().to_dict(orient="records")[0].values()
-    )[0]
+    last_loaded_load_id = inc_p.dataset()._dlt_loads.load_id.max().scalar()
+
     dest_p.run(transformed_items(inc_p.dataset(), last_loaded_load_id))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)
 
@@ -151,12 +147,7 @@ def test_primary_key_based_incremental_transform(
         try:
             output_dataset = dlt.current.pipeline().dataset()
             if output_dataset.schema.tables.get("transformed_items"):
-                max_pimary_key = list(
-                    output_dataset.transformed_items.id.max()
-                    .df()
-                    .to_dict(orient="records")[0]
-                    .values()
-                )[0]
+                max_pimary_key = output_dataset.transformed_items.id.max().scalar()
         except PipelineNeverRan:
             pass
 
@@ -205,12 +196,7 @@ def test_load_id_based_incremental_transform(
         try:
             output_dataset = dlt.current.pipeline().dataset()
             if output_dataset.schema.tables.get("transformed_items"):
-                max_load_id = list(
-                    output_dataset.transformed_items._dlt_load_id.max()
-                    .df()
-                    .to_dict(orient="records")[0]
-                    .values()
-                )[0]
+                max_load_id = output_dataset.transformed_items._dlt_load_id.max().scalar()
         except PipelineNeverRan:
             pass
 
@@ -222,16 +208,12 @@ def test_load_id_based_incremental_transform(
 
     # first round
     inc_p.run(first_load())
-    last_loaded_load_id = list(
-        inc_p.dataset()._dlt_loads.load_id.max().df().to_dict(orient="records")[0].values()
-    )[0]
+    last_loaded_load_id = inc_p.dataset()._dlt_loads.load_id.max().scalar()
     dest_p.run(transformed_items(inc_p.dataset(), last_loaded_load_id))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_FIRST_LOAD)
 
     # second round
     inc_p.run(inc_load())
-    last_loaded_load_id = list(
-        inc_p.dataset()._dlt_loads.load_id.max().df().to_dict(orient="records")[0].values()
-    )[0]
+    last_loaded_load_id = inc_p.dataset()._dlt_loads.load_id.max().scalar()
     dest_p.run(transformed_items(inc_p.dataset(), last_loaded_load_id))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)

@@ -232,7 +232,7 @@ def test_sql_transformation_with_unknown_column_types(
     with pytest.raises(PipelineStepFailed):
         dest_p.extract(mutated_purchases(fruit_p.dataset()))
 
-    @dlt.transformation(transformation_type="sql", columns={"new_col": {"data_type": "double"}})
+    @dlt.transformation(transformation_type="sql")
     def mutated_purchases_with_hints(dataset: SupportsReadableDataset[Any]) -> Any:
         return dataset["purchases"].mutate(new_col=5).limit(5)
 
