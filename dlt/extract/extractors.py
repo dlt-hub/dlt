@@ -398,42 +398,6 @@ class ArrowExtractor(Extractor):
 
         return item
 
-    def _add_dlt_load_id_column(
-        self,
-        item: "TAnyArrowItem",
-        columns: TTableSchemaColumns = None,
-    ) -> "TAnyArrowItem":
-        """
-        Adds or replaces the `_dlt_load_id` column.
-        """
-        replacement_load_id = self.load_id if self._normalize_config.add_dlt_load_id else None
-        if replacement_load_id is not None:
-            dlt_load_id_col_name = self.naming.normalize_identifier(C_DLT_LOAD_ID)
-
-            idx = item.schema.get_field_index(dlt_load_id_col_name)
-            # if the column already exists and is in columns, get rid of it
-            if idx != -1 and dlt_load_id_col_name in columns:
-                item = pyarrow.remove_columns(item, dlt_load_id_col_name)
-
-            # get pyarrow.string() type
-            pyarrow_string = pyarrow.get_py_arrow_datatype(
-                columns[dlt_load_id_col_name],
-                self._caps,
-                "UTC",  # ts is irrelevant to get pyarrow string, but it's required...
-            )
-
-            # add the column with the new value at previous index or append
-            item = pyarrow.add_constant_column(
-                item=item,
-                name=dlt_load_id_col_name,
-                data_type=pyarrow_string,
-                value=replacement_load_id,
-                nullable=False,
-                index=idx,
-            )
-
-        return item
-
     def _write_item(
         self,
         table_name: str,
@@ -454,9 +418,13 @@ class ArrowExtractor(Extractor):
         ]
 
         items = [
-            self._add_dlt_load_id_column(
+            pyarrow.add_dlt_load_id_column(
                 item,
                 columns,
+                self._caps,
+                self.naming,
+                self._normalize_config.add_dlt_load_id,
+                self.load_id,
             )
             for item in items
         ]
@@ -489,15 +457,6 @@ class ArrowExtractor(Extractor):
                 except pyarrow.UnsupportedArrowTypeException as e:
                     e.table_name = str(arrow_table.get("name"))
                     raise
-
-                # Add load_id column if needed
-                dlt_load_id = self.naming.normalize_identifier(C_DLT_LOAD_ID)
-                if (
-                    self._normalize_config.add_dlt_load_id
-                    and dlt_load_id not in arrow_table["columns"]
-                ):
-                    # will be normalized line below
-                    arrow_table["columns"][C_DLT_LOAD_ID] = utils.dlt_load_id_column()
 
                 # normalize arrow table before merging
                 arrow_table = utils.normalize_table_identifiers(arrow_table, self.schema.naming)

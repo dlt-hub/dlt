@@ -22,7 +22,7 @@ from dlt.common import logger
 from dlt.common.json import json, custom_encode, map_nested_in_place
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.typing import TColumnType
-from dlt.common.schema.utils import is_nullable_column
+from dlt.common.schema.utils import is_nullable_column, dlt_load_id_column
 from dlt.common.typing import StrStr, TFileOrPath, TDataItems
 from dlt.common.normalizers.naming import NamingConvention
 
@@ -516,6 +516,51 @@ def normalize_py_arrow_item(
 
     # create desired type
     return item.__class__.from_arrays(new_columns, schema=pyarrow.schema(new_fields))
+
+
+def add_dlt_load_id_column(
+    item: TAnyArrowItem,
+    columns: TTableSchemaColumns,
+    caps: DestinationCapabilitiesContext,
+    naming: NamingConvention,
+    add_load_id: bool,
+    load_id: str,
+) -> TAnyArrowItem:
+    """
+    Adds or replaces the `_dlt_load_id` column.
+    """
+    replacement_load_id = load_id if add_load_id else None
+    if replacement_load_id is not None:
+        dlt_load_id_col_name = naming.normalize_identifier(C_DLT_LOAD_ID)
+
+        idx = item.schema.get_field_index(dlt_load_id_col_name)
+        # if the column already exists, get rid of it
+        if idx != -1:
+            item = remove_columns(item, dlt_load_id_col_name)
+
+        # get pyarrow.string() type
+        pyarrow_string = get_py_arrow_datatype(
+            # use already existing column definition or use the default
+            (
+                columns[dlt_load_id_col_name]
+                if dlt_load_id_col_name in columns
+                else dlt_load_id_column()
+            ),
+            caps,
+            "UTC",  # ts is irrelevant to get pyarrow string, but it's required...
+        )
+
+        # add the column with the new value at previous index or append
+        item = add_constant_column(
+            item=item,
+            name=dlt_load_id_col_name,
+            data_type=pyarrow_string,
+            value=replacement_load_id,
+            nullable=False,
+            index=idx,
+        )
+
+    return item
 
 
 def get_normalized_arrow_fields_mapping(schema: pyarrow.Schema, naming: NamingConvention) -> StrStr:

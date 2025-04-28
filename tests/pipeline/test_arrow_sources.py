@@ -14,7 +14,6 @@ from dlt.common.libs.pyarrow import (
 )
 
 from dlt.pipeline.exceptions import PipelineStepFailed
-
 from tests.cases import (
     arrow_table_all_data_types,
     prepare_shuffled_tables,
@@ -645,11 +644,7 @@ def test_replace_or_keep_existing_dlt_load_id(has_dlt_column: bool, add_dlt_load
 
     pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb")
 
-    @dlt.resource
-    def some_data():
-        yield table
-
-    pipeline.extract(some_data())
+    pipeline.extract(table, table_name="some_data")
     pipeline.normalize()
 
     # Retrieve the normalized table
