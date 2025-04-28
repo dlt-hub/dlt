@@ -9,6 +9,7 @@ import base64
 
 import dlt
 from dlt.common import pendulum
+from dlt.common.libs.pyarrow import columns_to_arrow, row_tuples_to_arrow
 from dlt.common.time import (
     reduce_pendulum_datetime_precision,
     ensure_pendulum_time,
@@ -24,7 +25,10 @@ from tests.utils import (
     arrow_item_from_pandas,
     TPythonTableFormat,
 )
-from tests.cases import arrow_table_all_data_types
+from tests.cases import (
+    arrow_table_all_data_types,
+    table_update_and_row,
+)
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -177,6 +181,44 @@ def test_load_arrow_item(
         # Load id and dlt_id are set
         assert row[-2] == load_id
         assert isinstance(row[-1], str)
+
+
+# TODO: also parametrize by native, parquet formats
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_all_types_tuples_to_arrow(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline("test_all_types_tuples_to_arrow", dev_mode=True)
+    with pipeline._maybe_destination_capabilities() as caps:
+        pass
+
+    columns_schema, row = table_update_and_row()
+
+    @dlt.resource(
+        table_format=destination_config.table_format,
+    )
+    def arrow_items(timezone="UTC"):
+        table = row_tuples_to_arrow(
+            [list(row.values())] * 10,
+            caps,
+            columns=columns_schema,
+            tz=timezone,
+        )
+        yield table
+
+    load_info = pipeline.run(arrow_items())
+    assert_load_info(load_info)
+    # TODO: check col12 (naive datetime) and json column
+    print(pipeline.default_schema.to_pretty_yaml())
 
 
 @pytest.mark.no_load  # Skips drop_pipeline fixture since we don't do any loading
