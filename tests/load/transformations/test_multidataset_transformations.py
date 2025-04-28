@@ -8,11 +8,10 @@ from dlt.transformations.typing import TTransformationType
 
 @pytest.mark.essential
 @pytest.mark.skip(reason="TODO: needs support from lineage to work")
-@pytest.mark.parametrize("transformation_type", ["sql", "python"])
 def test_combine_two_datasets(
     fruit_p: dlt.Pipeline, private_fruit_p: dlt.Pipeline, transformation_type: TTransformationType
 ) -> None:
-    @dlt.transformation(transformation_type=transformation_type)
+    @dlt.transformation()
     def customers_with_ages(dataset: dlt.Dataset, dataset2: dlt.Dataset) -> Any:
         return dataset["customers"].join(
             dataset2["customers_ages"], dataset["customers"].id == dataset2["customers_ages"].id

@@ -3,82 +3,74 @@ import pytest
 from typing import Any
 
 import dlt
+import os
 
 from dlt.common.destination.dataset import SupportsReadableDataset
 from dlt.transformations.exceptions import (
     TransformationTypeMismatch,
     TransformationInvalidReturnTypeException,
     LineageFailedException,
+    IncompatibleDatasetsException,
 )
 from dlt.extract.exceptions import ResourceExtractionError
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 
-def test_infer_transformation_type() -> None:
-    @dlt.transformation()
-    def transform(dataset: SupportsReadableDataset[Any]) -> Any:
-        yield {"a": 1}
-
-    # generator functions are set to python
-    assert transform.transformation_type == "python"
-
-    # sql transformations are set to sql
-    @dlt.transformation(transformation_type="sql")
-    def transform_sql(dataset: SupportsReadableDataset[Any]) -> Any:
-        return dataset["example_table"].limit(5)
-
-    assert transform_sql.transformation_type == "sql"
-
-
-def test_set_transformation_type() -> None:
-    @dlt.transformation(transformation_type="sql")
-    def transform_sql(dataset: SupportsReadableDataset[Any]) -> Any:
-        return "some query"
-
-    assert transform_sql.transformation_type == "sql"
-
-    # we can also set it to python but not yield
-    @dlt.transformation(transformation_type="python")
-    def transform_python(dataset: SupportsReadableDataset[Any]) -> Any:
-        return dataset["example_table"].limit(5)
-
-    # NOTE: test this properly here, we need a real dataset and need
-    # to execute the query
-    assert transform_python.transformation_type == "python"
-
-    # setting sql for a yielding transformation will fail
-    with pytest.raises(TransformationTypeMismatch):
-
-        @dlt.transformation(transformation_type="sql")
-        def transform_sql_yielding(dataset: SupportsReadableDataset[Any]) -> Any:
-            yield {"a": 1}
-
-
-def test_failed_lineage_incorrect_object_type() -> None:
-    @dlt.transformation(lineage_mode="strict")
-    def transform(dataset: SupportsReadableDataset[Any]) -> Any:
-        return "select * from example_table"
-
+def test_no_datasets_used() -> None:
     with pytest.raises(ResourceExtractionError) as excinfo:
-        list(transform(None))
-    assert "Lineage only supported for classes that implement SupportsReadableRelation" in str(
+
+        @dlt.transformation()
+        def transform() -> Any:
+            return {"some": "data"}
+
+        list(transform())
+
+    assert "No datasets detected in transformation. Please supply all used datasets via" in str(
         excinfo.value
     )
-    assert isinstance(excinfo.value.__context__, LineageFailedException)
+    assert isinstance(excinfo.value.__context__, IncompatibleDatasetsException)
+
+
+def test_dataset_not_on_same_destination() -> None:
+    os.environ["BUCKET_URL"] = "./local"
+    with pytest.raises(ResourceExtractionError) as excinfo:
+
+        @dlt.transformation()
+        def transform(
+            dataset: SupportsReadableDataset[Any], dataset2: SupportsReadableDataset[Any]
+        ) -> Any:
+            return dataset["table_name"]
+
+        list(
+            transform(
+                dlt.dataset("duckdb", "dataset_name"), dlt.dataset("filesystem", "dataset_name2")
+            )
+        )
+    assert "All datasets used in transformation must be on the" in str(excinfo.value)
+    assert isinstance(excinfo.value.__context__, IncompatibleDatasetsException)
+
+
+def test_iterator_function_as_transform_function() -> None:
+    with pytest.raises(TransformationInvalidReturnTypeException):
+
+        @dlt.transformation()
+        def transform(dataset: SupportsReadableDataset[Any]) -> Any:
+            yield [{"some": "data"}]
 
 
 def test_incorrect_transform_function_return_type() -> None:
+    p = dlt.pipeline("test_pipeline", destination="duckdb")
+
     @dlt.transformation()
     def transform(dataset: SupportsReadableDataset[Any]) -> Any:
         return {"some": "data"}
 
-    with pytest.raises(ResourceExtractionError) as excinfo:
-        list(transform(None))
-    assert "Please either return a valid sql string or a SupportsReadableRelation instance." in str(
+    with pytest.raises(PipelineStepFailed) as excinfo:
+        p.run(transform(dlt.dataset("duckdb", "dataset_name")))
+
+    assert "Please either return a valid sql string or a SupportsReadableRelation instance" in str(
         excinfo.value
     )
-    assert isinstance(excinfo.value.__context__, TransformationInvalidReturnTypeException)
-
-
-@pytest.mark.skip("TODO: implement")
-def test_dataset_not_on_same_destination() -> None:
-    pass
+    assert isinstance(
+        excinfo.value.__context__.__context__, TransformationInvalidReturnTypeException
+    )

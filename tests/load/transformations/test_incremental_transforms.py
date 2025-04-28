@@ -74,18 +74,16 @@ def _assert_transformed_data(inc_p: dlt.Pipeline, expected_data: list[Any]) -> N
     transformation_configs(),
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize("transformation_type", ["python", "sql"])
 def test_state_based_incremental_transform(
-    destination_config: DestinationTestConfiguration, transformation_type: Any
+    destination_config: DestinationTestConfiguration,
 ) -> None:
     """
     Here we demonstrate how to use the resource state for transform incrementals
     """
     # get pipelines and populate fruit pipeline
-    inc_p, dest_p = setup_transformation_pipelines(destination_config, transformation_type)
+    inc_p, dest_p = setup_transformation_pipelines(destination_config)
 
     @dlt.transformation(
-        transformation_type=transformation_type,
         write_disposition="append",
     )
     def transformed_items(dataset: dlt.Dataset, last_loaded_load_id: str) -> Any:
@@ -124,9 +122,8 @@ def test_state_based_incremental_transform(
     transformation_configs(),
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize("transformation_type", ["python", "sql"])
 def test_primary_key_based_incremental_transform(
-    destination_config: DestinationTestConfiguration, transformation_type: Any
+    destination_config: DestinationTestConfiguration,
 ) -> None:
     """
     Here we demonstrate how to look up the newest primary key in the output dataset
@@ -134,10 +131,9 @@ def test_primary_key_based_incremental_transform(
     is incrementing reliably
     """
     # get pipelines and populate fruit pipeline
-    inc_p, dest_p = setup_transformation_pipelines(destination_config, transformation_type)
+    inc_p, dest_p = setup_transformation_pipelines(destination_config)
 
     @dlt.transformation(
-        transformation_type=transformation_type,
         write_disposition="append",
     )
     def transformed_items(dataset: dlt.Dataset) -> Any:
@@ -173,9 +169,8 @@ def test_primary_key_based_incremental_transform(
     transformation_configs(),
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize("transformation_type", ["python", "sql"])
 def test_load_id_based_incremental_transform(
-    destination_config: DestinationTestConfiguration, transformation_type: Any
+    destination_config: DestinationTestConfiguration,
 ) -> None:
     """
     Here we demonstrate how to look up the newest load_id in the output dataset
@@ -183,10 +178,9 @@ def test_load_id_based_incremental_transform(
     the above
     """
     # get pipelines and populate fruit pipeline
-    inc_p, dest_p = setup_transformation_pipelines(destination_config, transformation_type)
+    inc_p, dest_p = setup_transformation_pipelines(destination_config)
 
     @dlt.transformation(
-        transformation_type=transformation_type,
         write_disposition="append",
     )
     def transformed_items(dataset: dlt.Dataset, last_loaded_load_id: str) -> Any:

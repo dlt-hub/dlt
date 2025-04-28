@@ -22,20 +22,17 @@ from tests.load.transformations.utils import (
 
 
 @pytest.mark.essential
-@pytest.mark.parametrize("transformation_type", ["sql", "python"])
 @pytest.mark.parametrize(
     "destination_config",
     transformation_configs(),
     ids=lambda x: x.name,
 )
-def test_simple_query_transformations(
-    transformation_type: TTransformationType, destination_config: DestinationTestConfiguration
-) -> None:
+def test_simple_query_transformations(destination_config: DestinationTestConfiguration) -> None:
     # get pipelines andpopulate fruit pipeline
-    fruit_p, dest_p = setup_transformation_pipelines(destination_config, transformation_type)
+    fruit_p, dest_p = setup_transformation_pipelines(destination_config)
     load_fruit_dataset(fruit_p)
 
-    @dlt.transformation(transformation_type=transformation_type)
+    @dlt.transformation()
     def copied_purchases(dataset: dlt.Dataset) -> Any:
         return dataset["purchases"].limit(5)
 
@@ -47,14 +44,11 @@ def test_simple_query_transformations(
     }
 
     # verify the right transformation was run
-    if transformation_type == "sql":
-        assert list(get_job_types(dest_p)["copied_purchases"].keys())[0] == "model"
-    else:
-        assert list(get_job_types(dest_p)["copied_purchases"].keys())[0] in [
-            "parquet",
-            "insert_values",
-            "csv",
-        ]
+    assert (
+        list(get_job_types(dest_p)["copied_purchases"].keys())[0] == "parquet"
+        if destination_config.destination_type == "filesystem"
+        else "model"
+    )
 
 
 # NOTE: move to duckdb only transformation tests
@@ -64,46 +58,16 @@ def test_simple_query_transformations(
     transformation_configs(),
     ids=lambda x: x.name,
 )
-def test_simple_python_transformations(destination_config: DestinationTestConfiguration) -> None:
+def test_grouped_transformations(destination_config: DestinationTestConfiguration) -> None:
     # get pipelines and populate fruit pipeline
-    fruit_p, dest_p = setup_transformation_pipelines(destination_config, "python")
+    fruit_p, dest_p = setup_transformation_pipelines(destination_config)
     load_fruit_dataset(fruit_p)
 
-    @dlt.transformation(transformation_type="python")
-    def copied_purchases(dataset: dlt.Dataset) -> Any:
-        yield from dataset["purchases"].limit(5).iter_arrow(500)
-
-    dest_p.run(copied_purchases(fruit_p.dataset()))
-
-    assert row_counts(dest_p.dataset(), ["copied_purchases"]) == {
-        "copied_purchases": 5,
-    }
-
-    # verify the right transformation was run
-    assert list(get_job_types(dest_p)["copied_purchases"].keys())[0] in [
-        "parquet",
-        "insert_values",
-        "csv",
-    ]
-
-
-# NOTE: move to duckdb only transformation tests
-@pytest.mark.essential
-@pytest.mark.parametrize(
-    "destination_config",
-    transformation_configs(),
-    ids=lambda x: x.name,
-)
-def test_grouped_sql_transformations(destination_config: DestinationTestConfiguration) -> None:
-    # get pipelines and populate fruit pipeline
-    fruit_p, dest_p = setup_transformation_pipelines(destination_config, "sql")
-    load_fruit_dataset(fruit_p)
-
-    @dlt.transformation(transformation_type="sql")
+    @dlt.transformation()
     def copied_purchases(dataset: dlt.Dataset) -> Any:
         return dataset["purchases"].limit(5)
 
-    @dlt.transformation(transformation_type="python")
+    @dlt.transformation()
     def copied_purchases2(dataset: dlt.Dataset) -> Any:
         return dataset["purchases"].limit(7)
 
@@ -119,12 +83,17 @@ def test_grouped_sql_transformations(destination_config: DestinationTestConfigur
     }
 
     # verify the right transformation was run
-    assert list(get_job_types(dest_p)["copied_purchases"].keys()) == ["model"]
-    assert list(get_job_types(dest_p)["copied_purchases2"].keys())[0] in [
-        "parquet",
-        "insert_values",
-        "csv",
-    ]
+    assert (
+        list(get_job_types(dest_p)["copied_purchases"].keys())[0] == "parquet"
+        if destination_config.destination_type == "filesystem"
+        else "model"
+    )
+
+    assert (
+        list(get_job_types(dest_p)["copied_purchases2"].keys())[0] == "parquet"
+        if destination_config.destination_type == "filesystem"
+        else "model"
+    )
 
 
 # NOTE: move to duckdb only transformation tests
@@ -136,10 +105,10 @@ def test_grouped_sql_transformations(destination_config: DestinationTestConfigur
 )
 def test_replace_sql_transformations(destination_config: DestinationTestConfiguration) -> None:
     # get pipelines and populate fruit pipeline
-    fruit_p, dest_p = setup_transformation_pipelines(destination_config, "sql")
+    fruit_p, dest_p = setup_transformation_pipelines(destination_config)
     load_fruit_dataset(fruit_p)
 
-    @dlt.transformation(write_disposition="replace", transformation_type="sql")
+    @dlt.transformation(write_disposition="replace")
     def copied_purchases(dataset: dlt.Dataset) -> Any:
         return dataset["purchases"].limit(5)
 
@@ -154,7 +123,6 @@ def test_replace_sql_transformations(destination_config: DestinationTestConfigur
     @dlt.transformation(
         write_disposition="replace",
         table_name="copied_purchases",
-        transformation_type="sql",
     )
     def copied_purchases_updated(dataset: dlt.Dataset) -> Any:
         return dataset["purchases"].limit(3)
@@ -175,10 +143,10 @@ def test_replace_sql_transformations(destination_config: DestinationTestConfigur
 )
 def test_append_sql_transformations(destination_config: DestinationTestConfiguration) -> None:
     # get pipelines and populate fruit pipeline
-    fruit_p, dest_p = setup_transformation_pipelines(destination_config, "sql")
+    fruit_p, dest_p = setup_transformation_pipelines(destination_config)
     load_fruit_dataset(fruit_p)
 
-    @dlt.transformation(write_disposition="append", transformation_type="sql")
+    @dlt.transformation(write_disposition="append")
     def copied_purchases(dataset: dlt.Dataset) -> Any:
         return dataset["purchases"].limit(5)
 
@@ -189,9 +157,7 @@ def test_append_sql_transformations(destination_config: DestinationTestConfigura
         "copied_purchases": 5,
     }
 
-    @dlt.transformation(
-        write_disposition="append", table_name="copied_purchases", transformation_type="sql"
-    )
+    @dlt.transformation(write_disposition="append", table_name="copied_purchases")
     def copied_table_updated(dataset: dlt.Dataset) -> Any:
         return dataset["purchases"].limit(7)
 
@@ -220,10 +186,10 @@ def test_sql_transformation_with_unknown_column_types(
     destination_config: DestinationTestConfiguration,
 ) -> None:
     # get pipelines and populate fruit pipeline
-    fruit_p, dest_p = setup_transformation_pipelines(destination_config, "sql")
+    fruit_p, dest_p = setup_transformation_pipelines(destination_config)
     load_fruit_dataset(fruit_p)
 
-    @dlt.transformation(transformation_type="sql")
+    @dlt.transformation()
     def mutated_purchases(dataset: dlt.Dataset) -> Any:
         return dataset["purchases"].mutate(new_col=5).limit(5)
 
@@ -231,7 +197,7 @@ def test_sql_transformation_with_unknown_column_types(
     with pytest.raises(PipelineStepFailed):
         dest_p.extract(mutated_purchases(fruit_p.dataset()))
 
-    @dlt.transformation(transformation_type="sql")
+    @dlt.transformation()
     def mutated_purchases_with_hints(dataset: dlt.Dataset) -> Any:
         return dataset["purchases"].mutate(new_col=5).limit(5)
 

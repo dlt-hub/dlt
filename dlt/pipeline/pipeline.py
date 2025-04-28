@@ -1765,14 +1765,17 @@ class Pipeline(SupportsPipeline):
             logger.info(
                 f"Make sure that tables declared in explicit schema {schema.name} are present on"
                 f" dataset {self.dataset_name}"
-            )
-        elif not self.default_schema_name:
-            raise PipelineNeverRan(self.pipeline_name, self.pipelines_dir)
-        elif schema is None:
-            schema = self.default_schema
+            )  #
         elif isinstance(schema, str):
-            # schema with given name must be present
-            schema = self.schemas[schema]
+            if schema := self.schemas.get(schema, None):
+                pass
+            else:
+                logger.info(
+                    f"Schema {schema} not found in the pipeline, deferring to destination, this"
+                    " might fail if the schema is not present on the destination."
+                )
+        elif self.default_schema_name:
+            schema = self.default_schema
 
         return dataset(
             self._destination,

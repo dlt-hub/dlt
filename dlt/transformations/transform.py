@@ -9,13 +9,11 @@ from dlt.extract.incremental import TIncrementalConfig
 from dlt.transformations.typing import (
     TTransformationType,
     TTransformationFunParams,
-    TLineageMode,
 )
 from dlt.transformations.exceptions import (
-    TransformationTypeMismatch,
-    LineageFailedException,
     UnknownColumnTypesException,
     TransformationInvalidReturnTypeException,
+    IncompatibleDatasetsException,
 )
 from dlt.destinations.dataset import ReadableDBAPIDataset
 from dlt.common.schema.typing import TTableSchemaColumns
@@ -61,24 +59,12 @@ def make_transform_resource(
 ) -> DltTransformResource:
     # resolve defaults etc
     chunk_size = DEFAULT_CHUNK_SIZE
-    lineage_mode = lineage_mode or "best_effort"
 
-    # resolve type of transformation
-    transformation_function_type = "python" if inspect.isgeneratorfunction(func) else "sql"
-    resolved_transformation_type = transformation_type
-    if not resolved_transformation_type:
-        resolved_transformation_type = "sql" if transformation_function_type == "sql" else "python"
-
-    # some sanity checks
-    if resolved_transformation_type == "sql" and transformation_function_type == "python":
-        raise TransformationTypeMismatch(
+    # check function type
+    if inspect.isgeneratorfunction(func):
+        raise TransformationInvalidReturnTypeException(
             "Sql transformation must return single sql query string or dlt "
             + "readablerelation and not be a generator function"
-        )
-
-    if lineage_mode in ["strict"] and transformation_function_type == "python":
-        raise LineageFailedException(
-            "Lineage mode 'strict' is only supported for sql transformations"
         )
 
     # build transform function
@@ -89,35 +75,40 @@ def make_transform_resource(
             if isinstance(arg, ReadableDBAPIDataset):
                 datasets.append(arg)
 
-        # TODO: implement is phyiscal destination check
         # NOTE: there may be cases where some other dataset is used to get a starting
         # point and it will be on a different destination.
-        # if datasets:
-        #     for d in datasets:
-        #         if not d.is_same_phyiscal_destination(datasets[0]):
-        #             raise IncompatibleDatasetsException(
-        #                 "All datasets used in transformation must be on the"
-        #                 + " same physical destination."
-        #             )
+        if datasets:
+            for d in datasets:
+                if not d.is_same_physical_destination(datasets[0]):
+                    raise IncompatibleDatasetsException(
+                        "All datasets used in transformation must be on the"
+                        + " same physical destination."
+                    )
+        else:
+            raise IncompatibleDatasetsException(
+                "No datasets detected in transformation. Please supply all used datasets via"
+                " transform function arguments."
+            )
 
-        # Check that if sql transformation is used, destination dataset is on
-        # same physical destination
-        # if resolved_transformation_type == "sql" and not datasets[0].is_same_phyiscal_destination(
-        #     dlt.current.pipeline().dataset()
-        # ):
-        #     raise IncompatibleDatasetsException(
-        #         "When using sql transformations, the destination dataset"
-        #         + " must be on the same physical destination."
-        #     )
+        # Determine wether we use sql (model) or python (arrow_iterator) transformation
+        # we need to supply the curent schema name (=source name)to the dataset constructor
+        schema_name = dlt.current.source().name
+        resolved_transformation_type = (
+            "sql"
+            if datasets[0].is_same_physical_destination(
+                dlt.current.pipeline().dataset(schema=schema_name)
+            )
+            else "python"
+        )
 
         # extract query from transform function
         select_query: str = None
         transformation_result: Any = func(*args, **kwargs)
         if isinstance(transformation_result, str):
             select_query = transformation_result
-        elif hasattr(transformation_result, "query"):
-            if isinstance(transformation_result, SupportsReadableRelation):
-                select_query = transformation_result.query()
+            resolved_transformation_type = "python"
+        elif isinstance(transformation_result, SupportsReadableRelation):
+            select_query = transformation_result.query()
         else:
             raise TransformationInvalidReturnTypeException(
                 (
@@ -130,12 +121,7 @@ def make_transform_resource(
         # compute lineage
         computed_columns: TTableSchemaColumns = {}
         all_columns: TTableSchemaColumns = columns or {}
-        if lineage_mode in ["strict", "best_effort"]:
-            if not isinstance(transformation_result, SupportsReadableRelation):
-                raise LineageFailedException(
-                    "Lineage only supported for classes that implement SupportsReadableRelation"
-                )
-
+        if isinstance(transformation_result, SupportsReadableRelation):
             # lineage
             computed_columns = transformation_result.compute_columns_schema()
             all_columns = {**computed_columns, **(columns or {})}
@@ -166,7 +152,7 @@ def make_transform_resource(
     resource = cast(
         DltTransformResource,
         dlt.resource(
-            transform_function if transformation_function_type == "sql" else func,  # type: ignore
+            transform_function,  # type: ignore
             name=name,
             table_name=table_name,
             write_disposition=write_disposition,
@@ -185,6 +171,4 @@ def make_transform_resource(
         ),
     )
 
-    # set some extra attributes
-    resource.transformation_type = resolved_transformation_type
     return resource

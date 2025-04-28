@@ -4,9 +4,6 @@ from typing import Any
 
 import dlt
 
-from dlt.transformations.typing import TLineageMode, TTransformationType
-from dlt.extract.exceptions import ResourceExtractionError
-
 from tests.load.transformations.utils import (
     row_counts,
     transformation_configs,
@@ -24,16 +21,14 @@ from tests.load.utils import DestinationTestConfiguration
     transformation_configs(),
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize("transformation_type", ["sql", "python"])
 def test_simple_lineage(
     destination_config: DestinationTestConfiguration,
-    transformation_type: TTransformationType,
 ) -> None:
     # get pipelines and populate fruit pipeline
-    fruit_p, dest_p = setup_transformation_pipelines(destination_config, transformation_type)
+    fruit_p, dest_p = setup_transformation_pipelines(destination_config)
     load_fruit_dataset(fruit_p)
 
-    @dlt.transformation(write_disposition="append", transformation_type=transformation_type)
+    @dlt.transformation(write_disposition="append")
     def enriched_purchases(dataset: dlt.Dataset) -> Any:
         purchases = dataset["purchases"]
         customers = dataset["customers"]
@@ -51,50 +46,3 @@ def test_simple_lineage(
     assert (
         dest_p.dataset().schema.tables["enriched_purchases"]["columns"]["id"].get("x-pii", False)
     ) is False
-
-
-# NOTE: move to duckdb only transformation tests
-@pytest.mark.essential
-@pytest.mark.parametrize(
-    "destination_config",
-    transformation_configs(),
-    ids=lambda x: x.name,
-)
-@pytest.mark.parametrize("lineage_mode", ["strict", "best_effort", "disabled"])
-@pytest.mark.parametrize("add_unknown_column", [True, False])
-def test_lineage_modes(
-    destination_config: DestinationTestConfiguration,
-    lineage_mode: TLineageMode,
-    add_unknown_column: bool,
-) -> None:
-    if lineage_mode == "strict" and add_unknown_column:
-        # TODO: lineage is better now, so I need a better way to figure out an unknown column type for this test
-        pytest.skip("Skipping test for strict lineage mode with unknown column")
-
-    # get pipelines and populate fruit pipeline
-    fruit_p, dest_p = setup_transformation_pipelines(destination_config, "python")
-    load_fruit_dataset(fruit_p)
-
-    @dlt.transformation(
-        write_disposition="append", transformation_type="python", lineage_mode=lineage_mode
-    )
-    def enriched_purchases(dataset: dlt.Dataset) -> Any:
-        purchases = dataset["purchases"]
-        customers = dataset["customers"]
-        joined_table = purchases.join(customers, purchases.customer_id == customers.id)
-        if add_unknown_column:
-            joined_table = joined_table.mutate(new_column=5)
-        return joined_table
-
-    # if we add an unknown column in strict mode, we should raise (not tested at the moment...)
-    if lineage_mode == "strict" and add_unknown_column:
-        with pytest.raises(ResourceExtractionError):
-            list(enriched_purchases(fruit_p.dataset()))
-        return
-
-    dest_p.run(enriched_purchases(fruit_p.dataset()))
-
-    # for all modes except disabled, the name column should have the ppi hint
-    assert dest_p.dataset().schema.tables["enriched_purchases"]["columns"]["name"].get(
-        "x-pii", False
-    ) == (lineage_mode != "disabled")

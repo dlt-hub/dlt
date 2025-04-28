@@ -75,12 +75,9 @@ def transformation_configs(only_duckdb: bool = False):
 
 
 def setup_transformation_pipelines(
-    destination_config: DestinationTestConfiguration, transformation_type: str
+    destination_config: DestinationTestConfiguration,
 ) -> Tuple[dlt.Pipeline, dlt.Pipeline]:
     """Set up a source and a destination pipeline for transformation tests"""
-
-    if destination_config.destination_type == "filesystem" and transformation_type == "sql":
-        pytest.skip("Filesystem destination does not support sql transformations")
 
     # Disable unique indexing for postgres, otherwise there will be a not null constraint error
     # because we're copying from the same table, should be fixed in hints forwarding
