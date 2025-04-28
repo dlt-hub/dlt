@@ -14,7 +14,7 @@ from dlt.common.schema.utils import get_table_format
 from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.fs_client import FSClientBase
-from dlt.destinations.exceptions import DatabaseUndefinedRelation
+from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationUndefinedEntity
 
 from dlt.common.schema.typing import TTableSchema
 
@@ -158,7 +158,11 @@ def _load_tables_to_dicts_fs(
     result: Dict[str, List[Dict[str, Any]]] = {}
 
     for table_name in table_names:
-        for file in client.list_table_files(table_name):
+        files = client.list_table_files(table_name)
+        # simulate missing table
+        if len(files) == 0:
+            raise DestinationUndefinedEntity(f"Table {table_name} not found")
+        for file in files:
             result[table_name] = result.get(table_name, []) + _load_jsonl_file(client, file)
 
     return result

@@ -589,11 +589,8 @@ def test_refresh_staging_dataset(destination_config: DestinationTestConfiguratio
     assert_load_info(info)
 
     # tables got dropped
-    if _is_filesystem(pipeline):
-        assert load_table_counts(pipeline, "data_1", "data_2") == {}
-    else:
-        with pytest.raises(DestinationUndefinedEntity):
-            load_table_counts(pipeline, "data_1", "data_2")
+    with pytest.raises(DestinationUndefinedEntity):
+        load_table_counts(pipeline, "data_1", "data_2")
     load_table_counts(pipeline, "data_1_v2", "data_1_v2")
 
 
