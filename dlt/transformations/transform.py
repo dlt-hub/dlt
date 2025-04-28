@@ -22,7 +22,6 @@ from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.extract.hints import make_hints
 from dlt.common.destination.dataset import SupportsReadableDataset, SupportsReadableRelation
 from dlt.extract import DltResource
-from dlt.common.typing import Concatenate
 from dlt.transformations.configuration import TransformConfiguration
 
 from dlt.common.schema.typing import (
@@ -44,7 +43,7 @@ class DltTransformResource(DltResource):
 
 
 def make_transform_resource(
-    func: Callable[Concatenate[SupportsReadableDataset[Any], TTransformationFunParams], Any],
+    func: Callable[TTransformationFunParams, Any],
     name: str = None,
     table_name: str = None,
     write_disposition: TWriteDisposition = None,

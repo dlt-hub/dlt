@@ -2,7 +2,7 @@ from typing import Callable, Any, overload, Optional, Type
 
 from dlt.common.utils import get_callable_name
 from dlt.common.destination.dataset import SupportsReadableDataset
-from dlt.common.typing import AnyFun, Concatenate, TColumnNames
+from dlt.common.typing import AnyFun, TColumnNames
 from dlt.extract.incremental import TIncrementalConfig
 
 from dlt.common.schema.typing import (
@@ -45,15 +45,12 @@ def transformation(
     transformation_type: TTransformationType = None,
     chunk_size: int = None,
     lineage_mode: TLineageMode = None,
-) -> Callable[
-    [Callable[Concatenate[SupportsReadableDataset[Any], TTransformationFunParams], Any]],
-    DltTransformResource,
-]: ...
+) -> Callable[[Callable[TTransformationFunParams, Any]], DltTransformResource,]: ...
 
 
 @overload
 def transformation(
-    func: Callable[Concatenate[SupportsReadableDataset[Any], TTransformationFunParams], Any] = None,
+    func: Callable[TTransformationFunParams, Any] = None,
     /,
     name: str = None,
     table_name: str = None,
@@ -73,10 +70,7 @@ def transformation(
     transformation_type: TTransformationType = None,
     chunk_size: int = None,
     lineage_mode: TLineageMode = None,
-) -> Callable[
-    [Callable[Concatenate[SupportsReadableDataset[Any], TTransformationFunParams], Any]],
-    DltTransformResource,
-]: ...
+) -> Callable[[Callable[TTransformationFunParams, Any]], DltTransformResource,]: ...
 
 
 def transformation(
@@ -106,7 +100,7 @@ def transformation(
     """
 
     def decorator(
-        f: Callable[Concatenate[SupportsReadableDataset[Any], TTransformationFunParams], Any],
+        f: Callable[TTransformationFunParams, Any],
     ) -> DltTransformResource:
         nonlocal name, write_disposition
 
