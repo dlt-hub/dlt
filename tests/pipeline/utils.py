@@ -332,8 +332,8 @@ def _load_table_counts_sql(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
 
 def load_table_counts(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
     """Returns row counts for `table_names` as dict"""
-    func = _load_table_counts_fs if _is_filesystem(p) else _load_table_counts_sql
-    return func(p, *table_names)
+    counts = p.dataset().row_counts(table_names=list(table_names)).fetchall()
+    return {row[0]: row[1] for row in counts}
 
 
 def load_data_table_counts(p: dlt.Pipeline) -> DictStrAny:
