@@ -15,6 +15,7 @@ from dlt.common.typing import StrAny, TDataItems
 from dlt.common.wei import Wei
 from dlt.common.time import (
     ensure_pendulum_datetime,
+    ensure_pendulum_datetime_non_utc,
     reduce_pendulum_datetime_precision,
     ensure_pendulum_time,
     ensure_pendulum_date,
@@ -102,6 +103,7 @@ TABLE_UPDATE: List[TColumnSchema] = [
     },
     {"name": "col7_precision", "data_type": "binary", "precision": 19, "nullable": False},
     {"name": "col11_precision", "data_type": "time", "precision": 3, "nullable": False},
+    {"name": "col12", "data_type": "timestamp", "timezone": False, "nullable": False},
 ]
 TABLE_UPDATE_COLUMNS_SCHEMA: TTableSchemaColumns = {c["name"]: c for c in TABLE_UPDATE}
 
@@ -140,6 +142,7 @@ TABLE_ROW_ALL_DATA_TYPES = {
     "col6_precision": Decimal("2323.34"),
     "col7_precision": b"binary data 2 \n \r A",
     "col11_precision": "13:26:45.176451",
+    "col12": "2299-12-31 00:00:01.000",
 }
 
 
@@ -149,6 +152,9 @@ TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col10"] = ensure_pendulum_date(TABLE_ROW_ALL
 TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col11"] = pendulum.Time.fromisoformat(TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col11"])  # type: ignore[arg-type]
 TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col4_precision"] = ensure_pendulum_datetime(TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col4_precision"])  # type: ignore[arg-type]
 TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col11_precision"] = pendulum.Time.fromisoformat(TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col11_precision"])  # type: ignore[arg-type]
+TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col12"] = ensure_pendulum_datetime_non_utc(
+    TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col12"]  # type: ignore[arg-type]
+)
 
 
 TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS = [
@@ -269,6 +275,9 @@ def assert_all_data_types_row(
     if "col8" in db_mapping:
         if isinstance(db_mapping["col8"], str):
             db_mapping["col8"] = int(db_mapping["col8"])
+        if abs(db_mapping["col8"] - expected_row["col8"]) < 1000:
+            # loss of precision on wei: when writing or reading
+            db_mapping["col8"] = expected_row["col8"]
 
     # redshift and bigquery return strings from structured fields
     if "col9" in db_mapping:
@@ -284,6 +293,16 @@ def assert_all_data_types_row(
     #     db_mapping["col10"] = db_mapping["col10"].isoformat()
     if "col11" in db_mapping:
         db_mapping["col11"] = ensure_pendulum_time(db_mapping["col11"]).isoformat()
+
+    if "col12" in db_mapping:
+        # sqlite returns datetime as str
+        if isinstance(db_mapping["col12"], str):
+            db_mapping["col12"] = datetime.datetime.fromisoformat(db_mapping["col12"])
+        # some destinations do not allow or do not implement naive date times
+        # in that case assume that naive datetime was stored as UTC
+        if db_mapping["col12"].tzinfo is not None:
+            # print("naive datetime not supported", db_mapping["col12"].tzinfo, db_mapping["col12"])
+            db_mapping["col12"] = db_mapping["col12"].replace(tzinfo=None)
 
     if expect_filtered_null_columns:
         for key, expected in expected_rows.items():
