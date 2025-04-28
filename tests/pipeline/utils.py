@@ -182,6 +182,13 @@ def load_tables_to_dicts(
     exclude_system_cols: bool = False,
     sortkey: str = None,
 ) -> Dict[str, List[Dict[str, Any]]]:
+    # filesystem with sftp requires a fallback
+    if _is_sftp(p):
+        result = _load_tables_to_dicts_fs(p, *table_names, schema_name=schema_name)
+    else:
+        result = _load_tables_to_dicts_sql(p, *table_names, schema_name=schema_name)
+
+    # exclude and sort
     def _exclude_system_cols(dict_: Dict[str, Any]) -> Dict[str, Any]:
         return {k: v for k, v in dict_.items() if not k.startswith("_dlt")}
 
@@ -189,16 +196,12 @@ def load_tables_to_dicts(
         """Sort list of dictionaries by dictionary key."""
         return sorted(list_, key=lambda d: d[sortkey])
 
-    # filesystem with sftp requires a fallback
-    if _is_sftp(p):
-        result = _load_tables_to_dicts_fs(p, *table_names, schema_name=schema_name)
-    else:
-        result = _load_tables_to_dicts_sql(p, *table_names, schema_name=schema_name)
-
     if exclude_system_cols:
         result = {k: [_exclude_system_cols(d) for d in v] for k, v in result.items()}
     if sortkey is not None:
         result = {k: _sort_list_of_dicts(v, sortkey) for k, v in result.items()}
+
+    # done
     return result
 
 
@@ -252,6 +255,7 @@ def assert_empty_tables(p: dlt.Pipeline, *table_names: str) -> None:
 
 
 def assert_table_counts(p: dlt.Pipeline, expected_counts: DictStrAny, *table_names: str) -> None:
+    """Asserts that table counts match expected counts"""
     table_counts = load_table_counts(p, *table_names)
     assert (
         table_counts == expected_counts
@@ -344,8 +348,6 @@ def assert_schema_on_data(
         assert list(table_schema["columns"].keys()) == list(row.keys())
         # check data types
         for key, value in row.items():
-            print(key)
-            print(value)
             if value is None:
                 assert table_columns[key][
                     "nullable"
