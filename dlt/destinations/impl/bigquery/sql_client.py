@@ -219,7 +219,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
             curr = conn.cursor()
             # if session exists give it a preference
             curr.execute(query, db_args, job_config=self._session_query or self._default_query)
-            yield BigQueryDBApiCursorImpl(curr)  # type: ignore
+            yield BigQueryDBApiCursorImpl(curr)
         finally:
             if conn:
                 # will close all cursors

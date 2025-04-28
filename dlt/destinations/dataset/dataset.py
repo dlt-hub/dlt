@@ -149,7 +149,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
 
     def __call__(self, query: Any) -> ReadableDBAPIRelation:
         # TODO: accept other query types and return a right relation: sqlglot (DBAPI) and ibis (Expr)
-        return ReadableDBAPIRelation(readable_dataset=self, provided_query=query)  # type: ignore[abstract]
+        return ReadableDBAPIRelation(readable_dataset=self, provided_query=query)
 
     def table(self, table_name: str) -> ReadableIbisRelation:
         # we can create an ibis powered relation if ibis is available
@@ -159,14 +159,14 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
             from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 
             unbound_table = create_unbound_ibis_table(self.sql_client, self.schema, table_name)
-            relation = ReadableIbisRelation(  # type: ignore[abstract]
+            relation = ReadableIbisRelation(
                 readable_dataset=self,
                 ibis_object=unbound_table,
             )
 
         else:
             # fallback to the standard dbapi relation
-            relation = ReadableDBAPIRelation(  # type: ignore[abstract]
+            relation = ReadableDBAPIRelation(
                 readable_dataset=self,
                 table_name=table_name,
             )

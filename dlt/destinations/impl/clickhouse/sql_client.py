@@ -265,7 +265,7 @@ class ClickHouseSqlClient(
                     except KeyError as e:
                         raise DatabaseTransientException(OperationalError()) from e
 
-            yield ClickHouseDBApiCursorImpl(cursor)  # type: ignore[abstract]
+            yield ClickHouseDBApiCursorImpl(cursor)
 
     def catalog_name(self, escape: bool = True) -> Optional[str]:
         database_name = self.capabilities.casefold_identifier(self.database_name)

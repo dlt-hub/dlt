@@ -111,7 +111,7 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
         with self._conn.cursor() as curr:  # type: ignore[assignment]
             try:
                 curr.execute(query, db_args, num_statements=0)
-                yield SnowflakeCursorImpl(curr)  # type: ignore[abstract]
+                yield SnowflakeCursorImpl(curr)
             except snowflake_lib.Error as outer:
                 try:
                     self._reset_connection()
