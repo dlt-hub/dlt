@@ -4,8 +4,9 @@ from typing import Any
 
 import dlt
 
+from tests.pipeline.utils import load_table_counts
+
 from tests.load.transformations.utils import (
-    row_counts,
     transformation_configs,
     setup_transformation_pipelines,
 )
@@ -40,7 +41,7 @@ def test_simple_lineage(
     dest_p.run(enriched_purchases(fruit_p.dataset()))
 
     # check the rowcounts in the dest
-    assert row_counts(dest_p.dataset(), tables=["enriched_purchases"]) == {"enriched_purchases": 3}
+    assert load_table_counts(dest_p, "enriched_purchases") == {"enriched_purchases": 3}
 
     # check that ppi column hint was preserved for name col
     assert dest_p.dataset().schema.tables["enriched_purchases"]["columns"]["name"]["x-pii"] is True  # type: ignore

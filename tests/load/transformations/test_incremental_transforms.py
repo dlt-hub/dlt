@@ -3,6 +3,7 @@ from typing import Any, Iterator
 import dlt
 import os
 from dlt.extract.hints import TDataItem
+from tests.pipeline.utils import load_table_counts
 
 from tests.load.utils import DestinationTestConfiguration
 from tests.load.transformations.utils import transformation_configs, setup_transformation_pipelines

@@ -15,14 +15,6 @@ from tests.load.utils import (
 )
 
 
-# helpers
-def row_counts(dataset: SupportsReadableDataset[Any], tables: list[str] = None) -> dict[str, int]:
-    counts = dataset.row_counts(table_names=tables).arrow().to_pydict()
-    # make all keys lowercase for snowflake
-    counts = {k.lower(): v for k, v in counts.items()}
-    return {t: c for t, c in zip(counts["table_name"], counts["row_count"])}
-
-
 def get_job_types(p: dlt.Pipeline, stage: str = "loaded") -> Dict[str, Dict[str, Any]]:
     """
     gets a list of loaded jobs by type for each table

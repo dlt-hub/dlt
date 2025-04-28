@@ -12,8 +12,9 @@ from tests.load.utils import (
     DestinationTestConfiguration,
 )
 
+from tests.pipeline.utils import load_table_counts
+
 from tests.load.transformations.utils import (
-    row_counts,
     get_job_types,
     transformation_configs,
     setup_transformation_pipelines,
@@ -42,7 +43,7 @@ def test_simple_query_transformations(destination_config: DestinationTestConfigu
     # transform into transformed dataset
     dest_p.run(copied_customers(fruit_p.dataset()))
 
-    assert row_counts(dest_p.dataset(), ["copied_customers"]) == {
+    assert load_table_counts(dest_p, "copied_customers") == {
         "copied_customers": 5,
     }
 
@@ -80,7 +81,7 @@ def test_grouped_transformations(destination_config: DestinationTestConfiguratio
 
     dest_p.run(transformations(fruit_p.dataset()))
 
-    assert row_counts(dest_p.dataset(), ["copied_customers", "copied_customers2"]) == {
+    assert load_table_counts(dest_p, "copied_customers", "copied_customers2") == {
         "copied_customers": 5,
         "copied_customers2": 7,
     }
@@ -118,7 +119,7 @@ def test_replace_sql_transformations(destination_config: DestinationTestConfigur
     # transform into same dataset
     dest_p.run(copied_customers(fruit_p.dataset()))
 
-    assert row_counts(dest_p.dataset(), ["copied_customers"]) == {
+    assert load_table_counts(dest_p, "copied_customers") == {
         "copied_customers": 5,
     }
 
@@ -132,7 +133,7 @@ def test_replace_sql_transformations(destination_config: DestinationTestConfigur
 
     # transform into same dataset
     dest_p.run(copied_customers_updated(fruit_p.dataset()))
-    assert row_counts(dest_p.dataset(), ["copied_customers"]) == {
+    assert load_table_counts(dest_p, "copied_customers") == {
         "copied_customers": 3,
     }
 
@@ -156,7 +157,7 @@ def test_append_sql_transformations(destination_config: DestinationTestConfigura
     # transform into same dataset
     dest_p.run(copied_customers(fruit_p.dataset()))
 
-    assert row_counts(dest_p.dataset(), ["copied_customers"]) == {
+    assert load_table_counts(dest_p, "copied_customers") == {
         "copied_customers": 5,
     }
 
@@ -167,7 +168,7 @@ def test_append_sql_transformations(destination_config: DestinationTestConfigura
     # transform into same dataset
     dest_p.run(copied_table_updated(fruit_p.dataset()))
 
-    assert row_counts(dest_p.dataset(), ["copied_customers"]) == {
+    assert load_table_counts(dest_p, "copied_customers") == {
         "copied_customers": 12,
     }
 
@@ -205,6 +206,6 @@ def test_sql_transformation_with_unknown_column_types(
         return dataset["customers"].mutate(new_col=5).limit(5)
 
     dest_p.run(mutated_purchases_with_hints(fruit_p.dataset()))
-    assert row_counts(dest_p.dataset(), ["mutated_purchases_with_hints"]) == {
+    assert load_table_counts(dest_p, "mutated_purchases_with_hints") == {
         "mutated_purchases_with_hints": 5,
     }

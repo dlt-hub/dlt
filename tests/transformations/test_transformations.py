@@ -5,12 +5,12 @@ from typing import Any
 import dlt
 
 from dlt.common.destination.dataset import SupportsReadableDataset
+from tests.pipeline.utils import load_table_counts
 
 from tests.load.utils import DestinationTestConfiguration
 from tests.load.transformations.utils import (
     transformation_configs,
     setup_transformation_pipelines,
-    row_counts,
     get_job_types,
 )
 
@@ -36,7 +36,7 @@ def test_simple_query_transformations(destination_config: DestinationTestConfigu
     # transform into transformed dataset
     dest_p.run(copied_purchases(fruit_p.dataset()))
 
-    assert row_counts(dest_p.dataset(), ["copied_purchases"]) == {
+    assert load_table_counts(dest_p, "copied_purchases") == {
         "copied_purchases": 5,
     }
 
