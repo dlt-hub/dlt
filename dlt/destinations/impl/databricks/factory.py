@@ -1,5 +1,6 @@
 import typing as t
 
+from dlt.common import logger
 from dlt.common.data_types.typing import TDataType
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.data_writers.escape import escape_databricks_identifier, escape_databricks_literal
@@ -39,6 +40,7 @@ class DatabricksTypeMapper(TypeMapperImpl):
         "BOOLEAN": "bool",
         "DATE": "date",
         "TIMESTAMP": "timestamp",
+        "TIMESTAMP_NTZ": "timestamp",
         "BIGINT": "bigint",
         "INT": "bigint",
         "SMALLINT": "bigint",
@@ -82,6 +84,24 @@ class DatabricksTypeMapper(TypeMapperImpl):
         raise TerminalValueError(
             f"bigint with {precision} bits precision cannot be mapped into databricks integer type"
         )
+
+    def to_db_datetime_type(
+        self,
+        column: TColumnSchema,
+        table: PreparedTableSchema = None,
+    ) -> str:
+        column_name = column["name"]
+        table_name = table["name"]
+        timezone = column.get("timezone", True)
+        precision = column.get("precision")
+
+        if precision and precision != 6:
+            logger.warn(
+                f"Databricks does not support precision {precision} for column '{column_name}' in"
+                f" table '{table_name}'. Will default to 6."
+            )
+
+        return "TIMESTAMP" if timezone else "TIMESTAMP_NTZ"
 
     def from_destination_type(
         self, db_type: str, precision: t.Optional[int] = None, scale: t.Optional[int] = None
