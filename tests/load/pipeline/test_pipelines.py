@@ -30,7 +30,7 @@ from dlt.pipeline.exceptions import (
 from tests.cases import TABLE_ROW_ALL_DATA_TYPES_DATETIMES
 from tests.utils import TEST_STORAGE_ROOT, data_to_item_format
 from tests.pipeline.utils import (
-    assert_data_table_counts,
+    assert_table_counts,
     assert_load_info,
     assert_query_data,
     assert_table,
@@ -816,7 +816,7 @@ def test_pipeline_upfront_tables_two_loads(
         **destination_config.run_kwargs,
     )
     assert_load_info(load_info_3)
-    assert_data_table_counts(pipeline, {"table_1": 1, "table_2": 1, "table_3": 1})
+    assert_table_counts(pipeline, {"table_1": 1, "table_2": 1, "table_3": 1})
     # v5 = pipeline.default_schema.to_pretty_yaml()
     # print(v5)
 
@@ -864,7 +864,7 @@ def test_query_all_info_tables_fallback(destination_config: DestinationTestConfi
         del pipeline.default_schema._schema_tables["existing_table"]
         # store another table
         info = pipeline.run([1, 2, 3], table_name="digits_2", **destination_config.run_kwargs)
-        assert_data_table_counts(pipeline, {"digits_1": 3, "digits_2": 3})
+        assert_table_counts(pipeline, {"digits_1": 3, "digits_2": 3})
 
 
 # @pytest.mark.skip(reason="Finalize the test: compare some_data values to values from database")

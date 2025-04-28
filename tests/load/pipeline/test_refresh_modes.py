@@ -14,7 +14,6 @@ from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
 from tests.utils import clean_test_storage, TEST_STORAGE_ROOT
 from tests.pipeline.utils import (
-    _is_filesystem,
     assert_load_info,
     load_table_counts,
     load_tables_to_dicts,

@@ -115,12 +115,6 @@ def assert_load_info(info: LoadInfo, expected_load_packages: int = 1) -> None:
 #
 
 
-def _is_filesystem(p: dlt.Pipeline) -> bool:
-    if not p.destination:
-        return False
-    return p.destination.destination_name == "filesystem"
-
-
 def _is_sftp(p: dlt.Pipeline) -> bool:
     if not p.destination:
         return False
@@ -132,7 +126,7 @@ def _is_sftp(p: dlt.Pipeline) -> bool:
 
 def _load_jsonl_file(client: FSClientBase, filepath) -> List[Dict[str, Any]]:
     """
-    load jsonl files into items list
+    load jsonl files into items list, only needed for sftp destination tests
     """
 
     # check if this is a file we want to read
@@ -153,7 +147,7 @@ def _load_jsonl_file(client: FSClientBase, filepath) -> List[Dict[str, Any]]:
 def _load_tables_to_dicts_fs(
     p: dlt.Pipeline, *table_names: str, schema_name: str = None
 ) -> Dict[str, List[Dict[str, Any]]]:
-    """Load all files from fs client, only needed for sftp destinations"""
+    """Load all files from fs client, only needed for sftp destination tests"""
     client = p._fs_client(schema_name=schema_name)
     result: Dict[str, List[Dict[str, Any]]] = {}
 
@@ -229,89 +223,36 @@ def assert_only_table_columns(
 #
 # Load table counts
 #
-def _load_table_counts_fs(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
-    file_tables = _load_tables_to_dicts_fs(p, *table_names)
-    return {table_name: len(items) for table_name, items in file_tables.items()}
-
 
 def load_table_counts(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
-    """Returns row counts for `table_names` as dict"""
+    """Returns row counts for `table_names` as dict, if no table names are given, all data tables are counted"""
+    if not table_names:
+        table_names = [table["name"] for table in p.default_schema.data_tables()]  # type: ignore[assignment]
+        
     # filesystem with sftp requires a fallback
     if _is_sftp(p):
-        return _load_table_counts_fs(p, *table_names)
+        file_tables = _load_tables_to_dicts_fs(p, *table_names)
+        return {table_name: len(items) for table_name, items in file_tables.items()}
+    
+    # otherwise we can use the dataset row counts
     counts = p.dataset().row_counts(table_names=list(table_names)).fetchall()
     return {row[0]: row[1] for row in counts}
 
 
-def load_data_table_counts(p: dlt.Pipeline) -> DictStrAny:
-    tables = [table["name"] for table in p.default_schema.data_tables()]
-    return load_table_counts(p, *tables)
-
-
-def assert_data_table_counts(p: dlt.Pipeline, expected_counts: DictStrAny) -> None:
-    table_counts = load_data_table_counts(p)
+def assert_table_counts(p: dlt.Pipeline, expected_counts: DictStrAny, *table_names: str) -> None:
+    table_counts = load_table_counts(p, *table_names)
     assert (
         table_counts == expected_counts
     ), f"Table counts do not match, expected {expected_counts}, got {table_counts}"
 
 
-#
-# TODO: migrate to be able to do full assertions on filesystem too, should be possible
-#
-
-
 def table_exists(p: dlt.Pipeline, table_name: str, schema_name: str = None) -> bool:
     """Returns True if table exists in the destination database/filesystem"""
-    if _is_filesystem(p):
-        client = p._fs_client(schema_name=schema_name)
-        files = client.list_table_files(table_name)
-        return not not files
-
-    with p.sql_client(schema_name=schema_name) as c:
-        try:
-            qual_table_name = c.make_qualified_table_name(table_name)
-            c.execute_sql(f"SELECT 1 FROM {qual_table_name} LIMIT 1")
-            return True
-        except DatabaseUndefinedRelation:
-            return False
-
-
-def _assert_table_sql(
-    p: dlt.Pipeline,
-    table_name: str,
-    table_data: List[Any],
-    schema_name: str = None,
-    info: LoadInfo = None,
-) -> None:
-    with p.sql_client(schema_name=schema_name) as c:
-        table_name = c.make_qualified_table_name(table_name)
-    # Implement NULLS FIRST sort in python
-    assert_query_data(
-        p,
-        f"SELECT * FROM {table_name} ORDER BY 1",
-        table_data,
-        schema_name,
-        info,
-        sort_key=lambda row: row[0] is not None,
-    )
-
-
-def _assert_table_fs(
-    p: dlt.Pipeline,
-    table_name: str,
-    table_data: List[Any],
-    schema_name: str = None,
-    info: LoadInfo = None,
-) -> None:
-    """Assert table is loaded to filesystem destination"""
-    client = p._fs_client()
-    # assumes that each table has a folder
-    files = client.list_table_files(table_name)
-    # glob =  client.fs_client.glob(posixpath.join(client.dataset_path, f'{client.table_prefix_layout.format(schema_name=schema_name, table_name=table_name)}/*'))
-    assert len(files) >= 1
-    assert client.fs_client.isfile(files[0])
-    # TODO: may verify that filesize matches load package size
-    assert client.fs_client.size(files[0]) > 0
+    try:
+        load_table_counts(p, table_name)
+        return True
+    except DestinationUndefinedEntity:
+        return False
 
 
 def assert_table(
@@ -321,8 +262,23 @@ def assert_table(
     schema_name: str = None,
     info: LoadInfo = None,
 ) -> None:
-    func = _assert_table_fs if _is_filesystem(p) else _assert_table_sql
-    func(p, table_name, table_data, schema_name, info)
+    # for sftp we can just check if the table exists
+    if _is_sftp(p):
+        assert table_exists(p, table_name, schema_name)
+        return
+
+    with p.sql_client(schema_name=schema_name) as c:
+        table_name = c.make_qualified_table_name(table_name)
+
+    # Implement NULLS FIRST sort in python
+    assert_query_data(
+        p,
+        f"SELECT * FROM {table_name} ORDER BY 1",
+        table_data,
+        schema_name,
+        info,
+        sort_key=lambda row: row[0] is not None,
+    )
 
 
 def select_data(p: dlt.Pipeline, sql: str, schema_name: str = None) -> List[Sequence[Any]]:

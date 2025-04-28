@@ -48,7 +48,7 @@ from tests.extract.utils import expect_extracted_file
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import (
     assert_load_info,
-    load_data_table_counts,
+    load_table_counts,
     load_json_case,
     many_delayed,
 )
@@ -180,7 +180,7 @@ def test_pydantic_columns_with_contracts(yield_list: bool) -> None:
     assert_load_info(info)
     print(pipeline.last_trace.last_normalize_info)
     # data is passing validation, all filled in
-    assert load_data_table_counts(pipeline) == {
+    assert load_table_counts(pipeline) == {
         "users": 2,
         "users__labels": 4,
         "users__user_labels": 4,
@@ -199,7 +199,7 @@ def test_pydantic_columns_with_contracts(yield_list: bool) -> None:
     assert validator.data_mode == "discard_row"
     assert validator.column_mode == "discard_row"
     pipeline.run(r)
-    assert load_data_table_counts(pipeline) == {
+    assert load_table_counts(pipeline) == {
         "users": 2,
         "users__labels": 4,
         "users__user_labels": 4,
