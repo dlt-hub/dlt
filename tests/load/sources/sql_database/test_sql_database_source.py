@@ -413,11 +413,13 @@ def test_remove_nullability(sql_source_db: SQLAlchemySourceDB) -> None:
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
 @pytest.mark.parametrize("row_order", ["asc", "desc", None])
+@pytest.mark.parametrize("page_size", [100, None])
 @pytest.mark.parametrize("last_value_func", [min, max, lambda x: max(x)])
 def test_load_sql_table_resource_incremental_end_value(
     sql_source_db: SQLAlchemySourceDB,
     backend: TableBackend,
     row_order: TSortOrder,
+    page_size: int,
     last_value_func: Any,
 ) -> None:
     start_id = sql_source_db.table_infos["chat_message"]["ids"][0]
@@ -425,6 +427,10 @@ def test_load_sql_table_resource_incremental_end_value(
 
     if last_value_func is min:
         start_id, end_id = end_id, start_id
+
+    pk_column = None
+    if page_size:
+        pk_column = "id"
 
     @dlt.source
     def sql_table_source() -> List[DltResource]:
@@ -440,6 +446,7 @@ def test_load_sql_table_resource_incremental_end_value(
                     end_value=end_id,
                     row_order=row_order,
                     last_value_func=last_value_func,
+                    primary_key=pk_column,
                 ),
             )
         ]
