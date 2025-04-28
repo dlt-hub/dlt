@@ -177,6 +177,11 @@ You can also force all tables to be in iceberg format:
 force_iceberg = true
 ```
 
+You can also adjust iceberg table properties:
+```toml
+[destination.athena.table_properties]
+vacuum_max_snapshot_age_seconds = 86400
+```
 
 #### `merge` support
 

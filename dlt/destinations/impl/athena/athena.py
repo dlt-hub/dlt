@@ -366,6 +366,14 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
             )
         return f"PARTITIONED BY ({', '.join(formatted_strings)})"
 
+    def _iceberg_table_properties(self) -> str:
+        table_properties = (
+            self.config.table_properties.copy() if self.config.table_properties else {}
+        )
+        mandatory_properties = {"table_type": "ICEBERG", "format": "parquet"}
+        table_properties.update(mandatory_properties)
+        return ", ".join([f"'{k}'='{v}'" for k, v in table_properties.items()])
+
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
@@ -400,13 +408,14 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
                     table_name=table_prefix.rstrip("/"),
                     location_tag=uniq_id(6),
                 )
+                table_properties = self._iceberg_table_properties()
                 logger.info(f"Will create ICEBERG table {table_name} in {location}")
                 # this will fail if the table prefix is not properly defined
                 sql.append(f"""{self._make_create_table(qualified_table_name, table)}
                         ({columns})
                         {partition_clause}
                         LOCATION '{location.rstrip('/')}'
-                        TBLPROPERTIES ('table_type'='ICEBERG', 'format'='parquet');""")
+                        TBLPROPERTIES ({table_properties});""")
             # elif table_format == "jsonl":
             #     sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}
             #             ({columns})
