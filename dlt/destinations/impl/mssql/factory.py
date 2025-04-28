@@ -107,7 +107,8 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
         caps.supports_ddl_transactions = True
         caps.supports_create_table_if_not_exists = False  # IF NOT EXISTS not supported
         caps.max_rows_per_insert = 1000
-        caps.timestamp_precision = 7
+        # NOTE: timestamp_precision is 7 in the database but there's no way to write it via Python
+        caps.timestamp_precision = 6
         caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
         caps.supported_replace_strategies = [
             "truncate-and-insert",
