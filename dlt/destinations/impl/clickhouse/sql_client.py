@@ -189,13 +189,10 @@ class ClickHouseSqlClient(
         """Drops a set of tables if they exist"""
         if not tables:
             return
-
-        statements = []
-        for table in tables:
-            qual_table_name, qual_staging_table_name = self.get_qualified_table_names(table)
-            statements += [f"DROP TABLE IF EXISTS {qual_table_name} SYNC;"]
-            statements += [f"DROP TABLE IF EXISTS {qual_staging_table_name} SYNC;"]
-
+        statements = [
+            f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)} SYNC;"
+            for table in tables
+        ]
         self.execute_many(statements)
 
     def insert_file(

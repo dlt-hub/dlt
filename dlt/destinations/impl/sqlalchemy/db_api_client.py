@@ -306,25 +306,6 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         for table in tables:
             tbl = sa.Table(table, self.metadata, schema=self.dataset_name, keep_existing=True)
             self.execute_sql(sa.schema.DropTable(tbl, if_exists=True))
-            # Drop the staging table
-            if self.dialect_name == "sqlite":
-                attached = False
-                if self.staging_dataset_name not in self._sqlite_attached_datasets:
-                    self._sqlite_reattach_dataset_if_exists(self.staging_dataset_name)
-                    attached = True
-
-                # Use the fully qualified table name for the attached database
-                staging_table_name = f"{self.staging_dataset_name}.{table}"
-                self.execute_sql(f"DROP TABLE IF EXISTS {staging_table_name}")
-
-                if attached:
-                    self._sqlite_detach_dataset(self.staging_dataset_name)
-            else:
-                # For other databases, use the schema parameter
-                staging_tbl = sa.Table(
-                    table, self.metadata, schema=self.staging_dataset_name, keep_existing=True
-                )
-                self.execute_sql(sa.schema.DropTable(staging_tbl, if_exists=True))
 
     def execute_sql(
         self, sql: Union[AnyStr, sa.sql.Executable], *args: Any, **kwargs: Any

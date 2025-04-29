@@ -122,23 +122,6 @@ SELECT 1
         rows = self.execute_sql(query, *db_params)
         return len(rows) > 0
 
-    def has_staging_dataset(self) -> bool:
-        """Checks if the staging dataset exists."""
-        with self.with_staging_dataset():
-            query = """
-SELECT 1
-    FROM INFORMATION_SCHEMA.SCHEMATA
-    WHERE """
-            catalog_name, schema_name, _ = self._get_information_schema_components()
-            db_params: List[str] = []
-            if catalog_name is not None:
-                query += " catalog_name = %s AND "
-                db_params.append(catalog_name)
-            db_params.append(schema_name)
-            query += "schema_name = %s"
-            rows = self.execute_sql(query, *db_params)
-            return len(rows) > 0
-
     def create_dataset(self) -> None:
         self.execute_sql("CREATE SCHEMA %s" % self.fully_qualified_dataset_name())
 
@@ -153,15 +136,9 @@ SELECT 1
         """Drops a set of tables if they exist"""
         if not tables:
             return
-
-        has_staging_dataset = self.has_staging_dataset()
-
-        statements = []
-        for table in tables:
-            qual_table_name, qual_staging_table_name = self.get_qualified_table_names(table)
-            statements += [f"DROP TABLE IF EXISTS {qual_table_name};"]
-            if has_staging_dataset:
-                statements += [f"DROP TABLE IF EXISTS {qual_staging_table_name};"]
+        statements = [
+            f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)};" for table in tables
+        ]
         self.execute_many(statements)
 
     def _to_named_paramstyle(self, query: str, args: Sequence[Any]) -> Tuple[str, Dict[str, Any]]:

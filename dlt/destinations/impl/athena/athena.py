@@ -221,14 +221,9 @@ class AthenaSQLClient(SqlClientBase[Connection]):
     def drop_tables(self, *tables: str) -> None:
         if not tables:
             return
-
-        statements = []
-        for table in tables:
-            qual_table_name = self.make_qualified_ddl_table_name(table)
-            qual_staging_table_name = f"{self.escape_ddl_identifier(self.staging_dataset_name)}.{self.escape_ddl_identifier(table)}"
-            statements += [f"DROP TABLE IF EXISTS {qual_table_name};"]
-            statements += [f"DROP TABLE IF EXISTS {qual_staging_table_name};"]
-
+        statements = [
+            f"DROP TABLE IF EXISTS {self.make_qualified_ddl_table_name(table)};" for table in tables
+        ]
         self.execute_many(statements)
 
     @contextmanager

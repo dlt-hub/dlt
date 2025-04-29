@@ -176,17 +176,6 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         except gcp_exceptions.NotFound:
             return False
 
-    def has_staging_dataset(self) -> bool:
-        try:
-            self._client.get_dataset(
-                self.fully_qualified_dataset_name(escape=False, staging=True),
-                retry=self._default_retry,
-                timeout=self.http_timeout,
-            )
-            return True
-        except gcp_exceptions.NotFound:
-            return False
-
     def create_dataset(self) -> None:
         dataset = bigquery.Dataset(self.fully_qualified_dataset_name(escape=False))
         dataset.location = self.location
