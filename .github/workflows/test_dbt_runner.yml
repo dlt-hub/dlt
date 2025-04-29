@@ -18,7 +18,7 @@ concurrency:
 
 env:
 
-  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
+  TMP_DLT_SECRETS_TOML: ${{ secrets.TMP_DLT_SECRETS_TOML }}
   RUNTIME__LOG_LEVEL: ERROR
   RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
 
@@ -77,7 +77,7 @@ jobs:
         run: poetry install --no-interaction -E postgres -E postgis --with sentry-sdk,dbt
 
       - name: create secrets.toml
-        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
+        run: pwd && echo "$TMP_DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - run: |
           poetry run pytest tests/helpers/dbt_tests -k '(not venv)'

@@ -18,7 +18,7 @@ concurrency:
 
 env:
 
-  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
+  TMP_DLT_SECRETS_TOML: ${{ secrets.TMP_DLT_SECRETS_TOML }}
 
   # For s3 compatible tests
   TESTS__R2_AWS_ACCESS_KEY_ID: a4950a5003b26f5a71ac97ef3848ff4c
@@ -92,7 +92,7 @@ jobs:
         run: poetry install --no-interaction -E redshift -E postgis -E postgres -E gs -E s3 -E az -E parquet -E duckdb -E cli -E filesystem --with sentry-sdk --with pipeline --with ibis
 
       - name: create secrets.toml
-        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
+        run: pwd && echo "$TMP_DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - run: |
           poetry run pytest tests/load --ignore tests/load/sources -m "essential"

@@ -184,7 +184,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
 
     @raise_open_connection_error
     def open_connection(self) -> Connection:
-        self._conn = connect(schema_name=self.dataset_name, **self.config.to_connector_params())
+        self._conn = connect(schema_name=self.dataset_name, **self.config.to_connector_params(), poll_interval=0.1)
         return self._conn
 
     def close_connection(self) -> None:

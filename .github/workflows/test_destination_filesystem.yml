@@ -18,7 +18,7 @@ concurrency:
 
 env:
 
-  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
+  TMP_DLT_SECRETS_TOML: ${{ secrets.TMP_DLT_SECRETS_TOML }}
 
   # For s3 compatible tests
   TESTS__R2_AWS_ACCESS_KEY_ID: a4950a5003b26f5a71ac97ef3848ff4c
@@ -95,7 +95,7 @@ jobs:
         run: poetry run pip install sqlalchemy==2.0.18  # minimum version required by `pyiceberg`
 
       - name: create secrets.toml
-        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
+        run: pwd && echo "$TMP_DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - run: |
           poetry run pytest tests/load --ignore tests/load/sources -m "essential"

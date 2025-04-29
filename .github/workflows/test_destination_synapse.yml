@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
+  TMP_DLT_SECRETS_TOML: ${{ secrets.TMP_DLT_SECRETS_TOML }}
 
   RUNTIME__SENTRY_DSN: https://cf6086f7d263462088b9fb9f9947caee@o4505514867163136.ingest.sentry.io/4505516212682752
   RUNTIME__LOG_LEVEL: ERROR
@@ -82,7 +82,7 @@ jobs:
         run: poetry install --no-interaction -E synapse -E parquet --with sentry-sdk --with pipeline --with ibis
 
       - name: create secrets.toml
-        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
+        run: pwd && echo "$TMP_DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - run: |
           poetry run pytest tests/load --ignore tests/load/sources -m "essential"
