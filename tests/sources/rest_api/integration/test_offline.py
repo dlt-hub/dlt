@@ -17,7 +17,7 @@ from dlt.sources.rest_api import (
     rest_api_source,
 )
 from tests.sources.rest_api.conftest import DEFAULT_PAGE_SIZE, DEFAULT_TOTAL_PAGES
-from tests.pipeline.utils import assert_load_info, load_table_counts, assert_query_data
+from tests.pipeline.utils import assert_load_info, load_table_counts, assert_query_column
 
 
 @pytest.mark.parametrize(
@@ -193,19 +193,19 @@ def test_load_mock_api(mock_api_server, config):
 
     print(pipeline.default_schema.to_pretty_yaml())
 
-    assert_query_data(
+    assert_query_column(
         pipeline,
         f"SELECT title FROM {posts_table} ORDER BY id limit 25",
         [f"Post {i}" for i in range(25)],
     )
 
-    assert_query_data(
+    assert_query_column(
         pipeline,
         f"SELECT body FROM {posts_details_table} ORDER BY id limit 25",
         [f"Post body {i}" for i in range(25)],
     )
 
-    assert_query_data(
+    assert_query_column(
         pipeline,
         f"SELECT body FROM {post_comments_table} ORDER BY post_id, id limit 5",
         [f"Comment {i} for post 0" for i in range(5)],
@@ -887,22 +887,22 @@ def test_interpolate_parent_values_in_path_and_json_body(mock_api_server):
         posts_table = client.make_qualified_table_name("posts")
         posts_details_table = client.make_qualified_table_name("post_details")
     print(pipeline.default_schema.to_pretty_yaml())
-    assert_query_data(
+    assert_query_column(
         pipeline,
         f"SELECT title FROM {posts_table} ORDER BY id limit 25",
         [f"Post {i}" for i in range(25)],
     )
-    assert_query_data(
+    assert_query_column(
         pipeline,
         f"SELECT body FROM {posts_details_table} ORDER BY id limit 25",
         [f"Post body {i}" for i in range(25)],
     )
-    assert_query_data(
+    assert_query_column(
         pipeline,
         f"SELECT title FROM {posts_details_table} ORDER BY id limit 25",
         [f"Post {i}" for i in range(25)],
     )
-    assert_query_data(
+    assert_query_column(
         pipeline,
         f"SELECT more FROM {posts_details_table} ORDER BY id limit 25",
         [f"More is equale to id: {i}" for i in range(25)],

@@ -4,7 +4,7 @@ import random
 from os import environ
 import io
 import os
-
+from collections import Counter
 import dlt
 from dlt.common import json, sleep
 from dlt.common.configuration.utils import auto_cast
@@ -211,10 +211,16 @@ def load_tables_to_dicts(
 
 
 def assert_records_as_set(actual: List[Dict[str, Any]], expected: List[Dict[str, Any]]) -> None:
-    """Compares two lists of dicts regardless of order"""
-    actual_set = set(frozenset(dict_.items()) for dict_ in actual)
-    expected_set = set(frozenset(dict_.items()) for dict_ in expected)
-    assert actual_set == expected_set
+    """Compares two lists of dicts regardless of order, useful for comparing expected and actual table data"""
+
+    def dict_to_tuple(d):
+        # Sort items to ensure consistent ordering
+        return tuple(sorted(d.items()))
+
+    counter1 = Counter(dict_to_tuple(d) for d in actual)
+    counter2 = Counter(dict_to_tuple(d) for d in expected)
+
+    assert counter1 == counter2
 
 
 def assert_only_table_columns(
@@ -276,63 +282,60 @@ def table_exists(p: dlt.Pipeline, table_name: str, schema_name: str = None) -> b
         return False
 
 
-def assert_table(
+# NOTE: replace with direct dataset access in the code?
+def select_data(p: dlt.Pipeline, sql: str, schema_name: str = None) -> List[Sequence[Any]]:
+    """Returns list of tuples for a given sql query"""
+    return list(p.dataset(schema=schema_name)(sql).fetchall())
+
+
+def assert_table_column(
     p: dlt.Pipeline,
     table_name: str,
     table_data: List[Any],
     schema_name: str = None,
     info: LoadInfo = None,
 ) -> None:
+    """Asserts that the first columns of table data matches expected dat, but only compares the first column,
+    if info is provided, second column must contain one of load_ids in `info`"""
     # for sftp we can just check if the table exists
     if _is_sftp(p):
         assert table_exists(p, table_name, schema_name)
         return
 
-    with p.sql_client(schema_name=schema_name) as c:
-        table_name = c.make_qualified_table_name(table_name)
-
-    # Implement NULLS FIRST sort in python
-    assert_query_data(
+    # select full table
+    assert_query_column(
         p,
-        f"SELECT * FROM {table_name} ORDER BY 1",
+        p.dataset(schema=schema_name)[table_name].query(),
         table_data,
         schema_name,
         info,
-        sort_key=lambda row: row[0] is not None,
     )
 
 
-def select_data(p: dlt.Pipeline, sql: str, schema_name: str = None) -> List[Sequence[Any]]:
-    with p.sql_client(schema_name=schema_name) as c:
-        with c.execute_query(sql) as cur:
-            return list(cur.fetchall())
-
-
-def assert_query_data(
+def assert_query_column(
     p: dlt.Pipeline,
     sql: str,
     table_data: List[Any],
     schema_name: str = None,
     info: LoadInfo = None,
-    sort_key: Callable[[Any], Any] = None,
 ) -> None:
-    """Asserts that query selecting single column of values matches `table_data`. If `info` is provided, second column must contain one of load_ids in `info`
+    """Asserts that the first column of query selecting single column of values matches `table_data`. If `info` is provided, second column must contain one of load_ids in `info`
 
     Args:
         sort_key: Optional sort key function to sort the query result before comparing
-
     """
     rows = select_data(p, sql, schema_name)
     assert len(rows) == len(table_data)
-    if sort_key is not None:
-        rows = sorted(rows, key=sort_key)
-    for row, d in zip(rows, table_data):
-        row = list(row)
-        # first element comes from the data
-        assert row[0] == d
-        # the second is load id
-        if info:
+
+    # check load id
+    if info:
+        for row in rows:
             assert row[1] in info.loads_ids
+
+    # compare values of first column, regardless of order
+    list_1 = [{"v": row[0]} for row in rows]
+    list_2 = [{"v": d} for d in table_data]
+    assert_records_as_set(list_1, list_2)
 
 
 def assert_schema_on_data(

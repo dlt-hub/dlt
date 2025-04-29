@@ -32,8 +32,8 @@ from tests.utils import TEST_STORAGE_ROOT, data_to_item_format
 from tests.pipeline.utils import (
     assert_table_counts,
     assert_load_info,
-    assert_query_data,
-    assert_table,
+    assert_query_column,
+    assert_table_column,
     load_table_counts,
     select_data,
 )
@@ -144,11 +144,11 @@ def test_default_pipeline_names(
 
     # if loaded to single data, double the data was loaded to a single table because the schemas overlapped
     if use_single_dataset:
-        assert_table(p, "data_fun", sorted(data * 2), info=info)
+        assert_table_column(p, "data_fun", data * 2, info=info)
     else:
         # loaded to separate data sets
-        assert_table(p, "data_fun", data, info=info)
-        assert_table(p, "data_fun", data, schema_name="names", info=info)
+        assert_table_column(p, "data_fun", data, info=info)
+        assert_table_column(p, "data_fun", data, schema_name="names", info=info)
 
 
 @pytest.mark.parametrize(
@@ -260,7 +260,7 @@ def test_attach_pipeline(destination_config: DestinationTestConfiguration) -> No
     assert p.default_schema_name == p.default_schema_name
 
     # query data
-    assert_table(p, "data_table", data, info=info)
+    assert_table_column(p, "data_table", data, info=info)
 
 
 @pytest.mark.parametrize(
@@ -333,10 +333,10 @@ def test_run_dev_mode(destination_config: DestinationTestConfiguration) -> None:
     # restored pipeline should be never put in full refresh
     assert p.dev_mode is False
     # assert parent table (easy), None First (db order)
-    assert_table(p, "lists", [None, None, "a"], info=info)
+    assert_table_column(p, "lists", [None, None, "a"], info=info)
     # child tables contain nested lists
     data_list = cast(List[str], data[1]) + cast(List[str], data[2])
-    assert_table(p, "lists__value", sorted(data_list))
+    assert_table_column(p, "lists__value", sorted(data_list))
 
 
 @pytest.mark.parametrize(
@@ -450,8 +450,8 @@ def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None
     with p.sql_client() as client:
         simple_rows_table = client.make_qualified_table_name("simple_rows")
         dlt_loads_table = client.make_qualified_table_name("_dlt_loads")
-    assert_query_data(p, f"SELECT * FROM {simple_rows_table} ORDER BY id", id_data)
-    assert_query_data(
+    assert_query_column(p, f"SELECT * FROM {simple_rows_table} ORDER BY id", id_data)
+    assert_query_column(
         p,
         f"SELECT schema_version_hash FROM {dlt_loads_table} ORDER BY inserted_at",
         version_history,
@@ -498,7 +498,7 @@ def test_pipeline_data_writer_compression(
     p.normalize()
 
     info = p.load()
-    assert_table(p, "data", data, info=info)
+    assert_table_column(p, "data", data, info=info)
 
 
 @pytest.mark.parametrize(
