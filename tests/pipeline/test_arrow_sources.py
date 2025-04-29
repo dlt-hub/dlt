@@ -657,20 +657,27 @@ def test_replace_or_keep_existing_dlt_load_id(has_dlt_column: bool, add_dlt_load
 
         assert len(normalized_table) == num_rows
 
+        schema = pipeline.default_schema
+
         if add_dlt_load_id:
             assert "_dlt_load_id" in normalized_table.schema.names
             # Check if the _dlt_load_id column has been replaced with the correct load_id
             assert pa.compute.all(
                 pa.compute.equal(normalized_table["_dlt_load_id"], load_id)
             ).as_py()
+            assert "_dlt_load_id" in schema.tables["some_data"]["columns"]
+
         elif has_dlt_column and not add_dlt_load_id:
             assert "_dlt_load_id" in normalized_table.schema.names
             # Check if the _dlt_load_id column has not been replaced
             assert pa.compute.all(
                 pa.compute.equal(normalized_table["_dlt_load_id"], existing_load_id)
             ).as_py()
+            assert "_dlt_load_id" in schema.tables["some_data"]["columns"]
+
         elif not has_dlt_column and not add_dlt_load_id:
             assert "_dlt_load_id" not in normalized_table.schema.names
+            assert "_dlt_load_id" not in schema.tables["some_data"]["columns"]
 
         # Assert the other columns remain unchanged, just in case
         assert normalized_table["column1"].to_pylist() == [f"value_{i}" for i in range(num_rows)]
