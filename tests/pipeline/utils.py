@@ -283,9 +283,15 @@ def table_exists(p: dlt.Pipeline, table_name: str, schema_name: str = None) -> b
 
 
 # NOTE: replace with direct dataset access in the code?
-def select_data(p: dlt.Pipeline, sql: str, schema_name: str = None) -> List[Sequence[Any]]:
+def select_data(
+    p: dlt.Pipeline, sql: str, schema_name: str = None, dataset_name: str = None
+) -> List[Sequence[Any]]:
     """Returns list of tuples for a given sql query"""
-    return list(p.dataset(schema=schema_name)(sql).fetchall())
+    dataset = p.dataset(schema=schema_name)
+    # a hack to change the dataset name for the purposes of this test
+    if dataset_name:
+        dataset._dataset_name = dataset_name
+    return list(dataset(sql).fetchall())
 
 
 def assert_table_column(
