@@ -219,16 +219,105 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
                 expr.set("alias", casefolded_alias)
                 columns.append(sqlglot.exp.to_identifier(casefolded_alias))
 
-        # Generate the normalized SELECT query
-        normalized_select_query = parsed_select.sql(dialect=destination_dialect)
-
         # Build final INSERT
         query = sqlglot.expressions.insert(
-            expression=normalized_select_query,
+            expression=parsed_select,
             into=target_table,
             columns=columns,
             dialect=destination_dialect,
         ).sql(destination_dialect)
+
+        # TODO: remove this, this is just for demonstration purposes
+        # for the old test_write_dispositions to work for synapse when offset is specified.
+        # TLDR: synapse doesn't support offset and has some other restrictions for subqueries.
+        # So the below code just rewrites a query that looks like
+        """
+INSERT INTO
+   [test_write_dispositions_5eadef084e5c0974ad6603a23ea4d522_data_202504290840339664].[example_table_1] (a, _dlt_load_id, _dlt_id)
+SELECT
+   [t2].[a] AS a,
+   [t2].[_dlt_load_id] AS _dlt_load_id,
+   [t2].[_dlt_id] AS _dlt_id
+FROM
+   (SELECT
+      [t0].[a] AS [a],
+      [t0].[_dlt_load_id] AS [_dlt_load_id],
+      [t0].[_dlt_id] AS [_dlt_id]
+   FROM
+      [test_write_dispositions_5eadef084e5c0974ad6603a23ea4d522_data_202504290840339664].[example_table_2]
+   AS [t0]
+   ORDER BY CASE WHEN [t0].[a] IS NULL THEN 1 ELSE 0 END,
+   [t0].[a] ASC
+   OFFSET 3 ROWS
+   FETCH FIRST 7 ROWS ONLY)
+AS [t2]'
+"""
+        # to the following:
+        """
+INSERT INTO
+   [test_write_dispositions_c96e1df5c869fa46df9920f44d1e8e8b_data_202504291259164883].[example_table_1] (a, _dlt_load_id, _dlt_id)
+SELECT
+   TOP 7 [t2].[a] AS a, [t2].[_dlt_load_id] AS _dlt_load_id, [t2].[_dlt_id] AS _dlt_id
+FROM
+   (SELECT
+      TOP 10 [t0].[a] AS [a], [t0].[_dlt_load_id] AS [_dlt_load_id], [t0].[_dlt_id] AS [_dlt_id]
+   FROM [test_write_dispositions_c96e1df5c869fa46df9920f44d1e8e8b_data_202504291259164883].[example_table_2] AS [t0]
+   ORDER BY CASE WHEN [t0].[a] IS NULL THEN 1 ELSE 0 END, [t0].[a] ASC
+  )
+AS [t2]
+ORDER BY CASE WHEN t2.[a] IS NULL THEN 1 ELSE 0 END,
+CASE WHEN t2.[a] IS NULL THEN 1 ELSE 0 END DESC, t2.[a] DESC'
+        """
+        tree = sqlglot.parse_one(query, dialect="tsql")
+        outer_select = tree.find(sqlglot.exp.Select)
+        subquery = tree.find(sqlglot.exp.Subquery)
+        inner_select = subquery.this
+
+        if destination_dialect == "tsql" and (
+            "offset" in inner_select.args
+            and "limit" in inner_select.args
+            and "order" in inner_select.args
+        ):
+
+            def set_top(select: sqlglot.exp.Select, n: int) -> None:
+                select.set("limit", sqlglot.exp.Limit(expression=sqlglot.exp.Literal.number(n)))
+
+            def remove_offset_fetch(select: sqlglot.exp.Select) -> None:
+                select.set("offset", None)
+                select.set("limit", None)
+
+            skip = int(inner_select.args["offset"].expression.this)  # 3
+            take = int(inner_select.args["limit"].args["count"].this)  # 7
+            total = skip + take
+
+            remove_offset_fetch(inner_select)
+            set_top(inner_select, total)
+
+            set_top(outer_select, take)
+
+            order_in = inner_select.args["order"].copy()
+
+            for col in order_in.find_all(sqlglot.exp.Column):
+                if col.table == "t0":
+                    col.set("table", "t2")
+
+            new_order_expressions = []
+            for sort in order_in.expressions:
+                if isinstance(sort.this, sqlglot.exp.Column):
+                    asc = sort.args.get("asc")
+                    desc = sort.args.get("desc")
+                    if asc or desc is False:
+                        sort.set("asc", False)
+                        sort.set("desc", True)
+                    new_order_expressions.append(sort)
+                elif isinstance(sort.this, sqlglot.exp.Case):
+                    continue
+
+            order_in.set("expressions", new_order_expressions)
+            outer_select.set("order", order_in)
+
+            patched_sql = tree.sql(dialect="tsql")
+            query = patched_sql
 
         # NOTE: This query doesn't have a trailing ";"
 

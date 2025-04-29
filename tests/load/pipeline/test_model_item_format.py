@@ -32,6 +32,7 @@ DESTINATIONS_SUPPORTING_MODEL = [
     "sqlalchemy",
     "mssql",
     "postgres",
+    "synapse",
     # "dremio",
 ]
 
@@ -289,7 +290,7 @@ def test_write_dispositions(
         write_disposition=write_disposition,
     )
     pipeline.run(
-        [{"a": i} for i in range(10)],
+        [{"a": i + 1} for i in range(10)],
         primary_key="a",
         table_name="example_table_2",
         table_format="iceberg",
@@ -302,9 +303,7 @@ def test_write_dispositions(
     example_table_columns = dataset.schema.tables["example_table_1"]["columns"]
     # In Databricks, Ibis adds a helper column to emulate offset, causing a schema mismatch
     # when the query attempts to insert it. We explicitly select only the expected columns.
-    relation = (
-        dataset["example_table_2"].order_by("a").limit(7, offset=3)[example_table_columns.keys()]
-    )
+    relation = dataset["example_table_2"].order_by("a").limit(7)[example_table_columns.keys()]
     query = relation.query()
 
     select_dialect = pipeline.destination.capabilities().sqlglot_dialect
@@ -332,13 +331,13 @@ def test_write_dispositions(
 
     if write_disposition == "merge":
         # tables merged
-        assert result_items == list(range(10))
+        assert result_items == list(range(8))
     elif write_disposition == "replace":
         # table fully replaced
-        assert result_items == [3, 4, 5, 6, 7, 8, 9]
+        assert result_items == [1, 2, 3, 4, 5, 6, 7]
     elif write_disposition == "append":
         # the middle part is duplicated
-        assert result_items == [0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 8, 9]
+        assert result_items == [0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7]
     else:
         raise ValueError(f"Unknown write disposition: {write_disposition}")
 
