@@ -227,6 +227,8 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
             dialect=destination_dialect,
         ).sql(destination_dialect)
 
+        return query
+
         # TODO: remove this, this is just for demonstration purposes
         # for the old test_write_dispositions to work for synapse when offset is specified.
         # TLDR: synapse doesn't support offset and has some other restrictions for subqueries.
