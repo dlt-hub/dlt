@@ -182,6 +182,11 @@ def load_tables_to_dicts(
     exclude_system_cols: bool = False,
     sortkey: str = None,
 ) -> Dict[str, List[Dict[str, Any]]]:
+    """Loads all tables into dicts, if no table names are given, all data tables are loaded"""
+
+    if not table_names:
+        table_names = [t["name"] for t in p.default_schema.data_tables()]  # type: ignore[assignment]
+
     # filesystem with sftp requires a fallback
     if _is_sftp(p):
         result = _load_tables_to_dicts_fs(p, *table_names, schema_name=schema_name)
