@@ -351,7 +351,7 @@ transformation = entities.get_transformation("stressed_transformation")
 ```
 Here, we access the entities manager, which allows you to create sources, destinations, pipelines, and other objects.
 
-### Running pipelines with the predefined source with the runner
+### Running pipelines with the runner
 
 `dlt+` includes a pipeline runner, which is the same one used when you run pipelines from the CLI.  
 You can also use it directly in your code through the project context:
