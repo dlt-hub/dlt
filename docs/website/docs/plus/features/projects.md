@@ -189,7 +189,7 @@ As you may guess from the example above, you can use Python-style formatters to 
 * You can reference environment variables using the `{env.ENV_VARIABLE_NAME}` syntax.
 * Any of the project settings can be substituted as well.
 
-### implicit entities
+### Implicit entities
 By default, dlt+ will automatically create entities such as datasets or destinations when they are requested by the user or the executed code.
 For example, a minimal `dlt.yml` configuration might look like this:
 ```yaml
