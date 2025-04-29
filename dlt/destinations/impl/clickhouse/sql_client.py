@@ -1,4 +1,5 @@
 import datetime  # noqa: I251
+import re
 
 from clickhouse_driver import dbapi as clickhouse_dbapi  # type: ignore[import-untyped]
 import clickhouse_driver
@@ -242,12 +243,126 @@ class ClickHouseSqlClient(
                 db_args[key] = str(value.replace(microsecond=0, tzinfo=None))
         return db_args
 
+    def add_on_cluster(self, query: str, cluster_name: str = None) -> str:
+        # Define regex patterns for CREATE, DROP, and ALTER TABLE commands
+        if cluster_name is None:
+            return query
+        patterns = [
+            r'(?i)\bCREATE (TEMPORARY )*TABLE( IF NOT EXISTS)*\s+(`?[\w]+`?\.`?[\w]+`?)',  # Matches "CREATE TABLE `schema`.`table`"
+            r'(?i)\bDROP (TEMPORARY )*TABLE( IF EXISTS)*\s+(`?[\w]+`?\.`?[\w]+`?)',    # Matches "DROP TABLE `schema`.`table`"
+            r'(?i)\bALTER TABLE\s+(`?[\w]+`?\.`?[\w]+`?)',    # Matches "ALTER TABLE `schema`.`table`"
+            r'(?i)\bDELETE FROM\s+(`?[\w]+`?\.`?[\w]+`?)',    # Matches "DELETE FROM `schema`.`table`"
+            r'(?i)\bTRUNCATE TABLE\s+(`?[\w]+`?\.`?[\w]+`?)',  # Matches "TRUNCATE TABLE `schema`.`table`"
+        ]
+
+        # Check each pattern
+        for pattern in patterns:
+            match = re.search(pattern, query)
+            if match:
+                # Construct the modified query
+                modified_query = re.sub(pattern, f'\\g<0> ON CLUSTER {cluster_name}', query)
+                return modified_query
+
+        # Return the original query if no modifications were made
+        return query
+
+    def extract_table_name(self, query: str) -> Optional[str]:
+        if self.contains_string(query, "DELETE FROM"):
+            pattern = r'(?i)\bDELETE FROM\s+`?[\w]+`?\.`?([\w]+)`?'
+            group_num = 1
+        elif self.contains_string(query, "CREATE") or self.contains_string(query, "DROP"):
+            pattern = r'(?i)\b(CREATE|DROP)\s+(TEMPORARY\s+)?TABLE(\s+IF\s+(NOT\s+)?EXISTS)*\s+`?[\w]+`?\.`?([\w]+)`?'
+            group_num = 5
+        elif self.contains_string(query, "ALTER TABLE"):
+            pattern = r'(?i)\bALTER TABLE\s+`?[\w]+`?\.`?([\w]+)`?'
+            group_num = 1
+        else:
+            # If no known command is found, return None
+            logger.warning(f"Unknown command in query: {query}")
+            return None
+
+        match = re.search(pattern, query, re.DOTALL)
+        if match:
+            return match.group(group_num)  # Return the captured table name
+        return None  # Return None if no match is found
+
+
+    def add_global_join(self, query: str) -> str:
+        # Define regex patterns for CREATE, DROP, and ALTER TABLE commands
+        join_pattern = r'(?i)\b((INNER|LEFT|RIGHT|FULL|CROSS)?\s*(OUTER)?\s*JOIN)'  # Matches "CREATE TABLE `schema`.`table`"
+
+        modified_query = re.sub(join_pattern, lambda m: f' GLOBAL {m.group(1)}', query, flags=re.IGNORECASE)
+        return modified_query
+
+    def contains_string(self, query: str, what: str) -> bool:
+        return bool(re.search(fr'\b{what}\b', query, re.IGNORECASE))
+
+    def adjust_query_for_distributed_setup(self, query: str) -> str:
+        # Adjust the query for distributed setup
+        # To have all the data on all replicas we need a base table and a distributed table on top of it
+        # dlt generates create table statements for standard case where a single create statements is enough
+        # hence we need to modify create statements and all other DDL and DML statements
+        cluster = self.config.cluster
+        distributed_tables = self.config.distributed_tables
+        if cluster and distributed_tables is True:
+            mod_queries = []
+            # query can contain mutliple statements of different types (CREATE, DELETE, INSERT ...) separated by ;
+            for qry in query.split(";"):
+                # db name for the base table
+                base_db = self.config.base_table_database_prefix + self.credentials.database
+
+                if (self.contains_string(qry, "CREATE") and self.contains_string(qry, "ENGINE = Memory")):
+                    # accroding to CH docs Memory engine is in many cases not much better then using MergeTree
+                    qry = qry.replace("ENGINE = Memory", "ENGINE = ReplicatedMergeTree\nPRIMARY KEY tuple()")
+                if self.contains_string(qry, "DELETE FROM"):
+                    qry = self.add_on_cluster(qry, cluster)
+                    # we need to delete from the base table
+                    table_name = self.extract_table_name(qry)
+                    logger.info(f"***** table_name: {table_name}")
+                    base_table_name = table_name + self.config.base_table_name_postfix
+                    qry = qry.replace(self.credentials.database, base_db, 1).replace(table_name, base_table_name)
+                    # in case subquery is used in DELETE statement we need to add the settings
+                    qry = qry + " SETTINGS allow_nondeterministic_mutations=1"
+                    logger.info(f"DELETE qry w cluster: {qry}")
+                elif self.contains_string(qry, "TRUNCATE TABLE"):
+                    qry = self.add_on_cluster(qry, cluster)
+                    logger.info(f"TRUNCATE qry w cluster: {qry}")
+                elif (self.contains_string(qry, "CREATE") or self.contains_string(qry, "DROP") or self.contains_string(qry, "ALTER")):
+                    qry = self.add_on_cluster(qry, cluster)
+                    table_name = self.extract_table_name(qry)
+                    if not table_name or table_name is None:
+                        logger.warning(f"Table name not found in qry: {qry}")
+                    table_engine = TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(self.config.table_engine_type)
+                    base_table_name = table_name + self.config.base_table_name_postfix
+
+                    distributed_table = qry.replace(table_engine, f"Distributed('{cluster}', '{base_db}', '{base_table_name}', rand())")
+                    distributed_table = re.sub(r'^\s*PRIMARY KEY.*\n?', '', distributed_table, flags=re.MULTILINE)
+
+                    qry = qry.replace(self.credentials.database, base_db, 1).replace(table_name, base_table_name)
+                    # at this point qry contains the base table create statement
+                    # and we need to add the distributed table statement the code below will split the qry at ;
+                    # and execute both queries
+                    qry = qry + ";\n" + distributed_table
+
+                    if self.contains_string(qry, "CREATE"): # or self.contains_string(qry, "INSERT"):
+                        logger.info(f"qry after change: {qry}")
+
+                if self.contains_string(qry, "JOIN"):
+                    qry = self.add_global_join(qry)
+
+                mod_queries.append(qry)
+            query = ";".join(mod_queries)
+            logger.info(f"**** queries after joining:\n{query}")
+        return query
+
     @contextmanager
     @raise_database_error
     def execute_query(
         self, query: AnyStr, *args: Any, **kwargs: Any
     ) -> Iterator[ClickHouseDBApiCursorImpl]:
         assert isinstance(query, str), "Query must be a string."
+
+        query = self.adjust_query_for_distributed_setup(query)
 
         db_args: DictStrAny = kwargs.copy()
 
@@ -295,7 +410,7 @@ class ClickHouseSqlClient(
 
     def _get_information_schema_components(self, *tables: str) -> Tuple[str, str, List[str]]:
         components = super()._get_information_schema_components(*tables)
-        # clickhouse has a catalogue and no schema but uses catalogue as a schema to query the information schema 🤷
+        # clickhouse has a catalogue and no schema but uses catalogue as a schema to query the information schema ­Ъци
         # so we must disable catalogue search. also note that table name is prefixed with logical "dataset_name"
         return (None, components[0], components[2])
 
