@@ -63,7 +63,31 @@ SENSITIVE_KEYS: List[str] = [
 ]
 
 
-@decorators.source
+@decorators.source(
+    example_values={
+        "client": {
+            "base_url": "https://jaffle-shop.scalevector.ai/api/v1/",
+            "paginator": "header_link"
+            },
+        "resources": ["customers", "orders"],
+        # or
+        # "resources": [
+        #     {
+        #         "name": "orders",
+        #         "endpoint": {
+        #             "path": "orders",
+        #             "params": {
+        #                 "start_date": "{incremental.start_value}",
+        #             },
+        #             "incremental": {
+        #                 "cursor_path": "ordered_at",
+        #                 "initial_value": "2024-01-25T11:21:28Z",
+        #             },
+        #         },
+            # }
+        ],
+    }
+)
 def rest_api(
     client: ClientConfig = dlt.config.value,
     resources: List[Union[str, EndpointResource, DltResource]] = dlt.config.value,
