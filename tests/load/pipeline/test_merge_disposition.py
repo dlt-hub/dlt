@@ -1694,7 +1694,7 @@ def test_merge_arrow(
     )
 
     assert_load_info(load_info)
-    tables = load_tables_to_dicts(pipeline, "arrow_items", "arrow_items")
+    tables = load_tables_to_dicts(pipeline, "arrow_items")
 
     assert_records_as_set(
         tables["arrow_items"],

@@ -249,6 +249,7 @@ def test_attach_pipeline(destination_config: DestinationTestConfiguration) -> No
 
     # restore default pipeline
     p = dlt.attach()
+
     # other instance
     assert info.pipeline is not p
     # same pipe
@@ -260,6 +261,7 @@ def test_attach_pipeline(destination_config: DestinationTestConfiguration) -> No
     assert p.default_schema_name == p.default_schema_name
 
     # query data
+    # we add the destination so sqlglot may resolve the correct dialect for dataset access in the assert
     assert_table_column(p, "data_table", data, info=info)
 
 
