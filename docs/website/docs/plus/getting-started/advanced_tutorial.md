@@ -32,7 +32,7 @@ pip install pandas numpy pyarrow streamlit dlt[duckdb] uv
 `dlt+` provides tools to help you package a project for distribution.  
 This makes your project installable via `pip` and easier to share across your organization.
 
-To create a packaged project, add the `--package` option when initializing:
+To create the project structure required for a package, add the `--package` option when initializing:
 
 ```sh
 dlt project init arrow duckdb --package my_dlt_project
