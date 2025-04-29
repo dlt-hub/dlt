@@ -541,7 +541,7 @@ def add_dlt_load_id_column(
         # get pyarrow.string() type
         pyarrow_string = get_py_arrow_datatype(
             # use already existing column definition or use the default
-            # the existence of the load id column is ensured by this time
+            # NOTE: the existence of the load id column is ensured by this time
             # since it is added in _compute_tables before files are written
             (
                 columns[dlt_load_id_col_name]
