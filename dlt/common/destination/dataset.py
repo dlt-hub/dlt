@@ -101,7 +101,7 @@ class SupportsReadableRelation(Protocol):
         """
 
     def iter_fetch(self, chunk_size: int) -> Generator[List[Tuple[Any, ...]], Any, Any]:
-        """iterate in lists of python tuples in 'chunk_size' chunks. Uses the native dbapi fetchmany implementation of the destination client cursor.
+        """Iterates in lists of Python tuples in 'chunk_size' chunks. Uses the native dbapi fetchmany implementation of the destination client cursor.
 
         Args:
             chunk_size (int): The number of rows to fetch for each iteration.
