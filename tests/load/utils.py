@@ -753,19 +753,18 @@ def drop_pipeline(request, preserve_environ) -> Iterator[None]:
 
 def drop_pipeline_data(p: dlt.Pipeline) -> None:
     """Drops all the datasets for a given pipeline"""
+    return
 
     def _drop_dataset(schema_name: str) -> None:
         with p.destination_client(schema_name) as client:
             try:
                 client.drop_storage()
-                print("dropped")
             except Exception as exc:
                 print(exc)
             if isinstance(client, WithStagingDataset):
                 with client.with_staging_dataset():
                     try:
                         client.drop_storage()
-                        print("staging dropped")
                     except Exception as exc:
                         print(exc)
 
