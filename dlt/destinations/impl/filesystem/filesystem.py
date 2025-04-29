@@ -906,7 +906,7 @@ class FilesystemClient(
         if self.config.is_local_filesystem and os.name == "nt":
             # pyiceberg cannot deal with windows absolute urls
             location = location.replace("file:///", "file://")
-        return location, (folder == prefix or folder + "/" == prefix)
+        return location, (folder == prefix or (folder + os.path.sep) == prefix)
 
     def is_open_table(self, table_format: TTableFormat, table_name: str) -> bool:
         if table_name in self.schema.dlt_table_names():
