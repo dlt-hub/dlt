@@ -57,7 +57,12 @@ def readers(
     )
 
 
-@decorators.resource(primary_key="file_url", spec=FilesystemConfigurationResource, standalone=True)
+@decorators.resource(
+    primary_key="file_url",
+    spec=FilesystemConfigurationResource,
+    standalone=True,
+    example_values={"bucket_url": "s3://commoncrawl/", "credentials": {"region": "us-east-1"}},
+)
 def filesystem(
     bucket_url: str = dlt.secrets.value,
     credentials: Union[FileSystemCredentials, AbstractFileSystem] = dlt.secrets.value,
