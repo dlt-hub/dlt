@@ -114,6 +114,10 @@ jobs:
       - name: create secrets.toml for snippets
         run: pwd && echo "$DLT_SECRETS_TOML" > docs/website/docs/.dlt/secrets.toml
 
+      # NOTE: there seems to be a conflict between pydoclint and pydoc-markdown dependencies
+      - name: Force uninstall pydoclint
+        run: poetry run pip uninstall pydoclint -y
+
       - name: Run linter and tests on snippets
         run: make lint-and-test-snippets
 

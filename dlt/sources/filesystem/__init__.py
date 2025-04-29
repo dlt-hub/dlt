@@ -30,7 +30,7 @@ from dlt.sources.filesystem.settings import DEFAULT_CHUNK_SIZE
 def readers(
     bucket_url: str = dlt.secrets.value,
     credentials: Union[FileSystemCredentials, AbstractFileSystem] = dlt.secrets.value,
-    file_glob: Optional[str] = "*",
+    file_glob: str = "*",
 ) -> Tuple[DltResource, ...]:
     """This source provides a few resources that are chunked file readers. Readers can be further parametrized before use
        read_csv(chunksize, **pandas_kwargs)
@@ -39,9 +39,11 @@ def readers(
 
     Args:
         bucket_url (str): The url to the bucket.
-        credentials (FileSystemCredentials | AbstractFilesystem): The credentials to the filesystem of fsspec `AbstractFilesystem` instance.
+        credentials (Union[FileSystemCredentials, AbstractFileSystem]): The credentials to the filesystem of fsspec `AbstractFilesystem` instance.
         file_glob (str, optional): The filter to apply to the files in glob format. by default lists all files in bucket_url non-recursively
 
+    Returns:
+        Tuple[DltResource, ...]: A tuple of resources that are chunked file readers.
     """
     return (
         filesystem(bucket_url, credentials, file_glob=file_glob)
@@ -59,7 +61,7 @@ def readers(
 def filesystem(
     bucket_url: str = dlt.secrets.value,
     credentials: Union[FileSystemCredentials, AbstractFileSystem] = dlt.secrets.value,
-    file_glob: Optional[str] = "*",
+    file_glob: str = "*",
     files_per_page: int = DEFAULT_CHUNK_SIZE,
     extract_content: bool = False,
 ) -> Iterator[List[FileItem]]:
@@ -68,14 +70,14 @@ def filesystem(
 
     Args:
         bucket_url (str): The url to the bucket.
-        credentials (FileSystemCredentials | AbstractFilesystem): The credentials to the filesystem of fsspec `AbstractFilesystem` instance.
-        file_glob (str, optional): The filter to apply to the files in glob format. by default lists all files in bucket_url non-recursively
+        credentials (Union[FileSystemCredentials, AbstractFileSystem]): The credentials to the filesystem of fsspec `AbstractFilesystem` instance.
+        file_glob (str): The filter to apply to the files in glob format. by default lists all files in bucket_url non-recursively
         files_per_page (int, optional): The number of files to process at once, defaults to 100.
         extract_content (bool, optional): If true, the content of the file will be extracted if
             false it will return a fsspec file, defaults to False.
 
-    Returns:
-        Iterator[List[FileItem]]: The list of files.
+    Yields:
+        List[FileItem]: The list of files.
     """
     if isinstance(credentials, AbstractFileSystem):
         fs_client = credentials
