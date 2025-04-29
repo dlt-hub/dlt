@@ -410,7 +410,7 @@ class ClickHouseSqlClient(
 
     def _get_information_schema_components(self, *tables: str) -> Tuple[str, str, List[str]]:
         components = super()._get_information_schema_components(*tables)
-        # clickhouse has a catalogue and no schema but uses catalogue as a schema to query the information schema ­Ъци
+        # clickhouse has a catalogue and no schema but uses catalogue as a schema to query the information schema ­🤷
         # so we must disable catalogue search. also note that table name is prefixed with logical "dataset_name"
         return (None, components[0], components[2])
 
