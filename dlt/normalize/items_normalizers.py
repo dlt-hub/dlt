@@ -173,7 +173,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
             elif isinstance(select, sqlglot.exp.Alias):
                 name = select.alias
                 outer_selects.append(sqlglot.column(name, table="subquery").as_(norm_f(name)))
-            elif isinstance(select, sqlglot.exp.Column):
+            elif isinstance(select, sqlglot.exp.Column) or isinstance(select, sqlglot.exp.Dot):
                 name = select.output_name or select.name
                 outer_selects.append(sqlglot.column(name, table="subquery").as_(norm_f(name)))
 
