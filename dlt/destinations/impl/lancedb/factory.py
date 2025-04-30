@@ -1,4 +1,4 @@
-import typing as t
+from typing import Any, Dict, Type, Union, TYPE_CHECKING
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.destination.capabilities import DataTypeMapper
@@ -8,7 +8,7 @@ from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
 )
 
-LanceDBTypeMapper: t.Type[DataTypeMapper]
+LanceDBTypeMapper: Type[DataTypeMapper]
 try:
     # lancedb type mapper cannot be used without pyarrow installed
     from dlt.destinations.impl.lancedb.type_mapper import LanceDBTypeMapper
@@ -17,7 +17,7 @@ except MissingDependencyException:
     from dlt.common.destination.capabilities import UnsupportedTypeMapper as LanceDBTypeMapper
 
 
-if t.TYPE_CHECKING:
+if TYPE_CHECKING:
     from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
 
 
@@ -49,18 +49,29 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
         return caps
 
     @property
-    def client_class(self) -> t.Type["LanceDBClient"]:
+    def client_class(self) -> Type["LanceDBClient"]:
         from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
 
         return LanceDBClient
 
     def __init__(
         self,
-        credentials: t.Union[LanceDBCredentials, t.Dict[str, t.Any]] = None,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
-        **kwargs: t.Any,
+        credentials: Union[LanceDBCredentials, Dict[str, Any]] = None,
+        destination_name: str = None,
+        environment: str = None,
+        **kwargs: Any,
     ) -> None:
+        """Configure the LanceDB destination to use in a pipeline.
+
+        All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
+
+        Args:
+            credentials (Union[LanceDBCredentials, Dict[str, Any]], optional): Credentials to connect to the LanceDB database. Can be an instance of `LanceDBCredentials` or
+                a dictionary with the credentials parameters.
+            destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (str, optional): Environment of the destination
+            **kwargs (Any, optional): Additional arguments forwarded to the destination config
+        """
         super().__init__(
             credentials=credentials,
             destination_name=destination_name,

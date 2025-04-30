@@ -53,37 +53,52 @@ def sql_database(
 
     Args:
         credentials (Union[ConnectionStringCredentials, Engine, str]): Database credentials or an `sqlalchemy.Engine` instance.
+
         schema (Optional[str]): Name of the database schema to load (if different from default).
+
         metadata (Optional[MetaData]): Optional `sqlalchemy.MetaData` instance. `schema` argument is ignored when this is used.
+
         table_names (Optional[List[str]]): A list of table names to load. By default, all tables in the schema are loaded.
+
         chunk_size (int): Number of rows yielded in one batch. SQL Alchemy will create additional internal rows buffer twice the chunk size.
+
         backend (TableBackend): Type of backend to generate table data. One of: "sqlalchemy", "pyarrow", "pandas" and "connectorx".
             "sqlalchemy" yields batches as lists of Python dictionaries, "pyarrow" and "connectorx" yield batches as arrow tables, "pandas" yields panda frames.
             "sqlalchemy" is the default and does not require additional dependencies, "pyarrow" creates stable destination schemas with correct data types,
             "connectorx" is typically the fastest but ignores the "chunk_size" so you must deal with large tables yourself.
         page_size (Optional[int]): Number of rows to be retrieved per transaction. Useful when connecting to DBs with restrictions on the number of rows to retrieve.
-        detect_precision_hints (bool): Deprecated. Use `reflection_level`. Set column precision and scale hints for supported data types in the target schema based on the columns in the source tables.
+
+        detect_precision_hints (Optional[bool]): Deprecated. Use `reflection_level`. Set column precision and scale hints for supported data types in the target schema based on the columns in the source tables.
             This is disabled by default.
-        reflection_level: (ReflectionLevel): Specifies how much information should be reflected from the source database schema.
+
+        reflection_level (Optional[ReflectionLevel]): Specifies how much information should be reflected from the source database schema.
             "minimal": Only table names, nullability and primary keys are reflected. Data types are inferred from the data. This is the default option.
             "full": Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary.
             "full_with_precision": Sets precision and scale on supported data types (ie. decimal, text, binary). Creates big and regular integer types.
-        defer_table_reflect (bool): Will connect and reflect table schema only when yielding data. Requires table_names to be explicitly passed.
+
+        defer_table_reflect (Optional[bool]): Will connect and reflect table schema only when yielding data. Requires table_names to be explicitly passed.
             Enable this option when running on Airflow. Available on dlt 0.4.4 and later.
-        table_adapter_callback: (Callable): Receives each reflected table. May be used to modify the list of columns that will be selected.
-        backend_kwargs (**kwargs): kwargs passed to table backend ie. "conn" is used to pass specialized connection string to connectorx.
+
+        table_adapter_callback (Optional[TTableAdapter]): Receives each reflected table. May be used to modify the list of columns that will be selected.
+
+        backend_kwargs (Dict[str, Any]): kwargs passed to table backend ie. "conn" is used to pass specialized connection string to connectorx.
+
         include_views (bool): Reflect views as well as tables. Note view names included in `table_names` are always included regardless of this setting.
-        type_adapter_callback(Optional[Callable]): Callable to override type inference when reflecting columns.
+
+        type_adapter_callback (Optional[TTypeAdapter]): Callable to override type inference when reflecting columns.
             Argument is a single sqlalchemy data type (`TypeEngine` instance) and it should return another sqlalchemy data type, or `None` (type will be inferred from data)
-        query_adapter_callback(Optional[Callable[Select, Table], Select]): Callable to override the SELECT query used to fetch data from the table.
+
+        query_adapter_callback (Optional[TQueryAdapter]): Callable to override the SELECT query used to fetch data from the table.
             The callback receives the sqlalchemy `Select` and corresponding `Table`, 'Incremental` and `Engine` objects and should return the modified `Select` or `Text`.
+
         resolve_foreign_keys (bool): Translate foreign keys in the same schema to `references` table hints.
             May incur additional database calls as all referenced tables are reflected.
-        engine_adapter_callback (Callable[[Engine], Engine]): Callback to configure, modify and Engine instance that will be used to open a connection ie. to
+
+        engine_adapter_callback (Optional[Callable[[Engine], Engine]]): Callback to configure, modify and Engine instance that will be used to open a connection ie. to
             set transaction isolation level.
 
-    Returns:
-        Iterable[DltResource]: A list of DLT resources for each table to be loaded.
+    Yields:
+        DltResource: DLT resources for each table to be loaded.
     """
     # detect precision hints is deprecated
     _detect_precision_hints_deprecated(detect_precision_hints)
@@ -169,36 +184,53 @@ def sql_table(
 
     Args:
         credentials (Union[ConnectionStringCredentials, Engine, str]): Database credentials or an `Engine` instance representing the database connection.
+
         table (str): Name of the table or view to load.
+
         schema (Optional[str]): Optional name of the schema the table belongs to.
+
         metadata (Optional[MetaData]): Optional `sqlalchemy.MetaData` instance. If provided, the `schema` argument is ignored.
-        incremental (Optional[dlt.sources.incremental[Any]]): Option to enable incremental loading for the table.
+
+        incremental (Optional[Incremental[Any]]): Option to enable incremental loading for the table.
             E.g., `incremental=dlt.sources.incremental('updated_at', pendulum.parse('2022-01-01T00:00:00Z'))`
+
         chunk_size (int): Number of rows yielded in one batch. SQL Alchemy will create additional internal rows buffer twice the chunk size.
+
         backend (TableBackend): Type of backend to generate table data. One of: "sqlalchemy", "pyarrow", "pandas" and "connectorx".
             "sqlalchemy" yields batches as lists of Python dictionaries, "pyarrow" and "connectorx" yield batches as arrow tables, "pandas" yields panda frames.
             "sqlalchemy" is the default and does not require additional dependencies, "pyarrow" creates stable destination schemas with correct data types,
             "connectorx" is typically the fastest but ignores the "chunk_size" so you must deal with large tables yourself.
+
         page_size (Optional[int]): Number of rows to be retrieved per transaction. Useful when connecting to DBs with restrictions on the number of rows to retrieve.
-        reflection_level: (ReflectionLevel): Specifies how much information should be reflected from the source database schema.
+        detect_precision_hints (Optional[bool]): Deprecated. Use `reflection_level`. Set column precision and scale hints for supported data types in the target schema based on the columns in the source tables.
+            This is disabled by default.
+
+        reflection_level (Optional[ReflectionLevel]): Specifies how much information should be reflected from the source database schema.
             "minimal": Only table names, nullability and primary keys are reflected. Data types are inferred from the data. This is the default option.
             "full": Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary.
             "full_with_precision": Sets precision and scale on supported data types (ie. decimal, text, binary). Creates big and regular integer types.
-        detect_precision_hints (bool): Deprecated. Use `reflection_level`. Set column precision and scale hints for supported data types in the target schema based on the columns in the source tables.
-            This is disabled by default.
-        defer_table_reflect (bool): Will connect and reflect table schema only when yielding data. Enable this option when running on Airflow. Available
+
+        defer_table_reflect (Optional[bool]): Will connect and reflect table schema only when yielding data. Enable this option when running on Airflow. Available
             on dlt 0.4.4 and later
-        table_adapter_callback: (Callable): Receives each reflected table. May be used to modify the list of columns that will be selected.
-        backend_kwargs (**kwargs): kwargs passed to table backend ie. "conn" is used to pass specialized connection string to connectorx.
-        type_adapter_callback(Optional[Callable]): Callable to override type inference when reflecting columns.
+
+        table_adapter_callback (Optional[TTableAdapter]): Receives each reflected table. May be used to modify the list of columns that will be selected.
+
+        backend_kwargs (Dict[str, Any], optional): kwargs passed to table backend ie. "conn" is used to pass specialized connection string to connectorx.
+
+        type_adapter_callback (Optional[TTypeAdapter]): Callable to override type inference when reflecting columns.
             Argument is a single sqlalchemy data type (`TypeEngine` instance) and it should return another sqlalchemy data type, or `None` (type will be inferred from data)
-        included_columns (Optional[List[str]): List of column names to select from the table. If not provided, all columns are loaded.
-        query_adapter_callback(Optional[Callable[Select, Table], Select]): Callable to override the SELECT query used to fetch data from the table.
+
+        included_columns (Optional[List[str]]): List of column names to select from the table. If not provided, all columns are loaded.
+
+        query_adapter_callback (Optional[TQueryAdapter]): Callable to override the SELECT query used to fetch data from the table.
             The callback receives the sqlalchemy `Select` and corresponding `Table`, 'Incremental` and `Engine` objects and should return the modified `Select` or `Text`.
+
         resolve_foreign_keys (bool): Translate foreign keys in the same schema to `references` table hints.
             May incur additional database calls as all referenced tables are reflected.
+
         engine_adapter_callback (Callable[[Engine], Engine]): Callback to configure, modify and Engine instance that will be used to open a connection ie. to
             set transaction isolation level.
+
         write_disposition (TWriteDispositionConfig): write disposition of the table resource, defaults to `append`.
 
     Returns:

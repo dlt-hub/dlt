@@ -377,6 +377,9 @@ class Pipeline(SupportsPipeline):
 
         Args:
             pipeline_name (str): Optional. New pipeline name. Creates and activates new instance
+
+        Returns:
+            "Pipeline": returns self
         """
         if self.is_active:
             self.deactivate()
@@ -617,7 +620,7 @@ class Pipeline(SupportsPipeline):
         loader_file_format: TLoaderFileFormat = None,
         table_format: TTableFormat = None,
         schema_contract: TSchemaContract = None,
-        refresh: Optional[TRefreshMode] = None,
+        refresh: TRefreshMode = None,
     ) -> LoadInfo:
         """Loads the data from `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
@@ -640,8 +643,11 @@ class Pipeline(SupportsPipeline):
         Args:
             data (Any): Data to be loaded to destination
 
-            destination (str | DestinationReference, optional): A name of the destination to which dlt will load the data, or a destination module imported from `dlt.destination`.
+            destination (TDestinationReferenceArg, optional): A name of the destination to which dlt will load the data, or a destination module imported from `dlt.destination`.
                 If not provided, the value passed to `dlt.pipeline` will be used.
+
+            staging (TDestinationReferenceArg, optional): A name of the stagingdestination to which dlt will load the data temporarily before it is loaded to the destination, can also
+                be a module imported from `dlt.destination`.
 
             dataset_name (str, optional): A name of the dataset to which the data will be loaded. A dataset is a logical group of tables ie. `schema` in relational databases or folder grouping many files.
                 If not provided, the value passed to `dlt.pipeline` will be used. If not provided at all then defaults to the `pipeline_name`
@@ -660,25 +666,26 @@ class Pipeline(SupportsPipeline):
                 Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
                 Please note that in case of `dlt.resource` the table schema value will be overwritten and in case of `dlt.source`, the values in all resources will be overwritten.
 
-            columns (Sequence[TColumnSchema], optional): A list of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
+            columns (TAnySchemaColumns, optional): A list of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
 
-            primary_key (str | Sequence[str]): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
+            primary_key (TColumnNames, optional): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
 
             schema (Schema, optional): An explicit `Schema` object in which all table schemas will be grouped. By default `dlt` takes the schema from the source (if passed in `data` argument) or creates a default one itself.
 
-            loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional): The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
+            loader_file_format (TLoaderFileFormat, optional): The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
 
-            table_format (Literal["delta", "iceberg"], optional): The table format used by the destination to store tables. Currently you can select table format on filesystem and Athena destinations.
+            table_format (TTableFormat, optional): Can be "delta" or "iceberg". The table format used by the destination to store tables. Currently you can select table format on filesystem and Athena destinations.
 
             schema_contract (TSchemaContract, optional): On override for the schema contract settings, this will replace the schema contract settings for all tables in the schema. Defaults to None.
 
-            refresh (str | TRefreshMode): Fully or partially reset sources before loading new data in this run. The following refresh modes are supported:
+            refresh (TRefreshMode, optional): Fully or partially reset sources before loading new data in this run. The following refresh modes are supported:
                 * `drop_sources` - Drop tables and source and resource state for all sources currently being processed in `run` or `extract` methods of the pipeline. (Note: schema history is erased)
                 * `drop_resources`-  Drop tables and resource state for all resources being processed. Source level state is not modified. (Note: schema history is erased)
                 * `drop_data` - Wipe all data and resource state for all resources being processed. Schema is not modified.
 
         Raises:
             PipelineStepFailed: when a problem happened during `extract`, `normalize` or `load` steps.
+
         Returns:
             LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
         """
@@ -1651,9 +1658,9 @@ class Pipeline(SupportsPipeline):
         """Save given state + schema and extract creating a new load package
 
         Args:
-            state: The new pipeline state, replaces the current state
-            schema: The new source schema, replaces current schema of the same name
-            load_package_state_update: Dict which items will be included in the load package state
+            state (TPipelineState): The new pipeline state, replaces the current state
+            schema (Schema): The new source schema, replaces current schema of the same name
+            load_package_state_update (Optional[TLoadPackageState]): Dict which items will be included in the load package state
         """
         self.schemas.save_schema(schema)
         with self.managed_state() as old_state:
@@ -1755,11 +1762,11 @@ class Pipeline(SupportsPipeline):
         """Returns a dataset object for querying the destination data.
 
         Args:
-            schema: Schema name or Schema object to use. If None, uses the default schema if set.
-            dataset_type: Type of dataset interface to return. Defaults to 'auto' which will select ibis if available
+            schema (Union[Schema, str, None]): Schema name or Schema object to use. If None, uses the default schema if set.
+            dataset_type (TDatasetType): Type of dataset interface to return. Defaults to 'auto' which will select ibis if available
                 otherwise it will fallback to the standard dbapi interface.
         Returns:
-            A dataset object that supports querying the destination data.
+            Any: A dataset object that supports querying the destination data.
         """
         if isinstance(schema, Schema):
             logger.info(
