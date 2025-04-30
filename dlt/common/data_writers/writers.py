@@ -783,13 +783,6 @@ def resolve_best_writer_spec(
             except DataWriterNotFound:
                 pass
 
-    # as a last resort, if the item_format is "model"
-    if item_format == "model":
-        try:
-            return DataWriter.class_factory(item_format, item_format, ALL_WRITERS).writer_spec()
-        except DataWriterNotFound:
-            pass
-
     raise SpecLookupFailed(item_format, possible_file_formats, preferred_format)
 
 

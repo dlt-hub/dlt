@@ -88,7 +88,7 @@ class dremio(Destination[DremioClientConfiguration, "DremioClient"]):
         caps.preferred_loader_file_format = None
         caps.supported_loader_file_formats = []
         caps.preferred_staging_file_format = "parquet"
-        caps.supported_staging_file_formats = ["jsonl", "parquet"]
+        caps.supported_staging_file_formats = ["jsonl", "parquet", "model"]
         caps.escape_identifier = escape_dremio_identifier
         caps.type_mapper = DremioTypeMapper
         # all identifiers are case insensitive but are stored as is

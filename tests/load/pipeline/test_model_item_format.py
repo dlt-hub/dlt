@@ -33,16 +33,23 @@ DESTINATIONS_SUPPORTING_MODEL = [
     "mssql",
     "postgres",
     "synapse",
-    # "dremio",
+    "dremio",
+]
+
+# Get config with iceberg table format if supported
+destination_configs = [
+    config
+    for dest in DESTINATIONS_SUPPORTING_MODEL
+    for config in (
+        destinations_configs(default_sql_configs=True, subset=[dest], with_table_format="iceberg")
+        or destinations_configs(default_sql_configs=True, subset=[dest])
+    )
 ]
 
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-        subset=DESTINATIONS_SUPPORTING_MODEL,
-    ),
+    destination_configs,
     ids=lambda x: x.name,
 )
 def test_simple_incremental(destination_config: DestinationTestConfiguration) -> None:
@@ -53,7 +60,6 @@ def test_simple_incremental(destination_config: DestinationTestConfiguration) ->
     pipeline.run(
         [{"a": i, "b": i + 1} for i in range(10)],
         table_name="example_table",
-        table_format="iceberg",
     )
     dataset = pipeline.dataset()
 
@@ -62,7 +68,7 @@ def test_simple_incremental(destination_config: DestinationTestConfiguration) ->
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
     # TODO: incremental is not supported for models yet
-    @dlt.resource(table_format="iceberg")
+    @dlt.resource()
     def copied_table(incremental_field=dlt.sources.incremental("a")) -> Any:
         query = dataset["example_table"].limit(8).query()
         yield dlt.mark.with_hints(
@@ -76,10 +82,7 @@ def test_simple_incremental(destination_config: DestinationTestConfiguration) ->
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-        subset=DESTINATIONS_SUPPORTING_MODEL,
-    ),
+    destination_configs,
     ids=lambda x: x.name,
 )
 def test_aliased_column(destination_config: DestinationTestConfiguration) -> None:
@@ -93,7 +96,6 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
     pipeline.run(
         [{"a": i, "b": i + 1} for i in range(10)],
         table_name="example_table",
-        table_format="iceberg",
     )
 
     dataset = pipeline.dataset()
@@ -101,7 +103,7 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
     # Define a resource that aliases column "a" as "b"
-    @dlt.resource(table_format="iceberg")
+    @dlt.resource()
     def copied_table_with_a_as_b() -> Any:
         query = dataset["example_table"][["a", "_dlt_load_id", "_dlt_id"]].query()
         # Parse into AST
@@ -145,10 +147,7 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-        subset=DESTINATIONS_SUPPORTING_MODEL,
-    ),
+    destination_configs,
     ids=lambda x: x.name,
 )
 def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> None:
@@ -166,7 +165,6 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     pipeline.run(
         [{"a": i, "b": i + 1} for i in range(10)],
         table_name="example_table",
-        table_format="iceberg",
     )
     dataset = pipeline.dataset()
 
@@ -177,7 +175,7 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     # Define resources for different SQL model jobs
     # We also need to supply all hints so the table can be created
     # Create a copied table without column "b"
-    @dlt.resource(table_format="iceberg")
+    @dlt.resource()
     def copied_table_no_b() -> Any:
         query = dataset["example_table"][["a", "_dlt_load_id", "_dlt_id"]].limit(5).query()
         sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
@@ -187,7 +185,7 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
         )
 
     # Create a table with reversed column order
-    @dlt.resource(table_format="iceberg")
+    @dlt.resource()
     def reversed_table() -> Any:
         query = dataset["example_table"][["_dlt_id", "_dlt_load_id", "b", "a"]].limit(7).query()
         yield dlt.mark.with_hints(
@@ -196,7 +194,7 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
         )
 
     # Create a copied table with all columns
-    @dlt.resource(table_format="iceberg")
+    @dlt.resource()
     def copied_table() -> Any:
         query = dataset["example_table"].limit(8).query()
         yield dlt.mark.with_hints(
@@ -247,27 +245,16 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     }
 
     # Validate that each table has exactly one model job
-    # NOTE: Athena creates one model job and one sql job
-    if destination_config.destination_type != "athena":
-        assert count_job_types(pipeline) == {
-            "copied_table_no_b": {"model": 1},
-            "reversed_table": {"model": 1},
-            "copied_table": {"model": 1},
-        }
-    else:
-        assert count_job_types(pipeline) == {
-            "copied_table_no_b": {"model": 1, "sql": 1},
-            "reversed_table": {"model": 1, "sql": 1},
-            "copied_table": {"model": 1, "sql": 1},
-        }
+    assert count_job_types(pipeline) == {
+        "copied_table_no_b": {"model": 1},
+        "reversed_table": {"model": 1},
+        "copied_table": {"model": 1},
+    }
 
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-        subset=DESTINATIONS_SUPPORTING_MODEL,
-    ),
+    destination_configs,
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize(
@@ -286,14 +273,12 @@ def test_write_dispositions(
         [{"a": i} for i in range(7)],
         primary_key="a",
         table_name="example_table_1",
-        table_format="iceberg",
         write_disposition=write_disposition,
     )
     pipeline.run(
         [{"a": i + 1} for i in range(10)],
         primary_key="a",
         table_name="example_table_2",
-        table_format="iceberg",
         write_disposition=write_disposition,
     )
 
@@ -312,7 +297,6 @@ def test_write_dispositions(
         write_disposition=write_disposition,
         table_name="example_table_1",
         primary_key="a",
-        table_format="iceberg",
     )
     def copied_table() -> Any:
         yield dlt.mark.with_hints(
@@ -344,10 +328,7 @@ def test_write_dispositions(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-        subset=DESTINATIONS_SUPPORTING_MODEL,
-    ),
+    destination_configs,
     ids=lambda x: x.name,
 )
 def test_multiple_statements_per_resource(destination_config: DestinationTestConfiguration) -> None:
@@ -360,7 +341,7 @@ def test_multiple_statements_per_resource(destination_config: DestinationTestCon
         f"test_multiple_statments_per_resource_{uniq_id()}", dev_mode=False
     )
 
-    pipeline.run([{"a": i} for i in range(10)], table_name="example_table", table_format="iceberg")
+    pipeline.run([{"a": i} for i in range(10)], table_name="example_table")
     dataset = pipeline.dataset()
 
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
@@ -369,7 +350,7 @@ def test_multiple_statements_per_resource(destination_config: DestinationTestCon
 
     # create a resource that generates sql statements to create 2 new tables
     # we also need to supply all hints so the table can be created
-    @dlt.resource(table_format="iceberg")
+    @dlt.resource()
     def copied_table() -> Any:
         query1 = dataset["example_table"].limit(5).query()
         yield dlt.mark.with_hints(
@@ -391,15 +372,9 @@ def test_multiple_statements_per_resource(destination_config: DestinationTestCon
     }
 
     # two model jobs where produced
-    # NOTE: Athena creates 2 model jobs and 2 sql jobs
-    if destination_config.destination_type != "athena":
-        assert count_job_types(pipeline) == {
-            "copied_table": {"model": 2},
-        }
-    else:
-        assert count_job_types(pipeline) == {
-            "copied_table": {"model": 2, "sql": 1},
-        }
+    assert count_job_types(pipeline) == {
+        "copied_table": {"model": 2},
+    }
 
 
 def test_model_writer_without_destination(mocker):
