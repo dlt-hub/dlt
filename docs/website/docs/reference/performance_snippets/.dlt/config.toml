@@ -7,7 +7,7 @@ file_max_items=100000
 [normalize]
 workers=3
 
-[data_writer]
+[normalize.data_writer]
 file_max_items=100000
 
 [load]
