@@ -65,8 +65,7 @@ sources:
 :::tip
 Source **type** is used to refer to the location in Python code where the `@dlt.source` decorated function is present. You can
 always use a full path to a function name in a Python module, but we also support shorthand and relative notations. For example:
-* `rest_api` will be expanded to `dlt.sources.rest_api.rest_api` where `dlt.sources.rest_api` is a Python module in OSS dlt and
-`rest_api` is a name of a function in that module.
+* `rest_api` will be expanded to `dlt.sources.rest_api.rest_api` where `dlt.sources.rest_api` is a Python module in OSS dlt and `rest_api` is a name of a function in that module.
 * `github.source` will be expanded to `sources.github.sources` in the current project.
 
 If the **type** cannot be resolved, dlt+ will provide you with a detailed list of all candidate types that were looked up
@@ -227,9 +226,6 @@ datasets:
     destination:
         - duckdb
 ```
-:::Note
-The destination field is an array, allowing you to specify one or more destinations where the dataset can be materialized. 
-:::
 
 ### Managing Datasets and Destinations
 
@@ -266,11 +262,10 @@ datasets:
       - duckdb
       - bigquery
 ```
-:::tip
-If no destination is specified in a CLI command, dlt+ will use the first listed destination for that dataset by default.
-If implicit entities are allowed, dlt+ can also discover datasets defined only within pipelines and will use the pipeline's destination when creating the dataset.
-The same rule applies when retrieving datasets from the catalog in Python, more on that below.
+:::note
+The destination field is an array, allowing you to specify one or more destinations where the dataset can be materialized. 
 :::
+
 
 ### Other settings
 
@@ -313,19 +308,15 @@ You can clean up your working files with the `dlt project --profile name clean` 
 
 ## 🧪 Python API to interact with dlt+ project
 
-You can access any dlt+ project entity or function via the Python interface. In the example below:
-```yaml
-transformations:
-  stressed_transformation:
-    engine: arrow
-    cache: stressed_cache
-pipelines:
-  bronze_pipe:
-    destination: filesystem
-    dataset_name: bronze
-```
-The current module provides access to various parts of your active dlt+ project:
+You can access any dlt+ project entity or function via the Python interface. 
+The current module provides access to various parts of your active dlt+ project.
 
+Import statement:
+```py
+from dlt_plus import current
+```
+
+Available methods:
 - `current.project()` - Retrieves the project configuration
 - `current.entities()` - Returns a factory with all instantiated entities
 - `current.catalog()` - Provides access to all defined datasets in the catalog
@@ -335,6 +326,8 @@ The current module provides access to various parts of your active dlt+ project:
 
 Here are a few examples of what you can access from the project object:
 ```py
+from dlt_plus import current
+
 # show the currently active profile
 print(current.project().current_profile)
 # show the main project dir
@@ -352,8 +345,8 @@ If allowed, implicit entities will be created and returned automatically. If not
 import dlt_plus
 
 entities = dlt_plus.current.entities()
-pipeline = entities.create_pipeline("bronze_pipe")
-transformation = entities.create_transformation("stressed_transformation")
+pipeline = entities.create_pipeline("my_pipeline")
+destination = current.entities().create_destination("duckdb")
 ```
 Here, we access the entities manager, which allows you to create sources, destinations, pipelines, and other objects.
 
@@ -365,8 +358,8 @@ You can also use it directly in your code through the project context:
 ```py
 # get the runner
 runner = current.runner()
-# run the "bronze_pipe" pipeline from the currently active project
-runner.run_pipeline("bronze_pipe")
+# run the "my_pipeline" pipeline from the currently active project
+runner.run_pipeline("my_pipeline")
 ```
 
 ### Accessing the catalog
@@ -376,7 +369,7 @@ The catalog allows you to access all explicitly defined datasets:
 ```py
 # get a dataset instance pointing to the default destination (first in dataset destinations list) and access data inside of it
 # Note: The dataset must already exist physically for this to work
-dataset = current.catalog().dataset("bronze")
+dataset = current.catalog().dataset("my_pipeline_dataset")
 # get the row counts of all tables in the dataset as a dataframe
 print(dataset.row_counts().df())
 ```
@@ -400,7 +393,7 @@ Use it with caution until it's fully stable.
 ```py
 import pandas as pd
 # get a dataset from the catalog (it must already exist and be defined in dlt.yml)
-dataset = current.catalog().dataset("bronze")
+dataset = current.catalog().dataset("my_pipeline_dataset")
 # Write a DataFrame to the "my_table" table in the dataset
 dataset.save(pd.DataFrame({"name": ["John", "Jane", "Jim"], "age": [30, 25, 35]}), table_name="my_table")
 ```
@@ -409,7 +402,7 @@ You can also read from an existing table and write the data to a new table, eith
 
 ```py
 # get dataset from the catalog
-dataset = current.catalog().dataset("bronze")
+dataset = current.catalog().dataset("my_pipeline_dataset")
 
 # This function reads data in chunks from an existing table and yields each chunk
 def transform_frames():
