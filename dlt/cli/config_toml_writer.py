@@ -27,7 +27,7 @@ def generate_typed_example(name: str, hint: AnyType) -> Any:
     try:
         sc_type = py_type_to_sc_type(inner_hint)
         if sc_type == "text":
-            return ""
+            return "<configure me>"
         if sc_type == "bigint":
             return 0
         if sc_type == "double":
