@@ -213,7 +213,7 @@ class TypedJsonlListWriter(JsonlWriter):
     def write_data(self, items: Sequence[TDataItem]) -> None:
         # skip JsonlWriter when calling super
         super(JsonlWriter, self).write_data(items)
-        # write all rows as one list which will require to write just one line
+        # write all rows as one list which will rPnorequire to write just one line
         # encode types with PUA characters
         json.typed_dump(items, self._f)
         self._f.write(b"\n")
