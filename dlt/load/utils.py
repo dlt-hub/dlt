@@ -131,15 +131,17 @@ def init_client(
             )
         )
 
-        with job_client.with_staging_dataset():
-            _init_dataset_and_update_schema(
-                job_client,
-                expected_update,
-                staging_tables | {schema.version_table_name},  # keep only schema version
-                staging_tables,  # all eligible tables must be also truncated
-                staging_info=True,
-                drop_tables=drop_table_names,  # try to drop all the same tables on staging
-            )
+        # if there are tables to drop, we should also drop them in the staging dataset
+        if staging_tables or drop_table_names:
+            with job_client.with_staging_dataset():
+                _init_dataset_and_update_schema(
+                    job_client,
+                    expected_update,
+                    staging_tables | {schema.version_table_name},  # keep only schema version
+                    staging_tables,  # all eligible tables must be also truncated
+                    staging_info=True,
+                    drop_tables=drop_table_names,  # try to drop all the same tables on staging
+                )
 
     return applied_update
 

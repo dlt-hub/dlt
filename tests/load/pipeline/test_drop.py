@@ -547,32 +547,45 @@ def test_drop_staging_tables(destination_config: DestinationTestConfiguration) -
         columns={"value": {"data_type": "bool"}}, primary_key="id", write_disposition="merge"
     )
     def some_data():
-        yield {"id": 1}
+        yield {"id": 1, "value": True, "children": [{"id": 1}, {"id": 2}]}
 
     pipeline.run(some_data, **destination_config.run_kwargs)
 
     attached = _attach(pipeline)
     helpers.drop(attached, resources=["some_data"])
-    # result_tables = set(table["name"] for table in attached.default_schema.data_tables())
-    # assert set() == result_tables
 
+    # Make sure the "some_data" table doesn't exist anymore
     with attached.sql_client() as client:
+        qual_table_name, qual_staging_table_name = client.get_qualified_table_names("some_data")
         with pytest.raises(DatabaseUndefinedRelation):
-            qual_table_name, qual_staging_table_name = client.get_qualified_table_names("some_data")
-            client.execute_sql(f"SELECT * FROM {qual_table_name}e")
+            client.execute_sql(f"SELECT * FROM {qual_table_name}")
 
         with pytest.raises(DatabaseUndefinedRelation):
             client.execute_sql(f"SELECT * FROM {qual_staging_table_name}")
 
+        # Child table "some_data__children" should also be non-existent
+        qual_table_name, qual_staging_table_name = client.get_qualified_table_names(
+            "some_data__children"
+        )
+        with pytest.raises(DatabaseUndefinedRelation):
+            client.execute_sql(f"SELECT * FROM {qual_table_name}")
 
-"""
+        with pytest.raises(DatabaseUndefinedRelation):
+            client.execute_sql(f"SELECT * FROM {qual_staging_table_name}")
+
+    # Change the schema and try to load to the old table
+    # NOTE: we test this because previously staging tables weren't dropped and
+    # resulted in schema mismatch errors
     @dlt.resource(
-        columns={"value": {"data_type": "text"}}, primary_key="id", write_disposition="merge"
+        table_name="some_data",
+        columns={"value": {"data_type": "text"}},
+        primary_key="id",
+        write_disposition="merge",
     )
-    def some_data():  # type: ignore[no-redef]
-        yield {"id": 1, "value": "random"}
+    def some_data_redefined():
+        yield {"id": 1, "value": "random", "children": []}
 
     attached = _attach(pipeline)
 
-    attached.run(some_data, **destination_config.run_kwargs)
-"""
+    load_info = attached.run(some_data_redefined, **destination_config.run_kwargs)
+    assert_load_info(load_info)
