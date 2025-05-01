@@ -417,17 +417,17 @@ class ArrowExtractor(Extractor):
             for item in items
         ]
 
-        items = [
-            pyarrow.add_dlt_load_id_column(
-                item,
-                columns,
-                self._caps,
-                self.naming,
-                self._normalize_config.add_dlt_load_id,
-                self.load_id,
-            )
-            for item in items
-        ]
+        if self._normalize_config.add_dlt_load_id:
+            items = [
+                pyarrow.add_dlt_load_id_column(
+                    item,
+                    columns,
+                    self._caps,
+                    self.naming,
+                    self.load_id,
+                )
+                for item in items
+            ]
 
         # write items one by one
         super()._write_item(table_name, resource_name, items, columns)

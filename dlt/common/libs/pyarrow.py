@@ -40,6 +40,8 @@ except ModuleNotFoundError:
         "Install pyarrow to be allow to load arrow tables, panda frames and to use parquet files.",
     )
 
+import ctypes
+
 TAnyArrowItem = Union[pyarrow.Table, pyarrow.RecordBatch]
 
 ARROW_DECIMAL_MAX_PRECISION = 76
@@ -523,44 +525,45 @@ def add_dlt_load_id_column(
     columns: TTableSchemaColumns,
     caps: DestinationCapabilitiesContext,
     naming: NamingConvention,
-    add_load_id: bool,
     load_id: str,
 ) -> TAnyArrowItem:
     """
     Adds or replaces the `_dlt_load_id` column.
     """
-    replacement_load_id = load_id if add_load_id else None
-    if replacement_load_id is not None:
-        dlt_load_id_col_name = naming.normalize_identifier(C_DLT_LOAD_ID)
+    dlt_load_id_col_name = naming.normalize_identifier(C_DLT_LOAD_ID)
 
-        idx = item.schema.get_field_index(dlt_load_id_col_name)
-        # if the column already exists, get rid of it
-        if idx != -1:
-            item = remove_columns(item, dlt_load_id_col_name)
+    idx = item.schema.get_field_index(dlt_load_id_col_name)
+    # if the column already exists, get rid of it
+    if idx != -1:
+        item = remove_columns(item, dlt_load_id_col_name)
 
-        # get pyarrow.string() type
-        pyarrow_string = get_py_arrow_datatype(
-            # use already existing column definition or use the default
-            # NOTE: the existence of the load id column is ensured by this time
-            # since it is added in _compute_tables before files are written
-            (
-                columns[dlt_load_id_col_name]
-                if dlt_load_id_col_name in columns
-                else dlt_load_id_column()
-            ),
-            caps,
-            "UTC",  # ts is irrelevant to get pyarrow string, but it's required...
-        )
+    # get pyarrow.string() type
+    pyarrow_string = get_py_arrow_datatype(
+        # use already existing column definition or use the default
+        # NOTE: the existence of the load id column is ensured by this time
+        # since it is added in _compute_tables before files are written
+        (
+            columns[dlt_load_id_col_name]
+            if dlt_load_id_col_name in columns
+            else dlt_load_id_column()
+        ),
+        caps,
+        "UTC",  # ts is irrelevant to get pyarrow string, but it's required...
+    )
 
-        # add the column with the new value at previous index or append
-        item = add_constant_column(
-            item=item,
-            name=dlt_load_id_col_name,
-            data_type=pyarrow_string,
-            value=replacement_load_id,
-            nullable=False,
-            index=idx,
-        )
+    # add the column with the new value at previous index or append
+    item = add_constant_column(
+        item=item,
+        name=dlt_load_id_col_name,
+        data_type=pyarrow_string,
+        value=load_id,
+        nullable=(
+            columns[dlt_load_id_col_name]["nullable"]
+            if dlt_load_id_col_name in columns
+            else dlt_load_id_column()["nullable"]
+        ),
+        index=idx,
+    )
 
     return item
 
@@ -694,7 +697,9 @@ def add_constant_column(
         The column is created as a DictionaryArray with int8 indices.
     """
     dictionary = pyarrow.array([value], type=data_type)
-    zero_buffer = pyarrow.py_buffer(b"\x00" * item.num_rows)
+    zero_buffer = pyarrow.allocate_buffer(item.num_rows, resizable=False)
+    ctypes.memset(zero_buffer.address, 0, item.num_rows)
+
     indices = pyarrow.Array.from_buffers(
         pyarrow.int8(),
         item.num_rows,
