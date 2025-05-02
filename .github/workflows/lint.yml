@@ -38,6 +38,13 @@ jobs:
           activate-environment: true
           enable-cache: true
 
+      - name: Check filesizes
+        uses: ppremk/lfs-warning@v3.2
+        with:
+          filesizelimit: 50000
+          exclusionPatterns: |
+            **/*.py
+
       - name: Install dependencies
         run: uv sync --all-extras --group airflow --group providers --group pipeline --group sentry-sdk --group dbt --group marimo --group streamlit
 
