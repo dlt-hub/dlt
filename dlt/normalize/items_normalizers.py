@@ -87,8 +87,11 @@ class ModelItemsNormalizer(ItemsNormalizer):
         # Get normalizer function
         norm_f = self.schema.naming.normalize_identifier
 
-        NORM_C_DLT_LOAD_ID = norm_f(C_DLT_LOAD_ID)
-        NORM_C_DLT_ID = norm_f(C_DLT_ID)
+        # Get casefolder
+        casefold_f = self.config.destination_capabilities.casefold_identifier
+
+        NORM_C_DLT_LOAD_ID = casefold_f(norm_f(C_DLT_LOAD_ID))
+        NORM_C_DLT_ID = casefold_f(norm_f(C_DLT_ID))
 
         if self.config.model_normalizer.add_dlt_load_id:
             dlt_columns[C_DLT_LOAD_ID] = sqlglot.exp.Alias(
@@ -162,6 +165,9 @@ class ModelItemsNormalizer(ItemsNormalizer):
         # Get normalizer function
         norm_f = self.schema.naming.normalize_identifier
 
+        # Get casefolder
+        casefold_f = self.config.destination_capabilities.casefold_identifier
+
         # Build new select list using selected columns in the subquery
         outer_selects: List[sqlglot.exp.Expression] = []
         for select in parsed_select.selects:
@@ -172,10 +178,14 @@ class ModelItemsNormalizer(ItemsNormalizer):
                 outer_selects.append(sqlglot.exp.Star(this="subquery"))
             elif isinstance(select, sqlglot.exp.Alias):
                 name = select.alias
-                outer_selects.append(sqlglot.column(name, table="subquery").as_(norm_f(name)))
+                outer_selects.append(
+                    sqlglot.column(name, table="subquery").as_(casefold_f(norm_f(name)))
+                )
             elif isinstance(select, sqlglot.exp.Column) or isinstance(select, sqlglot.exp.Dot):
                 name = select.output_name or select.name
-                outer_selects.append(sqlglot.column(name, table="subquery").as_(norm_f(name)))
+                outer_selects.append(
+                    sqlglot.column(name, table="subquery").as_(casefold_f(norm_f(name)))
+                )
 
         # Create the outer select statement
         outer_select = sqlglot.select(*outer_selects).from_(subquery)
