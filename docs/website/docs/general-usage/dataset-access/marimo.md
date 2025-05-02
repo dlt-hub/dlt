@@ -1,10 +1,10 @@
 ---
-title: Explore your data with Marimo
-description: Explore your data with Marimo
+title: Explore your data with marimo
+description: Explore your data with marimo
 keywords: [data, dataset, sql, ibis, marimo]
 ---
 
-# marimo
+# Explore your data with marimo
 
 [marimo](https://github.com/marimo-team/marimo) is a reactive Python notebook. It completely revamps the Jupyter notebook experience. Whenever code is executed or you interact with a UI element, dependent cells are re-executed ensuring consistency between code and displayed outputs.
 
