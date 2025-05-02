@@ -358,6 +358,9 @@ const sidebars = {
           label: 'Loading behavior',
           items: [
             'general-usage/incremental-loading',
+            'general-usage/merge-strategies',
+            'general-usage/cursor-incremental',
+            'general-usage/advanced-state',
             'walkthroughs/add-incremental-configuration',
             'general-usage/full-loading',
           ]
