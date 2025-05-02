@@ -1,3 +1,4 @@
+import sqlglot.expressions
 from tests.load.pipeline.test_model_item_format import DESTINATIONS_SUPPORTING_MODEL
 from importlib import import_module
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -73,90 +74,34 @@ def extract_model(
 
 
 @pytest.mark.parametrize("caps", MODEL_CAPS, indirect=True, ids=DESTINATIONS_SUPPORTING_MODEL)
-def test_selected_column_names_normalized_accoring_to_naming(
+def test_simple_model_normalizing(
     caps: DestinationCapabilitiesContext, model_normalize: Normalize
 ) -> None:
-    # Use a query with an illegal character
-    # / is not allowed in column names for all destinations
+    """
+    This test demonstrates how a model with simple sql query is transformed by the normalizer for each destination capabilities.
+    Explicit queries are used to clearly show the expected transformation process.
+    """
+    # TODO: tests for dialects teradata, mysql, presto and athena
     dialect = caps.sqlglot_dialect
-    illegal_select_query = """
-SELECT
-  "t0"."a/a",
-  "t0"."_dlt_load_id",
-  "t0"."_dlt_id"
-FROM  "my_table" AS "t0"
-LIMIT 5
-"""
-    model = SqlModel.from_query_string(query=illegal_select_query, dialect=dialect)
+    model = SqlModel.from_query_string(query="SELECT a, b FROM my_table", dialect=dialect)
 
-    # Make sure the "my_table" table exists in the schema
-    incomplete_col = utils.new_column("aa")
-    table = utils.new_table("my_table", columns=[incomplete_col])
+    # Ensure the schema contains the table "my_table"
+    table = utils.new_table("my_table")
     schema = Schema("my_schema")
     schema.update_table(table)
 
-    # Extract and normalize
+    # Extract and normalize the model
     load_id = extract_model(model_normalize.normalize_storage, model, schema, "my_table")
     with ThreadPoolExecutor(max_workers=1) as pool:
         model_normalize.run(pool)
 
+    # Retrieve the normalized query from the storage
     model_files = model_normalize.load_storage.list_new_jobs(load_id)
     model_full_path = model_normalize.load_storage.normalized_packages.storage.make_full_path(
         model_files[0]
     )
-
-    # Check the normalized model
     with FileStorage.open_zipsafe_ro(model_full_path, "r", encoding="utf-8") as f:
-        _, normalized_select_query = read_dialect_and_sql(
-            file_obj=f,
-            fallback_dialect=dialect,
-        )
-
-    parsed_norm_select_query = sqlglot.parse_one(normalized_select_query, read=dialect)
-
-    # Original illegal_select_query should be unchanged and in a subquery
-    # The subquery is contained in the from clause and is aliased
-    # we do some sanity checks before we compare the result
-    from_clause = parsed_norm_select_query.args.get("from")
-    assert isinstance(from_clause, sqlglot.exp.From)
-    assert isinstance(from_clause.this, sqlglot.exp.Subquery)
-    assert isinstance(from_clause.this.this, sqlglot.exp.Select)
-    parsed_subquery_without_alias = from_clause.this.this
-    parsed_illegal_select_query = sqlglot.parse_one(illegal_select_query, read=dialect)
-    if dialect == "tsql":
-        parsed_illegal_select_query = sqlglot.parse_one(
-            parsed_illegal_select_query.sql(dialect), read=dialect
-        )
-    assert parsed_subquery_without_alias == parsed_illegal_select_query
-
-    # Check if illegal character was handled:
-    # The alias in the outer query should be normalized
-    # Check if 3 columns were selected
-    assert len(parsed_norm_select_query.expressions) == 3
-    assert parsed_norm_select_query.expressions[0].alias == "a_a"
-    assert parsed_norm_select_query.expressions[1].alias == "_dlt_load_id"
-    assert parsed_norm_select_query.expressions[2].alias == "_dlt_id"
-
-
-@pytest.mark.parametrize("caps", MODEL_CAPS, indirect=True, ids=DESTINATIONS_SUPPORTING_MODEL)
-def test_model_item_normalizer(
-    caps: DestinationCapabilitiesContext, model_normalize: Normalize
-) -> None:
-    # TODO: test on unallowed characters, casefolding etc
-    dialect = caps.sqlglot_dialect
-    model = SqlModel.from_query_string(query="SELECT a, b FROM my_table", dialect=dialect)
-    load_id = extract_model(
-        model_normalize.normalize_storage, model, Schema("my_schema"), "my_table"
-    )
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        model_normalize.run(pool)
-    model_files = model_normalize.load_storage.list_new_jobs(load_id)
-    model_full_path = model_normalize.load_storage.normalized_packages.storage.make_full_path(
-        model_files[0]
-    )
-
-    with FileStorage.open_zipsafe_ro(model_full_path, "r", encoding="utf-8") as f:
-        select_dialect, select_statement = read_dialect_and_sql(
+        select_dialect, normalized_select_query = read_dialect_and_sql(
             file_obj=f,
             fallback_dialect=dialect,
         )
@@ -166,54 +111,126 @@ def test_model_item_normalizer(
         assert (
             f"SELECT subquery.a AS a, subquery.b AS b, '{load_id}' AS _dlt_load_id, UUID() AS"
             " _dlt_id FROM (SELECT a, b FROM my_table) AS subquery\n"
-            == select_statement
+            == normalized_select_query
         )
     elif dialect == "bigquery":
         assert (
             f"SELECT subquery.a AS a, subquery.b AS b, '{load_id}' AS _dlt_load_id, GENERATE_UUID()"
             " AS _dlt_id FROM (SELECT a, b FROM my_table) AS subquery\n"
-            == select_statement
+            == normalized_select_query
         )
     elif dialect == "clickhouse":
         assert (
             f"SELECT subquery.a AS a, subquery.b AS b, '{load_id}' AS _dlt_load_id,"
             " generateUUIDv4() AS _dlt_id FROM (SELECT a, b FROM my_table) AS subquery\n"
-            == select_statement
+            == normalized_select_query
         )
     elif dialect == "databricks":
         assert (
             f"SELECT subquery.a AS a, subquery.b AS b, '{load_id}' AS _dlt_load_id, UUID()"
             " AS _dlt_id FROM (SELECT a, b FROM my_table) AS subquery\n"
-            == select_statement
+            == normalized_select_query
         )
     elif dialect == "tsql":
         assert (
             f"SELECT subquery.a AS a, subquery.b AS b, '{load_id}' AS _dlt_load_id, NEWID()"
             " AS _dlt_id FROM (SELECT a AS a, b AS b FROM my_table) AS subquery\n"
-            == select_statement
+            == normalized_select_query
         )
     elif dialect == "postgres":
         assert (
             f"SELECT subquery.a AS a, subquery.b AS b, '{load_id}' AS _dlt_load_id,"
             " GEN_RANDOM_UUID() AS _dlt_id FROM (SELECT a, b FROM my_table) AS subquery\n"
-            == select_statement
+            == normalized_select_query
         )
     elif dialect == "redshift":
         assert (
             f"SELECT subquery.a AS a, subquery.b AS b, '{load_id}' AS _dlt_load_id,"
             " MD5(CAST(ROW_NUMBER() OVER () AS VARCHAR(MAX))) AS _dlt_id FROM (SELECT a, b FROM"
             " my_table) AS subquery\n"
-            == select_statement
+            == normalized_select_query
         )
     elif dialect == "snowflake":
         assert (
-            f"SELECT subquery.a AS a, subquery.b AS b, '{load_id}' AS _dlt_load_id, UUID_STRING()"
-            " AS _dlt_id FROM (SELECT a, b FROM my_table) AS subquery\n"
-            == select_statement
+            f"SELECT subquery.a AS A, subquery.b AS B, '{load_id}' AS _DLT_LOAD_ID, UUID_STRING()"
+            " AS _DLT_ID FROM (SELECT a, b FROM my_table) AS subquery\n"
+            == normalized_select_query
         )
     else:
         assert (
             f"SELECT subquery.a AS a, subquery.b AS b, '{load_id}' AS _dlt_load_id, UUID()"
             " AS _dlt_id FROM (SELECT a, b FROM my_table) AS subquery\n"
-            == select_statement
+            == normalized_select_query
         )
+
+
+@pytest.mark.parametrize("caps", MODEL_CAPS, indirect=True, ids=DESTINATIONS_SUPPORTING_MODEL)
+def test_selected_column_names_normalization(
+    caps: DestinationCapabilitiesContext, model_normalize: Normalize
+) -> None:
+    # Define a query with illegal characters in column names to test normalization
+    illegal_select_query = """
+SELECT
+  "t0"."a/a",
+  "t0"."_dlt.load_id",
+  "t0"."_dlt,id"
+FROM  "my_table" AS "t0"
+LIMIT 5
+"""
+    dialect = caps.sqlglot_dialect
+
+    # Create a SQL model from the query
+    model = SqlModel.from_query_string(query=illegal_select_query, dialect=dialect)
+
+    # Ensure the schema contains the table "my_table"
+    table = utils.new_table("my_table")
+    schema = Schema("my_schema")
+    schema.update_table(table)
+
+    # Extract and normalize the model
+    load_id = extract_model(model_normalize.normalize_storage, model, schema, "my_table")
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        model_normalize.run(pool)
+
+    # Retrieve the normalized query from the storage
+    model_files = model_normalize.load_storage.list_new_jobs(load_id)
+    model_full_path = model_normalize.load_storage.normalized_packages.storage.make_full_path(
+        model_files[0]
+    )
+    with FileStorage.open_zipsafe_ro(model_full_path, "r", encoding="utf-8") as f:
+        _, normalized_select_query = read_dialect_and_sql(
+            file_obj=f,
+            fallback_dialect=dialect,
+        )
+
+    # Parse the normalized model query to extract the subquery
+    parsed_norm_select_query = sqlglot.parse_one(normalized_select_query, read=dialect)
+
+    # Ensure the normalized model query contains a subquery in the FROM clause
+    from_clause = parsed_norm_select_query.args.get("from")
+    assert isinstance(from_clause, sqlglot.exp.From)
+    assert isinstance(from_clause.this, sqlglot.exp.Subquery)
+    assert isinstance(from_clause.this.this, sqlglot.exp.Select)
+    parsed_subquery = from_clause.this.this
+
+    # Parse the original illegal query for comparison
+    parsed_illegal_select_query = sqlglot.parse_one(illegal_select_query, read=dialect)
+
+    # For tsql, ensure all columns in the subquery are explicitly aliased
+    # because even though we don't have aliases in the original query,
+    # sqlglot adds aliases in subqueries for tsql by default
+    if dialect == "tsql":
+        aliased_columns = [
+            col.as_(col.output_name) for col in parsed_illegal_select_query.expressions
+        ]
+        parsed_illegal_select_query.set("expressions", aliased_columns)
+
+    # Ensure the subquery in the normalized query matches the original query
+    assert parsed_subquery.sql(dialect) == parsed_illegal_select_query.sql(dialect)
+
+    # Verify that illegal characters in column names were normalized in the outer query
+    # Check that the outer query contains exactly 3 columns with normalized aliases
+    assert len(parsed_norm_select_query.expressions) == 3
+    assert parsed_norm_select_query.expressions[0].alias == caps.casefold_identifier("a_a")
+    assert parsed_norm_select_query.expressions[1].alias == caps.casefold_identifier("_dlt_load_id")
+    assert parsed_norm_select_query.expressions[2].alias == caps.casefold_identifier("_dlt_id")
