@@ -31,7 +31,7 @@ def test_compute_columns_schema() -> None:
     }
 
 
-def test_compute_columns_schema_allow_fail() -> None:
+def test_compute_columns_schema_allow_partial() -> None:
     dialect = "duckdb"
     table_name = "table_1"
     sqlglot_schema = ensure_schema(
@@ -45,7 +45,7 @@ def test_compute_columns_schema_allow_fail() -> None:
         }
     )
 
-    # raise on sqlglot.errors.ParserError when allow_fail=False
+    # raise on sqlglot.errors.ParserError when allow_partial=False
     invalid_query = "%&/ GIBBERISH"
     invalid_empty_schema = lineage.compute_columns_schema(
         sql_query=invalid_query,
