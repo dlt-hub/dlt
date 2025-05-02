@@ -31,13 +31,13 @@ def test_simple_query_transformations(destination_config: DestinationTestConfigu
 
     @dlt.transformation()
     def copied_purchases(dataset: SupportsReadableDataset[Any]) -> Any:
-        return dataset["purchases"].limit(5)
+        return dataset["purchases"].limit(3)
 
     # transform into transformed dataset
     dest_p.run(copied_purchases(fruit_p.dataset()))
 
     assert load_table_counts(dest_p, "copied_purchases") == {
-        "copied_purchases": 5,
+        "copied_purchases": 3,
     }
 
     # all transformations are sql, except for filesystem destination
