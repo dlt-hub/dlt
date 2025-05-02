@@ -226,7 +226,7 @@ with exec_to_stdout(f):
         Executes `dbt seed` on previously cloned package.
 
         Args:
-            run_params (Sequence[str], optional): Additional parameters to `seed` command ie. seed selectors`.
+            cmd_params (Sequence[str], optional): Additional parameters to `seed` command ie. seed selectors`.
             additional_vars (StrAny, optional): Additional jinja variables to be passed to the package. Defaults to None.
             destination_dataset_name (str, optional): Overwrites the dbt schema where seeds will be created. Defaults to None.
 
@@ -251,7 +251,7 @@ with exec_to_stdout(f):
         Executes `dbt snapshot` on previously cloned package.
 
         Args:
-            run_params (Sequence[str], optional): Additional parameters to `snapshot` command ie. snapshot selectors`.
+            cmd_params (Sequence[str], optional): Additional parameters to `snapshot` command ie. snapshot selectors`.
             additional_vars (StrAny, optional): Additional jinja variables to be passed to the package. Defaults to None.
             destination_dataset_name (str, optional): Overwrites the dbt schema where snapshots will be created. Defaults to None.
 
@@ -261,6 +261,7 @@ with exec_to_stdout(f):
         Exceptions:
             DBTProcessingError: `snapshot` command failed. Contains a list of models with their execution statuses and error messages
         """
+
         return self._run_dbt_command(
             "snapshot", cmd_params, self._get_package_vars(additional_vars, destination_dataset_name)
         )
