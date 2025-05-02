@@ -121,10 +121,10 @@ class ModelItemsNormalizer(ItemsNormalizer):
 
         # Replace if dlt columns exist in the select statement, otherwise append
         for i, select in enumerate(outer_parsed_select.selects):
+            select_alias = select.alias.lower()
             for column_name, alias_expr in dlt_columns.items():
                 if alias_expr is None:
                     continue
-                select_alias = select.alias.lower()
                 if select_alias == column_name:
                     outer_parsed_select.selects[i] = alias_expr
                     dlt_columns[column_name] = None  # Mark as replaced
@@ -152,6 +152,45 @@ class ModelItemsNormalizer(ItemsNormalizer):
 
         return schema_update if schema_update else None
 
+    def _reorder_or_adjust_outer_select(
+        self,
+        outer_parsed_select: sqlglot.exp.Select,
+        columns: TTableSchemaColumns,
+    ) -> None:
+        """
+        Reorders the column selections in the outer select:
+        1. Missing selects are added as null from schema.
+        2. Extra selects are omitted.
+        """
+        if len(outer_parsed_select.selects) == 1 and isinstance(
+            outer_parsed_select.selects[0], sqlglot.exp.Star
+        ):
+            return None
+
+        # Map alias name -> expression
+        alias_map = {expr.alias.lower(): expr for expr in outer_parsed_select.selects}
+
+        # Get casefolder because we might need it
+        # if the column is in schema, but not in the select
+        casefolder_f = self.config.destination_capabilities.casefold_identifier
+
+        # Build new selects list in correct schema column order
+        new_selects = []
+        for col in columns:
+            lower_col = col.lower()
+            expr = alias_map.get(lower_col)
+            if expr:
+                new_selects.append(expr)
+            # If there's no such column select, just put null
+            else:
+                new_selects.append(
+                    sqlglot.exp.Alias(
+                        this=sqlglot.exp.Null(), alias=sqlglot.exp.to_identifier(casefolder_f(col))
+                    )
+                )
+
+        outer_parsed_select.set("expressions", new_selects)
+
     def _build_outer_select_statement(
         self,
         parsed_select: sqlglot.exp.Select,
@@ -172,20 +211,18 @@ class ModelItemsNormalizer(ItemsNormalizer):
         outer_selects: List[sqlglot.exp.Expression] = []
         for select in parsed_select.selects:
             if isinstance(select, sqlglot.exp.Star):
-                # for col in self.schema.get_table_columns(root_table_name).keys():
-                #    casefolded_col = self.config.destination_capabilities.casefold_identifier(col)
-                #    outer_selects.append(sqlglot.column(col, table = "subquery").as_(casefolded_col))
+                # NOTE: we could also replace star schema with explicit columns from schema
                 outer_selects.append(sqlglot.exp.Star(this="subquery"))
+                break
             elif isinstance(select, sqlglot.exp.Alias):
                 name = select.alias
-                outer_selects.append(
-                    sqlglot.column(name, table="subquery").as_(casefold_f(norm_f(name)))
-                )
+                norm_casefolded = casefold_f(norm_f(name))
+                outer_selects.append(sqlglot.column(name, table="subquery").as_(norm_casefolded))
+                # NOTE: for bigquery, quoted identifiers are treated as Dot
             elif isinstance(select, sqlglot.exp.Column) or isinstance(select, sqlglot.exp.Dot):
                 name = select.output_name or select.name
-                outer_selects.append(
-                    sqlglot.column(name, table="subquery").as_(casefold_f(norm_f(name)))
-                )
+                norm_casefolded = casefold_f(norm_f(name))
+                outer_selects.append(sqlglot.column(name, table="subquery").as_(norm_casefolded))
 
         # Create the outer select statement
         outer_select = sqlglot.select(*outer_selects).from_(subquery)
@@ -213,6 +250,10 @@ class ModelItemsNormalizer(ItemsNormalizer):
         )
         if dlt_col_update:
             schema_updates.append(dlt_col_update)
+
+        self._reorder_or_adjust_outer_select(
+            outer_parsed_select, self.schema.get_table_columns(root_table_name)
+        )
 
         normalized_query = outer_parsed_select.sql(dialect=select_dialect)
         self.item_storage.write_data_item(
