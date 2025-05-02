@@ -133,9 +133,9 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
             query,
             sqlglot_schema,
             dialect,
-            allow_unknown_columns=allow_unknown_columns,
+            infer_sqlglot_schema=allow_unknown_columns,
             allow_anonymous_columns=allow_anonymous_columns,
-            allow_fail=allow_fail,
+            allow_partial=allow_fail,
         )
 
     @property

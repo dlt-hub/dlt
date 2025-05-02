@@ -51,7 +51,7 @@ def test_compute_columns_schema_allow_fail() -> None:
         sql_query=invalid_query,
         sqlglot_schema=sqlglot_schema,
         dialect=dialect,
-        allow_fail=True,
+        allow_partial=True,
     )
     assert invalid_empty_schema == {}
     with pytest.raises(LineageFailedException):
@@ -59,7 +59,7 @@ def test_compute_columns_schema_allow_fail() -> None:
             sql_query=invalid_query,
             sqlglot_schema=sqlglot_schema,
             dialect=dialect,
-            allow_fail=False,
+            allow_partial=False,
         )
 
     # raise on non-select query
@@ -68,7 +68,7 @@ def test_compute_columns_schema_allow_fail() -> None:
         sql_query=drop_query,
         sqlglot_schema=sqlglot_schema,
         dialect=dialect,
-        allow_fail=True,
+        allow_partial=True,
     )
     assert drop_empty_schema == {}
     with pytest.raises(LineageFailedException):
@@ -76,7 +76,7 @@ def test_compute_columns_schema_allow_fail() -> None:
             sql_query=drop_query,
             sqlglot_schema=sqlglot_schema,
             dialect=dialect,
-            allow_fail=False,
+            allow_partial=False,
         )
 
 
@@ -116,7 +116,7 @@ def test_compute_columns_schema_anonymous_columns() -> None:
         )
 
 
-def test_compute_columns_schema_unknown_columns() -> None:
+def test_compute_columns_schema_infer_sqlglot_schema() -> None:
     """Handle unknown columns and tables.
 
     A column or table is "unknown" if it's not found in the SQLGlot schema when
@@ -135,13 +135,12 @@ def test_compute_columns_schema_unknown_columns() -> None:
     )
 
     select_query = "SELECT col_unknown FROM table_unknown;"
-    # TODO note that it doesn't contain a `data_type` field. Should we enforce a default?
     expected_unknown_dlt_schema = {"col_unknown": {"name": "col_unknown"}}
     unknown_dlt_schema = lineage.compute_columns_schema(
         sql_query=select_query,
         sqlglot_schema=sqlglot_schema,
         dialect=dialect,
-        allow_unknown_columns=True,
+        infer_sqlglot_schema=True,
     )
     assert unknown_dlt_schema == expected_unknown_dlt_schema
     with pytest.raises(LineageFailedException):
@@ -149,14 +148,14 @@ def test_compute_columns_schema_unknown_columns() -> None:
             sql_query=select_query,
             sqlglot_schema=sqlglot_schema,
             dialect=dialect,
-            allow_unknown_columns=False,
+            infer_sqlglot_schema=False,
         )
 
     # TODO false-y values `schema={}` or `schema=None` trigger the identical behavior
     # We could guard against that explicitly
     unknown_schema_from_empty = lineage.compute_columns_schema(
         sql_query=select_query,
-        sqlglot_schema={},
+        sqlglot_schema=ensure_schema({}),
         dialect=dialect,
     )
     assert unknown_schema_from_empty == expected_unknown_dlt_schema
@@ -168,7 +167,6 @@ def test_compute_columns_schema_unknown_columns() -> None:
     )
     assert unknown_schema_from_none == expected_unknown_dlt_schema
 
-
     join_with_unknown_query = """\
     SELECT
         table_1.col_varchar,
@@ -178,25 +176,24 @@ def test_compute_columns_schema_unknown_columns() -> None:
     ON table_1.col_bool = table_unknown.col_unknown_2\
     """
     expected_unknown_join_dlt_schema = {
-        "col_unknown_1": {"name": "col_unknown_1"},  # TODO missing data_type field
+        "col_unknown_1": {"name": "col_unknown_1"},
         "col_varchar": {"data_type": "text", "name": "col_varchar"},
     }
     unknown_join_dlt_schema = lineage.compute_columns_schema(
         sql_query=join_with_unknown_query,
         sqlglot_schema=sqlglot_schema,
         dialect=dialect,
-        allow_unknown_columns=True,
+        infer_sqlglot_schema=True,
     )
     assert unknown_join_dlt_schema == expected_unknown_join_dlt_schema
-    # TODO `allow_unknown_columns=False` resolves without a `data_type` instead of raising
     unknown_join_dlt_schema = lineage.compute_columns_schema(
         sql_query=join_with_unknown_query,
         sqlglot_schema=sqlglot_schema,
         dialect=dialect,
-        allow_unknown_columns=False,
+        infer_sqlglot_schema=False,
     )
     assert unknown_join_dlt_schema == expected_unknown_join_dlt_schema
-    
+
 
 def test_compute_columns_schema_unknown_column_selection() -> None:
     """Handle the column selection can't be inferred."""
@@ -211,19 +208,17 @@ def test_compute_columns_schema_unknown_column_selection() -> None:
                 "table_2": {
                     "col_int": sge.DataType.build("INT32", dialect=dialect),
                     "col_bool": sge.DataType.build("BOOLEAN", dialect=dialect),
-                }
+                },
             }
         }
     )
-    # TODO note that it doesn't contain a `data_type` field. Should we enforce a default?
-    expected_unknown_dlt_schema = {"col_unknown": {"name": "col_unknown"}}
 
     # `table_1` is in schema and `SELECT *` can be resolved
     known_select_star_dlt_schema = lineage.compute_columns_schema(
         sql_query="SELECT * FROM table_1;",
         sqlglot_schema=sqlglot_schema,
         dialect=dialect,
-        allow_fail=False
+        allow_partial=False,
     )
     assert known_select_star_dlt_schema == {
         "col_varchar": {"name": "col_varchar", "data_type": "text"},
@@ -236,7 +231,7 @@ def test_compute_columns_schema_unknown_column_selection() -> None:
         sql_query=unknown_select_star_query,
         sqlglot_schema=sqlglot_schema,
         dialect=dialect,
-        allow_fail=True
+        allow_partial=True,
     )
     assert unknown_star_dlt_schema == {}
     with pytest.raises(LineageFailedException):
@@ -244,7 +239,7 @@ def test_compute_columns_schema_unknown_column_selection() -> None:
             sql_query=unknown_select_star_query,
             sqlglot_schema=sqlglot_schema,
             dialect=dialect,
-            allow_fail=False
+            allow_partial=False,
         )
 
     # `SELECT *` can be resolved for joined tables
@@ -252,7 +247,7 @@ def test_compute_columns_schema_unknown_column_selection() -> None:
         sql_query="SELECT * FROM table_1 JOIN table_2 ON table_1.col_bool = table_2.col_bool;",
         sqlglot_schema=sqlglot_schema,
         dialect=dialect,
-        allow_fail=False
+        allow_partial=False,
     )
     assert known_join_select_star_dlt_schema == {
         "col_varchar": {"name": "col_varchar", "data_type": "text"},
@@ -260,7 +255,7 @@ def test_compute_columns_schema_unknown_column_selection() -> None:
         "col_int": {"name": "col_int", "data_type": "bigint"},
     }
 
-    # SELECT * can't be resolved on 1 of the joined table
+    # SELECT * can't be resolved on one of the joined table
     unknown_join_select_star_query = (
         "SELECT * FROM table_1 JOIN table_unknown ON table_1.col_bool = table_unknown.col_unknown"
     )
@@ -268,7 +263,7 @@ def test_compute_columns_schema_unknown_column_selection() -> None:
         sql_query=unknown_join_select_star_query,
         sqlglot_schema=sqlglot_schema,
         dialect=dialect,
-        allow_fail=True,
+        allow_partial=True,
     )
     # NOTE even columns of known `table_1` can't be resolved
     assert unknown_join_select_star_dlt_schema == {}
@@ -277,7 +272,7 @@ def test_compute_columns_schema_unknown_column_selection() -> None:
             sql_query=unknown_join_select_star_query,
             sqlglot_schema=sqlglot_schema,
             dialect=dialect,
-            allow_fail=False,
+            allow_partial=False,
         )
 
     # `SELECT known_table.*` can be resolved!
@@ -292,11 +287,11 @@ def test_compute_columns_schema_unknown_column_selection() -> None:
         """,
         sqlglot_schema=sqlglot_schema,
         dialect=dialect,
-        allow_fail=False,
+        allow_partial=False,
     )
     # only the content of `table_1` is included
     assert partially_unknown_join_select_star_dlt_schema == {
         "col_varchar": {"name": "col_varchar", "data_type": "text"},
         "col_bool": {"name": "col_bool", "data_type": "bool"},
-        "col_unknown_1": {"name": "col_unknown_1"}  # TODO no `data_type`
+        "col_unknown_1": {"name": "col_unknown_1"},  # TODO no `data_type`
     }
