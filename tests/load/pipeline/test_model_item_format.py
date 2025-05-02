@@ -11,10 +11,18 @@ from dlt.extract.hints import make_hints, SqlModel
 
 from dlt.common.utils import uniq_id
 
-from tests.load.utils import count_job_types, destinations_configs, DestinationTestConfiguration
-from tests.pipeline.utils import assert_load_info
+from tests.cases import table_update_and_row, assert_all_data_types_row
+
+from tests.load.utils import (
+    count_job_types,
+    destinations_configs,
+    DestinationTestConfiguration,
+)
+from tests.pipeline.utils import assert_load_info, load_tables_to_dicts
 from dlt.common.schema.typing import TWriteDisposition
+from dlt.common.schema.utils import new_table
 from dlt.common.data_writers.writers import ModelWriter
+from dlt.common.utils import uniq_id
 
 from dlt.pipeline.exceptions import PipelineStepFailed
 
@@ -497,3 +505,56 @@ def test_copying_table_with_dropped_column(
     assert count_job_types(pipeline) == {
         target_table_name: {"model": 1},
     }
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        subset=DESTINATIONS_SUPPORTING_MODEL,
+    ),
+    ids=lambda x: x.name,
+)
+def test_load_model_with_all_types(destination_config: DestinationTestConfiguration) -> None:
+    pipeline = destination_config.setup_pipeline("test_load_model_with_all_types", dev_mode=False)
+
+    exclude_types = (
+        ["time"] if destination_config.destination_type in ["databricks", "redshift"] else []
+    )
+    if destination_config.destination_name == "sqlalchemy_sqlite":
+        exclude_types.extend(["decimal", "wei"])
+    exclude_cols = ["col3_null"] if destination_config.destination_type == "mssql" else []
+
+    column_schemas, data_types = table_update_and_row(
+        exclude_types=exclude_types, exclude_columns=exclude_cols  # type: ignore[arg-type]
+    )
+
+    @dlt.resource(table_name="data_types", columns=column_schemas)
+    def my_resource() -> Any:
+        nonlocal data_types
+        yield [data_types] * 10
+
+    pipeline.run([my_resource()])
+    dataset = pipeline.dataset()
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    example_table_columns = dataset.schema.tables["data_types"]["columns"]
+
+    @dlt.resource()
+    def copied_table() -> Any:
+        query = dataset["data_types"].query()
+        yield dlt.mark.with_hints(
+            SqlModel.from_query_string(query=query, dialect=select_dialect),
+            hints=make_hints(columns=example_table_columns),
+        )
+
+    info = pipeline.run([copied_table()])
+    assert_load_info(info)
+
+    rows = load_tables_to_dicts(pipeline, "copied_table", exclude_system_cols=True)["copied_table"]
+    assert len(rows) == 10
+
+    assert_all_data_types_row(
+        rows[0],
+        schema=column_schemas,
+        allow_base64_binary=destination_config.destination_type == "clickhouse",
+    )

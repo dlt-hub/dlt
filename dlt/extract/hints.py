@@ -108,6 +108,7 @@ class SqlModel(NamedTuple):
         """
         Creates a SqlModel from a raw SQL query string using sqlglot.
         """
+
         parsed_query = sqlglot.parse_one(query, read=dialect)
         normalized_query = parsed_query.sql(dialect=dialect)
         return cls(query=normalized_query, dialect=dialect)
