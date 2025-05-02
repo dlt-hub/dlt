@@ -121,14 +121,11 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         ]:
             query = sqlglot.transpile(query, read=dialect, write="duckdb")[0]
             dialect = "duckdb"
-            from dlt.destinations import duckdb
-
-            caps = duckdb().capabilities()
 
         # TODO: maybe store the SQLGlot schema on the dataset
         # TODO: support joins between datasets
         d = self._dataset
-        sqlglot_schema = lineage.create_sqlglot_schema(d.sql_client, d.schema, dialect, caps)
+        sqlglot_schema = lineage.create_sqlglot_schema(d.sql_client, d.schema)
         return lineage.compute_columns_schema(
             query,
             sqlglot_schema,

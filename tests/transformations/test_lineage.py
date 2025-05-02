@@ -206,7 +206,7 @@ def test_compute_columns_schema_unknown_column_selection() -> None:
                     "col_bool": sge.DataType.build("BOOLEAN", dialect=dialect),
                 },
                 "table_2": {
-                    "col_int": sge.DataType.build("INT32", dialect=dialect),
+                    "col_int": sge.DataType.build("BIGINT", dialect=dialect),
                     "col_bool": sge.DataType.build("BOOLEAN", dialect=dialect),
                 },
             }
