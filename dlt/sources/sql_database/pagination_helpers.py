@@ -50,11 +50,8 @@ class TablePaginator:
     def __iter__(self) -> Iterator[Any]:
         return self
 
-    def _get_new_offset(self) -> int:
-        return floor(self._current_offset + self._page_size)
-
-    def _set_offset(self, offset: int) -> None:
-        self._current_offset = offset
+    def _increase_offset(self) -> None:
+        self._current_offset = floor(self._current_offset + self._page_size)
 
     def _page_backoff_possible(self) -> bool:
         """Page backoff is meant for cases where the DB has restrictions not only on the number of rows,
@@ -76,16 +73,15 @@ class TablePaginator:
         Otherwise, update the offset to the one used when executing the query. This is to avoid
         updating the offset when a query fails, leading to skipped rows.
         """
-        new_offset = self._get_new_offset()
         try:
-            self._query = self._query.offset(new_offset)
+            self._query = self._query.offset(self._current_offset)
             result = self._conn.execute(self._query)
         except Exception as e:
             if self._page_backoff_possible():
                 return self._make_and_execute_query()
             else:
                 raise e
-        self._set_offset(offset=new_offset)
+        self._increase_offset()
         return result
 
     def __next__(self) -> CursorResult:
