@@ -1,4 +1,7 @@
 from dlt import TSecretValue
+
+import pytest
+
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
 from dlt.common.configuration.providers.google_secrets import GoogleSecretsProvider
 from dlt.common.configuration.accessors import secrets
@@ -22,6 +25,7 @@ project_id = "mock-credentials"
 """
 
 
+@pytest.mark.no_google_secrets_patch
 def test_regular_keys() -> None:
     init_test_logging()
     # copy bigquery credentials into providers credentials

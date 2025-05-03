@@ -22,7 +22,7 @@ from dlt.common import logger
 from dlt.common.json import json, custom_encode, map_nested_in_place
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.typing import TColumnType
-from dlt.common.schema.utils import is_nullable_column
+from dlt.common.schema.utils import is_nullable_column, dlt_load_id_column
 from dlt.common.typing import StrStr, TFileOrPath, TDataItems
 from dlt.common.normalizers.naming import NamingConvention
 
@@ -39,6 +39,8 @@ except ModuleNotFoundError:
         [f"{version.DLT_PKG_NAME}[parquet]"],
         "Install pyarrow to be allow to load arrow tables, panda frames and to use parquet files.",
     )
+
+import ctypes
 
 TAnyArrowItem = Union[pyarrow.Table, pyarrow.RecordBatch]
 
@@ -419,8 +421,7 @@ def should_normalize_arrow_schema(
     schema: pyarrow.Schema,
     columns: TTableSchemaColumns,
     naming: NamingConvention,
-    add_load_id: bool = False,
-) -> Tuple[bool, Mapping[str, str], Dict[str, str], Dict[str, bool], bool, TTableSchemaColumns]:
+) -> Tuple[bool, Mapping[str, str], Dict[str, str], Dict[str, bool], TTableSchemaColumns]:
     """Figure out if any of the normalization steps must be executed. This prevents
     from rewriting arrow tables when no changes are needed. Refer to `normalize_py_arrow_item`
     for a list of normalizations. Note that `column` must be already normalized.
@@ -441,16 +442,6 @@ def should_normalize_arrow_schema(
     dlt_id_col = naming.normalize_identifier(C_DLT_ID)
     dlt_columns = {dlt_load_id_col, dlt_id_col}
 
-    # Do we need to add a load id column?
-    if add_load_id and dlt_load_id_col in columns:
-        try:
-            schema.field(dlt_load_id_col)
-            needs_load_id = False
-        except KeyError:
-            needs_load_id = True
-    else:
-        needs_load_id = False
-
     # remove all columns that are dlt columns but are not present in arrow schema. we do not want to add such columns
     # that should happen in the normalizer
     columns = {
@@ -461,16 +452,13 @@ def should_normalize_arrow_schema(
 
     # check if nothing to rename
     skip_normalize = (
-        (list(rename_mapping.keys()) == list(rename_mapping.values()) == list(columns.keys()))
-        and not nullable_updates
-        and not needs_load_id
-    )
+        list(rename_mapping.keys()) == list(rename_mapping.values()) == list(columns.keys())
+    ) and not nullable_updates
     return (
         not skip_normalize,
         rename_mapping,
         rev_mapping,
         nullable_updates,
-        needs_load_id,
         columns,
     )
 
@@ -480,7 +468,6 @@ def normalize_py_arrow_item(
     columns: TTableSchemaColumns,
     naming: NamingConvention,
     caps: DestinationCapabilitiesContext,
-    load_id: Optional[str] = None,
 ) -> TAnyArrowItem:
     """Normalize arrow `item` schema according to the `columns`. Note that
     columns must be already normalized.
@@ -489,11 +476,10 @@ def normalize_py_arrow_item(
     2. arrows columns will be reordered according to `columns`
     3. empty columns will be inserted if they are missing, types will be generated using `caps`
     4. arrow columns with different nullability than corresponding schema columns will be updated
-    5. Add `_dlt_load_id` column if it is missing and `load_id` is provided
     """
     schema = item.schema
-    should_normalize, rename_mapping, rev_mapping, nullable_updates, needs_load_id, columns = (
-        should_normalize_arrow_schema(schema, columns, naming, load_id is not None)
+    should_normalize, rename_mapping, rev_mapping, nullable_updates, columns = (
+        should_normalize_arrow_schema(schema, columns, naming)
     )
     if not should_normalize:
         return item
@@ -530,20 +516,56 @@ def normalize_py_arrow_item(
         new_fields.append(schema.field(idx).with_name(column_name))
         new_columns.append(item.column(idx))
 
-    if needs_load_id and load_id:
-        # Storage efficient type for a column with constant value
-        load_id_type = pyarrow.dictionary(pyarrow.int8(), pyarrow.string())
-        new_fields.append(
-            pyarrow.field(
-                naming.normalize_identifier(C_DLT_LOAD_ID),
-                load_id_type,
-                nullable=False,
-            )
-        )
-        new_columns.append(pyarrow.array([load_id] * item.num_rows, type=load_id_type))
-
     # create desired type
     return item.__class__.from_arrays(new_columns, schema=pyarrow.schema(new_fields))
+
+
+def add_dlt_load_id_column(
+    item: TAnyArrowItem,
+    columns: TTableSchemaColumns,
+    caps: DestinationCapabilitiesContext,
+    naming: NamingConvention,
+    load_id: str,
+) -> TAnyArrowItem:
+    """
+    Adds or replaces the `_dlt_load_id` column.
+    """
+    dlt_load_id_col_name = naming.normalize_identifier(C_DLT_LOAD_ID)
+
+    idx = item.schema.get_field_index(dlt_load_id_col_name)
+    # if the column already exists, get rid of it
+    if idx != -1:
+        item = remove_columns(item, dlt_load_id_col_name)
+
+    # get pyarrow.string() type
+    pyarrow_string = get_py_arrow_datatype(
+        # use already existing column definition or use the default
+        # NOTE: the existence of the load id column is ensured by this time
+        # since it is added in _compute_tables before files are written
+        (
+            columns[dlt_load_id_col_name]
+            if dlt_load_id_col_name in columns
+            else dlt_load_id_column()
+        ),
+        caps,
+        "UTC",  # ts is irrelevant to get pyarrow string, but it's required...
+    )
+
+    # add the column with the new value at previous index or append
+    item = add_constant_column(
+        item=item,
+        name=dlt_load_id_col_name,
+        data_type=pyarrow_string,
+        value=load_id,
+        nullable=(
+            columns[dlt_load_id_col_name]["nullable"]
+            if dlt_load_id_col_name in columns
+            else dlt_load_id_column()["nullable"]
+        ),
+        index=idx,
+    )
+
+    return item
 
 
 def get_normalized_arrow_fields_mapping(schema: pyarrow.Schema, naming: NamingConvention) -> StrStr:
@@ -669,11 +691,26 @@ def add_constant_column(
         nullable: Whether the new column is nullable
         value: The value to fill the new column with
         index: The index at which to insert the new column. Defaults to -1 (append)
+    Note:
+        This function creates a dictionary field for the new column, which is memory-efficient
+        when the column contains a single repeated value.
+        The column is created as a DictionaryArray with int8 indices.
     """
-    field = pyarrow.field(name, pyarrow.dictionary(pyarrow.int8(), data_type), nullable=nullable)
+    dictionary = pyarrow.array([value], type=data_type)
+    zero_buffer = pyarrow.allocate_buffer(item.num_rows, resizable=False)
+    ctypes.memset(zero_buffer.address, 0, item.num_rows)
+
+    indices = pyarrow.Array.from_buffers(
+        pyarrow.int8(),
+        item.num_rows,
+        [None, zero_buffer],  # None validity bitmap means arrow assumes all entries are valid
+    )
+    dict_array = pyarrow.DictionaryArray.from_arrays(indices, dictionary)
+
+    field = pyarrow.field(name, dict_array.type, nullable=nullable)
     if index == -1:
-        return item.append_column(field, pyarrow.array([value] * item.num_rows, type=field.type))
-    return item.add_column(index, field, pyarrow.array([value] * item.num_rows, type=field.type))
+        return item.append_column(field, dict_array)
+    return item.add_column(index, field, dict_array)
 
 
 def pq_stream_with_new_columns(
