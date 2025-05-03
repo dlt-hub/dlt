@@ -1,7 +1,6 @@
 # @@@DLT_SNIPPET_START parallel_config_toml
-# the pipeline name is default source name when loading resources
-
-[sources.parallel_load.data_writer]
+# `performance-snippets` is the module name and thus config section 
+[sources.performance-snippets.data_writer]
 file_max_items=100000
 
 [normalize]
