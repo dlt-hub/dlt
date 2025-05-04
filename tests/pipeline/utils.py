@@ -24,21 +24,62 @@ PIPELINE_TEST_CASES_PATH = "./tests/pipeline/cases/"
 
 @pytest.fixture(autouse=True)
 def drop_dataset_from_env() -> None:
+    """Remove the ``DATASET_NAME`` environment variable before each test.
+
+    This autouse fixture guarantees that tests start with a clean environment. Some
+    pipelines derive the default destination dataset name from the environment
+    variable ``DATASET_NAME`` – if it is left over from a previous test run the
+    execution could pick up unexpected state. Clearing it here prevents such
+    flakiness.
+
+    Returns:
+        None
+    """
     if "DATASET_NAME" in environ:
         del environ["DATASET_NAME"]
 
 
 def json_case_path(name: str) -> str:
+    """Return absolute path to a JSON test-case file residing in ``PIPELINE_TEST_CASES_PATH``.
+
+    Args:
+        name (str): Base file name without extension located in
+            :pydata:`PIPELINE_TEST_CASES_PATH`.
+
+    Returns:
+        str: A string containing the full relative path to ``<name>.json``.
+    """
     return f"{PIPELINE_TEST_CASES_PATH}{name}.json"
 
 
 def load_json_case(name: str) -> DictStrAny:
+    """Load and deserialize a JSON test-case file.
+
+    Args:
+        name (str): Base name of the JSON file located in
+            :pydata:`PIPELINE_TEST_CASES_PATH` (without the ``.json`` suffix).
+
+    Returns:
+        DictStrAny: Parsed JSON structure represented as nested Python
+        ``dict``/``list``/primitive types.
+    """
     with open(json_case_path(name), "rb") as f:
         return json.load(f)
 
 
 @dlt.source
 def airtable_emojis():
+    """Example source that produces four Airtable-like resources with emoji names.
+
+    The source is intentionally whimsical to verify that pipelines behave
+    correctly when table and column names contain non-ASCII characters.
+
+    Returns:
+        Tuple[dlt.resource, dlt.resource, dlt.resource, dlt.resource]:
+        A tuple with four DLT resources (``budget``, ``schedule``, ``peacock`` and
+        ``wide_peacock``) that can be run by a pipeline.
+    """
+
     @dlt.resource(name="📆 Schedule")
     def schedule():
         yield [1, 2, 3]
@@ -63,6 +104,16 @@ def airtable_emojis():
 
 
 def run_deferred(iters):
+    """Yield :pyfunc:`dlt.defer`-ed tasks that resolve to their input number.
+
+    Args:
+        iters (int): Number of deferred tasks to create.
+
+    Yields:
+        dlt.deferred: A deferred object that sleeps for a random amount of time
+        smaller than half a second and finally evaluates to the iteration index.
+    """
+
     @dlt.defer
     def item(n):
         sleep(random.random() / 2)
@@ -74,12 +125,31 @@ def run_deferred(iters):
 
 @dlt.source
 def many_delayed(many, iters):
+    """Produce *many* resources that each emit *iters* deferred items.
+
+    Args:
+        many (int): Number of resources to create.
+        iters (int): Number of deferred items produced by every resource.
+
+    Yields:
+        dlt.resource: Dynamically created resources named ``resource_<n>``.
+    """
     for n in range(many):
         yield dlt.resource(run_deferred(iters), name="resource_" + str(n))
 
 
 @dlt.resource(table_name="users")
 def users_materialize_table_schema():
+    """Emit a special item that forces materialisation of the *users* table.
+
+    The function demonstrates how to pre-define a table schema without loading
+    any real data. By yielding a ``dlt.mark.materialize_table_schema()`` item
+    together with explicit column definitions, downstream tests can assert that
+    the destination created the correct structure.
+
+    Yields:
+        Any: The marker object recognised by DLT to create/alter the table.
+    """
     yield dlt.mark.with_hints(
         # this is a special empty item which will materialize table schema
         dlt.mark.materialize_table_schema(),
@@ -99,7 +169,18 @@ def users_materialize_table_schema():
 
 
 def assert_load_info(info: LoadInfo, expected_load_packages: int = 1) -> None:
-    """Asserts that expected number of packages was loaded and there are no failed jobs"""
+    """Assert that all load packages completed successfully.
+
+    Args:
+        info (LoadInfo): The load information instance returned by DLT after
+            executing ``pipeline.run()`` or ``pipeline.load()``.
+        expected_load_packages (int, optional): How many load packages should be
+            present in *info*. Defaults to 1.
+
+    Raises:
+        AssertionError: If the amount of load packages or any job status does
+            not match the expectations.
+    """
     # make sure we can serialize
     info.asstr(verbosity=2)
     info.asdict()
@@ -116,6 +197,15 @@ def assert_load_info(info: LoadInfo, expected_load_packages: int = 1) -> None:
 
 
 def _is_sftp(p: dlt.Pipeline) -> bool:
+    """Check whether *p* is configured to use the SFTP variant of the filesystem destination.
+
+    Args:
+        p (dlt.Pipeline): Pipeline instance under test.
+
+    Returns:
+        bool: ``True`` if ``p.destination`` is "filesystem" *and* its protocol
+        equals "sftp", otherwise ``False``.
+    """
     if not p.destination:
         return False
     return (
@@ -125,8 +215,19 @@ def _is_sftp(p: dlt.Pipeline) -> bool:
 
 
 def _load_jsonl_file(client: FSClientBase, filepath) -> List[Dict[str, Any]]:
-    """
-    load jsonl files into items list, only needed for sftp destination tests
+    """Read a ``.jsonl`` file from a filesystem destination into a list of dictionaries.
+
+    The helper is used exclusively by tests exercising the SFTP-backed
+    filesystem destination.
+
+    Args:
+        client (FSClientBase): Filesystem client capable of reading ``filepath``.
+        filepath (str): The path of the file on the destination.
+
+    Returns:
+        List[Dict[str, Any]]: A list with one dictionary per JSON line. If
+        *filepath* does not have a ``.jsonl`` extension an empty list is
+        returned.
     """
 
     # check if this is a file we want to read
@@ -147,7 +248,23 @@ def _load_jsonl_file(client: FSClientBase, filepath) -> List[Dict[str, Any]]:
 def _load_tables_to_dicts_fs(
     p: dlt.Pipeline, *table_names: str, schema_name: str = None
 ) -> Dict[str, List[Dict[str, Any]]]:
-    """Load all files from fs client, only needed for sftp destination tests"""
+    """Load full table contents from the SFTP filesystem destination.
+
+    Args:
+        p (dlt.Pipeline): Pipeline whose destination should be inspected.
+        *table_names (str): One or more table names to fetch. When the list is
+            empty the caller should have determined the required tables earlier.
+        schema_name (str, optional): Name of the schema to load from. Defaults
+            to the pipeline's default schema.
+
+    Returns:
+        Dict[str, List[Dict[str, Any]]]: Mapping of table name to list of row
+        dictionaries.
+
+    Raises:
+        DestinationUndefinedEntity: When any of the *table_names* cannot be
+            found on the destination.
+    """
     client = p._fs_client(schema_name=schema_name)
     result: Dict[str, List[Dict[str, Any]]] = {}
 
@@ -165,7 +282,17 @@ def _load_tables_to_dicts_fs(
 def _load_tables_to_dicts_sql(
     p: dlt.Pipeline, *table_names: str, schema_name: str = None
 ) -> Dict[str, List[Dict[str, Any]]]:
-    """Uses dataset to load full table into python dicts"""
+    """Load full table contents via the destination's SQL interface.
+
+    Args:
+        p (dlt.Pipeline): Active pipeline whose dataset should be queried.
+        *table_names (str): One or more table names to read.
+        schema_name (str, optional): Override for the schema name.
+
+    Returns:
+        Dict[str, List[Dict[str, Any]]]: All rows from the requested tables
+        converted into dictionaries keyed by column names.
+    """
     result: Dict[str, List[Dict[str, Any]]] = {}
     for table_name in table_names:
         relation = p.dataset(schema=schema_name)[table_name]
@@ -182,7 +309,26 @@ def load_tables_to_dicts(
     exclude_system_cols: bool = False,
     sortkey: str = None,
 ) -> Dict[str, List[Dict[str, Any]]]:
-    """Loads all tables into dicts, if no table names are given, all data tables are loaded"""
+    """Return full table data as Python dictionaries.
+
+    The helper abstracts over filesystem and SQL destinations and supports a
+    variety of convenience tweaks such as column exclusion and stable sorting.
+
+    Args:
+        p (dlt.Pipeline): Pipeline whose destination should be accessed.
+        *table_names (str): Optional list of table names to load. If omitted all
+            data tables from the pipeline's default schema are selected.
+        schema_name (str, optional): Explicit schema override. Defaults to the
+            pipeline's default schema.
+        exclude_system_cols (bool, optional): When ``True`` remove columns that
+            start with the ``_dlt`` prefix from the returned data. Defaults to
+            ``False``.
+        sortkey (str, optional): Name of a column to lexicographically sort the
+            resulting list of dictionaries inside each table.
+
+    Returns:
+        Dict[str, List[Dict[str, Any]]]: Table data keyed by table name.
+    """
 
     if not table_names:
         table_names = [t["name"] for t in p.default_schema.data_tables()]  # type: ignore[assignment]
@@ -211,7 +357,15 @@ def load_tables_to_dicts(
 
 
 def assert_records_as_set(actual: List[Dict[str, Any]], expected: List[Dict[str, Any]]) -> None:
-    """Compares two lists of dicts regardless of order, useful for comparing expected and actual table data"""
+    """Assert that *actual* and *expected* contain the same records irrespective of order.
+
+    Args:
+        actual (List[Dict[str, Any]]): Records retrieved from the destination.
+        expected (List[Dict[str, Any]]): Reference records defined in the test.
+
+    Raises:
+        AssertionError: When the two sets of records differ.
+    """
 
     def dict_to_tuple(d):
         # Sort items to ensure consistent ordering
@@ -226,7 +380,18 @@ def assert_records_as_set(actual: List[Dict[str, Any]], expected: List[Dict[str,
 def assert_only_table_columns(
     p: dlt.Pipeline, table_name: str, expected_columns: Sequence[str], schema_name: str = None
 ) -> None:
-    """Table has all and only the expected columns (excluding _dlt columns)"""
+    """Assert that a table contains exactly *expected_columns* (ignoring ``_dlt`` cols).
+
+    Args:
+        p (dlt.Pipeline): Pipeline whose destination should be inspected.
+        table_name (str): Name of the table to validate.
+        expected_columns (Sequence[str]): List of expected column names.
+        schema_name (str, optional): Schema name override.
+
+    Raises:
+        AssertionError: If the table is empty or its columns differ from
+            *expected_columns*.
+    """
     rows = load_tables_to_dicts(p, table_name, schema_name=schema_name)[table_name]
     assert rows, f"Table {table_name} is empty"
     # Ignore _dlt columns
@@ -240,7 +405,16 @@ def assert_only_table_columns(
 
 
 def load_table_counts(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
-    """Returns row counts for `table_names` as dict, if no table names are given, all data tables are counted"""
+    """Return number of rows for each requested table name.
+
+    Args:
+        p (dlt.Pipeline): Pipeline instance.
+        *table_names (str): Optional list of table names. When omitted, counts
+            for all data tables in the default schema are returned.
+
+    Returns:
+        DictStrAny: Mapping of table name to integer row count.
+    """
     if not table_names:
         table_names = [table["name"] for table in p.default_schema.data_tables()]  # type: ignore[assignment]
 
@@ -255,8 +429,15 @@ def load_table_counts(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
 
 
 def assert_empty_tables(p: dlt.Pipeline, *table_names: str) -> None:
-    """Asserts that all tables in `table_names` are empty, interprets DestinationUndefinedEntity as empty
-    which unifies filesystem and sql destinations behavior
+    """Assert that the given tables are empty (or non-existent).
+
+    The helper treats a ``DestinationUndefinedEntity`` exception raised by the
+    destination the same as an empty table which aligns the behaviour between
+    filesystem and SQL destinations.
+
+    Args:
+        p (dlt.Pipeline): Pipeline to inspect.
+        *table_names (str): Table names that should not contain any rows.
     """
     for table in table_names:
         try:
@@ -266,7 +447,15 @@ def assert_empty_tables(p: dlt.Pipeline, *table_names: str) -> None:
 
 
 def assert_table_counts(p: dlt.Pipeline, expected_counts: DictStrAny, *table_names: str) -> None:
-    """Asserts that table counts match expected counts"""
+    """Assert that *table_names* contain the expected number of rows.
+
+    Args:
+        p (dlt.Pipeline): Pipeline under test.
+        expected_counts (DictStrAny): Mapping of table name to expected row
+            count.
+        *table_names (str): Optional subset of tables to compare. When omitted
+            the keys of *expected_counts* are used.
+    """
     table_counts = load_table_counts(p, *table_names)
     assert (
         table_counts == expected_counts
@@ -274,7 +463,16 @@ def assert_table_counts(p: dlt.Pipeline, expected_counts: DictStrAny, *table_nam
 
 
 def table_exists(p: dlt.Pipeline, table_name: str, schema_name: str = None) -> bool:
-    """Returns True if table exists in the destination database/filesystem"""
+    """Return whether *table_name* exists in the destination.
+
+    Args:
+        p (dlt.Pipeline): Pipeline instance.
+        table_name (str): Name of the table to check.
+        schema_name (str, optional): Schema override.
+
+    Returns:
+        bool: ``True`` if the table exists, ``False`` otherwise.
+    """
     try:
         load_table_counts(p, table_name)
         return True
@@ -286,7 +484,19 @@ def table_exists(p: dlt.Pipeline, table_name: str, schema_name: str = None) -> b
 def select_data(
     p: dlt.Pipeline, sql: str, schema_name: str = None, dataset_name: str = None
 ) -> List[Sequence[Any]]:
-    """Returns list of tuples for a given sql query"""
+    """Execute *sql* against the pipeline's dataset and return all rows.
+
+    Args:
+        p (dlt.Pipeline): Pipeline instance.
+        sql (str): Raw SQL query string to execute.
+        schema_name (str, optional): Schema name override.
+        dataset_name (str, optional): Temporary override for the dataset name –
+            useful when the test needs to query a different dataset created by
+            the same pipeline.
+
+    Returns:
+        List[Sequence[Any]]: All rows returned by the query.
+    """
     dataset = p.dataset(schema=schema_name)
     # a hack to change the dataset name for the purposes of this test
     if dataset_name:
@@ -301,8 +511,19 @@ def assert_table_column(
     schema_name: str = None,
     info: LoadInfo = None,
 ) -> None:
-    """Asserts that the first columns of table data matches expected dat, but only compares the first column,
-    if info is provided, second column must contain one of load_ids in `info`"""
+    """Assert that the first column of *table_name* equals *table_data*.
+
+    When *info* is provided, the helper additionally verifies that the second
+    column contains a load-ID that belongs to one of the packages referenced in
+    *info*.
+
+    Args:
+        p (dlt.Pipeline): Pipeline instance.
+        table_name (str): Name of the table to validate.
+        table_data (List[Any]): Expected values of the first column.
+        schema_name (str, optional): Schema override.
+        info (LoadInfo, optional): Load information to cross-check load IDs.
+    """
     # for sftp we can just check if the table exists
     if _is_sftp(p):
         assert table_exists(p, table_name, schema_name)
@@ -325,10 +546,18 @@ def assert_query_column(
     schema_name: str = None,
     info: LoadInfo = None,
 ) -> None:
-    """Asserts that the first column of query selecting single column of values matches `table_data`. If `info` is provided, second column must contain one of load_ids in `info`
+    """Assert that the first column produced by *sql* equals *table_data*.
+
+    The *sql* query must select exactly one value column (optionally followed by
+    a load-ID column).
 
     Args:
-        sort_key: Optional sort key function to sort the query result before comparing
+        p (dlt.Pipeline): Pipeline instance.
+        sql (str): Select statement that returns exactly one or two columns.
+        table_data (List[Any]): Expected values of the first column.
+        schema_name (str, optional): Schema override.
+        info (LoadInfo, optional): When provided, the second query column must
+            contain only IDs that belong to *info*.
     """
     rows = select_data(p, sql, schema_name)
     assert len(rows) == len(table_data)
@@ -350,8 +579,24 @@ def assert_schema_on_data(
     requires_nulls: bool,
     check_nested: bool,
 ) -> None:
-    """Asserts that `rows` conform to `table_schema`. Fields and their order must conform to columns. Null values and
-    python data types are checked.
+    """Validate that *rows* conform to *table_schema*.
+
+    The function checks column names, order, nullability and that the Python
+    value types match the destination data types described by the schema. For
+    columns with ``json`` type the nested structure is optionally validated as
+    well.
+
+    Args:
+        table_schema (TTableSchema): Table schema as returned by
+            ``dlt.common.schema``.
+        rows (List[Dict[str, Any]]): Table rows to validate.
+        requires_nulls (bool): When ``True`` all nullable columns must appear at
+            least once with a ``None`` value in *rows*.
+        check_nested (bool): Whether to parse JSON strings and validate nested
+            structure types.
+
+    Raises:
+        AssertionError: If any of the schema constraints are violated.
     """
     table_columns = table_schema["columns"]
     columns_with_nulls: Set[str] = set()
