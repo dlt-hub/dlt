@@ -183,6 +183,9 @@ def deltalake_storage_options(config: FilesystemConfiguration) -> Dict[str, str]
     return {**creds, **extra_options}
 
 
+from dlt.common import json # Add json import for logging
+
+
 def evolve_delta_table_schema(delta_table: DeltaTable, arrow_schema: pa.Schema) -> DeltaTable:
     """Evolves `delta_table` schema if different from `arrow_schema`.
 
@@ -198,5 +201,14 @@ def evolve_delta_table_schema(delta_table: DeltaTable, arrow_schema: pa.Schema) 
         if field.name not in delta_table.schema().to_pyarrow().names
     ]
     if new_fields:
+        # Log the fields being added for debugging
+        logger.debug(f"Evolving Delta table {delta_table.table_uri} with new fields:")
+        for field in new_fields:
+            try:
+                # Attempt to log the field structure, converting to dict if possible
+                field_dict = field.to_pyarrow().to_dict() if hasattr(field, 'to_pyarrow') else repr(field)
+                logger.debug(f"  Field to add: {json.dumps(field_dict)}")
+            except Exception as log_e:
+                logger.debug(f"  Field to add (repr): {repr(field)} - Error logging details: {log_e}")
         delta_table.alter.add_columns(new_fields)
     return delta_table

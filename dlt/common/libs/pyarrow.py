@@ -755,6 +755,15 @@ def cast_arrow_schema_types(
     a data type does not match more than one type check function.
     """
     for i, e in enumerate(schema.types):
+        logger.debug(f"  Inspecting field: {field.name}, type: {field.type}")
+        if field.metadata:
+            try:
+                # Assuming metadata keys/values are bytes, decode them for JSON serialization
+                meta_dict = {k.decode('utf-8', errors='replace'): v.decode('utf-8', errors='replace') for k, v in field.metadata.items()}
+                meta_str = json.dumps(meta_dict, default=custom_encode)
+                logger.debug(f"    Metadata: {meta_str}")
+            except Exception as meta_e:
+                logger.debug(f"    Metadata (raw): {field.metadata} - Error logging JSON details: {meta_e}")
         for type_check, cast_type in type_map.items():
             if type_check(e):
                 if callable(cast_type):

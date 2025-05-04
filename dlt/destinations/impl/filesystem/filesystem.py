@@ -21,7 +21,8 @@ from typing import (
 from fsspec import AbstractFileSystem
 
 import dlt
-from dlt.common import logger, time, json, pendulum
+from dlt.common import logger
+from dlt.common.json import json, custom_encode, time, json, pendulum
 from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace_strategy
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.schema.exceptions import TableNotFound
@@ -64,6 +65,7 @@ from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
     OpenTableCatalogNotSupported,
     OpenTableFormatNotSupported,
+    DestinationTerminalException,
 )
 
 from dlt.destinations.job_impl import (
@@ -78,6 +80,8 @@ from dlt.destinations.utils import (
     verify_schema_merge_disposition,
     verify_schema_replace_disposition,
 )
+from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
+
 
 INIT_FILE_NAME = "init"
 FILENAME_SEPARATOR = "__"
@@ -211,7 +215,10 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
 
 class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
     def run(self) -> None:
-        from dlt.common.libs.pyiceberg import write_iceberg_table, create_table
+        from dlt.common.libs.pyiceberg import write_iceberg_table, create_table, NoSuchTableError
+
+        write_disposition = self._load_table["write_disposition"]
+        is_merge = write_disposition == "merge"
 
         try:
             table = self._job_client.load_open_table(
@@ -220,6 +227,11 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                 schema=self.arrow_dataset.schema,
             )
         except DestinationUndefinedEntity:
+            if is_merge:
+                raise DestinationTerminalException(
+                    f"Cannot merge into table {self.load_table_name} because it does not exist."
+                )
+
             location = self._job_client.get_open_table_location("iceberg", self.load_table_name)
             table_id = f"{self._job_client.dataset_name}.{self.load_table_name}"
             create_table(
@@ -233,11 +245,74 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             self.run()
             return
 
-        write_iceberg_table(
-            table=table,
-            data=self.arrow_dataset.to_table(),
-            write_disposition=self._load_table["write_disposition"],
-        )
+        if is_merge:
+            # Merge logic using DuckDB
+            client: FilesystemSqlClient = self._job_client.sql_client
+            table_name = self.load_table_name
+            target_table_name = client.make_qualified_table_name(table_name)
+            staging_table_name = f"_dlt_staging_{table_name}"
+
+            merge_keys = (
+                self._load_table.get("dedup_sort_column_names")
+                or self._load_table.get("primary_key_column_names")
+                or []
+            )
+            if not merge_keys:
+                raise DestinationTerminalException(
+                    f"Merge requested for table {table_name}, but no merge keys ('dedup_sort_column_names'"
+                    " or 'primary_key_column_names') are defined in the table schema."
+                )
+
+            esc_id = client.capabilities.escape_identifier
+            all_cols = list(self._load_table["columns"].keys())
+            escaped_cols = [esc_id(col) for col in all_cols]
+            escaped_merge_keys = [esc_id(key) for key in merge_keys]
+
+            on_clause = " AND ".join(
+                f"t.{key} = s.{key}" for key in escaped_merge_keys
+            )
+            update_clause = ", ".join(
+                f"{col} = s.{col}" for col in escaped_cols if col not in escaped_merge_keys
+            )
+            insert_cols = ", ".join(escaped_cols)
+            insert_values = ", ".join(f"s.{col}" for col in escaped_cols)
+
+            sql = f"""
+            MERGE INTO {target_table_name} AS t
+            USING {staging_table_name} AS s
+            ON {on_clause}
+            WHEN MATCHED THEN UPDATE SET {update_clause}
+            WHEN NOT MATCHED THEN INSERT ({insert_cols}) VALUES ({insert_values});
+            """
+
+            try:
+                # Register the arrow dataset as a temporary DuckDB table/view
+                client._conn.register(staging_table_name, self.arrow_dataset)
+                logger.debug(f"Executing Iceberg merge SQL: {sql}")
+                client.execute_sql(sql)
+                logger.info(
+                    f"Merged data into Iceberg table {target_table_name} from {len(self.file_paths)} file(s)."
+                )
+            except Exception as e:
+                logger.error(f"Failed to merge data into Iceberg table {target_table_name}: {e}")
+                raise DestinationTerminalException(
+                    f"Failed to merge data into Iceberg table {target_table_name}. Reason: {e}"
+                ) from e
+            finally:
+                # Ensure the temporary table/view is dropped
+                try:
+                    client.execute_sql(f"DROP VIEW IF EXISTS {staging_table_name};")
+                except Exception as drop_e:
+                    logger.warning(
+                        f"Failed to drop temporary staging view {staging_table_name}: {drop_e}"
+                    )
+        else:
+            # Append or Overwrite logic
+            write_iceberg_table(
+                table=table,
+                data=self.arrow_dataset.to_table(),
+                write_disposition=write_disposition,
+            )
 
 
 class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
@@ -286,7 +361,7 @@ class FilesystemClient(
         # cannot be replaced and we cannot initialize folders consistently
         self.table_prefix_layout = path_utils.get_table_prefix_layout(config.layout)
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
-        self._sql_client: SqlClientBase[Any] = None
+        self._sql_client: Optional[FilesystemSqlClient] = None  # Specific type hint
         # iceberg catalog
         self._catalog: Any = None
 
@@ -297,7 +372,7 @@ class FilesystemClient(
         return FilesystemSqlClient
 
     @property
-    def sql_client(self) -> SqlClientBase[Any]:
+    def sql_client(self) -> FilesystemSqlClient:  # Specific return type hint
         # we use an inner import here, since the sql client depends on duckdb and will
         # only be used for read access on data, some users will not need the dependency
         from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
@@ -308,7 +383,19 @@ class FilesystemClient(
 
     @sql_client.setter
     def sql_client(self, client: SqlClientBase[Any]) -> None:
-        self._sql_client = client
+        # Ensure the correct type is set if needed, or adjust the setter logic/type hint
+        if isinstance(client, FilesystemSqlClient):
+            self._sql_client = client
+        else:
+            # Handle cases where a different client type might be passed, if applicable
+            # For now, let's assume only FilesystemSqlClient is intended here.
+            # You might raise an error or handle it differently based on requirements.
+            logger.warning(
+                f"Attempted to set sql_client with incompatible type: {type(client)}. Expected"
+                " FilesystemSqlClient."
+            )
+            # Or maybe create a new FilesystemSqlClient wrapping the base client if feasible?
+            # self._sql_client = FilesystemSqlClient(self, self.dataset_name, ...) # Needs more context
 
     def drop_storage(self) -> None:
         if self.is_storage_initialized():
@@ -519,6 +606,9 @@ class FilesystemClient(
         # filesystems we support. we were not able to use `find` or `walk` because they were selecting
         # files wrongly (on azure walk on path1/path2/ would also select files from path1/path2_v2/ but returning wrong dirs)
         for details in glob_files(self.fs_client, self.make_remote_url(table_dir), "**"):
+            # skip if not a file (e.g. a directory)
+            if details["type"] != "file":
+                continue
             file = details["file_name"]
             filepath = self.pathlib.join(table_dir, details["relative_path"])
             # skip INIT files

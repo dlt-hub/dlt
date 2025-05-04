@@ -30,7 +30,7 @@ def filesystem_merge_strategies_selector(
     *,
     table_schema: TTableSchema,
 ) -> Sequence[TLoaderMergeStrategy]:
-    if table_schema.get("table_format") == "delta":
+    if table_schema.get("table_format") in ("delta", "iceberg"):
         return supported_merge_strategies
     else:
         return []
