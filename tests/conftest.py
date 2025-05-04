@@ -3,7 +3,7 @@ import dataclasses
 import logging
 import sys
 import pytest
-from typing import List, Iterator
+from typing import Dict, List, Any
 from importlib.metadata import version as pkg_version
 from packaging.version import Version
 
@@ -150,3 +150,33 @@ def pytest_configure(config):
 
         except Exception:
             pass
+
+
+CACHED_GOOGLE_SECRETS: Dict[str, str] = {}
+
+
+@pytest.fixture(autouse=True, scope="function")
+def patch_google_secrets_provider_class(request: Any) -> Any:
+    """This function patches the GoogleSecretsProvider class to cache the result of the _look_vault method as soon as there is a hit
+    This cache works globally across the pytest session greatly speeding things up"""
+
+    if "no_google_secrets_patch" in request.keywords:
+        yield
+        return
+
+    from dlt.common.configuration.providers.google_secrets import GoogleSecretsProvider
+
+    old_look_vault = GoogleSecretsProvider._look_vault
+
+    def new_look_vault(self: GoogleSecretsProvider, full_key: str, hint: type) -> str:
+        if full_key not in CACHED_GOOGLE_SECRETS:
+            CACHED_GOOGLE_SECRETS[full_key] = old_look_vault(self, full_key, hint)
+
+        return CACHED_GOOGLE_SECRETS[full_key]
+
+    GoogleSecretsProvider._look_vault = new_look_vault  # type: ignore[method-assign]
+
+    try:
+        yield
+    finally:
+        GoogleSecretsProvider._look_vault = old_look_vault  # type: ignore[method-assign]

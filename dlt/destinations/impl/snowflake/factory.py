@@ -1,4 +1,4 @@
-import typing as t
+from typing import Any, Dict, Type, Union, TYPE_CHECKING, Optional
 
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
@@ -14,7 +14,7 @@ from dlt.destinations.impl.snowflake.configuration import (
     SnowflakeClientConfiguration,
 )
 
-if t.TYPE_CHECKING:
+if TYPE_CHECKING:
     from dlt.destinations.impl.snowflake.snowflake import SnowflakeClient
 
 
@@ -52,7 +52,7 @@ class SnowflakeTypeMapper(TypeMapperImpl):
     }
 
     def from_destination_type(
-        self, db_type: str, precision: t.Optional[int] = None, scale: t.Optional[int] = None
+        self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
     ) -> TColumnType:
         if db_type == "NUMBER":
             if precision == self.BIGINT_PRECISION and scale == 0:
@@ -131,36 +131,38 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
         return caps
 
     @property
-    def client_class(self) -> t.Type["SnowflakeClient"]:
+    def client_class(self) -> Type["SnowflakeClient"]:
         from dlt.destinations.impl.snowflake.snowflake import SnowflakeClient
 
         return SnowflakeClient
 
     def __init__(
         self,
-        credentials: t.Union[SnowflakeCredentials, t.Dict[str, t.Any], str] = None,
-        stage_name: t.Optional[str] = None,
+        credentials: Union[SnowflakeCredentials, Dict[str, Any], str] = None,
+        stage_name: Optional[str] = None,
         keep_staged_files: bool = True,
-        csv_format: t.Optional[CsvFormatConfiguration] = None,
-        query_tag: t.Optional[str] = None,
+        csv_format: Optional[CsvFormatConfiguration] = None,
+        query_tag: Optional[str] = None,
         create_indexes: bool = False,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
-        **kwargs: t.Any,
+        destination_name: str = None,
+        environment: str = None,
+        **kwargs: Any,
     ) -> None:
         """Configure the Snowflake destination to use in a pipeline.
 
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials: Credentials to connect to the snowflake database. Can be an instance of `SnowflakeCredentials` or
+            credentials (Union[SnowflakeCredentials, Dict[str, Any], str], optional): Credentials to connect to the snowflake database. Can be an instance of `SnowflakeCredentials` or
                 a connection string in the format `snowflake://user:password@host:port/database`
-            stage_name: Name of an existing stage to use for loading data. Default uses implicit stage per table
-            keep_staged_files: Whether to delete or keep staged files after loading
-            csv_format: Optional csv format configuration
-            query_tag: A tag with placeholders to tag sessions executing jobs
-            create_indexes: Whether UNIQUE or PRIMARY KEY constrains should be created
-
+            stage_name (Optional[str], optional): Name of an existing stage to use for loading data. Default uses implicit stage per table
+            keep_staged_files (bool, optional): Whether to delete or keep staged files after loading
+            csv_format (Optional[CsvFormatConfiguration]): Optional csv format configuration
+            query_tag (Optional[str]): A tag with placeholders to tag sessions executing jobs
+            create_indexes (bool, optional): Whether UNIQUE or PRIMARY KEY constrains should be created
+            destination_name (str, optional): Name of the destination. Defaults to None.
+            environment (str, optional): Environment name. Defaults to None.
+            **kwargs (Any, optional): Additional arguments forwarded to the destination config
         """
         super().__init__(
             credentials=credentials,

@@ -1,4 +1,4 @@
-import typing as t
+from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING
 
 from dlt.common.data_types.typing import TDataType
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
@@ -17,8 +17,10 @@ from dlt.destinations.impl.redshift.configuration import (
     RedshiftClientConfiguration,
 )
 
-if t.TYPE_CHECKING:
+if TYPE_CHECKING:
     from dlt.destinations.impl.redshift.redshift import RedshiftClient
+else:
+    RedshiftClient = Any
 
 
 class RedshiftTypeMapper(TypeMapperImpl):
@@ -99,7 +101,7 @@ class RedshiftTypeMapper(TypeMapperImpl):
         )
 
     def from_destination_type(
-        self, db_type: str, precision: t.Optional[int], scale: t.Optional[int]
+        self, db_type: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         if db_type == "numeric":
             if (precision, scale) == self.capabilities.wei_precision:
@@ -141,30 +143,32 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
         return caps
 
     @property
-    def client_class(self) -> t.Type["RedshiftClient"]:
+    def client_class(self) -> Type["RedshiftClient"]:
         from dlt.destinations.impl.redshift.redshift import RedshiftClient
 
         return RedshiftClient
 
     def __init__(
         self,
-        credentials: t.Union[RedshiftCredentials, t.Dict[str, t.Any], str] = None,
-        staging_iam_role: t.Optional[str] = None,
+        credentials: Union[RedshiftCredentials, Dict[str, Any], str] = None,
+        staging_iam_role: Optional[str] = None,
         has_case_sensitive_identifiers: bool = False,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
-        **kwargs: t.Any,
+        destination_name: str = None,
+        environment: str = None,
+        **kwargs: Any,
     ) -> None:
         """Configure the Redshift destination to use in a pipeline.
 
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials: Credentials to connect to the redshift database. Can be an instance of `RedshiftCredentials` or
-                a connection string in the format `redshift://user:password@host:port/database`
-            staging_iam_role: IAM role to use for staging data in S3
-            has_case_sensitive_identifiers: Are case sensitive identifiers enabled for a database
-            **kwargs: Additional arguments passed to the destination config
+            credentials (Union[RedshiftCredentials, Dict[str, Any], str], optional): Credentials to connect to the redshift database. Can be an instance of `RedshiftCredentials` or
+                a connection string in the format `redshift://user:password@host:port/database`. Defaults to None.
+            staging_iam_role (Optional[str], optional): IAM role to use for staging data in S3. Defaults to None.
+            has_case_sensitive_identifiers (bool, optional): Whether case sensitive identifiers are enabled for the database. Defaults to False.
+            destination_name (str, optional): Name of the destination. Defaults to None.
+            environment (str, optional): Environment name. Defaults to None.
+            **kwargs (Any): Additional arguments passed to the destination config.
         """
         super().__init__(
             credentials=credentials,
@@ -180,7 +184,7 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
         cls,
         caps: DestinationCapabilitiesContext,
         config: RedshiftClientConfiguration,
-        naming: t.Optional[NamingConvention],
+        naming: Optional[NamingConvention],
     ) -> DestinationCapabilitiesContext:
         # modify the caps if case sensitive identifiers are requested
         if config.has_case_sensitive_identifiers:

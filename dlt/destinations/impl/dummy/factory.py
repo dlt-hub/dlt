@@ -41,8 +41,8 @@ class dummy(Destination[DummyClientConfiguration, "DummyClient"]):
     def __init__(
         self,
         credentials: DummyClientCredentials = None,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
+        destination_name: str = None,
+        environment: str = None,
         **kwargs: t.Any,
     ) -> None:
         super().__init__(

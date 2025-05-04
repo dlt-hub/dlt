@@ -35,10 +35,16 @@ class SupportsReadableRelation(ABC):
     """A readable relation retrieved from a destination that supports it"""
 
     columns_schema: TTableSchemaColumns
-    """Known dlt table columns for this relation"""
+    """Returns the expected columns schema for the result of the relation. Column types are discovered with
+    sql glot query analysis and lineage. dlt hints for columns are kept in some cases. Refere to <docs-page> for more details.
+    """
 
     def query(self) -> Any:
-        """Represents relation as a query, currently always SQL"""
+        """Returns the sql query that represents the relation
+
+        Returns:
+            Any: The sql query that represents the relation
+        """
         raise NotImplementedError("Query is not supported for this relation")
 
     # TODO think for a better name that matches the type `TTableSchemaColumns`
@@ -48,65 +54,121 @@ class SupportsReadableRelation(ABC):
         raise NotImplementedError("Compute columns schema is not supported for this relation")
 
     def df(self, chunk_size: int = None) -> Optional[DataFrame]:
-        """Fetches the results as data frame. For large queries the results may be chunked
-
-        Fetches the results into a data frame. The default implementation uses helpers in `pandas.io.sql` to generate Pandas data frame.
-        This function will try to use native data frame generation for particular destination. For `BigQuery`: `QueryJob.to_dataframe` is used.
-        For `duckdb`: `DuckDBPyConnection.df'
+        """Fetches the results as arrow table. Uses the native pandas implementation of the destination client cursor if available.
 
         Args:
-            chunk_size (int, optional): Will chunk the results into several data frames. Defaults to None
-            **kwargs (Any): Additional parameters which will be passed to native data frame generation function.
+            chunk_size (int, optional): The number of rows to fetch for this call. Defaults to None which will fetch all rows.
 
         Returns:
-            Optional[DataFrame]: A data frame with query results. If chunk_size > 0, None will be returned if there is no more data in results
+            Optional[DataFrame]: A data frame with query results.
         """
-        raise NotImplementedError("DF is not supported for this relation")
+        raise NotImplementedError("Fetching as dataframe is not supported for this relation")
 
     def arrow(self, chunk_size: int = None) -> Optional[ArrowTable]:
-        """fetch arrow table of first 'chunk_size' items"""
-        raise NotImplementedError("Arrow is not supported for this relation")
+        """Fetches the results as arrow table. Uses the native arrow implementation of the destination client cursor if available.
+
+        Args:
+            chunk_size (int, optional): The number of rows to fetch for this call. Defaults to None which will fetch all rows.
+
+        Returns:
+            Optional[ArrowTable]: An arrow table with query results.
+        """
+        raise NotImplementedError("Fetching as arrow table is not supported for this relation")
 
     def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
-        """iterate over data frames tables of 'chunk_size' items"""
-        raise NotImplementedError("Iter df is not supported for this relation")
+        """Iterates over data frames of 'chunk_size' items. Uses the native pandas implementation of the destination client cursor if available.
+
+        Args:
+            chunk_size (int): The number of rows to fetch for each iteration.
+
+        Returns:
+            Generator[DataFrame, None, None]: A generator of data frames with query results.
+        """
+        raise NotImplementedError("Iterating over data frames is not supported for this relation")
 
     def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
-        """iterate over arrow tables of 'chunk_size' items"""
-        raise NotImplementedError("Iter arrow is not supported for this relation")
+        """Iterates over arrow tables of 'chunk_size' items. Uses the native arrow implementation of the destination client cursor if available.
+
+        Args:
+            chunk_size (int): The number of rows to fetch for each iteration.
+
+        Returns:
+            Generator[ArrowTable, None, None]: A generator of arrow tables with query results.
+        """
+        raise NotImplementedError("Iterating over arrow tables is not supported for this relation")
 
     def fetchall(self) -> List[Tuple[Any, ...]]:
-        """fetch all items as list of python tuples"""
-        raise NotImplementedError("Fetch all is not supported for this relation")
+        """Fetches all items as a list of python tuples. Uses the native dbapi fetchall implementation of the destination client cursor.
+
+        Returns:
+            List[Tuple[Any, ...]]: A list of python tuples w
+        """
+        raise NotImplementedError("Fetching all items is not supported for this relation")
 
     def fetchmany(self, chunk_size: int) -> List[Tuple[Any, ...]]:
-        """fetch first 'chunk_size' items  as list of python tuples"""
-        raise NotImplementedError("Fetch many is not supported for this relation")
+        """Fetches the first 'chunk_size' items as a list of python tuples. Uses the native dbapi fetchmany implementation of the destination client cursor.
+
+        Args:
+            chunk_size (int): The number of rows to fetch for this call.
+
+        Returns:
+            List[Tuple[Any, ...]]: A list of python tuples with query results.
+        """
+        raise NotImplementedError("Fetching many items is not supported for this relation")
 
     def iter_fetch(self, chunk_size: int) -> Generator[List[Tuple[Any, ...]], Any, Any]:
-        """iterate in lists of python tuples in 'chunk_size' chunks"""
-        raise NotImplementedError("Iter fetch is not supported for this relation")
+        """Iterates in lists of Python tuples in 'chunk_size' chunks. Uses the native dbapi fetchmany implementation of the destination client cursor.
+
+        Args:
+            chunk_size (int): The number of rows to fetch for each iteration.
+
+        Returns:
+            Generator[List[Tuple[Any, ...]], Any, Any]: A generator of lists of python tuples with query results.
+        """
+        raise NotImplementedError("Iterating over fetch results is not supported for this relation")
 
     def fetchone(self) -> Optional[Tuple[Any, ...]]:
-        """fetch first item as python tuple"""
-        raise NotImplementedError("Fetch one is not supported for this relation")
+        """Fetches the first item as a python tuple. Uses the native dbapi fetchone implementation of the destination client cursor.
 
-    def scalar(self) -> Any:
-        """fetch first value of first column on first row as python primitive"""
-        return self.fetchone()[0]
+        Returns:
+            Optional[Tuple[Any, ...]]: A python tuple with the first item of the query results.
+        """
+        raise NotImplementedError("Fetching one item is not supported for this relation")
 
     # modifying access parameters
     def limit(self, limit: int, **kwargs: Any) -> Self:
-        """limit the result to 'limit' items"""
-        raise NotImplementedError("Limit is not supported for this relation")
+        """Returns a new relation with the limit applied.
+
+        Args:
+            limit (int): The number of rows to fetch.
+            **kwargs (Any): Additional keyword arguments to pass to the limit implementation of the destination client cursor.
+
+        Returns:
+            Self: The relation with the limit applied.
+        """
+        raise NotImplementedError("Limiting the relation is not supported for this relation")
 
     def head(self, limit: int = 5) -> Self:
-        """limit the result to 5 items by default"""
+        """By default returns a relation with the first 5 rows selected.
+
+        Args:
+            limit (int): The number of rows to fetch.
+
+        Returns:
+            Self: The relation with the limit applied.
+        """
         raise NotImplementedError("Head is not supported for this relation")
 
     def select(self, *columns: str) -> Self:
-        """set which columns will be selected"""
-        raise NotImplementedError("Select is not supported for this relation")
+        """Returns a new relation with the given columns selected.
+
+        Args:
+            *columns (str): The columns to select.
+
+        Returns:
+            Self: The relation with the columns selected.
+        """
+        raise NotImplementedError("Selecting columns is not supported for this relation")
 
     @overload
     def __getitem__(self, column: str) -> Self: ...
@@ -115,16 +177,34 @@ class SupportsReadableRelation(ABC):
     def __getitem__(self, columns: Sequence[str]) -> Self: ...
 
     def __getitem__(self, columns: Union[str, Sequence[str]]) -> Self:
-        """set which columns will be selected"""
-        raise NotImplementedError("Select is not supported for this relation")
+        """Returns a new relation with the given columns selected.
+
+        Args:
+            columns (Union[str, Sequence[str]]): The columns to select.
+
+        Returns:
+            Self: The relation with the columns selected.
+        """
+        raise NotImplementedError("Getting an item is not supported for this relation")
 
     def __getattr__(self, attr: str) -> Any:
-        """get an attribute of the relation"""
-        raise NotImplementedError("Get attribute is not supported for this relation")
+        """get an attribute of the relation
+
+        Args:
+            attr (str): The attribute to get.
+
+        Returns:
+            Any: The attribute of the relation
+        """
+        raise NotImplementedError("Getting an attribute is not supported for this relation")
 
     def __copy__(self) -> Self:
-        """create a copy of the relation object"""
-        raise NotImplementedError("Copy is not supported for this relation")
+        """create a copy of the relation object
+
+        Returns:
+            Self: The copy of the relation object
+        """
+        raise NotImplementedError("Copying the relation is not supported for this relation")
 
 
 class DBApiCursor(SupportsReadableRelation):
@@ -146,19 +226,69 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
     """A readable dataset retrieved from a destination, has support for creating readable relations for a query or table"""
 
     @property
-    def schema(self) -> Schema: ...
+    def schema(self) -> Schema:
+        """Returns the schema of the dataset, will fetch the schema from the destination
+
+        Returns:
+            Schema: The schema of the dataset
+        """
 
     @property
-    def dataset_name(self) -> str: ...
+    def dataset_name(self) -> str:
+        """Returns the name of the dataset
 
-    def __call__(self, query: Any) -> SupportsReadableRelation: ...
+        Returns:
+            str: The name of the dataset
+        """
 
-    def __getitem__(self, table: str) -> TReadableRelation: ...
+    def __call__(self, query: Any) -> SupportsReadableRelation:
+        """Returns a readable relation for a given sql query
 
-    def __getattr__(self, table: str) -> TReadableRelation: ...
+        Args:
+            query (Any): The sql query to base the relation on
 
-    def ibis(self) -> IbisBackend: ...
+        Returns:
+            SupportsReadableRelation: The readable relation for the query
+        """
+
+    def __getitem__(self, table: str) -> TReadableRelation:
+        """Returns a readable relation for the table named `table`
+
+        Args:
+            table (str): The name of the table
+
+        Returns:
+            TReadableRelation: The readable relation for the table
+        """
+
+    def __getattr__(self, table: str) -> TReadableRelation:
+        """Returns a readable relation for the table named `table`
+
+        Args:
+            table (str): The name of the table
+
+        Returns:
+            TReadableRelation: The readable relation for the table
+        """
+
+    def ibis(self) -> IbisBackend:
+        """Returns a connected ibis backend for the dataset. Not implemented for all destinations.
+
+        Returns:
+            IbisBackend: The ibis backend for the dataset
+        """
 
     def row_counts(
         self, *, data_tables: bool = True, dlt_tables: bool = False, table_names: List[str] = None
-    ) -> SupportsReadableRelation: ...
+    ) -> SupportsReadableRelation:
+        """Returns the row counts of the dataset
+
+        Args:
+            data_tables (bool, optional): Whether to include data tables. Defaults to True.
+            dlt_tables (bool, optional): Whether to include dlt tables. Defaults to False.
+            table_names (List[str], optional): The names of the tables to include. Defaults to None. Will override data_tables and dlt_tables if set
+
+        Returns:
+            SupportsReadableRelation: The row counts of the dataset as ReadableRelation
+        """
+        ...

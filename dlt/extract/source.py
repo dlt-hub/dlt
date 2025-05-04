@@ -304,12 +304,20 @@ class DltSource(Iterable[TDataItem]):
 
     @property
     def resources(self) -> DltResourceDict:
-        """A dictionary of all resources present in the source, where the key is a resource name."""
+        """A dictionary of all resources present in the source, where the key is a resource name.
+
+        Returns:
+            DltResourceDict: A dictionary of all resources present in the source, where the key is a resource name.
+        """
         return self._resources
 
     @property
     def selected_resources(self) -> Dict[str, DltResource]:
-        """A dictionary of all the resources that are selected to be loaded."""
+        """A dictionary of all the resources that are selected to be loaded.
+
+        Returns:
+            Dict[str, DltResource]: A dictionary of all the resources that are selected to be loaded.
+        """
         return self._resources.selected
 
     @property

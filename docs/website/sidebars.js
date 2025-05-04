@@ -295,6 +295,7 @@ const sidebars = {
           },
           items: [
             'general-usage/dataset-access/streamlit',
+            'general-usage/dataset-access/marimo',
             'general-usage/dataset-access/dataset',
             'general-usage/dataset-access/ibis-backend',
             'general-usage/dataset-access/sql-client',
