@@ -116,7 +116,6 @@ def create_ibis_backend(
 
         assert isinstance(client, MsSqlJobClient)
         ms_credentials = client.config.credentials.to_native_representation()
-        ms_credentials = ms_credentials.replace("synapse://", "mssql://")
         con = ibis.connect(ms_credentials, driver=client.config.credentials.driver)
     elif issubclass(destination.spec, BigQueryClientConfiguration):
         from dlt.destinations.impl.bigquery.bigquery import BigQueryClient

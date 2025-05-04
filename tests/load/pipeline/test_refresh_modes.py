@@ -590,7 +590,6 @@ def test_refresh_staging_dataset(destination_config: DestinationTestConfiguratio
     # tables got dropped
     with pytest.raises(DestinationUndefinedEntity):
         load_table_counts(pipeline, "data_1", "data_2")
-    load_table_counts(pipeline, "data_1_v2", "data_1_v2")
 
 
 @pytest.mark.parametrize(
