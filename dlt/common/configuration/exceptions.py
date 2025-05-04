@@ -27,9 +27,9 @@ class ContainerException(DltException):
 
 
 class ConfigProviderException(ConfigurationException):
-    """base exceptions for all exceptions raised by config providers"""
-
-    pass
+    def __init__(self, provider_name: str, *args: Any) -> None:
+        self.provider_name = provider_name
+        super().__init__(*args)
 
 
 class ConfigurationWrongTypeException(ConfigurationException):
@@ -243,7 +243,7 @@ class ContextDefaultCannotBeCreated(ContainerException, KeyError):
 
 class DuplicateConfigProviderException(ConfigProviderException):
     def __init__(self, provider_name: str) -> None:
-        self.provider_name = provider_name
         super().__init__(
-            f"Provider with name {provider_name} already present in ConfigProvidersContext"
+            provider_name,
+            f"Provider with name {provider_name} already present in ConfigProvidersContext",
         )
