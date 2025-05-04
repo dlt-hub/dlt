@@ -1,11 +1,7 @@
 import os
 import dataclasses
 import logging
-import sys
-import pytest
 from typing import Dict, List, Any
-from importlib.metadata import version as pkg_version
-from packaging.version import Version
 
 # patch which providers to enable
 from dlt.common.configuration.providers import (
@@ -13,6 +9,7 @@ from dlt.common.configuration.providers import (
     EnvironProvider,
     SecretsTomlProvider,
     ConfigTomlProvider,
+    GoogleSecretsProvider,
 )
 from dlt.common.configuration.specs.config_providers_context import (
     ConfigProvidersConfiguration,
@@ -33,6 +30,26 @@ RunContext.initial_providers = initial_providers  # type: ignore[method-assign]
 # also disable extras
 ConfigProvidersConfiguration.enable_airflow_secrets = False
 ConfigProvidersConfiguration.enable_google_secrets = False
+
+CACHED_GOOGLE_SECRETS: Dict[str, Any] = {}
+
+
+class CachedGoogleSecretsProvider(GoogleSecretsProvider):
+    def _look_vault(self, full_key, hint):
+        if full_key not in CACHED_GOOGLE_SECRETS:
+            CACHED_GOOGLE_SECRETS[full_key] = super()._look_vault(full_key, hint)
+        return CACHED_GOOGLE_SECRETS[full_key]
+
+    def _list_vault(self):
+        key_ = "__list_vault"
+        if key_ not in CACHED_GOOGLE_SECRETS:
+            CACHED_GOOGLE_SECRETS[key_] = super()._list_vault()
+        return CACHED_GOOGLE_SECRETS[key_]
+
+
+from dlt.common.configuration.providers import google_secrets
+
+google_secrets.GoogleSecretsProvider = CachedGoogleSecretsProvider  # type: ignore[misc]
 
 
 def pytest_configure(config):
@@ -150,33 +167,3 @@ def pytest_configure(config):
 
         except Exception:
             pass
-
-
-CACHED_GOOGLE_SECRETS: Dict[str, str] = {}
-
-
-@pytest.fixture(autouse=True, scope="function")
-def patch_google_secrets_provider_class(request: Any) -> Any:
-    """This function patches the GoogleSecretsProvider class to cache the result of the _look_vault method as soon as there is a hit
-    This cache works globally across the pytest session greatly speeding things up"""
-
-    if "no_google_secrets_patch" in request.keywords:
-        yield
-        return
-
-    from dlt.common.configuration.providers.google_secrets import GoogleSecretsProvider
-
-    old_look_vault = GoogleSecretsProvider._look_vault
-
-    def new_look_vault(self: GoogleSecretsProvider, full_key: str, hint: type) -> str:
-        if full_key not in CACHED_GOOGLE_SECRETS:
-            CACHED_GOOGLE_SECRETS[full_key] = old_look_vault(self, full_key, hint)
-
-        return CACHED_GOOGLE_SECRETS[full_key]
-
-    GoogleSecretsProvider._look_vault = new_look_vault  # type: ignore[method-assign]
-
-    try:
-        yield
-    finally:
-        GoogleSecretsProvider._look_vault = old_look_vault  # type: ignore[method-assign]
