@@ -150,6 +150,9 @@ class DestinationClientConfiguration(BaseConfiguration):
     credentials: Optional[CredentialsConfiguration] = None
     destination_name: Optional[str] = None  # name of the destination
     environment: Optional[str] = None
+    info_tables_query_threshold: int = dataclasses.field(
+         default=1000
+     )  # threshold for info tables query, default to 1000
 
     def fingerprint(self) -> str:
         """Returns a destination fingerprint which is a hash of selected configuration fields. ie. host in case of connection string"""

@@ -252,8 +252,6 @@ class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
 
 
 class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
-    INFO_TABLES_QUERY_THRESHOLD: ClassVar[int] = 1000
-    """Fallback to querying all tables in the information schema if checking more than threshold"""
 
     def __init__(
         self,
@@ -262,6 +260,8 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         sql_client: SqlClientBase[TNativeConn],
     ) -> None:
         # get definitions of the dlt tables, normalize column names and keep for later use
+        self.INFO_TABLES_QUERY_THRESHOLD = config.info_tables_query_threshold
+        """This gives priority to the value in `DestinationClientConfiguration` """
         version_table_ = normalize_table_identifiers(version_table(), schema.naming)
         self.version_table_schema_columns = ", ".join(
             sql_client.escape_column_name(col) for col in version_table_["columns"]
