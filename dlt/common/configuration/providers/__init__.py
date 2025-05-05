@@ -10,7 +10,8 @@ from .toml import (
     StringTomlProvider,
 )
 from .doc import CustomLoaderDocProvider
-from .vault import SECRETS_TOML_KEY
+from .vault import SECRETS_TOML_KEY, VaultDocProvider
+from .google_secrets import GoogleSecretsProvider
 from .context import ContextProvider
 
 __all__ = [
@@ -26,4 +27,6 @@ __all__ = [
     "SECRETS_TOML_KEY",
     "ContextProvider",
     "CustomLoaderDocProvider",
+    "VaultDocProvider",
+    "GoogleSecretsProvider",
 ]
