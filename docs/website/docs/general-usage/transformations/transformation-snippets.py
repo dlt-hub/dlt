@@ -4,6 +4,7 @@ import dlt
 from decimal import Decimal
 import os
 from typing import Any
+from dlt.destinations import duckdb
 
 
 from tests.pipeline.utils import load_table_counts
@@ -19,7 +20,9 @@ def fruitshop_pipeline() -> dlt.Pipeline:
         fruitshop as fruitshop_source,
     )
 
-    fruitshop_pipeline = dlt.pipeline("fruitshop", destination="duckdb")
+    fruitshop_pipeline = dlt.pipeline(
+        "fruitshop", destination=duckdb("./test_duck.duckdb"), dev_mode=True
+    )
     fruitshop_pipeline.run(fruitshop_source())
     # @@@DLT_SNIPPET_END quick_start_example
 
@@ -69,16 +72,23 @@ def loading_to_other_datasets_snippet(fruitshop_pipeline: dlt.Pipeline):
     @dlt.transformation()
     def copied_customers(dataset: dlt.Dataset):
         customers_table = dataset["customers"]
-        return customers_table.order_by("name").limit(5)
+        return customers_table.order_by(customers_table.name).limit(5)
 
     # Same duckdb instance, different dataset
-    dest_p = dlt.pipeline("fruitshop", destination="duckdb", dataset_name="copied_dataset")
+    dest_p = dlt.pipeline(
+        "fruitshop_dataset",
+        destination=duckdb("./test_duck.duckdb"),
+        dataset_name="copied_dataset",
+        dev_mode=True,
+    )
     dest_p.run(copied_customers(fruitshop_pipeline.dataset()))
-
-    # Different engine (Postgres → DuckDB)
-    duck_p = dlt.pipeline("fruitshop", destination="postgres")
-    duck_p.run(copied_customers(fruitshop_pipeline.dataset()))
     # @@@DLT_SNIPPET_END loading_to_other_datasets
+
+    # @@@DLT_SNIPPET_START loading_to_other_datasets_other_engine
+    # Different engine (Postgres → DuckDB)
+    duck_p = dlt.pipeline("fruitshop_warehouse", destination="postgres")
+    duck_p.run(copied_customers(fruitshop_pipeline.dataset()))
+    # @@@DLT_SNIPPET_END loading_to_other_datasets_other_engine
 
 
 def multiple_transformations_snippet(fruitshop_pipeline: dlt.Pipeline):
@@ -117,13 +127,16 @@ def dataset_inspection_snippet(fruitshop_pipeline: dlt.Pipeline):
 
 def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline):
     # @@@DLT_SNIPPET_START sql_queries
+    # @@@DLT_SNIPPET_START sql_queries_short
     # Convert the transformation above that selected the first 5 customers to a sql query
     @dlt.transformation()
     def copied_customers(dataset: dlt.Dataset):
         customers_table = dataset("SELECT * FROM customers LIMIT 5 ORDER BY name")
         return customers_table
 
-    # Joins are also possible of course
+    # @@@DLT_SNIPPET_END sql_queries_short
+
+    # Joins and other more complex queries are also possible of course
     @dlt.transformation()
     def enriched_purchases(dataset: dlt.Dataset):
         enriched_purchases = dataset(
@@ -144,3 +157,125 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline):
         "copied_customers": 5,
         "enriched_purchases": 3,
     }
+
+
+def computed_schema_snippet(fruitshop_pipeline: dlt.Pipeline):
+    # @@@DLT_SNIPPET_START computed_schema
+    # Show the computed schema before the transformation is executed
+    purchases = fruitshop_pipeline.dataset()["purchases"]
+    customers = fruitshop_pipeline.dataset()["customers"]
+    enriched_purchases = purchases.join(customers, purchases.customer_id == customers.id)
+    print(enriched_purchases.compute_columns_schema())
+    # @@@DLT_SNIPPET_END computed_schema
+
+
+def column_level_lineage_snippet(fruitshop_pipeline: dlt.Pipeline):
+    # @@@DLT_SNIPPET_START column_level_lineage
+    @dlt.transformation()
+    def enriched_purchases(dataset: dlt.Dataset):
+        enriched_purchases = dataset(
+            "SELECT customers.name, purchases.quantity FROM purchases JOIN customers ON"
+            " purchases.customer_id = customers.id"
+        )
+        return enriched_purchases
+
+    # Let's run the transformation and see that the name column in the NEW table is also marked as PII
+    fruitshop_pipeline.run(enriched_purchases(fruitshop_pipeline.dataset()))
+    assert fruitshop_pipeline.dataset().schema.tables["enriched_purchases"]["columns"]["name"]["x-pii"] is True  # type: ignore
+    # @@@DLT_SNIPPET_END column_level_lineage
+
+
+def in_transit_transformations_snippet():
+    # @@@DLT_SNIPPET_START in_transit_transformations
+    from dlt.sources.rest_api import (
+        rest_api_source,
+    )
+
+    # loads some data from our example api at https://jaffle-shop.scalevector.ai/docs
+    source = rest_api_source(
+        {
+            "client": {
+                "base_url": "https://jaffle-shop.scalevector.ai/api/v1",
+            },
+            "resources": [
+                "stores",
+                {
+                    "name": "orders",
+                    "endpoint": {
+                        "path": "orders",
+                        "params": {
+                            "start_date": "2017-01-01",
+                            "end_date": "2017-01-31",
+                        },
+                    },
+                },
+            ],
+        }
+    )
+
+    # load to a local DuckDB instance
+    transit_pipeline = dlt.pipeline("jaffle_shop", destination="duckdb", dataset_name="in_transit")
+    transit_pipeline.run(source)
+
+    # load aggregated data to a warehouse destination
+    @dlt.transformation()
+    def orders_per_store(dataset: dlt.Dataset):
+        orders = dataset["orders"]
+        stores = dataset["stores"]
+        return (
+            orders.join(stores, orders.store_id == stores.id)
+            .group_by(stores.name)
+            .aggregate(order_count=orders.id.count())
+        )
+
+    # load aggregated data to a warehouse destination
+    warehouse_pipeline = dlt.pipeline(
+        "jaffle_warehouse", destination="postgres", dataset_name="warehouse", dev_mode=True
+    )
+    warehouse_pipeline.run(orders_per_store(transit_pipeline.dataset()))
+    # @@@DLT_SNIPPET_END in_transit_transformations
+
+    assert load_table_counts(warehouse_pipeline, "orders_per_store") == {"orders_per_store": 1}
+
+
+def incremental_transformations_snippet(fruitshop_pipeline: dlt.Pipeline):
+    # @@@DLT_SNIPPET_START incremental_transformations
+    from dlt.pipeline.exceptions import PipelineNeverRan
+
+    @dlt.transformation(
+        write_disposition="append",
+        primary_key="id",
+    )
+    def cleaned_customers(dataset: dlt.Dataset) -> Any:
+        # get newest primary key from the output dataset
+        max_pimary_key = -1
+        try:
+            output_dataset = dlt.current.pipeline().dataset()
+            if output_dataset.schema.tables.get("cleaned_customers"):
+                max_pimary_key = output_dataset.cleaned_customers.id.max().scalar()
+        except PipelineNeverRan:
+            # we get this exception if the destination dataset has not been run yet
+            # so we can assume that all customers are new
+            pass
+
+        # return filtered transformation
+        customers_table = dataset.customers
+
+        # filter only new customers and exclude the name column in the result
+        return customers_table.filter(customers_table.id > max_pimary_key).drop(
+            customers_table.name
+        )
+
+    # create a warehouse dataset, would ordinarily be snowflake or some other warehousing destination
+    warehouse_pipeline = dlt.pipeline(
+        "warehouse", destination="duckdb", dataset_name="cleaned_customers"
+    )
+    warehouse_pipeline.run(cleaned_customers(fruitshop_pipeline.dataset()))
+
+    # new items get added to the input dataset
+    # ...
+
+    # run the transformation again, only new customers are processed and appended to the destination table
+    warehouse_pipeline.run(cleaned_customers(fruitshop_pipeline.dataset()))
+
+    # @@@DLT_SNIPPET_END incremental_transformations
