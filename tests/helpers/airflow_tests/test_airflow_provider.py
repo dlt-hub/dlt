@@ -1,5 +1,7 @@
 import pytest
 
+from dlt.common.typing import AnyType
+
 pytest.importorskip("airflow")
 
 from airflow import DAG
@@ -232,7 +234,7 @@ def test_airflow_secrets_toml_provider_invalid_content():
         # as a dict and do the assertion in the test function.
         exception_raised = False
         try:
-            AirflowSecretsTomlProvider()
+            AirflowSecretsTomlProvider().get_value("content", AnyType, None)
         except ValueError:
             exception_raised = True
 
