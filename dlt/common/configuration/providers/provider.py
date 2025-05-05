@@ -59,9 +59,3 @@ def get_key_name(key: str, separator: str, /, *sections: str) -> str:
     else:
         env_key = key
     return env_key
-
-
-class ConfigProviderException(ConfigurationException):
-    def __init__(self, provider_name: str, *args: Any) -> None:
-        self.provider_name = provider_name
-        super().__init__(*args)
