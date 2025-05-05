@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Set, Callable, Sequence
+from typing import Any, Dict, List, Set, Sequence, Generator
 import pytest
 import random
 from os import environ
@@ -7,14 +7,11 @@ import os
 from collections import Counter
 import dlt
 from dlt.common import json, sleep
-from dlt.common.configuration.utils import auto_cast
 from dlt.common.data_types import py_type_to_sc_type
 from dlt.common.pipeline import LoadInfo
-from dlt.common.schema.utils import get_table_format
 from dlt.common.typing import DictStrAny
-from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.fs_client import FSClientBase
-from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationUndefinedEntity
+from dlt.destinations.exceptions import DestinationUndefinedEntity
 
 from dlt.common.schema.typing import TTableSchema
 
@@ -31,9 +28,6 @@ def drop_dataset_from_env() -> None:
     variable ``DATASET_NAME`` – if it is left over from a previous test run the
     execution could pick up unexpected state. Clearing it here prevents such
     flakiness.
-
-    Returns:
-        None
     """
     if "DATASET_NAME" in environ:
         del environ["DATASET_NAME"]
@@ -73,11 +67,6 @@ def airtable_emojis():
 
     The source is intentionally whimsical to verify that pipelines behave
     correctly when table and column names contain non-ASCII characters.
-
-    Returns:
-        Tuple[dlt.resource, dlt.resource, dlt.resource, dlt.resource]:
-        A tuple with four DLT resources (``budget``, ``schedule``, ``peacock`` and
-        ``wide_peacock``) that can be run by a pipeline.
     """
 
     @dlt.resource(name="📆 Schedule")
@@ -103,14 +92,14 @@ def airtable_emojis():
     return budget, schedule, peacock, wide_peacock
 
 
-def run_deferred(iters):
+def run_deferred(iters: int) -> Generator[Any, None, None]:
     """Yield :pyfunc:`dlt.defer`-ed tasks that resolve to their input number.
 
     Args:
         iters (int): Number of deferred tasks to create.
 
     Yields:
-        dlt.deferred: A deferred object that sleeps for a random amount of time
+        Any: A deferred object that sleeps for a random amount of time
         smaller than half a second and finally evaluates to the iteration index.
     """
 
@@ -124,7 +113,7 @@ def run_deferred(iters):
 
 
 @dlt.source
-def many_delayed(many, iters):
+def many_delayed(many: int, iters: int) -> Generator[Any, None, None]:
     """Produce *many* resources that each emit *iters* deferred items.
 
     Args:
@@ -132,7 +121,7 @@ def many_delayed(many, iters):
         iters (int): Number of deferred items produced by every resource.
 
     Yields:
-        dlt.resource: Dynamically created resources named ``resource_<n>``.
+        Any: Dynamically created resources named ``resource_<n>``.
     """
     for n in range(many):
         yield dlt.resource(run_deferred(iters), name="resource_" + str(n))
@@ -214,7 +203,7 @@ def _is_sftp(p: dlt.Pipeline) -> bool:
     )
 
 
-def _load_jsonl_file(client: FSClientBase, filepath) -> List[Dict[str, Any]]:
+def _load_jsonl_file(client: FSClientBase, filepath: str) -> List[Dict[str, Any]]:
     """Read a ``.jsonl`` file from a filesystem destination into a list of dictionaries.
 
     The helper is used exclusively by tests exercising the SFTP-backed
