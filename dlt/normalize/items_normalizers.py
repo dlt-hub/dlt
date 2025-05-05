@@ -112,6 +112,13 @@ class ModelItemsNormalizer(ItemsNormalizer):
                 func_expr = sqlglot.exp.func("MD5", casted_row_num)
             elif dialect == "clickhouse":
                 func_expr = sqlglot.exp.func("generateUUIDv4")
+            elif dialect == "sqlite":
+                func_expr = sqlglot.exp.func(
+                    "lower",
+                    sqlglot.exp.func(
+                        "hex", sqlglot.exp.func("randomblob", sqlglot.exp.Literal.number(16))
+                    ),
+                )
             else:
                 func_expr = sqlglot.exp.func("UUID")
             dlt_columns[C_DLT_ID] = sqlglot.exp.Alias(
