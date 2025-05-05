@@ -164,7 +164,7 @@ def test_to_sqlglot_integer_with_precision(
         (sge.DataType.Type.USMALLINT, 5),
         (sge.DataType.Type.UMEDIUMINT, 8),
         (sge.DataType.Type.UINT, 10),
-        (sge.DataType.Type.UBIGINT, None),
+        (sge.DataType.Type.UBIGINT, 19),
         (sge.DataType.Type.UINT128, 39),
         (sge.DataType.Type.UINT256, 78),
     ],
@@ -182,7 +182,7 @@ def test_from_sqlglot_integer_with_precision(
 
 
 @pytest.mark.parametrize("nullable", [None, True, False])
-def test_to_sqlglot_nullable(nullable):
+def test_to_sqlglot_with_nullable(nullable: Optional[bool]) -> None:
     sqlglot_type = to_sqlglot_type("bigint", nullable=nullable)
     if nullable is None:
         assert "nullable" not in sqlglot_type.args
@@ -191,7 +191,7 @@ def test_to_sqlglot_nullable(nullable):
 
 
 @pytest.mark.parametrize("nullable", [None, True, False])
-def test_from_sqlglot_nullable(nullable):
+def test_from_sqlglot_with_nullable(nullable: Optional[bool]) -> None:
     sqlglot_type = (
         sge.DataType.build("bigint")
         if nullable is None
@@ -203,3 +203,98 @@ def test_from_sqlglot_nullable(nullable):
         assert "nullable" not in dlt_type
     else:
         assert dlt_type.get("nullable") == nullable
+
+
+@pytest.mark.parametrize(
+    "timezone, expected_sqlglot_type",
+    [
+        (None, sge.DataType.Type.TIMESTAMP),
+        (True, sge.DataType.Type.TIMESTAMPTZ),
+        (False, sge.DataType.Type.TIMESTAMPNTZ),
+    ]
+)
+def test_to_sqlglot_timestamp_with_timezone(timezone, expected_sqlglot_type) -> None:
+    sqlglot_type = to_sqlglot_type("timestamp", timezone=timezone)
+    assert sqlglot_type == sge.DataType.build(expected_sqlglot_type)
+
+
+@pytest.mark.parametrize(
+    "sqlglot_type, expected_timezone",
+    [
+        (sge.DataType.Type.TIMESTAMP, None),  # default value
+        (sge.DataType.Type.TIMESTAMPNTZ, False),
+        (sge.DataType.Type.TIMESTAMPLTZ, True),
+        (sge.DataType.Type.TIMESTAMPTZ, True),
+        (sge.DataType.Type.TIMESTAMP_S, False),
+        (sge.DataType.Type.TIMESTAMP_MS, False),
+        (sge.DataType.Type.TIMESTAMP_NS, False),
+    ],
+)
+def test_from_sqlglot_timestamp_with_timezone(sqlglot_type: sge.DataType.Type, expected_timezone: Optional[bool]) -> None:
+    dlt_type = from_sqlglot_type(sqlglot_type)
+    if expected_timezone is None:
+        assert "timezone" not in dlt_type
+    else:
+        assert dlt_type.get("timezone") == expected_timezone
+
+
+@pytest.mark.parametrize(
+    "timezone, expected_sqlglot_type",
+    [
+        (None, sge.DataType.Type.TIME),
+        (True, sge.DataType.Type.TIMETZ),
+        (False, sge.DataType.Type.TIME),
+    ]
+)
+def test_to_sqlglot_time_with_timezone(timezone, expected_sqlglot_type) -> None:
+    sqlglot_type = to_sqlglot_type("time", timezone=timezone)
+    assert sqlglot_type == sge.DataType.build(expected_sqlglot_type)
+
+
+@pytest.mark.parametrize(
+    "sqlglot_type, expected_timezone",
+    [
+        (sge.DataType.Type.TIME, None),  # default value
+        (sge.DataType.Type.TIMETZ, True),
+    ],
+)
+def test_from_sqlglot_time_with_timezone(sqlglot_type: sge.DataType.Type, expected_timezone: Optional[bool]) -> None:
+    dlt_type = from_sqlglot_type(sqlglot_type)
+    if expected_timezone is None:
+        assert "timezone" not in dlt_type
+    else:
+        assert dlt_type.get("timezone") == expected_timezone
+
+
+@pytest.mark.parametrize(
+    "precision, expected_sqlglot_type",
+    [
+        (None, sge.DataType.Type.TIMESTAMP),  # default value
+        (1, sge.DataType.Type.TIMESTAMP_S),
+        (3, sge.DataType.Type.TIMESTAMP_MS),
+        (9, sge.DataType.Type.TIMESTAMP_NS),
+    ]
+)
+def test_to_sqlglot_timestamp_with_precision(precision: Optional[int], expected_sqlglot_type: sge.DataType.Type) -> None:
+    sqlglot_type = to_sqlglot_type("timestamp", precision=precision)
+    assert sqlglot_type == sge.DataType.build(expected_sqlglot_type)
+
+
+@pytest.mark.parametrize(
+    "sqlglot_type, expected_precision",
+    [
+        (sge.DataType.Type.TIMESTAMP, None),  # default value
+        (sge.DataType.Type.TIMESTAMPNTZ, False),
+        (sge.DataType.Type.TIMESTAMPLTZ, True),
+        (sge.DataType.Type.TIMESTAMPTZ, True),
+        (sge.DataType.Type.TIMESTAMP_S, False),
+        (sge.DataType.Type.TIMESTAMP_MS, False),
+        (sge.DataType.Type.TIMESTAMP_NS, False),
+    ],
+)
+def test_from_sqlglot_timestamp_with_precision(sqlglot_type: sge.DataType.Type, expected_precision: Optional[int]) -> None:
+    dlt_type = from_sqlglot_type(sqlglot_type)
+    if expected_precision is None:
+        assert "timezone" not in dlt_type
+    else:
+        assert dlt_type.get("timezone") == expected_precision
