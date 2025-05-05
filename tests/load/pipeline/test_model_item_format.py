@@ -21,8 +21,10 @@ from tests.load.utils import (
 from tests.pipeline.utils import assert_load_info, load_tables_to_dicts
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.schema.utils import new_table
+from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.data_writers.writers import ModelWriter
 from dlt.common.utils import uniq_id
+from dlt.load.exceptions import LoadClientJobException
 
 from dlt.pipeline.exceptions import PipelineStepFailed
 
@@ -523,6 +525,7 @@ def test_load_model_with_all_types(destination_config: DestinationTestConfigurat
     )
     if destination_config.destination_name == "sqlalchemy_sqlite":
         exclude_types.extend(["decimal", "wei"])
+    # for tsql dialect, sqlglot generates a statement that creates False if the column is empty
     exclude_cols = ["col3_null"] if destination_config.destination_type == "mssql" else []
 
     column_schemas, data_types = table_update_and_row(
@@ -558,3 +561,168 @@ def test_load_model_with_all_types(destination_config: DestinationTestConfigurat
         schema=column_schemas,
         allow_base64_binary=destination_config.destination_type == "clickhouse",
     )
+
+
+@pytest.mark.parametrize("tables_contract", ["freeze", "evolve"])
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        subset=["duckdb"],
+    ),
+    ids=lambda x: x.name,
+)
+def test_data_contract_on_tables(
+    destination_config: DestinationTestConfiguration, tables_contract: str
+) -> None:
+    pipeline = destination_config.setup_pipeline("test_data_contract_on_tables", dev_mode=False)
+
+    # Populate an example table
+    pipeline.run([{"a": i, "b": i + 1} for i in range(10)], table_name="example_table")
+    dataset = pipeline.dataset()
+
+    # Retrieve the SQL dialect and schema information
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+
+    # Define a resource to create a new copied table
+    @dlt.resource(schema_contract={"tables": tables_contract})  # type: ignore
+    def copied_table() -> Any:
+        query = dataset["example_table"][["a", "b", "_dlt_load_id", "_dlt_id"]].limit(5).query()
+        sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
+        yield dlt.mark.with_hints(
+            sql_model,
+            hints=make_hints(columns=example_table_columns),
+        )
+
+    if tables_contract == "evolve":
+        info = pipeline.run([copied_table()])
+        assert_load_info(info)
+    else:
+        with pytest.raises(PipelineStepFailed) as py_exc:
+            pipeline.run([copied_table()])
+        assert py_exc.value.step == "extract"
+        assert isinstance(py_exc.value.__context__, DataValidationError)
+        assert py_exc.value.__context__.schema_entity == "tables"
+        assert py_exc.value.__context__.contract_mode == "freeze"
+        assert py_exc.value.__context__.table_name == "copied_table"
+
+
+@pytest.mark.parametrize("columns_contract", ["freeze", "evolve", "discard_row", "discard_value"])
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        subset=["duckdb"],
+    ),
+    ids=lambda x: x.name,
+)
+def test_data_contract_on_columns(
+    destination_config: DestinationTestConfiguration, columns_contract: str
+) -> None:
+    # NOTE: discard_row on columns behaves the same way as discard_value
+    pipeline = destination_config.setup_pipeline("test_data_contract_on_columns", dev_mode=False)
+
+    # Populate tables with different column sets and retreve dataset
+    pipeline.run([{"a": i} for i in range(10)], table_name="copied_table")  # Single column a
+    pipeline.run(
+        [{"a": i, "b": i + 1} for i in range(10)], table_name="example_table"
+    )  # Two columns a, b
+    dataset = pipeline.dataset()
+
+    # Retrieve the SQL dialect and schema information
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+
+    # Define a resource to insert a new column into copied_table
+    @dlt.resource(schema_contract={"columns": columns_contract})  # type: ignore
+    def copied_table() -> Any:
+        query = dataset["example_table"][["b", "_dlt_load_id", "_dlt_id"]].limit(5).query()
+        sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
+        yield dlt.mark.with_hints(
+            sql_model,
+            hints=make_hints(columns=example_table_columns),
+        )
+
+    if columns_contract == "evolve":
+        info = pipeline.run([copied_table()])
+        assert_load_info(info)
+        assert load_table_counts(pipeline, "copied_table", "example_table") == {
+            "copied_table": 15,  # 10 original rows + 5 new rows with column "b"
+            "example_table": 10,
+        }
+        # Validate that column "b" was added and contains the correct data
+        # The last 5 rows of "b" should match the first 5 rows of "b" from example_table
+        result_items = dataset["copied_table"].df()["b"].tolist()
+        assert result_items[-5:] == [1, 2, 3, 4, 5]
+
+    elif columns_contract == "freeze":
+        with pytest.raises(PipelineStepFailed) as py_exc:
+            pipeline.run([copied_table()])
+        assert py_exc.value.step == "extract"
+        assert isinstance(py_exc.value.__context__, DataValidationError)
+        assert py_exc.value.__context__.schema_entity == "columns"
+        assert py_exc.value.__context__.contract_mode == "freeze"
+        assert py_exc.value.__context__.table_name == "copied_table"
+
+    elif columns_contract in ["discard_row", "discard_value"]:
+        info = pipeline.run([copied_table()])
+        assert_load_info(info)
+        assert load_table_counts(pipeline, "copied_table", "example_table") == {
+            "copied_table": 15,  # 10 original rows + 5 new rows without column "b"
+            "example_table": 10,
+        }
+        # Validate that column "b" was not added
+        assert "b" not in pipeline.default_schema.tables["copied_table"]["columns"].keys()
+        # Validate that the original rows in "a" remain unchanged
+        result_items = dataset["copied_table"].df()["a"].tolist()
+        assert result_items[:10] == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+
+@pytest.mark.parametrize("data_type_contract", ["freeze", "evolve", "discard_row", "discard_value"])
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        subset=["duckdb"],
+    ),
+    ids=lambda x: x.name,
+)
+def test_data_contract_on_data_type(
+    destination_config: DestinationTestConfiguration, data_type_contract: str
+) -> None:
+    # TODO: data contracts on data type level currently don't work as expected
+    pipeline = destination_config.setup_pipeline("test_data_contract_on_data_type", dev_mode=False)
+
+    # Populate tables with different data types and retrieve dataset
+    pipeline.run([{"a": i} for i in range(10)], table_name="copied_table")  # Integer column
+    pipeline.run(
+        [{"a": string, "b": i} for i, string in enumerate(["I", "love", "dlt"])],
+        table_name="example_table",
+    )  # String column
+    dataset = pipeline.dataset()
+
+    # Retrieve the SQL dialect and schema information
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+    copied_table_columns = dataset.schema.tables["copied_table"]["columns"]
+
+    # Validate initial data types
+    assert copied_table_columns["a"]["data_type"] == "bigint"
+    assert example_table_columns["a"]["data_type"] == "text"
+
+    # Define model resource to insert string column into integer column
+    @dlt.resource(schema_contract={"data_type": data_type_contract}, table_name="copied_table")  # type: ignore
+    def copied_table() -> Any:
+        query = dataset["example_table"][["a", "_dlt_load_id", "_dlt_id"]].query()
+        sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
+        yield dlt.mark.with_hints(
+            sql_model,
+            hints=make_hints(columns={k: v for k, v in example_table_columns.items() if k != "b"}),
+        )
+
+    if data_type_contract in ["freeze", "discard_row", "discard_value", "evolve"]:
+        with pytest.raises(PipelineStepFailed) as py_exc:
+            pipeline.run([copied_table()])
+        assert py_exc.value.step == "load"
+        assert isinstance(py_exc.value.__context__, LoadClientJobException)
