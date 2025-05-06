@@ -118,7 +118,7 @@ def test_verify_capabilities_data_types() -> None:
     assert exceptions[0].table_name == "table"
     assert exceptions[0].column == "col1"
     assert exceptions[0].file_format == "parquet"
-    assert exceptions[0].available_in_formats == []
+    assert exceptions[0].available_in_formats == ["model"]
 
     # all supported on parquet
     exceptions = verify_supported_data_types(
