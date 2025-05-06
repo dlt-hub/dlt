@@ -122,8 +122,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
     def is_staging_destination_job(self, file_path: str) -> bool:
         file_type = os.path.splitext(file_path)[1][1:]
-        # for now we know that reference jobs always go do the main destination
-        if file_type == "reference":
+        # for now we know that reference and model jobs always go do the main destination
+        if file_type in ["reference", "model"]:
             return False
         return (
             self.staging_destination is not None
