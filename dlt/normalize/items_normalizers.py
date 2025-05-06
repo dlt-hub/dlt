@@ -44,6 +44,9 @@ except MissingDependencyException:
     pa = None
 
 
+DLT_SUBQUERY_NAME = "_dlt_subquery"
+
+
 class ItemsNormalizer:
     def __init__(
         self,
@@ -200,13 +203,28 @@ class ModelItemsNormalizer(ItemsNormalizer):
 
     def _build_outer_select_statement(
         self,
+        select_dialect: str,
         parsed_select: sqlglot.exp.Select,
-    ) -> sqlglot.exp.Select:
+        columns: TTableSchemaColumns,
+    ) -> Tuple[sqlglot.exp.Select, bool]:
         """
         Wraps the parsed SELECT statement in a subquery and returns the outer SELECT statement.
         """
+        if len(parsed_select.selects) == 1 and isinstance(
+            parsed_select.selects[0], sqlglot.exp.Star
+        ):
+            raise ValueError(
+                "\n\nA `SELECT *` was detected in the model query:\n\n"
+                f"{parsed_select.sql(select_dialect)}\n\n"
+                "Model queries using a star (`*`) expression cannot be normalized. "
+                "Please rewrite the query to explicitly specify the columns to be selected.\n"
+            )
+
+        # Get column key list from schema
+        columns_keys = list(columns.keys())
+
         # Wrap parsed select in a subquery
-        subquery = parsed_select.subquery(alias="subquery")
+        subquery = parsed_select.subquery(alias=DLT_SUBQUERY_NAME)
 
         # Get normalizer function
         norm_f = self.schema.naming.normalize_identifier
@@ -215,26 +233,33 @@ class ModelItemsNormalizer(ItemsNormalizer):
         casefold_f = self.config.destination_capabilities.casefold_identifier
 
         # Build new select list using selected columns in the subquery
+        selected_columns = []
         outer_selects: List[sqlglot.exp.Expression] = []
         for select in parsed_select.selects:
-            if isinstance(select, sqlglot.exp.Star):
-                # NOTE: we could also replace star schema with explicit columns from schema
-                outer_selects.append(sqlglot.exp.Star(this="subquery"))
-                break
-            elif isinstance(select, sqlglot.exp.Alias):
+            if isinstance(select, sqlglot.exp.Alias):
                 name = select.alias
-                norm_casefolded = casefold_f(norm_f(name))
-                outer_selects.append(sqlglot.column(name, table="subquery").as_(norm_casefolded))
-                # NOTE: for bigquery, quoted identifiers are treated as Dot
+
+                # NOTE: for bigquery, quoted identifiers are treated as sqlglot.exp.Dot
             elif isinstance(select, sqlglot.exp.Column) or isinstance(select, sqlglot.exp.Dot):
                 name = select.output_name or select.name
-                norm_casefolded = casefold_f(norm_f(name))
-                outer_selects.append(sqlglot.column(name, table="subquery").as_(norm_casefolded))
+
+            else:
+                raise ValueError(
+                    "\n\nUnsupported SELECT expression in the model query:\n\n "
+                    f" {select.sql(select_dialect)}\n\nOnly simple column selections like `column`"
+                    " or `column AS alias` are currently supported.\n"
+                )
+
+            norm_casefolded = casefold_f(norm_f(name))
+            selected_columns.append(norm_casefolded)
+            outer_selects.append(sqlglot.column(name, table=DLT_SUBQUERY_NAME).as_(norm_casefolded))
+
+        needs_reordering = selected_columns != columns_keys
 
         # Create the outer select statement
         outer_select = sqlglot.select(*outer_selects).from_(subquery)
 
-        return outer_select
+        return outer_select, needs_reordering
 
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]:
         with self.normalize_storage.extracted_packages.storage.open_file(
@@ -246,10 +271,17 @@ class ModelItemsNormalizer(ItemsNormalizer):
             )
 
         parsed_select = sqlglot.parse_one(select_statement, read=select_dialect)
-        parsed_select = cast(sqlglot.exp.Select, parsed_select)
 
-        # wrap parsed select in a subquery and get outer select statement with normalizer aliases
-        outer_parsed_select = self._build_outer_select_statement(parsed_select)
+        # The query is ensured to be a select statement upstream,
+        # but we double ensure here
+        if not isinstance(parsed_select, sqlglot.exp.Select):
+            raise ValueError("Only SELECT statements should reach the model normalizer.")
+
+        # wrap the parsed select in a subquery
+        # and built an outer select statement with normalized aliases
+        outer_parsed_select, needs_reordering = self._build_outer_select_statement(
+            select_dialect, parsed_select, self.schema.get_table_columns(root_table_name)
+        )
 
         schema_updates = []
         dlt_col_update = self._adjust_outer_select_with_dlt_columns(
@@ -258,9 +290,10 @@ class ModelItemsNormalizer(ItemsNormalizer):
         if dlt_col_update:
             schema_updates.append(dlt_col_update)
 
-        self._reorder_or_adjust_outer_select(
-            outer_parsed_select, self.schema.get_table_columns(root_table_name)
-        )
+        if needs_reordering:
+            self._reorder_or_adjust_outer_select(
+                outer_parsed_select, self.schema.get_table_columns(root_table_name)
+            )
 
         normalized_query = outer_parsed_select.sql(dialect=select_dialect)
         self.item_storage.write_data_item(
