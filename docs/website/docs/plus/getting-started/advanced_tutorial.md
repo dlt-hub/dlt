@@ -9,7 +9,7 @@ import Link from '../../_plus_admonition.md';
 <Link/>
 Packaging a dlt+ Project simplifies distribution across teams or stakeholders, such as data analysts or data science teams, without requiring direct access to the project’s internal code. Once installed, the package can be used to run pipelines and access production data through a standardized Python interface.
 
-In this tutorial, you will learn how to package your dlt+ project for reuse and distribution within your organization.
+In this tutorial, you will learn how to package your dlt+ project for reuse and distribution and make it pip-installable.
 
 
 ## Prerequisites
