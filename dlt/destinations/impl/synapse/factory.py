@@ -48,7 +48,7 @@ class synapse(Destination[SynapseClientConfiguration, "SynapseClient"]):
         caps = DestinationCapabilitiesContext()
 
         caps.preferred_loader_file_format = "insert_values"
-        caps.supported_loader_file_formats = ["insert_values"]
+        caps.supported_loader_file_formats = ["insert_values", "model"]
         caps.preferred_staging_file_format = "parquet"
         caps.supported_staging_file_formats = ["parquet"]
         caps.type_mapper = SynapseTypeMapper

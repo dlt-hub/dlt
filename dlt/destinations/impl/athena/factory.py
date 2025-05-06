@@ -134,7 +134,7 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         caps.supported_loader_file_formats = []
         caps.supported_table_formats = ["iceberg", "hive"]
         caps.preferred_staging_file_format = "parquet"
-        caps.supported_staging_file_formats = ["parquet"]
+        caps.supported_staging_file_formats = ["parquet", "model"]
         caps.type_mapper = AthenaTypeMapper
 
         # athena is storing all identifiers in lower case and is case insensitive
