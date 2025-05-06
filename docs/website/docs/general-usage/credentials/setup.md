@@ -321,8 +321,8 @@ You can create and register your own configuration providers to customize how `d
 This example demonstrates how to create a custom provider that loads configuration from a JSON file:
 
 ```py
-import json
 import dlt
+from dlt.common import json
 from dlt.common.configuration.providers import CustomLoaderDocProvider
 
 # Create a function that loads a dictionary
@@ -355,18 +355,16 @@ The Notion source is defined in a file named `notion.py`, so we use that module 
 
 ```py
 import dlt
-from typing import Optional, List, Dict, Iterator
-from dlt.sources import DltResource
 
 @dlt.source
 def notion_databases(
-    database_ids: Optional[List[Dict[str, str]]] = None,
+    database_ids = None,
     api_key: str = dlt.secrets.value,  # mark argument to be injected as secret
-) -> Iterator[DltResource]:
+):
    ...
 
 # Pass database_id in code, let `dlt` inject api_key
-sales_database = notion_databases(
+sales_database = notion_databases(  # type: ignore
   database_ids=[
             {
                 "id": "a94223535c674d33a24e313e7921ce15",
@@ -592,13 +590,13 @@ dlt.secrets["sources.credentials.project_id"] = os.environ.get("SHEETS_PROJECT_I
 </Tabs>
 
 With this setup, `dlt` looks for destination credentials in this order:
-```
+```sh
 destination.bigquery.credentials --> Not found
 destination.credentials --> Found
 ```
 
 And for source credentials:
-```
+```sh
 sources.google_sheets_module.google_sheets_function.credentials --> Not found
 sources.google_sheets_function.credentials --> Not found
 sources.credentials --> Found
