@@ -396,6 +396,8 @@ Use it with caution until it's fully stable.
 
 ```py
 import pandas as pd
+from dlt_plus import current
+
 # get a dataset from the catalog (it must already exist and be defined in dlt.yml)
 dataset = current.catalog().dataset("my_pipeline_dataset")
 # Write a DataFrame to the "my_table" table in the dataset
