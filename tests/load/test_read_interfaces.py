@@ -198,7 +198,9 @@ def test_explicit_dataset_type_selection(populated_pipeline: Pipeline):
     ids=lambda x: x.name,
 )
 def test_scalar(populated_pipeline: Pipeline) -> None:
-    assert populated_pipeline.dataset().items.count().scalar() == 3000
+    assert populated_pipeline.dataset().items.count().scalar() == _total_records(
+        populated_pipeline.destination.destination_type
+    )
 
     # test error if more than one column is returned and we use scalar
     with pytest.raises(ValueError):
