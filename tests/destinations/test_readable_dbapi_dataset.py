@@ -8,6 +8,7 @@ from dlt.destinations.dataset.exceptions import (
     ReadableRelationHasQueryException,
     ReadableRelationUnknownColumnException,
 )
+from dlt.transformations.exceptions import LineageFailedException
 
 
 @pytest.mark.parametrize("dataset_type", ("default",))
@@ -128,7 +129,7 @@ def test_computed_schema_columns(dataset_type: TDatasetType) -> None:
     # TODO: add correct exception
     import sqlglot
 
-    with pytest.raises(sqlglot.errors.OptimizeError):
+    with pytest.raises(LineageFailedException):
         relation["unknown_columns"].compute_columns_schema()
 
 

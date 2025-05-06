@@ -99,16 +99,16 @@ def test_client_table_name_and_paths(client: ClickHouseClient) -> None:
     dataset_name = client.sql_client.dataset_name
     separator = client.config.dataset_table_separator
 
-    assert client.sql_client.make_qualified_table_name_path(None, escape=False) == ["dlt"]
+    assert client.sql_client.make_qualified_table_name_path(None, escape=False) == ["dlt_data"]
     assert client.sql_client.make_qualified_table_name_path("test_table", escape=False) == [
-        "dlt",
+        "dlt_data",
         f"{dataset_name}{separator}test_table",
     ]
 
     client.config.dataset_table_separator = separator = "###"
 
-    assert client.sql_client.make_qualified_table_name_path(None, escape=False) == ["dlt"]
+    assert client.sql_client.make_qualified_table_name_path(None, escape=False) == ["dlt_data"]
     assert client.sql_client.make_qualified_table_name_path("test_table", escape=False) == [
-        "dlt",
+        "dlt_data",
         f"{dataset_name}{separator}test_table",
     ]

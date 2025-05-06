@@ -53,21 +53,19 @@ def make_transform_resource(
     spec: Type[TransformConfiguration] = None,
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
-    standalone: bool = False,
 ) -> DltTransformResource:
     # resolve defaults etc
     chunk_size = DEFAULT_CHUNK_SIZE
 
     resource_name = name if name and not callable(name) else get_callable_name(func)
 
-    if standalone:
-        # check function type
-        if inspect.isgeneratorfunction(inspect.unwrap(func)):
-            raise TransformationInvalidReturnTypeException(
-                resource_name,
-                "Sql transformation must return single sql query string or dlt "
-                + "readablerelation and not be a generator function",
-            )
+    # check function type
+    if inspect.isgeneratorfunction(inspect.unwrap(func)) or inspect.isgeneratorfunction(func):
+        raise TransformationInvalidReturnTypeException(
+            resource_name,
+            "Sql transformation must return single sql query string or dlt "
+            + "readablerelation and not be a generator function",
+        )
 
     # build transformation function
     def transformation_function(*args: Any, **kwargs: Any) -> Iterator[TDataItems]:
@@ -127,8 +125,12 @@ def make_transform_resource(
         computed_columns: TTableSchemaColumns = {}
         all_columns: TTableSchemaColumns = columns or {}
         if isinstance(transformation_result, SupportsReadableRelation):
-            # lineage
-            computed_columns = transformation_result.compute_columns_schema()
+            # strict lineage!
+            computed_columns = transformation_result.compute_columns_schema(
+                allow_unknown_columns=False,
+                allow_anonymous_columns=False,
+                allow_fail=False,
+            )
             all_columns = {**computed_columns, **(columns or {})}
 
             # for sql transfomrations all column types must be known
@@ -155,26 +157,22 @@ def make_transform_resource(
             for chunk in datasets[0](select_query).iter_arrow(chunk_size=chunk_size):
                 yield dlt.mark.with_hints(chunk, hints=make_hints(columns=all_columns))
 
-    resource = cast(
-        DltTransformResource,
-        dlt.resource(
-            transformation_function,  # type: ignore
-            name=name,
-            table_name=table_name,
-            write_disposition=write_disposition,
-            columns=columns,
-            primary_key=primary_key,
-            merge_key=merge_key,
-            schema_contract=schema_contract,
-            table_format=table_format,
-            references=references,
-            selected=selected,
-            spec=spec,
-            parallelized=parallelized,
-            incremental=incremental,
-            standalone=standalone,
-            _impl_cls=DltTransformResource,
-        ),
+    resource = dlt.resource(
+        transformation_function,
+        name=name,
+        table_name=table_name,
+        write_disposition=write_disposition,
+        columns=columns,
+        primary_key=primary_key,
+        merge_key=merge_key,
+        schema_contract=schema_contract,
+        table_format=table_format,
+        references=references,
+        selected=selected,
+        spec=spec,
+        parallelized=parallelized,
+        incremental=incremental,
+        _impl_cls=DltTransformResource,
     )
 
     return resource
