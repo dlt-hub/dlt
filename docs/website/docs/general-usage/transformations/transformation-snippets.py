@@ -29,7 +29,7 @@ def fruitshop_pipeline() -> dlt.Pipeline:
     return fruitshop_pipeline
 
 
-def basic_transformation_snippet(fruitshop_pipeline: dlt.Pipeline):
+def basic_transformation_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START basic_transformation
 
     @dlt.transformation()
@@ -49,14 +49,11 @@ def basic_transformation_snippet(fruitshop_pipeline: dlt.Pipeline):
     assert load_table_counts(fruitshop_pipeline, "copied_customers") == {"copied_customers": 5}
 
 
-def orders_per_user_snippet(fruitshop_pipeline: dlt.Pipeline):
+def orders_per_user_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START orders_per_user
-    from dlt.common.destination.dataset import (
-        TReadableRelation,
-    )
 
     @dlt.transformation(name="orders_per_user", write_disposition="merge")
-    def orders_per_user(dataset: dlt.Dataset) -> TReadableRelation:
+    def orders_per_user(dataset: dlt.Dataset) -> Any:
         purchases = dataset["purchases"]
         return purchases.group_by(purchases.customer_id).aggregate(order_count=purchases.id.count())
 
@@ -65,12 +62,12 @@ def orders_per_user_snippet(fruitshop_pipeline: dlt.Pipeline):
     assert load_table_counts(fruitshop_pipeline, "orders_per_user") == {"orders_per_user": 2}
 
 
-def loading_to_other_datasets_snippet(fruitshop_pipeline: dlt.Pipeline):
+def loading_to_other_datasets_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START loading_to_other_datasets
     import dlt
 
     @dlt.transformation()
-    def copied_customers(dataset: dlt.Dataset):
+    def copied_customers(dataset: dlt.Dataset) -> Any:
         customers_table = dataset["customers"]
         return customers_table.order_by(customers_table.name).limit(5)
 
@@ -91,20 +88,20 @@ def loading_to_other_datasets_snippet(fruitshop_pipeline: dlt.Pipeline):
     # @@@DLT_SNIPPET_END loading_to_other_datasets_other_engine
 
 
-def multiple_transformations_snippet(fruitshop_pipeline: dlt.Pipeline):
+def multiple_transformations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START multiple_transformations
     import dlt
 
     @dlt.source
-    def my_transformations(dataset: dlt.Dataset):
+    def my_transformations(dataset: dlt.Dataset) -> Any:
         @dlt.transformation(write_disposition="append")
-        def enriched_purchases(dataset: dlt.Dataset):
+        def enriched_purchases(dataset: dlt.Dataset) -> Any:
             purchases = dataset["purchases"]
             customers = dataset["customers"]
             return purchases.join(customers, purchases.customer_id == customers.id)
 
         @dlt.transformation(write_disposition="replace")
-        def total_items_sold(dataset: dlt.Dataset):
+        def total_items_sold(dataset: dlt.Dataset) -> Any:
             purchases = dataset["purchases"]
             return purchases.aggregate(total_qty=purchases.quantity.sum())
 
@@ -118,19 +115,19 @@ def multiple_transformations_snippet(fruitshop_pipeline: dlt.Pipeline):
     }
 
 
-def dataset_inspection_snippet(fruitshop_pipeline: dlt.Pipeline):
+def dataset_inspection_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START dataset_inspection
     # Show row counts for every table
     print(fruitshop_pipeline.dataset().row_counts().df())
     # @@@DLT_SNIPPET_END dataset_inspection
 
 
-def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline):
+def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START sql_queries
     # @@@DLT_SNIPPET_START sql_queries_short
     # Convert the transformation above that selected the first 5 customers to a sql query
     @dlt.transformation()
-    def copied_customers(dataset: dlt.Dataset):
+    def copied_customers(dataset: dlt.Dataset) -> Any:
         customers_table = dataset("SELECT * FROM customers LIMIT 5 ORDER BY name")
         return customers_table
 
@@ -138,7 +135,7 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline):
 
     # Joins and other more complex queries are also possible of course
     @dlt.transformation()
-    def enriched_purchases(dataset: dlt.Dataset):
+    def enriched_purchases(dataset: dlt.Dataset) -> Any:
         enriched_purchases = dataset(
             "SELECT customers.name, purchases.quantity FROM purchases JOIN customers ON"
             " purchases.customer_id = customers.id"
@@ -159,7 +156,7 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline):
     }
 
 
-def computed_schema_snippet(fruitshop_pipeline: dlt.Pipeline):
+def computed_schema_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START computed_schema
     # Show the computed schema before the transformation is executed
     purchases = fruitshop_pipeline.dataset()["purchases"]
@@ -169,10 +166,10 @@ def computed_schema_snippet(fruitshop_pipeline: dlt.Pipeline):
     # @@@DLT_SNIPPET_END computed_schema
 
 
-def column_level_lineage_snippet(fruitshop_pipeline: dlt.Pipeline):
+def column_level_lineage_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START column_level_lineage
     @dlt.transformation()
-    def enriched_purchases(dataset: dlt.Dataset):
+    def enriched_purchases(dataset: dlt.Dataset) -> Any:
         enriched_purchases = dataset(
             "SELECT customers.name, purchases.quantity FROM purchases JOIN customers ON"
             " purchases.customer_id = customers.id"
@@ -185,7 +182,7 @@ def column_level_lineage_snippet(fruitshop_pipeline: dlt.Pipeline):
     # @@@DLT_SNIPPET_END column_level_lineage
 
 
-def in_transit_transformations_snippet():
+def in_transit_transformations_snippet() -> None:
     # @@@DLT_SNIPPET_START in_transit_transformations
     from dlt.sources.rest_api import (
         rest_api_source,
@@ -219,7 +216,7 @@ def in_transit_transformations_snippet():
 
     # load aggregated data to a warehouse destination
     @dlt.transformation()
-    def orders_per_store(dataset: dlt.Dataset):
+    def orders_per_store(dataset: dlt.Dataset) -> Any:
         orders = dataset["orders"]
         stores = dataset["stores"]
         return (
@@ -238,7 +235,7 @@ def in_transit_transformations_snippet():
     assert load_table_counts(warehouse_pipeline, "orders_per_store") == {"orders_per_store": 1}
 
 
-def incremental_transformations_snippet(fruitshop_pipeline: dlt.Pipeline):
+def incremental_transformations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START incremental_transformations
     from dlt.pipeline.exceptions import PipelineNeverRan
 

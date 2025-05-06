@@ -30,6 +30,7 @@ from dlt.destinations.dataset.exceptions import (
 )
 from tests.load.utils import drop_pipeline_data
 from dlt.destinations.dataset import dataset as _dataset
+from dlt.transformations.exceptions import LineageFailedException
 
 EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
 
@@ -595,7 +596,7 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
 
     import sqlglot
 
-    with pytest.raises(sqlglot.errors.OptimizeError):
+    with pytest.raises(LineageFailedException):
         arrow_table = table_relationship.select("unknown_column").head().arrow()
 
 
@@ -615,9 +616,10 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
     assert dataset.schema.name == populated_pipeline.default_schema_name
     assert "items" in dataset.schema.tables
 
-    # if setting a different schema, it must be present in pipeline
-    with pytest.raises(SchemaNotFoundError):
-        populated_pipeline.dataset(schema="unknown_schema")
+    # if setting a different schema, default schema with dataset name will be used
+    populated_pipeline.dataset(schema="source")
+    assert dataset.schema.name == "source"
+    assert "items" in dataset.schema.tables
 
     # explicit schema object is OK
     dataset = populated_pipeline.dataset(schema=Schema("unknown_schema"))

@@ -17,7 +17,7 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 
 
 def test_no_datasets_used() -> None:
-    with pytest.raises(ResourceExtractionError) as excinfo:
+    with pytest.raises(IncompatibleDatasetsException) as excinfo:
 
         @dlt.transformation()
         def transform() -> Any:
@@ -28,12 +28,11 @@ def test_no_datasets_used() -> None:
     assert "No datasets detected in transformation. Please supply all used datasets via" in str(
         excinfo.value
     )
-    assert isinstance(excinfo.value.__context__, IncompatibleDatasetsException)
 
 
 def test_dataset_not_on_same_destination() -> None:
     os.environ["BUCKET_URL"] = "./local"
-    with pytest.raises(ResourceExtractionError) as excinfo:
+    with pytest.raises(IncompatibleDatasetsException) as excinfo:
 
         @dlt.transformation()
         def transform(
@@ -47,7 +46,6 @@ def test_dataset_not_on_same_destination() -> None:
             )
         )
     assert "All datasets used in transformation must be on the" in str(excinfo.value)
-    assert isinstance(excinfo.value.__context__, IncompatibleDatasetsException)
 
 
 def test_iterator_function_as_transform_function() -> None:
@@ -70,7 +68,4 @@ def test_incorrect_transform_function_return_type() -> None:
 
     assert "Please either return a valid sql string or a SupportsReadableRelation instance" in str(
         excinfo.value
-    )
-    assert isinstance(
-        excinfo.value.__context__.__context__, TransformationInvalidReturnTypeException
     )

@@ -49,7 +49,12 @@ class SupportsReadableRelation(ABC):
 
     # TODO think for a better name that matches the type `TTableSchemaColumns`
     # `compute_table_columns_schema()` ?
-    def compute_columns_schema(self, **kwargs: Any) -> TTableSchemaColumns:
+    def compute_columns_schema(
+        self,
+        allow_unknown_columns: bool = True,
+        allow_anonymous_columns: bool = True,
+        allow_fail: bool = True,
+    ) -> TTableSchemaColumns:
         """Return the expected dlt schema of the execution result of self.query()"""
         raise NotImplementedError("Compute columns schema is not supported for this relation")
 
