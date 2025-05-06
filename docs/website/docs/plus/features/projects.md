@@ -368,6 +368,8 @@ runner.run_pipeline("my_pipeline")
 The catalog allows you to access all explicitly defined datasets:
 
 ```py
+from dlt_plus import current
+
 # get a dataset instance pointing to the default destination (first in dataset destinations list) and access data inside of it
 # Note: The dataset must already exist physically for this to work
 dataset = current.catalog().dataset("my_pipeline_dataset")
