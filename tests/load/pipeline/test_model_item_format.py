@@ -26,6 +26,7 @@ from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.data_writers.writers import ModelWriter
 from dlt.common.utils import uniq_id
 from dlt.load.exceptions import LoadClientJobException
+from dlt.normalize.exceptions import NormalizeJobFailed
 
 from dlt.pipeline.exceptions import PipelineStepFailed
 
@@ -55,6 +56,42 @@ UNSUPPORTED_MODEL_QUERIES = [
     "DROP TABLE users",
     "TRUNCATE TABLE users",
 ]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        subset=DESTINATIONS_SUPPORTING_MODEL,
+    ),
+    ids=lambda x: x.name,
+)
+def test_star_select(destination_config: DestinationTestConfiguration) -> None:
+    # populate a table with two columns each with 10 items and retrieve dataset
+    pipeline = destination_config.setup_pipeline("test_simple_model_jobs", dev_mode=False)
+
+    pipeline.run([{"a": i, "b": i + 1} for i in range(10)], table_name="example_table")
+    dataset = pipeline.dataset()
+
+    # Retrieve the SQL dialect and schema information
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+    query = dataset["example_table"].query()
+
+    assert "*" in str(query)
+
+    @dlt.resource()
+    def copied_table() -> Any:
+        sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
+        yield dlt.mark.with_hints(
+            sql_model,
+            hints=make_hints(columns=example_table_columns),
+        )
+
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run([copied_table()])
+    assert isinstance(pip_ex.value.__cause__, NormalizeJobFailed)
+    assert isinstance(pip_ex.value.__cause__.__cause__, ValueError)
 
 
 @pytest.mark.parametrize(
@@ -202,7 +239,7 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     - Copying the entire table with a row limit.
     """
     # populate a table with two columns each with 10 items and retrieve dataset
-    pipeline = destination_config.setup_pipeline("test_model_item_format", dev_mode=False)
+    pipeline = destination_config.setup_pipeline("test_simple_model_jobs", dev_mode=False)
 
     pipeline.run([{"a": i, "b": i + 1} for i in range(10)], table_name="example_table")
     dataset = pipeline.dataset()
@@ -232,32 +269,19 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
             hints=make_hints(columns=dict(reversed(example_table_columns.items()))),
         )
 
-    # Create a copied table with all columns
-    @dlt.resource()
-    def copied_table() -> Any:
-        query = dataset["example_table"].limit(8).query()
-        yield dlt.mark.with_hints(
-            SqlModel.from_query_string(query=query, dialect=select_dialect),
-            hints=make_hints(columns=example_table_columns),
-        )
-
     # run sql jobs
-    pipeline.run([copied_table_no_b(), reversed_table(), copied_table()])
+    pipeline.run([copied_table_no_b(), reversed_table()])
 
     # Validate row counts for all tables
-    assert load_table_counts(
-        pipeline, "copied_table_no_b", "reversed_table", "copied_table", "example_table"
-    ) == {
+    assert load_table_counts(pipeline, "copied_table_no_b", "reversed_table", "example_table") == {
         "copied_table_no_b": 5,
         "reversed_table": 7,
-        "copied_table": 8,
         "example_table": 10,
     }
 
     # Validate that all tables were created
     assert "copied_table_no_b" in pipeline.default_schema.tables
     assert "reversed_table" in pipeline.default_schema.tables
-    assert "copied_table" in pipeline.default_schema.tables
 
     # Validate columns for the table without column "b"
     assert set(pipeline.default_schema.tables["copied_table_no_b"]["columns"].keys()) == {
@@ -275,19 +299,10 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
         actual_columns == expected_columns
     ), f"Column mismatch: {actual_columns} != {expected_columns}"
 
-    # Validate that the copied table includes all columns
-    assert set(pipeline.default_schema.tables["copied_table"]["columns"].keys()) == {
-        "a",
-        "b",
-        "_dlt_id",
-        "_dlt_load_id",
-    }
-
     # Validate that each table has exactly one model job
     assert count_job_types(pipeline) == {
         "copied_table_no_b": {"model": 1},
         "reversed_table": {"model": 1},
-        "copied_table": {"model": 1},
     }
 
 
@@ -328,9 +343,7 @@ def test_write_dispositions(
     example_table_columns = dataset.schema.tables["example_table_1"]["columns"]
     # In Databricks, Ibis adds a helper column to emulate offset, causing a schema mismatch
     # when the query attempts to insert it. We explicitly select only the expected columns.
-    relation = (
-        dataset["example_table_2"].order_by("a").limit(7, offset=3)[example_table_columns.keys()]
-    )
+    relation = dataset["example_table_2"].order_by("a").limit(7, offset=3)[["a"]]
     query = relation.query()
 
     select_dialect = pipeline.destination.capabilities().sqlglot_dialect
@@ -395,13 +408,13 @@ def test_multiple_statements_per_resource(destination_config: DestinationTestCon
     # we also need to supply all hints so the table can be created
     @dlt.resource()
     def copied_table() -> Any:
-        query1 = dataset["example_table"].limit(5).query()
+        query1 = dataset["example_table"][["a"]].limit(5).query()
         yield dlt.mark.with_hints(
             SqlModel.from_query_string(query=query1, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),
         )
 
-        query2 = dataset["example_table"].limit(7).query()
+        query2 = dataset["example_table"][["a"]].limit(7).query()
         yield dlt.mark.with_hints(
             SqlModel.from_query_string(query=query2, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),
@@ -483,9 +496,6 @@ def test_copying_table_with_dropped_column(
     - The resulting table contains all expected columns, including dlt ones.
     - Row counts and model job counts are correct.
     """
-    #    if drop_column == "_dlt_id" and destination_config.destination_type == "redshift":
-    #        pytest.skip("Redshift doesn't have an in-built UUID generation required for _dlt_id")
-
     table_suffix = "no_dlt_id" if drop_column == "_dlt_id" else "dlt_id"
     target_table_name = f"copied_table_{table_suffix}"
 
@@ -571,7 +581,7 @@ def test_load_model_with_all_types(destination_config: DestinationTestConfigurat
 
     @dlt.resource()
     def copied_table() -> Any:
-        query = dataset["data_types"].query()
+        query = dataset["data_types"][list(data_types.keys())].query()
         yield dlt.mark.with_hints(
             SqlModel.from_query_string(query=query, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),
@@ -615,7 +625,7 @@ def test_data_contract_on_tables(
     # Define a resource to create a new copied table
     @dlt.resource(schema_contract={"tables": tables_contract})  # type: ignore
     def copied_table() -> Any:
-        query = dataset["example_table"][["a", "b", "_dlt_load_id", "_dlt_id"]].limit(5).query()
+        query = dataset["example_table"][["a", "b"]].limit(5).query()
         sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
         yield dlt.mark.with_hints(
             sql_model,
