@@ -1,6 +1,7 @@
 import io
 from copy import deepcopy
 import hashlib
+import pathlib
 import os
 import contextlib
 from subprocess import CalledProcessError
@@ -248,6 +249,16 @@ def test_init_all_sources_together(repo_dir: str, project_files: FileStorage) ->
         assert secrets.get_value(source_name, type, None, "sources") is not None
         # must have index for this source
         assert files_ops.load_verified_sources_local_index(source_name) is not None
+    # no settings should be written to config.toml
+    config_content = pathlib.Path(
+        os.path.join(project_files.storage_path, ".dlt", CONFIG_TOML)
+    ).read_text(encoding="utf-8")
+    for source_name in source_candidates:
+        assert f"sources.{source_name}" not in config_content
+    assert "please set me up!" not in config_content
+    # but the default content is there
+    assert "dlthub_telemetry = true" in config_content
+
     # credentials for all destinations
     for destination_name in ["bigquery", "postgres", "redshift"]:
         assert secrets.get_value(destination_name, type, None, "destination") is not None
