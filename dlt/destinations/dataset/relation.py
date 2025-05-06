@@ -125,7 +125,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         # TODO: maybe store the SQLGlot schema on the dataset
         # TODO: support joins between datasets
         d = self._dataset
-        sqlglot_schema = lineage.create_sqlglot_schema(d.sql_client, d.schema)
+        sqlglot_schema = lineage.create_sqlglot_schema(d.schema)
         return lineage.compute_columns_schema(
             query,
             sqlglot_schema,

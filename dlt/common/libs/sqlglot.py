@@ -2,7 +2,7 @@ from typing import Optional
 
 from dlt.common.utils import without_none
 from dlt.common.exceptions import MissingDependencyException, TerminalValueError
-from dlt.common.schema.typing import TColumnType, TDataType
+from dlt.common.schema.typing import TColumnType, TDataType, TColumnSchema
 
 try:
     import sqlglot.expressions as sge
@@ -154,7 +154,7 @@ def from_sqlglot_type(
     timezone: Optional[bool] = None,
 ) -> TColumnType:
     """Convert a SQLGlot DataType to dlt column hints.
-    
+
     precision (int): If specified, modifies hints for `bigint`, `decimal`, `timestamp`, and `time`
         - `bigint`:
         - `decimal`:
@@ -231,14 +231,13 @@ def to_sqlglot_type(
     if use_parameterized_type:
         # TODO better exception handling and logging
         try:
-            sqlglot_type = _build_parameterized_type(
+            return _build_parameterized_type(
                 dlt_type=dlt_type,
                 nullable=nullable,
                 precision=precision,
                 scale=scale,
                 timezone=timezone,
             )
-            return sqlglot_type
         except NotImplementedError:
             pass
 
@@ -259,17 +258,17 @@ def to_sqlglot_type(
     elif dlt_type == "time" and timezone is not None:
         sqlglot_type = _to_time_type(timezone=timezone)
 
-    return DataType.build(sqlglot_type, **hints)  # type: ignore[arg-type]
+    return DataType.build(dtype=sqlglot_type, **hints)  # type: ignore[arg-type]
 
 
 def _build_parameterized_type(
-    dlt_type: DataType.Type,
+    dlt_type: TDataType,
     nullable: Optional[bool] = None,
     precision: Optional[int] = None,
     scale: Optional[int] = None,
     timezone: Optional[bool] = None,
-) -> DataType.Type:
-    hints = {}
+) -> DataType:
+    hints: TColumnType = {}
     # `nullable` should always be added to DataType
     if nullable is not None:
         hints["nullable"] = nullable
@@ -335,6 +334,7 @@ def _to_integer_type(precision: Optional[int]) -> DataType.Type:
     return sqlglot_type
 
 
+# TODO
 def _to_decimal_type(precision: Optional[int], scale: Optional[int]) -> DataType.Type:
     sqlglot_type = DataType.Type.DECIMAL
     # if precision is None:
@@ -346,9 +346,7 @@ def _to_decimal_type(precision: Optional[int], scale: Optional[int]) -> DataType
     return sqlglot_type
 
 
-def _to_timestamp_type(
-    precision: Optional[int], timezone: Optional[bool]
-) -> DataType.Type:
+def _to_timestamp_type(precision: Optional[int], timezone: Optional[bool]) -> DataType.Type:
     if precision is None:
         if timezone is None:
             sqlglot_type = DataType.Type.TIMESTAMP
@@ -381,3 +379,35 @@ def _to_time_type(timezone: Optional[bool]) -> DataType.Type:
         raise TerminalValueError()
 
     return sqlglot_type
+
+
+# TODO implement an SQLGlot annotator for setting dlt hints instead of relying on types.
+# ref: https://github.com/tobymao/sqlglot/blob/17f7eaff564790b1fe7faa414143accf362f550e/sqlglot/optimizer/annotate_types.py#L135
+def set_metadata(sqlglot_type: sge.DataType, metadata: TColumnSchema) -> sge.DataType:
+    """Set a metadata dictionary on the SQGLot DataType object.
+
+    By attaching dlt hints to a DataType object, they will be propagated
+    until the DataType is modified.
+    """
+    sqlglot_type._meta = _filter_dlt_hints(metadata)  # type: ignore[assignment]
+    return sqlglot_type
+
+
+def get_metadata(sqlglot_type: sge.DataType) -> TColumnSchema:
+    """Get a metadata dictionary from the SQLGlot DataType object."""
+    metadata = sqlglot_type.meta
+    return _filter_dlt_hints(metadata)  # type: ignore[arg-type]
+
+
+def _filter_dlt_hints(hints: TColumnSchema) -> TColumnSchema:
+    """Filter the metadata dictionary to only include dlt hints."""
+    final_hints = {}
+    for k, v in hints.items():
+        # those are directly expressed via the DataType and Column
+        if k in ["name", "data_type", "nullable", "precision", "scale", "timezone"]:
+            continue
+
+        if k.startswith("x-"):
+            final_hints[k] = v
+
+    return final_hints  # type: ignore[return-value]

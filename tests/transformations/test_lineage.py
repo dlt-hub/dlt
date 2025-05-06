@@ -229,7 +229,9 @@ def test_compute_columns_schema_unknown_column_selection(sqlglot_schema) -> None
     }
 
     # SELECT * can't be resolved on one of the joined table
-    unknown_join_select_star_query = "SELECT * FROM table_1 JOIN table_unknown ON table_1.col_bool = table_unknown.col_unknown"
+    unknown_join_select_star_query = (
+        "SELECT * FROM table_1 JOIN table_unknown ON table_1.col_bool = table_unknown.col_unknown"
+    )
     unknown_join_select_star_dlt_schema = lineage.compute_columns_schema(
         sql_query=unknown_join_select_star_query,
         sqlglot_schema=sqlglot_schema,

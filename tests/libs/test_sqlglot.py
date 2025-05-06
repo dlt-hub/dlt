@@ -4,7 +4,7 @@ import pytest
 import sqlglot.expressions as sge
 
 from dlt.common.libs.sqlglot import from_sqlglot_type, to_sqlglot_type
-from dlt.common.schema.typing import TDataType, TColumnSchema
+from dlt.common.schema.typing import TDataType, TColumnType
 
 
 @pytest.mark.parametrize(
@@ -109,16 +109,11 @@ def _from_sqlglot_cases() -> list[tuple[sge.DataType.Type, Optional[TDataType]]]
     }
 
     # "text" is the default dlt data_type
-    return [
-        (sqlglot_type, mapping.get(sqlglot_type, "text"))
-        for sqlglot_type in sge.DataType.Type
-    ]
+    return [(sqlglot_type, mapping.get(sqlglot_type, "text")) for sqlglot_type in sge.DataType.Type]
 
 
 @pytest.mark.parametrize("sqlglot_type, expected_dlt_type", _from_sqlglot_cases())
-def test_from_sqlglot(
-    sqlglot_type: sge.DataType.Type, expected_dlt_type: TDataType
-) -> None:
+def test_from_sqlglot(sqlglot_type: sge.DataType.Type, expected_dlt_type: TDataType) -> None:
     """Test SQLGlot enum to dlt type mapping"""
     dlt_hints = from_sqlglot_type(sqlglot_type)
     assert dlt_hints.get("data_type") == expected_dlt_type
@@ -143,7 +138,9 @@ def test_to_sqlglot_integer_with_precision(
     expected_sqlglot_type: sge.DataType.Type,
 ) -> None:
     """Test dlt `bigint` with precision to a named SQLGlot type"""
-    sqlglot_type = to_sqlglot_type(dlt_type="bigint", precision=precision, use_parameterized_type=False)
+    sqlglot_type = to_sqlglot_type(
+        dlt_type="bigint", precision=precision, use_parameterized_type=False
+    )
     assert sqlglot_type == sge.DataType.build(expected_sqlglot_type)
 
 
@@ -172,7 +169,7 @@ def test_from_sqlglot_integer_with_precision(
 ) -> None:
     """Test named SQLGlot type to dlt hints (precision)"""
     dlt_hints = from_sqlglot_type(sqlglot_type)
-    expected_hints = {"data_type": "bigint"}
+    expected_hints: TColumnType = {"data_type": "bigint"}
     if expected_precision:
         expected_hints["precision"] = expected_precision
 
@@ -183,7 +180,9 @@ def test_from_sqlglot_integer_with_precision(
 @pytest.mark.parametrize("use_parameterized_type", [True, False])
 def test_to_sqlglot_with_nullable(nullable: Optional[bool], use_parameterized_type: bool) -> None:
     """Test dlt `nullable` hint to SQLGlot data type object."""
-    sqlglot_type = to_sqlglot_type("bigint", nullable=nullable, use_parameterized_type=use_parameterized_type)
+    sqlglot_type = to_sqlglot_type(
+        "bigint", nullable=nullable, use_parameterized_type=use_parameterized_type
+    )
     if nullable is None:
         assert "nullable" not in sqlglot_type.args
     else:
@@ -317,25 +316,40 @@ def test_from_sqlglot_timestamp_with_precision(
         ({"data_type": "decimal", "precision": 10, "scale": 2}, sge.DataType.Type.DECIMAL),
         ({"data_type": "bigint", "precision": 17}, sge.DataType.Type.INT),
         ({"data_type": "timestamp", "precision": 0}, sge.DataType.Type.TIMESTAMP),
-        ({"data_type": "timestamp", "precision": 5, "timezone": True}, sge.DataType.Type.TIMESTAMPTZ),
-        ({"data_type": "timestamp", "precision": 4, "timezone": False}, sge.DataType.Type.TIMESTAMPNTZ),
-        ({"data_type": "timestamp", "precision": 4, "timezone": False}, sge.DataType.Type.TIMESTAMPNTZ),
+        (
+            {"data_type": "timestamp", "precision": 5, "timezone": True},
+            sge.DataType.Type.TIMESTAMPTZ,
+        ),
+        (
+            {"data_type": "timestamp", "precision": 4, "timezone": False},
+            sge.DataType.Type.TIMESTAMPNTZ,
+        ),
+        (
+            {"data_type": "timestamp", "precision": 4, "timezone": False},
+            sge.DataType.Type.TIMESTAMPNTZ,
+        ),
     ],
 )
 def test_from_and_to_sqlglot_parameterized_types(
-    hints: TColumnSchema,
+    hints: TColumnType,
     expected_sqlglot_type: sge.DataType.Type,
 ) -> None:
-    """Test dlt hints to SQLGlot and SQLGlot to dlt hints 
+    """Test dlt hints to SQLGlot and SQLGlot to dlt hints
     using parameterized SQLGlot types.
     """
-    dlt_type = hints.pop("data_type")
+    dlt_type: TDataType = hints.pop("data_type")
 
     # create a parameterized SQLGlot DataType
-    annotated_sqlglot_type = to_sqlglot_type(dlt_type=dlt_type, **hints, use_parameterized_type=True)
+    annotated_sqlglot_type = to_sqlglot_type(
+        dlt_type=dlt_type,
+        nullable=hints.get("nullable"),
+        precision=hints.get("precision"),
+        scale=hints.get("scale"),
+        timezone=hints.get("timezone"),
+        use_parameterized_type=True,
+    )
     assert annotated_sqlglot_type.this == expected_sqlglot_type
 
     # retrieve hints from DataType object; hints are not passed to `from_sqlglot_type()`
     inferred_dlt_type = from_sqlglot_type(annotated_sqlglot_type)
     assert inferred_dlt_type == {"data_type": dlt_type, **hints}
-

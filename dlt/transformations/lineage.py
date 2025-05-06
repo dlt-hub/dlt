@@ -1,71 +1,68 @@
 import logging
-from typing import TYPE_CHECKING, Any, cast, Optional, Union
+from typing import Any, Optional
 
 import sqlglot
 import sqlglot.expressions as sge
 from sqlglot.errors import ParseError, OptimizeError
-from sqlglot.expressions import DataType, DATA_TYPE
-from sqlglot.schema import Schema as SQLGlotSchema, ensure_schema
+from sqlglot.schema import Schema as SQLGlotSchema, MappingSchema
 from sqlglot.optimizer.annotate_types import annotate_types
 from sqlglot.optimizer.qualify import qualify
 
 from dlt.common.libs.sqlglot import (
     to_sqlglot_type,
     from_sqlglot_type,
+    set_metadata,
+    get_metadata,
 )
+from dlt.common.schema import Schema
 from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TColumnSchema,
 )
-from dlt.common.schema import Schema
-from dlt.destinations.sql_client import SqlClientBase
 from dlt.transformations.exceptions import LineageFailedException
 
-if TYPE_CHECKING:
-    from dlt.destinations.dataset import ReadableDBAPIDataset
-else:
-    ReadableDBAPIDataset = Any
 
 logger = logging.getLogger(__file__)
 
 
 def create_sqlglot_schema(
-    sql_client: SqlClientBase[Any],
     schema: Schema,
+    catalog_name: Optional[str] = None,
+    dataset_name: Optional[str] = None,
 ) -> SQLGlotSchema:
     """Create an SQLGlot schema using a dlt Schema and the destination capabilities.
 
     The SQLGlot schema automatically includes the database and catalog names if available.
     This can allow cross-dataset transformations on the same physical location.
     """
-    mapping_schema: dict[str, dict[str, DATA_TYPE]] = {}  # {table: {col: type}}
-    for table_name, table in schema.tables.items():
-        table_name = sql_client.make_qualified_table_name_path(table_name, escape=False)[-1]
-        if mapping_schema.get(table_name) is None:
-            mapping_schema[table_name] = {}
+    if catalog_name:
+        empty_schema = {catalog_name: {dataset_name: {}}}  # type: ignore
+    elif dataset_name:
+        empty_schema = {dataset_name: {}}
+    else:
+        empty_schema = {}
 
+    sqlglot_schema = MappingSchema(empty_schema, normalize=False)
+
+    for table_name, table in schema.tables.items():
+        column_mapping = {}
         for column_name, column in table["columns"].items():
-            mapping_schema[table_name][column_name] = to_sqlglot_type(
+            sqlglot_type = to_sqlglot_type(
                 dlt_type=column["data_type"],
                 nullable=column.get("nullable"),
                 precision=column.get("precision"),
                 scale=column.get("scale"),
                 timezone=column.get("timezone"),
             )
+            sqlglot_type = set_metadata(sqlglot_type, column)
+            column_mapping[column_name] = sqlglot_type
 
-    dataset_catalog = sql_client.make_qualified_table_name_path(None, escape=False)
-    if len(dataset_catalog) == 2:
-        catalog, database = dataset_catalog
-        nested_schema = {catalog: {database: mapping_schema}}
-    else:
-        (database,) = dataset_catalog
-        nested_schema = {database: mapping_schema}  # type: ignore
+        sqlglot_schema.add_table(table_name, column_mapping)
 
-    return ensure_schema(nested_schema)
+    return sqlglot_schema
 
 
-# TODO should we raise an exception for anonymous columns?
-# NOTE even if `infer_sqlglot_schema=True`, some queries haved undetermined final columns
+# NOTE even if `infer_sqlglot_schema=True`, some queries can have undetermined final columns
 def compute_columns_schema(
     sql_query: str,
     sqlglot_schema: SQLGlotSchema,
@@ -140,7 +137,7 @@ def compute_columns_schema(
 
     expression = annotate_types(expression, schema=sqlglot_schema, dialect=dialect)
 
-    dlt_table_schema = {}
+    dlt_table_schema: dict[str, TColumnSchema] = {}
     for col in expression.selects:
         if col.output_name == "*":
             if allow_partial is True:
@@ -158,7 +155,13 @@ def compute_columns_schema(
                 f" resolvable column hints.\nColumn:\n\t{col}",
             )
 
-        dlt_hints = from_sqlglot_type(sqlglot_type=col.type)
-        dlt_table_schema[col.output_name] = dict(name=col.output_name, **dlt_hints)
+        data_type_hints = from_sqlglot_type(sqlglot_type=col.type)
+        additional_hints = get_metadata(sqlglot_type=col.type)
+        # NOTE dictionary unpacking order matters; unpacking `data_type_hints` last ensures precedence.
+        dlt_table_schema[col.output_name] = {
+            "name": col.output_name,
+            **additional_hints,
+            **data_type_hints,
+        }
 
     return dlt_table_schema
