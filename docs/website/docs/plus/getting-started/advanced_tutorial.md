@@ -37,7 +37,7 @@ To create the project structure required for a package, add the `--package` opti
 dlt project init arrow duckdb --package my_dlt_project
 ```
 
-This creates the same basic project as in the tutorial, but places it inside a module named `my_dlt_project`, and includes a basic `pyproject.toml` file following PEP standards. 
+This creates the same basic project as in the [basic tutorial](./tutorial.md), but places it inside a module named `my_dlt_project`, and includes a basic `pyproject.toml` file following PEP standards. 
 You’ll also get a default `__init__.py` file to make the package usable after installation:
 
 ```sh
