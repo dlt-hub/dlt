@@ -356,6 +356,8 @@ Here, we access the entities manager, which allows you to create sources, destin
 You can also use it directly in your code through the project context:
 
 ```py
+from dlt_plus import current
+
 # get the runner
 runner = current.runner()
 # run the "my_pipeline" pipeline from the currently active project
