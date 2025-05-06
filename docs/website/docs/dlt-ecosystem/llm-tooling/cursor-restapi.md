@@ -117,7 +117,7 @@ If existing documentation for a task is regularly ignored by LLMs, consider usin
 
 ### 2.6 Model and context selection
 
-We had best the results with Claude 3.7-sonnet (which requires paid version of Cursor). Weaker models were not able to comprehend the required 
+We had the best results with Claude 3.7-sonnet (which requires paid version of Cursor). Weaker models were not able to comprehend the required 
 context in full and were not able to use tools and follow workflows consistently.
 
 We typically put the following in the context:
