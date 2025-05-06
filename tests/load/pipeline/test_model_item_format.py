@@ -57,6 +57,50 @@ destination_configs = [
 ]
 
 
+UNSUPPORTED_MODEL_QUERIES = [
+    "DELETE FROM users WHERE id = 1",
+    "INSERT INTO users (id, name) VALUES (1, 'Alice')",
+    "UPDATE users SET name = 'Bob' WHERE id = 1",
+    "CREATE TABLE users (id INTEGER, name TEXT)",
+    "DROP TABLE users",
+    "TRUNCATE TABLE users",
+]
+
+
+@pytest.mark.parametrize(
+    "unsupported_model_query",
+    UNSUPPORTED_MODEL_QUERIES,
+)
+def test_model_builder_with_non_select_query(unsupported_model_query: str) -> None:
+    try:
+        SqlModel.from_query_string(query=unsupported_model_query)
+        pytest.fail(
+            "Expected ValueError: only SELECT queries are currently supported to create a"
+            f" SqlModel, but no error was raised for: {unsupported_model_query!r}"
+        )
+    except ValueError:
+        pass
+
+
+@pytest.mark.parametrize(
+    "unsupported_model_query",
+    UNSUPPORTED_MODEL_QUERIES,
+)
+def test_model_writer_with_non_select_query(unsupported_model_query: str, mocker) -> None:
+    try:
+        mocker_file = io.StringIO()
+        writer = ModelWriter(mocker_file)
+
+        mock_item = [MagicMock(dialect=None, query=unsupported_model_query)]
+        writer.write_data(mock_item)
+        pytest.fail(
+            "Expected ValueError: only SELECT queries are currently supported to write"
+            f" model files, but no error was raised for: {unsupported_model_query!r}"
+        )
+    except ValueError:
+        pass
+
+
 @pytest.mark.parametrize(
     "destination_config",
     destination_configs,
@@ -393,7 +437,7 @@ def test_multiple_statements_per_resource(destination_config: DestinationTestCon
     }
 
 
-def test_model_writer_without_destination(mocker):
+def test_model_writer_without_destination(mocker) -> None:
     """
     Test the `ModelWriter` class without passing destination capabilities (`_caps`) to ensure:
     - The `write_data` method processes items correctly.
