@@ -406,6 +406,8 @@ dataset.save(pd.DataFrame({"name": ["John", "Jane", "Jim"], "age": [30, 25, 35]}
 You can also read from an existing table and write the data to a new table, either in the same or another dataset:
 
 ```py
+from dlt_plus import current
+
 # get dataset from the catalog
 dataset = current.catalog().dataset("my_pipeline_dataset")
 
