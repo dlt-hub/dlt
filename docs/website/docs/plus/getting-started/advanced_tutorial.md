@@ -72,7 +72,7 @@ You can customize the `__init__.py` file to your project's needs.
 ### Using the packaged project
 
 To demonstrate how your packaged project can be used, let's simulate a real-world scenario where a data scientist installs and runs your project in a separate Python environment.
-In this example, we'll use the **uv** package manager, but the same steps apply when using **poetry** or **pip**.
+In this example, we'll use the [**uv** package manager](https://github.com/astral-sh/uv), but the same steps apply when using **poetry** or **pip**. You can find installation instructions [here](https://github.com/astral-sh/uv?tab=readme-ov-file#installation).
 Assume your packaged dlt+ project is located at: `/Volumes/my_drive/my_folder/pyproject.toml`. 
 Navigate to a new directory and initialize your project:
 
@@ -93,19 +93,22 @@ As an exemple, create a new Python file named `test_project.py` and use your pac
 ```py
 # import the packaged project
 import my_dlt_project
-from my_dlt_project import *
 
 if __name__ == "__main__":
     # should print "access" as defined in your dlt package
     print(my_dlt_project.config().current_profile)
     # Run the pipeline from the packaged project
     my_dlt_project.runner().run_pipeline("my_pipeline")
+    # should list the defined destinations  
+    print(my_dlt_project.config().destinations)
 ```
-Define the environment variables it needs. For example:
+Define the environment variables it needs. Add the following lines before running your pipeline:
 
-```bash
-export MY_PIPELINE__SOURCES__ARROW__ARROW__ROW_COUNT=0
-export MY_PIPELINE__SOURCES__ARROW__ARROW__SOME_SECRET=0
+```py
+import os
+
+os.environ["MY_PIPELINE__SOURCES__ARROW__ARROW__ROW_COUNT"] = "0"
+os.environ["MY_PIPELINE__SOURCES__ARROW__ARROW__SOME_SECRET"] = "0"
 ```
 
 Run the script inside the uv virtual environment:

@@ -210,7 +210,7 @@ Running the following command executes the pipeline:
 ```sh
 dlt pipeline my_pipeline run
 ```
-In this case, the `my_pipeline_dataset` dataset is not declared explicitly, so dlt+ creates it automatically. The same applies to the `duckdb` destination if it is not defined outside of the pipeline configuration.
+In this case, the `my_pipeline_dataset` dataset is not declared explicitly, so dlt+ creates it automatically. The `duckdb` destination and the `arrow` source are explicitly defined, so they do not need to be created implicitly. However, if any entity (such as a source or destination) is referenced only in the pipeline and not defined under the corresponding section, dlt+ will create it implicitly.
 
 Implicit creation of entities can be controlled using the `allow_undefined_entities` setting in the project configuration:
 
@@ -227,33 +227,10 @@ datasets:
         - duckdb
 ```
 
-### Managing Datasets and Destinations
+### Managing datasets and destinations
 
 When datasets are explicitly declared in the `dlt.yml` file, the `destination` field must list all destinations where the dataset is allowed to be materialized. This applies even if `allow_undefined_entities` is set to `true`.
-Example:
-```yaml
-sources:
-  arrow:
-    type: sources.arrow.source
-
-destinations:
-  duckdb:
-    type: duckdb
-
-
-datasets:
-  my_pipeline_dataset:
-    destination:
-        - bigquery
-
-pipelines:
-  my_pipeline:
-    source: arrow
-    destination: duckdb
-    dataset_name: my_pipeline_dataset
-```
-In the above configuration, the dataset `my_pipeline_dataset` includes only `bigquery` as an allowed destination. If the pipeline specifies `duckdb` as the destination, dlt+ will return an error because `duckdb` is not listed for that dataset.
-All intended destinations must be listed explicitly in the `destination` field to avoid configuration errors.
+Each pipeline that references a dataset must use a destination that is included in the dataset’s `destination` list. If the pipeline specifies a destination not listed, dlt+ will raise a configuration error.
 
 ```yaml
 datasets:
@@ -262,6 +239,9 @@ datasets:
       - duckdb
       - bigquery
 ```
+
+In this case, pipelines using either `duckdb` or `bigquery` as a destination can safely reference `my_pipeline_dataset`.
+
 :::note
 The destination field is an array, allowing you to specify one or more destinations where the dataset can be materialized.
 :::
@@ -321,6 +301,16 @@ Available methods:
 - `current.catalog()` - Provides access to all defined datasets in the catalog
 - `current.runner()` - Allows you to run pipelines programmatically
 
+:::info
+If you packaged your dlt+ Project into pip-installable package, you can access all methods above directly from the package. For example:
+```py
+import my_dlt_package
+
+my_dlt_package.catalog()
+```
+[Learn more](../getting-started/advanced_tutorial.md) how to package your project.
+:::
+
 ### Accessing project settings
 
 Here are a few examples of what you can access from the project object:
@@ -342,10 +332,13 @@ Accessing entities in code works the same way as when referencing them in the `d
 If allowed, implicit entities will be created and returned automatically. If not, an error will be raised.
 ```py
 import dlt_plus
+from dlt_plus import current
 
 entities = dlt_plus.current.entities()
-pipeline = entities.get_pipeline("bronze_pipe")
+pipeline = entities.get_pipeline("my_pipeline")
+destination = entities.get_destination("duckdb")
 transformation = entities.get_transformation("stressed_transformation")
+
 ```
 Here, we access the entities manager, which allows you to create sources, destinations, pipelines, and other objects.
 
@@ -378,7 +371,7 @@ print(dataset.row_counts().df())
 ```
 
 :::tip
-Learn more about the available data access methods in DLT datasets by reading the [Python loaded data access guide](../../../general-usage/dataset-access/dataset).
+Learn more about the available data access methods in dlt datasets by reading the [Python loaded data access guide](../../../general-usage/dataset-access/dataset).
 It covers how to browse, filter tables, and retrieve data in various formats.
 :::
 
