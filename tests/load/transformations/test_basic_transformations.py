@@ -6,7 +6,6 @@ import dlt
 
 from dlt.pipeline.exceptions import PipelineStepFailed
 
-from dlt.transformations.typing import TTransformationType
 
 from tests.load.utils import (
     DestinationTestConfiguration,

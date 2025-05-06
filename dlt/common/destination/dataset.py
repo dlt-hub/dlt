@@ -137,7 +137,12 @@ class SupportsReadableRelation(ABC):
 
     def scalar(self) -> Any:
         """fetch first value of first column on first row as python primitive"""
-        return self.fetchone()[0]
+        row = self.fetchone()
+        if not row:
+            return None
+        if len(row) != 1:
+            raise ValueError(f"Expected scalar result (single column), got {len(row)} columns")
+        return row[0]
 
     # modifying access parameters
     def limit(self, limit: int, **kwargs: Any) -> Self:

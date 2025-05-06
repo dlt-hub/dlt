@@ -1,31 +1,32 @@
 from dlt.common.exceptions import DltException
+from dlt.extract.exceptions import DltResourceException
 
 
-class TransformException(DltException):
-    def __init__(self, msg: str):
-        super().__init__(msg)
+class TransformationException(DltResourceException):
+    def __init__(self, resource_name: str, msg: str):
+        super().__init__(resource_name, msg)
 
 
-class TransformationTypeMismatch(TransformException):
-    def __init__(self, msg: str):
-        super().__init__(msg)
+class TransformationTypeMismatch(TransformationException):
+    def __init__(self, resource_name: str, msg: str):
+        super().__init__(resource_name, msg)
 
 
-class LineageFailedException(TransformException):
-    def __init__(self, msg: str):
-        super().__init__(msg)
+class LineageFailedException(TransformationException):
+    def __init__(self, resource_name: str, msg: str):
+        super().__init__(resource_name, msg)
 
 
-class UnknownColumnTypesException(TransformException):
-    def __init__(self, msg: str):
-        super().__init__(msg)
+class UnknownColumnTypesException(TransformationException):
+    def __init__(self, resource_name: str, msg: str):
+        super().__init__(resource_name, msg)
 
 
-class IncompatibleDatasetsException(TransformException):
-    def __init__(self, msg: str):
-        super().__init__(msg)
+class IncompatibleDatasetsException(TransformationException):
+    def __init__(self, resource_name: str, msg: str):
+        super().__init__(resource_name, msg)
 
 
-class TransformationInvalidReturnTypeException(TransformException):
-    def __init__(self, msg: str):
-        super().__init__(msg)
+class TransformationInvalidReturnTypeException(TransformationException):
+    def __init__(self, resource_name: str, msg: str):
+        super().__init__(resource_name, msg)

@@ -1,7 +1,6 @@
 from typing import Callable, Any, overload, Optional, Type
 
 from dlt.common.utils import get_callable_name
-from dlt.common.destination.dataset import SupportsReadableDataset
 from dlt.common.typing import AnyFun, TColumnNames
 from dlt.extract.incremental import TIncrementalConfig
 
@@ -14,11 +13,9 @@ from dlt.common.schema.typing import (
 )
 
 from dlt.transformations.typing import (
-    TTransformationType,
     TTransformationFunParams,
-    TLineageMode,
 )
-from dlt.transformations.transform import make_transform_resource, DltTransformResource
+from dlt.transformations.transformation import make_transform_resource, DltTransformResource
 from dlt.transformations.configuration import TransformConfiguration
 
 
@@ -40,7 +37,6 @@ def transformation(
     spec: Type[TransformConfiguration] = None,
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
-    standalone: bool = False,
 ) -> Callable[[Callable[TTransformationFunParams, Any]], DltTransformResource,]: ...
 
 
@@ -61,7 +57,6 @@ def transformation(
     spec: Type[TransformConfiguration] = None,
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
-    standalone: bool = False,
 ) -> Callable[[Callable[TTransformationFunParams, Any]], DltTransformResource,]: ...
 
 
@@ -81,7 +76,6 @@ def transformation(
     spec: Type[TransformConfiguration] = None,
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
-    standalone: bool = False,
 ) -> Any:
     """
     Decorator to mark a function as a transformation. Returns a DltTransformation object.
@@ -108,7 +102,6 @@ def transformation(
             spec=spec,
             parallelized=parallelized,
             incremental=incremental,
-            standalone=standalone,
         )
 
     if func is None:

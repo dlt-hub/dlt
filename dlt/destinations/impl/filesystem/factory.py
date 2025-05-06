@@ -71,10 +71,6 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         caps.sqlglot_dialect = "duckdb"
         caps.supports_nested_types = True
 
-        from dlt.destinations.impl.duckdb.factory import DuckDbTypeMapper
-
-        caps.type_mapper = DuckDbTypeMapper
-
         return caps
 
     @property

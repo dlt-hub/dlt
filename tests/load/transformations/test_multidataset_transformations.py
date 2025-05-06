@@ -3,14 +3,10 @@ from typing import Any
 import dlt
 import pytest
 
-from dlt.transformations.typing import TTransformationType
-
 
 @pytest.mark.essential
 @pytest.mark.skip(reason="TODO: needs support from lineage to work")
-def test_combine_two_datasets(
-    fruit_p: dlt.Pipeline, private_fruit_p: dlt.Pipeline, transformation_type: TTransformationType
-) -> None:
+def test_combine_two_datasets(fruit_p: dlt.Pipeline, private_fruit_p: dlt.Pipeline) -> None:
     @dlt.transformation()
     def customers_with_ages(dataset: dlt.Dataset, dataset2: dlt.Dataset) -> Any:
         return dataset["customers"].join(

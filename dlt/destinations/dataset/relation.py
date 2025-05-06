@@ -111,9 +111,9 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         # TODO: sqlalchemy does not work with their internal types, so we go via duckdb
         # TODO: snowflake has some bug in sqlglot lineage, so we go via duckdb
         # TODO: clickhouse has some bug in sqlglot lineage, so we go via duckdb
-        dialect: str = self._dataset.sql_client.capabilities.sqlglot_dialect
+        caps = self._dataset.sql_client.capabilities
+        dialect: str = caps.sqlglot_dialect
         query = self.query()
-        caps = self._dataset._destination.capabilities()
         if self._dataset._destination.destination_type in [
             "dlt.destinations.sqlalchemy",
             "dlt.destinations.snowflake",

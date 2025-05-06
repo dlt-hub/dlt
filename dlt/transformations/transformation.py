@@ -7,7 +7,6 @@ import dlt
 from dlt.extract.incremental import TIncrementalConfig
 
 from dlt.transformations.typing import (
-    TTransformationType,
     TTransformationFunParams,
 )
 from dlt.transformations.exceptions import (
@@ -21,7 +20,7 @@ from dlt.extract.hints import make_hints
 from dlt.common.destination.dataset import SupportsReadableDataset, SupportsReadableRelation
 from dlt.extract import DltResource
 from dlt.transformations.configuration import TransformConfiguration
-
+from dlt.common.utils import get_callable_name
 from dlt.common.schema.typing import (
     TWriteDisposition,
     TColumnNames,
@@ -37,7 +36,6 @@ DEFAULT_CHUNK_SIZE = 50000
 class DltTransformResource(DltResource):
     def __init__(self, *args: Any, **kwds: Any) -> None:
         super().__init__(*args, **kwds)
-        self.transformation_type: TTransformationType = None
 
 
 def make_transform_resource(
@@ -60,15 +58,19 @@ def make_transform_resource(
     # resolve defaults etc
     chunk_size = DEFAULT_CHUNK_SIZE
 
-    # check function type
-    if inspect.isgeneratorfunction(func):
-        raise TransformationInvalidReturnTypeException(
-            "Sql transformation must return single sql query string or dlt "
-            + "readablerelation and not be a generator function"
-        )
+    resource_name = name if name and not callable(name) else get_callable_name(func)
 
-    # build transform function
-    def transform_function(*args: Any, **kwargs: Any) -> Iterator[TDataItems]:
+    if standalone:
+        # check function type
+        if inspect.isgeneratorfunction(inspect.unwrap(func)):
+            raise TransformationInvalidReturnTypeException(
+                resource_name,
+                "Sql transformation must return single sql query string or dlt "
+                + "readablerelation and not be a generator function",
+            )
+
+    # build transformation function
+    def transformation_function(*args: Any, **kwargs: Any) -> Iterator[TDataItems]:
         # collect all datasets from args
         datasets: List[ReadableDBAPIDataset] = []
         for arg in args:
@@ -81,13 +83,15 @@ def make_transform_resource(
             for d in datasets:
                 if not d.is_same_physical_destination(datasets[0]):
                     raise IncompatibleDatasetsException(
+                        resource_name,
                         "All datasets used in transformation must be on the"
-                        + " same physical destination."
+                        + " same physical destination.",
                     )
         else:
             raise IncompatibleDatasetsException(
+                resource_name,
                 "No datasets detected in transformation. Please supply all used datasets via"
-                " transform function arguments."
+                " transform function arguments.",
             )
 
         # Determine wether we use sql (model) or python (arrow_iterator) transformation
@@ -111,11 +115,12 @@ def make_transform_resource(
             select_query = transformation_result.query()
         else:
             raise TransformationInvalidReturnTypeException(
+                resource_name,
                 (
                     "Sql Transformation %s returned an invalid type: %s. Please either "
                     + "return a valid sql string or a SupportsReadableRelation instance."
                 )
-                % (name, type(transformation_result))
+                % (name, type(transformation_result)),
             )
 
         # compute lineage
@@ -135,9 +140,10 @@ def make_transform_resource(
 
                 if unknown_column_types:
                     raise UnknownColumnTypesException(
+                        resource_name,
                         "For sql transformations all data_types of columns must be known. "
                         + "Please run with strict lineage or provide data_type hints "
-                        + f"for following columns: {unknown_column_types}"
+                        + f"for following columns: {unknown_column_types}",
                     )
 
         # for sql transformations we yield an sql select query with column hints
@@ -152,7 +158,7 @@ def make_transform_resource(
     resource = cast(
         DltTransformResource,
         dlt.resource(
-            transform_function,  # type: ignore
+            transformation_function,  # type: ignore
             name=name,
             table_name=table_name,
             write_disposition=write_disposition,

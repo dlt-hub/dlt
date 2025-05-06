@@ -311,16 +311,20 @@ def test_run_dev_mode_underscored_dataset() -> None:
 
 
 def test_dataset_pipeline_never_ran() -> None:
-    p = dlt.pipeline(destination="filesystem", dev_mode=True, dataset_name="_main_")
-    with pytest.raises(PipelineNeverRan):
-        p.dataset()
+    p = dlt.pipeline(destination="duckdb", dev_mode=True, dataset_name="_main_")
+    # we get a dataset with an empty schema with the name of the dataset
+    dataset = p.dataset()
+    assert dataset.schema.name == p.dataset_name
+    assert set(dataset.schema.tables.keys()) == {"_dlt_version", "_dlt_loads"}
 
 
 def test_dataset_unknown_schema() -> None:
     p = dlt.pipeline(destination="duckdb", dev_mode=True, dataset_name="mmmmm")
     p.run([1, 2, 3], table_name="digits")
-    with pytest.raises(SchemaNotFoundError):
-        p.dataset(schema="unknown")
+
+    dataset = p.dataset(schema="unknown")
+    assert dataset.schema.name == "unknown"
+    assert set(dataset.schema.tables.keys()) == {"_dlt_version", "_dlt_loads"}
 
 
 def test_pipeline_with_non_alpha_name() -> None:

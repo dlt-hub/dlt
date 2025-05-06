@@ -185,6 +185,7 @@ def compute_columns_schema(
     infer_sqlglot_schema: bool = True,
     allow_anonymous_columns: bool = True,
     allow_partial: bool = True,
+    resource_name: str = None,
 ) -> TTableSchemaColumns:
     """Compute the expected dlt columns schema for the output of an SQL SELECT query.
 
@@ -196,6 +197,7 @@ def compute_columns_schema(
         allow_partial (bool): If False, raise exceptions if the schema returned is incomplete.
             If True, this function always returns a dictionary, even in cases of
             SQL parsing errors, missing table reference, unresolved `SELECT *`, etc.
+        resource_name (str): The name of the resource to use in exceptions if available
     """
     try:
         expression: Any = sqlglot.maybe_parse(sql_query, dialect=dialect)
@@ -208,7 +210,8 @@ def compute_columns_schema(
             return {}
 
         raise LineageFailedException(
-            f"Failed to parse the SQL query using dialect `{dialect}`.\nQuery:\n\t{sql_query}"
+            resource_name,
+            f"Failed to parse the SQL query using dialect `{dialect}`.\nQuery:\n\t{sql_query}",
         ) from e
 
     if not isinstance(expression, sge.Select):
@@ -220,16 +223,18 @@ def compute_columns_schema(
             return {}
 
         raise LineageFailedException(
+            resource_name,
             "Parsed SQL query is not a SELECT statement. Received SQL expression of type"
-            f" {expression.type}."
+            f" {expression.type}.",
         )
 
     if allow_anonymous_columns is False:
         for col in expression.selects:
             if col.output_name == "":
                 raise LineageFailedException(
+                    resource_name,
                     "Found anonymous column in SELECT statement. Use"
-                    f" `allow_anonymous_columns=True` for permissive handling.\nColumn:\n\t{col}"
+                    f" `allow_anonymous_columns=True` for permissive handling.\nColumn:\n\t{col}",
                 )
 
     # false-y values `schema={}` or `schema=None` are identical to `infer_schema=True`
@@ -242,7 +247,7 @@ def compute_columns_schema(
         )
     except OptimizeError as e:
         raise LineageFailedException(
-            "Failed to resolve SQL query against the schema received."
+            resource_name, "Failed to resolve SQL query against the schema received."
         ) from e
 
     expression = annotate_types(expression, schema=sqlglot_schema, dialect=dialect)
@@ -258,10 +263,11 @@ def compute_columns_schema(
                 continue
 
             raise LineageFailedException(
+                resource_name,
                 "SELECT statement includes a `*` selection that can't be resolved. Modify the"
                 " query to select columns explicitly or limit `*` to known tables (e.g., `SELECT"
                 " known_table.*`). Use `allow_fail=True` to return a partial dlt schema with"
-                f" resolvable column hints.\nColumn:\n\t{col}"
+                f" resolvable column hints.\nColumn:\n\t{col}",
             )
 
         assert isinstance(col, (sge.Column, sge.Alias))

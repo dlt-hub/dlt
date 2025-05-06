@@ -199,6 +199,10 @@ def test_explicit_dataset_type_selection(populated_pipeline: Pipeline):
 def test_scalar(populated_pipeline: Pipeline) -> None:
     assert populated_pipeline.dataset().items.count().scalar() == 3000
 
+    # test error if more than one column is returned and we use scalar
+    with pytest.raises(ValueError):
+        populated_pipeline.dataset().items.scalar()
+
 
 @pytest.mark.no_load
 @pytest.mark.essential
