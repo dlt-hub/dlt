@@ -1,6 +1,8 @@
 from types import TracebackType, MethodType
 from typing import Any, Type, Union, TYPE_CHECKING, List
 
+import sqlglot.expressions as sge
+
 from dlt.common.destination.exceptions import OpenTableClientNotAvailable
 from dlt.common.json import json
 from dlt.common.exceptions import MissingDependencyException
@@ -193,18 +195,25 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
             if dlt_tables:
                 selected_tables += self.schema.dlt_table_names()
 
-        # Build UNION ALL query to get row counts for all selected tables
+        expr = self.__row_count_expr(selected_tables)
+        return self(expr.sql())
+
+    def __row_count_expr(self, selected_tables: list[str]) -> sge.Expression:
         queries = []
         for table in selected_tables:
-            queries.append(
-                f"SELECT '{table}' as table_name, COUNT(*) as row_count FROM"
-                f" {self.sql_client.make_qualified_table_name(table)}"
+            sub_query = (
+                sge.select(
+                    sge.Literal.string(table).as_("table_name"),
+                    sge.func("count", "*").as_("row_count"),
+                )
+                # TODO could use unqualified name and use SQLGlot dialect handling
+                # when converting expression to a string in `.sql()`
+                .from_(self.sql_client.make_qualified_table_name(table))
             )
+            queries.append(sub_query)
 
-        query = " UNION ALL ".join(queries)
-
-        # Execute query and build result dict
-        return self(query)
+        query = queries[0] if len(queries) <= 1 else sge.union(*queries, distinct=False)
+        return query
 
     def __getitem__(self, table_name: str) -> ReadableIbisRelation:
         """access of table via dict notation"""
