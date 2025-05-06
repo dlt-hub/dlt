@@ -25,14 +25,14 @@ Consider these steps separately, as this will aid you in troubleshooting.
 
 ### 1.1 Extracting features from information sources
 
-The best source of information for building a pipeline, is another working pipeline. This is because many documentations do not contain all the information required to build a top notch pipeline. For example, API docs often do not contain all the information needed for creating an incremental strategy - meaning you can still build a pipeline, but it will not work as efficiently as it could.
+The best source of information for building a pipeline is another working pipeline. This is because many documentations do not contain all the information required to build a top-notch pipeline. For example, API docs often do not contain all the information needed for creating an incremental strategy - meaning you can still build a pipeline, but it will not work as efficiently as it could.
 
 So here is the ranking of what sources you could use
 
 1. **Other pipelines**: Legacy pipelines, sources and connectors from other languages or frameworks, or any code that shows how to request, such as API wrappers.
 2. **OpenAPI spec**: Contains very detailed specification of all endpoints and authentication, but does not provide info on pagination, incremental loading or primary keys for data entities.
-2. **Docs + http responses**. Reading the docs, creating an initial working pipeline and then requesting from the API data so we can infer the rest of the missing info.
-3. **Scraped code, llm memory**: When nothing is available but a public API exists, such as APIs that power public websites, we can try inferring how it is called from other websites’ code that calls it.
+2. **Docs + HTTP responses**. Reading the docs, creating an initial working pipeline and then requesting from the API data so we can infer the rest of the missing info.
+3. **Scraped code, LLM memory**: When nothing is available but a public API exists, such as APIs that power public websites, we can try inferring how it is called from other websites’ code that calls it.
 
 ### 1.2 Understanding the parameters
 
@@ -70,7 +70,7 @@ This produces self-documenting, self-maintaining, and easy to troubleshoot sourc
 
 ### 2.2 Adding rules to cursor
 
-We bundled a set of cursor rules that help building REST API pipelines with `dlt`. To use them, you should start by [initializing a new `dlt` project](../../walkthroughs/create-a-pipeline.md):
+We bundled a set of cursor rules that help build REST API pipelines with `dlt`. To use them, you should start by [initializing a new `dlt` project](../../walkthroughs/create-a-pipeline.md):
 ```sh
 dlt init rest_api duckdb
 ```
@@ -98,7 +98,7 @@ We are also happy to get improvements. Make a PR with an update [here](https://g
 
 Under `Cursor Settings` > `Features` > `Docs`, you will see the docs you have added. You can edit, delete, or add new docs here.
 
-We recommend adding documentation scoped for specific task. Here you may try:
+We recommend adding documentation scoped for a specific task. Here you may try:
 * REST API Source documentation: https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/
 * Core `dlt` concepts & usage: https://dlthub.com/docs/general-usage/resource (optional)
 
@@ -117,14 +117,14 @@ If existing documentation for a task is regularly ignored by LLMs, consider usin
 
 ### 2.6 Model and context selection
 
-We had best results with Claude 3.7-sonnet (which requires paid version of Cursor). Weaker models were not able to comprehend the required 
+We had best the results with Claude 3.7-sonnet (which requires paid version of Cursor). Weaker models were not able to comprehend the required 
 context in full and were not able to use tools and follow workflows consistently.
 
 We typically put the following in the context:
 1. docs: REST API Source documentation
 2. example `rest_api_pipeline.py`
-3. yaml definitions, openAPI specs or references to files implementing legacy data source
-4. we've noticed that it make sense to copy initial section from `build-rest-api` rule, which Claude follows pretty well.
+3. yaml definitions, OpenAPI specs or references to files implementing legacy data source
+4. we've noticed that it makes sense to copy initial section from `build-rest-api` rule, which Claude follows pretty well.
 
 ## 3. Running the workflow
 
@@ -158,7 +158,7 @@ Consider prompting for instructions how to make credentials for the source and a
 
 ## 4. Best practices and vibe coding tips
 
-Below, find some tips that might help when vice coding REST API or python pipelines.
+Below, find some tips that might help when vibe coding REST API or python pipelines.
 
 ### 4.1 General best practices
 
