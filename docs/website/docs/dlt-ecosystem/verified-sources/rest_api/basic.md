@@ -1303,7 +1303,7 @@ Some APIs may return 404 errors for resources that do not exist or have no data.
 
 If you are experiencing 401 (Unauthorized) errors, this could indicate:
 
-- Incorrect authorization credentials. Verify credentials in the `secrets.toml`. Refer to [Secret and configs](../../../general-usage/credentials/setup#understanding-the-exceptions) for more information.
+- Incorrect authorization credentials. Verify credentials in the `secrets.toml`. Refer to [Secret and configs](../../../general-usage/credentials/setup#troubleshoot-configuration-errors) for more information.
 - An incorrect authentication type. Consult the API documentation for the proper method. See the [authentication](#authentication) section for details. For some APIs, a [custom authentication method](../../../general-usage/http/rest-client.md#implementing-custom-authentication) may be required.
 
 ### General guidelines
