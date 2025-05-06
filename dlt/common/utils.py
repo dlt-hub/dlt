@@ -669,12 +669,19 @@ def read_dialect_and_sql(
     fallback_dialect: Optional[str] = None,
 ) -> Tuple[str, str]:
     """
-    Reads the first line of a file for the dialect (after the first colon),
+    Read the first line of a file for the dialect (after the first colon),
     falls back to `fallback_dialect` if not found or empty,
     and then reads the rest as the SQL statement.
 
+    Args:
+        file_obj (IO[str]): A file-like object opened in text mode.
+        fallback_dialect (Optional[str]): A fallback dialect to use if the first line
+            does not specify a dialect.
+
     Returns:
-        A tuple (dialect, sql_statement).
+        Tuple[str, str]: A tuple containing:
+            - The extracted or fallback dialect as a string.
+            - The SQL statement read from the rest of the file.
     """
     first_line = file_obj.readline()
     # e.g. something like: "dialect: clickhouse\n"
