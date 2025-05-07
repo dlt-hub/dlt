@@ -94,6 +94,7 @@ As an exemple, create a new Python file named `test_project.py`, use your packag
 # import the packaged project
 import my_dlt_project
 import os
+import pandas as pd
 
 os.environ["MY_PIPELINE__SOURCES__ARROW__ARROW__ROW_COUNT"] = "0"
 os.environ["MY_PIPELINE__SOURCES__ARROW__ARROW__SOME_SECRET"] = "0"
