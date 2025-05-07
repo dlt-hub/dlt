@@ -252,7 +252,6 @@ class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
 
 
 class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
-
     def __init__(
         self,
         schema: Schema,
