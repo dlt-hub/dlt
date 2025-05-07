@@ -66,6 +66,7 @@ IMPLEMENTED_DESTINATIONS = {
     "clickhouse",
     "dremio",
     "sqlalchemy",
+    "greenplum",
 }
 NON_SQL_DESTINATIONS = {
     "filesystem",
