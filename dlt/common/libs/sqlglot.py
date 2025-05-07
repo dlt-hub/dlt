@@ -175,7 +175,7 @@ def from_sqlglot_type(
     if dlt_type == "bigint":
         # NOTE this check is experimental; need validation from SQLGlot team for reliability
         if sqlglot_type.expressions and len(sqlglot_type.expressions) == 1:
-            precision = int(sqlglot_type.expressions[0].this.this)  # get the type param
+            precision = sqlglot_type.expressions[0].this.to_py()  # get the type param
         else:
             precision = SQLGLOT_INT_PRECISION.get(sqlglot_type.this)
 
@@ -183,10 +183,10 @@ def from_sqlglot_type(
     elif dlt_type == "decimal":
         # NOTE this check is experimental; need validation from SQLGlot team for reliability
         if sqlglot_type.expressions and len(sqlglot_type.expressions) == 1:
-            precision = sqlglot_type.expressions[0].this.this.as_py()
+            precision = sqlglot_type.expressions[0].this.to_py()
         elif sqlglot_type.expressions and len(sqlglot_type.expressions) == 2:
-            precision = sqlglot_type.expressions[0].this.this.as_py()
-            scale = sqlglot_type.expressions[1].this.this.as_py()
+            precision = sqlglot_type.expressions[0].this.to_py()
+            scale = sqlglot_type.expressions[1].this.to_py()
         else:
             precision_and_scale = SQLGLOT_DECIMAL_PRECISION_AND_SCALE.get(sqlglot_type.this)
             if precision_and_scale is not None:
@@ -196,7 +196,7 @@ def from_sqlglot_type(
 
     elif dlt_type == "timestamp":
         if sqlglot_type.expressions and len(sqlglot_type.expressions) == 1:
-            precision = sqlglot_type.expressions[0].this.this.as_py()
+            precision = sqlglot_type.expressions[0].this.to_py()
         else:
             precision = SQLGLOT_TEMPORAL_PRECISION.get(sqlglot_type.this)
         timezone = SQLGLOT_HAS_TIMEZONE.get(sqlglot_type.this)
