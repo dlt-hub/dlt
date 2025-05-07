@@ -1,8 +1,7 @@
-from typing import List, Dict, Set, Any, cast, Literal, Optional, Tuple
+from typing import List, Dict, Set, Any, Optional, Tuple
 from abc import abstractmethod
 
 import sqlglot
-import sqlglot.expressions
 
 from dlt.common import logger
 from dlt.common.json import json
@@ -67,100 +66,121 @@ class ItemsNormalizer:
 
 
 class ModelItemsNormalizer(ItemsNormalizer):
+    def _normalize_casefold(self, ident: str) -> str:
+        return self.config.destination_capabilities.casefold_identifier(
+            self.schema.naming.normalize_identifier(ident)
+        )
+
+    def _uuid_expr_for_dialect(self, dialect: str) -> sqlglot.exp.Expression:
+        """
+        Generates a UUID expression based on the specified dialect.
+
+        Args:
+            dialect (str): The SQL dialect for which the UUID expression needs to be generated.
+
+        Returns:
+            sqlglot.exp.Expression: A SQL expression that generates a UUID for the specified dialect.
+        """
+        # NOTE: redshift and sqlite don't have an in-built uuid function
+        if dialect == "redshift":
+            row_num = sqlglot.exp.Window(
+                this=sqlglot.exp.Anonymous(this="row_number"),
+                partition_by=None,
+                order=None,
+            )
+            casted_row_num = sqlglot.exp.Cast(this=row_num, to=sqlglot.exp.DataType.build("TEXT"))
+            return sqlglot.exp.func("MD5", casted_row_num)
+        elif dialect == "sqlite":
+            return sqlglot.exp.func(
+                "lower",
+                sqlglot.exp.func(
+                    "hex", sqlglot.exp.func("randomblob", sqlglot.exp.Literal.number(16))
+                ),
+            )
+        elif dialect == "clickhouse":
+            return sqlglot.exp.func("generateUUIDv4")
+        # NOTE: UUID in Athena creates a native UUID data type
+        # which needs to be typecasted
+        elif dialect == "athena":
+            return sqlglot.exp.Cast(
+                this=sqlglot.exp.func("UUID"), to=sqlglot.exp.DataType.build("VARCHAR")
+            )
+        else:
+            return sqlglot.exp.func("UUID")
+
     def _adjust_outer_select_with_dlt_columns(
         self,
         outer_parsed_select: sqlglot.exp.Select,
         root_table_name: str,
     ) -> Optional[TSchemaUpdate]:
-        if len(outer_parsed_select.selects) == 1 and isinstance(
-            outer_parsed_select.selects[0], sqlglot.exp.Star
-        ):
-            logger.warning(
-                f"A star expression is present in the model query {outer_parsed_select.sql()}."
-                "Skipping dlt column addition."
-            )
+        """
+        Adds or replaces dlt-specific columns (`_dlt_id`, `_dlt_load_id`) in the SELECT statement.
+
+        Args:
+            outer_parsed_select (sqlglot.exp.Select): The parsed outer SELECT statement.
+            root_table_name (str): The name of the root table being normalized.
+
+        Returns:
+            Optional[TSchemaUpdate]: Schema updates for the added or replaced columns, or None if no updates were made.
+        """
+        model_config = self.config.model_normalizer
+        if not (model_config.add_dlt_load_id or model_config.add_dlt_id):
             return None
+
         schema_update: TSchemaUpdate = {}
         schema = self.schema
         dialect = self.config.destination_capabilities.sqlglot_dialect
 
-        # Build dlt column aliases based on config
-        dlt_columns: dict[str, Optional[sqlglot.exp.Alias]] = {}
+        # 1. Build dlt column aliases we *might* need
+        dlt_aliased_columns: dict[str, Optional[sqlglot.exp.Alias]] = {}
 
-        # Get normalizer function
-        norm_f = self.schema.naming.normalize_identifier
+        NORM_C_DLT_LOAD_ID = self._normalize_casefold(C_DLT_LOAD_ID)
+        NORM_C_DLT_ID = self._normalize_casefold(C_DLT_ID)
 
-        # Get casefolder
-        casefold_f = self.config.destination_capabilities.casefold_identifier
-
-        NORM_C_DLT_LOAD_ID = casefold_f(norm_f(C_DLT_LOAD_ID))
-        NORM_C_DLT_ID = casefold_f(norm_f(C_DLT_ID))
-
-        if self.config.model_normalizer.add_dlt_load_id:
-            dlt_columns[C_DLT_LOAD_ID] = sqlglot.exp.Alias(
+        if model_config.add_dlt_load_id:
+            dlt_aliased_columns[C_DLT_LOAD_ID] = sqlglot.exp.Alias(
                 this=sqlglot.exp.Literal.string(self.load_id),
                 alias=sqlglot.exp.to_identifier(NORM_C_DLT_LOAD_ID),
             )
 
-        if self.config.model_normalizer.add_dlt_id:
-            if dialect == "redshift":
-                row_num = sqlglot.exp.Window(
-                    this=sqlglot.exp.Anonymous(this="row_number"),
-                    partition_by=None,
-                    order=None,
-                )
-                casted_row_num = sqlglot.exp.Cast(
-                    this=row_num, to=sqlglot.exp.DataType.build("TEXT")
-                )
-                func_expr = sqlglot.exp.func("MD5", casted_row_num)
-            elif dialect == "clickhouse":
-                func_expr = sqlglot.exp.func("generateUUIDv4")
-            elif dialect == "sqlite":
-                func_expr = sqlglot.exp.func(
-                    "lower",
-                    sqlglot.exp.func(
-                        "hex", sqlglot.exp.func("randomblob", sqlglot.exp.Literal.number(16))
-                    ),
-                )
-            else:
-                func_expr = sqlglot.exp.func("UUID")
-            dlt_columns[C_DLT_ID] = sqlglot.exp.Alias(
-                this=func_expr,
+        if model_config.add_dlt_id:
+            dlt_aliased_columns[C_DLT_ID] = sqlglot.exp.Alias(
+                this=self._uuid_expr_for_dialect(dialect),
                 alias=sqlglot.exp.to_identifier(NORM_C_DLT_ID),
             )
 
-        # Replace if dlt columns exist in the select statement, otherwise append
-        for i, select in enumerate(outer_parsed_select.selects):
-            select_alias = select.alias.lower()
-            for column_name, alias_expr in dlt_columns.items():
-                if alias_expr is None:
-                    continue
-                if select_alias == column_name:
-                    outer_parsed_select.selects[i] = alias_expr
-                    dlt_columns[column_name] = None  # Mark as replaced
+        # 2. Replace any existing dlt column aliases
+        existing = {
+            select.alias.lower(): idx for idx, select in enumerate(outer_parsed_select.selects)
+        }
 
-        # Append any not-replaced dlt column aliases and update schema
-        for column_name, alias_expr in dlt_columns.items():
-            if alias_expr is None:
-                continue
-            outer_parsed_select.selects.append(alias_expr)
+        for column_name, alias_expr in dlt_aliased_columns.items():
+            idx = existing.get(column_name)
+            if idx is not None:
+                outer_parsed_select.selects[idx] = (
+                    alias_expr  # -> replace in-place if already present
+                )
+            else:
+                outer_parsed_select.selects.append(alias_expr)  # -> append and update schema
 
-            partial_table = normalize_table_identifiers(
-                {
-                    "name": root_table_name,
-                    "columns": {
-                        column_name: (
-                            dlt_id_column() if column_name == "_dlt_id" else dlt_load_id_column()
-                        )
+                partial_table = normalize_table_identifiers(
+                    {
+                        "name": root_table_name,
+                        "columns": {
+                            column_name: (
+                                dlt_id_column()
+                                if column_name == "_dlt_id"
+                                else dlt_load_id_column()
+                            )
+                        },
                     },
-                },
-                schema.naming,
-            )
-            schema.update_table(partial_table)
-            table_updates = schema_update.setdefault(root_table_name, [])
-            table_updates.append(partial_table)
+                    schema.naming,
+                )
+                schema.update_table(partial_table)
+                table_updates = schema_update.setdefault(root_table_name, [])
+                table_updates.append(partial_table)
 
-        return schema_update if schema_update else None
+        return schema_update or None
 
     def _reorder_or_adjust_outer_select(
         self,
@@ -168,9 +188,13 @@ class ModelItemsNormalizer(ItemsNormalizer):
         columns: TTableSchemaColumns,
     ) -> None:
         """
-        Reorders the column selections in the outer select:
-        1. Missing selects are added as null from schema.
-        2. Extra selects are omitted.
+        Reorders or adjusts the SELECT statement to match the schema:
+        1. Adds missing columns as NULL.
+        2. Removes extra columns not in the schema.
+
+        Args:
+            outer_parsed_select (sqlglot.exp.Select): The parsed outer SELECT statement.
+            columns (TTableSchemaColumns): The schema columns to match.
         """
         if len(outer_parsed_select.selects) == 1 and isinstance(
             outer_parsed_select.selects[0], sqlglot.exp.Star
@@ -179,10 +203,6 @@ class ModelItemsNormalizer(ItemsNormalizer):
 
         # Map alias name -> expression
         alias_map = {expr.alias.lower(): expr for expr in outer_parsed_select.selects}
-
-        # Get casefolder because we might need it
-        # if the column is in schema, but not in the select
-        casefolder_f = self.config.destination_capabilities.casefold_identifier
 
         # Build new selects list in correct schema column order
         new_selects = []
@@ -195,7 +215,8 @@ class ModelItemsNormalizer(ItemsNormalizer):
             else:
                 new_selects.append(
                     sqlglot.exp.Alias(
-                        this=sqlglot.exp.Null(), alias=sqlglot.exp.to_identifier(casefolder_f(col))
+                        this=sqlglot.exp.Null(),
+                        alias=sqlglot.exp.to_identifier(self._normalize_casefold(col)),
                     )
                 )
 
@@ -208,7 +229,15 @@ class ModelItemsNormalizer(ItemsNormalizer):
         columns: TTableSchemaColumns,
     ) -> Tuple[sqlglot.exp.Select, bool]:
         """
-        Wraps the parsed SELECT statement in a subquery and returns the outer SELECT statement.
+        Wraps the parsed SELECT statement in a subquery and builds an outer SELECT statement.
+
+        Args:
+            select_dialect (str): The SQL dialect to use for parsing and formatting.
+            parsed_select (sqlglot.exp.Select): The parsed SELECT statement.
+            columns (TTableSchemaColumns): The schema columns to match.
+
+        Returns:
+            Tuple[sqlglot.exp.Select, bool]: The outer SELECT statement and a flag indicating if reordering is needed.
         """
         if len(parsed_select.selects) == 1 and isinstance(
             parsed_select.selects[0], sqlglot.exp.Star
@@ -220,19 +249,10 @@ class ModelItemsNormalizer(ItemsNormalizer):
                 "Please rewrite the query to explicitly specify the columns to be selected.\n"
             )
 
-        # Get column key list from schema
-        columns_keys = list(columns.keys())
-
         # Wrap parsed select in a subquery
         subquery = parsed_select.subquery(alias=DLT_SUBQUERY_NAME)
 
-        # Get normalizer function
-        norm_f = self.schema.naming.normalize_identifier
-
-        # Get casefolder
-        casefold_f = self.config.destination_capabilities.casefold_identifier
-
-        # Build new select list using selected columns in the subquery
+        # Build outer SELECT list
         selected_columns = []
         outer_selects: List[sqlglot.exp.Expression] = []
         for select in parsed_select.selects:
@@ -250,11 +270,11 @@ class ModelItemsNormalizer(ItemsNormalizer):
                     " or `column AS alias` are currently supported.\n"
                 )
 
-            norm_casefolded = casefold_f(norm_f(name))
+            norm_casefolded = self._normalize_casefold(name)
             selected_columns.append(norm_casefolded)
             outer_selects.append(sqlglot.column(name, table=DLT_SUBQUERY_NAME).as_(norm_casefolded))
 
-        needs_reordering = selected_columns != columns_keys
+        needs_reordering = selected_columns != list(columns.keys())
 
         # Create the outer select statement
         outer_select = sqlglot.select(*outer_selects).from_(subquery)
@@ -273,12 +293,10 @@ class ModelItemsNormalizer(ItemsNormalizer):
         parsed_select = sqlglot.parse_one(select_statement, read=select_dialect)
 
         # The query is ensured to be a select statement upstream,
-        # but we double ensure here
+        # but we double check here
         if not isinstance(parsed_select, sqlglot.exp.Select):
             raise ValueError("Only SELECT statements should reach the model normalizer.")
 
-        # wrap the parsed select in a subquery
-        # and built an outer select statement with normalized aliases
         outer_parsed_select, needs_reordering = self._build_outer_select_statement(
             select_dialect, parsed_select, self.schema.get_table_columns(root_table_name)
         )
@@ -287,6 +305,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
         dlt_col_update = self._adjust_outer_select_with_dlt_columns(
             outer_parsed_select, root_table_name
         )
+
         if dlt_col_update:
             schema_updates.append(dlt_col_update)
 

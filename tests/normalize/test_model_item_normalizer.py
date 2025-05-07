@@ -3,7 +3,7 @@ from tests.load.pipeline.test_model_item_format import (
     UNSUPPORTED_MODEL_QUERIES,
 )
 from importlib import import_module
-from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination import DestinationCapabilitiesContext, merge_caps_file_formats
 from dlt.common.configuration.container import Container
 from dlt.normalize import Normalize
 from dlt.common.storages import (
@@ -20,6 +20,7 @@ from tests.utils import clean_test_storage, TEST_DICT_CONFIG_PROVIDER
 
 import pytest
 import os
+from typing import Optional
 
 from typing import Iterator, List, Tuple
 
@@ -36,12 +37,20 @@ def get_caps(dest_name: str):
     return dest_cls().capabilities
 
 
-MODEL_CAPS = [get_caps(dest) for dest in DESTINATIONS_SUPPORTING_MODEL]
+MODEL_CAPS = [get_caps(dest_name=dest) for dest in DESTINATIONS_SUPPORTING_MODEL]
 
 
 @pytest.fixture
 def caps(request) -> Iterator[DestinationCapabilitiesContext]:
     _caps = request.param()
+    # If it's a destination with staging (Athena, Dremio)
+    # force the model in caps
+    if (
+        _caps.supported_staging_file_formats is not None
+        and "model" in _caps.supported_staging_file_formats
+    ):
+        _caps.update({"preferred_loader_file_format": "model"})
+        _caps.update({"supported_loader_file_formats": ["model"]})
     with Container().injectable_context(_caps):
         yield _caps
 
@@ -117,7 +126,7 @@ def test_simple_model_normalizing(
     This test demonstrates how a model with simple sql query is transformed by the normalizer for each destination capabilities.
     Explicit queries are used to clearly show the expected transformation process.
     """
-    # TODO: tests for dialects teradata, mysql, presto and athena
+    # TODO: tests for sqlalchemy dialects
     dialect = caps.sqlglot_dialect
     model = SqlModel.from_query_string(query="SELECT a, b FROM my_table", dialect=dialect)
 
@@ -153,7 +162,7 @@ def test_simple_model_normalizing(
             " UUID() AS _dlt_id FROM (SELECT a, b FROM my_table) AS _dlt_subquery\n"
             == normalized_select_query
         )
-    elif dialect == "tsql":
+    elif dialect == "tsql":  # mssql and synapse
         assert (
             f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{load_id}' AS _dlt_load_id,"
             " NEWID() AS _dlt_id FROM (SELECT a AS a, b AS b FROM my_table) AS _dlt_subquery\n"
@@ -176,6 +185,19 @@ def test_simple_model_normalizing(
         assert (
             f"SELECT _dlt_subquery.a AS A, _dlt_subquery.b AS B, '{load_id}' AS _DLT_LOAD_ID,"
             " UUID_STRING() AS _DLT_ID FROM (SELECT a, b FROM my_table) AS _dlt_subquery\n"
+            == normalized_select_query
+        )
+    elif dialect == "athena":
+        assert (
+            f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{load_id}' AS _dlt_load_id,"
+            " CAST(UUID() AS VARCHAR) AS _dlt_id FROM (SELECT a, b FROM my_table) AS"
+            " _dlt_subquery\n"
+            == normalized_select_query
+        )
+    elif dialect == "presto":  # dremio
+        assert (
+            f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{load_id}' AS _dlt_load_id,"
+            " UUID() AS _dlt_id FROM (SELECT a, b FROM my_table) AS _dlt_subquery\n"
             == normalized_select_query
         )
     else:
