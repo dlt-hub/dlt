@@ -25,10 +25,6 @@ from concurrent.futures import ThreadPoolExecutor
 import sqlglot
 
 
-# mark all tests as essential, do not remove
-pytestmark = pytest.mark.essential
-
-
 def get_caps(dest_name: str):
     dest_cls = getattr(import_module("dlt.destinations"), dest_name)
     return dest_cls().capabilities

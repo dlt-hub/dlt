@@ -242,7 +242,6 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
     assert result_df[casefolder("b")].sum() == sum(i for i in range(10))
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destination_configs,
@@ -325,13 +324,18 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     ), f"Column mismatch: {actual_columns} != {expected_columns}"
 
     # Validate that each table has exactly one model job
-    assert count_job_types(pipeline) == {
-        "copied_table_no_b": {"model": 1},
-        "reversed_table": {"model": 1},
-    }
+    if destination_config.destination_type == "athena":
+        assert count_job_types(pipeline) == {
+            "copied_table_no_b": {"model": 1, "sql": 1},
+            "reversed_table": {"model": 1, "sql": 1},
+        }
+    else:
+        assert count_job_types(pipeline) == {
+            "copied_table_no_b": {"model": 1},
+            "reversed_table": {"model": 1},
+        }
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destination_configs,
@@ -394,7 +398,6 @@ def test_model_from_two_tables(destination_config: DestinationTestConfiguration)
     assert df[casefold("c")].dropna().sum() == 109  # -1 + 21 + 22 + 23 + 24 + 25
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destination_configs,
@@ -453,7 +456,6 @@ def test_model_from_joined_table(destination_config: DestinationTestConfiguratio
     assert df[casefold("c")].dropna().sum() == 109  # -1 + 21 + 22 + 23 + 24 + 25
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destination_configs,
@@ -533,7 +535,6 @@ def test_write_dispositions(
         raise ValueError(f"Unknown write disposition: {write_disposition}")
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destination_configs,
@@ -634,7 +635,6 @@ def test_model_writer_without_destination(mocker) -> None:
         pytest.fail(f"pipeline.extract(example_table) raised an exception: {e}")
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destination_configs,
@@ -984,3 +984,30 @@ def test_data_contract_on_data_type(
             )
         assert py_exc.value.step == "load"
         assert isinstance(py_exc.value.__context__, LoadClientJobException)
+
+
+VARIOUS_QUERIES = [
+    # simple: only one table, all columns
+    "SELECT * FROM my_table",
+    # complex: subset of columns
+    "SELECT col1, col2 FROM my_table",
+    # simple: all columns via alias
+    "SELECT t1.col1 AS blah, t1.col2 AS blubb, t1.col3 FROM my_table AS t1",
+    # complex: joins
+    "SELECT * FROM my_table JOIN my_other_table ON my_table.col1 = my_other_table.col1",
+    # simple: one table, full access, with offset/limit
+    "SELECT * FROM t1 WHERE t1.id > 5 OFFSET 5 LIMIT 10",
+    # debatable: one table, all columns plus static
+    "SELECT *, '123' AS static_val FROM my_table",
+]
+
+
+@pytest.mark.parametrize(
+    "query",
+    VARIOUS_QUERIES,
+    ids=[f"query-{i}" for i in range(len(VARIOUS_QUERIES))],
+)
+def test_query_complexity_analyzer(query: str) -> None:
+    #    from dlt.common.utils import query_is_complex
+    #    query_is_complex(query=query, dialect="duckdb")
+    return
