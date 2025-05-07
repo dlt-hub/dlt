@@ -111,6 +111,13 @@ If you prefer to write your queries in SQL, you can omit ibis expressions by sim
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::sql_queries-->
 
 
+## Using pandas dataframes or arrow tables
+
+You can also directly write transformations using pandas or arrow. Please note that your transformation resource will act like a regular resource in this case, you will not have column level hints forward but rather dlt will just see the dataframes or arrow tables you yield and process them like from any other resource. This may change in the future.
+
+<!--@@@DLT_SNIPPET ./transformation-snippets.py::arrow_dataframe_operations-->
+
+
 ## Schema evolution and hints lineage
 
 When executing transformations, dlt computes the resulting schema before the transformation is executed. This allows dlt to:

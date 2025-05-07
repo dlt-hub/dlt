@@ -107,5 +107,4 @@ def transformation(
     if func is None:
         return decorator
 
-    name = name or get_callable_name(func)
     return decorator(func)

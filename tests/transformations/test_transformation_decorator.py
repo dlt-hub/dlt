@@ -49,11 +49,12 @@ def test_dataset_not_on_same_destination() -> None:
 
 
 def test_iterator_function_as_transform_function() -> None:
-    with pytest.raises(TransformationInvalidReturnTypeException):
+    # test that a generator function is used as a regular resource
+    @dlt.transformation()
+    def transform(dataset: SupportsReadableDataset[Any]) -> Any:
+        yield [{"some": "data"}]
 
-        @dlt.transformation()
-        def transform(dataset: SupportsReadableDataset[Any]) -> Any:
-            yield [{"some": "data"}]
+    assert list(transform(dlt.dataset("duckdb", "dataset_name"))) == [{"some": "data"}]
 
 
 def test_incorrect_transform_function_return_type() -> None:

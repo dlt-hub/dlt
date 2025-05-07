@@ -156,6 +156,48 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     }
 
 
+def arrow_dataframe_operations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
+    # @@@DLT_SNIPPET_START arrow_dataframe_operations
+
+    @dlt.transformation()
+    def copied_customers(dataset: dlt.Dataset) -> Any:
+        # get full customers table as arrow table
+        customers = dataset.customers.arrow()
+
+        # Sort the table by 'name'
+        sorted_customers = customers.sort_by([("name", "ascending")])
+
+        # Take first 5 rows
+        yield sorted_customers.slice(0, 5)
+
+    # Example tables (replace with your actual data)
+    @dlt.transformation()
+    def enriched_purchases(dataset: dlt.Dataset) -> Any:
+        # get both fully tables as dataframes
+        purchases = dataset.purchases.df()
+        customers = dataset.customers.df()
+
+        # Merge (JOIN) the DataFrames
+        result = purchases.merge(customers, left_on="customer_id", right_on="id")
+
+        # Select only the desired columns
+        yield result[["name", "quantity"]]
+
+    # @@@DLT_SNIPPET_END arrow_dataframe_operations
+
+    # Perform the join
+    fruitshop_pipeline.run(
+        [
+            enriched_purchases(fruitshop_pipeline.dataset()),
+            copied_customers(fruitshop_pipeline.dataset()),
+        ]
+    )
+    assert load_table_counts(fruitshop_pipeline, "copied_customers", "enriched_purchases") == {
+        "copied_customers": 5,
+        "enriched_purchases": 3,
+    }
+
+
 def computed_schema_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START computed_schema
     # Show the computed schema before the transformation is executed

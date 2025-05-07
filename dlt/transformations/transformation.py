@@ -17,7 +17,7 @@ from dlt.transformations.exceptions import (
 from dlt.destinations.dataset import ReadableDBAPIDataset
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.extract.hints import make_hints
-from dlt.common.destination.dataset import SupportsReadableDataset, SupportsReadableRelation
+from dlt.common.destination.dataset import SupportsReadableRelation
 from dlt.extract import DltResource
 from dlt.transformations.configuration import TransformConfiguration
 from dlt.common.utils import get_callable_name
@@ -59,13 +59,10 @@ def make_transform_resource(
 
     resource_name = name if name and not callable(name) else get_callable_name(func)
 
-    # check function type
-    if inspect.isgeneratorfunction(inspect.unwrap(func)) or inspect.isgeneratorfunction(func):
-        raise TransformationInvalidReturnTypeException(
-            resource_name,
-            "Sql transformation must return single sql query string or dlt "
-            + "readablerelation and not be a generator function",
-        )
+    # check function type, for generators we assume a regular resource
+    is_regular_resource = inspect.isgeneratorfunction(
+        inspect.unwrap(func)
+    ) or inspect.isgeneratorfunction(func)
 
     # build transformation function
     def transformation_function(*args: Any, **kwargs: Any) -> Iterator[TDataItems]:
@@ -96,7 +93,7 @@ def make_transform_resource(
         # we need to supply the curent schema name (=source name)to the dataset constructor
         schema_name = dlt.current.source().name
         resolved_transformation_type = (
-            "sql"
+            "model"
             if datasets[0].is_same_physical_destination(
                 dlt.current.pipeline().dataset(schema=schema_name)
             )
@@ -134,7 +131,7 @@ def make_transform_resource(
             all_columns = {**computed_columns, **(columns or {})}
 
             # for sql transfomrations all column types must be known
-            if resolved_transformation_type == "sql":
+            if resolved_transformation_type == "model":
                 # search all columns and see if there are some unknown ones
                 unknown_column_types = [
                     name for name, c in all_columns.items() if c.get("data_type") is None
@@ -149,7 +146,7 @@ def make_transform_resource(
                     )
 
         # for sql transformations we yield an sql select query with column hints
-        if resolved_transformation_type == "sql":
+        if resolved_transformation_type == "model":
             from dlt.extract.hints import SqlModel
 
             yield dlt.mark.with_hints(SqlModel(select_query), hints=make_hints(columns=all_columns))
@@ -158,7 +155,7 @@ def make_transform_resource(
                 yield dlt.mark.with_hints(chunk, hints=make_hints(columns=all_columns))
 
     resource = dlt.resource(
-        transformation_function,
+        func if is_regular_resource else transformation_function,
         name=name,
         table_name=table_name,
         write_disposition=write_disposition,
