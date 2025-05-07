@@ -337,6 +337,128 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     destination_configs,
     ids=lambda x: x.name,
 )
+def test_model_from_two_tables(destination_config: DestinationTestConfiguration):
+    pipeline = destination_config.setup_pipeline(
+        f"test_model_from_two_tables_{uniq_id()}", dev_mode=False
+    )
+
+    pipeline.run(
+        [{"a": i, "b": i + 10} for i in range(5)],
+        table_name="example_table_ab",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+
+    pipeline.run(
+        [{"a": i, "c": i + 20} for i in range(5)],
+        table_name="example_table_ac",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+
+    pipeline.run(
+        [{"a": -1, "b": -1, "c": -1}],  # one dummy row → defines schema
+        table_name="merged_table",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+
+    dataset = pipeline.dataset()
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    merged_cols = dataset.schema.tables["merged_table"]["columns"]
+
+    @dlt.resource(table_name="merged_table")
+    def insert_ab() -> Any:
+        query = dataset["example_table_ab"][["a", "b"]].query()  # only a,b
+        yield dlt.mark.with_hints(
+            SqlModel.from_query_string(query=query, dialect=select_dialect),
+            hints=make_hints(columns={k: v for k, v in merged_cols.items() if k in ("a", "b")}),
+        )
+
+    @dlt.resource(table_name="merged_table")
+    def insert_ac() -> Any:
+        query = dataset["example_table_ac"][["a", "c"]].query()  # only a,c
+        yield dlt.mark.with_hints(
+            SqlModel.from_query_string(query=query, dialect=select_dialect),
+            hints=make_hints(columns={k: v for k, v in merged_cols.items() if k in ("a", "c")}),
+        )
+
+    pipeline.run(
+        [insert_ab(), insert_ac()],
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+
+    casefold = pipeline.sql_client().capabilities.casefold_identifier
+    df = dataset["merged_table"].df()
+
+    assert len(df) == 11
+    assert sum(df[casefold("a")].to_list()) == 19  # -1 + 2 * (0 + 1 + 2 + 3 + 4)
+    assert df[casefold("b")].dropna().sum() == 59  # -1 + 11 + 12 + 13 + 14 + 15
+    assert df[casefold("c")].dropna().sum() == 109  # -1 + 21 + 22 + 23 + 24 + 25
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destination_configs,
+    ids=lambda x: x.name,
+)
+def test_model_from_joined_table(destination_config: DestinationTestConfiguration):
+    pipeline = destination_config.setup_pipeline(
+        f"test_model_from_joined_table_{uniq_id()}", dev_mode=False
+    )
+
+    pipeline.run(
+        [{"a": i, "b": i + 10} for i in range(5)],
+        table_name="example_table_ab",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+
+    pipeline.run(
+        [{"a": i, "c": i + 20} for i in range(5)],
+        table_name="example_table_ac",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+
+    pipeline.run(
+        [{"a": -1, "b": -1, "c": -1}],  # one dummy row → defines schema
+        table_name="merged_table",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+
+    dataset = pipeline.dataset()
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    merged_cols = dataset.schema.tables["merged_table"]["columns"]
+
+    relation_ab = dataset["example_table_ab"]
+    relation_ac = dataset["example_table_ac"]
+    joined_relation = relation_ab.join(relation_ac, relation_ab.a == relation_ac.a)[["a", "b", "c"]]
+
+    @dlt.resource(table_name="merged_table")
+    def insert_joined() -> Any:
+        query = joined_relation.query()
+        yield dlt.mark.with_hints(
+            SqlModel.from_query_string(query=query, dialect=select_dialect),
+            hints=make_hints(columns=merged_cols),
+        )
+
+    pipeline.run(
+        [insert_joined()],
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+
+    casefold = pipeline.sql_client().capabilities.casefold_identifier
+    df = dataset["merged_table"].df()
+
+    assert len(df) == 6
+    assert sum(df[casefold("a")].to_list()) == 9  # -1 + 0 + 1 + 2 + 3 + 4)
+    assert df[casefold("b")].dropna().sum() == 59  # -1 + 11 + 12 + 13 + 14 + 15
+    assert df[casefold("c")].dropna().sum() == 109  # -1 + 21 + 22 + 23 + 24 + 25
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destination_configs,
+    ids=lambda x: x.name,
+)
 @pytest.mark.parametrize(
     "write_disposition",
     ["merge", "replace", "append"],
@@ -346,7 +468,7 @@ def test_write_dispositions(
     destination_config: DestinationTestConfiguration, write_disposition: TWriteDisposition
 ) -> None:
     pipeline = destination_config.setup_pipeline(
-        f"test_write_dispositions_{uniq_id()}", dev_mode=True
+        f"test_write_dispositions_{uniq_id()}", dev_mode=False
     )
 
     pipeline.run(
