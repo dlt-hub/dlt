@@ -60,7 +60,6 @@ After running the command, the following folder structure is created:
 ```sh
 .
 ├── .dlt/                 # your dlt settings including profile settings
-│   ├── config.toml
 │   ├── dev.secrets.toml
 │   └── secrets.toml
 ├── _data/             # local storage for your project, excluded from git
