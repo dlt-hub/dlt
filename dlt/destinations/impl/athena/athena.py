@@ -178,6 +178,9 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
         super().__init__(None, dataset_name, staging_dataset_name, capabilities)
+        self.INFO_TABLES_QUERY_THRESHOLD = 80
+        # athena slows down when this value is too high, see for context:
+        # https://github.com/dlt-hub/dlt/issues/2529
         self._conn: Connection = None
         self.config = config
         self.credentials = config.credentials
