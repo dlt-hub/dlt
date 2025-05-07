@@ -1,0 +1,23 @@
+
+:root {
+  --marimo-heading-font: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell;
+}
+
+/* Make headings bold */
+.markdown h1 {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.markdown h3 {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+
+
+/* Increase paragraph font size and change color */
+.paragraph {
+  font-size: 1.2rem;
+  color: light-dark(navy, pink);
+}
