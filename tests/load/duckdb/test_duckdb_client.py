@@ -327,7 +327,7 @@ def test_drops_pipeline_changes_bound() -> None:
     p.run([1, 2, 3], table_name="p_table")
     p = p.drop()
     p.sync_destination()
-    with pytest.raises(PipelineNeverRan):
+    with pytest.raises(DatabaseUndefinedRelation):
         p.dataset().p_table.fetchall()
 
 

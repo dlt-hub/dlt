@@ -1768,18 +1768,33 @@ class Pipeline(SupportsPipeline):
         Returns:
             Any: A dataset object that supports querying the destination data.
         """
+
+        if not self._destination:
+            raise PipelineConfigMissing(
+                self.pipeline_name,
+                "destination",
+                "dataset",
+                "Please provide `destination` argument to `pipeline` method"
+                " directly or via .dlt config.toml file or environment variable.",
+            )
+
         if isinstance(schema, Schema):
             logger.info(
                 f"Make sure that tables declared in explicit schema {schema.name} are present on"
                 f" dataset {self.dataset_name}"
             )
-        elif not self.default_schema_name:
-            raise PipelineNeverRan(self.pipeline_name, self.pipelines_dir)
-        elif schema is None:
-            schema = self.default_schema
         elif isinstance(schema, str):
-            # schema with given name must be present
-            schema = self.schemas[schema]
+            if schema not in self.schemas:
+                logger.info(
+                    f"Schema {schema} not found in the pipeline, deferring to destination, this"
+                    " will load a schema of this name from the destination or use an empty schema"
+                    " with this name."
+                )
+            else:
+                schema = self.schemas[schema]
+
+        elif self.default_schema_name:
+            schema = self.default_schema
 
         return dataset(
             self._destination,
