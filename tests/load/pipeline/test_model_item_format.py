@@ -1,7 +1,7 @@
 import os
 import io
 
-from typing import Any
+from typing import Any, List
 from unittest.mock import MagicMock
 import pytest
 import dlt
@@ -19,8 +19,7 @@ from tests.load.utils import (
     DestinationTestConfiguration,
 )
 from tests.pipeline.utils import assert_load_info, load_tables_to_dicts
-from dlt.common.schema.typing import TWriteDisposition
-from dlt.common.schema.utils import new_table
+from dlt.common.schema.typing import TWriteDisposition, TDataType
 from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.data_writers.writers import ModelWriter
 from dlt.common.utils import uniq_id
@@ -78,7 +77,7 @@ UNSUPPORTED_MODEL_QUERIES = [
 )
 def test_star_select(destination_config: DestinationTestConfiguration) -> None:
     # populate a table with two columns each with 10 items and retrieve dataset
-    pipeline = destination_config.setup_pipeline("test_simple_model_jobs", dev_mode=False)
+    pipeline = destination_config.setup_pipeline(f"test_star_select_{uniq_id()}", dev_mode=False)
 
     pipeline.run([{"a": i, "b": i + 1} for i in range(10)], table_name="example_table")
     dataset = pipeline.dataset()
@@ -107,6 +106,7 @@ def test_star_select(destination_config: DestinationTestConfiguration) -> None:
 @pytest.mark.parametrize(
     "unsupported_model_query",
     UNSUPPORTED_MODEL_QUERIES,
+    ids=[f"query-{q.strip().split()[0].lower()}" for q in UNSUPPORTED_MODEL_QUERIES],
 )
 def test_model_builder_with_non_select_query(unsupported_model_query: str) -> None:
     try:
@@ -122,6 +122,7 @@ def test_model_builder_with_non_select_query(unsupported_model_query: str) -> No
 @pytest.mark.parametrize(
     "unsupported_model_query",
     UNSUPPORTED_MODEL_QUERIES,
+    ids=[f"query-{q.strip().split()[0].lower()}" for q in UNSUPPORTED_MODEL_QUERIES],
 )
 def test_model_writer_with_non_select_query(unsupported_model_query: str, mocker) -> None:
     try:
@@ -145,7 +146,7 @@ def test_model_writer_with_non_select_query(unsupported_model_query: str, mocker
 )
 def test_simple_incremental(destination_config: DestinationTestConfiguration) -> None:
     pipeline = destination_config.setup_pipeline(
-        f"test_model_item_format_{uniq_id()}", dev_mode=False
+        f"test_simple_incremental_{uniq_id()}", dev_mode=False
     )
 
     pipeline.run(
@@ -181,9 +182,7 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
     Test that a column in a SQL query can be aliased correctly and processed by the pipeline.
     Specifically, this test ensures the resulting table contains the aliased column with the correct data.
     """
-    pipeline = destination_config.setup_pipeline(
-        f"test_model_item_format_{uniq_id()}", dev_mode=False
-    )
+    pipeline = destination_config.setup_pipeline(f"test_aliased_column_{uniq_id()}", dev_mode=False)
     pipeline.run(
         [{"a": i, "b": i + 1} for i in range(10)],
         table_name="example_table",
@@ -247,11 +246,10 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     Test creating SQL model jobs for various scenarios:
     - Copying a table without a specific column with a row limit.
     - Reversing the column order in the output table with a row limit.
-    - Copying the entire table with a row limit.
     """
     # populate a table with two columns each with 10 items and retrieve dataset
     pipeline = destination_config.setup_pipeline(
-        f"test_model_item_format_{uniq_id()}", dev_mode=False
+        f"test_simple_model_jobs_{uniq_id()}", dev_mode=False
     )
 
     pipeline.run(
@@ -362,7 +360,7 @@ def test_write_dispositions(
         dataset["example_table_2"]
         .filter(dataset["example_table_2"].a >= 3)
         .order_by("a")
-        .limit(7)[example_table_columns.keys()]
+        .limit(7)[["a"]]
     )
     query = relation.query()
 
@@ -381,11 +379,9 @@ def test_write_dispositions(
 
     pipeline.run([copied_table()])
 
-    # Snowflake is typin sensitive
-    if destination_config.destination_type == "snowflake":
-        result_items = dataset["example_table_1"].df()["A"].tolist()
-    else:
-        result_items = dataset["example_table_1"].df()["a"].tolist()
+    casefolder = pipeline.sql_client().capabilities.casefold_identifier
+
+    result_items = dataset["example_table_1"].df()[casefolder("a")].tolist()
     result_items.sort()
 
     if write_disposition == "merge":
@@ -499,10 +495,7 @@ def test_model_writer_without_destination(mocker) -> None:
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-        subset=DESTINATIONS_SUPPORTING_MODEL,
-    ),
+    destination_configs,
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("drop_column", ["_dlt_load_id", "_dlt_id"])
@@ -514,12 +507,16 @@ def test_copying_table_with_dropped_column(
     to verify that:
     - The resulting table contains all expected columns, including dlt ones.
     - Row counts and model job counts are correct.
+    - Load id is correct.
+    _ dlt ids are unique.
     """
     table_suffix = "no_dlt_id" if drop_column == "_dlt_id" else "dlt_id"
     target_table_name = f"copied_table_{table_suffix}"
 
     # populate a table with two columns each with 10 items and retrieve dataset
-    pipeline = destination_config.setup_pipeline("test_adding_dlt_load_id", dev_mode=False)
+    pipeline = destination_config.setup_pipeline(
+        f"test_copying_table_with_dropped_column_{uniq_id()}", dev_mode=False
+    )
 
     pipeline.run([{"a": i, "b": i + 1} for i in range(10)], table_name="example_table")
     dataset = pipeline.dataset()
@@ -540,7 +537,8 @@ def test_copying_table_with_dropped_column(
             ),
         )
 
-    pipeline.run([copied_table()])
+    load_info = pipeline.run([copied_table()])
+    assert_load_info(load_info)
 
     # Validate row counts for all tables
     assert load_table_counts(pipeline, target_table_name, "example_table") == {
@@ -564,28 +562,47 @@ def test_copying_table_with_dropped_column(
         target_table_name: {"model": 1},
     }
 
+    # Validate load id or dlt id
+    load_id = load_info.loads_ids[0]
+    casefolder = pipeline.sql_client().capabilities.casefold_identifier
+    result_items = dataset[target_table_name].df()[casefolder(drop_column)].to_list()
+
+    if drop_column == "_dlt_load_id":
+        assert all(
+            item == load_id for item in result_items
+        ), f"All values should match _dlt_load_id={load_id}"
+    elif drop_column == "_dlt_id":
+        assert len(result_items) == len(set(result_items)), "Values in _dlt_id must be unique"
+
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-        subset=DESTINATIONS_SUPPORTING_MODEL,
-    ),
+    destination_configs,
     ids=lambda x: x.name,
 )
 def test_load_model_with_all_types(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline("test_load_model_with_all_types", dev_mode=False)
-
-    exclude_types = (
-        ["time"] if destination_config.destination_type in ["databricks", "redshift"] else []
+    pipeline = destination_config.setup_pipeline(
+        f"test_load_model_with_all_types_{uniq_id()}", dev_mode=False
     )
-    if destination_config.destination_name == "sqlalchemy_sqlite":
+
+    exclude_types: List[TDataType] = []
+    exclude_columns: List[str] = []
+    if destination_config.destination_type in ["databricks", "redshift", "athena"]:
+        exclude_types.append("time")
+    elif destination_config.destination_name == "sqlalchemy_sqlite":
         exclude_types.extend(["decimal", "wei"])
+
     # for tsql dialect, sqlglot generates a statement that creates False if the column is empty
-    exclude_cols = ["col3_null"] if destination_config.destination_type == "mssql" else []
+    if destination_config.destination_type == "mssql":
+        exclude_columns.append("col3_null")
+    elif destination_config.destination_type == "dremio":
+        exclude_columns.append("col7_precision")
+    # TODO: Synapse doesn't support IIF statements which are created by sqlglot for col3
+    elif destination_config.destination_type == "synapse":
+        exclude_columns += ["col3", "col3_null"]
 
     column_schemas, data_types = table_update_and_row(
-        exclude_types=exclude_types, exclude_columns=exclude_cols  # type: ignore[arg-type]
+        exclude_types=exclude_types, exclude_columns=exclude_columns
     )
 
     @dlt.resource(table_name="data_types", columns=column_schemas)
@@ -616,6 +633,7 @@ def test_load_model_with_all_types(destination_config: DestinationTestConfigurat
         rows[0],
         schema=column_schemas,
         allow_base64_binary=destination_config.destination_type == "clickhouse",
+        timestamp_precision=pipeline.destination.capabilities().timestamp_precision,
     )
 
 
@@ -631,7 +649,9 @@ def test_load_model_with_all_types(destination_config: DestinationTestConfigurat
 def test_data_contract_on_tables(
     destination_config: DestinationTestConfiguration, tables_contract: str
 ) -> None:
-    pipeline = destination_config.setup_pipeline("test_data_contract_on_tables", dev_mode=False)
+    pipeline = destination_config.setup_pipeline(
+        f"test_data_contract_on_tables_{uniq_id()}", dev_mode=False
+    )
 
     # Populate an example table
     pipeline.run([{"a": i, "b": i + 1} for i in range(10)], table_name="example_table")
@@ -677,7 +697,9 @@ def test_data_contract_on_columns(
     destination_config: DestinationTestConfiguration, columns_contract: str
 ) -> None:
     # NOTE: discard_row on columns behaves the same way as discard_value
-    pipeline = destination_config.setup_pipeline("test_data_contract_on_columns", dev_mode=False)
+    pipeline = destination_config.setup_pipeline(
+        f"test_data_contract_on_columns_{uniq_id()}", dev_mode=False
+    )
 
     # Populate tables with different column sets and retreve dataset
     pipeline.run([{"a": i} for i in range(10)], table_name="copied_table")  # Single column a
@@ -748,7 +770,9 @@ def test_data_contract_on_data_type(
     destination_config: DestinationTestConfiguration, data_type_contract: str
 ) -> None:
     # TODO: data contracts on data type level currently don't work as expected
-    pipeline = destination_config.setup_pipeline("test_data_contract_on_data_type", dev_mode=False)
+    pipeline = destination_config.setup_pipeline(
+        f"test_data_contract_on_data_type_{uniq_id()}", dev_mode=False
+    )
 
     # Populate tables with different data types and retrieve dataset
     pipeline.run([{"a": i} for i in range(10)], table_name="copied_table")  # Integer column
