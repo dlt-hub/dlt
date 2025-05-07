@@ -1,9 +1,12 @@
 import inspect
 from typing import Callable, Any, Type, Optional, cast, Iterator, List
 
-from dlt.common.typing import TDataItems
 
 import dlt
+
+from dlt.common.typing import TDataItems
+from dlt.common import logger
+
 from dlt.extract.incremental import TIncrementalConfig
 
 from dlt.transformations.typing import (
@@ -14,6 +17,7 @@ from dlt.transformations.exceptions import (
     TransformationInvalidReturnTypeException,
     IncompatibleDatasetsException,
 )
+from dlt.pipeline.exceptions import PipelineConfigMissing
 from dlt.destinations.dataset import ReadableDBAPIDataset
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.extract.hints import make_hints
@@ -28,9 +32,11 @@ from dlt.common.schema.typing import (
     TTableFormat,
     TTableReferenceParam,
 )
-
-
-DEFAULT_CHUNK_SIZE = 50000
+from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.specs import known_sections
+from dlt.extract.exceptions import (
+    CurrentSourceNotAvailable,
+)
 
 
 class DltTransformResource(DltResource):
@@ -55,7 +61,6 @@ def make_transform_resource(
     incremental: Optional[TIncrementalConfig] = None,
 ) -> DltTransformResource:
     # resolve defaults etc
-    chunk_size = DEFAULT_CHUNK_SIZE
 
     resource_name = name if name and not callable(name) else get_callable_name(func)
 
@@ -66,6 +71,13 @@ def make_transform_resource(
 
     # build transformation function
     def transformation_function(*args: Any, **kwargs: Any) -> Iterator[TDataItems]:
+        # NOTE: this is most likely not correct
+        config = resolve_configuration(
+            TransformConfiguration(),
+            sections=(known_sections.EXTRACT, resource_name),
+            accept_partial=False,
+        )
+
         # collect all datasets from args
         datasets: List[ReadableDBAPIDataset] = []
         for arg in args:
@@ -91,14 +103,23 @@ def make_transform_resource(
 
         # Determine wether we use sql (model) or python (arrow_iterator) transformation
         # we need to supply the curent schema name (=source name)to the dataset constructor
-        schema_name = dlt.current.source().name
-        resolved_transformation_type = (
-            "model"
-            if datasets[0].is_same_physical_destination(
+
+        resolved_transformation_type = "python"
+        try:
+            schema_name = dlt.current.source().name
+            current_pipeline = dlt.current.pipeline()
+            if not current_pipeline._destination:
+                pass
+            elif datasets[0].is_same_physical_destination(
                 dlt.current.pipeline().dataset(schema=schema_name)
+            ):
+                resolved_transformation_type = "model"
+        # if we cannot reach the destination, or a running outside of a pipeline, we extract frames
+        except (PipelineConfigMissing, CurrentSourceNotAvailable):
+            logger.info(
+                "Cannot reach destination, switching to python extraction for transformation %s",
+                resource_name,
             )
-            else "python"
-        )
 
         # extract query from transform function
         select_query: str = None
@@ -151,10 +172,10 @@ def make_transform_resource(
 
             yield dlt.mark.with_hints(SqlModel(select_query), hints=make_hints(columns=all_columns))
         elif resolved_transformation_type == "python":
-            for chunk in datasets[0](select_query).iter_arrow(chunk_size=chunk_size):
+            for chunk in datasets[0](select_query).iter_arrow(chunk_size=config.buffer_max_items):
                 yield dlt.mark.with_hints(chunk, hints=make_hints(columns=all_columns))
 
-    resource = dlt.resource(
+    return dlt.resource(
         func if is_regular_resource else transformation_function,
         name=name,
         table_name=table_name,
@@ -171,5 +192,3 @@ def make_transform_resource(
         incremental=incremental,
         _impl_cls=DltTransformResource,
     )
-
-    return resource

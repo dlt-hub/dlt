@@ -3,6 +3,7 @@ import pytest
 from typing import Any
 
 import dlt
+import os
 
 from dlt.common.destination.dataset import SupportsReadableDataset
 from tests.pipeline.utils import load_table_counts
@@ -46,3 +47,56 @@ def test_simple_query_transformations(destination_config: DestinationTestConfigu
             {"model": 1} if destination_config.destination_type != "filesystem" else {"arrow": 1}
         )
     }
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    transformation_configs(only_duckdb=True),
+    ids=lambda x: x.name,
+)
+def test_extract_without_source_name_or_pipeline(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    # get pipelines andpopulate fruit pipeline
+    fruit_p, dest_p = setup_transformation_pipelines(destination_config)
+    fruit_p.run(fruitshop_source())
+
+    @dlt.transformation()
+    def buffer_size_test(dataset: SupportsReadableDataset[Any]) -> Any:
+        return dataset["customers"]
+
+    # transformations switch to arrow extraction
+    fruit_p.deactivate()
+    arrow_tables = list(buffer_size_test(fruit_p.dataset()))
+    assert len(arrow_tables) == 1
+    assert arrow_tables[0].num_rows == 13
+
+    # we can control the buffer size
+    os.environ["EXTRACT__BUFFER_MAX_ITEMS"] = "5"
+    arrow_tables = list(buffer_size_test(fruit_p.dataset()))
+    assert len(arrow_tables) == 3
+    assert arrow_tables[0].num_rows == 5
+    assert arrow_tables[1].num_rows == 5
+    assert arrow_tables[2].num_rows == 3
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    transformation_configs(only_duckdb=True),
+    ids=lambda x: x.name,
+)
+def test_extract_without_destination(destination_config: DestinationTestConfiguration) -> None:
+    fruit_p, dest_p = setup_transformation_pipelines(destination_config)
+    fruit_p.run(fruitshop_source())
+
+    @dlt.transformation()
+    def extract_test(dataset: SupportsReadableDataset[Any]) -> Any:
+        return dataset["customers"]
+
+    pipeline_no_destination = dlt.pipeline(pipeline_name="no_destination")
+    extract_info = pipeline_no_destination.extract(extract_test(fruit_p.dataset()))
+
+    # there is no destination, so we should have arrow extraction
+    for job in extract_info.load_packages[0].jobs["new_jobs"]:
+        assert job.job_file_info.file_format == "parquet"
+        assert job.job_file_info.table_name == "extract_test"
