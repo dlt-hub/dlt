@@ -88,11 +88,15 @@ uv pip install /Volumes/my_drive/my_folder
 
 Your dlt+ project is now available for use in this environment.
 
-As an exemple, create a new Python file named `test_project.py` and use your packaged project like this:
+As an exemple, create a new Python file named `test_project.py`, use your packaged project and define the environment variables it needs:
 
 ```py
 # import the packaged project
 import my_dlt_project
+import os
+
+os.environ["MY_PIPELINE__SOURCES__ARROW__ARROW__ROW_COUNT"] = "0"
+os.environ["MY_PIPELINE__SOURCES__ARROW__ARROW__SOME_SECRET"] = "0"
 
 if __name__ == "__main__":
     # should print "access" as defined in your dlt package
@@ -101,14 +105,12 @@ if __name__ == "__main__":
     my_dlt_project.runner().run_pipeline("my_pipeline")
     # should list the defined destinations  
     print(my_dlt_project.config().destinations)
-```
-Define the environment variables it needs. Add the following lines before running your pipeline:
-
-```py
-import os
-
-os.environ["MY_PIPELINE__SOURCES__ARROW__ARROW__ROW_COUNT"] = "0"
-os.environ["MY_PIPELINE__SOURCES__ARROW__ARROW__SOME_SECRET"] = "0"
+    #get a dataset from the catalog
+    dataset = my_dlt_project.catalog().dataset("my_pipeline_dataset")
+    # Write a DataFrame to the "my_table" table in the dataset
+    dataset.save(pd.DataFrame({"name": ["John", "Jane", "Jim"], "age": [30, 25, 35]}), table_name="my_table")
+    # get the row counts of all tables in the dataset as a dataframe
+    print(dataset.row_counts().df())
 ```
 
 Run the script inside the uv virtual environment:
