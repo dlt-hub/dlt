@@ -1,8 +1,5 @@
-from tests.load.pipeline.test_model_item_format import (
-    DESTINATIONS_SUPPORTING_MODEL,
-    UNSUPPORTED_MODEL_QUERIES,
-)
-from importlib import import_module
+from typing import Iterator, List, Tuple
+
 from dlt.common.destination import DestinationCapabilitiesContext, merge_caps_file_formats
 from dlt.common.configuration.container import Container
 from dlt.normalize import Normalize
@@ -10,26 +7,26 @@ from dlt.common.storages import (
     NormalizeStorage,
     FileStorage,
 )
+from dlt.common.schema.schema import Schema
+from dlt.common.schema import utils
+from dlt.common.utils import read_dialect_and_sql
+
 from dlt.extract.extract import ExtractStorage
 from dlt.extract.hints import SqlModel
-from dlt.common.utils import read_dialect_and_sql
-from dlt.common.data_types import TDataType
-from dlt.destinations import destination
 
 from tests.utils import clean_test_storage, TEST_DICT_CONFIG_PROVIDER
+from tests.load.pipeline.test_model_item_format import (
+    DESTINATIONS_SUPPORTING_MODEL,
+)
 
+from importlib import import_module
 import pytest
-import os
-from typing import Optional
-
-from typing import Iterator, List, Tuple
-
-from dlt.common.schema.schema import Schema
 from concurrent.futures import ThreadPoolExecutor
-
-from dlt.common.schema import utils
-
 import sqlglot
+
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 def get_caps(dest_name: str):
@@ -118,6 +115,7 @@ def extract_normalize_retrieve(
     return select_dialect, normalized_select_query, load_id
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize("caps", MODEL_CAPS, indirect=True, ids=DESTINATIONS_SUPPORTING_MODEL)
 def test_simple_model_normalizing(
     caps: DestinationCapabilitiesContext, model_normalize: Normalize
@@ -208,6 +206,7 @@ def test_simple_model_normalizing(
         )
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize("caps", MODEL_CAPS, indirect=True, ids=DESTINATIONS_SUPPORTING_MODEL)
 def test_selected_column_names_normalized(
     caps: DestinationCapabilitiesContext, model_normalize: Normalize
@@ -268,6 +267,7 @@ LIMIT 5
     assert parsed_norm_select_query.expressions[2].alias == caps.casefold_identifier("_dlt_id")
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "columns",
     [
