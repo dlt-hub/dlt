@@ -183,10 +183,10 @@ def from_sqlglot_type(
     elif dlt_type == "decimal":
         # NOTE this check is experimental; need validation from SQLGlot team for reliability
         if sqlglot_type.expressions and len(sqlglot_type.expressions) == 1:
-            precision = int(sqlglot_type.expressions[0].this.this)
+            precision = sqlglot_type.expressions[0].this.this.as_py()
         elif sqlglot_type.expressions and len(sqlglot_type.expressions) == 2:
-            precision = int(sqlglot_type.expressions[0].this.this)
-            scale = int(sqlglot_type.expressions[1].this.this)
+            precision = sqlglot_type.expressions[0].this.this.as_py()
+            scale = sqlglot_type.expressions[1].this.this.as_py()
         else:
             precision_and_scale = SQLGLOT_DECIMAL_PRECISION_AND_SCALE.get(sqlglot_type.this)
             if precision_and_scale is not None:
@@ -196,7 +196,7 @@ def from_sqlglot_type(
 
     elif dlt_type == "timestamp":
         if sqlglot_type.expressions and len(sqlglot_type.expressions) == 1:
-            precision = int(sqlglot_type.expressions[0].this.this)
+            precision = sqlglot_type.expressions[0].this.this.as_py()
         else:
             precision = SQLGLOT_TEMPORAL_PRECISION.get(sqlglot_type.this)
         timezone = SQLGLOT_HAS_TIMEZONE.get(sqlglot_type.this)
@@ -229,39 +229,51 @@ def to_sqlglot_type(
     use_parameterized_type: bool = False,  # TODO decide default behavior
 ) -> DataType:
     if use_parameterized_type:
-        # TODO better exception handling and logging
-        try:
-            return _build_parameterized_type(
-                dlt_type=dlt_type,
-                nullable=nullable,
-                precision=precision,
-                scale=scale,
-                timezone=timezone,
-            )
-        except NotImplementedError:
-            pass
+        sqlglot_type = _build_parameterized_sqlglot_type(
+            dlt_type=dlt_type,
+            nullable=nullable,
+            precision=precision,
+            scale=scale,
+            timezone=timezone,
+        )
+    else:
+        sqlglot_type = _build_named_sqlglot_type(
+            dlt_type=dlt_type,
+            nullable=nullable,
+            precision=precision,
+            scale=scale,
+            timezone=timezone,
+        )
 
+    return sqlglot_type
+
+
+def _build_named_sqlglot_type(
+    dlt_type: TDataType,
+    precision: Optional[int] = None,
+    scale: Optional[int] = None,
+    timezone: Optional[bool] = None,
+    nullable: Optional[bool] = None,
+) -> DataType:
     hints = {}
     if nullable is not None:
         hints["nullable"] = nullable
 
-    sqlglot_type = DLT_TO_SQLGLOT[dlt_type]
     if dlt_type == "bigint" and precision is not None:
-        sqlglot_type = _to_integer_type(precision=precision)
-
+        sqlglot_type = _to_named_integer_type(precision=precision)
     elif dlt_type == "decimal" and precision is not None:
-        sqlglot_type = _to_decimal_type(precision=precision, scale=scale)
-
+        sqlglot_type = _to_named_decimal_type(precision=precision, scale=scale)
     elif dlt_type == "timestamp" and (precision is not None or timezone is not None):
-        sqlglot_type = _to_timestamp_type(precision=precision, timezone=timezone)
-
+        sqlglot_type = _to_named_timestamp_type(precision=precision, timezone=timezone)
     elif dlt_type == "time" and timezone is not None:
-        sqlglot_type = _to_time_type(timezone=timezone)
+        sqlglot_type = _to_named_time_type(timezone=timezone)
+    else:
+        sqlglot_type = DLT_TO_SQLGLOT[dlt_type]
 
     return DataType.build(dtype=sqlglot_type, **hints)  # type: ignore[arg-type]
 
 
-def _build_parameterized_type(
+def _build_parameterized_sqlglot_type(
     dlt_type: TDataType,
     nullable: Optional[bool] = None,
     precision: Optional[int] = None,
@@ -295,7 +307,7 @@ def _build_parameterized_type(
         sqlglot_type = sge.DataType.build(f"DECIMAL{params}")
 
     elif dlt_type == "timestamp" and (precision is not None or timezone is not None):
-        base_sqlglot_type = _to_timestamp_type(precision=None, timezone=timezone)
+        base_sqlglot_type = _to_named_timestamp_type(precision=None, timezone=timezone)
         params = f"({precision})" if precision is not None else ""
         sqlglot_type = sge.DataType.build(f"{base_sqlglot_type.value}{params}")
 
@@ -303,12 +315,18 @@ def _build_parameterized_type(
         sqlglot_type = sge.DataType.build(f"TIME({timezone})")
 
     else:
-        raise NotImplementedError
+        sqlglot_type = _build_named_sqlglot_type(
+            dlt_type=dlt_type,
+            nullable=nullable,
+            precision=precision,
+            scale=scale,
+            timezone=timezone,
+        )
 
     return sqlglot_type
 
 
-def _to_integer_type(precision: Optional[int]) -> DataType.Type:
+def _to_named_integer_type(precision: Optional[int]) -> DataType.Type:
     if precision is None:
         return DataType.Type.BIGINT
     elif precision <= 0:
@@ -335,7 +353,7 @@ def _to_integer_type(precision: Optional[int]) -> DataType.Type:
 
 
 # TODO
-def _to_decimal_type(precision: Optional[int], scale: Optional[int]) -> DataType.Type:
+def _to_named_decimal_type(precision: Optional[int], scale: Optional[int]) -> DataType.Type:
     sqlglot_type = DataType.Type.DECIMAL
     # if precision is None:
     #     sqlglot_type = DataType.Type.DECIMAL
@@ -346,7 +364,7 @@ def _to_decimal_type(precision: Optional[int], scale: Optional[int]) -> DataType
     return sqlglot_type
 
 
-def _to_timestamp_type(precision: Optional[int], timezone: Optional[bool]) -> DataType.Type:
+def _to_named_timestamp_type(precision: Optional[int], timezone: Optional[bool]) -> DataType.Type:
     if precision is None:
         if timezone is None:
             sqlglot_type = DataType.Type.TIMESTAMP
@@ -368,7 +386,7 @@ def _to_timestamp_type(precision: Optional[int], timezone: Optional[bool]) -> Da
     return sqlglot_type
 
 
-def _to_time_type(timezone: Optional[bool]) -> DataType.Type:
+def _to_named_time_type(timezone: Optional[bool]) -> DataType.Type:
     if timezone is None:
         sqlglot_type = DataType.Type.TIME
     elif timezone is True:
@@ -401,13 +419,19 @@ def get_metadata(sqlglot_type: sge.DataType) -> TColumnSchema:
 
 def _filter_dlt_hints(hints: TColumnSchema) -> TColumnSchema:
     """Filter the metadata dictionary to only include dlt hints."""
+    DATA_TYPE_HINTS = ("name", "data_type", "nullable", "precision", "scale", "timezone")
+    ALLOWED_HINTS = ("hard_delete", "incremental")
+    CUSTOM_HINT_PREFIX = "x-"
+
     final_hints = {}
     for k, v in hints.items():
         # those are directly expressed via the DataType and Column
-        if k in ["name", "data_type", "nullable", "precision", "scale", "timezone"]:
+        if k in DATA_TYPE_HINTS:
             continue
-
-        if k.startswith("x-"):
+        
+        if k in ALLOWED_HINTS:
+            final_hints[k] = v
+        elif k.startswith(CUSTOM_HINT_PREFIX):
             final_hints[k] = v
 
     return final_hints  # type: ignore[return-value]
