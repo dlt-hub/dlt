@@ -1,22 +1,22 @@
 import pytest
 from dlt.destinations.impl.clickhouse.factory import ClickHouseTypeMapper
-
+from dlt.common.schema.typing import TColumnSchema
 @pytest.mark.parametrize(
-    "precision,expected_type",
+    "column,expected_type",
     [
-        (None, "Int64"),
-        (8, "Int8"),
-        (16, "Int16"),
-        (32, "Int32"),
-        (64, "Int64"),
+        (TColumnSchema(precision=None), "Int64"),
+        (TColumnSchema(precision=8), "Int8"),
+        (TColumnSchema(precision=16), "Int16"),
+        (TColumnSchema(precision=32), "Int32"),
+        (TColumnSchema(precision=64), "Int64"),
+        (TColumnSchema(), "Int64"),  # No precision key at all
     ]
 )
-def test_to_db_integer_type_valid(precision, expected_type):
+def test_to_db_integer_type_valid(column, expected_type):
     mapper = ClickHouseTypeMapper(capabilities=None)
-    column = {"precision": precision} if precision is not None else {}
     assert mapper.to_db_integer_type(column) == expected_type
 
 def test_to_db_integer_type_invalid():
     mapper = ClickHouseTypeMapper(capabilities=None)
     with pytest.raises(ValueError):
-        mapper.to_db_integer_type({"precision": 128})
+        mapper.to_db_integer_type(TColumnSchema(precision=128))
