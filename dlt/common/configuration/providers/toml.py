@@ -5,8 +5,8 @@ import tomlkit.items
 from typing import Any, Optional, List
 
 from dlt.common.utils import update_dict_nested
+from dlt.common.configuration.exceptions import ConfigProviderException
 
-from .provider import ConfigProviderException
 from .doc import BaseDocProvider, CustomLoaderDocProvider
 
 CONFIG_TOML = "config.toml"

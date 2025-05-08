@@ -9,6 +9,8 @@ import dlt
 from tests.pipeline.utils import load_table_counts
 from dlt.extract.hints import make_hints, SqlModel
 
+from dlt.common.utils import uniq_id
+
 from tests.load.utils import count_job_types, destinations_configs, DestinationTestConfiguration
 from tests.pipeline.utils import assert_load_info
 from dlt.common.schema.typing import TWriteDisposition
@@ -20,7 +22,7 @@ import sqlglot
 
 DESTINATIONS_SUPPORTING_MODEL = [
     "duckdb",
-    # "athena", #TODO: might support with the iceberg table format
+    "athena",  # with iceberg table format
     "bigquery",
     "clickhouse",
     "databricks",
@@ -30,22 +32,35 @@ DESTINATIONS_SUPPORTING_MODEL = [
     "sqlalchemy",
     "mssql",
     "postgres",
-    # "dremio",
+    "synapse",
+    "dremio",
+]
+
+# Get config with iceberg table format if supported
+destination_configs = [
+    config
+    for dest in DESTINATIONS_SUPPORTING_MODEL
+    for config in (
+        destinations_configs(default_sql_configs=True, subset=[dest], with_table_format="iceberg")
+        or destinations_configs(default_sql_configs=True, subset=[dest])
+    )
 ]
 
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-        subset=DESTINATIONS_SUPPORTING_MODEL,
-    ),
+    destination_configs,
     ids=lambda x: x.name,
 )
 def test_simple_incremental(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline("test_model_item_format", dev_mode=False)
+    pipeline = destination_config.setup_pipeline(
+        f"test_model_item_format_{uniq_id()}", dev_mode=False
+    )
 
-    pipeline.run([{"a": i, "b": i + 1} for i in range(10)], table_name="example_table")
+    pipeline.run(
+        [{"a": i, "b": i + 1} for i in range(10)],
+        table_name="example_table",
+    )
     dataset = pipeline.dataset()
 
     select_dialect = pipeline.destination.capabilities().sqlglot_dialect
@@ -67,10 +82,7 @@ def test_simple_incremental(destination_config: DestinationTestConfiguration) ->
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-        subset=DESTINATIONS_SUPPORTING_MODEL,
-    ),
+    destination_configs,
     ids=lambda x: x.name,
 )
 def test_aliased_column(destination_config: DestinationTestConfiguration) -> None:
@@ -78,8 +90,13 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
     Test that a column in a SQL query can be aliased correctly and processed by the pipeline.
     Specifically, this test ensures the resulting table contains the aliased column with the correct data.
     """
-    pipeline = destination_config.setup_pipeline("test_model_item_format", dev_mode=False)
-    pipeline.run([{"a": i, "b": i + 1} for i in range(10)], table_name="example_table")
+    pipeline = destination_config.setup_pipeline(
+        f"test_model_item_format_{uniq_id()}", dev_mode=False
+    )
+    pipeline.run(
+        [{"a": i, "b": i + 1} for i in range(10)],
+        table_name="example_table",
+    )
 
     dataset = pipeline.dataset()
     select_dialect = pipeline.destination.capabilities().sqlglot_dialect
@@ -130,10 +147,7 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-        subset=DESTINATIONS_SUPPORTING_MODEL,
-    ),
+    destination_configs,
     ids=lambda x: x.name,
 )
 def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> None:
@@ -144,9 +158,14 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     - Copying the entire table with a row limit.
     """
     # populate a table with two columns each with 10 items and retrieve dataset
-    pipeline = destination_config.setup_pipeline("test_model_item_format", dev_mode=False)
+    pipeline = destination_config.setup_pipeline(
+        f"test_model_item_format_{uniq_id()}", dev_mode=False
+    )
 
-    pipeline.run([{"a": i, "b": i + 1} for i in range(10)], table_name="example_table")
+    pipeline.run(
+        [{"a": i, "b": i + 1} for i in range(10)],
+        table_name="example_table",
+    )
     dataset = pipeline.dataset()
 
     # Retrieve the SQL dialect and schema information
@@ -235,10 +254,7 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-        subset=DESTINATIONS_SUPPORTING_MODEL,
-    ),
+    destination_configs,
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize(
@@ -249,7 +265,9 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
 def test_write_dispositions(
     destination_config: DestinationTestConfiguration, write_disposition: TWriteDisposition
 ) -> None:
-    pipeline = destination_config.setup_pipeline("test_write_dispositions", dev_mode=True)
+    pipeline = destination_config.setup_pipeline(
+        f"test_write_dispositions_{uniq_id()}", dev_mode=True
+    )
 
     pipeline.run(
         [{"a": i} for i in range(7)],
@@ -258,7 +276,7 @@ def test_write_dispositions(
         write_disposition=write_disposition,
     )
     pipeline.run(
-        [{"a": i} for i in range(10)],
+        [{"a": i + 1} for i in range(10)],
         primary_key="a",
         table_name="example_table_2",
         write_disposition=write_disposition,
@@ -271,14 +289,19 @@ def test_write_dispositions(
     # In Databricks, Ibis adds a helper column to emulate offset, causing a schema mismatch
     # when the query attempts to insert it. We explicitly select only the expected columns.
     relation = (
-        dataset["example_table_2"].order_by("a").limit(7, offset=3)[example_table_columns.keys()]
+        dataset["example_table_2"]
+        .filter(dataset["example_table_2"].a >= 3)
+        .order_by("a")
+        .limit(7)[example_table_columns.keys()]
     )
     query = relation.query()
 
     select_dialect = pipeline.destination.capabilities().sqlglot_dialect
 
     @dlt.resource(
-        write_disposition=write_disposition, table_name="example_table_1", primary_key="a"
+        write_disposition=write_disposition,
+        table_name="example_table_1",
+        primary_key="a",
     )
     def copied_table() -> Any:
         yield dlt.mark.with_hints(
@@ -310,10 +333,7 @@ def test_write_dispositions(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-        subset=DESTINATIONS_SUPPORTING_MODEL,
-    ),
+    destination_configs,
     ids=lambda x: x.name,
 )
 def test_multiple_statements_per_resource(destination_config: DestinationTestConfiguration) -> None:
@@ -323,7 +343,7 @@ def test_multiple_statements_per_resource(destination_config: DestinationTestCon
         os.environ["DESTINATION__POSTGRES__CREATE_INDEXES"] = "false"
 
     pipeline = destination_config.setup_pipeline(
-        "test_multiple_statments_per_resource", dev_mode=False
+        f"test_multiple_statments_per_resource_{uniq_id()}", dev_mode=False
     )
 
     pipeline.run([{"a": i} for i in range(10)], table_name="example_table")
