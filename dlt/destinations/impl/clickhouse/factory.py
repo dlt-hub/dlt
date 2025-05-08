@@ -91,6 +91,23 @@ class ClickHouseTypeMapper(TypeMapperImpl):
 
         return super().from_destination_type(db_type, precision, scale)
 
+    def to_db_integer_type(self, column: Dict[str, Any], table: Any = None) -> str:
+        """Map integer precision to the appropriate ClickHouse integer type."""
+        precision = column.get("precision")
+        if precision is None:
+            return "Int64"
+        if precision <= 8:
+            return "Int8"
+        if precision <= 16:
+            return "Int16"
+        if precision <= 32:
+            return "Int32"
+        if precision <= 64:
+            return "Int64"
+        raise ValueError(
+            f"Integer with {precision} bits precision cannot be mapped into ClickHouse integer type"
+        )
+
 
 class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"]):
     spec = ClickHouseClientConfiguration
