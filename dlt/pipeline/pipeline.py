@@ -1320,14 +1320,6 @@ class Pipeline(SupportsPipeline):
         except ValueError as ve_ex:
             raise InvalidPipelineName(self.pipeline_name, str(ve_ex))
 
-    def _make_schema_with_default_name(self) -> Schema:
-        """Make a schema from the pipeline name using the name normalizer. "_pipeline" suffix is removed if present"""
-        if self.pipeline_name.endswith("_pipeline"):
-            schema_name = self.pipeline_name[:-9]
-        else:
-            schema_name = self.pipeline_name
-        return Schema(normalize_schema_name(schema_name))
-
     def _set_context(self, is_active: bool) -> None:
         if not self.is_active and is_active:
             # initialize runtime if not active previously

@@ -154,6 +154,8 @@ class CustomLoaderDocProvider(BaseDocProvider):
             name(str): name of the provider that will be visible ie. in exceptions
             loader(Callable[[], Dict[str, Any]]): user-supplied function that will load the document with config/secret values
             supports_secrets(bool): allows to store secret values in this provider
+            locations(Sequence[str], optional): a human readable list of locations from which configuration is read, used to
+                display meaningful error messages when configurations was not resolved.
 
         """
         self._name = name

@@ -10,6 +10,7 @@ import Header from '../_source-info-header.md';
 
 <Header/>
 
+
 ## Applying column-wise filtering on the data being ingested
 
 By default, the existing source and resource functions, `sql_database` and `sql_table`, ingest all of the records from the source table. However, by using `query_adapter_callback`, it is possible to pass a `WHERE` clause inside the underlying `SELECT` statement using the [SQLAlchemy syntax](https://docs.sqlalchemy.org/en/14/core/selectable.html#). This enables filtering the data based on specific columns before extraction.

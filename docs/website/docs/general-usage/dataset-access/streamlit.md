@@ -1,10 +1,10 @@
 ---
-title: Viewing your data with Streamlit
+title: View data with Streamlit
 description: Viewing your data with streamlit
 keywords: [data, dataset, streamlit]
 ---
 
-# Viewing your data with Streamlit
+# View data with Streamlit
 
 Once you have run a pipeline locally, you can launch a web app that displays the loaded data. For this to work, you will need to have the `streamlit` package installed.
 

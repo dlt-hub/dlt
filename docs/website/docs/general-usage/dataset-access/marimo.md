@@ -1,5 +1,5 @@
 ---
-title: Explore your data with marimo
+title: Explore data with marimo
 description: Explore your data with marimo
 keywords: [data, dataset, sql, ibis, marimo]
 ---

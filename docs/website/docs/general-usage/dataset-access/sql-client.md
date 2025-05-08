@@ -1,5 +1,5 @@
 ---
-title: The SQL Client
+title: Access data with dlt sql client
 description: Technical details about the destination sql client
 keywords: [data, dataset, sql]
 ---

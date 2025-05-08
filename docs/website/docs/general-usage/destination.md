@@ -43,7 +43,7 @@ If a destination is not named, its shorthand type (the Python factory name) serv
 ## Configure a destination
 We recommend passing the credentials and other required parameters to configuration via TOML files, environment variables, or other [config providers](credentials/setup). This allows you, for example, to easily switch to production destinations after deployment.
 
-We recommend using the [default config section layout](credentials/advanced#toml-files-structure) as below:
+We recommend using the [default config section layout](credentials/advanced#organize-configuration-and-secrets-with-sections) as below:
 <!--@@@DLT_SNIPPET ./snippets/destination-toml.toml::default_layout-->
 
 or via environment variables:

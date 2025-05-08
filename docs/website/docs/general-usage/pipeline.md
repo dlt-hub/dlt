@@ -6,7 +6,7 @@ keywords: [pipeline, source, full refresh, dev mode]
 
 # Pipeline
 
-A [pipeline](glossary.md#pipeline) is a connection that moves data from your Python code to a
+A [pipeline](glossary.md#pipeline) moves data from your Python code to a
 [destination](glossary.md#destination). The pipeline accepts `dlt` [sources](source.md) or
 [resources](resource.md), as well as generators, async generators, lists, and any iterables.
 Once the pipeline runs, all resources are evaluated and the data is loaded at the destination.
@@ -48,7 +48,6 @@ Arguments:
 - `write_disposition` controls how to write data to a table. Defaults to "append".
   - `append` will always add new data at the end of the table.
   - `replace` will replace existing data with new data.
-  - `skip` will prevent data from loading.
   - `merge` will deduplicate and merge data based on `primary_key` and `merge_key` hints.
 - `table_name`: specified in cases when the table name cannot be inferred, i.e., from the resources or name
   of the generator function.
@@ -183,7 +182,7 @@ pipeline.run(airtable_emojis().with_resources("📆 Schedule"), refresh="drop_da
 Above, the incremental state of the "📆 Schedule" is reset before the `extract` step so data is fully reacquired. Just before the `load` step starts,
 the "_schedule" is truncated, and new (full) table data will be inserted/copied.
 
-## Display the loading progress
+## Monitor the loading progress
 
 You can add a progress monitor to the pipeline. Typically, its role is to visually assure the user that
 the pipeline run is progressing. dlt supports 4 progress monitors out of the box:

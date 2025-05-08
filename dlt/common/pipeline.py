@@ -568,9 +568,6 @@ class SupportsPipeline(Protocol):
     def _set_context(self, is_active: bool) -> None:
         """Called when pipeline context activated or deactivate"""
 
-    def _make_schema_with_default_name(self) -> Schema:
-        """Make a schema from the pipeline name using the name normalizer. "_pipeline" suffix is removed if present"""
-
 
 class SupportsPipelineRun(Protocol):
     def __call__(

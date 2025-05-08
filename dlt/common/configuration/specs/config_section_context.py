@@ -54,7 +54,6 @@ class ConfigSectionContext(ContainerInjectableContext):
             and incoming.sections[0] == existing.sections[0]
         ):
             # existing does not have middle section then keep incoming
-            # standalone resources do not emit existing to not overwrite each other
             incoming.sections = (
                 incoming.sections[0],
                 existing.sections[1] or incoming.sections[1],

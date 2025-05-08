@@ -53,6 +53,20 @@ const sidebars = {
         'general-usage/pipeline',
         'general-usage/destination',
         'general-usage/state',
+        {
+          type: 'category',
+          label: 'Schema',
+          link: {
+            type: 'doc',
+            id: 'general-usage/schema',
+          },
+          items: [
+            'general-usage/schema-contracts',
+            'general-usage/schema-evolution',
+            'general-usage/naming-convention',
+            'walkthroughs/adjust-a-schema',
+          ]
+        },
         'general-usage/glossary'
       ]
     },
@@ -180,6 +194,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/sql_database/usage',
             'dlt-ecosystem/verified-sources/sql_database/troubleshooting',
             'dlt-ecosystem/verified-sources/sql_database/advanced',
+            'walkthroughs/add-incremental-configuration',
           ]
         },
         {
@@ -288,7 +303,30 @@ const sidebars = {
         },
         {
           type: 'category',
-          label: 'Accessing loaded data',
+          label: 'Load data incrementally',
+          items: [
+            'general-usage/incremental-loading',            
+            'general-usage/full-loading',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Configure pipelines and credentials',
+           link: {
+            type: 'doc',
+            id: 'general-usage/credentials/index',
+          },
+          items: [
+            'general-usage/credentials/setup',
+            'general-usage/credentials/advanced',
+            'general-usage/credentials/complex_types',
+            // Unsure item
+            'walkthroughs/add_credentials'
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Access loaded data',
            link: {
             type: 'doc',
             id: 'general-usage/dataset-access/index',
@@ -299,12 +337,12 @@ const sidebars = {
             'general-usage/dataset-access/dataset',
             'general-usage/dataset-access/ibis-backend',
             'general-usage/dataset-access/sql-client',
-            'general-usage/dataset-access/data-quality-dashboard',
+            'general-usage/destination-tables',
           ]
         },
         {
           type: 'category',
-          label: 'Transforming data',
+          label: 'Transform data',
           link: {
             type: 'doc',
             id: 'dlt-ecosystem/transformations/index',
@@ -320,49 +358,17 @@ const sidebars = {
             },
             'dlt-ecosystem/transformations/python',
             'dlt-ecosystem/transformations/sql',
-            'general-usage/customising-pipelines/renaming_columns',
-            'general-usage/customising-pipelines/pseudonymizing_columns',
-            'general-usage/customising-pipelines/removing_columns',
-            'dlt-ecosystem/transformations/encryption'
+            {
+              type: 'category',
+              label: 'Transform before load',
+              items: [
+                'general-usage/customising-pipelines/renaming_columns',
+                'general-usage/customising-pipelines/pseudonymizing_columns',
+                'general-usage/customising-pipelines/removing_columns',
+              ]
+            }
           ]
-        },
-        {
-          type: 'category',
-          label: 'Configuration and secrets',
-           link: {
-            type: 'doc',
-            id: 'general-usage/credentials/index',
-          },
-          items: [
-            'general-usage/credentials/setup',
-            'general-usage/credentials/advanced',
-            'general-usage/credentials/complex_types',
-            // Unsure item
-            'walkthroughs/add_credentials'
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Schema',
-          link: {
-            type: 'doc',
-            id: 'general-usage/schema',
-          },
-          items: [
-            'general-usage/schema-contracts',
-            'general-usage/schema-evolution',
-            'walkthroughs/adjust-a-schema',
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Loading behavior',
-          items: [
-            'general-usage/incremental-loading',
-            'walkthroughs/add-incremental-configuration',
-            'general-usage/full-loading',
-          ]
-        },
+        },        
       ]
     },
     {
@@ -446,9 +452,6 @@ const sidebars = {
       items: [
         'reference/command-line-interface',
         'reference/telemetry',
-        // Unsure item
-        'general-usage/destination-tables',
-        'general-usage/naming-convention',
         'dlt-ecosystem/staging',
         {
           type: 'category',
@@ -481,6 +484,7 @@ const sidebars = {
             'dlt-ecosystem/table-formats/iceberg',
           ]
         },
+        'general-usage/dataset-access/data-quality-dashboard',
         'reference/frequently-asked-questions',
       ],
     },

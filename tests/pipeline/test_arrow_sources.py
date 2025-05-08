@@ -194,8 +194,12 @@ def test_extract_normalize_file_rotation(item_type: TPythonTableFormat) -> None:
             yield item
 
     # get buffer written and file rotated with each yielded frame
-    os.environ[f"SOURCES__{pipeline_name.upper()}__DATA_WRITER__BUFFER_MAX_ITEMS"] = str(len(rows))
-    os.environ[f"SOURCES__{pipeline_name.upper()}__DATA_WRITER__FILE_MAX_ITEMS"] = str(len(rows))
+    os.environ[
+        f"SOURCES__TEST_ARROW_SOURCES__{pipeline_name.upper()}__DATA_WRITER__BUFFER_MAX_ITEMS"
+    ] = str(len(rows))
+    os.environ[
+        f"SOURCES__TEST_ARROW_SOURCES__{pipeline_name.upper()}__DATA_WRITER__FILE_MAX_ITEMS"
+    ] = str(len(rows))
 
     pipeline.extract(data_frames())
     # ten parquet files
