@@ -10,6 +10,7 @@ from os import environ
 from types import ModuleType
 import traceback
 import zlib
+import sqlglot
 from importlib.metadata import version as pkg_version
 from packaging.version import Version
 
@@ -32,6 +33,9 @@ from typing import (
     Iterable,
 )
 
+import sqlglot.optimizer
+import sqlglot.planner
+
 from dlt.common.exceptions import (
     DltException,
     ExceptionTrace,
@@ -40,6 +44,7 @@ from dlt.common.exceptions import (
 )
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun
 
+# from dlt.common.schema.typing import TTableSchemaColumns
 
 T = TypeVar("T")
 TObj = TypeVar("TObj", bound=object)
@@ -661,3 +666,89 @@ def is_typeerror_due_to_wrong_call(exc: Exception, func: AnyFun) -> bool:
 removeprefix = getattr(
     str, "removeprefix", lambda s_, p_: s_[len(p_) :] if s_.startswith(p_) else s_
 )
+
+
+def query_is_complex(
+    parsed_select: Union[sqlglot.exp.Select, sqlglot.exp.Union],
+    columns: Set[str],
+) -> bool:
+    """
+    Return **True** unless the query is provably “simple”.
+    A *simple* query is defined as:
+
+    1. References **exactly one** physical table.
+    2. Contains no complex constructs.
+    3. Its projection list is either
+       * a plain or qualified star (`*`, `tbl.*`), optionally followed only
+         by constant literals, **or**
+       * an explicit list of *all* columns, optinally followed only by constant literals.
+
+    Anything we cannot *prove* to be simple is conservatively flagged as complex.
+
+    Args:
+        parsed_select (sqlglot.exp.Select): The parsed SELECT statement.
+        columns Set[str]: Column names of the table.
+
+    Returns:
+        bool: Whether a query is considered complex.
+    """
+    # 1. If more than one table is referenced -> complex
+    tables = {table for table in parsed_select.find_all(sqlglot.exp.Table)}
+    if len(tables) != 1:
+        return True
+
+    # 2. If either of these constructs appear anywhere in the query -> complex
+    COMPLEX_NODES = (
+        sqlglot.exp.Window,  # Window functions
+        sqlglot.exp.SetOperation,  # Union, Except, Intersect
+    )
+
+    COMPLEX_ARGS = (
+        "group",  # Group by
+        "distinct",  # Distinct
+        "with",  # CTEs
+        # "order",
+        # "limit",
+        # "where",
+        # "offset"
+    )
+
+    if parsed_select.find(*COMPLEX_NODES) or any(parsed_select.args.get(a) for a in COMPLEX_ARGS):
+        return True
+
+    STAR = sqlglot.exp.Star
+    LIT = sqlglot.exp.Literal
+    ALS = sqlglot.exp.Alias
+    COL = sqlglot.exp.Column
+
+    # 3. The query can be considered simple, if the selected columns are
+    #   - A star + constant literals
+    #   - All columns are explicitly selected
+    selects = list(parsed_select.selects)  # copy – we’ll mutate
+    star_present = any(isinstance(s, STAR) or isinstance(s.this, STAR) for s in selects)
+
+    # pull out star (qualified or not) if present
+    selects = [s for s in selects if not (isinstance(s, STAR) or isinstance(s.this, STAR))]
+
+    non_literal_cols: set[str] = set()
+    for s in selects:
+        # unwrap aliases once
+        node = s.this if isinstance(s, ALS) else s
+
+        if isinstance(node, LIT):
+            continue  # constant → always allowed
+        if isinstance(node, COL):
+            non_literal_cols.add(node.name)
+            continue
+
+        # anything else (functions, aggregates) means complex
+        return True
+
+    # star + only literals
+    if star_present and not non_literal_cols:
+        return False
+
+    if non_literal_cols == columns:
+        return False
+
+    return True
