@@ -1,22 +1,30 @@
 import os
 import io
 
-from typing import Any
+from typing import Any, List
 from unittest.mock import MagicMock
 import pytest
 import dlt
 
-from tests.pipeline.utils import load_table_counts
 from dlt.extract.hints import make_hints, SqlModel
 
+from dlt.normalize.exceptions import NormalizeJobFailed
+from dlt.pipeline.exceptions import PipelineStepFailed
+from dlt.load.exceptions import LoadClientJobException
+
+from dlt.common.data_writers.writers import ModelWriter
+from dlt.common.schema.typing import TWriteDisposition, TDataType
+from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.utils import uniq_id
 
-from tests.load.utils import count_job_types, destinations_configs, DestinationTestConfiguration
-from tests.pipeline.utils import assert_load_info
-from dlt.common.schema.typing import TWriteDisposition
-from dlt.common.data_writers.writers import ModelWriter
+from tests.cases import table_update_and_row, assert_all_data_types_row
 
-from dlt.pipeline.exceptions import PipelineStepFailed
+from tests.load.utils import (
+    count_job_types,
+    destinations_configs,
+    DestinationTestConfiguration,
+)
+from tests.pipeline.utils import assert_load_info, load_tables_to_dicts, load_table_counts
 
 import sqlglot
 
@@ -47,6 +55,92 @@ destination_configs = [
 ]
 
 
+UNSUPPORTED_MODEL_QUERIES = [
+    "DELETE FROM users WHERE id = 1",
+    "INSERT INTO users (id, name) VALUES (1, 'Alice')",
+    "UPDATE users SET name = 'Bob' WHERE id = 1",
+    "CREATE TABLE users (id INTEGER, name TEXT)",
+    "DROP TABLE users",
+    "TRUNCATE TABLE users",
+]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        subset=DESTINATIONS_SUPPORTING_MODEL,
+    ),
+    ids=lambda x: x.name,
+)
+def test_star_select(destination_config: DestinationTestConfiguration) -> None:
+    # populate a table with two columns each with 10 items and retrieve dataset
+    pipeline = destination_config.setup_pipeline(f"test_star_select_{uniq_id()}", dev_mode=False)
+
+    pipeline.run(
+        [{"a": i, "b": i + 1} for i in range(10)],
+        table_name="example_table",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    dataset = pipeline.dataset()
+
+    # Retrieve the SQL dialect and schema information
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+    query = dataset["example_table"].query()
+
+    assert "*" in str(query)
+
+    @dlt.resource()
+    def copied_table() -> Any:
+        sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
+        yield dlt.mark.with_hints(
+            sql_model,
+            hints=make_hints(columns=example_table_columns),
+        )
+
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run([copied_table()], table_format=destination_config.run_kwargs["table_format"])
+    assert isinstance(pip_ex.value.__cause__, NormalizeJobFailed)
+    assert isinstance(pip_ex.value.__cause__.__cause__, ValueError)
+
+
+@pytest.mark.parametrize(
+    "unsupported_model_query",
+    UNSUPPORTED_MODEL_QUERIES,
+    ids=[f"query-{q.strip().split()[0].lower()}" for q in UNSUPPORTED_MODEL_QUERIES],
+)
+def test_model_builder_with_non_select_query(unsupported_model_query: str) -> None:
+    try:
+        SqlModel.from_query_string(query=unsupported_model_query)
+        pytest.fail(
+            "Expected ValueError: only SELECT queries are currently supported to create a"
+            f" SqlModel, but no error was raised for: {unsupported_model_query!r}"
+        )
+    except ValueError:
+        pass
+
+
+@pytest.mark.parametrize(
+    "unsupported_model_query",
+    UNSUPPORTED_MODEL_QUERIES,
+    ids=[f"query-{q.strip().split()[0].lower()}" for q in UNSUPPORTED_MODEL_QUERIES],
+)
+def test_model_writer_with_non_select_query(unsupported_model_query: str, mocker) -> None:
+    try:
+        mocker_file = io.StringIO()
+        writer = ModelWriter(mocker_file)
+
+        mock_item = [MagicMock(dialect=None, query=unsupported_model_query)]
+        writer.write_data(mock_item)
+        pytest.fail(
+            "Expected ValueError: only SELECT queries are currently supported to write"
+            f" model files, but no error was raised for: {unsupported_model_query!r}"
+        )
+    except ValueError:
+        pass
+
+
 @pytest.mark.parametrize(
     "destination_config",
     destination_configs,
@@ -54,12 +148,13 @@ destination_configs = [
 )
 def test_simple_incremental(destination_config: DestinationTestConfiguration) -> None:
     pipeline = destination_config.setup_pipeline(
-        f"test_model_item_format_{uniq_id()}", dev_mode=False
+        f"test_simple_incremental_{uniq_id()}", dev_mode=False
     )
 
     pipeline.run(
         [{"a": i, "b": i + 1} for i in range(10)],
         table_name="example_table",
+        table_format=destination_config.run_kwargs["table_format"],
     )
     dataset = pipeline.dataset()
 
@@ -90,12 +185,11 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
     Test that a column in a SQL query can be aliased correctly and processed by the pipeline.
     Specifically, this test ensures the resulting table contains the aliased column with the correct data.
     """
-    pipeline = destination_config.setup_pipeline(
-        f"test_model_item_format_{uniq_id()}", dev_mode=False
-    )
+    pipeline = destination_config.setup_pipeline(f"test_aliased_column_{uniq_id()}", dev_mode=False)
     pipeline.run(
         [{"a": i, "b": i + 1} for i in range(10)],
         table_name="example_table",
+        table_format=destination_config.run_kwargs["table_format"],
     )
 
     dataset = pipeline.dataset()
@@ -109,6 +203,7 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
         # Parse into AST
         parsed = sqlglot.parse_one(query, read=select_dialect)
         # Get first expression in the SELECT statement (e.g "a")
+        query = parsed.sql(select_dialect)
         first_expr = parsed.expressions[0]
         # Clickhouse aliases by default, so special handling is needed
         if isinstance(first_expr, sqlglot.exp.Alias):
@@ -125,7 +220,9 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
             hints=make_hints(columns={k: v for k, v in example_table_columns.items() if k != "a"}),
         )
 
-    pipeline.run([copied_table_with_a_as_b()])
+    pipeline.run(
+        [copied_table_with_a_as_b()], table_format=destination_config.run_kwargs["table_format"]
+    )
 
     assert load_table_counts(pipeline, "copied_table_with_a_as_b", "example_table") == {
         "copied_table_with_a_as_b": 10,
@@ -155,16 +252,16 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     Test creating SQL model jobs for various scenarios:
     - Copying a table without a specific column with a row limit.
     - Reversing the column order in the output table with a row limit.
-    - Copying the entire table with a row limit.
     """
     # populate a table with two columns each with 10 items and retrieve dataset
     pipeline = destination_config.setup_pipeline(
-        f"test_model_item_format_{uniq_id()}", dev_mode=False
+        f"test_simple_model_jobs_{uniq_id()}", dev_mode=False
     )
 
     pipeline.run(
         [{"a": i, "b": i + 1} for i in range(10)],
         table_name="example_table",
+        table_format=destination_config.run_kwargs["table_format"],
     )
     dataset = pipeline.dataset()
 
@@ -193,32 +290,22 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
             hints=make_hints(columns=dict(reversed(example_table_columns.items()))),
         )
 
-    # Create a copied table with all columns
-    @dlt.resource()
-    def copied_table() -> Any:
-        query = dataset["example_table"].limit(8).query()
-        yield dlt.mark.with_hints(
-            SqlModel.from_query_string(query=query, dialect=select_dialect),
-            hints=make_hints(columns=example_table_columns),
-        )
-
     # run sql jobs
-    pipeline.run([copied_table_no_b(), reversed_table(), copied_table()])
+    pipeline.run(
+        [copied_table_no_b(), reversed_table()],
+        table_format=destination_config.run_kwargs["table_format"],
+    )
 
     # Validate row counts for all tables
-    assert load_table_counts(
-        pipeline, "copied_table_no_b", "reversed_table", "copied_table", "example_table"
-    ) == {
+    assert load_table_counts(pipeline, "copied_table_no_b", "reversed_table", "example_table") == {
         "copied_table_no_b": 5,
         "reversed_table": 7,
-        "copied_table": 8,
         "example_table": 10,
     }
 
     # Validate that all tables were created
     assert "copied_table_no_b" in pipeline.default_schema.tables
     assert "reversed_table" in pipeline.default_schema.tables
-    assert "copied_table" in pipeline.default_schema.tables
 
     # Validate columns for the table without column "b"
     assert set(pipeline.default_schema.tables["copied_table_no_b"]["columns"].keys()) == {
@@ -236,20 +323,137 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
         actual_columns == expected_columns
     ), f"Column mismatch: {actual_columns} != {expected_columns}"
 
-    # Validate that the copied table includes all columns
-    assert set(pipeline.default_schema.tables["copied_table"]["columns"].keys()) == {
-        "a",
-        "b",
-        "_dlt_id",
-        "_dlt_load_id",
-    }
-
     # Validate that each table has exactly one model job
-    assert count_job_types(pipeline) == {
-        "copied_table_no_b": {"model": 1},
-        "reversed_table": {"model": 1},
-        "copied_table": {"model": 1},
-    }
+    if destination_config.destination_type == "athena":
+        assert count_job_types(pipeline) == {
+            "copied_table_no_b": {"model": 1, "sql": 1},
+            "reversed_table": {"model": 1, "sql": 1},
+        }
+    else:
+        assert count_job_types(pipeline) == {
+            "copied_table_no_b": {"model": 1},
+            "reversed_table": {"model": 1},
+        }
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destination_configs,
+    ids=lambda x: x.name,
+)
+def test_model_from_two_tables(destination_config: DestinationTestConfiguration):
+    pipeline = destination_config.setup_pipeline(
+        f"test_model_from_two_tables_{uniq_id()}", dev_mode=False
+    )
+
+    pipeline.run(
+        [{"a": i, "b": i + 10} for i in range(5)],
+        table_name="example_table_ab",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+
+    pipeline.run(
+        [{"a": i, "c": i + 20} for i in range(5)],
+        table_name="example_table_ac",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+
+    pipeline.run(
+        [{"a": -1, "b": -1, "c": -1}],  # one dummy row → defines schema
+        table_name="merged_table",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+
+    dataset = pipeline.dataset()
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    merged_cols = dataset.schema.tables["merged_table"]["columns"]
+
+    @dlt.resource(table_name="merged_table")
+    def insert_ab() -> Any:
+        query = dataset["example_table_ab"][["a", "b"]].query()  # only a,b
+        yield dlt.mark.with_hints(
+            SqlModel.from_query_string(query=query, dialect=select_dialect),
+            hints=make_hints(columns={k: v for k, v in merged_cols.items() if k in ("a", "b")}),
+        )
+
+    @dlt.resource(table_name="merged_table")
+    def insert_ac() -> Any:
+        query = dataset["example_table_ac"][["a", "c"]].query()  # only a,c
+        yield dlt.mark.with_hints(
+            SqlModel.from_query_string(query=query, dialect=select_dialect),
+            hints=make_hints(columns={k: v for k, v in merged_cols.items() if k in ("a", "c")}),
+        )
+
+    pipeline.run(
+        [insert_ab(), insert_ac()],
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+
+    casefold = pipeline.sql_client().capabilities.casefold_identifier
+    df = dataset["merged_table"].df()
+
+    assert len(df) == 11
+    assert sum(df[casefold("a")].to_list()) == 19  # -1 + 2 * (0 + 1 + 2 + 3 + 4)
+    assert df[casefold("b")].dropna().sum() == 59  # -1 + 11 + 12 + 13 + 14 + 15
+    assert df[casefold("c")].dropna().sum() == 109  # -1 + 21 + 22 + 23 + 24 + 25
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destination_configs,
+    ids=lambda x: x.name,
+)
+def test_model_from_joined_table(destination_config: DestinationTestConfiguration):
+    pipeline = destination_config.setup_pipeline(
+        f"test_model_from_joined_table_{uniq_id()}", dev_mode=False
+    )
+
+    pipeline.run(
+        [{"a": i, "b": i + 10} for i in range(5)],
+        table_name="example_table_ab",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+
+    pipeline.run(
+        [{"a": i, "c": i + 20} for i in range(5)],
+        table_name="example_table_ac",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+
+    pipeline.run(
+        [{"a": -1, "b": -1, "c": -1}],  # one dummy row → defines schema
+        table_name="merged_table",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+
+    dataset = pipeline.dataset()
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    merged_cols = dataset.schema.tables["merged_table"]["columns"]
+
+    relation_ab = dataset["example_table_ab"]
+    relation_ac = dataset["example_table_ac"]
+    joined_relation = relation_ab.join(relation_ac, relation_ab.a == relation_ac.a)[["a", "b", "c"]]
+
+    @dlt.resource(table_name="merged_table")
+    def insert_joined() -> Any:
+        query = joined_relation.query()
+        yield dlt.mark.with_hints(
+            SqlModel.from_query_string(query=query, dialect=select_dialect),
+            hints=make_hints(columns=merged_cols),
+        )
+
+    pipeline.run(
+        [insert_joined()],
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+
+    casefold = pipeline.sql_client().capabilities.casefold_identifier
+    df = dataset["merged_table"].df()
+
+    assert len(df) == 6
+    assert sum(df[casefold("a")].to_list()) == 9  # -1 + 0 + 1 + 2 + 3 + 4)
+    assert df[casefold("b")].dropna().sum() == 59  # -1 + 11 + 12 + 13 + 14 + 15
+    assert df[casefold("c")].dropna().sum() == 109  # -1 + 21 + 22 + 23 + 24 + 25
 
 
 @pytest.mark.parametrize(
@@ -266,7 +470,7 @@ def test_write_dispositions(
     destination_config: DestinationTestConfiguration, write_disposition: TWriteDisposition
 ) -> None:
     pipeline = destination_config.setup_pipeline(
-        f"test_write_dispositions_{uniq_id()}", dev_mode=True
+        f"test_write_dispositions_{uniq_id()}", dev_mode=False
     )
 
     pipeline.run(
@@ -274,12 +478,14 @@ def test_write_dispositions(
         primary_key="a",
         table_name="example_table_1",
         write_disposition=write_disposition,
+        table_format=destination_config.run_kwargs["table_format"],
     )
     pipeline.run(
         [{"a": i + 1} for i in range(10)],
         primary_key="a",
         table_name="example_table_2",
         write_disposition=write_disposition,
+        table_format=destination_config.run_kwargs["table_format"],
     )
 
     # we now run a select of items 3-10 from example_table_2 into example_table_1
@@ -292,7 +498,7 @@ def test_write_dispositions(
         dataset["example_table_2"]
         .filter(dataset["example_table_2"].a >= 3)
         .order_by("a")
-        .limit(7)[example_table_columns.keys()]
+        .limit(7)[["a"]]
     )
     query = relation.query()
 
@@ -309,13 +515,11 @@ def test_write_dispositions(
             hints=make_hints(columns=example_table_columns),
         )
 
-    pipeline.run([copied_table()])
+    pipeline.run([copied_table()], table_format=destination_config.run_kwargs["table_format"])
 
-    # Snowflake is typin sensitive
-    if destination_config.destination_type == "snowflake":
-        result_items = dataset["example_table_1"].df()["A"].tolist()
-    else:
-        result_items = dataset["example_table_1"].df()["a"].tolist()
+    casefolder = pipeline.sql_client().capabilities.casefold_identifier
+
+    result_items = dataset["example_table_1"].df()[casefolder("a")].tolist()
     result_items.sort()
 
     if write_disposition == "merge":
@@ -346,7 +550,11 @@ def test_multiple_statements_per_resource(destination_config: DestinationTestCon
         f"test_multiple_statments_per_resource_{uniq_id()}", dev_mode=False
     )
 
-    pipeline.run([{"a": i} for i in range(10)], table_name="example_table")
+    pipeline.run(
+        [{"a": i} for i in range(10)],
+        table_name="example_table",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
     dataset = pipeline.dataset()
 
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
@@ -357,19 +565,19 @@ def test_multiple_statements_per_resource(destination_config: DestinationTestCon
     # we also need to supply all hints so the table can be created
     @dlt.resource()
     def copied_table() -> Any:
-        query1 = dataset["example_table"].limit(5).query()
+        query1 = dataset["example_table"][["a"]].limit(5).query()
         yield dlt.mark.with_hints(
             SqlModel.from_query_string(query=query1, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),
         )
 
-        query2 = dataset["example_table"].limit(7).query()
+        query2 = dataset["example_table"][["a"]].limit(7).query()
         yield dlt.mark.with_hints(
             SqlModel.from_query_string(query=query2, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),
         )
 
-    pipeline.run([copied_table()])
+    pipeline.run([copied_table()], table_format=destination_config.run_kwargs["table_format"])
 
     assert load_table_counts(pipeline, "copied_table", "example_table") == {
         "copied_table": 12,
@@ -377,12 +585,17 @@ def test_multiple_statements_per_resource(destination_config: DestinationTestCon
     }
 
     # two model jobs where produced
-    assert count_job_types(pipeline) == {
-        "copied_table": {"model": 2},
-    }
+    if destination_config.destination_type == "athena":
+        assert count_job_types(pipeline) == {
+            "copied_table": {"model": 2, "sql": 1},
+        }
+    else:
+        assert count_job_types(pipeline) == {
+            "copied_table": {"model": 2},
+        }
 
 
-def test_model_writer_without_destination(mocker):
+def test_model_writer_without_destination(mocker) -> None:
     """
     Test the `ModelWriter` class without passing destination capabilities (`_caps`) to ensure:
     - The `write_data` method processes items correctly.
@@ -425,3 +638,386 @@ def test_model_writer_without_destination(mocker):
         pipeline.extract(example_table)
     except Exception as e:
         pytest.fail(f"pipeline.extract(example_table) raised an exception: {e}")
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destination_configs,
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("drop_column", ["_dlt_load_id", "_dlt_id"])
+def test_copying_table_with_dropped_column(
+    destination_config: DestinationTestConfiguration, drop_column: str
+) -> None:
+    """
+    Test copying a table while excluding one of the DLT-injected columns (`_dlt_id` or `_dlt_load_id`),
+    to verify that:
+    - The resulting table contains all expected columns, including dlt ones.
+    - Row counts and model job counts are correct.
+    - Load id is correct.
+    _ dlt ids are unique.
+    """
+    table_suffix = "no_dlt_id" if drop_column == "_dlt_id" else "dlt_id"
+    target_table_name = f"copied_table_{table_suffix}"
+
+    # populate a table with two columns each with 10 items and retrieve dataset
+    pipeline = destination_config.setup_pipeline(
+        f"test_copying_table_with_dropped_column_{uniq_id()}", dev_mode=False
+    )
+
+    pipeline.run(
+        [{"a": i, "b": i + 1} for i in range(10)],
+        table_name="example_table",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    dataset = pipeline.dataset()
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+
+    @dlt.resource(name=target_table_name)
+    def copied_table() -> Any:
+        kept_columns = ["a", "b", "_dlt_load_id", "_dlt_id"]
+        kept_columns.remove(drop_column)
+
+        query = dataset["example_table"][kept_columns].limit(5).query()
+        sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
+        yield dlt.mark.with_hints(
+            sql_model,
+            hints=make_hints(
+                columns={k: v for k, v in example_table_columns.items() if k != drop_column}
+            ),
+        )
+
+    load_info = pipeline.run(
+        [copied_table()], table_format=destination_config.run_kwargs["table_format"]
+    )
+    assert_load_info(load_info)
+
+    # Validate row counts for all tables
+    assert load_table_counts(pipeline, target_table_name, "example_table") == {
+        target_table_name: 5,
+        "example_table": 10,
+    }
+
+    assert target_table_name in pipeline.default_schema.tables
+    assert "example_table" in pipeline.default_schema.tables
+
+    # Validate columns for the table
+    assert set(pipeline.default_schema.tables[target_table_name]["columns"].keys()) == {
+        "a",
+        "b",
+        "_dlt_id",
+        "_dlt_load_id",
+    }
+
+    # Validate that each table has exactly one model job
+    if destination_config.destination_type == "athena":
+        assert count_job_types(pipeline) == {
+            target_table_name: {"model": 1, "sql": 1},
+        }
+    else:
+        assert count_job_types(pipeline) == {
+            target_table_name: {"model": 1},
+        }
+
+    # Validate load id or dlt id
+    load_id = load_info.loads_ids[0]
+    casefolder = pipeline.sql_client().capabilities.casefold_identifier
+    result_items = dataset[target_table_name].df()[casefolder(drop_column)].to_list()
+
+    if drop_column == "_dlt_load_id":
+        assert all(
+            item == load_id for item in result_items
+        ), f"All values should match _dlt_load_id={load_id}"
+    elif drop_column == "_dlt_id":
+        assert len(result_items) == len(set(result_items)), "Values in _dlt_id must be unique"
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destination_configs,
+    ids=lambda x: x.name,
+)
+def test_load_model_with_all_types(destination_config: DestinationTestConfiguration) -> None:
+    pipeline = destination_config.setup_pipeline(
+        f"test_load_model_with_all_types_{uniq_id()}", dev_mode=False
+    )
+
+    exclude_types: List[TDataType] = []
+    exclude_columns: List[str] = []
+    if destination_config.destination_type in ["databricks", "redshift", "athena"]:
+        exclude_types.append("time")
+    elif destination_config.destination_name == "sqlalchemy_sqlite":
+        exclude_types.extend(["decimal", "wei"])
+
+    # for tsql dialect, sqlglot generates a statement that creates False if the column is empty
+    if destination_config.destination_type == "mssql":
+        exclude_columns.append("col3_null")
+    elif destination_config.destination_type == "dremio":
+        exclude_columns.append("col7_precision")
+    # TODO: Synapse doesn't support IIF statements which are created by sqlglot for col3
+    elif destination_config.destination_type == "synapse":
+        exclude_columns += ["col3", "col3_null"]
+
+    column_schemas, data_types = table_update_and_row(
+        exclude_types=exclude_types, exclude_columns=exclude_columns
+    )
+
+    @dlt.resource(table_name="data_types", columns=column_schemas)
+    def my_resource() -> Any:
+        nonlocal data_types
+        yield [data_types] * 10
+
+    pipeline.run([my_resource()], table_format=destination_config.run_kwargs["table_format"])
+    dataset = pipeline.dataset()
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    example_table_columns = dataset.schema.tables["data_types"]["columns"]
+
+    @dlt.resource()
+    def copied_table() -> Any:
+        query = dataset["data_types"][list(data_types.keys())].query()
+        yield dlt.mark.with_hints(
+            SqlModel.from_query_string(query=query, dialect=select_dialect),
+            hints=make_hints(columns=example_table_columns),
+        )
+
+    info = pipeline.run(
+        [copied_table()], table_format=destination_config.run_kwargs["table_format"]
+    )
+    assert_load_info(info)
+
+    rows = load_tables_to_dicts(pipeline, "copied_table", exclude_system_cols=True)["copied_table"]
+    assert len(rows) == 10
+
+    assert_all_data_types_row(
+        rows[0],
+        schema=column_schemas,
+        allow_base64_binary=destination_config.destination_type == "clickhouse",
+        timestamp_precision=pipeline.destination.capabilities().timestamp_precision,
+    )
+
+
+@pytest.mark.parametrize("tables_contract", ["freeze", "evolve"])
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        subset=["duckdb"],
+    ),
+    ids=lambda x: x.name,
+)
+def test_data_contract_on_tables(
+    destination_config: DestinationTestConfiguration, tables_contract: str
+) -> None:
+    pipeline = destination_config.setup_pipeline(
+        f"test_data_contract_on_tables_{uniq_id()}", dev_mode=False
+    )
+
+    # Populate an example table
+    pipeline.run(
+        [{"a": i, "b": i + 1} for i in range(10)],
+        table_name="example_table",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+    dataset = pipeline.dataset()
+
+    # Retrieve the SQL dialect and schema information
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+
+    # Define a resource to create a new copied table
+    @dlt.resource(schema_contract={"tables": tables_contract})  # type: ignore
+    def copied_table() -> Any:
+        query = dataset["example_table"][["a", "b"]].limit(5).query()
+        sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
+        yield dlt.mark.with_hints(
+            sql_model,
+            hints=make_hints(columns=example_table_columns),
+        )
+
+    if tables_contract == "evolve":
+        info = pipeline.run(
+            [copied_table()], table_format=destination_config.run_kwargs["table_format"]
+        )
+        assert_load_info(info)
+    else:
+        with pytest.raises(PipelineStepFailed) as py_exc:
+            pipeline.run(
+                [copied_table()], table_format=destination_config.run_kwargs["table_format"]
+            )
+        assert py_exc.value.step == "extract"
+        assert isinstance(py_exc.value.__context__, DataValidationError)
+        assert py_exc.value.__context__.schema_entity == "tables"
+        assert py_exc.value.__context__.contract_mode == "freeze"
+        assert py_exc.value.__context__.table_name == "copied_table"
+
+
+@pytest.mark.parametrize("columns_contract", ["freeze", "evolve", "discard_row", "discard_value"])
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        subset=["duckdb"],
+    ),
+    ids=lambda x: x.name,
+)
+def test_data_contract_on_columns(
+    destination_config: DestinationTestConfiguration, columns_contract: str
+) -> None:
+    # NOTE: discard_row on columns behaves the same way as discard_value
+    pipeline = destination_config.setup_pipeline(
+        f"test_data_contract_on_columns_{uniq_id()}", dev_mode=False
+    )
+
+    # Populate tables with different column sets and retreve dataset
+    pipeline.run(
+        [{"a": i} for i in range(10)],
+        table_name="copied_table",
+        table_format=destination_config.run_kwargs["table_format"],
+    )  # Single column a
+    pipeline.run(
+        [{"a": i, "b": i + 1} for i in range(10)],
+        table_name="example_table",
+        table_format=destination_config.run_kwargs["table_format"],
+    )  # Two columns a, b
+    dataset = pipeline.dataset()
+
+    # Retrieve the SQL dialect and schema information
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+
+    # Define a resource to insert a new column into copied_table
+    @dlt.resource(schema_contract={"columns": columns_contract})  # type: ignore
+    def copied_table() -> Any:
+        query = dataset["example_table"][["b", "_dlt_load_id", "_dlt_id"]].limit(5).query()
+        sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
+        yield dlt.mark.with_hints(
+            sql_model,
+            hints=make_hints(columns=example_table_columns),
+        )
+
+    if columns_contract == "evolve":
+        info = pipeline.run(
+            [copied_table()], table_format=destination_config.run_kwargs["table_format"]
+        )
+        assert_load_info(info)
+        assert load_table_counts(pipeline, "copied_table", "example_table") == {
+            "copied_table": 15,  # 10 original rows + 5 new rows with column "b"
+            "example_table": 10,
+        }
+        # Validate that column "b" was added and contains the correct data
+        # The last 5 rows of "b" should match the first 5 rows of "b" from example_table
+        result_items = dataset["copied_table"].df()["b"].tolist()
+        assert result_items[-5:] == [1, 2, 3, 4, 5]
+
+    elif columns_contract == "freeze":
+        with pytest.raises(PipelineStepFailed) as py_exc:
+            pipeline.run(
+                [copied_table()], table_format=destination_config.run_kwargs["table_format"]
+            )
+        assert py_exc.value.step == "extract"
+        assert isinstance(py_exc.value.__context__, DataValidationError)
+        assert py_exc.value.__context__.schema_entity == "columns"
+        assert py_exc.value.__context__.contract_mode == "freeze"
+        assert py_exc.value.__context__.table_name == "copied_table"
+
+    elif columns_contract in ["discard_row", "discard_value"]:
+        info = pipeline.run(
+            [copied_table()], table_format=destination_config.run_kwargs["table_format"]
+        )
+        assert_load_info(info)
+        assert load_table_counts(pipeline, "copied_table", "example_table") == {
+            "copied_table": 15,  # 10 original rows + 5 new rows without column "b"
+            "example_table": 10,
+        }
+        # Validate that column "b" was not added
+        assert "b" not in pipeline.default_schema.tables["copied_table"]["columns"].keys()
+        # Validate that the original rows in "a" remain unchanged
+        result_items = dataset["copied_table"].df()["a"].tolist()
+        assert result_items[:10] == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+
+@pytest.mark.parametrize("data_type_contract", ["freeze", "evolve", "discard_row", "discard_value"])
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        subset=["duckdb"],
+    ),
+    ids=lambda x: x.name,
+)
+def test_data_contract_on_data_type(
+    destination_config: DestinationTestConfiguration, data_type_contract: str
+) -> None:
+    # TODO: data contracts on data type level currently don't work as expected
+    pipeline = destination_config.setup_pipeline(
+        f"test_data_contract_on_data_type_{uniq_id()}", dev_mode=False
+    )
+
+    # Populate tables with different data types and retrieve dataset
+    pipeline.run(
+        [{"a": i} for i in range(10)],
+        table_name="copied_table",
+        table_format=destination_config.run_kwargs["table_format"],
+    )  # Integer column
+    pipeline.run(
+        [{"a": string, "b": i} for i, string in enumerate(["I", "love", "dlt"])],
+        table_name="example_table",
+        table_format=destination_config.run_kwargs["table_format"],
+    )  # String column
+    dataset = pipeline.dataset()
+
+    # Retrieve the SQL dialect and schema information
+    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+    copied_table_columns = dataset.schema.tables["copied_table"]["columns"]
+
+    # Validate initial data types
+    assert copied_table_columns["a"]["data_type"] == "bigint"
+    assert example_table_columns["a"]["data_type"] == "text"
+
+    # Define model resource to insert string column into integer column
+    @dlt.resource(schema_contract={"data_type": data_type_contract}, table_name="copied_table")  # type: ignore
+    def copied_table() -> Any:
+        query = dataset["example_table"][["a", "_dlt_load_id", "_dlt_id"]].query()
+        sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
+        yield dlt.mark.with_hints(
+            sql_model,
+            hints=make_hints(columns={k: v for k, v in example_table_columns.items() if k != "b"}),
+        )
+
+    if data_type_contract in ["freeze", "discard_row", "discard_value", "evolve"]:
+        with pytest.raises(PipelineStepFailed) as py_exc:
+            pipeline.run(
+                [copied_table()],
+                table_format=destination_config.run_kwargs["table_format"],
+            )
+        assert py_exc.value.step == "load"
+        assert isinstance(py_exc.value.__context__, LoadClientJobException)
+
+
+VARIOUS_QUERIES = [
+    # simple: only one table, all columns
+    "SELECT * FROM my_table",
+    # complex: subset of columns
+    "SELECT col1, col2 FROM my_table",
+    # simple: all columns via alias
+    "SELECT t1.col1 AS blah, t1.col2 AS blubb, t1.col3 FROM my_table AS t1",
+    # complex: joins
+    "SELECT * FROM my_table JOIN my_other_table ON my_table.col1 = my_other_table.col1",
+    # simple: one table, full access, with offset/limit
+    "SELECT * FROM t1 WHERE t1.id > 5 OFFSET 5 LIMIT 10",
+    # debatable: one table, all columns plus static
+    "SELECT *, '123' AS static_val FROM my_table",
+]
+
+
+@pytest.mark.parametrize(
+    "query",
+    VARIOUS_QUERIES,
+    ids=[f"query-{i}" for i in range(len(VARIOUS_QUERIES))],
+)
+def test_query_complexity_analyzer(query: str) -> None:
+    #    from dlt.common.utils import query_is_complex
+    #    query_is_complex(query=query, dialect="duckdb")
+    return

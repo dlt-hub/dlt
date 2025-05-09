@@ -107,9 +107,25 @@ class SqlModel(NamedTuple):
     def from_query_string(cls, query: str, dialect: Optional[str] = None) -> "SqlModel":
         """
         Creates a SqlModel from a raw SQL query string using sqlglot.
+        Ensures that the parsed query is an instance of sqlglot.exp.Select.
+
+        Args:
+            query (str): The raw SQL query string.
+            dialect (Optional[str]): The SQL dialect to use for parsing.
+
+        Returns:
+            SqlModel: An instance of SqlModel with the normalized query and dialect.
+
+        Raises:
+            ValueError: If the parsed query is not an instance of sqlglot.exp.Select.
         """
 
         parsed_query = sqlglot.parse_one(query, read=dialect)
+
+        # Ensure the parsed query is a SELECT statement
+        if not isinstance(parsed_query, sqlglot.exp.Select):
+            raise ValueError("Only SELECT statements are allowed to create a SqlModel.")
+
         normalized_query = parsed_query.sql(dialect=dialect)
         return cls(query=normalized_query, dialect=dialect)
 
