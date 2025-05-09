@@ -59,6 +59,7 @@ def write_value(
     overwrite_existing: bool,
     default_value: Any = None,
     is_default_of_interest: bool = False,
+    config_flavor: str = None,
 ) -> None:
     # skip if table contains the name already
     if name in toml_table and not overwrite_existing:
@@ -69,10 +70,10 @@ def write_value(
     ) and not is_default_of_interest:
         return
     # get the inner hint to generate cool examples
-    hint = extract_inner_hint(hint)
+    hint = extract_inner_hint(hint, config_flavor=config_flavor)
     if is_base_configuration_inner_hint(hint):
         inner_table = tomlkit.table(is_super_table=True)
-        write_spec(inner_table, hint(), default_value, overwrite_existing)
+        write_spec(inner_table, hint(), default_value, overwrite_existing, config_flavor)
         if len(inner_table) > 0:
             toml_table[name] = inner_table
     else:
@@ -91,6 +92,7 @@ def write_spec(
     config: BaseConfiguration,
     initial_value: Mapping[str, Any],
     overwrite_existing: bool,
+    config_flavor: str = None,
 ) -> None:
     for name, hint in config.get_resolvable_fields().items():
         # use initial value
@@ -99,7 +101,15 @@ def write_spec(
         default_value = getattr(config, name, None)
 
         # check if field is of particular interest and should be included if it has default
-        is_default_of_interest = name in config.__config_gen_annotations__
+        fields_to_include = config.__config_gen_annotations__
+        if isinstance(config.__config_gen_annotations__, dict):
+            if config_flavor:
+                fields_to_include = config.__config_gen_annotations__.get(config_flavor, {})
+                default_value = config.__config_gen_annotations__.get(config_flavor, {}).get(
+                    name, default_value
+                )
+
+        is_default_of_interest = name in fields_to_include
 
         # if initial is different from default, it is of interest as well
         if initial_ is not None:
@@ -112,11 +122,15 @@ def write_spec(
             overwrite_existing,
             default_value=initial_ or default_value,
             is_default_of_interest=is_default_of_interest,
+            config_flavor=config_flavor,
         )
 
 
 def write_values(
-    toml: TOMLContainer, values: Iterable[WritableConfigValue], overwrite_existing: bool
+    toml: TOMLContainer,
+    values: Iterable[WritableConfigValue],
+    overwrite_existing: bool,
+    config_flavor: str = None,
 ) -> None:
     # TODO: decouple writers from a particular object model ie. TOML
     for value in values:
@@ -136,4 +150,5 @@ def write_values(
             overwrite_existing,
             default_value=value.default_value,
             is_default_of_interest=True,
+            config_flavor=config_flavor,
         )

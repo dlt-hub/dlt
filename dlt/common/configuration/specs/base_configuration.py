@@ -97,10 +97,51 @@ def is_credentials_inner_hint(inner_hint: Type[Any]) -> bool:
     return is_subclass(inner_hint, CredentialsConfiguration)
 
 
-def get_config_if_union_hint(hint: Type[Any]) -> Type[Any]:
+def get_config_if_union_hint(hint: Type[Any], flavor: str = None) -> Type[Any]:
+    """return first configuration type from union type or None if not found
+    if flavor is specified, return the first configuration flavor of the specified flavor
+    """
+    # todo: pick this apart and use it elsewhere
     if is_union_type(hint):
-        return next((t for t in get_args(hint) if is_base_configuration_inner_hint(t)), None)
+        flavor_menu = {}
+        missed_out = False
+        if flavor:
+            config = next((t for t in get_args(hint) if is_configuration_flavor(t, flavor)), None)
+            if not config:
+                # fmt.warning( f"Configuration flavor {flavor} not found in {hint}.")
+                # raise unknown flavor exception?
+                pass
+        
+        else:
+            # check if there were optional flavors that could have been chosen
+            # right-now: or fallback to first base configuration?
+            # collect all the flavors
+            for t in get_args(hint):
+                if is_base_configuration_inner_hint(t) and isinstance(
+                    t.__config_gen_annotations__, dict
+                ):
+                    flavor_menu[t.__name__] = t.__config_gen_annotations__.keys()
+                missed_out = len(flavor_menu) > 1
+            # choose the first one that is a base configuration
+            config = next((t for t in get_args(hint) if is_base_configuration_inner_hint(t)), None)
+            if missed_out:
+                print(f"You didn't specify a flavors so I chose vanilla {config.__name__} for you. " \
+                "These were your options:")
+                for k, v in flavor_menu.items():
+                    print(f"{k}: {", ".join(v)}")
+
+            # return
+            return config
     return None
+
+
+def is_configuration_flavor(hint: Type[Any], flavor: str) -> bool:
+    if not is_base_configuration_inner_hint(hint):
+        return False
+    if not isinstance(hint.__config_gen_annotations__, dict):
+        return False
+    config_flavors = hint.__config_gen_annotations__.keys()
+    return flavor in config_flavors
 
 
 def is_valid_hint(hint: Type[Any]) -> bool:
@@ -131,11 +172,12 @@ def extract_inner_hint(
     preserve_new_types: bool = False,
     preserve_literal: bool = False,
     preserve_annotated: bool = False,
+    config_flavor: str = None,
 ) -> Type[Any]:
     # extract hint from Optional / Literal / NewType hints
     inner_hint = extract_inner_type(hint, preserve_new_types, preserve_literal, preserve_annotated)
     # get base configuration from union type
-    inner_hint = get_config_if_union_hint(inner_hint) or inner_hint
+    inner_hint = get_config_if_union_hint(inner_hint, config_flavor) or inner_hint
     # extract origin from generic types (ie List[str] -> List)
     origin = get_origin(inner_hint) or inner_hint
     if preserve_literal and origin is Literal or preserve_annotated and origin is Annotated:
@@ -290,11 +332,16 @@ class BaseConfiguration(MutableMapping[str, Any]):
     """Holds the exception that prevented the full resolution"""
     __section__: ClassVar[str] = None
     """Obligatory section used by config providers when searching for keys, always present in the search path"""
-    __config_gen_annotations__: ClassVar[List[str]] = []
+    __config_gen_annotations__: ClassVar[Union[List[str], Dict[str, Any]]] = []
     """Additional annotations for config generator, currently holds a list of fields of interest that have defaults"""
     __dataclass_fields__: ClassVar[Dict[str, TDtcField]]
     """Typing for dataclass fields"""
     __hint_resolvers__: ClassVar[Dict[str, Callable[["BaseConfiguration"], Type[Any]]]] = {}
+
+    @property
+    def has_flavor(self) -> bool:
+        # should return whether config gen annotaions is a list or a dict
+        return self.__config_gen_annotations__ and isinstance(self.__config_gen_annotations__, dict)
 
     @classmethod
     def from_init_value(cls: Type[_B], init_value: Any = None) -> _B:
