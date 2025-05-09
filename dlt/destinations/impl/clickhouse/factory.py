@@ -10,6 +10,7 @@ from dlt.common.data_writers.escape import (
 )
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 
+from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema.typing import TColumnSchema, TColumnType
 from dlt.destinations.type_mapping import TypeMapperImpl
@@ -92,7 +93,7 @@ class ClickHouseTypeMapper(TypeMapperImpl):
 
         return super().from_destination_type(db_type, precision, scale)
 
-    def to_db_integer_type(self, column: TColumnSchema, table: Any = None) -> str:
+    def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         """Map integer precision to the appropriate ClickHouse integer type."""
         precision = column.get("precision")
         if precision is None:
