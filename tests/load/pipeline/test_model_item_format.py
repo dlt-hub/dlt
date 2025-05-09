@@ -585,9 +585,14 @@ def test_multiple_statements_per_resource(destination_config: DestinationTestCon
     }
 
     # two model jobs where produced
-    assert count_job_types(pipeline) == {
-        "copied_table": {"model": 2},
-    }
+    if destination_config.destination_type == "athena":
+        assert count_job_types(pipeline) == {
+            "copied_table": {"model": 2, "sql": 1},
+        }
+    else:
+        assert count_job_types(pipeline) == {
+            "copied_table": {"model": 2},
+        }
 
 
 def test_model_writer_without_destination(mocker) -> None:
@@ -706,9 +711,14 @@ def test_copying_table_with_dropped_column(
     }
 
     # Validate that each table has exactly one model job
-    assert count_job_types(pipeline) == {
-        target_table_name: {"model": 1},
-    }
+    if destination_config.destination_type == "athena":
+        assert count_job_types(pipeline) == {
+            target_table_name: {"model": 1, "sql": 1},
+        }
+    else:
+        assert count_job_types(pipeline) == {
+            target_table_name: {"model": 1},
+        }
 
     # Validate load id or dlt id
     load_id = load_info.loads_ids[0]
