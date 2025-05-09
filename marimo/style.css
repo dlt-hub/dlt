@@ -19,5 +19,8 @@
 /* Increase paragraph font size and change color */
 .paragraph {
   font-size: 1.2rem;
-  color: light-dark(navy, pink);
+}
+
+.prose {
+  max-width: 100%;
 }

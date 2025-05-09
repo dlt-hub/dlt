@@ -1,0 +1,14 @@
+[runtime]
+# sentry_dsn="https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752"
+
+[tests]
+bucket_url_gs="gs://ci-test-bucket"
+bucket_url_s3="s3://dlt-ci-test-bucket"
+bucket_url_file="_storage"
+bucket_url_az="az://dlt-ci-test-bucket"
+bucket_url_abfss="abfss://dlt-ci-test-bucket@dltdata.dfs.core.windows.net"
+bucket_url_r2="s3://dlt-ci-test-bucket"
+# use "/" as root path
+bucket_url_gdrive="gdrive://15eC3e5MNew2XAIefWNlG8VlEa0ISnnaG"
+bucket_url_sftp="sftp://localhost/data"
+memory="memory:///m"
