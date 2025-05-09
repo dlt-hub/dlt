@@ -428,7 +428,7 @@ def _filter_dlt_hints(hints: TColumnSchema) -> TColumnSchema:
         # those are directly expressed via the DataType and Column
         if k in DATA_TYPE_HINTS:
             continue
-        
+
         if k in ALLOWED_HINTS:
             final_hints[k] = v
         elif k.startswith(CUSTOM_HINT_PREFIX):

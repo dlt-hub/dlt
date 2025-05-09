@@ -171,7 +171,7 @@ QUERY_KNOWN_AND_UNKNOWN_JOIN_STAR_ON_KNOW_TABLE_SELECT = """\
                 "col_varchar": {"name": "col_varchar", "data_type": "text"},
                 "col_bool": {"name": "col_bool", "data_type": "bool"},
                 "col_unknown_1": {"name": "col_unknown_1"},
-            }
+            },
         ),
     ],
 )
