@@ -161,9 +161,7 @@ def test_regular_run() -> None:
         destination=dlt.destinations.duckdb(credentials=":pipeline:"),
     )
     pipeline_standalone.run(mock_data_source())
-    pipeline_standalone_counts = load_table_counts(
-        pipeline_standalone, *[t["name"] for t in pipeline_standalone.default_schema.data_tables()]
-    )
+    pipeline_standalone_counts = load_table_counts(pipeline_standalone)
 
     tasks_list: List[PythonOperator] = None
 
@@ -206,10 +204,7 @@ def test_regular_run() -> None:
         pipeline_name="pipeline_dag_regular",
         destination=dlt.destinations.duckdb(credentials=":pipeline:"),
     )
-    pipeline_dag_regular_counts = load_table_counts(
-        pipeline_dag_regular,
-        *[t["name"] for t in pipeline_dag_regular.default_schema.data_tables()],
-    )
+    pipeline_dag_regular_counts = load_table_counts(pipeline_dag_regular)
     # same data should be loaded
     assert pipeline_dag_regular_counts == pipeline_standalone_counts
 
@@ -245,10 +240,7 @@ def test_regular_run() -> None:
     pipeline_dag_decomposed = dlt.attach(
         pipeline_name="pipeline_dag_decomposed",
     )
-    pipeline_dag_decomposed_counts = load_table_counts(
-        pipeline_dag_decomposed,
-        *[t["name"] for t in pipeline_dag_decomposed.default_schema.data_tables()],
-    )
+    pipeline_dag_decomposed_counts = load_table_counts(pipeline_dag_decomposed)
     assert pipeline_dag_decomposed_counts == pipeline_standalone_counts
 
 
@@ -261,9 +253,7 @@ def test_run() -> None:
         destination=dlt.destinations.duckdb(credentials=":pipeline:"),
     )
     pipeline_standalone.run(mock_data_source())
-    pipeline_standalone_counts = load_table_counts(
-        pipeline_standalone, *[t["name"] for t in pipeline_standalone.default_schema.data_tables()]
-    )
+    pipeline_standalone_counts = load_table_counts(pipeline_standalone)
 
     @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
     def dag_regular():
@@ -290,10 +280,7 @@ def test_run() -> None:
     )
     assert pipeline_dag_regular.first_run is False
 
-    pipeline_dag_regular_counts = load_table_counts(
-        pipeline_dag_regular,
-        *[t["name"] for t in pipeline_dag_regular.default_schema.data_tables()],
-    )
+    pipeline_dag_regular_counts = load_table_counts(pipeline_dag_regular)
     assert pipeline_dag_regular_counts == pipeline_standalone_counts
 
     assert isinstance(task, PythonOperator)
@@ -306,9 +293,7 @@ def test_parallel_run():
         destination=dlt.destinations.duckdb(credentials=":pipeline:"),
     )
     pipeline_standalone.run(mock_data_source())
-    pipeline_standalone_counts = load_table_counts(
-        pipeline_standalone, *[t["name"] for t in pipeline_standalone.default_schema.data_tables()]
-    )
+    pipeline_standalone_counts = load_table_counts(pipeline_standalone)
 
     tasks_list: List[PythonOperator] = None
 
@@ -344,10 +329,7 @@ def test_parallel_run():
         pipeline_name="pipeline_dag_parallel",
         destination=dlt.destinations.duckdb(credentials=quackdb_path),
     )
-    results = load_table_counts(
-        pipeline_dag_parallel,
-        *[t["name"] for t in pipeline_dag_parallel.default_schema.data_tables()],
-    )
+    results = load_table_counts(pipeline_dag_parallel)
 
     assert results == pipeline_standalone_counts
 
@@ -412,9 +394,7 @@ def test_parallel_isolated_run():
         destination=dlt.destinations.duckdb(credentials=":pipeline:"),
     )
     pipeline_standalone.run(mock_data_source())
-    pipeline_standalone_counts = load_table_counts(
-        pipeline_standalone, *[t["name"] for t in pipeline_standalone.default_schema.data_tables()]
-    )
+    pipeline_standalone_counts = load_table_counts(pipeline_standalone)
 
     tasks_list: List[PythonOperator] = None
 
@@ -452,10 +432,7 @@ def test_parallel_isolated_run():
                 dag_def.tasks[i].task_id.replace("pipeline_dag_parallel.", "")[:-2]
             ),
         )
-        pipeline_dag_decomposed_counts = load_table_counts(
-            pipeline_dag_parallel,
-            *[t["name"] for t in pipeline_dag_parallel.default_schema.data_tables()],
-        )
+        pipeline_dag_decomposed_counts = load_table_counts(pipeline_dag_parallel)
         results.update(pipeline_dag_decomposed_counts)
 
     assert results == pipeline_standalone_counts
@@ -473,9 +450,7 @@ def test_parallel_run_single_resource():
         destination=dlt.destinations.duckdb(credentials=":pipeline:"),
     )
     pipeline_standalone.run(mock_data_single_resource())
-    pipeline_standalone_counts = load_table_counts(
-        pipeline_standalone, *[t["name"] for t in pipeline_standalone.default_schema.data_tables()]
-    )
+    pipeline_standalone_counts = load_table_counts(pipeline_standalone)
 
     tasks_list: List[PythonOperator] = None
 
@@ -507,10 +482,7 @@ def test_parallel_run_single_resource():
     pipeline_dag_parallel = dlt.attach(
         pipeline_name="pipeline_dag_parallel",
     )
-    pipeline_dag_decomposed_counts = load_table_counts(
-        pipeline_dag_parallel,
-        *[t["name"] for t in pipeline_dag_parallel.default_schema.data_tables()],
-    )
+    pipeline_dag_decomposed_counts = load_table_counts(pipeline_dag_parallel)
     assert pipeline_dag_decomposed_counts == pipeline_standalone_counts
 
     assert dag_def.tasks[0].downstream_task_ids == set([dag_def.tasks[1].task_id])

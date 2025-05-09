@@ -6,7 +6,7 @@ from tests.load.utils import (
     DestinationTestConfiguration,
 )
 
-from tests.pipeline.utils import assert_data_table_counts
+from tests.pipeline.utils import assert_table_counts
 
 from tests.pipeline.utils import assert_load_info
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -36,7 +36,7 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
         write_disposition="merge",
         **destination_config.run_kwargs,
     )
-    assert_data_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
+    assert_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
     assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"][
         "items"
     ] == {"_dlt_id": "_dlt_root_id"}
@@ -48,7 +48,7 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
         **destination_config.run_kwargs,
     )
     assert_load_info(info)
-    assert_data_table_counts(
+    assert_table_counts(
         pipeline,
         {
             "items": 100 if destination_config.supports_merge else 200,
@@ -66,7 +66,7 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
         **destination_config.run_kwargs,
     )
     assert_load_info(info)
-    assert_data_table_counts(
+    assert_table_counts(
         pipeline,
         {
             "items": 200 if destination_config.supports_merge else 300,
@@ -84,7 +84,7 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
         **destination_config.run_kwargs,
     )
     assert_load_info(info)
-    assert_data_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
+    assert_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
     assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"][
         "items"
     ] == {"_dlt_id": "_dlt_root_id"}
@@ -114,7 +114,7 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
         write_disposition="append",
         **destination_config.run_kwargs,
     )
-    assert_data_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
+    assert_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
 
     if with_root_key:
         assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"][
@@ -165,7 +165,7 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
         **destination_config.run_kwargs,
     )
     assert_load_info(info)
-    assert_data_table_counts(
+    assert_table_counts(
         pipeline,
         {
             "items": 100 if destination_config.supports_merge else 200,

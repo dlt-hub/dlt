@@ -268,7 +268,7 @@ def assert_github_pipeline_end_state(
     pipeline: dlt.Pipeline, orig_schema: TStoredSchema, schema_updates: int
 ) -> dlt.Pipeline:
     # get tables counts
-    table_counts = load_table_counts(pipeline, *pipeline.default_schema.data_table_names())
+    table_counts = load_table_counts(pipeline)
     assert table_counts == {"issues": 100, "issues__assignees": 31, "issues__labels": 34}
     dlt_counts = load_table_counts(pipeline, *pipeline.default_schema.dlt_table_names())
     assert dlt_counts == {"_dlt_version": schema_updates, "_dlt_loads": 2, "_dlt_pipeline_state": 2}

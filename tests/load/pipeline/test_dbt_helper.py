@@ -180,6 +180,7 @@ def test_run_chess_dbt_to_other_dataset(
         pipeline,
         "SELECT load_id, schema_name, status FROM _dlt_loads ORDER BY status",
         schema_name=test_suffix,
+        dataset_name=info.dataset_name + "_" + test_suffix,
     )
     # TODO: the package is not finished, both results should be here
     assert len(load_ids) == 1

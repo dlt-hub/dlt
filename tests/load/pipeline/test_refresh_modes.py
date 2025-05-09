@@ -14,7 +14,6 @@ from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
 from tests.utils import clean_test_storage, TEST_STORAGE_ROOT
 from tests.pipeline.utils import (
-    _is_filesystem,
     assert_load_info,
     load_table_counts,
     load_tables_to_dicts,
@@ -589,12 +588,8 @@ def test_refresh_staging_dataset(destination_config: DestinationTestConfiguratio
     assert_load_info(info)
 
     # tables got dropped
-    if _is_filesystem(pipeline):
-        assert load_table_counts(pipeline, "data_1", "data_2") == {}
-    else:
-        with pytest.raises(DestinationUndefinedEntity):
-            load_table_counts(pipeline, "data_1", "data_2")
-    load_table_counts(pipeline, "data_1_v2", "data_1_v2")
+    with pytest.raises(DestinationUndefinedEntity):
+        load_table_counts(pipeline, "data_1", "data_2")
 
 
 @pytest.mark.parametrize(

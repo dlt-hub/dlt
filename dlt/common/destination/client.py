@@ -14,6 +14,7 @@ from typing import (
     Dict,
     Any,
     TypeVar,
+    Tuple,
 )
 from typing_extensions import Annotated
 import datetime  # noqa: 251
@@ -652,8 +653,14 @@ class SupportsOpenTables(ABC):
         """Gets the catalog that keeps tables' metadata. Currently only pyiceberg Catalog is supported"""
 
     @abstractmethod
-    def get_open_table_location(self, table_format: TTableFormat, table_name: str) -> str:
-        """Computes location in which table metadata is stored. Does not verify if table exists."""
+    def get_open_table_location(
+        self, table_format: TTableFormat, table_name: str
+    ) -> Tuple[str, bool]:
+        """Computes location in which table metadata is stored and wether it is a folder or a path prefix.
+        Does not verify if table exists
+        Returns:
+            Tuple[str, bool]: location and whether it is a folder (True) or a path prefix (False)
+        """
 
     @abstractmethod
     def load_open_table(self, table_format: TTableFormat, table_name: str, **kwargs: Any) -> Any:

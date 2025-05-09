@@ -14,7 +14,7 @@ from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import (
     assert_load_info,
     load_table_counts,
-    assert_query_data,
+    assert_query_column,
 )
 from tests.utils import TEST_STORAGE_ROOT
 
@@ -132,7 +132,7 @@ def test_csv_transformers(
         with pipeline.sql_client() as client:
             table_name = client.make_qualified_table_name("met_csv")
         # TODO: comment out when filesystem destination supports queries (data pond PR)
-        assert_query_data(pipeline, f"SELECT code FROM {table_name}", ["A881"] * 24)
+        assert_query_column(pipeline, f"SELECT code FROM {table_name}", ["A881"] * 24)
 
     # load the other folder that contains data for the same day + one other day
     # the previous data will be replaced
@@ -146,7 +146,7 @@ def test_csv_transformers(
         with pipeline.sql_client() as client:
             table_name = client.make_qualified_table_name("met_csv")
         # TODO: comment out when filesystem destination supports queries (data pond PR)
-        assert_query_data(pipeline, f"SELECT code FROM {table_name}", ["A803"] * 48)
+        assert_query_column(pipeline, f"SELECT code FROM {table_name}", ["A803"] * 48)
         # and 48 rows in total -> A881 got replaced
         # print(pipeline.default_schema.to_pretty_yaml())
         assert load_table_counts(pipeline, "met_csv") == {"met_csv": 48}

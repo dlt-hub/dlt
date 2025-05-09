@@ -24,8 +24,8 @@ from tests.pipeline.utils import (
     load_tables_to_dicts,
 )
 from tests.load.sources.sql_database.test_helpers import mock_json_column, mock_array_column
-from tests.utils import data_item_length, load_table_counts
-
+from tests.utils import data_item_length
+from tests.pipeline.utils import load_table_counts
 
 try:
     from dlt.sources.sql_database import (
