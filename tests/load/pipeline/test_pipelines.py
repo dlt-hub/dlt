@@ -848,23 +848,23 @@ def test_query_all_info_tables_fallback(destination_config: DestinationTestConfi
     pipeline = destination_config.setup_pipeline(
         "parquet_test_" + uniq_id(), dataset_name="parquet_test_" + uniq_id()
     )
-    with mock.patch.object(SqlJobClientBase, "INFO_TABLES_QUERY_THRESHOLD", 0):
-        info = pipeline.run([1, 2, 3], table_name="digits_1", **destination_config.run_kwargs)
-        assert_load_info(info)
-        # create empty table
-        client: SqlJobClientBase
-        # we must add it to schema
-        pipeline.default_schema._schema_tables["existing_table"] = new_table("existing_table")
-        with pipeline.destination_client() as client:  # type: ignore[assignment]
-            sql = client._get_table_update_sql(
-                "existing_table", [{"name": "_id", "data_type": "bigint"}], False
-            )
-            client.sql_client.execute_many(sql)
-        # remove it from schema
-        del pipeline.default_schema._schema_tables["existing_table"]
-        # store another table
-        info = pipeline.run([1, 2, 3], table_name="digits_2", **destination_config.run_kwargs)
-        assert_data_table_counts(pipeline, {"digits_1": 3, "digits_2": 3})
+    info = pipeline.run([1, 2, 3], table_name="digits_1", **destination_config.run_kwargs)
+    assert_load_info(info)
+    # create empty table
+    client: SqlJobClientBase
+    # we must add it to schema
+    pipeline.default_schema._schema_tables["existing_table"] = new_table("existing_table")
+    with pipeline.destination_client() as client:  # type: ignore[assignment]
+        client.INFO_TABLES_QUERY_THRESHOLD = 0
+        sql = client._get_table_update_sql(
+            "existing_table", [{"name": "_id", "data_type": "bigint"}], False
+        )
+        client.sql_client.execute_many(sql)
+    # remove it from schema
+    del pipeline.default_schema._schema_tables["existing_table"]
+    # store another table
+    info = pipeline.run([1, 2, 3], table_name="digits_2", **destination_config.run_kwargs)
+    assert_data_table_counts(pipeline, {"digits_1": 3, "digits_2": 3})
 
 
 # @pytest.mark.skip(reason="Finalize the test: compare some_data values to values from database")
