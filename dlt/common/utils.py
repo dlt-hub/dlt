@@ -10,6 +10,7 @@ from os import environ
 from types import ModuleType
 import traceback
 import zlib
+import sqlglot
 from importlib.metadata import version as pkg_version
 from packaging.version import Version
 
@@ -33,6 +34,9 @@ from typing import (
     IO,
 )
 
+import sqlglot.optimizer
+import sqlglot.planner
+
 from dlt.common.exceptions import (
     DltException,
     ExceptionTrace,
@@ -41,6 +45,7 @@ from dlt.common.exceptions import (
 )
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun
 
+# from dlt.common.schema.typing import TTableSchemaColumns
 
 T = TypeVar("T")
 TObj = TypeVar("TObj", bound=object)
