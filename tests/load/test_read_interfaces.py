@@ -594,8 +594,6 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
     assert arrow_table.schema.field("decimal").type.precision == expected_decimal_precision
     assert arrow_table.schema.field("other_decimal").type.precision == expected_decimal_precision_2
 
-    import sqlglot
-
     with pytest.raises(LineageFailedException):
         arrow_table = table_relationship.select("unknown_column").head().arrow()
 
@@ -824,7 +822,6 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         ),
         ALL_COLUMNS,
     )
-
     # topk
     assert sql_from_expr(items_table.decimal.topk(10)) == (
         (
