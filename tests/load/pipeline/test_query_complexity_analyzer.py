@@ -5,32 +5,6 @@ from tests.load.utils import destinations_configs
 
 import sqlglot
 
-DESTINATIONS_SUPPORTING_MODEL = [
-    "duckdb",
-    "athena",  # with iceberg table format
-    "bigquery",
-    "clickhouse",
-    "databricks",
-    "motherduck",
-    "redshift",
-    "snowflake",
-    "sqlalchemy",
-    "mssql",
-    "postgres",
-    "synapse",
-    "dremio",
-]
-
-# Get config with iceberg table format if supported
-destination_configs = [
-    config
-    for dest in DESTINATIONS_SUPPORTING_MODEL
-    for config in (
-        destinations_configs(default_sql_configs=True, subset=[dest], with_table_format="iceberg")
-        or destinations_configs(default_sql_configs=True, subset=[dest])
-    )
-]
-
 
 VARIOUS_QUERIES: List[Dict[str, Union[str, bool]]] = [
     {"description": "star select", "query": "SELECT * FROM my_table", "complex": False},
