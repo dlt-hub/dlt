@@ -137,7 +137,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
 
     @property
     def destination_description(self) -> str:
-        return f"{self.destination_name}({self.destination_type})"
+        return f"{self.destination_name} ({self.destination_type})"
 
     @property
     @abstractmethod
