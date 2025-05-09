@@ -35,6 +35,14 @@ class GcpCredentials(CredentialsConfiguration, WithObjectStoreRsCredentials):
 
     project_id: str = None
 
+    __config_gen_annotations__ = {
+        "gcs": {
+            "project_id": "your-project-id",
+            "client_email": "your-client-email",
+            "private_key": "-----",
+        }
+    }
+
     def parse_native_representation(self, native_value: Any) -> None:
         if not isinstance(native_value, str):
             raise InvalidGoogleNativeCredentialsType(self.__class__, native_value)
@@ -152,6 +160,14 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials, With
     client_type: Final[str] = dataclasses.field(
         default="installed", init=False, repr=False, compare=False
     )
+    __config_gen_annotations__ = {
+        "gcp-oauth2": {
+            "client_id": "your-client-id",
+            "client_secret": "your-client-secret",
+            "refresh_token": "your-refresh-token",
+            "scopes": ["some-scope"],
+        }
+    }
 
     def parse_native_representation(self, native_value: Any) -> None:
         """Accepts Google OAuth2 credentials as native value. In other case reverts to serialized oauth client secret json"""

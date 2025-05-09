@@ -384,7 +384,15 @@ def init_pipeline_at_destination(
             - A dictionary of required secrets.
             - The type of the source (e.g., "template", "core", "verified").
     """
+
     # try to import the destination and get config spec
+    def parse_flavored_argument(value: str) -> Tuple[str, str]:
+        if "[" in value and value.endswith("]"):
+            base, flavor = value[:-1].split("[", 1)
+            return base, flavor
+        return value, None
+
+    source_name, source_flavor = parse_flavored_argument(source_name)
     if destination_type:
         destination_reference = Destination.from_reference(destination_type)
         destination_spec = destination_reference.spec
@@ -730,10 +738,17 @@ def init_pipeline_at_destination(
 
         # generate tomls with comments
         secrets_prov = SecretsTomlProvider(settings_dir)
-        write_values(secrets_prov._config_toml, required_secrets.values(), overwrite_existing=False)
+        write_values(
+            secrets_prov._config_toml,
+            required_secrets.values(),
+            overwrite_existing=False,
+            config_flavor=source_flavor,
+        )
 
         config_prov = ConfigTomlProvider(settings_dir)
         write_values(config_prov._config_toml, required_config.values(), overwrite_existing=False)
+
+
 
         # write toml files
         secrets_prov.write_toml()

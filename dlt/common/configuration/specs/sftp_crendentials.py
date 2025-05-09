@@ -43,6 +43,18 @@ class SFTPCredentials(CredentialsConfiguration):
     sftp_gss_host: Optional[str] = None
     sftp_gss_trust_dns: Optional[bool] = True
 
+    __config_gen_annotations__ = {
+        "sftp-keyfile": {
+            "sftp_port": 22,
+            "sftp_key_filename": "/path/to/private/key",
+        },
+        "sftp-password": {
+            "sftp_port": 22,
+            "sftp_username": "your-username",
+            "sftp_password": "your-password",
+        },
+    }
+
     def to_fsspec_credentials(self) -> Dict[str, Any]:
         """Return a dict that can be passed to fsspec SFTP/SSHClient.connect method."""
 
