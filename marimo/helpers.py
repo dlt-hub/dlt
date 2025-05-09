@@ -11,6 +11,5 @@ def get_local_pipelines(pipelines_dir: str = None) -> Tuple[str, List[str]]:
     return pipelines_dir, dirs
 
 
-def get_pipeline(dlt, pipeline_select):
-    pipeline_name = pipeline_select.value[0]
+def get_pipeline(dlt, pipeline_name: str):
     return dlt.attach(pipeline_name)
