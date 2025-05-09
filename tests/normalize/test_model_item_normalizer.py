@@ -14,13 +14,14 @@ from dlt.common.utils import read_dialect_and_sql
 from dlt.extract.extract import ExtractStorage
 from dlt.extract.hints import SqlModel
 
-from tests.utils import clean_test_storage, TEST_DICT_CONFIG_PROVIDER
+from tests.utils import clean_test_storage, TEST_DICT_CONFIG_PROVIDER, preserve_environ
 from tests.load.pipeline.test_model_item_format import (
     DESTINATIONS_SUPPORTING_MODEL,
 )
 
 from importlib import import_module
 import pytest
+import os
 from concurrent.futures import ThreadPoolExecutor
 import sqlglot
 
@@ -280,10 +281,10 @@ def test_selected_column_names_reordering(
     caps: DestinationCapabilitiesContext,
     columns: List[str],
     add_dlt_columns: bool,
-    monkeypatch,
+    preserve_environ,
 ) -> None:
-    monkeypatch.setenv("NORMALIZE__MODEL_NORMALIZER__ADD_DLT_LOAD_ID", str(add_dlt_columns))
-    monkeypatch.setenv("NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID", str(add_dlt_columns))
+    os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_LOAD_ID"] = str(add_dlt_columns)
+    os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(add_dlt_columns)
     model_normalize = next(init_normalize())
     # Define a query using the randomly ordered columns
     cols = ", ".join(f"{col}" for col in columns)
