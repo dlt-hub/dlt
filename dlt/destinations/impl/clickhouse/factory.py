@@ -10,6 +10,7 @@ from dlt.common.data_writers.escape import (
 )
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema.typing import TColumnSchema, TColumnType
 from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.clickhouse.configuration import (
@@ -104,8 +105,8 @@ class ClickHouseTypeMapper(TypeMapperImpl):
             return "Int32"
         if precision <= 64:
             return "Int64"
-        raise ValueError(
-            f"Integer with {precision} bits precision cannot be mapped into ClickHouse integer type"
+        raise TerminalValueError(
+            f"bigint with {precision} bits precision cannot be mapped into ClickHouse integer type"
         )
 
 
