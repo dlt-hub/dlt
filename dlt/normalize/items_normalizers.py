@@ -88,8 +88,13 @@ class ModelItemsNormalizer(ItemsNormalizer):
                 partition_by=None,
                 order=None,
             )
-            casted_row_num = sqlglot.exp.Cast(this=row_num, to=sqlglot.exp.DataType.build("TEXT"))
-            return sqlglot.exp.func("MD5", casted_row_num)
+            concat_expr = sqlglot.exp.func(
+                "CONCAT",
+                sqlglot.exp.Column(this=self._normalize_casefold(C_DLT_LOAD_ID)),
+                sqlglot.exp.Literal.string("-"),
+                row_num,
+            )
+            return sqlglot.exp.func("MD5", concat_expr)
         elif dialect == "sqlite":
             return sqlglot.exp.func(
                 "lower",
@@ -196,11 +201,6 @@ class ModelItemsNormalizer(ItemsNormalizer):
             outer_parsed_select (sqlglot.exp.Select): The parsed outer SELECT statement.
             columns (TTableSchemaColumns): The schema columns to match.
         """
-        if len(outer_parsed_select.selects) == 1 and isinstance(
-            outer_parsed_select.selects[0], sqlglot.exp.Star
-        ):
-            return None
-
         # Map alias name -> expression
         alias_map = {expr.alias.lower(): expr for expr in outer_parsed_select.selects}
 
@@ -295,7 +295,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
         # The query is ensured to be a select statement upstream,
         # but we double check here
         if not isinstance(parsed_select, sqlglot.exp.Select):
-            raise ValueError("Only SELECT statements should reach the model normalizer.")
+            raise ValueError("Only SELECT statements should be used as SqlModel queries.")
 
         outer_parsed_select, needs_reordering = self._build_outer_select_statement(
             select_dialect, parsed_select, self.schema.get_table_columns(root_table_name)

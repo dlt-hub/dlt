@@ -75,12 +75,12 @@ UNSUPPORTED_MODEL_QUERIES = [
 )
 def test_star_select(destination_config: DestinationTestConfiguration) -> None:
     # populate a table with two columns each with 10 items and retrieve dataset
-    pipeline = destination_config.setup_pipeline(f"test_star_select_{uniq_id()}", dev_mode=False)
+    pipeline = destination_config.setup_pipeline(f"test_star_select", dev_mode=True)
 
     pipeline.run(
         [{"a": i, "b": i + 1} for i in range(10)],
         table_name="example_table",
-        table_format=destination_config.run_kwargs["table_format"],
+        **destination_config.run_kwargs,
     )
     dataset = pipeline.dataset()
 
@@ -100,7 +100,11 @@ def test_star_select(destination_config: DestinationTestConfiguration) -> None:
         )
 
     with pytest.raises(PipelineStepFailed) as pip_ex:
-        pipeline.run([copied_table()], table_format=destination_config.run_kwargs["table_format"])
+        pipeline.run(
+            [copied_table()],
+            loader_file_format="model",
+            table_format=destination_config.run_kwargs["table_format"],
+        )
     assert isinstance(pip_ex.value.__cause__, NormalizeJobFailed)
     assert isinstance(pip_ex.value.__cause__.__cause__, ValueError)
 
@@ -111,14 +115,10 @@ def test_star_select(destination_config: DestinationTestConfiguration) -> None:
     ids=[f"query-{q.strip().split()[0].lower()}" for q in UNSUPPORTED_MODEL_QUERIES],
 )
 def test_model_builder_with_non_select_query(unsupported_model_query: str) -> None:
-    try:
+    with pytest.raises(
+        ValueError, match="Only SELECT statements are allowed to create a SqlModel."
+    ):
         SqlModel.from_query_string(query=unsupported_model_query)
-        pytest.fail(
-            "Expected ValueError: only SELECT queries are currently supported to create a"
-            f" SqlModel, but no error was raised for: {unsupported_model_query!r}"
-        )
-    except ValueError:
-        pass
 
 
 @pytest.mark.parametrize(
@@ -127,18 +127,13 @@ def test_model_builder_with_non_select_query(unsupported_model_query: str) -> No
     ids=[f"query-{q.strip().split()[0].lower()}" for q in UNSUPPORTED_MODEL_QUERIES],
 )
 def test_model_writer_with_non_select_query(unsupported_model_query: str, mocker) -> None:
-    try:
-        mocker_file = io.StringIO()
-        writer = ModelWriter(mocker_file)
-
-        mock_item = [MagicMock(dialect=None, query=unsupported_model_query)]
+    mocker_file = io.StringIO()
+    writer = ModelWriter(mocker_file)
+    mock_item = [MagicMock(dialect=None, query=unsupported_model_query)]
+    with pytest.raises(
+        ValueError, match="Only SELECT statements are allowed to write model files."
+    ):
         writer.write_data(mock_item)
-        pytest.fail(
-            "Expected ValueError: only SELECT queries are currently supported to write"
-            f" model files, but no error was raised for: {unsupported_model_query!r}"
-        )
-    except ValueError:
-        pass
 
 
 @pytest.mark.parametrize(
@@ -147,14 +142,12 @@ def test_model_writer_with_non_select_query(unsupported_model_query: str, mocker
     ids=lambda x: x.name,
 )
 def test_simple_incremental(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline(
-        f"test_simple_incremental_{uniq_id()}", dev_mode=False
-    )
+    pipeline = destination_config.setup_pipeline(f"test_simple_incremental", dev_mode=True)
 
     pipeline.run(
         [{"a": i, "b": i + 1} for i in range(10)],
         table_name="example_table",
-        table_format=destination_config.run_kwargs["table_format"],
+        **destination_config.run_kwargs,
     )
     dataset = pipeline.dataset()
 
@@ -185,11 +178,11 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
     Test that a column in a SQL query can be aliased correctly and processed by the pipeline.
     Specifically, this test ensures the resulting table contains the aliased column with the correct data.
     """
-    pipeline = destination_config.setup_pipeline(f"test_aliased_column_{uniq_id()}", dev_mode=False)
+    pipeline = destination_config.setup_pipeline(f"test_aliased_column", dev_mode=True)
     pipeline.run(
         [{"a": i, "b": i + 1} for i in range(10)],
         table_name="example_table",
-        table_format=destination_config.run_kwargs["table_format"],
+        **destination_config.run_kwargs,
     )
 
     dataset = pipeline.dataset()
@@ -221,7 +214,9 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
         )
 
     pipeline.run(
-        [copied_table_with_a_as_b()], table_format=destination_config.run_kwargs["table_format"]
+        [copied_table_with_a_as_b()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
     )
 
     assert load_table_counts(pipeline, "copied_table_with_a_as_b", "example_table") == {
@@ -254,14 +249,12 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     - Reversing the column order in the output table with a row limit.
     """
     # populate a table with two columns each with 10 items and retrieve dataset
-    pipeline = destination_config.setup_pipeline(
-        f"test_simple_model_jobs_{uniq_id()}", dev_mode=False
-    )
+    pipeline = destination_config.setup_pipeline(f"test_simple_model_jobs", dev_mode=True)
 
     pipeline.run(
         [{"a": i, "b": i + 1} for i in range(10)],
         table_name="example_table",
-        table_format=destination_config.run_kwargs["table_format"],
+        **destination_config.run_kwargs,
     )
     dataset = pipeline.dataset()
 
@@ -293,6 +286,7 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     # run sql jobs
     pipeline.run(
         [copied_table_no_b(), reversed_table()],
+        loader_file_format="model",
         table_format=destination_config.run_kwargs["table_format"],
     )
 
@@ -313,6 +307,9 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
         "_dlt_id",
         "_dlt_load_id",
     }
+
+    copied_table_no_b_df = dataset["copied_table_no_b"].df()["a"].to_list()
+    assert set([0, 1, 2, 3, 4]) == set(copied_table_no_b_df)
 
     # Validate column order for the reversed table
     casefolder = pipeline.sql_client().capabilities.casefold_identifier
@@ -342,26 +339,24 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     ids=lambda x: x.name,
 )
 def test_model_from_two_tables(destination_config: DestinationTestConfiguration):
-    pipeline = destination_config.setup_pipeline(
-        f"test_model_from_two_tables_{uniq_id()}", dev_mode=False
-    )
+    pipeline = destination_config.setup_pipeline(f"test_model_from_two_tables", dev_mode=True)
 
     pipeline.run(
         [{"a": i, "b": i + 10} for i in range(5)],
         table_name="example_table_ab",
-        table_format=destination_config.run_kwargs["table_format"],
+        **destination_config.run_kwargs,
     )
 
     pipeline.run(
         [{"a": i, "c": i + 20} for i in range(5)],
         table_name="example_table_ac",
-        table_format=destination_config.run_kwargs["table_format"],
+        **destination_config.run_kwargs,
     )
 
     pipeline.run(
         [{"a": -1, "b": -1, "c": -1}],  # one dummy row → defines schema
         table_name="merged_table",
-        table_format=destination_config.run_kwargs["table_format"],
+        **destination_config.run_kwargs,
     )
 
     dataset = pipeline.dataset()
@@ -386,6 +381,7 @@ def test_model_from_two_tables(destination_config: DestinationTestConfiguration)
 
     pipeline.run(
         [insert_ab(), insert_ac()],
+        loader_file_format="model",
         table_format=destination_config.run_kwargs["table_format"],
     )
 
@@ -403,57 +399,73 @@ def test_model_from_two_tables(destination_config: DestinationTestConfiguration)
     destination_configs,
     ids=lambda x: x.name,
 )
-def test_model_from_joined_table(destination_config: DestinationTestConfiguration):
-    pipeline = destination_config.setup_pipeline(
-        f"test_model_from_joined_table_{uniq_id()}", dev_mode=False
-    )
+def test_model_from_two_consecutive_tables(destination_config: DestinationTestConfiguration):
+    pipeline = destination_config.setup_pipeline(f"test_model_from_joined_table", dev_mode=True)
 
     pipeline.run(
         [{"a": i, "b": i + 10} for i in range(5)],
         table_name="example_table_ab",
-        table_format=destination_config.run_kwargs["table_format"],
+        **destination_config.run_kwargs,
     )
 
     pipeline.run(
         [{"a": i, "c": i + 20} for i in range(5)],
         table_name="example_table_ac",
-        table_format=destination_config.run_kwargs["table_format"],
-    )
-
-    pipeline.run(
-        [{"a": -1, "b": -1, "c": -1}],  # one dummy row → defines schema
-        table_name="merged_table",
-        table_format=destination_config.run_kwargs["table_format"],
+        **destination_config.run_kwargs,
     )
 
     dataset = pipeline.dataset()
     select_dialect = pipeline.destination.capabilities().sqlglot_dialect
-    merged_cols = dataset.schema.tables["merged_table"]["columns"]
 
     relation_ab = dataset["example_table_ab"]
     relation_ac = dataset["example_table_ac"]
-    joined_relation = relation_ab.join(relation_ac, relation_ab.a == relation_ac.a)[["a", "b", "c"]]
+    ab_cols = dataset.schema.tables["example_table_ab"]["columns"]
+    ac_cols = dataset.schema.tables["example_table_ac"]["columns"]
 
-    @dlt.resource(table_name="merged_table")
-    def insert_joined() -> Any:
-        query = joined_relation.query()
+    @dlt.resource(table_name="result_table")
+    def insert_ab() -> Any:
+        query = relation_ab[["a", "b"]].query()
         yield dlt.mark.with_hints(
             SqlModel.from_query_string(query=query, dialect=select_dialect),
-            hints=make_hints(columns=merged_cols),
+            hints=make_hints(columns=ab_cols),
+        )
+
+    @dlt.resource(table_name="result_table")
+    def insert_ac() -> Any:
+        query = relation_ac[["a", "c"]].query()
+        yield dlt.mark.with_hints(
+            SqlModel.from_query_string(query=query, dialect=select_dialect),
+            hints=make_hints(columns=ac_cols),
         )
 
     pipeline.run(
-        [insert_joined()],
+        [insert_ab()],
+        loader_file_format="model",
         table_format=destination_config.run_kwargs["table_format"],
     )
 
-    casefold = pipeline.sql_client().capabilities.casefold_identifier
-    df = dataset["merged_table"].df()
+    pipeline.run(
+        [insert_ac()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
 
-    assert len(df) == 6
-    assert sum(df[casefold("a")].to_list()) == 9  # -1 + 0 + 1 + 2 + 3 + 4)
-    assert df[casefold("b")].dropna().sum() == 59  # -1 + 11 + 12 + 13 + 14 + 15
-    assert df[casefold("c")].dropna().sum() == 109  # -1 + 21 + 22 + 23 + 24 + 25
+    # Validate columns for the result table
+    assert set(pipeline.default_schema.tables["result_table"]["columns"].keys()) == {
+        "a",
+        "b",
+        "c",
+        "_dlt_id",
+        "_dlt_load_id",
+    }
+
+    casefold = pipeline.sql_client().capabilities.casefold_identifier
+    df = dataset["result_table"].df()
+
+    assert len(df) == 10
+    assert sum(df[casefold("a")].to_list()) == 20  # 2 * (0 + 1 + 2 + 3 + 4)
+    assert df[casefold("b")].dropna().sum() == 60  # 11 + 12 + 13 + 14 + 15
+    assert df[casefold("c")].dropna().sum() == 110  # 21 + 22 + 23 + 24 + 25
 
 
 @pytest.mark.parametrize(
@@ -469,23 +481,21 @@ def test_model_from_joined_table(destination_config: DestinationTestConfiguratio
 def test_write_dispositions(
     destination_config: DestinationTestConfiguration, write_disposition: TWriteDisposition
 ) -> None:
-    pipeline = destination_config.setup_pipeline(
-        f"test_write_dispositions_{uniq_id()}", dev_mode=False
-    )
+    pipeline = destination_config.setup_pipeline(f"test_write_dispositions", dev_mode=True)
 
     pipeline.run(
         [{"a": i} for i in range(7)],
         primary_key="a",
         table_name="example_table_1",
         write_disposition=write_disposition,
-        table_format=destination_config.run_kwargs["table_format"],
+        **destination_config.run_kwargs,
     )
     pipeline.run(
         [{"a": i + 1} for i in range(10)],
         primary_key="a",
         table_name="example_table_2",
         write_disposition=write_disposition,
-        table_format=destination_config.run_kwargs["table_format"],
+        **destination_config.run_kwargs,
     )
 
     # we now run a select of items 3-10 from example_table_2 into example_table_1
@@ -515,7 +525,11 @@ def test_write_dispositions(
             hints=make_hints(columns=example_table_columns),
         )
 
-    pipeline.run([copied_table()], table_format=destination_config.run_kwargs["table_format"])
+    pipeline.run(
+        [copied_table()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
 
     casefolder = pipeline.sql_client().capabilities.casefold_identifier
 
@@ -547,13 +561,13 @@ def test_multiple_statements_per_resource(destination_config: DestinationTestCon
         os.environ["DESTINATION__POSTGRES__CREATE_INDEXES"] = "false"
 
     pipeline = destination_config.setup_pipeline(
-        f"test_multiple_statments_per_resource_{uniq_id()}", dev_mode=False
+        f"test_multiple_statments_per_resource", dev_mode=True
     )
 
     pipeline.run(
         [{"a": i} for i in range(10)],
         table_name="example_table",
-        table_format=destination_config.run_kwargs["table_format"],
+        **destination_config.run_kwargs,
     )
     dataset = pipeline.dataset()
 
@@ -577,7 +591,11 @@ def test_multiple_statements_per_resource(destination_config: DestinationTestCon
             hints=make_hints(columns=example_table_columns),
         )
 
-    pipeline.run([copied_table()], table_format=destination_config.run_kwargs["table_format"])
+    pipeline.run(
+        [copied_table()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
 
     assert load_table_counts(pipeline, "copied_table", "example_table") == {
         "copied_table": 12,
@@ -608,7 +626,7 @@ def test_model_writer_without_destination(mocker) -> None:
     writer = ModelWriter(mock_file)
 
     mock_item = [
-        MagicMock(dialect=None, query="SELECT * FROM test_table"),
+        MagicMock(dialect=None, query="SELECT a, b FROM test_table"),
         MagicMock(dialect="mysql", query="SELECT id, name FROM users"),
     ]
 
@@ -618,7 +636,7 @@ def test_model_writer_without_destination(mocker) -> None:
 
     written_content = mock_file.getvalue()
     assert "dialect: \n" in written_content
-    assert "SELECT * FROM test_table" in written_content
+    assert "SELECT a, b FROM test_table" in written_content
     assert "dialect: mysql" in written_content
     assert "SELECT id, name FROM users" in written_content
 
@@ -662,13 +680,13 @@ def test_copying_table_with_dropped_column(
 
     # populate a table with two columns each with 10 items and retrieve dataset
     pipeline = destination_config.setup_pipeline(
-        f"test_copying_table_with_dropped_column_{uniq_id()}", dev_mode=False
+        f"test_copying_table_with_dropped_column", dev_mode=True
     )
 
     pipeline.run(
         [{"a": i, "b": i + 1} for i in range(10)],
         table_name="example_table",
-        table_format=destination_config.run_kwargs["table_format"],
+        **destination_config.run_kwargs,
     )
     dataset = pipeline.dataset()
     select_dialect = pipeline.destination.capabilities().sqlglot_dialect
@@ -689,7 +707,9 @@ def test_copying_table_with_dropped_column(
         )
 
     load_info = pipeline.run(
-        [copied_table()], table_format=destination_config.run_kwargs["table_format"]
+        [copied_table()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
     )
     assert_load_info(load_info)
 
@@ -739,9 +759,7 @@ def test_copying_table_with_dropped_column(
     ids=lambda x: x.name,
 )
 def test_load_model_with_all_types(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline(
-        f"test_load_model_with_all_types_{uniq_id()}", dev_mode=False
-    )
+    pipeline = destination_config.setup_pipeline(f"test_load_model_with_all_types", dev_mode=True)
 
     exclude_types: List[TDataType] = []
     exclude_columns: List[str] = []
@@ -768,7 +786,7 @@ def test_load_model_with_all_types(destination_config: DestinationTestConfigurat
         nonlocal data_types
         yield [data_types] * 10
 
-    pipeline.run([my_resource()], table_format=destination_config.run_kwargs["table_format"])
+    pipeline.run([my_resource()], **destination_config.run_kwargs)
     dataset = pipeline.dataset()
     select_dialect = pipeline.destination.capabilities().sqlglot_dialect
     example_table_columns = dataset.schema.tables["data_types"]["columns"]
@@ -782,7 +800,9 @@ def test_load_model_with_all_types(destination_config: DestinationTestConfigurat
         )
 
     info = pipeline.run(
-        [copied_table()], table_format=destination_config.run_kwargs["table_format"]
+        [copied_table()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
     )
     assert_load_info(info)
 
@@ -809,15 +829,13 @@ def test_load_model_with_all_types(destination_config: DestinationTestConfigurat
 def test_data_contract_on_tables(
     destination_config: DestinationTestConfiguration, tables_contract: str
 ) -> None:
-    pipeline = destination_config.setup_pipeline(
-        f"test_data_contract_on_tables_{uniq_id()}", dev_mode=False
-    )
+    pipeline = destination_config.setup_pipeline(f"test_data_contract_on_tables", dev_mode=True)
 
     # Populate an example table
     pipeline.run(
         [{"a": i, "b": i + 1} for i in range(10)],
         table_name="example_table",
-        table_format=destination_config.run_kwargs["table_format"],
+        **destination_config.run_kwargs,
     )
     dataset = pipeline.dataset()
 
@@ -837,13 +855,17 @@ def test_data_contract_on_tables(
 
     if tables_contract == "evolve":
         info = pipeline.run(
-            [copied_table()], table_format=destination_config.run_kwargs["table_format"]
+            [copied_table()],
+            loader_file_format="model",
+            table_format=destination_config.run_kwargs["table_format"],
         )
         assert_load_info(info)
     else:
         with pytest.raises(PipelineStepFailed) as py_exc:
             pipeline.run(
-                [copied_table()], table_format=destination_config.run_kwargs["table_format"]
+                [copied_table()],
+                loader_file_format="model",
+                table_format=destination_config.run_kwargs["table_format"],
             )
         assert py_exc.value.step == "extract"
         assert isinstance(py_exc.value.__context__, DataValidationError)
@@ -865,20 +887,18 @@ def test_data_contract_on_columns(
     destination_config: DestinationTestConfiguration, columns_contract: str
 ) -> None:
     # NOTE: discard_row on columns behaves the same way as discard_value
-    pipeline = destination_config.setup_pipeline(
-        f"test_data_contract_on_columns_{uniq_id()}", dev_mode=False
-    )
+    pipeline = destination_config.setup_pipeline(f"test_data_contract_on_columns", dev_mode=True)
 
     # Populate tables with different column sets and retreve dataset
     pipeline.run(
         [{"a": i} for i in range(10)],
         table_name="copied_table",
-        table_format=destination_config.run_kwargs["table_format"],
+        **destination_config.run_kwargs,
     )  # Single column a
     pipeline.run(
         [{"a": i, "b": i + 1} for i in range(10)],
         table_name="example_table",
-        table_format=destination_config.run_kwargs["table_format"],
+        **destination_config.run_kwargs,
     )  # Two columns a, b
     dataset = pipeline.dataset()
 
@@ -898,7 +918,9 @@ def test_data_contract_on_columns(
 
     if columns_contract == "evolve":
         info = pipeline.run(
-            [copied_table()], table_format=destination_config.run_kwargs["table_format"]
+            [copied_table()],
+            loader_file_format="model",
+            table_format=destination_config.run_kwargs["table_format"],
         )
         assert_load_info(info)
         assert load_table_counts(pipeline, "copied_table", "example_table") == {
@@ -913,7 +935,9 @@ def test_data_contract_on_columns(
     elif columns_contract == "freeze":
         with pytest.raises(PipelineStepFailed) as py_exc:
             pipeline.run(
-                [copied_table()], table_format=destination_config.run_kwargs["table_format"]
+                [copied_table()],
+                loader_file_format="model",
+                table_format=destination_config.run_kwargs["table_format"],
             )
         assert py_exc.value.step == "extract"
         assert isinstance(py_exc.value.__context__, DataValidationError)
@@ -923,7 +947,9 @@ def test_data_contract_on_columns(
 
     elif columns_contract in ["discard_row", "discard_value"]:
         info = pipeline.run(
-            [copied_table()], table_format=destination_config.run_kwargs["table_format"]
+            [copied_table()],
+            loader_file_format="model",
+            table_format=destination_config.run_kwargs["table_format"],
         )
         assert_load_info(info)
         assert load_table_counts(pipeline, "copied_table", "example_table") == {
@@ -950,20 +976,18 @@ def test_data_contract_on_data_type(
     destination_config: DestinationTestConfiguration, data_type_contract: str
 ) -> None:
     # TODO: data contracts on data type level currently don't work as expected
-    pipeline = destination_config.setup_pipeline(
-        f"test_data_contract_on_data_type_{uniq_id()}", dev_mode=False
-    )
+    pipeline = destination_config.setup_pipeline(f"test_data_contract_on_data_type", dev_mode=True)
 
     # Populate tables with different data types and retrieve dataset
     pipeline.run(
         [{"a": i} for i in range(10)],
         table_name="copied_table",
-        table_format=destination_config.run_kwargs["table_format"],
+        **destination_config.run_kwargs,
     )  # Integer column
     pipeline.run(
         [{"a": string, "b": i} for i, string in enumerate(["I", "love", "dlt"])],
         table_name="example_table",
-        table_format=destination_config.run_kwargs["table_format"],
+        **destination_config.run_kwargs,
     )  # String column
     dataset = pipeline.dataset()
 
@@ -990,34 +1014,8 @@ def test_data_contract_on_data_type(
         with pytest.raises(PipelineStepFailed) as py_exc:
             pipeline.run(
                 [copied_table()],
+                loader_file_format="model",
                 table_format=destination_config.run_kwargs["table_format"],
             )
         assert py_exc.value.step == "load"
         assert isinstance(py_exc.value.__context__, LoadClientJobException)
-
-
-VARIOUS_QUERIES = [
-    # simple: only one table, all columns
-    "SELECT * FROM my_table",
-    # complex: subset of columns
-    "SELECT col1, col2 FROM my_table",
-    # simple: all columns via alias
-    "SELECT t1.col1 AS blah, t1.col2 AS blubb, t1.col3 FROM my_table AS t1",
-    # complex: joins
-    "SELECT * FROM my_table JOIN my_other_table ON my_table.col1 = my_other_table.col1",
-    # simple: one table, full access, with offset/limit
-    "SELECT * FROM t1 WHERE t1.id > 5 OFFSET 5 LIMIT 10",
-    # debatable: one table, all columns plus static
-    "SELECT *, '123' AS static_val FROM my_table",
-]
-
-
-@pytest.mark.parametrize(
-    "query",
-    VARIOUS_QUERIES,
-    ids=[f"query-{i}" for i in range(len(VARIOUS_QUERIES))],
-)
-def test_query_complexity_analyzer(query: str) -> None:
-    #    from dlt.common.utils import query_is_complex
-    #    query_is_complex(query=query, dialect="duckdb")
-    return
