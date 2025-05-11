@@ -22,7 +22,14 @@ Read more about sources and resources here: [General usage: source](../../../gen
 ### Example usage:
 
 :::tip
-We intend our sources to be fully hackable. Feel free to change the source code of the sources and resources to customize it to your needs.
+We intend our sources to be fully hackable. `dlt init` command allows you to eject the source code of the core source and modify it
+according to your needs. For example
+
+```sh
+ dlt init sql_database duckdb --eject
+ ```
+
+will create `sql_database` folder with the source code that you can import and use.
 :::
 
 1. **Load all the tables from a database**

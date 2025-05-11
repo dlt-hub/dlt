@@ -11,7 +11,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 
 ### Injection rules
 
-1. Arguments passed explicitly are **never injected**. This makes the injection system optional. Example with the Pipedrive source:
+1. Arguments passed explicitly are **never injected**. This makes the injection mechanism optional. Example with the Pipedrive source:
   ```py
   @dlt.source(name="pipedrive")
   def pipedrive_source(
