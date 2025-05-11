@@ -28,6 +28,10 @@ from concurrent.futures import ThreadPoolExecutor
 import sqlglot
 
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
+
 def get_caps(dest_name: str):
     dest_cls = getattr(import_module("dlt.destinations"), dest_name)
     return dest_cls().capabilities
@@ -114,7 +118,6 @@ def extract_normalize_retrieve(
     return select_dialect, normalized_select_query, load_id
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize("caps", MODEL_CAPS, indirect=True, ids=DESTINATIONS_SUPPORTING_MODEL)
 def test_simple_model_normalizing(
     caps: DestinationCapabilitiesContext, model_normalize: Normalize
@@ -214,7 +217,6 @@ def test_simple_model_normalizing(
         )
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize("caps", MODEL_CAPS, indirect=True, ids=DESTINATIONS_SUPPORTING_MODEL)
 def test_selected_column_names_normalized(
     caps: DestinationCapabilitiesContext, model_normalize: Normalize
@@ -275,7 +277,6 @@ LIMIT 5
     assert parsed_norm_select_query.expressions[2].alias == caps.casefold_identifier("_dlt_id")
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "columns",
     [

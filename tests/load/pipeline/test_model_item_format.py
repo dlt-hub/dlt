@@ -237,6 +237,7 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
     assert result_df[casefolder("b")].sum() == sum(i for i in range(10))
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destination_configs,
@@ -245,8 +246,8 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
 def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> None:
     """
     Test creating SQL model jobs for various scenarios:
-    - Copying a table without a specific column with a row limit.
-    - Reversing the column order in the output table with a row limit.
+    - Copying a table using a query without a specific column ("b") which will be added as null by the normalizer.
+    - Copying a table using a query with reversed select order which will be reordered by the normalizer.
     """
     # populate a table with two columns each with 10 items and retrieve dataset
     pipeline = destination_config.setup_pipeline(f"test_simple_model_jobs", dev_mode=True)
@@ -262,74 +263,92 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     select_dialect = pipeline.destination.capabilities().sqlglot_dialect
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
-    # Define resources for different SQL model jobs
-    # We also need to supply all hints so the table can be created
-    # Create a copied table without column "b"
+    # Define a resource for a SQL model that excludes column "b" and "_dlt_id" from the query
+    # The normalizer will add "b" as null since it is included in the schema hints,
+    # as well as include "_dlt_id" into the schema and insert statement
     @dlt.resource()
-    def copied_table_no_b() -> Any:
-        query = dataset["example_table"][["a", "_dlt_load_id", "_dlt_id"]].limit(5).query()
+    def model_with_no_b() -> Any:
+        query = dataset["example_table"][["a", "_dlt_load_id"]].limit(5).query()
         sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
         yield dlt.mark.with_hints(
             sql_model,
-            hints=make_hints(columns={k: v for k, v in example_table_columns.items() if k != "b"}),
+            hints=make_hints(
+                columns={k: v for k, v in example_table_columns.items() if k != "_dlt_id"}
+            ),
         )
 
-    # Create a table with reversed column order
+    # Define a resource for a SQL model that reverses the column order in the query
+    # The normalizer will reorder the columns to match the schema's order,
+    # add "_dlt_load_id" as a constant value as it is included in the schema,
     @dlt.resource()
-    def reversed_table() -> Any:
-        query = dataset["example_table"][["_dlt_id", "_dlt_load_id", "b", "a"]].limit(7).query()
+    def model_reversed_select() -> Any:
+        query = dataset["example_table"][["_dlt_id", "b", "a"]].limit(7).query()
         yield dlt.mark.with_hints(
             SqlModel.from_query_string(query=query, dialect=select_dialect),
-            hints=make_hints(columns=dict(reversed(example_table_columns.items()))),
+            hints=make_hints(columns=example_table_columns),
         )
 
-    # run sql jobs
-    pipeline.run(
-        [copied_table_no_b(), reversed_table()],
+    # Run model jobs
+    load_info = pipeline.run(
+        [model_with_no_b(), model_reversed_select()],
         loader_file_format="model",
         table_format=destination_config.run_kwargs["table_format"],
     )
 
     # Validate row counts for all tables
-    assert load_table_counts(pipeline, "copied_table_no_b", "reversed_table", "example_table") == {
-        "copied_table_no_b": 5,
-        "reversed_table": 7,
+    assert load_table_counts(
+        pipeline, "model_with_no_b", "model_reversed_select", "example_table"
+    ) == {
+        "model_with_no_b": 5,
+        "model_reversed_select": 7,
         "example_table": 10,
     }
 
     # Validate that all tables were created
-    assert "copied_table_no_b" in pipeline.default_schema.tables
-    assert "reversed_table" in pipeline.default_schema.tables
+    assert "model_with_no_b" in pipeline.default_schema.tables
+    assert "model_reversed_select" in pipeline.default_schema.tables
 
-    # Validate columns for the table without column "b"
-    assert set(pipeline.default_schema.tables["copied_table_no_b"]["columns"].keys()) == {
+    # Validate that the table "model_with_no_b" includes all columns in the schema
+    assert set(pipeline.default_schema.tables["model_with_no_b"]["columns"].keys()) == {
         "a",
+        "b",
         "_dlt_id",
         "_dlt_load_id",
     }
 
-    copied_table_no_b_df = dataset["copied_table_no_b"].df()["a"].to_list()
-    assert set([0, 1, 2, 3, 4]) == set(copied_table_no_b_df)
-
-    # Validate column order for the reversed table
     casefolder = pipeline.sql_client().capabilities.casefold_identifier
-    reversed_insert_df = dataset["reversed_table"].df()
-    expected_columns = [casefolder(key) for key in ["_dlt_id", "_dlt_load_id", "b", "a"]]
-    actual_columns = list(reversed_insert_df.columns)
+
+    # Validate results in the "model_with_no_b" table,
+    # making sure column b is empty
+    # and _dlt_id was created anew
+    model_with_no_b_df = dataset["model_with_no_b"].df()
+    assert set([0, 1, 2, 3, 4]) == set(model_with_no_b_df[casefolder("a")].to_list())
+    assert [] == model_with_no_b_df[casefolder("b")].dropna().to_list()
+    prev_dlt_ids = dataset["example_table"].df()[casefolder("_dlt_id")].to_list()
+    new_dlt_ids = model_with_no_b_df[casefolder("_dlt_id")].to_list()
+    assert set(prev_dlt_ids).isdisjoint(new_dlt_ids), "Seems like _dlt_id values were copied"
+
+    # Validate the column order in the table created with a query with reversed column order,
+    # ensuring _dlt_load_id was created anew
+    model_reversed_select_df = dataset["model_reversed_select"].df()
+    expected_columns = [casefolder(key) for key in ["a", "b", "_dlt_load_id", "_dlt_id"]]
+    actual_columns = list(model_reversed_select_df.columns)
     assert (
         actual_columns == expected_columns
     ), f"Column mismatch: {actual_columns} != {expected_columns}"
+    assert len(set(model_reversed_select_df[casefolder("_dlt_load_id")])) == 1
+    assert set(model_reversed_select_df[casefolder("_dlt_load_id")]).pop() == load_info.loads_ids[0]
 
     # Validate that each table has exactly one model job
     if destination_config.destination_type == "athena":
         assert count_job_types(pipeline) == {
-            "copied_table_no_b": {"model": 1, "sql": 1},
-            "reversed_table": {"model": 1, "sql": 1},
+            "model_with_no_b": {"model": 1, "sql": 1},
+            "model_reversed_select": {"model": 1, "sql": 1},
         }
     else:
         assert count_job_types(pipeline) == {
-            "copied_table_no_b": {"model": 1},
-            "reversed_table": {"model": 1},
+            "model_with_no_b": {"model": 1},
+            "model_reversed_select": {"model": 1},
         }
 
 
@@ -468,6 +487,7 @@ def test_model_from_two_consecutive_tables(destination_config: DestinationTestCo
     assert df[casefold("c")].dropna().sum() == 110  # 21 + 22 + 23 + 24 + 25
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destination_configs,
