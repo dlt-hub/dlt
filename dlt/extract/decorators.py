@@ -195,7 +195,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
             source = self._deco_f(self.name, self.section, args, kwargs)
             assert isinstance(source, _DltSingleSource)
             # set source section to empty to not interfere with resource sections, same thing we do in extract
-            source.section = ""
+            source.section = source.single_resource.section
             # apply selected settings directly to resource
             resource = source.single_resource
             if self.max_table_nesting is not None:
@@ -392,7 +392,8 @@ def source(
 
         name (str, optional): A name of the source which is also the name of the associated schema. If not present, the function name will be used.
 
-        section (str, optional): A name of configuration. If not present, the current python module name will be used.
+        section (str, optional): Configuration section that comes right after 'sources` in default layout. If not present, the current python module name will be used.
+            Default layout is `sources.<section>.<name>.<key_name>`.
 
         max_table_nesting (int, optional): A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
 
@@ -461,6 +462,7 @@ def resource(
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
+    section: Optional[str] = None,
 ) -> TDltResourceImpl: ...
 
 
@@ -485,6 +487,7 @@ def resource(
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
+    section: Optional[str] = None,
 ) -> Callable[[Callable[TResourceFunParams, Any]], TDltResourceImpl]: ...
 
 
@@ -509,6 +512,7 @@ def resource(
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
+    section: Optional[str] = None,
     standalone: Literal[True] = True,
 ) -> Callable[
     [Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, TDltResourceImpl]
@@ -536,6 +540,7 @@ def resource(
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
+    section: Optional[str] = None,
 ) -> TDltResourceImpl: ...
 
 
@@ -559,6 +564,7 @@ def resource(
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
+    section: Optional[str] = None,
     standalone: bool = False,
     data_from: TUnboundDltResource = None,
 ) -> Any:
@@ -634,6 +640,9 @@ def resource(
         incremental (Optional[TIncrementalConfig], optional): An incremental configuration for the resource.
 
         _impl_cls (Type[TDltResourceImpl], optional): A custom implementation of DltResource, may be also used to providing just a typing stub
+
+        section (Optional[str], optional): Configuration section that comes right after 'sources` in default layout. If not present, the current python module name will be used.
+            Default layout is `sources.<section>.<name>.<key_name>`. Note that resource section is used only when a single resource is passed to the pipeline.
 
         standalone (bool, optional): Returns a wrapped decorated function that creates DltResource instance. Must be called before use. Cannot be part of a source.
 
@@ -728,7 +737,7 @@ def resource(
         resource_name = name if name and not callable(name) else get_callable_name(f)
 
         func_module = inspect.getmodule(f)
-        source_section = _get_source_section_name(func_module)
+        source_section = section or _get_source_section_name(func_module)
         is_inner_resource = is_inner_callable(f)
 
         if spec is None:
@@ -799,7 +808,7 @@ def resource(
         if inspect.isgenerator(data):
             name = name or get_callable_name(data)  # type: ignore
             func_module = inspect.getmodule(data.gi_frame)
-            source_section = _get_source_section_name(func_module)
+            source_section = section or _get_source_section_name(func_module)
         assert not callable(name)
         return make_resource(name, source_section, data)
 
@@ -824,6 +833,7 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
+    section: Optional[str] = None,
 ) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], DltResource]: ...
 
 
@@ -847,6 +857,7 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
+    section: Optional[str] = None,
     standalone: Literal[True] = True,
 ) -> Callable[
     [Callable[Concatenate[TDataItem, TResourceFunParams], Any]],
@@ -874,6 +885,7 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
+    section: Optional[str] = None,
 ) -> DltResource: ...
 
 
@@ -897,6 +909,7 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
+    section: Optional[str] = None,
     standalone: Literal[True] = True,
 ) -> Callable[TResourceFunParams, DltResource]: ...
 
@@ -920,6 +933,7 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
+    section: Optional[str] = None,
     standalone: bool = False,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
 ) -> Any:
@@ -993,6 +1007,9 @@ def transformer(
 
         parallelized (bool, optional): When `True` the resource will be loaded in parallel.
 
+        section (Optional[str], optional): Configuration section that comes right after 'sources` in default layout. If not present, the current python module name will be used.
+            Default layout is `sources.<section>.<name>.<key_name>`. Note that resource section is used only when a single resource is passed to the pipeline.
+
         standalone (bool, optional): Returns a wrapped decorated function that creates DltResource instance. Must be called before use. Cannot be part of a source.
 
         _impl_cls (Type[TDltResourceImpl], optional): A custom implementation of DltResource, may be also used to providing just a typing stub
@@ -1030,6 +1047,7 @@ def transformer(
         data_from=data_from,
         parallelized=parallelized,
         _impl_cls=_impl_cls,
+        section=section,
     )
 
 

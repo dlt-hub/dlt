@@ -31,10 +31,12 @@ from dlt.common.pipeline import (
     pipeline_state,
 )
 from dlt.common.utils import flatten_list_or_items, get_callable_name, uniq_id
-from dlt.common.data_writers import TDataItemFormat
 
 from dlt.common.schema.typing import TTableSchema
-from dlt.extract.utils import wrap_async_iterator, wrap_parallel_iterator
+from dlt.extract.utils import (
+    make_schema_with_default_name,
+    wrap_parallel_iterator,
+)
 
 from dlt.extract.items import (
     DataItemWithMeta,
@@ -702,15 +704,15 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         else:
             default_schema_name = None
         if not default_schema_name and pipeline_name:
-            default_schema_name = pipeline._make_schema_with_default_name().name
+            default_schema_name = make_schema_with_default_name(pipeline.pipeline_name)
         return ConfigSectionContext(
             pipeline_name=pipeline_name,
             # do not emit middle config section to not overwrite the resource section
             # only sources emit middle config section
             sections=(
                 known_sections.SOURCES,
-                "",
-                self.source_name or default_schema_name or self.name,
+                self.section or pipeline_name or "",
+                self.name,
             ),
             source_state_key=self.source_name or default_schema_name or self.section or uniq_id(),
         )

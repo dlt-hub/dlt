@@ -1,18 +1,17 @@
 ---
-title: Advanced secrets and configs
-description: Learn advanced hacks and tricks about credentials.
+title: Access to configuration in code
+description: Access configuration via dlt function arguments or explicitly
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment variables, provider]
 ---
 
-`dlt` provides a lot of flexibility for managing credentials and configuration. In this section, you will learn how to correctly manage credentials in your custom sources and destinations, how the `dlt` injection mechanism works, and how to get access to configurations managed by `dlt`.
 
-## Injection mechanism
+## Access to configuration in dlt decorated functions
 
-`dlt` has a special treatment for functions decorated with `@dlt.source`, `@dlt.resource`, and `@dlt.destination`. When such a function is called, `dlt` takes the argument names in the signature and supplies (injects) the required values by looking for them in [various config providers](setup).
+`dlt` automatically generates configuration **specs** for functions decorated with `@dlt.source`, `@dlt.resource`, and `@dlt.destination`, without additional code needed. You can configure these functions using any of the [standard configuration methods](setup.md) including environment variables and TOML files. You can call them like regular Python functions - dlt injects configuration values for any argument you don't explicitly provide.
 
 ### Injection rules
 
-1. The arguments that are passed explicitly are **never injected**. This makes the injection mechanism optional. For example, for the pipedrive source:
+1. Arguments passed explicitly are **never injected**. This makes the injection mechanism optional. Example with the Pipedrive source:
   ```py
   @dlt.source(name="pipedrive")
   def pipedrive_source(
@@ -24,18 +23,18 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
   my_key = os.environ["MY_PIPEDRIVE_KEY"]
   my_source = pipedrive_source(pipedrive_api_key=my_key)
   ```
-  `dlt` allows the user to specify the argument `pipedrive_api_key` explicitly if, for some reason, they do not want to use [out-of-the-box options](setup) for credentials management.
+  You can specify `pipedrive_api_key` explicitly if you prefer not to use the [standard options](setup) for credential handling.
 
-2. Required arguments (without default values) **are never injected** and must be specified when calling. For example, for the source:
+2. Required arguments (without default values) **are never injected** and must be specified explicitly when calling. Example:
 
   ```py
   @dlt.source
   def slack_data(channels_list: List[str], api_key: str = dlt.secrets.value):
     ...
   ```
-  The argument `channels_list` would not be injected and will output an error if it is not specified explicitly.
+  The `channels_list` argument won't be injected and will produce an error if not specified explicitly.
 
-3. Arguments with default values are injected if present in config providers. Otherwise, defaults from the function signature are used. For example, for the source:
+3. Arguments with default values are injected if found in config providers. Otherwise, the default values from the function signature are used. Example:
 
   ```py
   @dlt.source
@@ -46,29 +45,23 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
   ):
     ...
   ```
-  `dlt` firstly searches for all three arguments: `page_size`, `access_token`, and `start_date` in config providers in a [specific order](setup). If it cannot find them, it will use the default values.
+  `dlt` first searches for `page_size`, `access_token`, and `start_date` in config providers in a [specific order](setup). If these values aren't found, it falls back to the default values.
 
-4. Arguments with the special default value `dlt.secrets.value` and `dlt.config.value` **must be injected**
-   (or explicitly passed). If they are not found by the config providers, the code raises an
-   exception. The code in the functions always receives those arguments.
+4. Arguments with special defaults `dlt.secrets.value` and `dlt.config.value` **must be injected** (or explicitly passed). If not found in config providers, `dlt` raises an exception.
 
-  Additionally, `dlt.secrets.value` tells `dlt` that the supplied value is a secret, and it will be injected only from secure config providers.
+  Additionally, `dlt.secrets.value` indicates to `dlt` that the value is a secret, meaning it will only be injected from secure config providers.
 
 ### Add typing to your sources and resources
 
-We highly recommend adding types to your function signatures.
-The effort is very low, and it gives `dlt` much more
-information on what the source or resource expects.
+We recommend adding type annotations to your function signatures. This requires minimal effort and provides several important benefits:
 
-Doing so provides several benefits:
+1. You won't receive invalid data types in your code.
+2. `dlt` automatically parses and converts types for you, eliminating the need for manual parsing.
+3. `dlt` can generate sample config and secret files for your source automatically.
+4. You can request [built-in and custom credentials](complex_types) (connection strings, AWS/GCP/Azure credentials).
+5. You can specify multiple possible types via `Union`, such as OAuth or API Key authorization.
 
-1. You'll never receive invalid data types in your code.
-1. `dlt` will automatically parse and coerce types for you, so you don't need to parse them yourself.
-1. `dlt` can generate sample config and secret files for your source automatically.
-1. You can request [built-in and custom credentials](complex_types) (i.e., connection strings, AWS / GCP / Azure credentials).
-1. You can specify a set of possible types via `Union`, i.e., OAuth or API Key authorization.
-
-Let's consider the example:
+Example:
 
 ```py
 @dlt.source
@@ -81,21 +74,18 @@ def google_sheets(
     ...
 ```
 
-Now,
+Benefits:
+1. You'll receive a properly typed list of strings as `tab_names`.
+2. You'll receive properly configured Google credentials (see [GCP Credential Configuration](complex_types#gcp-credentials)), which users can provide in different forms:
+   * `service.json` as a string or dictionary (in code or via config providers)
+   * Connection string (used in SQL Alchemy)
+   * Default credentials if nothing is passed (such as those available on Cloud Function runners)
 
-1. You are sure that you get a list of strings as `tab_names`.
-1. You will get actual Google credentials (see [GCP Credential Configuration](complex_types#gcp-credentials)), and users can
-   pass them in many different forms:
+## Organize configuration and secrets with sections
 
-   * `service.json` as a string or dictionary (in code and via config providers).
-   * connection string (used in SQL Alchemy) (in code and via config providers).
-   * if nothing is passed, the default credentials are used (i.e., those present on Cloud Function runner)
+`dlt` organizes configuration and secrets sections in a **configuration layout** that integrates with the [injection mechanism](#injection-rules). This structure applies to all [configuration providers](setup), including TOML files, environment variables, and other sources.
 
-## TOML files structure
-
-`dlt` arranges the sections of [TOML files](setup/#secretstoml-and-configtoml) into a **default layout** that is expected by the [injection mechanism](#injection-mechanism).
-This layout makes it easy to configure simple cases but also provides room for more explicit sections and complex cases, i.e., having several sources with different credentials
-or even hosting several pipelines in the same project sharing the same config and credentials.
+This hierarchical structure efficiently handles simple cases while supporting more complex scenarios, such as multiple sources with different credentials or multiple pipelines sharing configuration in the same project.
 
 ```text
 pipeline_name
@@ -123,16 +113,14 @@ pipeline_name
     |-normalize
 ```
 
+When using TOML files, this structure is represented as nested sections with dotted keys. For environment variables and other config providers, the layout is flattened using double underscores (e.g., `PIPELINE_NAME__SOURCES__MODULE_NAME__FUNCTION_NAME__OPTION`).
 
-## Read configs and secrets manually
+## Access configs and secrets in code
 
-`dlt` handles credentials and configuration automatically, but also offers flexibility for manual processing.
-`dlt.secrets` and `dlt.config` provide dictionary-like access to configuration values and secrets, enabling any custom preprocessing if needed.
-Additionally, you can store custom settings within the same configuration files.
+While `dlt` handles credentials automatically, you can also access them directly in your code. The `dlt.secrets` and `dlt.config` objects provide dictionary-like access to configuration values and secrets, enabling custom preprocessing if required. You can also store custom settings in the same configuration files.
 
 ```py
-# use `dlt.secrets` and `dlt.config` to explicitly take
-# those values from providers from the explicit keys
+# Use `dlt.secrets` and `dlt.config` to explicitly retrieve values from providers
 source_instance = google_sheets(
     dlt.config["sheet_id"],
     dlt.config["my_section.tabs"],
@@ -142,29 +130,26 @@ source_instance = google_sheets(
 source_instance.run(destination="bigquery")
 ```
 
-`dlt.config` and `dlt.secrets` behave like dictionaries from which you can request a value with any key name. `dlt` will look in all [config providers](setup) - environment variables, TOML files, etc. to create these dictionaries. You can also use `dlt.config.get()` or `dlt.secrets.get()` to
-request a value and cast it to a desired type. For example:
+`dlt.config` and `dlt.secrets` function as dictionaries. `dlt` examines all [config providers](setup) - environment variables, TOML files, etc. - to populate these dictionaries. You can also use `dlt.config.get()` or `dlt.secrets.get()` to retrieve a value and convert it to a specific type:
 
 ```py
 credentials = dlt.secrets.get("my_section.gcp_credentials", GcpServiceAccountCredentials)
 ```
-Creates a `GcpServiceAccountCredentials` instance out of values (typically a dictionary) under the `my_section.gcp_credentials` key.
+This creates a `GcpServiceAccountCredentials` instance from the values stored under the `my_section.gcp_credentials` key.
 
 ## Write configs and secrets in code
 
-`dlt.config` and `dlt.secrets` objects can also be used as setters. For example:
+You can also set values programmatically using `dlt.config` and `dlt.secrets`:
 ```py
 dlt.config["sheet_id"] = "23029402349032049"
 dlt.secrets["destination.postgres.credentials"] = BaseHook.get_connection('postgres_dsn').extra
 ```
 
-This will mock the TOML provider to desired values.
+This effectively mocks the TOML provider with your specified values.
 
-## Configuring destination credentials in code
+## Configure destination credentials in code
 
-If you need to manage destination credentials programmatically, such as retrieving them from environment variables, you can define them directly in your pipeline code.
-
-The following example demonstrates how to use [GcpServiceAccountCredentials](complex_types#gcp-credentials) to set up a pipeline with a BigQuery destination.
+You can programmatically set destination credentials when needed. This example demonstrates how to use [GcpServiceAccountCredentials](complex_types#gcp-credentials) **spec** with a BigQuery destination:
 
 ```py
 import os
@@ -173,22 +158,21 @@ import dlt
 from dlt.sources.credentials import GcpServiceAccountCredentials
 from dlt.destinations import bigquery
 
-# Retrieve credentials from the environment variable
+# Retrieve credentials from environment variable
 creds_dict = os.getenv('BIGQUERY_CREDENTIALS')
 
-# Create credentials instance and parse them from a native representation
+# Create and initialize credentials instance
 gcp_credentials = GcpServiceAccountCredentials()
 gcp_credentials.parse_native_representation(creds_dict)
 
-# Pass the credentials to the BigQuery destination
+# Pass credentials to the BigQuery destination
 pipeline = dlt.pipeline(destination=bigquery(credentials=gcp_credentials))
 pipeline.run([{"key1": "value1"}], table_name="temp")
 ```
 
-## Example
+### Google Sheets source example
 
-In the example below, the `google_sheets` source function is used to read selected tabs from Google Sheets.
-It takes several arguments that specify the spreadsheet, the tab names, and the Google credentials to be used when extracting data.
+This example demonstrates a `google_sheets` source function that reads selected tabs from Google Sheets:
 
 ```py
 @dlt.source
@@ -198,10 +182,10 @@ def google_sheets(
     credentials=dlt.secrets.value,
     only_strings=False
 ):
-    # Allow both a dictionary and a string to be passed as credentials
+    # Handle credentials as either dictionary or string
     if isinstance(credentials, str):
         credentials = json.loads(credentials)
-    # Allow both a list and a comma-delimited string to be passed as tabs
+    # Handle tabs as either list or comma-separated string
     if isinstance(tab_names, str):
       tab_names = tab_names.split(",")
     sheets = build('sheets', 'v4', credentials=ServiceAccountCredentials.from_service_account_info(credentials))
@@ -211,18 +195,60 @@ def google_sheets(
         tabs.append(dlt.resource(data, name=tab_name))
     return tabs
 ```
-The `dlt.source` decorator makes all arguments in the `google_sheets` function signature configurable.
-`dlt.secrets.value` and `dlt.config.value` are special argument defaults that tell `dlt` that this
-argument is required and must be passed explicitly or must exist in the configuration. Additionally,
-`dlt.secrets.value` tells `dlt` that an argument is a secret.
 
-In the example above:
-- `spreadsheet_id` is a **required config** argument.
-- `tab_names` is a **required config** argument.
-- `credentials` is a **required secret** argument (Google Sheets credentials as a dictionary (\{"private_key": ...\})).
-- `only_strings` is an **optional config** argument with a default value. It may be specified when calling the `google_sheets` function or included in the configuration settings.
+The `@dlt.source` decorator makes all arguments in the function configurable. The special defaults `dlt.secrets.value` and `dlt.config.value` indicate to `dlt` that these arguments are required and must either be passed explicitly or exist in the configuration. Additionally, `dlt.secrets.value` designates an argument as a secret.
+
+In this example:
+- `spreadsheet_id` is a **required config** argument
+- `tab_names` is a **required config** argument
+- `credentials` is a **required secret** argument (Google Sheets credentials as a dictionary)
+- `only_strings` is an **optional config** argument with a default value
 
 :::tip
-`dlt.resource` behaves in the same way, so if you have a [standalone resource](../resource.md#declare-a-standalone-resource) (one that is not an inner function
-of a **source**)
+`dlt.resource` functions in the same way, so [standalone resources](../resource.md#declare-a-standalone-resource) (not defined as inner functions of a **source**) follow the same injection rules
 :::
+
+## Write custom specs
+
+**Custom specifications** let you take full control over the function arguments. You can:
+
+- Control which values should be injected, the types, default values.
+- Specify optional and final fields.
+- Form hierarchical configurations (specs in specs).
+- Provide your own handlers for `on_partial` (called before failing on missing config key) or `on_resolved`.
+- Provide your own native value parsers.
+- Provide your own default credentials logic.
+- Utilize Python dataclass functionality.
+- Utilize Python `dict` functionality (`specs` instances can be created from dicts and serialized from dicts).
+
+In fact, `dlt` synthesizes a unique spec for each decorated function. For example, in the case of `google_sheets`, the following class is created:
+
+```py
+from dlt.sources.config import configspec, with_config
+
+@configspec
+class GoogleSheetsConfiguration(BaseConfiguration):
+  tab_names: List[str] = None  # mandatory
+  credentials: GcpServiceAccountCredentials = None # mandatory secret
+  only_strings: Optional[bool] = False
+```
+
+### All specs derive from [BaseConfiguration](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/configuration/specs/base_configuration.py#L170)
+This class serves as a foundation for creating configuration objects with specific characteristics:
+
+- It provides methods to parse and represent the configuration in native form (`parse_native_representation` and `to_native_representation`).
+
+- It defines methods for accessing and manipulating configuration fields.
+
+- It implements a dictionary-compatible interface on top of the dataclass. This allows instances of this class to be treated like dictionaries.
+
+- It defines helper functions for checking if a certain attribute is present, if a field is valid, and for calling methods in the method resolution order (MRO).
+
+More information about this class can be found in the class docstrings.
+
+### All credentials derive from [CredentialsConfiguration](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/configuration/specs/base_configuration.py#L307)
+
+This class is a subclass of `BaseConfiguration` and is meant to serve as a base class for handling various types of credentials. It defines methods for initializing credentials, converting them to native representations, and generating string representations while ensuring sensitive information is appropriately handled.
+
+More information about this class can be found in the class docstrings.
+

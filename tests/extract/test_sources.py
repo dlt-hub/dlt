@@ -35,6 +35,7 @@ from dlt.extract.exceptions import (
     ResourcesNotFoundError,
 )
 from dlt.extract.pipe import Pipe
+from dlt.extract.utils import make_schema_with_default_name
 
 
 @pytest.fixture(autouse=True)
@@ -1092,7 +1093,7 @@ def test_resource_state() -> None:
         }
         assert s.state == {"resources": {"test_resource": {"in-source": True}}}
         # the standalone resource will create key which is default schema name
-        assert state.state["sources"][p._make_schema_with_default_name().name] == {
+        assert state.state["sources"][make_schema_with_default_name(p.pipeline_name)] == {
             "resources": {"test_resource": {"direct": True}}
         }
 
