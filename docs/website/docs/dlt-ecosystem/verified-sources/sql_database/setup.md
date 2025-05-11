@@ -39,7 +39,7 @@ If you'd like to use a different destination, simply replace `duckdb` with the n
 
     Alternatively, you can also authenticate using connection strings:
     ```toml
-    [sources.sql_database.credentials]
+    [sources.sql_database]
     credentials="mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
     ```
 

@@ -322,12 +322,7 @@ def init_command(
     eject_source: bool = False,
     dry_run: bool = False,
     add_example_pipeline_script: bool = True,
-) -> Tuple[
-    Dict[str, str],
-    Dict[str, WritableConfigValue],
-    Dict[str, WritableConfigValue],
-    files_ops.TSourceType,
-]:
+) -> Tuple[Dict[str, str], files_ops.TSourceType]:
     run_ctx = run_context.active()
     destination_storage_path = run_ctx.run_dir
     settings_dir = run_ctx.settings_dir
@@ -358,12 +353,7 @@ def init_pipeline_at_destination(
     settings_dir: str = None,
     sources_dir: str = None,
     target_dependency_system: str = None,
-) -> Tuple[
-    Dict[str, str],
-    Dict[str, WritableConfigValue],
-    Dict[str, WritableConfigValue],
-    files_ops.TSourceType,
-]:
+) -> Tuple[Dict[str, str], files_ops.TSourceType]:
     """
     Initializes a pipeline at the specified destination by setting up the required files, configurations, and dependencies.
 
@@ -461,7 +451,7 @@ def init_pipeline_at_destination(
             )
         if not remote_deleted and not remote_modified:
             fmt.echo("No files to update, exiting")
-            return None, None, None, None
+            return None, None
 
         if remote_index["is_dirty"]:
             fmt.warning(
@@ -500,7 +490,7 @@ def init_pipeline_at_destination(
                 "Pipeline script %s already exists, exiting"
                 % source_configuration.dest_pipeline_script
             )
-            return None, None, None, None
+            return None, None
 
     # add .dlt/*.toml files to be copied
     # source_configuration.files.extend(
@@ -526,7 +516,7 @@ def init_pipeline_at_destination(
                 "You can update dlt with: pip3 install -U"
                 f' "{source_configuration.requirements.dlt_requirement_base}"'
             )
-            return None, None, None, None
+            return None, None
 
     # read module source and parse it
     visitor = utils.parse_init_script(
@@ -716,7 +706,7 @@ def init_pipeline_at_destination(
         if add_example_pipeline_script:
             files_to_create[pipeline_script_target_path] = dest_script_source
         # todo: handle remote index changes?
-        return files_to_create, required_config, required_secrets, source_type
+        return files_to_create, source_type
 
     # modify storage
     else:
@@ -755,4 +745,4 @@ def init_pipeline_at_destination(
             dest_storage.save(utils.REQUIREMENTS_TXT, requirements_txt)
 
         copied_files: Dict[str, str] = {dest_path: src_path for src_path, dest_path in copy_files}
-        return copied_files, required_config, required_secrets, source_type
+        return copied_files, source_type
