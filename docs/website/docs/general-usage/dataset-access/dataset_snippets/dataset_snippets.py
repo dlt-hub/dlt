@@ -1,3 +1,4 @@
+# flake8: noqa
 import dlt
 import pandas as pd
 import pytest
