@@ -125,6 +125,24 @@ def extract_normalize_retrieve(
 
 
 @pytest.mark.parametrize("caps", MODEL_CAPS, indirect=True, ids=DESTINATIONS_SUPPORTING_MODEL)
+def test_star_select_rejection(
+    caps: DestinationCapabilitiesContext, model_normalize: Normalize
+) -> None:
+    """
+    This test ensures that the model normalizer rejects star selects.
+    """
+    dialect = caps.sqlglot_dialect
+    model = SqlModel.from_query_string(query="SELECT * FROM my_table")
+    # Ensure the schema contains the table "my_table" with columns a, b
+    schema = create_schema_with_complete_columns("my_table", "text", ["a_a", "b", "d"])
+    with pytest.raises(
+        NormalizeJobFailed,
+        match=r"Model queries using a star \(`\*`\) expression cannot be normalized\.",
+    ) as py_exc:
+        _, _, _ = extract_normalize_retrieve(model_normalize, model, schema, "my_table", dialect)
+
+
+@pytest.mark.parametrize("caps", MODEL_CAPS, indirect=True, ids=DESTINATIONS_SUPPORTING_MODEL)
 def test_simple_model_normalizing(
     caps: DestinationCapabilitiesContext, model_normalize: Normalize
 ) -> None:

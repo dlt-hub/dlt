@@ -250,16 +250,6 @@ class ModelItemsNormalizer(ItemsNormalizer):
         Returns:
             Tuple[sqlglot.exp.Select, bool]: The outer SELECT statement and a flag indicating if reordering is needed.
         """
-        if len(parsed_select.selects) == 1 and isinstance(
-            parsed_select.selects[0], sqlglot.exp.Star
-        ):
-            raise ValueError(
-                "\n\nA `SELECT *` was detected in the model query:\n\n"
-                f"{parsed_select.sql(select_dialect)}\n\n"
-                "Model queries using a star (`*`) expression cannot be normalized. "
-                "Please rewrite the query to explicitly specify the columns to be selected.\n"
-            )
-
         # Wrap parsed select in a subquery
         subquery = parsed_select.subquery(alias=DLT_SUBQUERY_NAME)
 
@@ -307,6 +297,17 @@ class ModelItemsNormalizer(ItemsNormalizer):
         # but we double check here
         if not isinstance(parsed_select, sqlglot.exp.Select):
             raise ValueError("Only SELECT statements should be used as SqlModel queries.")
+
+        # Star selects are not allowed
+        if len(parsed_select.selects) == 1 and isinstance(
+            parsed_select.selects[0], sqlglot.exp.Star
+        ):
+            raise ValueError(
+                "\n\nA `SELECT *` was detected in the model query:\n\n"
+                f"{parsed_select.sql(select_dialect)}\n\n"
+                "Model queries using a star (`*`) expression cannot be normalized. "
+                "Please rewrite the query to explicitly specify the columns to be selected.\n"
+            )
 
         outer_parsed_select, needs_reordering = self._build_outer_select_statement(
             select_dialect, parsed_select, self.schema.get_table_columns(root_table_name)

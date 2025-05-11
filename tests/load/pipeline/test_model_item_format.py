@@ -66,50 +66,6 @@ UNSUPPORTED_MODEL_QUERIES = [
 
 
 @pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-        subset=DESTINATIONS_SUPPORTING_MODEL,
-    ),
-    ids=lambda x: x.name,
-)
-def test_star_select(destination_config: DestinationTestConfiguration) -> None:
-    # populate a table with two columns each with 10 items and retrieve dataset
-    pipeline = destination_config.setup_pipeline("test_star_select", dev_mode=True)
-
-    pipeline.run(
-        [{"a": i, "b": i + 1} for i in range(10)],
-        table_name="example_table",
-        **destination_config.run_kwargs,
-    )
-    dataset = pipeline.dataset()
-
-    # Retrieve the SQL dialect and schema information
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
-    example_table_columns = dataset.schema.tables["example_table"]["columns"]
-    query = dataset["example_table"].query()
-
-    assert "*" in str(query)
-
-    @dlt.resource()
-    def copied_table() -> Any:
-        sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
-        yield dlt.mark.with_hints(
-            sql_model,
-            hints=make_hints(columns=example_table_columns),
-        )
-
-    with pytest.raises(PipelineStepFailed) as pip_ex:
-        pipeline.run(
-            [copied_table()],
-            loader_file_format="model",
-            table_format=destination_config.run_kwargs["table_format"],
-        )
-    assert isinstance(pip_ex.value.__cause__, NormalizeJobFailed)
-    assert isinstance(pip_ex.value.__cause__.__cause__, ValueError)
-
-
-@pytest.mark.parametrize(
     "unsupported_model_query",
     UNSUPPORTED_MODEL_QUERIES,
     ids=[f"query-{q.strip().split()[0].lower()}" for q in UNSUPPORTED_MODEL_QUERIES],
