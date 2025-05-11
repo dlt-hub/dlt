@@ -75,7 +75,7 @@ UNSUPPORTED_MODEL_QUERIES = [
 )
 def test_star_select(destination_config: DestinationTestConfiguration) -> None:
     # populate a table with two columns each with 10 items and retrieve dataset
-    pipeline = destination_config.setup_pipeline(f"test_star_select", dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_star_select", dev_mode=True)
 
     pipeline.run(
         [{"a": i, "b": i + 1} for i in range(10)],
@@ -142,7 +142,7 @@ def test_model_writer_with_non_select_query(unsupported_model_query: str, mocker
     ids=lambda x: x.name,
 )
 def test_simple_incremental(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline(f"test_simple_incremental", dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_simple_incremental", dev_mode=True)
 
     pipeline.run(
         [{"a": i, "b": i + 1} for i in range(10)],
@@ -178,7 +178,7 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
     Test that a column in a SQL query can be aliased correctly and processed by the pipeline.
     Specifically, this test ensures the resulting table contains the aliased column with the correct data.
     """
-    pipeline = destination_config.setup_pipeline(f"test_aliased_column", dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_aliased_column", dev_mode=True)
     pipeline.run(
         [{"a": i, "b": i + 1} for i in range(10)],
         table_name="example_table",
@@ -250,7 +250,7 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     - Copying a table using a query with reversed select order which will be reordered by the normalizer.
     """
     # populate a table with two columns each with 10 items and retrieve dataset
-    pipeline = destination_config.setup_pipeline(f"test_simple_model_jobs", dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_simple_model_jobs", dev_mode=True)
 
     pipeline.run(
         [{"a": i, "b": i + 1} for i in range(10)],
@@ -358,7 +358,7 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     ids=lambda x: x.name,
 )
 def test_model_from_two_tables(destination_config: DestinationTestConfiguration):
-    pipeline = destination_config.setup_pipeline(f"test_model_from_two_tables", dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_model_from_two_tables", dev_mode=True)
 
     pipeline.run(
         [{"a": i, "b": i + 10} for i in range(5)],
@@ -419,7 +419,7 @@ def test_model_from_two_tables(destination_config: DestinationTestConfiguration)
     ids=lambda x: x.name,
 )
 def test_model_from_two_consecutive_tables(destination_config: DestinationTestConfiguration):
-    pipeline = destination_config.setup_pipeline(f"test_model_from_joined_table", dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_model_from_joined_table", dev_mode=True)
 
     pipeline.run(
         [{"a": i, "b": i + 10} for i in range(5)],
@@ -501,7 +501,7 @@ def test_model_from_two_consecutive_tables(destination_config: DestinationTestCo
 def test_write_dispositions(
     destination_config: DestinationTestConfiguration, write_disposition: TWriteDisposition
 ) -> None:
-    pipeline = destination_config.setup_pipeline(f"test_write_dispositions", dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_write_dispositions", dev_mode=True)
 
     pipeline.run(
         [{"a": i} for i in range(7)],
@@ -581,7 +581,7 @@ def test_multiple_statements_per_resource(destination_config: DestinationTestCon
         os.environ["DESTINATION__POSTGRES__CREATE_INDEXES"] = "false"
 
     pipeline = destination_config.setup_pipeline(
-        f"test_multiple_statments_per_resource", dev_mode=True
+        "test_multiple_statments_per_resource", dev_mode=True
     )
 
     pipeline.run(
@@ -700,7 +700,7 @@ def test_copying_table_with_dropped_column(
 
     # populate a table with two columns each with 10 items and retrieve dataset
     pipeline = destination_config.setup_pipeline(
-        f"test_copying_table_with_dropped_column", dev_mode=True
+        "test_copying_table_with_dropped_column", dev_mode=True
     )
 
     pipeline.run(
@@ -779,7 +779,7 @@ def test_copying_table_with_dropped_column(
     ids=lambda x: x.name,
 )
 def test_load_model_with_all_types(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline(f"test_load_model_with_all_types", dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_load_model_with_all_types", dev_mode=True)
 
     exclude_types: List[TDataType] = []
     exclude_columns: List[str] = []
@@ -849,7 +849,7 @@ def test_load_model_with_all_types(destination_config: DestinationTestConfigurat
 def test_data_contract_on_tables(
     destination_config: DestinationTestConfiguration, tables_contract: str
 ) -> None:
-    pipeline = destination_config.setup_pipeline(f"test_data_contract_on_tables", dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_data_contract_on_tables", dev_mode=True)
 
     # Populate an example table
     pipeline.run(
@@ -907,7 +907,7 @@ def test_data_contract_on_columns(
     destination_config: DestinationTestConfiguration, columns_contract: str
 ) -> None:
     # NOTE: discard_row on columns behaves the same way as discard_value
-    pipeline = destination_config.setup_pipeline(f"test_data_contract_on_columns", dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_data_contract_on_columns", dev_mode=True)
 
     # Populate tables with different column sets and retreve dataset
     pipeline.run(
@@ -996,7 +996,7 @@ def test_data_contract_on_data_type(
     destination_config: DestinationTestConfiguration, data_type_contract: str
 ) -> None:
     # TODO: data contracts on data type level currently don't work as expected
-    pipeline = destination_config.setup_pipeline(f"test_data_contract_on_data_type", dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_data_contract_on_data_type", dev_mode=True)
 
     # Populate tables with different data types and retrieve dataset
     pipeline.run(

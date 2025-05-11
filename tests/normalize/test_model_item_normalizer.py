@@ -18,6 +18,7 @@ from dlt.extract.hints import SqlModel
 
 from tests.utils import clean_test_storage, TEST_DICT_CONFIG_PROVIDER, preserve_environ
 from tests.load.pipeline.test_model_item_format import (
+    destination_configs,
     DESTINATIONS_SUPPORTING_MODEL,
 )
 
@@ -43,14 +44,19 @@ MODEL_CAPS = [get_caps(dest_name=dest) for dest in DESTINATIONS_SUPPORTING_MODEL
 @pytest.fixture
 def caps(request) -> Iterator[DestinationCapabilitiesContext]:
     _caps = request.param()
-    # If it's a destination with staging (Athena, Dremio)
-    # force the model in caps
     if (
         _caps.supported_staging_file_formats is not None
         and "model" in _caps.supported_staging_file_formats
-    ):
-        _caps.update({"preferred_loader_file_format": "model"})
-        _caps.update({"supported_loader_file_formats": ["model"]})
+    ):  # This is true for Athena and Dremio
+        _stage_caps = get_caps("filesystem")()
+        preferred_format, supported_formats = merge_caps_file_formats(
+            "original_dest",
+            "staging_dest",
+            _caps,
+            _stage_caps,
+        )
+        _caps.update({"preferred_loader_file_format": preferred_format})
+        _caps.update({"supported_loader_file_formats": supported_formats})
     with Container().injectable_context(_caps):
         yield _caps
 
