@@ -429,3 +429,49 @@ def test_select_column_missing_in_schema(
     assert aliases == [
         caps.casefold_identifier(col) for col in ["a", "c", "_dlt_load_id", "_dlt_id"]
     ]
+
+
+EDGE_CASE_QUERIES = [
+    (
+        "WITH temp AS (SELECT a, b FROM my_table) SELECT a, b FROM temp",
+        (
+            "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            " _dlt_load_id, UUID() AS _dlt_id FROM (WITH temp AS (SELECT a, b FROM my_table)"
+            " SELECT a, b FROM temp) AS _dlt_subquery\n"
+        ),
+        True,
+    ),
+    (
+        "WITH temp AS (SELECT a, b, c FROM my_table) SELECT a, b FROM temp",
+        (
+            "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            " _dlt_load_id, UUID() AS _dlt_id FROM (WITH temp AS (SELECT a, b, c FROM my_table)"
+            " SELECT a, b FROM temp) AS _dlt_subquery\n"
+        ),
+        True,
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "query, expected_sql_template, add_dlt_columns",
+    EDGE_CASE_QUERIES,
+    ids=[f"query-{i}" for i in range(len(EDGE_CASE_QUERIES))],
+)
+@pytest.mark.parametrize("caps", [get_caps("duckdb")], indirect=True, ids=["duckdb"])
+def test_duckdb_model_normalizer_edge_cases(
+    caps: DestinationCapabilitiesContext, query, expected_sql_template: str, add_dlt_columns: bool
+):
+    os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_LOAD_ID"] = str(add_dlt_columns)
+    os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(add_dlt_columns)
+    model_normalize = next(init_normalize())
+    dialect = "duckdb"
+
+    model = SqlModel.from_query_string(query=query, dialect=dialect)
+    schema = create_schema_with_complete_columns("my_table", "text", ["a", "b", "d"])
+
+    _, normalized_query, load_id = extract_normalize_retrieve(
+        model_normalize, model, schema, "my_table", dialect
+    )
+    expected_sql = expected_sql_template.format(load_id=load_id)
+    assert normalized_query == expected_sql
