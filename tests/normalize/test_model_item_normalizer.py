@@ -3,10 +3,12 @@ from typing import Iterator, List, Tuple
 from dlt.common.destination import DestinationCapabilitiesContext, merge_caps_file_formats
 from dlt.common.configuration.container import Container
 from dlt.normalize import Normalize
+from dlt.normalize.exceptions import NormalizeJobFailed
 from dlt.common.storages import (
     NormalizeStorage,
     FileStorage,
 )
+from dlt.common.schema.exceptions import CannotCoerceNullException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema import utils
 from dlt.common.utils import read_dialect_and_sql
@@ -172,7 +174,7 @@ def test_simple_model_normalizing(
     elif dialect == "redshift":
         assert (
             f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{load_id}' AS _dlt_load_id,"
-            " MD5(CAST(ROW_NUMBER() OVER () AS VARCHAR(MAX))) AS _dlt_id FROM (SELECT a, b FROM"
+            " MD5(_dlt_load_id || '-' || ROW_NUMBER() OVER ()) AS _dlt_id FROM (SELECT a, b FROM"
             " my_table) AS _dlt_subquery\n"
             == normalized_select_query
         )
@@ -316,9 +318,10 @@ def test_selected_column_names_reordering(
         assert aliases == [caps.casefold_identifier(col) for col in ["a", "b", "c", "d"]]
 
 
+@pytest.mark.parametrize("nullable", [True, False])
 @pytest.mark.parametrize("caps", MODEL_CAPS, indirect=True, ids=DESTINATIONS_SUPPORTING_MODEL)
 def test_select_column_added_from_schema(
-    caps: DestinationCapabilitiesContext, model_normalize: Normalize
+    caps: DestinationCapabilitiesContext, model_normalize: Normalize, nullable: bool
 ) -> None:
     model_query = "SELECT a, b, c FROM my_table"
     dialect = caps.sqlglot_dialect
@@ -328,26 +331,35 @@ def test_select_column_added_from_schema(
 
     # Ensure the schema contains the table "my_table" with columns a, b, c and additionally d
     schema = create_schema_with_complete_columns("my_table", "text", ["a", "b", "c", "d"])
+    schema.tables["my_table"]["columns"]["d"].update({"nullable": nullable})
 
-    select_dialect, normalized_select_query, _ = extract_normalize_retrieve(
-        model_normalize, model, schema, "my_table", dialect
-    )
+    if nullable is False:
+        with pytest.raises(NormalizeJobFailed) as py_exc:
+            select_dialect, normalized_select_query, _ = extract_normalize_retrieve(
+                model_normalize, model, schema, "my_table", dialect
+            )
+        assert isinstance(py_exc.value.__cause__, CannotCoerceNullException)
+    else:
+        select_dialect, normalized_select_query, _ = extract_normalize_retrieve(
+            model_normalize, model, schema, "my_table", dialect
+        )
 
-    assert select_dialect == dialect
+        assert select_dialect == dialect
 
-    # Parse the normalized model query to extract the aliases of the outer select
-    parsed_norm_select_query = sqlglot.parse_one(normalized_select_query, read=dialect)
-    assert isinstance(parsed_norm_select_query, sqlglot.exp.Select)
-    aliases = [select.alias for select in parsed_norm_select_query.selects]
-    assert aliases == [
-        caps.casefold_identifier(col) for col in ["a", "b", "c", "d", "_dlt_load_id", "_dlt_id"]
-    ]
+        # Parse the normalized model query to extract the aliases of the outer select
+        parsed_norm_select_query = sqlglot.parse_one(normalized_select_query, read=dialect)
+        assert isinstance(parsed_norm_select_query, sqlglot.exp.Select)
+        aliases = [select.alias for select in parsed_norm_select_query.selects]
+        assert aliases == [
+            caps.casefold_identifier(col) for col in ["a", "b", "c", "d", "_dlt_load_id", "_dlt_id"]
+        ]
 
 
 @pytest.mark.parametrize("caps", MODEL_CAPS, indirect=True, ids=DESTINATIONS_SUPPORTING_MODEL)
 def test_select_column_missing_in_schema(
     caps: DestinationCapabilitiesContext, model_normalize: Normalize
 ) -> None:
+    # NOTE: This should generally not happen, but we kept the test anyway.
     model_query = "SELECT a, b, c FROM my_table"
     dialect = caps.sqlglot_dialect
 
@@ -356,6 +368,7 @@ def test_select_column_missing_in_schema(
 
     # Ensure the schema contains the table "my_table" with columns a, c, but not b
     schema = create_schema_with_complete_columns("my_table", "text", ["a", "c"])
+    schema.tables["my_table"]["columns"]
 
     select_dialect, normalized_select_query, _ = extract_normalize_retrieve(
         model_normalize, model, schema, "my_table", dialect

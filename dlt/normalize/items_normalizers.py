@@ -23,6 +23,7 @@ from dlt.common.schema.utils import (
     has_table_seen_data,
     normalize_table_identifiers,
 )
+from dlt.common.schema.exceptions import CannotCoerceNullException
 from dlt.common.utils import read_dialect_and_sql
 from dlt.common.storages import NormalizeStorage
 from dlt.common.storages.data_item_storage import DataItemStorage
@@ -191,6 +192,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
         self,
         outer_parsed_select: sqlglot.exp.Select,
         columns: TTableSchemaColumns,
+        root_table_name: str,
     ) -> None:
         """
         Reorders or adjusts the SELECT statement to match the schema:
@@ -211,14 +213,23 @@ class ModelItemsNormalizer(ItemsNormalizer):
             expr = alias_map.get(lower_col)
             if expr:
                 new_selects.append(expr)
-            # If there's no such column select, just put null
+            # If there's no such column select, just put null if nullable
             else:
-                new_selects.append(
-                    sqlglot.exp.Alias(
-                        this=sqlglot.exp.Null(),
-                        alias=sqlglot.exp.to_identifier(self._normalize_casefold(col)),
+                if columns[col]["nullable"]:
+                    new_selects.append(
+                        sqlglot.exp.Alias(
+                            this=sqlglot.exp.Null(),
+                            alias=sqlglot.exp.to_identifier(self._normalize_casefold(col)),
+                        )
                     )
-                )
+                else:
+                    exc = CannotCoerceNullException(self.schema.name, root_table_name, col)
+                    exc.args = (
+                        exc.args[0]
+                        + " — column is missing from the SELECT clause but is non-nullable and must"
+                        " be explicitly selected",
+                    )
+                    raise exc
 
         outer_parsed_select.set("expressions", new_selects)
 
@@ -311,7 +322,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
 
         if needs_reordering:
             self._reorder_or_adjust_outer_select(
-                outer_parsed_select, self.schema.get_table_columns(root_table_name)
+                outer_parsed_select, self.schema.get_table_columns(root_table_name), root_table_name
             )
 
         normalized_query = outer_parsed_select.sql(dialect=select_dialect)
