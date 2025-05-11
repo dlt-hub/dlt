@@ -125,10 +125,10 @@ def test_simple_model_normalizing(
     """
     # TODO: tests for sqlalchemy dialects
     dialect = caps.sqlglot_dialect
-    model = SqlModel.from_query_string(query="SELECT a, b FROM my_table", dialect=dialect)
+    model = SqlModel.from_query_string(query="SELECT b, A_a, c FROM my_table", dialect=dialect)
 
     # Ensure the schema contains the table "my_table" with columns a, b
-    schema = create_schema_with_complete_columns("my_table", "text", ["a", "b"])
+    schema = create_schema_with_complete_columns("my_table", "text", ["a_a", "b", "d"])
 
     select_dialect, normalized_select_query, load_id = extract_normalize_retrieve(
         model_normalize, model, schema, "my_table", dialect
@@ -137,70 +137,79 @@ def test_simple_model_normalizing(
     assert select_dialect == dialect
     if dialect == "duckdb":
         assert (
-            f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{load_id}' AS _dlt_load_id,"
-            " UUID() AS _dlt_id FROM (SELECT a, b FROM my_table) AS _dlt_subquery\n"
+            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            " _dlt_load_id, UUID() AS _dlt_id FROM (SELECT b, A_a, c FROM my_table) AS"
+            " _dlt_subquery\n"
             == normalized_select_query
         )
     elif dialect == "bigquery":
         assert (
-            f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{load_id}' AS _dlt_load_id,"
-            " GENERATE_UUID() AS _dlt_id FROM (SELECT a, b FROM my_table) AS _dlt_subquery\n"
+            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            " _dlt_load_id, GENERATE_UUID() AS _dlt_id FROM (SELECT b, A_a, c FROM my_table) AS"
+            " _dlt_subquery\n"
             == normalized_select_query
         )
     elif dialect == "clickhouse":
         assert (
-            f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{load_id}' AS _dlt_load_id,"
-            " generateUUIDv4() AS _dlt_id FROM (SELECT a, b FROM my_table) AS _dlt_subquery\n"
+            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            " _dlt_load_id, generateUUIDv4() AS _dlt_id FROM (SELECT b, A_a, c FROM my_table) AS"
+            " _dlt_subquery\n"
             == normalized_select_query
         )
     elif dialect == "databricks":
         assert (
-            f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{load_id}' AS _dlt_load_id,"
-            " UUID() AS _dlt_id FROM (SELECT a, b FROM my_table) AS _dlt_subquery\n"
+            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            " _dlt_load_id, UUID() AS _dlt_id FROM (SELECT b, A_a, c FROM my_table) AS"
+            " _dlt_subquery\n"
             == normalized_select_query
         )
     elif dialect == "tsql":  # mssql and synapse
         assert (
-            f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{load_id}' AS _dlt_load_id,"
-            " NEWID() AS _dlt_id FROM (SELECT a AS a, b AS b FROM my_table) AS _dlt_subquery\n"
+            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            " _dlt_load_id, NEWID() AS _dlt_id FROM (SELECT b AS b, A_a AS A_a, c AS c FROM"
+            " my_table) AS _dlt_subquery\n"
             == normalized_select_query
         )
     elif dialect == "postgres":
         assert (
-            f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{load_id}' AS _dlt_load_id,"
-            " GEN_RANDOM_UUID() AS _dlt_id FROM (SELECT a, b FROM my_table) AS _dlt_subquery\n"
+            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            " _dlt_load_id, GEN_RANDOM_UUID() AS _dlt_id FROM (SELECT b, A_a, c FROM my_table) AS"
+            " _dlt_subquery\n"
             == normalized_select_query
         )
     elif dialect == "redshift":
         assert (
-            f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{load_id}' AS _dlt_load_id,"
-            " MD5(_dlt_load_id || '-' || ROW_NUMBER() OVER ()) AS _dlt_id FROM (SELECT a, b FROM"
-            " my_table) AS _dlt_subquery\n"
+            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            " _dlt_load_id, MD5(_dlt_load_id || '-' || ROW_NUMBER() OVER ()) AS _dlt_id FROM"
+            " (SELECT b, A_a, c FROM my_table) AS _dlt_subquery\n"
             == normalized_select_query
         )
     elif dialect == "snowflake":
         assert (
-            f"SELECT _dlt_subquery.a AS A, _dlt_subquery.b AS B, '{load_id}' AS _DLT_LOAD_ID,"
-            " UUID_STRING() AS _DLT_ID FROM (SELECT a, b FROM my_table) AS _dlt_subquery\n"
+            f"SELECT _dlt_subquery.A_a AS A_A, _dlt_subquery.b AS B, NULL AS D, '{load_id}' AS"
+            " _DLT_LOAD_ID, UUID_STRING() AS _DLT_ID FROM (SELECT b, A_a, c FROM my_table) AS"
+            " _dlt_subquery\n"
             == normalized_select_query
         )
     elif dialect == "athena":
         assert (
-            f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{load_id}' AS _dlt_load_id,"
-            " CAST(UUID() AS VARCHAR) AS _dlt_id FROM (SELECT a, b FROM my_table) AS"
-            " _dlt_subquery\n"
+            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            " _dlt_load_id, CAST(UUID() AS VARCHAR) AS _dlt_id FROM (SELECT b, A_a, c FROM"
+            " my_table) AS _dlt_subquery\n"
             == normalized_select_query
         )
     elif dialect == "presto":  # dremio
         assert (
-            f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{load_id}' AS _dlt_load_id,"
-            " UUID() AS _dlt_id FROM (SELECT a, b FROM my_table) AS _dlt_subquery\n"
+            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            " _dlt_load_id, UUID() AS _dlt_id FROM (SELECT b, A_a, c FROM my_table) AS"
+            " _dlt_subquery\n"
             == normalized_select_query
         )
     else:
         assert (
-            f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{load_id}' AS _dlt_load_id,"
-            " UUID() AS _dlt_id FROM (SELECT a, b FROM my_table) AS _dlt_subquery\n"
+            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            " _dlt_load_id, UUID() AS _dlt_id FROM (SELECT b, A_a, c FROM my_table) AS"
+            " _dlt_subquery\n"
             == normalized_select_query
         )
 
@@ -349,10 +358,12 @@ def test_select_column_added_from_schema(
         # Parse the normalized model query to extract the aliases of the outer select
         parsed_norm_select_query = sqlglot.parse_one(normalized_select_query, read=dialect)
         assert isinstance(parsed_norm_select_query, sqlglot.exp.Select)
-        aliases = [select.alias for select in parsed_norm_select_query.selects]
-        assert aliases == [
+        aliases_selects = {select.alias: select for select in parsed_norm_select_query.selects}
+        assert list(aliases_selects.keys()) == [
             caps.casefold_identifier(col) for col in ["a", "b", "c", "d", "_dlt_load_id", "_dlt_id"]
         ]
+        d_select = aliases_selects[caps.casefold_identifier("d")]
+        assert isinstance(d_select.this, sqlglot.exp.Null), "'d' must be selected as NULL"
 
 
 @pytest.mark.parametrize("caps", MODEL_CAPS, indirect=True, ids=DESTINATIONS_SUPPORTING_MODEL)
