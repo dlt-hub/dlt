@@ -9,7 +9,7 @@ The configuration mechanism in `dlt` provides a flexible, secure way to define c
 
 ## Key features
 
-1. **Separation of secrets from code** - The main role of the configuration system is to keep sensitive information out of your source code.
+1. **Separation of secrets and configs from code** - The main role of the configuration system is to keep sensitive information out of your source code.
 
 2. **Built-in credentials** - `dlt` provides built-in support for most common systems with default/machine credential access.
 

@@ -7,7 +7,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 
 ## Access to configuration in dlt decorated functions
 
-`dlt` automatically generates configuration **specs** for functions decorated with `@dlt.source`, `@dlt.resource`, and `@dlt.destination`, without additional code needed. You can configure these functions using any of the standard configuration methods including environment variables, TOML files, or other supported providers. You can call them like regular Python functions - dlt injects configuration values for any argument you don't explicitly provide.
+`dlt` automatically generates configuration **specs** for functions decorated with `@dlt.source`, `@dlt.resource`, and `@dlt.destination`, without additional code needed. You can configure these functions using any of the [standard configuration methods](setup.md) including environment variables and TOML files. You can call them like regular Python functions - dlt injects configuration values for any argument you don't explicitly provide.
 
 ### Injection rules
 
