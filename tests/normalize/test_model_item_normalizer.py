@@ -138,8 +138,18 @@ def test_star_select_rejection(
     with pytest.raises(
         NormalizeJobFailed,
         match=r"Model queries using a star \(`\*`\) expression cannot be normalized\.",
-    ) as py_exc:
+    ):
         _, _, _ = extract_normalize_retrieve(model_normalize, model, schema, "my_table", dialect)
+
+    # Ensure star selects with explicit columns are also rejected
+    another_model = SqlModel.from_query_string(query="SELECT *, NULL AS c FROM my_table")
+    with pytest.raises(
+        NormalizeJobFailed,
+        match=r"Model queries using a star \(`\*`\) expression cannot be normalized\.",
+    ):
+        _, _, _ = extract_normalize_retrieve(
+            model_normalize, another_model, schema, "my_table", dialect
+        )
 
 
 @pytest.mark.parametrize("caps", MODEL_CAPS, indirect=True, ids=DESTINATIONS_SUPPORTING_MODEL)

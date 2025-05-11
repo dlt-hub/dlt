@@ -299,9 +299,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
             raise ValueError("Only SELECT statements should be used as SqlModel queries.")
 
         # Star selects are not allowed
-        if len(parsed_select.selects) == 1 and isinstance(
-            parsed_select.selects[0], sqlglot.exp.Star
-        ):
+        if any(isinstance(expr, sqlglot.exp.Star) for expr in parsed_select.selects):
             raise ValueError(
                 "\n\nA `SELECT *` was detected in the model query:\n\n"
                 f"{parsed_select.sql(select_dialect)}\n\n"
