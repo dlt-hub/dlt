@@ -1,5 +1,5 @@
 ---
-title: Destination tables
+title: Destination tables & lineage
 description: Understanding the tables created in the destination database
 keywords: [destination tables, loaded data, data structure, schema, table, nested table, load package, load id, lineage, staging dataset, versioned dataset]
 ---
