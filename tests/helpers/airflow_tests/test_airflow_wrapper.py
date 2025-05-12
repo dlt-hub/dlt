@@ -6,7 +6,7 @@ from typing import Iterator, List
 pytest.importorskip("airflow")
 from airflow import DAG
 from airflow.decorators import dag
-from airflow.operators.python import PythonOperator, get_current_context
+from airflow.operators.python import BaseOperator, PythonOperator, get_current_context
 from airflow.models import TaskInstance
 from airflow.utils.state import DagRunState
 from airflow.utils.types import DagRunType
@@ -165,7 +165,7 @@ def test_regular_run() -> None:
         pipeline_standalone, *[t["name"] for t in pipeline_standalone.default_schema.data_tables()]
     )
 
-    tasks_list: List[PythonOperator] = None
+    tasks_list: List[BaseOperator] = None
 
     @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
     def dag_regular():
@@ -253,7 +253,7 @@ def test_regular_run() -> None:
 
 
 def test_run() -> None:
-    task: PythonOperator = None
+    task: BaseOperator = None
 
     pipeline_standalone = dlt.pipeline(
         pipeline_name="pipeline_standalone",
@@ -310,7 +310,7 @@ def test_parallel_run():
         pipeline_standalone, *[t["name"] for t in pipeline_standalone.default_schema.data_tables()]
     )
 
-    tasks_list: List[PythonOperator] = None
+    tasks_list: List[BaseOperator] = None
 
     quackdb_path = os.path.abspath(os.path.join(TEST_STORAGE_ROOT, "pipeline_dag_parallel.duckdb"))
 
@@ -365,7 +365,7 @@ def test_parallel_incremental():
     )
     pipeline_standalone.run(mock_data_incremental_source())
 
-    tasks_list: List[PythonOperator] = None
+    tasks_list: List[BaseOperator] = None
 
     @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
     def dag_parallel():
@@ -416,7 +416,7 @@ def test_parallel_isolated_run():
         pipeline_standalone, *[t["name"] for t in pipeline_standalone.default_schema.data_tables()]
     )
 
-    tasks_list: List[PythonOperator] = None
+    tasks_list: List[BaseOperator] = None
 
     @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
     def dag_parallel():
@@ -477,7 +477,7 @@ def test_parallel_run_single_resource():
         pipeline_standalone, *[t["name"] for t in pipeline_standalone.default_schema.data_tables()]
     )
 
-    tasks_list: List[PythonOperator] = None
+    tasks_list: List[BaseOperator] = None
 
     @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
     def dag_parallel():
@@ -868,7 +868,7 @@ def test_task_already_added():
     Test that the error 'Task id {id} has already been added to the DAG'
     is not happening while adding two same sources.
     """
-    tasks_list: List[PythonOperator] = None
+    tasks_list: List[BaseOperator] = None
 
     @dag(schedule=None, start_date=pendulum.today(), catchup=False)
     def dag_parallel():
