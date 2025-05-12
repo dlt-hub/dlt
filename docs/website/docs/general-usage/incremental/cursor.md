@@ -29,7 +29,7 @@ def repo_issues(
         print(updated_at.last_value)
 ```
 
-Here we add an `updated_at` argument that will receive incremental state, initialized to `1970-01-01T00:00:00Z`. It is configured to track the `updated_at` field in issues yielded by the `repo_issues` resource. It will store the newest `updated_at` value in `dlt` [state](state.md) and make it available in `updated_at.start_value` on the next pipeline run. This value is inserted in the `_get_issues_page` function into the request query param **since** to the [GitHub API](https://docs.github.com/en/rest/issues/issues?#list-repository-issues).
+Here we add an `updated_at` argument that will receive incremental state, initialized to `1970-01-01T00:00:00Z`. It is configured to track the `updated_at` field in issues yielded by the `repo_issues` resource. It will store the newest `updated_at` value in `dlt` [state](../state.md) and make it available in `updated_at.start_value` on the next pipeline run. This value is inserted in the `_get_issues_page` function into the request query param **since** to the [GitHub API](https://docs.github.com/en/rest/issues/issues?#list-repository-issues).
 
 In essence, the `dlt.sources.incremental` instance above:
 * **updated_at.initial_value** which is always equal to "1970-01-01T00:00:00Z" passed in the constructor
@@ -58,12 +58,12 @@ We just yield all the events and `dlt` does the filtering (using the `id` column
 GitHub returns events ordered from newest to oldest. So we declare the `rows_order` as **descending** to [stop requesting more pages once the incremental value is out of range](#declare-row-order-to-not-request-unnecessary-data). We stop requesting more data from the API after finding the first event with `created_at` earlier than `initial_value`.
 
 :::note
-`dlt.sources.incremental` is implemented as a [filter function](resource.md#filter-transform-and-pivot-data) that is executed **after** all other transforms you add with `add_map` or  `add_filter`. This means that you can manipulate the data item before the incremental filter sees it. For example:
+`dlt.sources.incremental` is implemented as a [filter function](../resource.md#filter-transform-and-pivot-data) that is executed **after** all other transforms you add with `add_map` or  `add_filter`. This means that you can manipulate the data item before the incremental filter sees it. For example:
 * You can create a surrogate primary key from other columns
 * You can modify the cursor value or create a new field composed of other fields
 * Dump Pydantic models to Python dicts to allow incremental to find custom values
 
-[Data validation with Pydantic](schema-contracts.md#use-pydantic-models-for-data-validation) happens **before** incremental filtering.
+[Data validation with Pydantic](../schema-contracts.md#use-pydantic-models-for-data-validation) happens **before** incremental filtering.
 :::
 
 ## Max, min, or custom `last_value_func`
@@ -244,7 +244,7 @@ When you pass `range_start="open"` no deduplication is done as it is not needed 
 
 ## Using `dlt.sources.incremental` with dynamically created resources
 
-When resources are [created dynamically](source.md#create-resources-dynamically), it is possible to use the `dlt.sources.incremental` definition as well.
+When resources are [created dynamically](../source.md#create-resources-dynamically), it is possible to use the `dlt.sources.incremental` definition as well.
 
 ```py
 @dlt.source
@@ -278,7 +278,7 @@ Here we call **get_resource(endpoint)** and that creates an un-evaluated generat
 
 ## Using Airflow schedule for backfill and incremental loading
 
-When [running an Airflow task](../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md#2-modify-dag-file), you can opt-in your resource to get the `initial_value`/`start_value` and `end_value` from the Airflow schedule associated with your DAG. Let's assume that the **Zendesk tickets** resource contains a year of data with thousands of tickets. We want to backfill the last year of data week by week and then continue with incremental loading daily.
+When [running an Airflow task](../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md#2-modify-dag-file), you can opt-in your resource to get the `initial_value`/`start_value` and `end_value` from the Airflow schedule associated with your DAG. Let's assume that the **Zendesk tickets** resource contains a year of data with thousands of tickets. We want to backfill the last year of data week by week and then continue with incremental loading daily.
 
 ```py
 @dlt.resource(primary_key="id")
@@ -296,7 +296,7 @@ def tickets(
 ```
 
 We opt-in to the Airflow scheduler by setting `allow_external_schedulers` to `True`:
-1. When running on Airflow, the start and end values are controlled by Airflow and the dlt [state](state.md) is not used.
+1. When running on Airflow, the start and end values are controlled by Airflow and the dlt [state](../state.md) is not used.
 2. In all other environments, the `incremental` behaves as usual, maintaining the dlt state.
 
 Let's generate a deployment with `dlt deploy zendesk_pipeline.py airflow-composer` and customize the DAG:
@@ -478,7 +478,7 @@ assert len(result) == 1
 
 ## Transform records before incremental processing
 If you want to load data that includes `None` values, you can transform the records before the incremental processing.
-You can add steps to the pipeline that [filter, transform, or pivot your data](../general-usage/resource.md#filter-transform-and-pivot-data).
+You can add steps to the pipeline that [filter, transform, or pivot your data](../resource.md#filter-transform-and-pivot-data).
 
 :::caution
 It is important to set the `insert_at` parameter of the `add_map` function to control the order of execution and ensure that your custom steps are executed before the incremental processing starts.

@@ -1,12 +1,17 @@
 ---
-title: Merge strategies
-description: Different strategies for incrementally merging data with dlt
+title: Merge loading
+description: Merge loading with dlt
 keywords: [merge, incremental loading, delete-insert, scd2, upsert]
 ---
+# Merge loading
 
-# Merge strategies
+Merge loading allows you to update existing data in your destination tables, rather than [replacing all data](./full-loading.md). This approach is ideal when you want to update only specific records without replacing entire tables or to keep the history of data changes.
 
-The `merge` write disposition can be used with three different strategies:
+To perform a merge load, you need to specify the `write_disposition` as `merge` on your resource and provide a `primary_key` or `merge_key`.
+
+Depending on your use case, you can choose from three different merge strategies.
+
+## Merge strategies
 
 1. [`delete-insert` (default strategy)](#delete-insert-strategy)
 2. [`scd2` strategy](#scd2-strategy)

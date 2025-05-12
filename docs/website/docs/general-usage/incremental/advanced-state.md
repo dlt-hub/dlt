@@ -6,71 +6,12 @@ keywords: [incremental loading, state management, lag, attribution]
 
 # Advanced state management for incremental loading
 
-## Lag / Attribution window
-In many cases, certain data should be reacquired during incremental loading. For example, you may want to always capture the last 7 days of data when fetching daily analytics reports, or refresh Slack message replies with a moving window of 7 days. This is where the concept of "lag" or "attribution window" comes into play.
-
-The `lag` parameter is a float that supports several types of incremental cursors: `datetime`, `date`, `integer`, and `float`. It can only be used with `last_value_func` set to `min` or `max` (default is `max`).
-
-### How `lag` works
-
-- **Datetime cursors**: `lag` is the number of seconds added or subtracted from the `last_value` loaded.
-- **Date cursors**: `lag` represents days.
-- **Numeric cursors (integer or float)**: `lag` respects the given unit of the cursor.
-
-This flexibility allows `lag` to adapt to different data contexts.
-
-
-### Example using `datetime` incremental cursor with `merge` as `write_disposition`
-
-This example demonstrates how to use a `datetime` cursor with a `lag` parameter, applying `merge` as the `write_disposition`. The setup runs twice, and during the second run, the `lag` parameter re-fetches recent entries to capture updates.
-
-1. **First Run**: Loads `initial_entries`.
-2. **Second Run**: Loads `second_run_events` with the specified lag, refreshing previously loaded entries.
-
-This setup demonstrates how `lag` ensures that a defined period of data remains refreshed, capturing updates or changes within the attribution window.
-
-```py
-pipeline = dlt.pipeline(
-    destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
-)
-
-# Flag to indicate the second run
-is_second_run = False
-
-@dlt.resource(name="events", primary_key="id", write_disposition="merge")
-def events_resource(
-    _=dlt.sources.incremental("created_at", lag=3600, last_value_func=max)
-):
-    global is_second_run
-
-    # Data for the initial run
-    initial_entries = [
-        {"id": 1, "created_at": "2023-03-03T01:00:00Z", "event": "1"},
-        {"id": 2, "created_at": "2023-03-03T02:00:00Z", "event": "2"},  # lag applied during second run
-    ]
-
-    # Data for the second run
-    second_run_events = [
-        {"id": 1, "created_at": "2023-03-03T01:00:00Z", "event": "1_updated"},
-        {"id": 2, "created_at": "2023-03-03T02:00:01Z", "event": "2_updated"},
-        {"id": 3, "created_at": "2023-03-03T03:00:00Z", "event": "3"},
-    ]
-
-    # Yield data based on the current run
-    yield from second_run_events if is_second_run else initial_entries
-
-# Run the pipeline twice
-pipeline.run(events_resource)
-is_second_run = True  # Update flag for second run
-pipeline.run(events_resource)
-```
-
 ## Custom incremental loading with pipeline state
 
 The pipeline state is a Python dictionary that gets committed atomically with the data; you can set values in it in your resources and on the next pipeline run, request them back.
 
 The pipeline state is, in principle, scoped to the resource - all values of the state set by a resource are private and isolated from any other resource. You can also access the source-scoped state, which can be shared across resources.
-[You can find more information on pipeline state here](./state.md#when-to-use-pipeline-state).
+[You can find more information on pipeline state here](../state.md#when-to-use-pipeline-state).
 
 ### Preserving the last value in resource state
 
@@ -171,64 +112,3 @@ def search_tweets(twitter_bearer_token=dlt.secrets.value, search_terms=None, sta
 
             yield page
 ```
-
-## Troubleshooting
-
-If you see that the incremental loading is not working as expected and the incremental values are not modified between pipeline runs, check the following:
-
-1. Make sure the `destination`, `pipeline_name`, and `dataset_name` are the same between pipeline runs.
-
-2. Check if `dev_mode` is `False` in the pipeline configuration. Check if `refresh` for associated sources and resources is not enabled.
-
-3. Check the logs for the `Bind incremental on <resource_name> ...` message. This message indicates that the incremental value was bound to the resource and shows the state of the incremental value.
-
-4. After the pipeline run, check the state of the pipeline. You can do this by running the following command:
-
-```sh
-dlt pipeline -v <pipeline_name> info
-```
-
-For example, if your pipeline is defined as follows:
-
-```py
-@dlt.resource
-def my_resource(
-    incremental_object = dlt.sources.incremental("some_key", initial_value=0),
-):
-    ...
-
-pipeline = dlt.pipeline(
-    pipeline_name="example_pipeline",
-    destination="duckdb",
-)
-
-pipeline.run(my_resource)
-```
-
-You'll see the following output:
-
-```text
-Attaching to pipeline <pipeline_name>
-...
-
-sources:
-{
-  "example": {
-    "resources": {
-      "my_resource": {
-        "incremental": {
-          "some_key": {
-            "initial_value": 0,
-            "last_value": 42,
-            "unique_hashes": [
-              "nmbInLyII4wDF5zpBovL"
-            ]
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-Verify that the `last_value` is updated between pipeline runs.

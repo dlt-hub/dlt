@@ -32,7 +32,7 @@ To find the "write disposition" you should use, the first question you should as
 
 Because stateless data does not need to be updated, we can just append it.
 
-For stateful data, comes a second question - Can I extract it incrementally from the source? If yes, you should use [slowly changing dimensions (Type-2)](./merge-strategies.md#scd2-strategy), which allow you to maintain historical records of data changes over time.
+For stateful data, comes a second question - Can I extract it incrementally from the source? If yes, you should use [slowly changing dimensions (Type-2)](./merge-loading.md#scd2-strategy), which allow you to maintain historical records of data changes over time.
 
 If not, then we need to replace the entire dataset. However, if we can request the data incrementally, such as "all users added or modified since yesterday," then we can simply apply changes to our existing dataset with the merge write disposition.
 
@@ -40,9 +40,10 @@ If not, then we need to replace the entire dataset. However, if we can request t
 
 dlt provides several approaches to incremental loading:
 
-1. [Merge strategies](./merge-strategies.md) - Choose between delete-insert, SCD2, and upsert approaches to incrementally update your data
-2. [Cursor-based incremental loading](./cursor-incremental.md) - Track changes using a cursor field (like timestamp or ID)
-3. [Advanced state management](./advanced-state.md) - Custom state tracking and lag/attribution windows
+1. [Merge strategies](./merge-loading.md#merge-strategies) - Choose between delete-insert, SCD2, and upsert approaches to incrementally update your data
+2. [Cursor-based incremental loading](./incremental/cursor.md) - Track changes using a cursor field (like timestamp or ID)
+3. [Lag / Attribution window](./incremental/lag.md) - Refresh data within a specific time window
+4. [Advanced state management](./incremental/advanced-state.md) - Custom state tracking
 
 ## Doing a full refresh
 
@@ -68,7 +69,7 @@ Passing write disposition to `replace` will change the write disposition on all 
 
 ## Next steps
 
-- [Merge strategies](./merge-strategies.md) - Learn about delete-insert, SCD2, and upsert approaches
-- [Cursor-based incremental loading](./cursor-incremental.md) - Use timestamps or IDs to track changes
-- [Advanced state management](./advanced-state.md) - Advanced techniques for state tracking
+- [Cursor-based incremental loading](./incremental/cursor.md) - Use timestamps or IDs to track changes
+- [Advanced state management](./incremental/advanced-state.md) - Advanced techniques for state tracking
 - [Walkthroughs: Add incremental configuration to SQL resources](../walkthroughs/add-incremental-configuration.md) - Step-by-step examples
+- [Troubleshooting incremental loading](./incremental/troubleshooting.md) - Common issues and how to fix them
