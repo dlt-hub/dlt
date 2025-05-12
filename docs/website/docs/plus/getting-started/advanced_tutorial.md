@@ -119,7 +119,7 @@ Run the script inside the uv virtual environment:
 ```sh
 uv run python test_project.py
 ```
-Once your pipeline has run, you can explore and share the loaded data using various access methods provided by dlt+. [Learn more about it in the Secure data access and sharing.](https://dlthub.com/docs/plus/features/data-access#data-access-and-sharing)
+Once your pipeline has run, you can explore and share the loaded data using various access methods provided by dlt+. [Learn more about it in the Secure data access and sharing.](../features/data-access#data-access-and-sharing)
 
 :::info
 In a real-world setup, a data scientist wouldn't install the package from a local path.
