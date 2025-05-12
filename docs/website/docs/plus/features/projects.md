@@ -280,7 +280,7 @@ The `iceberg` destination will create an iceberg lake in the `_data/dev/local/la
 You can clean up your working files with the `dlt project --profile name clean` command.
 :::
 
-## 🧪 Python API to interact with dlt+ project
+## Python API to interact with dlt-plus project
 
 You can access any dlt+ project entity or function via the Python interface.
 The current module provides access to various parts of your active dlt+ project.

@@ -63,7 +63,7 @@ dlt pipeline my_pipeline run
 ```
 
 If you open the `__init__.py` file inside your project module, you'll see the full interface that users of your package will interact with.
-This interface is very similar to the [`current`](../features/projects.md#-python-api-to-interact-with-dlt+-project) interface used in flat (non-packaged) projects. The main difference is that it automatically uses the `access` profile by default.
+This interface is very similar to the [`current`](../features/projects.md#python-API-to-interact-with-dlt-plus-project) interface used in flat (non-packaged) projects. The main difference is that it automatically uses the `access` profile by default.
 You can customize the `__init__.py` file to your project's needs.
 
 ### Using the packaged project
