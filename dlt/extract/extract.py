@@ -28,6 +28,7 @@ from dlt.common.schema.typing import (
     TTableFormat,
     TWriteDispositionConfig,
 )
+from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages import NormalizeStorageConfiguration, LoadPackageInfo, SchemaStorage
 from dlt.common.storages.load_package import (
     ParsedLoadJobFileName,
@@ -37,7 +38,11 @@ from dlt.common.storages.load_package import (
 )
 from dlt.common.utils import get_callable_name, get_full_obj_class_name, group_dict_of_lists
 
-from dlt.extract.decorators import SourceInjectableContext, SourceSchemaInjectableContext
+from dlt.extract.decorators import (
+    _DltSingleSource,
+    SourceInjectableContext,
+    SourceSchemaInjectableContext,
+)
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, UnknownSourceReference
 from dlt.extract.incremental import IncrementalResourceWrapper
 from dlt.extract.pipe_iterator import PipeIterator
@@ -46,7 +51,21 @@ from dlt.extract.reference import SourceReference
 from dlt.extract.resource import DltResource
 from dlt.extract.storage import ExtractStorage
 from dlt.extract.extractors import ObjectExtractor, ArrowExtractor, Extractor, ModelExtractor
-from dlt.extract.utils import get_data_item_format
+from dlt.extract.utils import get_data_item_format, make_schema_with_default_name
+
+
+def select_schema(pipeline: SupportsPipeline) -> Schema:
+    """Use a clone that will get discarded if extraction fails"""
+    # take pipeline schema to make newest version visible to the resources
+    if pipeline.default_schema_name:
+        name = pipeline.default_schema_name
+        # clones with name which will drop previous hashes
+        schema_ = pipeline.schemas[name].clone(with_name=name)
+        # delete data tables
+        schema_.drop_tables(schema_.data_table_names(include_incomplete=True))
+    else:
+        schema_ = Schema(make_schema_with_default_name(pipeline.pipeline_name))
+    return schema_
 
 
 def data_to_sources(
@@ -84,24 +103,6 @@ def data_to_sources(
         # apply schema contract settings
         if schema_contract:
             source_.schema_contract = schema_contract
-
-    def choose_schema() -> Schema:
-        """Except of explicitly passed schema, use a clone that will get discarded if extraction fails"""
-        if schema:
-            schema_ = schema
-        # take pipeline schema to make newest version visible to the resources
-        elif pipeline.default_schema_name:
-            # clones with name which will drop previous hashes
-            schema_ = pipeline.schemas[pipeline.default_schema_name].clone(
-                with_name=pipeline.default_schema_name
-            )
-            # delete data tables
-            schema_.drop_tables(schema_.data_table_names(include_incomplete=True))
-        else:
-            schema_ = pipeline._make_schema_with_default_name()
-        return schema_
-
-    effective_schema = choose_schema()
 
     # a list of sources or a list of resources may be passed as data
     sources: List[DltSource] = []
@@ -151,13 +152,29 @@ def data_to_sources(
     if resources:
         # decompose into groups so at most single resource with a given name belongs to a group
         for r_ in group_dict_of_lists(resources):
-            # do not set section to prevent source that represent a standalone resource
-            # to overwrite other standalone resources (ie. parents) in that source
-            sources.append(DltSource(effective_schema, "", list(r_.values())))
+            # wrap into resources with following rules
+            # 1. single resource carries its section into source
+            # 2. group of resources in the same section carry the section into source
+            # 3. resources from different sections: section is pipeline name
+            # 4. resources always join default pipeline schema
+
+            r_s = list(r_.values())
+            sections = set([r.section for r in r_s])
+            section: str = None
+            if len(sections) == 1:
+                section = iter(sections).__next__()
+            section = section or pipeline.pipeline_name
+            if len(r_s) == 1:
+                # single resource source
+                sources.append(_DltSingleSource(schema or select_schema(pipeline), section, r_s))
+            else:
+                sources.append(DltSource(schema or select_schema(pipeline), section, r_s))
 
     # add all the appended data-like items in one source
     if data_resources:
-        sources.append(DltSource(effective_schema, pipeline.pipeline_name, data_resources))
+        sources.append(
+            DltSource(schema or select_schema(pipeline), pipeline.pipeline_name, data_resources)
+        )
 
     # apply hints and settings
     for source in sources:

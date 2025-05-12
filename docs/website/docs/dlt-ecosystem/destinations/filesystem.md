@@ -123,7 +123,7 @@ endpoint_url = "https://<account_id>.r2.cloudflarestorage.com" # copy your endpo
 
 #### Adding additional configuration
 
-To pass any additional arguments to `fsspec`, you may supply `kwargs` and `client_kwargs` in toml config.
+To pass any additional arguments to `fsspec`, you may supply `kwargs` and `client_kwargs` in `toml` config.
 
 ```toml
 [destination.filesystem.kwargs]
@@ -137,6 +137,16 @@ verify="public.crt"
 To pass additional arguments via env variables, use **stringified dictionary**:
 `DESTINATION__FILESYSTEM__KWARGS='{"use_ssl": true, "auto_mkdir": true}`
 
+You can also override default `fsspec` settings used by `dlt`:
+```toml
+[destination.filesystem.kwargs]
+use_listings_cache=false  # listing cache disabled by default as you typically add files
+listings_expiry_time=60.0
+skip_instance_cache=false  # instance cache enabled by default, it is thread isolated anyway
+```
+There's however no good reason to do that, except debugging `fsspec` internal problems. You could try
+to enable listing cache but this cache is not shared across threads which `dlt` load steps uses to
+parallelize writes. You may get unpredictable cache invalidation behavior.
 
 ### Google storage
 Run `pip install "dlt[gs]"` which will install the `gcfs` package.

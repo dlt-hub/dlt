@@ -623,7 +623,7 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
 )
 def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # NOTE: we could generalize this with a context for certain deps
-    import ibis  # type: ignore
+    import ibis
 
     # now we should get the more powerful ibis relation
     dataset = populated_pipeline.dataset()

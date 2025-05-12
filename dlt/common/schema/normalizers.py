@@ -51,6 +51,7 @@ def configured_normalizers(
     is a module or a type it will get converted into string form via import.
 
     If `schema_name` is present, a section ("sources", schema_name, "schema") is used to inject the config
+    via callable sections=_section_for_schema
     """
 
     norm_conf: TNormalizersConfig = {"names": serialize_reference(naming), "json": json_normalizer}

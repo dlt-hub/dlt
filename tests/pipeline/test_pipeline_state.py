@@ -21,6 +21,7 @@ from dlt.common.destination.client import StateInfo
 from dlt.common.validation import validate_dict
 
 from dlt.destinations.utils import get_pipeline_state_query_columns
+from dlt.extract.utils import make_schema_with_default_name
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state_sync import (
@@ -332,7 +333,7 @@ def test_resource_state_write() -> None:
     r = dlt.resource(_gen_inner(), name="name_ovrd")
     assert list(r) == [1]
     assert (
-        state_module._last_full_state["sources"][p._make_schema_with_default_name().name][
+        state_module._last_full_state["sources"][make_schema_with_default_name(p.pipeline_name)][
             "resources"
         ]["name_ovrd"]["gen"]
         is True
