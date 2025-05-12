@@ -13,7 +13,7 @@ from typing import (
 )
 from dlt.common.schema.migrations import migrate_schema
 
-from dlt.common.utils import extend_list_deduplicated
+from dlt.common.utils import extend_list_deduplicated, simple_repr, without_none
 from dlt.common.typing import (
     DictStrAny,
     StrAny,
@@ -676,6 +676,16 @@ class Schema:
     def settings(self) -> TSchemaSettings:
         return self._settings
 
+    def __repr__(self) -> str:
+        kwargs = {
+            "name": self.name,
+            "version": self.version,
+            "data_tables": self.data_table_names(),
+            "dlt_tables": self.dlt_table_names(),
+            "version_hash": self.version_hash,
+        }
+        return simple_repr("dlt.Schema", **without_none(kwargs))
+
     def to_dict(
         self,
         remove_defaults: bool = False,
@@ -1248,5 +1258,3 @@ class Schema:
         del state["data_item_normalizer"]
         return state
 
-    def __repr__(self) -> str:
-        return f"Schema {self.name} at {id(self)}"

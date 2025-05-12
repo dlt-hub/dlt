@@ -13,6 +13,16 @@ TConfigAny = TypeVar("TConfigAny", bound=Any)
 
 
 class _Accessor(abc.ABC):
+    # TODO should represent the resolution order
+    def __repr__(self) -> str:
+        s = "dlt.secrets("
+        s += "\n  config_providers=["
+        for p in self.config_providers:
+            s += "\n    " + p.__repr__()
+        s += "\n  ]"
+        s += "\n)"
+        return s
+
     def __getitem__(self, field: str) -> Any:
         value, traces = self._get_value(field)
         if value is None:

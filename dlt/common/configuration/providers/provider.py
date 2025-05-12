@@ -2,7 +2,7 @@ import abc
 from typing import Any, Sequence, Tuple, Type, Optional
 
 from dlt.common.configuration.exceptions import ConfigurationException
-
+from dlt.common.utils import simple_repr, without_none
 
 class ConfigProvider(abc.ABC):
     @abc.abstractmethod
@@ -50,6 +50,16 @@ class ConfigProvider(abc.ABC):
     def locations(self) -> Sequence[str]:
         """Returns a list of locations where secrets are stored, human readable"""
         return []
+    
+    def __repr__(self) -> str:
+        kwargs = {
+            "is_empty": self.is_empty,
+            "supports_secrets": self.supports_secrets,
+            "supports_sections": self.supports_sections,
+            "is_writable": self.is_writable,
+            "locations": self.locations if self.locations else None,
+        }
+        return simple_repr(self.__class__.__name__, **without_none(kwargs))
 
 
 def get_key_name(key: str, separator: str, /, *sections: str) -> str:

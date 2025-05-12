@@ -93,7 +93,7 @@ from dlt.common.pipeline import (
     TRefreshMode,
 )
 from dlt.common.schema import Schema
-from dlt.common.utils import is_interactive
+from dlt.common.utils import is_interactive, simple_repr, without_none
 from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
@@ -646,7 +646,7 @@ class Pipeline(SupportsPipeline):
             destination (TDestinationReferenceArg, optional): A name of the destination to which dlt will load the data, or a destination module imported from `dlt.destination`.
                 If not provided, the value passed to `dlt.pipeline` will be used.
 
-            staging (TDestinationReferenceArg, optional): A name of the stagingdestination to which dlt will load the data temporarily before it is loaded to the destination, can also
+            staging (TDestinationReferenceArg, optional): A name of the staging destination to which dlt will load the data temporarily before it is loaded to the destination, can also
                 be a module imported from `dlt.destination`.
 
             dataset_name (str, optional): A name of the dataset to which the data will be loaded. A dataset is a logical group of tables ie. `schema` in relational databases or folder grouping many files.
@@ -919,6 +919,24 @@ class Pipeline(SupportsPipeline):
         if self._last_trace:
             return self._last_trace
         return load_trace(self.working_dir)
+
+    def __repr__(self) -> str:
+        kwargs = {
+            "pipeline_name": self.pipeline_name,
+            "destination": self._destination.destination_name if self._destination else None,
+            "staging": self._staging.destination_name if self._staging else None,
+            "dataset_name": self.dataset_name,
+            "default_schema_name": self.default_schema_name,
+            "schema_names": self.schema_names if self.schema_names else None,
+            "first_run": self.first_run if self.first_run else None,
+            "dev_mode": self.dev_mode if self.dev_mode else None,
+            "import"
+            # we check for `not is_active` which is the less common case
+            "is_active": self.is_active if not self.is_active else None,
+            "pipelines_dir": self.pipelines_dir,
+            "working_dir": self.working_dir,
+        }
+        return simple_repr("dlt.pipeline", **without_none(kwargs))
 
     @deprecated(
         "Please use list_extracted_load_packages instead. Flat extracted storage format got dropped"
