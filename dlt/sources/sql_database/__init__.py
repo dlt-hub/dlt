@@ -70,12 +70,12 @@ def sql_database(
             This is disabled by default.
 
         reflection_level (Optional[ReflectionLevel]): Specifies how much information should be reflected from the source database schema.
-            "minimal": Only table names, nullability and primary keys are reflected. Data types are inferred from the data. This is the default option.
-            "full": Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary.
+            "minimal": Only table names, nullability and primary keys are reflected. Data types are inferred from the data.
+            "full" (default): Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary.
             "full_with_precision": Sets precision and scale on supported data types (ie. decimal, text, binary). Creates big and regular integer types.
 
         defer_table_reflect (Optional[bool]): Will connect and reflect table schema only when yielding data. Requires table_names to be explicitly passed.
-            Enable this option when running on Airflow. Available on dlt 0.4.4 and later.
+            Enable this option when running on Airflow and other orchestrators that create execution DAGs.
 
         table_adapter_callback (Optional[TTableAdapter]): Receives each reflected table. May be used to modify the list of columns that will be selected.
 
@@ -201,12 +201,12 @@ def sql_table(
             This is disabled by default.
 
         reflection_level (Optional[ReflectionLevel]): Specifies how much information should be reflected from the source database schema.
-            "minimal": Only table names, nullability and primary keys are reflected. Data types are inferred from the data. This is the default option.
-            "full": Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary.
+            "minimal": Only table names, nullability and primary keys are reflected. Data types are inferred from the data.
+            "full" (default): Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary.
             "full_with_precision": Sets precision and scale on supported data types (ie. decimal, text, binary). Creates big and regular integer types.
 
-        defer_table_reflect (Optional[bool]): Will connect and reflect table schema only when yielding data. Enable this option when running on Airflow. Available
-            on dlt 0.4.4 and later
+        defer_table_reflect (Optional[bool]): Will connect and reflect table schema only when yielding data.
+            Enable this option when running on Airflow and other orchestrators that create execution DAGs.
 
         table_adapter_callback (Optional[TTableAdapter]): Receives each reflected table. May be used to modify the list of columns that will be selected.
 
