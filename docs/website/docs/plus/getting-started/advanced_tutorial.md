@@ -59,7 +59,7 @@ The file includes a special entry point setting to let dlt+ discover your projec
 dlt-project = "my_project"
 ```
 
-You can still run the pipeline as usual with the cli commands from the root folder:
+You can still run the pipeline as usual with the CLI commands from the root folder:
 
 ```sh
 dlt pipeline my_pipeline run
@@ -88,7 +88,7 @@ uv pip install /Volumes/my_drive/my_folder
 
 Your dlt+ project is now available for use in this environment.
 
-As an exemple, create a new Python file named `test_project.py`, use your packaged project and define the environment variables it needs:
+As an example, create a new Python file named `test_project.py`, use your packaged project, and define the environment variables it needs:
 
 ```py
 # import the packaged project
@@ -106,7 +106,7 @@ if __name__ == "__main__":
     my_dlt_project.runner().run_pipeline("my_pipeline")
     # should list the defined destinations  
     print(my_dlt_project.config().destinations)
-    #get a dataset from the catalog
+    # get a dataset from the catalog
     dataset = my_dlt_project.catalog().dataset("my_pipeline_dataset")
     # Write a DataFrame to the "my_table" table in the dataset
     dataset.save(pd.DataFrame({"name": ["John", "Jane", "Jim"], "age": [30, 25, 35]}), table_name="my_table")
@@ -119,7 +119,7 @@ Run the script inside the uv virtual environment:
 ```sh
 uv run python test_project.py
 ```
-Once you pipeline has run, you can explore and share the loaded data using various access methods provided by dlt+. [Learn more about it in the Secure data access and sharing .](https://dlthub.com/docs/plus/features/data-access#data-access-and-sharing)
+Once your pipeline has run, you can explore and share the loaded data using various access methods provided by dlt+. [Learn more about it in the Secure data access and sharing.](https://dlthub.com/docs/plus/features/data-access#data-access-and-sharing)
 
 :::info
 In a real-world setup, a data scientist wouldn't install the package from a local path.
@@ -128,3 +128,4 @@ Instead, it would typically come from a private PyPI repository or a Git URL.
 
 
 ## Next steps
+

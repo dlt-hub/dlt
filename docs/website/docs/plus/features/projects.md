@@ -4,9 +4,7 @@ import Link from '../../_plus_admonition.md';
 
 <Link/>
 
-
 <img src="https://storage.googleapis.com/dlt-blog-images/plus/dlt_plus_projects.png" width="500"/>
-
 
 [dlt+ Project](../core-concepts/project.md) provides a structured and opinionated approach to organizing data workflows while implementing best practices for data engineering teams. dlt+ Project automates key processes such as data loading, data transformations, data catalogs, and data governance, and enables different members of the data teams to work more easily with each other.
 
@@ -29,7 +27,7 @@ A dlt+ Project has the following general structure:
 │   └── secrets.toml
 ├── _data/                # local storage for your project, excluded from git
 ├── sources/              # modules containing the source code for sources
-│   └── github.py         # source code for a github source
+│   └── github.py         # source code for a GitHub source
 ├── transformations/      # modules containing the source code for transformations
 ├── .gitignore
 └── dlt.yml               # the main project manifest
@@ -265,12 +263,12 @@ Working files for each profile are stored separately. For example, files for the
 
 Working files include:
 * Pipeline working directory (`{data_dir}/pipelines` folder) where load packages, pipeline state, and schemas are stored locally.
-* All files created by destinations (`{data_dir}\local`) i.e., local `filesystem` buckets, duckdb databases, iceberg, and delta lakes (if configured for the local filesystem).
+* All files created by destinations (`{data_dir}/local`) i.e., local `filesystem` buckets, duckdb databases, iceberg, and delta lakes (if configured for the local filesystem).
 * Default locations for ad hoc (i.e., dbt related) Python virtual environments.
 
 :::tip
 Use relative paths when configuring destinations that generate local files to ensure they are automatically placed in the profile-separated
-`{data_dir}\local` folder. For example:
+`{data_dir}/local` folder. For example:
 
 ```yaml
 destinations:
@@ -302,13 +300,13 @@ Available methods:
 - `current.runner()` - Allows you to run pipelines programmatically
 
 :::info
-If you packaged your dlt+ Project into pip-installable package, you can access all methods above directly from the package. For example:
+If you packaged your dlt+ Project into a pip-installable package, you can access all methods above directly from the package. For example:
 ```py
 import my_dlt_package
 
 my_dlt_package.catalog()
 ```
-[Learn more](../getting-started/advanced_tutorial.md) how to package your project.
+[Learn more](../getting-started/advanced_tutorial.md) about how to package your project.
 :::
 
 ### Accessing project settings
@@ -323,7 +321,7 @@ print(current.project().current_profile)
 print(current.project().project_dir)
 # show the project config
 print(current.project().config)
-# list explicitely defined datasets (also works with destinations, sources, pipelines etc.)
+# list explicitly defined datasets (also works with destinations, sources, pipelines, etc.)
 print(current.project().datasets)
 ```
 ### Accessing entities
@@ -363,10 +361,10 @@ The catalog allows you to access all explicitly defined datasets:
 ```py
 from dlt_plus import current
 
-# get a dataset instance pointing to the default destination (first in dataset destinations list) and access data inside of it
+# Get a dataset instance pointing to the default destination (first in dataset destinations list) and access data inside of it
 # Note: The dataset must already exist physically for this to work
 dataset = current.catalog().dataset("my_pipeline_dataset")
-# get the row counts of all tables in the dataset as a dataframe
+# Get the row counts of all tables in the dataset as a dataframe
 print(dataset.row_counts().df())
 ```
 
@@ -390,7 +388,7 @@ Use it with caution until it's fully stable.
 import pandas as pd
 from dlt_plus import current
 
-# get a dataset from the catalog (it must already exist and be defined in dlt.yml)
+# Get a dataset from the catalog (it must already exist and be defined in dlt.yml)
 dataset = current.catalog().dataset("my_pipeline_dataset")
 # Write a DataFrame to the "my_table" table in the dataset
 dataset.save(pd.DataFrame({"name": ["John", "Jane", "Jim"], "age": [30, 25, 35]}), table_name="my_table")
@@ -401,7 +399,7 @@ You can also read from an existing table and write the data to a new table, eith
 ```py
 from dlt_plus import current
 
-# get dataset from the catalog
+# Get dataset from the catalog
 dataset = current.catalog().dataset("my_pipeline_dataset")
 
 # This function reads data in chunks from an existing table and yields each chunk
@@ -439,7 +437,7 @@ if __name__ == "__main__":
 
 As shown above, it is possible to pass additional dlt settings and configurations in the manifest file itself. However, existing dlt config providers are also supported as usual, like:
 
-1. environ provider
+1. Environ provider
 2. `.dlt/config.toml` provider, including the global config
 3. `.dlt/<profile_name>.secrets.toml`, which is the secrets toml provider but scoped to a particular profile. A per-profile version (`dev.secrets.toml`) is sought instead of the `secrets.toml` file.
 
@@ -449,7 +447,7 @@ Based on the information about precedence in the [configuration docs](../../gene
 
 ## Project context
 
-The `dlt.yml` marks the root of a project. Projects can also be nested. If you run any dlt project CLI command, dlt will search for the project root in the filesystem tree starting from the current working directory and run all operations on the found project. So if your `dlt.yml` is in the `tutorial` folder, you can run `dlt pipeline my_pipeline run` from this folder or any subfolder, and it will run the pipeline on the `tutorial` project.
+The `dlt.yml` marks the root of a project. Projects can also be nested. If you run any dlt project CLI command, dlt will search for the project root in the filesystem tree starting from the current working directory and run all operations on the found project. So, if your `dlt.yml` is in the `tutorial` folder, you can run `dlt pipeline my_pipeline run` from this folder or any subfolder, and it will run the pipeline on the `tutorial` project.
 
 ## Packaging and distributing the projects
 
