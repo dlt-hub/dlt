@@ -8,6 +8,7 @@ from pathlib import Path
 import dlt.destinations
 from dlt.common import git
 from dlt.common.configuration.specs import known_sections
+from dlt.common.configuration.specs.base_configuration import print_config_flavor_menu_from_union
 from dlt.common.configuration.providers import (
     CONFIG_TOML,
     SECRETS_TOML,
@@ -744,11 +745,11 @@ def init_pipeline_at_destination(
             overwrite_existing=False,
             config_flavor=source_flavor,
         )
+        if not source_flavor:
+            config_flavor_message(required_secrets.values())
 
         config_prov = ConfigTomlProvider(settings_dir)
         write_values(config_prov._config_toml, required_config.values(), overwrite_existing=False)
-
-
 
         # write toml files
         secrets_prov.write_toml()
@@ -761,3 +762,10 @@ def init_pipeline_at_destination(
 
         copied_files: Dict[str, str] = {dest_path: src_path for src_path, dest_path in copy_files}
         return copied_files, source_type
+
+
+def config_flavor_message(required_secrets: Sequence[WritableConfigValue]) -> None:
+    # get all unique secret hints and print their config flavor menu's
+    hints = set(secret.hint for secret in required_secrets)
+    for hint in hints:
+        print_config_flavor_menu_from_union(hint)

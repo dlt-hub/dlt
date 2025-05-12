@@ -98,41 +98,75 @@ def is_credentials_inner_hint(inner_hint: Type[Any]) -> bool:
 
 
 def get_config_if_union_hint(hint: Type[Any], flavor: str = None) -> Type[Any]:
-    """return first configuration type from union type or None if not found
-    if flavor is specified, return the first configuration flavor of the specified flavor
     """
-    # todo: pick this apart and use it elsewhere
-    if is_union_type(hint):
-        flavor_menu = {}
-        missed_out = False
-        if flavor:
-            config = next((t for t in get_args(hint) if is_configuration_flavor(t, flavor)), None)
-            if not config:
-                # fmt.warning( f"Configuration flavor {flavor} not found in {hint}.")
-                # raise unknown flavor exception?
-                pass
-        
-        else:
-            # check if there were optional flavors that could have been chosen
-            # right-now: or fallback to first base configuration?
-            # collect all the flavors
-            for t in get_args(hint):
-                if is_base_configuration_inner_hint(t) and isinstance(
-                    t.__config_gen_annotations__, dict
-                ):
-                    flavor_menu[t.__name__] = t.__config_gen_annotations__.keys()
-                missed_out = len(flavor_menu) > 1
-            # choose the first one that is a base configuration
-            config = next((t for t in get_args(hint) if is_base_configuration_inner_hint(t)), None)
-            if missed_out:
-                print(f"You didn't specify a flavors so I chose vanilla {config.__name__} for you. " \
-                "These were your options:")
-                for k, v in flavor_menu.items():
-                    print(f"{k}: {", ".join(v)}")
+    Return the first configuration type from a union type or None if not found.
+    If a flavor is specified, return the first configuration of the specified flavor.
+    """
+    if not is_union_type(hint):
+        return None
 
-            # return
-            return config
-    return None
+    flavored_config = get_flavored_config_from_union(hint, flavor)
+    if flavor and not flavored_config:
+        # log warning that flavor was not found (or raise?)
+        pass
+
+    return flavored_config or get_first_base_config_from_union(hint)
+
+
+def get_first_base_config_from_union(hint: Type[Any]) -> Type[Any]:
+    # Choose the first base configuration if no flavor is specified
+    return next((t for t in get_args(hint) if is_base_configuration_inner_hint(t)), None)
+
+
+def print_config_flavor_menu_from_union(hint: Type[Any]) -> Dict[str, List[str]]:
+    """
+    Prints a dictionary of configuration flavors and their corresponding types from a union type.
+    keys are the parameter names of the configuration types, and values are lists of flavor names.
+    example:
+    {
+        "FilesystemCredentials: ["gcs", "s3", "minio"],
+    }
+    """
+    if not is_union_type(hint):
+        return
+    flavor_menu = get_config_flavors_from_union_type(hint)
+    first_config = get_first_base_config_from_union(hint)
+    vanilla = f"{first_config.__name__}-{flavor_menu[first_config.__name__][0]}"
+    print(
+        f"You didn't specify a flavor, so I chose vanilla {vanilla} for you. These were your"
+        " options:"
+    )
+    for name, flavors in flavor_menu.items():
+        print(f"{name}: {', '.join(flavors)}")
+
+
+def get_config_flavors_from_union_type(hint: Type[Any]) -> Dict[str, List[str]]:
+    if not is_union_type(hint):
+        return {}
+    return {
+        t.__name__: get_flavors_of_base_config_type(t)
+        for t in get_args(hint)
+        if is_base_configuration_inner_hint(t)
+    }
+
+
+def get_flavors_of_base_config_type(hint: Type[Any]) -> List[str]:
+    """
+    If the config supports flavors, return the list, else just return ["vanilla"]
+    """
+    if not is_base_configuration_inner_hint(hint):
+        raise TypeError(f"{hint} is not a base configuration type")
+    if isinstance(hint.__config_gen_annotations__, dict):
+        return list(hint.__config_gen_annotations__.keys())
+    return ["vanilla"]  # note remove later :)
+
+
+def get_flavored_config_from_union(hint: Type[Any], flavor: str) -> Type[Any]:
+    """
+    return the first configuration type from a union type with the specified flavor or None if
+    not found
+    """
+    return next((t for t in get_args(hint) if is_configuration_flavor(t, flavor)), None)
 
 
 def is_configuration_flavor(hint: Type[Any], flavor: str) -> bool:
