@@ -62,7 +62,7 @@ After running the command, the following folder structure is created:
 ├── .dlt/                 # your dlt settings including profile settings
 │   ├── dev.secrets.toml
 │   └── secrets.toml
-├── _data/             # local storage for your project, excluded from git
+├── _data/                # local storage for your project, excluded from git
 ├── sources/              # your sources, contains the code for the arrow source
 │   └── arrow.py
 ├── .gitignore
