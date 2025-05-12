@@ -136,9 +136,9 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
     protocol = config.protocol
     # never use listing caches
     fs_kwargs: DictStrAny = {
-        "use_listings_cache": False,
+        "use_listings_cache": config.read_only,
         "listings_expiry_time": 60.0,
-        "skip_instance_cache": True,
+        "skip_instance_cache": False,
     }
     credentials = CREDENTIALS_DISPATCH.get(protocol, lambda _: {})(config)
 

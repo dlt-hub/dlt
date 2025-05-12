@@ -167,7 +167,17 @@ files = filesystem(
 As you can see, all parameters of `filesystem` can be specified directly in the code or taken from the configuration.
 
 :::tip
-dlt supports more ways of authorizing with cloud storages, including identity-based and default credentials. To learn more about adding credentials to your pipeline, please refer to the [Configuration and secrets section](../general-usage/credentials/complex_types#awscredentials).
+`dlt` supports more ways of authorizing with cloud storages, including identity-based and default credentials. To learn more about adding credentials to your pipeline, please refer to the [Configuration and secrets section](../general-usage/credentials/complex_types#awscredentials).
+:::
+
+:::tip
+`filesystem` source uses the same configuration layout as filesystem destination so you can refer to:
+
+1. [bucket access setup and examples](../dlt-ecosystem/destinations/filesystem.md#set-up-the-destination-and-credentials)
+2. [additional fsspec and client options](../dlt-ecosystem/destinations/filesystem.md#adding-additional-configuration) like ssl setup.
+
+Just remember that examples are prepared for destination configuration. Replace **destination** category section with **sources**.
+
 :::
 
 ## 4. Running the pipeline
