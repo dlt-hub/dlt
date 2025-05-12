@@ -30,7 +30,7 @@ from dlt.common.pipeline import (
     resource_state,
     pipeline_state,
 )
-from dlt.common.utils import flatten_list_or_items, get_callable_name, uniq_id
+from dlt.common.utils import flatten_list_or_items, get_callable_name, uniq_id, without_none, simple_repr
 
 from dlt.common.schema.typing import TTableSchema
 from dlt.extract.utils import (
@@ -716,6 +716,33 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             ),
             source_state_key=self.source_name or default_schema_name or self.section or uniq_id(),
         )
+
+    def __repr__(self) -> str:
+        # TODO add a mechanism to truncate the repr of some hints
+        # TODO add information about steps
+        kwargs = {
+            "section": self.section,
+            "name": self.name,
+            "table_name": self._hints.get("table_name"),
+            "primary_key": self._hints.get("primary_key"),
+            "merge_key": self._hints.get("merge_key"),
+            "columns": "{...}" if self._hints.get("columns") else None,
+            "parent_table_name": self._hints.get("parent_table_name"),
+            "references": "{...}" if self._hints.get("references") else None,
+            "nested_hints": "{...}" if self._hints.get("nested_hints") else None,
+            "max_table_nesting": self._hints.get("max_table_nesting"),
+            "write_disposition": self._hints.get("write_disposition"),
+            "table_format": self._hints.get("table_format"),
+            "file_format": self._hints.get("file_format"),
+            "schema_contract": "{...}" if self._hints.get("schema_contract") else None,
+            "incremental": self.incremental,
+            "validator": self.validator,
+        }
+        if len(self._pipe.steps) > 1:
+            kwargs["n_steps"] = len(self._pipe.steps)
+        # the name isn't `DltResource` because it's not the main entrypoint
+        # to create a resource 
+        return simple_repr("dlt.resource", **without_none(kwargs))
 
     def __str__(self) -> str:
         info = f"DltResource [{self.name}]"
