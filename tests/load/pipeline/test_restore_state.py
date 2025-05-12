@@ -10,11 +10,10 @@ from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.schema import Schema, utils
 from dlt.common.schema.utils import normalize_table_identifiers
 from dlt.common.utils import uniq_id
-from dlt.common.destination.exceptions import DestinationUndefinedEntity
+from dlt.common.destination.exceptions import DestinationUndefinedEntity, SqlClientNotAvailable
 from dlt.common.destination.client import WithStateSync
 
 from dlt.load import Load
-from dlt.pipeline.exceptions import SqlClientNotAvailable
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state_sync import (
     load_pipeline_state_from_destination,
@@ -49,7 +48,34 @@ def duckdb_pipeline_location() -> None:
         default_staging_configs=True,
         default_sql_configs=True,
         default_vector_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_no_destination_sync_state(destination_config: DestinationTestConfiguration) -> None:
+    """Tests disable state restore for wide range of destinations"""
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="pipe_" + uniq_id(), dataset_name="state_test_" + uniq_id()
+    )
+    pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
+    assert list(pipeline.last_trace.last_normalize_info.row_counts.keys())[0].lower() == "digits"
+
+    pipeline.drop()
+    pipeline.sync_destination()
+    assert pipeline.first_run is True
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_staging_configs=True,
+        default_sql_configs=True,
+        default_vector_configs=True,
         all_buckets_filesystem_configs=True,
+        table_format_filesystem_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -106,7 +132,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     with p.managed_state(extract_state=True):
         pass
     # just run the existing extract
-    p.normalize(loader_file_format=destination_config.file_format)
+    p.normalize()
     p.load()
 
     with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
@@ -118,7 +144,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     with p.managed_state(extract_state=True) as managed_state:
         # this will be saved
         managed_state["sources"] = {"source": dict(JSON_TYPED_DICT_DECODED)}
-    p.normalize(loader_file_format=destination_config.file_format)
+    p.normalize()
     p.load()
 
     with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
@@ -134,7 +160,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     new_local_state = p._get_state()
     new_local_state.pop("_local")
     assert local_state == new_local_state
-    p.normalize(loader_file_format=destination_config.file_format)
+    p.normalize()
     info = p.load()
     assert len(info.loads_ids) == 0
 
@@ -167,7 +193,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     assert new_local_state_2_local["_last_extracted_hash"] == new_local_state_2["_version_hash"]
     # but the version didn't change
     assert new_local_state["_state_version"] == new_local_state_2["_state_version"]
-    p.normalize(loader_file_format=destination_config.file_format)
+    p.normalize()
     info = p.load()
     assert len(info.loads_ids) == 1
 
@@ -202,7 +228,10 @@ def test_silently_skip_on_invalid_credentials(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+        default_sql_configs=True,
+        default_vector_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -305,6 +334,7 @@ def test_get_schemas_from_destination(
         all_staging_configs=True,
         default_vector_configs=True,
         all_buckets_filesystem_configs=True,
+        table_format_filesystem_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -354,18 +384,34 @@ def test_restore_state_pipeline(
     # extract by creating ad hoc source in pipeline that keeps state under pipeline name
     data1 = some_data("state1")
     data1._pipe.name = "state1_data"
-    p.extract([data1, some_data("state2")], schema=Schema("default"))
+    p.extract(
+        [data1, some_data("state2")],
+        schema=Schema("default"),
+        loader_file_format=destination_config.file_format,
+    )
 
     data_two = source_two("state3")
-    p.extract(data_two, table_format=destination_config.table_format)
+    p.extract(
+        data_two,
+        table_format=destination_config.table_format,
+        loader_file_format=destination_config.file_format,
+    )
 
     data_three = source_three("state4")
-    p.extract(data_three, table_format=destination_config.table_format)
+    p.extract(
+        data_three,
+        table_format=destination_config.table_format,
+        loader_file_format=destination_config.file_format,
+    )
 
     data_four = source_four()
-    p.extract(data_four, table_format=destination_config.table_format)
+    p.extract(
+        data_four,
+        table_format=destination_config.table_format,
+        loader_file_format=destination_config.file_format,
+    )
 
-    p.normalize(loader_file_format=destination_config.file_format)
+    p.normalize()
     p.load()
     # keep the orig state
     orig_state = p.state
@@ -442,7 +488,10 @@ def test_restore_state_pipeline(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+        default_sql_configs=True,
+        default_vector_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -492,7 +541,10 @@ def test_ignore_state_unfinished_load(destination_config: DestinationTestConfigu
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+        default_sql_configs=True,
+        default_vector_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -579,7 +631,10 @@ def test_restore_change_dataset_and_destination(destination_name: str) -> None:
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+        default_sql_configs=True,
+        default_vector_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -703,7 +758,10 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+        default_sql_configs=True,
+        default_vector_configs=True,
+        all_buckets_filesystem_configs=True,
+        table_format_filesystem_configs=True,
     ),
     ids=lambda x: x.name,
 )

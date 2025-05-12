@@ -21,7 +21,11 @@ import datetime  # noqa: 251
 from dlt.common import logger, pendulum
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
 from dlt.common.destination.typing import PreparedTableSchema
-from dlt.common.destination.utils import verify_schema_capabilities, verify_supported_data_types
+from dlt.common.destination.utils import (
+    resolve_replace_strategy,
+    verify_schema_capabilities,
+    verify_supported_data_types,
+)
 from dlt.common.exceptions import TerminalException
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.normalizers.naming import NamingConvention
@@ -30,6 +34,7 @@ from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
     TLoaderReplaceStrategy,
+    TTableFormat,
 )
 
 from dlt.common.configuration import configspec, NotResolved
@@ -186,8 +191,8 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
         default=None, init=False, repr=False, compare=False
     )
     """name of default schema to be used to name effective dataset to load data to"""
-    replace_strategy: TLoaderReplaceStrategy = "truncate-and-insert"
-    """How to handle replace disposition for this destination, can be classic or staging"""
+    replace_strategy: Optional[TLoaderReplaceStrategy] = None
+    """How to handle replace disposition for this destination, uses first strategy from caps if not declared"""
     staging_dataset_name_layout: str = "%s_staging"
     """Layout for staging dataset, where %s is replaced with dataset name. placeholder is optional"""
     enable_dataset_name_normalization: bool = True
@@ -533,6 +538,10 @@ class JobClientBase(ABC):
         return expected_update
 
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
+        """Prepares a table schema to be loaded by filling missing hints and doing other modifications requires by given destination.
+
+        Returns: prepared table, note: table schema for `table_name` is cloned
+        """
         return prepare_load_table(
             self.schema.tables, self.schema.get_table(table_name), self.capabilities
         )
@@ -630,3 +639,36 @@ class SupportsStagingDestination(ABC):
         For Athena we truncate those tables only on "replace" write disposition.
         """
         pass
+
+
+class SupportsOpenTables(ABC):
+    """Provides access to data stored in one of open table formats (iceberg or delta) and intended to
+    be implemented by job clients.
+
+    """
+
+    @abstractmethod
+    def get_open_table_catalog(self, table_format: TTableFormat, catalog_name: str = None) -> Any:
+        """Gets the catalog that keeps tables' metadata. Currently only pyiceberg Catalog is supported"""
+
+    @abstractmethod
+    def get_open_table_location(self, table_format: TTableFormat, table_name: str) -> str:
+        """Computes location in which table metadata is stored. Does not verify if table exists."""
+
+    @abstractmethod
+    def load_open_table(self, table_format: TTableFormat, table_name: str, **kwargs: Any) -> Any:
+        """Loads table `table_name` metadata via catalog or directly and returns populated and authenticated
+        table client. Currently pyiceberg Table or DeltaTable is returned.
+        * table must be present in schema of job client
+        * table must physically exist in storage
+        * table may be present in associated catalog and may be automatically registered if destination configuration allows for that
+        * otherwise table is not found
+
+        raised DestinationUndefinedEntity if table not found
+        """
+
+    @abstractmethod
+    def is_open_table(self, table_format: TTableFormat, table_name: str) -> bool:
+        """Checks if `table_name` is stored with open table format `table_format`. Does not load table. Does not check if
+        table exists
+        """

@@ -91,28 +91,32 @@ jobs:
           installer-parallel: true
           version: 1.8.5
 
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v3
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+      # - name: Load cached venv
+      #   id: cached-poetry-dependencies
+      #   uses: actions/cache@v3
+      #   with:
+      #     path: .venv
+      #     key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dlt-plus nightly devel build without cache
-        run: poetry run pip install --upgrade --force-reinstall --no-cache-dir https://dlt-packages.fra1.digitaloceanspaces.com/dlt-plus/dlt_plus-0.0.0+nightly-py3-none-any.whl
+        run: poetry run pip install --upgrade --force-reinstall --no-cache-dir --pre dlt-plus
 
       - name: run docs preprocessor
         run: make preprocess-docs
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E duckdb -E weaviate -E parquet -E qdrant -E bigquery -E postgres -E lancedb --with docs,sentry-sdk --without airflow -E s3
+        run: poetry install --no-interaction -E duckdb -E weaviate -E parquet -E qdrant -E bigquery -E postgres -E lancedb --with docs,sentry-sdk,ibis --without airflow -E s3
 
       - name: create secrets.toml for examples
         run: pwd && echo "$DLT_SECRETS_TOML" > docs/examples/.dlt/secrets.toml
 
       - name: create secrets.toml for snippets
         run: pwd && echo "$DLT_SECRETS_TOML" > docs/website/docs/.dlt/secrets.toml
+
+      # NOTE: there seems to be a conflict between pydoclint and pydoc-markdown dependencies
+      - name: Force uninstall pydoclint
+        run: poetry run pip uninstall pydoclint -y
 
       - name: Run linter and tests on snippets
         run: make lint-and-test-snippets

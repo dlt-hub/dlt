@@ -1,10 +1,10 @@
 ---
-title: Viewing your data with Streamlit
+title: View data with Streamlit
 description: Viewing your data with streamlit
 keywords: [data, dataset, streamlit]
 ---
 
-# Viewing your data with Streamlit
+# View data with Streamlit
 
 Once you have run a pipeline locally, you can launch a web app that displays the loaded data. For this to work, you will need to have the `streamlit` package installed.
 
@@ -19,6 +19,15 @@ To install Streamlit, run the following command:
 ```sh
 pip install streamlit
 ```
+
+*Note*: Your python version must be installed with C library support. You can verify by running
+```sh
+`python -c "import _ctypes"`
+```
+If this fails, you need to install the [libffi](https://sourceware.org/libffi/)-package
+(`libffi-dev` for debian/ubuntu/Windows and `libffi` for macOs) package.
+Afterwards you might need to also reinstall your python version.
+
 
 ## Launching the Streamlit app
 

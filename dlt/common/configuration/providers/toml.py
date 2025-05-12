@@ -5,8 +5,8 @@ import tomlkit.items
 from typing import Any, Optional, List
 
 from dlt.common.utils import update_dict_nested
+from dlt.common.configuration.exceptions import ConfigProviderException
 
-from .provider import ConfigProviderException
 from .doc import BaseDocProvider, CustomLoaderDocProvider
 
 CONFIG_TOML = "config.toml"
@@ -81,6 +81,7 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
             name,
             self._config_toml.unwrap,
             supports_secrets,
+            self._toml_paths,
         )
 
     def _resolve_toml_paths(self, file_name: str, resolvable_dirs: List[str]) -> List[str]:

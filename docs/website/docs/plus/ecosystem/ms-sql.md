@@ -99,6 +99,17 @@ pipeline = dlt.pipeline(
 pipeline.run(initial_resource)
 ```
 
+By default, the `_DLT_DELETED` or the `_DLT_SYS_CHANGE_VERSION` columns are only created by the incremental change tracking resource when there are changes. If you want these to be created during the initial load, you can configure this with `apply_hints` before running the pipeline as follows:
+
+```py
+initial_resource.apply_hints(
+        columns=[
+            {"name": "_dlt_sys_change_version", "data_type": "bigint"},
+            {"name": "_dlt_deleted", "data_type": "text", "precision": 10},
+        ]
+    )
+```
+
 Next, configure the incremental resource for the first run with the `create_change_tracking_table` function and run it **once**:
 
 ```py
@@ -119,12 +130,12 @@ incremental_resource = create_change_tracking_table(
 
 pipeline.run(incremental_resource)
 ```
-When running for the first time, it is necessary to pass the `tracking_version` in the `initial_tracking_version` argument. This will initialize incremental loading and keep the updated tracking version in the `dlt` state. In subsequent runs, you do not need to provide the initial value anymore.
+When running for the first time, it is necessary to pass the `tracking_version` in the `initial_tracking_version` argument. This will initialize incremental loading and keep the updated tracking version in the dlt state. In subsequent runs, you do not need to provide the initial value anymore.
 
 ### Incremental loading
 
 After the initial load, you can run the `create_change_tracking_table` resource on a schedule to load only the changes since the last tracking version using SQL Server’s `CHANGETABLE` function.
-You do not need to pass `initial_tracking_version` anymore, since this is automatically stored in the `dlt` state.
+You do not need to pass `initial_tracking_version` anymore, since this is automatically stored in the dlt state.
 
 ```py
 from dlt_plus.sources.mssql import create_change_tracking_table
@@ -184,6 +195,15 @@ def single_table_initial_load(connection_url: str, schema_name: str, table_name:
     # you do not miss any records
     tracking_version = get_current_change_tracking_version(engine)
     print(f"will track from: {tracking_version}")  # noqa
+
+    # Apply hints to create _DLT_DELETED and _DLT_SYS_CHANGE_VERSION columns on the initial load
+    # This is an optional step
+    initial_resource.apply_hints(
+        columns=[
+            {"name": "_dlt_sys_change_version", "data_type": "bigint"},
+            {"name": "_dlt_deleted", "data_type": "text", "precision": 10},
+        ]
+    )
 
     # Run the pipeline for the initial load
     # NOTE: we always drop data and state from the destination on initial load
@@ -305,8 +325,7 @@ pipeline.run(incremental_resource)
 
 By default, `hard_delete` is set to `True`, meaning hard deletes are performed, i.e., rows deleted in the source will be permanently removed from the destination.
 
-Replicated data allows for NULLs for not nullable columns when a record is deleted. To avoid additional tables that hold deleted rows and additional merge steps,
-`dlt` emits placeholder values that are stored in the staging dataset only.
+Replicated data allows for NULLs for not nullable columns when a record is deleted. To avoid additional tables that hold deleted rows and additional merge steps, dlt emits placeholder values that are stored in the staging dataset only.
 
 ### Soft deletes
 

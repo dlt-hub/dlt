@@ -1,5 +1,5 @@
 ---
-title: Configuring the SQL Database source
+title: Configuration
 description: configuring the pipeline script, connection, and backend settings in the sql_database source
 keywords: [sql connector, sql database pipeline, sql database]
 ---
@@ -10,7 +10,7 @@ import Header from '../_source-info-header.md';
 
 <Header/>
 
-## Configuring the SQL database source
+## Select tables to load
 
 `dlt` sources are Python scripts made up of source and resource functions that can be easily customized. The SQL Database verified source has the following built-in source and resource:
 1. `sql_database`: a `dlt` source that can be used to load multiple tables and views from a SQL database.
@@ -18,10 +18,18 @@ import Header from '../_source-info-header.md';
 
 Read more about sources and resources here: [General usage: source](../../../general-usage/source.md) and [General usage: resource](../../../general-usage/resource.md).
 
+
 ### Example usage:
 
 :::tip
-We intend our sources to be fully hackable. Feel free to change the source code of the sources and resources to customize it to your needs.
+We intend our sources to be fully hackable. `dlt init` command allows you to eject the source code of the core source and modify it
+according to your needs. For example
+
+```sh
+ dlt init sql_database duckdb --eject
+ ```
+
+will create `sql_database` folder with the source code that you can import and use.
 :::
 
 1. **Load all the tables from a database**
@@ -135,6 +143,74 @@ We intend our sources to be fully hackable. Feel free to change the source code 
    Table and column names specified in `config.toml` must exactly match their counterparts in the SQL database, as they are case-sensitive.
    :::
 
+## Incremental loading
+
+Efficient data management often requires loading only new or updated data from your SQL databases, rather than reprocessing the entire dataset. This is where incremental loading comes into play.
+
+Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing ID) to load only data newer than a specified initial value, enhancing efficiency by reducing processing time and resource use. Read [here](../../../walkthroughs/sql-incremental-configuration) for more details on incremental loading with `dlt`.
+
+### How to configure
+1. **Choose a cursor column**: Identify a column in your SQL table that can serve as a reliable indicator of new or updated rows. Common choices include timestamp columns or auto-incrementing IDs.
+1. **Set an initial value**: Choose a starting value for the cursor to begin loading data. This could be a specific timestamp or ID from which you wish to start loading data.
+1. **Deduplication**: When using incremental loading, the system automatically handles the deduplication of rows based on the primary key (if available) or row hash for tables without a primary key.
+1. **Set end_value for backfill**: Set `end_value` if you want to backfill data from a certain range.
+1. **Order returned rows**: Set `row_order` to `asc` or `desc` to order returned rows.
+
+:::info Special characters in the cursor column name
+If your cursor column name contains special characters (e.g., `$`) you need to escape it when passing it to the `incremental` function. For example, if your cursor column is `example_$column`, you should pass it as `"'example_$column'"` or `'"example_$column"'` to the `incremental` function: `incremental("'example_$column'", initial_value=...)`.
+:::
+
+### Examples
+
+1. **Incremental loading with the resource `sql_table`**.
+
+  Consider a table "family" with a timestamp column `last_modified` that indicates when a row was last modified. To ensure that only rows modified after midnight (00:00:00) on January 1, 2024, are loaded, you would set the `last_modified` timestamp as the cursor as follows:
+
+  ```py
+  import dlt
+  from dlt.sources.sql_database import sql_table
+  from dlt.common.pendulum import pendulum
+
+  # Example: Incrementally loading a table based on a timestamp column
+  table = sql_table(
+     table='family',
+     incremental=dlt.sources.incremental(
+         'last_modified',  # Cursor column name
+         initial_value=pendulum.DateTime(2024, 1, 1, 0, 0, 0)  # Initial cursor value
+     )
+  )
+
+  pipeline = dlt.pipeline(destination="duckdb")
+  extract_info = pipeline.extract(table, write_disposition="merge")
+  print(extract_info)
+  ```
+
+  Behind the scene, the loader generates a SQL query filtering rows with `last_modified` values greater or equal to the incremental value. In the first run, this is the initial value (midnight (00:00:00) January 1, 2024).
+  In subsequent runs, it is the latest value of `last_modified` that `dlt` stores in [state](../../../general-usage/state).
+
+2. **Incremental loading with the source `sql_database`**.
+
+  To achieve the same using the `sql_database` source, you would specify your cursor as follows:
+
+  ```py
+  import dlt
+  from dlt.sources.sql_database import sql_database
+
+  source = sql_database().with_resources("family")
+  # Using the "last_modified" field as an incremental field using initial value of midnight January 1, 2024
+  source.family.apply_hints(incremental=dlt.sources.incremental("updated", initial_value=pendulum.DateTime(2022, 1, 1, 0, 0, 0)))
+
+  # Running the pipeline
+  pipeline = dlt.pipeline(destination="duckdb")
+  load_info = pipeline.run(source, write_disposition="merge")
+  print(load_info)
+  ```
+
+  :::info
+    * When using "merge" write disposition, the source table needs a primary key, which `dlt` automatically sets up.
+    * `apply_hints` is a powerful method that enables schema modifications after resource creation, like adjusting write disposition and primary keys. You can choose from various tables and use `apply_hints` multiple times to create pipelines with merged, appended, or replaced resources.
+  :::
+
 ## Configuring the connection
 
 ### Connection string format
@@ -163,7 +239,7 @@ There are several options for adding your connection credentials into your `dlt`
 
 #### 1. Setting them in `secrets.toml` or as environment variables (recommended)
 
-You can set up credentials using [any method](../../../general-usage/credentials/setup#available-config-providers) supported by `dlt`. We recommend using `.dlt/secrets.toml` or the environment variables. See Step 2 of the [setup](./setup) for how to set credentials inside `secrets.toml`. For more information on passing credentials, read [here](../../../general-usage/credentials/setup).
+You can set up credentials using [any method](../../../general-usage/credentials/setup) supported by `dlt`. We recommend using `.dlt/secrets.toml` or the environment variables. See Step 2 of the [setup](./setup) for how to set credentials inside `secrets.toml`. For more information on passing credentials, read [here](../../../general-usage/credentials/setup).
 
 #### 2. Passing them directly in the script
 
@@ -184,11 +260,11 @@ source = sql_database(credentials).with_resources("family")
 It is recommended to configure credentials in `.dlt/secrets.toml` and to not include any sensitive information in the pipeline code.
 :::
 
-### Other connection options
+## Other connection options
 
-#### Using SqlAlchemy Engine as credentials
+### Using SQLAlchemy Engine as credentials
 
-You are able to pass an instance of SqlAlchemy Engine instead of credentials:
+You are able to pass an instance of SQLAlchemy Engine instead of credentials:
 
 ```py
 from dlt.sources.sql_database import sql_table
@@ -199,6 +275,70 @@ table = sql_table(engine, table="chat_message", schema="data")
 ```
 
 This engine is used by `dlt` to open database connections and can work across multiple threads, so it is compatible with the `parallelize` setting of dlt sources and resources.
+
+### Connecting to a remote database over SSH
+
+To access a remote database securely through an SSH tunnel, you can use the `sshtunnel` library to create a connection and a SQLAlchemy engine. This approach is useful when the database is behind a firewall or requires secure SSH access.
+
+**Step 1: Store SSH and database credentials**
+
+First, store your SSH and database credentials in a configuration file like ".dlt/secrets.toml" or manage them securely through environment variables. For example:
+
+```toml
+# .dlt/secrets.toml
+[destination.sqlalchemy.credentials]
+database = "mydb"
+username = "myuser"
+password = "mypassword"
+host = "please set me up!"
+port = 5432
+driver_name = "postgresql"
+
+[ssh]
+server_ip_address = "please set me up!"
+username = "ssh_user_name"
+private_key_path = "/path/to/private_key_file"
+private_key_password = "optional_key_password" # Leave empty if not needed
+```
+**Step 2: Set up the SSH tunnel and create the SQLAlchemy engine**
+
+The following script demonstrates the process of establishing an SSH tunnel, creating a SQLAlchemy engine, and utilizing it to configure and run a data pipeline:
+
+```py
+from sshtunnel import SSHTunnelForwarder
+from sqlalchemy import create_engine
+
+from dlt.sources.sql_database import sql_table
+import dlt
+
+ssh_creds = dlt.secrets["ssh"]
+db_creds = dlt.secrets["destination.sqlalchemy.credentials"]
+
+with SSHTunnelForwarder(
+    (ssh_creds["server_ip_address"], 22),
+    ssh_username=ssh_creds["username"],
+    ssh_pkey=ssh_creds["private_key_path"],
+    ssh_private_key_password=ssh_creds.get("private_key_password"),
+    remote_bind_address=("127.0.0.1", 5432),
+) as tunnel:
+    engine = create_engine(
+        f"postgresql://{db_creds['username']}:{db_creds['password']}"
+        f"@127.0.0.1:{tunnel.local_bind_port}/{db_creds['database']}"
+    )
+
+    # Access database table as a dlt resource
+    table_resource = sql_table(engine, table="employees", schema="public")
+
+    # Define and run the pipeline
+    pipeline = dlt.pipeline(
+        pipeline_name="remote_db_pipeline_2",
+        destination="duckdb",
+        dataset_name="remote_dataset",
+    )
+
+    print(pipeline.run(table_resource))
+```
+Establishing an SSH tunnel and using a SQLAlchemy engine allows secure access to remote databases, ensuring compatibility with dlt pipelines. Always secure credentials and close the tunnel after use.
 
 ## Configuring the backend
 
@@ -212,7 +352,14 @@ The `SQLAlchemy` backend (the default) yields table data as a list of Python dic
 
 The `PyArrow` backend yields data as `Arrow` tables. It uses `SQLAlchemy` to read rows in batches but then immediately converts them into `ndarray`, transposes it, and sets it as columns in an `Arrow` table. This backend always fully reflects the database table and preserves original types (i.e., **decimal** / **numeric** data will be extracted without loss of precision). If the destination loads parquet files, this backend will skip the `dlt` normalizer, and you can gain two orders of magnitude (20x - 30x) speed increase.
 
-Note that if `pandas` is installed, we'll use it to convert `SQLAlchemy` tuples into `ndarray` as it seems to be 20-30% faster than using `numpy` directly.
+:::note
+To use the `backend="arrow"` configuration, you will need `numpy` installed. You can get another 20-30% speed increase by having `pandas` installed.
+The library `numpy` is a required dependency of `pandas` and `pyarrow<18.0.0`. To have all required dependencies, we suggest using this command:
+
+```sh
+pip install dlt[sql_database] pyarrow numpy pandas
+```
+:::
 
 ```py
 import dlt
@@ -343,4 +490,3 @@ info = pipeline.run(
 print(info)
 ```
 With the dataset above and a local PostgreSQL instance, the `ConnectorX` backend is 2x faster than the `PyArrow` backend.
-

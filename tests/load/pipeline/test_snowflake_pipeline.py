@@ -9,9 +9,9 @@ from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import PipelineStepFailed
+from tests.load.snowflake.test_snowflake_client import QUERY_TAG
 
 from tests.load.pipeline.test_pipelines import simple_nested_pipeline
-from tests.load.snowflake.test_snowflake_client import QUERY_TAG
 from tests.pipeline.utils import assert_load_info, assert_query_data
 from tests.load.utils import (
     TABLE_UPDATE_COLUMNS_SCHEMA,
@@ -229,11 +229,11 @@ def test_snowflake_use_vectorized_scanner(
 ) -> None:
     """Tests whether the vectorized scanner option is correctly applied when loading Parquet files into Snowflake."""
 
-    from dlt.destinations.impl.snowflake.snowflake import SnowflakeLoadJob
+    from dlt.destinations.impl.snowflake import snowflake
 
     os.environ["DESTINATION__SNOWFLAKE__USE_VECTORIZED_SCANNER"] = use_vectorized_scanner
 
-    load_job_spy = mocker.spy(SnowflakeLoadJob, "gen_copy_sql")
+    load_job_spy = mocker.spy(snowflake, "gen_copy_sql")
 
     data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)

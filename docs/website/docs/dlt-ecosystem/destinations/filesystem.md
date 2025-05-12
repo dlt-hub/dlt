@@ -108,7 +108,7 @@ You need to create an S3 bucket and a user who can access that bucket. dlt does 
 
 #### Using S3 compatible storage
 
-To use an S3 compatible storage other than AWS S3, such as [MinIO](https://min.io/), [Cloudflare R2](https://www.cloudflare.com/en-ca/developer-platform/r2/) or [Google 
+To use an S3 compatible storage other than AWS S3, such as [MinIO](https://min.io/), [Cloudflare R2](https://www.cloudflare.com/en-ca/developer-platform/r2/) or [Google
 Cloud Storage](https://cloud.google.com/storage/docs/interoperability), you may supply an `endpoint_url` in the config. This should be set along with AWS credentials:
 
 ```toml
@@ -123,7 +123,7 @@ endpoint_url = "https://<account_id>.r2.cloudflarestorage.com" # copy your endpo
 
 #### Adding additional configuration
 
-To pass any additional arguments to `fsspec`, you may supply `kwargs` and `client_kwargs` in toml config.
+To pass any additional arguments to `fsspec`, you may supply `kwargs` and `client_kwargs` in `toml` config.
 
 ```toml
 [destination.filesystem.kwargs]
@@ -137,6 +137,16 @@ verify="public.crt"
 To pass additional arguments via env variables, use **stringified dictionary**:
 `DESTINATION__FILESYSTEM__KWARGS='{"use_ssl": true, "auto_mkdir": true}`
 
+You can also override default `fsspec` settings used by `dlt`:
+```toml
+[destination.filesystem.kwargs]
+use_listings_cache=false  # listing cache disabled by default as you typically add files
+listings_expiry_time=60.0
+skip_instance_cache=false  # instance cache enabled by default, it is thread isolated anyway
+```
+There's however no good reason to do that, except debugging `fsspec` internal problems. You could try
+to enable listing cache but this cache is not shared across threads which `dlt` load steps uses to
+parallelize writes. You may get unpredictable cache invalidation behavior.
 
 ### Google storage
 Run `pip install "dlt[gs]"` which will install the `gcfs` package.
@@ -625,9 +635,9 @@ You can choose the following file formats:
 
 ## Supported table formats
 
-You can choose the following [table formats](./delta-iceberg.md):
-* Delta table
-* Iceberg
+You can choose the following table formats:
+* [Delta table](./delta-iceberg.md)
+* [Iceberg](./iceberg.md)
 
 ## Syncing of dlt state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination). To this end, special folders and files will be created at your destination which hold information about your pipeline state, schemas, and completed loads. These folders DO NOT respect your settings in the layout section. When using filesystem as a staging destination, not all of these folders are created, as the state and schemas are managed in the regular way by the final destination you have configured.

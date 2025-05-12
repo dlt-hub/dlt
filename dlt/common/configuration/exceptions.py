@@ -27,9 +27,9 @@ class ContainerException(DltException):
 
 
 class ConfigProviderException(ConfigurationException):
-    """base exceptions for all exceptions raised by config providers"""
-
-    pass
+    def __init__(self, provider_name: str, *args: Any) -> None:
+        self.provider_name = provider_name
+        super().__init__(*args)
 
 
 class ConfigurationWrongTypeException(ConfigurationException):
@@ -58,22 +58,49 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
             msg += f'\tfor field "{f}" config providers and keys were tried in following order:\n'
             for tr in field_traces:
                 msg += f"\t\tIn {tr.provider} key {tr.key} was not found.\n"
+
+        from dlt.common.configuration.container import Container
+        from dlt.common.configuration.specs import PluggableRunContext
+
+        # print locations for config providers
+        msg += "\n"
+        providers = Container()[PluggableRunContext].providers
+        for provider in providers.providers:
+            if provider.locations:
+                locations = "\n".join([f"\t- {os.path.abspath(loc)}" for loc in provider.locations])
+                msg += (
+                    f"Provider {provider.name} used following locations to load"
+                    f" values:\n{locations}\n"
+                )
+            if provider.is_empty:
+                msg += (
+                    f"WARNING: provider {provider.name} is empty. Locations (ie. files) may not"
+                    " exist or may be empty.\n"
+                )
+
         # check if entry point is run with path. this is common problem so warn the user
         main_path = main_module_file_path()
-        if main_path:
-            main_dir = os.path.dirname(main_path)
-            abs_main_dir = os.path.abspath(main_dir)
-            if abs_main_dir != os.getcwd():
-                # directory was specified
-                msg += (
-                    "WARNING: dlt looks for .dlt folder in your current working directory and your"
-                    " cwd (%s) is different from directory of your pipeline script (%s).\n"
-                    % (os.getcwd(), abs_main_dir)
-                )
-                msg += (
-                    "If you keep your secret files in the same folder as your pipeline script but"
-                    " run your script from some other folder, secrets/configs will not be found\n"
-                )
+        if main_path and main_path.endswith(".py"):
+            from dlt.common.runtime import run_context
+
+            # check if settings are relative
+            settings = run_context.active().settings_dir
+            # settings are relative so check makes sense
+            if not os.path.isabs(settings):
+                main_dir = os.path.dirname(main_path)
+                abs_main_dir = os.path.abspath(main_dir)
+                if abs_main_dir != os.getcwd():
+                    # directory was specified
+                    msg += (
+                        f"WARNING: dlt looks for {settings} folder in your current working"
+                        " directory and your cwd (%s) is different from directory of your pipeline"
+                        " script (%s).\n" % (os.getcwd(), abs_main_dir)
+                    )
+                    msg += (
+                        "If you keep your secret files in the same folder as your pipeline script"
+                        " but run your script from some other folder, secrets/configs will not be"
+                        " found\n"
+                    )
         msg += (
             "Please refer to https://dlthub.com/docs/general-usage/credentials/ for more"
             " information\n"
@@ -216,7 +243,7 @@ class ContextDefaultCannotBeCreated(ContainerException, KeyError):
 
 class DuplicateConfigProviderException(ConfigProviderException):
     def __init__(self, provider_name: str) -> None:
-        self.provider_name = provider_name
         super().__init__(
-            f"Provider with name {provider_name} already present in ConfigProvidersContext"
+            provider_name,
+            f"Provider with name {provider_name} already present in ConfigProvidersContext",
         )

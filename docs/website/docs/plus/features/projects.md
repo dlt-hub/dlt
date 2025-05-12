@@ -240,8 +240,8 @@ pipelines:
 import dlt_plus
 
 entities = dlt_plus.current.entities()
-pipeline = entities.create_pipeline("bronze_pipe")
-transformation = entities.create_transformation("stressed_transformation")
+pipeline = entities.get_pipeline("bronze_pipe")
+transformation = entities.get_transformation("stressed_transformation")
 ```
 Here, we access the entities manager, which allows you to create sources, destinations, pipelines, and other objects.
 You can also obtain the **catalog** with all created datasets via `dlt_plus.current.catalog()`, which makes it easy to
@@ -256,7 +256,7 @@ As shown above, it is possible to pass additional dlt settings and configuration
 3. `.dlt/<profile_name>.secrets.toml`, which is the secrets toml provider but scoped to a particular profile. A per-profile version (`dev.secrets.toml`) is sought instead of the `secrets.toml` file.
 
 :::note
-Based on the information about precedence in the [configuration docs](../../general-usage/credentials/setup#available-config-providers), the yaml files provide the lowest precedence of all providers just above the default values for a config value. Settings in the yaml file will therefore be overridden by `toml` and `env` variables if present.
+Based on the information about precedence in the [configuration docs](../../general-usage/credentials/setup#choose-where-to-store-configuration), the yaml files provide the lowest precedence of all providers just above the default values for a config value. Settings in the yaml file will therefore be overridden by `toml` and `env` variables if present.
 :::
 
 ## Project context

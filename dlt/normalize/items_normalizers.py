@@ -133,7 +133,9 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                         schema_contract = self._table_contracts.setdefault(
                             table_name,
                             schema.resolve_contract_settings_for_table(
-                                parent_table or table_name
+                                table_name
+                                if table_name in schema.tables
+                                else parent_table or table_name
                             ),  # parent_table, if present, exists in the schema
                         )
                         partial_table, filters = schema.apply_schema_contract(
@@ -316,7 +318,8 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         """
         schema = self.schema
         table = schema.tables[root_table_name]
-        max_precision = self.config.destination_capabilities.timestamp_precision
+        caps = self.config.destination_capabilities
+        max_precision = caps.timestamp_precision
 
         new_cols: TTableSchemaColumns = {}
         for key, column in table["columns"].items():
@@ -326,7 +329,8 @@ class ArrowItemsNormalizer(ItemsNormalizer):
                     # apply the arrow schema precision to dlt column schema
                     try:
                         data_type = pyarrow.get_column_type_from_py_arrow(
-                            arrow_schema.field(key).type
+                            arrow_schema.field(key).type,
+                            caps,
                         )
                     except pyarrow.UnsupportedArrowTypeException as e:
                         e.field_name = key

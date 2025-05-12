@@ -40,7 +40,7 @@ def test_secrets_management(
     )
 
     import duckdb
-    from duckdb import HTTPException
+
     from dlt.destinations.impl.filesystem.sql_client import (
         FilesystemSqlClient,
         DuckDbCredentials,
@@ -57,11 +57,13 @@ def test_secrets_management(
 
     def _fs_sql_client_for_external_db(
         connection: duckdb.DuckDBPyConnection,
+        persist_secrets: bool = False,
     ) -> FilesystemSqlClient:
         return FilesystemSqlClient(
             dataset_name="second",
-            fs_client=pipeline.destination_client(),  #  type: ignore
-            credentials=DuckDbCredentials(connection),
+            remote_client=pipeline.destination_client(),  #  type: ignore
+            cache_db=DuckDbCredentials(connection),
+            persist_secrets=persist_secrets,
         )
 
     def _secrets_exist() -> bool:
@@ -77,25 +79,26 @@ def test_secrets_management(
 
     # add secrets and check that they are there
     external_db = _external_duckdb_connection()
-    fs_sql_client = _fs_sql_client_for_external_db(external_db)
+    fs_sql_client = _fs_sql_client_for_external_db(external_db, persist_secrets=True)
     with fs_sql_client as sql_client:
-        fs_sql_client.create_authentication(persistent=True)
-    assert _secrets_exist()
+        assert _secrets_exist()
 
     # remove secrets and check that they are removed
     with fs_sql_client as sql_client:
-        fs_sql_client.drop_authentication()
+        for secret_name in fs_sql_client.list_secrets():
+            fs_sql_client.drop_secret(secret_name)
     assert not _secrets_exist()
     external_db.close()
 
     # prevent creating persistent secrets on in mem databases
     fs_sql_client = FilesystemSqlClient(
         dataset_name="second",
-        fs_client=pipeline.destination_client(),  #  type: ignore
+        remote_client=pipeline.destination_client(),  #  type: ignore
+        persist_secrets=True,
     )
     with pytest.raises(Exception):
         with fs_sql_client as sql_client:
-            fs_sql_client.create_authentication(persistent=True)
+            pass
 
     # check that no warning was logged
     logger_spy.assert_not_called()
@@ -104,9 +107,9 @@ def test_secrets_management(
     duck_db_location = TEST_STORAGE_ROOT + "/" + uniq_id()
     secrets_dir = f"{TEST_STORAGE_ROOT}/duck_secrets_{uniq_id()}"
     duck_db = duckdb.connect(duck_db_location)
-    fs_sql_client = _fs_sql_client_for_external_db(duck_db)
+    fs_sql_client = _fs_sql_client_for_external_db(duck_db, persist_secrets=True)
     with fs_sql_client as sql_client:
-        sql_client.create_authentication(persistent=True)
+        pass
     logger_spy.assert_called_once()
     assert warning_mesage in logger_spy.call_args_list[0][0][0]
     duck_db.close()

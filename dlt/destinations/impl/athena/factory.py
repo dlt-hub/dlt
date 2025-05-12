@@ -1,4 +1,4 @@
-import typing as t
+from typing import Any, Dict, Type, Union, TYPE_CHECKING, Optional, Sequence
 
 from dlt.common.data_types.typing import TDataType
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
@@ -7,30 +7,51 @@ from dlt.common.data_writers.escape import (
     escape_athena_identifier,
     format_bigquery_datetime_literal,
 )
+from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.schema.typing import TColumnSchema, TColumnType, TLoaderMergeStrategy, TTableSchema
+from dlt.common.schema.typing import (
+    TColumnSchema,
+    TColumnType,
+    TLoaderMergeStrategy,
+    TLoaderReplaceStrategy,
+    TTableSchema,
+)
 from dlt.common.typing import TLoaderFileFormat
 from dlt.common.utils import without_none
 
 from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
 
-if t.TYPE_CHECKING:
+if TYPE_CHECKING:
     from dlt.destinations.impl.athena.athena import AthenaClient
 
 
 def athena_merge_strategies_selector(
-    supported_merge_strategies: t.Sequence[TLoaderMergeStrategy],
+    supported_merge_strategies: Sequence[TLoaderMergeStrategy],
     /,
     *,
     table_schema: TTableSchema,
-) -> t.Sequence[TLoaderMergeStrategy]:
+) -> Sequence[TLoaderMergeStrategy]:
     if table_schema.get("table_format") == "iceberg":
         return supported_merge_strategies
     else:
         return []
+
+
+def athena_replace_strategies_selector(
+    supported_replace_strategies: Sequence[TLoaderReplaceStrategy],
+    /,
+    *,
+    table_schema: TTableSchema,
+) -> Sequence[TLoaderReplaceStrategy]:
+    if table_schema.get("table_format") == "iceberg":
+        # always from staging table
+        return ["insert-from-staging"]
+    else:
+        # only truncate and insert for regular tables
+        return ["truncate-and-insert"]
 
 
 class AthenaTypeMapper(TypeMapperImpl):
@@ -95,7 +116,7 @@ class AthenaTypeMapper(TypeMapperImpl):
         )
 
     def from_destination_type(
-        self, db_type: str, precision: t.Optional[int], scale: t.Optional[int]
+        self, db_type: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         for key, val in self.dbt_to_sct.items():
             if db_type.startswith(key):
@@ -113,7 +134,7 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         caps.supported_loader_file_formats = []
         caps.supported_table_formats = ["iceberg", "hive"]
         caps.preferred_staging_file_format = "parquet"
-        caps.supported_staging_file_formats = ["parquet"]
+        caps.supported_staging_file_formats = ["parquet", "model"]
         caps.type_mapper = AthenaTypeMapper
 
         # athena is storing all identifiers in lower case and is case insensitive
@@ -140,34 +161,52 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
         caps.merge_strategies_selector = athena_merge_strategies_selector
+        caps.replace_strategies_selector = athena_replace_strategies_selector
+        caps.sqlglot_dialect = "athena"
+
         return caps
 
     @property
-    def client_class(self) -> t.Type["AthenaClient"]:
+    def client_class(self) -> Type["AthenaClient"]:
         from dlt.destinations.impl.athena.athena import AthenaClient
 
         return AthenaClient
 
+    @classmethod
+    def adjust_capabilities(
+        cls,
+        caps: DestinationCapabilitiesContext,
+        config: AthenaClientConfiguration,
+        naming: Optional[NamingConvention],
+    ) -> DestinationCapabilitiesContext:
+        if config.force_iceberg:
+            caps.preferred_table_format = "iceberg"
+
+        return super().adjust_capabilities(caps, config, naming)
+
     def __init__(
         self,
-        query_result_bucket: t.Optional[str] = None,
-        credentials: t.Union[AwsCredentials, t.Dict[str, t.Any], t.Any] = None,
-        athena_work_group: t.Optional[str] = None,
-        aws_data_catalog: t.Optional[str] = "awsdatacatalog",
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
-        **kwargs: t.Any,
+        query_result_bucket: str = None,
+        credentials: Union[AwsCredentials, Dict[str, Any], Any] = None,
+        athena_work_group: str = None,
+        aws_data_catalog: str = "awsdatacatalog",
+        destination_name: str = None,
+        environment: str = None,
+        **kwargs: Any,
     ) -> None:
         """Configure the Athena destination to use in a pipeline.
 
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            query_result_bucket: S3 bucket to store query results in
-            credentials: AWS credentials to connect to the Athena database.
-            athena_work_group: Athena work group to use
-            aws_data_catalog: Athena data catalog to use
-            **kwargs: Additional arguments passed to the destination config
+            query_result_bucket (str, optional): S3 bucket to store query results in
+            credentials (Union[AwsCredentials, Dict[str, Any], Any], optional): AWS credentials to connect to the Athena database. Can be an instance of `AwsCredentials` or
+                a dict with AWS credentials
+            athena_work_group (str, optional): Athena work group to use
+            aws_data_catalog (str, optional): Athena data catalog to use
+            destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (str, optional): Environment of the destination
+            **kwargs (Any): Additional arguments passed to the destination config
         """
         super().__init__(
             query_result_bucket=query_result_bucket,

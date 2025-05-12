@@ -82,6 +82,40 @@ You can provide an Athena workgroup like so:
 athena_work_group="my_workgroup"
 ```
 
+You can force all tables to be in iceberg format and control Iceberg tables layout in the bucket:
+```toml
+[destination.athena]
+force_iceberg=true
+table_location_layout="{dataset_name}/{table_name}"
+```
+where `dataset_name` and `table_name` will be replaced by actual names.
+
+:::tip
+Use random Iceberg table location when encountering conflicts
+In case your table is created in location that already exists, you can add random location tag with:
+
+```toml
+[destination.athena]
+table_location_layout="{dataset_name}/{table_name}_{location_tag}"
+```
+We observed the following error message:
+**com.amazonaws.services.s3.model.AmazonS3Exception: The specified key does not exist**
+when table with given name was deleted and re-created - but not always. Adding location tag
+prevents this error from showing up.
+:::
+
+You can change the default catalog name
+```toml
+[destination.athena]
+aws_data_catalog="awsdatacatalog"
+```
+
+and provide any other `PyAthena` connection setting
+```toml
+[destination.athena.conn_properties]
+poll_interval=2
+```
+
 ## Write disposition
 
 The `athena` destination handles the write dispositions as follows:
@@ -135,6 +169,20 @@ def data() -> Iterable[TDataItem]:
 
 For every table created as an Iceberg table, the Athena destination will create a regular Athena table in the staging dataset of both the filesystem and the Athena glue catalog, and then copy all data into the final Iceberg table that lives with the non-Iceberg tables in the same dataset on both the filesystem and the glue catalog. Switching from Iceberg to regular table or vice versa is not supported.
 
+See [athena adapter](#athena-adapter) for partitioning and other options.
+
+You can also force all tables to be in iceberg format:
+```toml
+[destination.athena]
+force_iceberg = true
+```
+
+You can also adjust iceberg table properties:
+```toml
+[destination.athena.table_properties]
+vacuum_max_snapshot_age_seconds = 86400
+```
+
 #### `merge` support
 
 The `merge` write disposition is supported for Athena when using Iceberg tables.
@@ -148,6 +196,7 @@ The `merge` write disposition is supported for Athena when using Iceberg tables.
 
 Athena is supported via `dbt-athena-community`. Credentials are passed into `aws_access_key_id` and `aws_secret_access_key` of the generated dbt profile. Iceberg tables are supported, but you need to make sure that you materialize your models as Iceberg tables if your source table is Iceberg. We encountered problems with materializing date-time columns due to different precision on Iceberg (nanosecond) and regular Athena tables (millisecond).
 The Athena adapter requires that you set up **region_name** in the Athena configuration below. You can also set up the table catalog name to change the default: **awsdatacatalog**
+
 ```toml
 [destination.athena]
 aws_data_catalog="awsdatacatalog"

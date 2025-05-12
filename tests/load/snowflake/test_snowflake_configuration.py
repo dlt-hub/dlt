@@ -1,14 +1,14 @@
+import base64
+from tests.utils import skip_if_not_active
+
+skip_if_not_active("snowflake")
+
 import os
 import pytest
 from pathlib import Path
-from urllib3.util import parse_url
 
 from dlt.common.configuration.utils import add_config_to_env
-from dlt.common.exceptions import TerminalValueError
-from dlt.destinations.impl.snowflake.snowflake import SnowflakeLoadJob
 from tests.utils import TEST_DICT_CONFIG_PROVIDER
-
-pytest.importorskip("snowflake")
 
 from dlt.common.libs.sql_alchemy_compat import make_url
 from dlt.common.configuration.resolve import resolve_configuration
@@ -23,13 +23,20 @@ from dlt.destinations.impl.snowflake.configuration import (
 
 from tests.common.configuration.utils import environment
 
+
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
 
 # PEM key
-PKEY_PEM_STR = Path("./tests/common/cases/secrets/encrypted-private-key").read_text("utf8")
+PKEY_PEM_PATH = "./tests/common/cases/secrets/encrypted-private-key"
+PKEY_PEM_STR = Path(PKEY_PEM_PATH).read_text("utf8")
+# base64 PEM key
+PKEY_PEM_BASE64_STR = base64.b64encode(PKEY_PEM_STR.encode(encoding="ascii")).decode(
+    encoding="ascii"
+)
 # base64 encoded DER key
-PKEY_DER_STR = Path("./tests/common/cases/secrets/encrypted-private-key-base64").read_text("utf8")
+PKEY_DER_PATH = "./tests/common/cases/secrets/encrypted-private-key-base64"
+PKEY_DER_STR = Path(PKEY_DER_PATH).read_text("utf8")
 
 PKEY_PASSPHRASE = "12345"
 
@@ -152,7 +159,59 @@ def test_overwrite_query_value_from_explicit() -> None:
     assert c.to_connector_params()["authenticator"] == "oauth"
 
 
-def test_to_connector_params_private_key() -> None:
+@pytest.mark.parametrize(
+    "private_key",
+    (PKEY_DER_STR, PKEY_PEM_BASE64_STR, PKEY_PEM_STR),
+    ids=["PKEY_DER_STR", "PKEY_PEM_BASE64_STR", "PKEY_PEM_STR"],
+)
+def test_to_connector_params_private_key(private_key: str) -> None:
+    creds = SnowflakeCredentials()
+    creds.private_key = private_key
+    creds.private_key_passphrase = PKEY_PASSPHRASE
+    creds.username = "user1"
+    creds.database = "db1"
+    creds.host = "host1"
+    creds.warehouse = "warehouse1"
+    creds.role = "role1"
+
+    params = creds.to_connector_params()
+
+    assert isinstance(params["private_key"], bytes)
+    params.pop("private_key")
+
+    assert params == dict(
+        user="user1",
+        database="db1",
+        account="host1",
+        password=None,
+        warehouse="warehouse1",
+        role="role1",
+        application="dltHub_dlt",
+    )
+
+
+@pytest.mark.parametrize(
+    "private_key_path",
+    (PKEY_DER_PATH, PKEY_PEM_PATH),
+    ids=["PKEY_DER_PATH", "PKEY_PEM_PATH"],
+)
+def test_to_connector_params_private_path(private_key_path: str) -> None:
+    from urllib.parse import quote
+
+    c = resolve_configuration(
+        SnowflakeCredentials(),
+        explicit_value=f"snowflake://user1@host1/db1?warehouse=warehouse1&role=role1&private_key_path={quote(private_key_path)}&private_key_passphrase={quote(PKEY_PASSPHRASE)}",
+    )
+    assert c.is_resolved()
+    assert c.private_key_path == private_key_path
+    assert c.private_key_passphrase == PKEY_PASSPHRASE
+    assert c.password is None
+
+    conn_params = c.to_connector_params()
+    assert isinstance(conn_params["private_key"], bytes)
+
+
+def test_snowflake_application_id() -> None:
     creds = SnowflakeCredentials()
     creds.private_key = PKEY_PEM_STR
     creds.private_key_passphrase = PKEY_PASSPHRASE
@@ -163,46 +222,33 @@ def test_to_connector_params_private_key() -> None:
     creds.role = "role1"
 
     params = creds.to_connector_params()
+    assert params["application"] == SNOWFLAKE_APPLICATION_ID
 
-    assert isinstance(params["private_key"], bytes)
-    params.pop("private_key")
-
-    assert params == dict(
-        user="user1",
-        database="db1",
-        account="host1",
-        password=None,
-        warehouse="warehouse1",
-        role="role1",
-        # default application identifier will be used
-        application=SNOWFLAKE_APPLICATION_ID,
-    )
-
-    creds = SnowflakeCredentials()
-    creds.private_key = PKEY_DER_STR
-    creds.private_key_passphrase = PKEY_PASSPHRASE
-    creds.username = "user1"
-    creds.database = "db1"
-    creds.host = "host1"
-    creds.warehouse = "warehouse1"
-    creds.role = "role1"
     # set application identifier and check it
     creds.application = "custom_app_id"
-
     params = creds.to_connector_params()
+    assert params["application"] == "custom_app_id"
 
-    assert isinstance(params["private_key"], bytes)
-    params.pop("private_key")
 
-    assert params == dict(
-        user="user1",
-        database="db1",
-        account="host1",
-        password=None,
-        warehouse="warehouse1",
-        role="role1",
-        application="custom_app_id",
+@pytest.mark.parametrize(
+    "private_key",
+    ("not base!!", "TWFu", PKEY_PEM_STR),
+    ids=["not_base64", "not_DER", "wrong_pass"],
+)
+def test_mangled_private_keys(environment, private_key: str) -> None:
+    from urllib.parse import quote
+
+    c = resolve_configuration(
+        SnowflakeCredentials(),
+        explicit_value=f"snowflake://user1@host1/db1?warehouse=warehouse1&role=role1&private_key={quote(private_key)}&private_key_passphrase=qwe",
     )
+    assert c.is_resolved()
+    assert c.private_key == private_key
+    assert c.private_key_passphrase == "qwe"
+    assert c.password is None
+
+    with pytest.raises(ValueError):
+        c.to_connector_params()
 
 
 def test_snowflake_credentials_native_value(environment) -> None:
@@ -230,19 +276,6 @@ def test_snowflake_credentials_native_value(environment) -> None:
     assert c.is_resolved()
     assert c.password == "pass1"
 
-    # set PK via env
-    del os.environ["CREDENTIALS__PASSWORD"]
-    os.environ["CREDENTIALS__PRIVATE_KEY"] = PKEY_DER_STR
-    os.environ["CREDENTIALS__PRIVATE_KEY_PASSPHRASE"] = PKEY_PASSPHRASE
-    c = resolve_configuration(
-        SnowflakeCredentials(),
-        explicit_value="snowflake://user1@host1/db1?warehouse=warehouse1&role=role1",
-    )
-    assert c.is_resolved()
-    assert c.private_key == PKEY_DER_STR
-    assert c.private_key_passphrase == PKEY_PASSPHRASE
-    assert c.password is None
-
     # check with application = "" it should not be in connection string
     os.environ["CREDENTIALS__APPLICATION"] = ""
     c = resolve_configuration(
@@ -253,15 +286,57 @@ def test_snowflake_credentials_native_value(environment) -> None:
     assert c.application == ""
     assert "application=" not in str(c.to_url())
     conn_params = c.to_connector_params()
-    assert isinstance(conn_params.pop("private_key"), bytes)
     assert conn_params == {
         "warehouse": "warehouse1",
         "role": "role1",
         "user": "user1",
-        "password": None,
+        "password": "pass",
         "account": "host1",
         "database": "db1",
     }
+
+
+@pytest.mark.parametrize(
+    "private_key",
+    (PKEY_DER_STR, PKEY_PEM_BASE64_STR, PKEY_PEM_STR),
+    ids=["PKEY_DER_STR", "PKEY_PEM_BASE64_STR", "PKEY_PEM_STR"],
+)
+def test_snowflake_credentials_via_query_str(environment, private_key: str) -> None:
+    from urllib.parse import quote
+
+    c = resolve_configuration(
+        SnowflakeCredentials(),
+        explicit_value=f"snowflake://user1@host1/db1?warehouse=warehouse1&role=role1&private_key={quote(private_key)}&private_key_passphrase={quote(PKEY_PASSPHRASE)}",
+    )
+    assert c.is_resolved()
+    assert c.private_key == private_key
+    assert c.private_key_passphrase == PKEY_PASSPHRASE
+    assert c.password is None
+
+    conn_params = c.to_connector_params()
+    assert isinstance(conn_params["private_key"], bytes)
+
+
+@pytest.mark.parametrize(
+    "private_key",
+    (PKEY_DER_STR, PKEY_PEM_BASE64_STR, PKEY_PEM_STR),
+    ids=["PKEY_DER_STR", "PKEY_PEM_BASE64_STR", "PKEY_PEM_STR"],
+)
+def test_snowflake_credentials_key_via_env(environment, private_key: str) -> None:
+    # set PK via env
+    os.environ["CREDENTIALS__PRIVATE_KEY"] = private_key
+    os.environ["CREDENTIALS__PRIVATE_KEY_PASSPHRASE"] = PKEY_PASSPHRASE
+    c = resolve_configuration(
+        SnowflakeCredentials(),
+        explicit_value="snowflake://user1@host1/db1?warehouse=warehouse1&role=role1",
+    )
+    assert c.is_resolved()
+    assert c.private_key == private_key
+    assert c.private_key_passphrase == PKEY_PASSPHRASE
+    assert c.password is None
+
+    conn_params = c.to_connector_params()
+    assert isinstance(conn_params["private_key"], bytes)
 
 
 def test_snowflake_configuration() -> None:
@@ -273,27 +348,3 @@ def test_snowflake_configuration() -> None:
         explicit_value="snowflake://user1:pass@host1/db1?warehouse=warehouse1&role=role1",
     )
     assert SnowflakeClientConfiguration(credentials=c).fingerprint() == digest128("host1")
-
-
-def test_snowflake_azure_converter() -> None:
-    with pytest.raises(TerminalValueError):
-        SnowflakeLoadJob.ensure_snowflake_azure_url("az://dlt-ci-test-bucket")
-
-    azure_url = SnowflakeLoadJob.ensure_snowflake_azure_url("az://dlt-ci-test-bucket", "my_account")
-    assert azure_url == "azure://my_account.blob.core.windows.net/dlt-ci-test-bucket"
-
-    azure_url = SnowflakeLoadJob.ensure_snowflake_azure_url(
-        "az://dlt-ci-test-bucket/path/to/file.parquet", "my_account"
-    )
-    assert (
-        azure_url
-        == "azure://my_account.blob.core.windows.net/dlt-ci-test-bucket/path/to/file.parquet"
-    )
-
-    azure_url = SnowflakeLoadJob.ensure_snowflake_azure_url(
-        "abfss://dlt-ci-test-bucket@my_account.blob.core.windows.net/path/to/file.parquet"
-    )
-    assert (
-        azure_url
-        == "azure://my_account.blob.core.windows.net/dlt-ci-test-bucket/path/to/file.parquet"
-    )

@@ -304,12 +304,20 @@ class DltSource(Iterable[TDataItem]):
 
     @property
     def resources(self) -> DltResourceDict:
-        """A dictionary of all resources present in the source, where the key is a resource name."""
+        """A dictionary of all resources present in the source, where the key is a resource name.
+
+        Returns:
+            DltResourceDict: A dictionary of all resources present in the source, where the key is a resource name.
+        """
         return self._resources
 
     @property
     def selected_resources(self) -> Dict[str, DltResource]:
-        """A dictionary of all the resources that are selected to be loaded."""
+        """A dictionary of all the resources that are selected to be loaded.
+
+        Returns:
+            Dict[str, DltResource]: A dictionary of all the resources that are selected to be loaded.
+        """
         return self._resources.selected
 
     @property
@@ -320,17 +328,21 @@ class DltSource(Iterable[TDataItem]):
     def schema(self, value: Schema) -> None:
         self._schema = value
 
-    def discover_schema(self, item: TDataItem = None) -> Schema:
+    def discover_schema(self, item: TDataItem = None, meta: Any = None) -> Schema:
         """Computes table schemas for all selected resources in the source and merges them with a copy of current source schema. If `item` is provided,
         dynamic tables will be evaluated, otherwise those tables will be ignored."""
         schema = self._schema.clone(update_normalizers=True)
         for r in self.selected_resources.values():
             # names must be normalized here
             with contextlib.suppress(DataItemRequiredForDynamicTableHints):
-                partial_table = normalize_table_identifiers(
-                    r.compute_table_schema(item), self._schema.naming
+                root_table_schema = r.compute_table_schema(item, meta)
+                nested_tables_schema = r.compute_nested_table_schemas(
+                    root_table_schema["name"], schema.naming, item, meta
                 )
-                schema.update_table(partial_table)
+                # NOTE must ensure that `schema.update_table()` is called in an order that respect parent-child relationships
+                for table_schema in (root_table_schema, *nested_tables_schema):
+                    partial_table = normalize_table_identifiers(table_schema, self._schema.naming)
+                    schema.update_table(partial_table)
         return schema
 
     def with_resources(self, *resource_names: str) -> "DltSource":

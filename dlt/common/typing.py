@@ -115,7 +115,9 @@ else:
 TSecretStrValue = Annotated[str, SecretSentinel]
 
 TColumnNames = Union[str, Sequence[str]]
-"""A string representing a column name or a list of"""
+"""A string representing a column name or a sequence of"""
+TTableNames = Union[str, Sequence[str]]
+"""A string representing a table name or a sequence of"""
 TDataItem: TypeAlias = Any
 """A single data item as extracted from data source"""
 TDataItems: TypeAlias = Union[TDataItem, List[TDataItem]]
@@ -127,7 +129,9 @@ TVariantRV = Tuple[str, Any]
 VARIANT_FIELD_FORMAT = "v_%s"
 TFileOrPath = Union[str, PathLike, IO[Any]]
 TSortOrder = Literal["asc", "desc"]
-TLoaderFileFormat = Literal["jsonl", "typed-jsonl", "insert_values", "parquet", "csv", "reference"]
+TLoaderFileFormat = Literal[
+    "jsonl", "typed-jsonl", "insert_values", "parquet", "csv", "reference", "model"
+]
 """known loader file formats"""
 
 TDynHintType = TypeVar("TDynHintType")

@@ -79,9 +79,9 @@ def test_rest_api_source(destination_name: str, invocation_type: str) -> None:
 
     assert table_counts.keys() == {"pokemon_list", "berry", "location"}
 
-    assert table_counts["pokemon_list"] == 1304
+    assert table_counts["pokemon_list"] == 1302
     assert table_counts["berry"] == 64
-    assert table_counts["location"] == 1039
+    assert table_counts["location"] == 1070
 
 
 @pytest.mark.parametrize("destination_name", ALL_DESTINATIONS)
@@ -142,6 +142,8 @@ def test_dependent_resource(destination_name: str, invocation_type: str) -> None
         "pokemon__types",
         "pokemon__stats",
         "pokemon__moves__version_group_details",
+        "pokemon__past_abilities",
+        "pokemon__past_abilities__abilities",
         "pokemon__moves",
         "pokemon__game_indices",
         "pokemon__forms",

@@ -44,16 +44,18 @@ has-poetry:
 	poetry --version
 
 dev: has-poetry
-	poetry install --all-extras --with docs,providers,pipeline,sources,sentry-sdk
+	poetry install --all-extras --with docs,providers,pipeline,sources,sentry-sdk,ibis
 
 lint:
 	poetry run python ./tools/check-lockfile.py
 	poetry run mypy --config-file mypy.ini dlt tests
-	poetry run flake8 --max-line-length=200 dlt
-	poetry run flake8 --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
+	# NOTE: we exclude all D lint errors (docstrings)
+	poetry run flake8 --extend-ignore=D --max-line-length=200 dlt
+	poetry run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
 	poetry run black dlt docs tests --check --diff --color --extend-exclude=".*syntax_error.py"
 	# poetry run isort ./ --diff
 	$(MAKE) lint-security
+	$(MAKE) lint-docstrings
 
 format:
 	poetry run black dlt docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
@@ -79,6 +81,19 @@ test-examples:
 lint-security:
 	# go for ll by cleaning up eval and SQL warnings.
 	poetry run bandit -r dlt/ -n 3 -lll
+
+# check docstrings for all important public classes and functions
+lint-docstrings:
+	poetry run flake8 --count \
+		dlt/common/pipeline.py \
+		dlt/extract/decorators.py \
+		dlt/destinations/decorators.py \
+		dlt/sources/**/__init__.py \
+		dlt/extract/source.py \
+		dlt/common/destination/dataset.py \
+		dlt/destinations/impl/**/factory.py \
+		dlt/pipeline/pipeline.py \
+		dlt/pipeline/__init__.py
 
 test:
 	poetry run pytest tests

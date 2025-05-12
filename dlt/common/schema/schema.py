@@ -56,6 +56,7 @@ from dlt.common.schema.exceptions import (
     ParentTableNotFoundException,
     SchemaCorruptedException,
     TableIdentifiersFrozen,
+    TableNotFound,
 )
 from dlt.common.schema.normalizers import import_normalizers, configured_normalizers
 from dlt.common.schema.exceptions import DataValidationError
@@ -390,11 +391,9 @@ class Schema:
                 tables[table_name] = new_table_schema
             else:
                 tables = self._schema_tables
-            # find root table
             try:
-                table = utils.get_root_table(tables, table_name)
-                settings = table["schema_contract"]
-            except KeyError:
+                settings = utils.get_inherited_table_hint(tables, table_name, "schema_contract")
+            except ValueError:
                 settings = self._settings.get("schema_contract", {})
 
         # expand settings, empty settings will expand into default settings
@@ -421,9 +420,8 @@ class Schema:
                     self.name,
                     table_name,
                     parent_table_name,
-                    " This may be due to misconfigured excludes filter that fully deletes content"
-                    f" of the {parent_table_name}. Add includes that will preserve the parent"
-                    " table.",
+                    "If you declared nested hints, make sure you added all intermediate tables,"
+                    " including those for which you do not declare any hints.",
                 )
         table = self._schema_tables.get(table_name)
         if table is None:
@@ -552,20 +550,20 @@ class Schema:
         return diff_c
 
     def get_table(self, table_name: str) -> TTableSchema:
-        return self._schema_tables[table_name]
+        try:
+            return self._schema_tables[table_name]
+        except KeyError as k_exc:
+            raise TableNotFound(self._schema_name, table_name) from k_exc
 
     def get_table_columns(
         self, table_name: str, include_incomplete: bool = False
     ) -> TTableSchemaColumns:
         """Gets columns of `table_name`. Optionally includes incomplete columns"""
+        table = self.get_table(table_name)
         if include_incomplete:
-            return self._schema_tables[table_name]["columns"]
+            return table["columns"]
         else:
-            return {
-                k: v
-                for k, v in self._schema_tables[table_name]["columns"].items()
-                if utils.is_complete_column(v)
-            }
+            return {k: v for k, v in table["columns"].items() if utils.is_complete_column(v)}
 
     def data_tables(
         self, seen_data_only: bool = False, include_incomplete: bool = False
@@ -613,7 +611,7 @@ class Schema:
         return (table_name not in self.tables) or (
             not [
                 c
-                for c in self.tables[table_name]["columns"].values()
+                for c in self._schema_tables[table_name]["columns"].values()
                 if utils.is_complete_column(c)
             ]
         )

@@ -22,6 +22,24 @@ def always_choose(always_choose_default: bool, always_choose_value: Any) -> Iter
         ALWAYS_CHOOSE_VALUE = _always_choose_value
 
 
+@contextlib.contextmanager
+def suppress_echo() -> Iterator[None]:
+    """Temporarily suppress all fmt output."""
+    global echo, secho, error, warning, note
+    original_echo, original_secho = echo, secho
+    original_error, original_warning, original_note = error, warning, note
+
+    def noop(*args: Any, **kwargs: Any) -> None:
+        pass
+
+    echo = secho = error = warning = note = noop
+    try:
+        yield
+    finally:
+        echo, secho = original_echo, original_secho
+        error, warning, note = original_error, original_warning, original_note
+
+
 echo = click.echo
 secho = click.secho
 style = click.style

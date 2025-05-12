@@ -1,6 +1,6 @@
 import ast
 import os
-from typing import Callable
+from typing import Callable, Literal, Optional
 
 from dlt.common.reflection.utils import set_ast_parents
 from dlt.common.typing import TFun

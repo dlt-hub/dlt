@@ -81,7 +81,7 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
         table = self.prepare_load_table(table_name)
-        if self.in_staging_dataset_mode and self.config.replace_strategy == "insert-from-staging":
+        if self.in_staging_dataset_mode:
             # Staging tables should always be heap tables, because "when you are
             # temporarily landing data in dedicated SQL pool, you may find that
             # using a heap table makes the overall process faster."

@@ -1,20 +1,17 @@
-from typing import Any, Generator, Sequence, Union, TYPE_CHECKING
-
+from typing import Any, Generator, Sequence, Type, Union, TYPE_CHECKING
 from contextlib import contextmanager
-
 
 from dlt.common.destination.dataset import (
     SupportsReadableRelation,
 )
+from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
+from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.typing import Self
 
 from dlt.destinations.dataset.exceptions import (
     ReadableRelationHasQueryException,
     ReadableRelationUnknownColumnException,
 )
-
-from dlt.common.schema.typing import TTableSchemaColumns
-from dlt.destinations.sql_client import SqlClientBase
-from dlt.common.schema import Schema
 
 if TYPE_CHECKING:
     from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
@@ -22,7 +19,7 @@ else:
     ReadableDBAPIDataset = Any
 
 
-class BaseReadableDBAPIRelation(SupportsReadableRelation):
+class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     def __init__(
         self,
         *,
@@ -48,8 +45,8 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation):
         return self._dataset.sql_client
 
     @property
-    def schema(self) -> Schema:
-        return self._dataset.schema
+    def sql_client_class(self) -> Type[SqlClientBase[Any]]:
+        return self._dataset.sql_client_class
 
     def query(self) -> Any:
         # NOTE: converted from property to method due to:
@@ -62,11 +59,6 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation):
     def cursor(self) -> Generator[SupportsReadableRelation, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
         with self.sql_client as client:
-            # this hacky code is needed for mssql to disable autocommit, read iterators
-            # will not work otherwise. in the future we should be able to create a readony
-            # client which will do this automatically
-            if hasattr(self.sql_client, "_conn") and hasattr(self.sql_client._conn, "autocommit"):
-                self.sql_client._conn.autocommit = False
             with client.execute_query(self.query()) as cursor:
                 if columns_schema := self.columns_schema:
                     cursor.columns_schema = columns_schema
@@ -120,8 +112,10 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         if self._provided_query:
             return self._provided_query
 
+        dataset_schema = self._dataset.schema
+
         table_name = self.sql_client.make_qualified_table_name(
-            self.schema.naming.normalize_path(self._table_name)
+            dataset_schema.naming.normalize_path(self._table_name)
         )
 
         maybe_limit_clause_1 = ""
@@ -135,7 +129,9 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         if self._selected_columns:
             selector = ",".join(
                 [
-                    self.sql_client.escape_column_name(self.schema.naming.normalize_tables_path(c))
+                    self.sql_client.escape_column_name(
+                        dataset_schema.naming.normalize_tables_path(c)
+                    )
                     for c in self._selected_columns
                 ]
             )
@@ -152,9 +148,12 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
 
     def compute_columns_schema(self) -> TTableSchemaColumns:
         """provide schema columns for the cursor, may be filtered by selected columns"""
+        dataset_schema = self._dataset.schema
 
         columns_schema = (
-            self.schema.tables.get(self._table_name, {}).get("columns", {}) if self.schema else {}
+            dataset_schema.tables.get(self._table_name, {}).get("columns", {})
+            if dataset_schema
+            else {}
         )
 
         if not columns_schema:
@@ -164,14 +163,14 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
 
         filtered_columns: TTableSchemaColumns = {}
         for sc in self._selected_columns:
-            sc = self.schema.naming.normalize_path(sc)
+            sc = dataset_schema.naming.normalize_path(sc)
             if sc not in columns_schema.keys():
                 raise ReadableRelationUnknownColumnException(sc)
             filtered_columns[sc] = columns_schema[sc]
 
         return filtered_columns
 
-    def __copy__(self) -> "ReadableDBAPIRelation":
+    def __copy__(self) -> Self:
         return self.__class__(
             readable_dataset=self._dataset,
             provided_query=self._provided_query,
@@ -180,14 +179,14 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
             selected_columns=self._selected_columns,
         )
 
-    def limit(self, limit: int, **kwargs: Any) -> "ReadableDBAPIRelation":
+    def limit(self, limit: int, **kwargs: Any) -> Self:
         if self._provided_query:
             raise ReadableRelationHasQueryException("limit")
         rel = self.__copy__()
         rel._limit = limit
         return rel
 
-    def select(self, *columns: str) -> "ReadableDBAPIRelation":
+    def select(self, *columns: str) -> Self:
         if self._provided_query:
             raise ReadableRelationHasQueryException("select")
         rel = self.__copy__()
@@ -197,7 +196,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         rel.compute_columns_schema()
         return rel
 
-    def __getitem__(self, columns: Union[str, Sequence[str]]) -> "SupportsReadableRelation":
+    def __getitem__(self, columns: Union[str, Sequence[str]]) -> Self:
         if isinstance(columns, str):
             return self.select(columns)
         elif isinstance(columns, Sequence):
@@ -205,5 +204,5 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         else:
             raise TypeError(f"Invalid argument type: {type(columns).__name__}")
 
-    def head(self, limit: int = 5) -> "ReadableDBAPIRelation":
+    def head(self, limit: int = 5) -> Self:
         return self.limit(limit)
