@@ -50,7 +50,8 @@ destination_configs = [
     for dest in DESTINATIONS_SUPPORTING_MODEL
     for config in (
         destinations_configs(default_sql_configs=True, subset=[dest], with_table_format="iceberg")
-        or destinations_configs(default_sql_configs=True, subset=[dest])
+        if dest == "athena"
+        else destinations_configs(default_sql_configs=True, subset=[dest])
     )
 ]
 
@@ -224,7 +225,7 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     # as well as include "_dlt_id" into the schema and insert statement
     @dlt.resource()
     def model_with_no_b() -> Any:
-        query = dataset["example_table"][["a", "_dlt_load_id"]].limit(5).query()
+        query = dataset["example_table"][["a", "_dlt_load_id"]].order_by("a").limit(5).query()
         sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
         yield dlt.mark.with_hints(
             sql_model,
@@ -238,7 +239,7 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     # add "_dlt_load_id" as a constant value as it is included in the schema,
     @dlt.resource()
     def model_reversed_select() -> Any:
-        query = dataset["example_table"][["_dlt_id", "b", "a"]].limit(7).query()
+        query = dataset["example_table"][["_dlt_id", "b", "a"]].order_by("a").limit(7).query()
         yield dlt.mark.with_hints(
             SqlModel.from_query_string(query=query, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),

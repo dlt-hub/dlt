@@ -91,7 +91,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
             )
             concat_expr = sqlglot.exp.func(
                 "CONCAT",
-                sqlglot.exp.Column(this=self._normalize_casefold(C_DLT_LOAD_ID)),
+                sqlglot.exp.Literal.string(self.load_id),
                 sqlglot.exp.Literal.string("-"),
                 row_num,
             )
@@ -299,7 +299,11 @@ class ModelItemsNormalizer(ItemsNormalizer):
             raise ValueError("Only SELECT statements should be used as SqlModel queries.")
 
         # Star selects are not allowed
-        if any(isinstance(expr, sqlglot.exp.Star) for expr in parsed_select.selects):
+        if any(
+            isinstance(expr, sqlglot.exp.Star)
+            or (isinstance(expr, sqlglot.exp.Column) and isinstance(expr.this, sqlglot.exp.Star))
+            for expr in parsed_select.selects
+        ):
             raise ValueError(
                 "\n\nA `SELECT *` was detected in the model query:\n\n"
                 f"{parsed_select.sql(select_dialect)}\n\n"

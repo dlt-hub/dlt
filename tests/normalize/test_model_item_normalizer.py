@@ -1,4 +1,4 @@
-from typing import Iterator, List, Tuple
+from typing import Iterator, List, Tuple, NamedTuple, Union, Optional
 
 from dlt.common.destination import DestinationCapabilitiesContext, merge_caps_file_formats
 from dlt.common.configuration.container import Container
@@ -217,7 +217,7 @@ def test_simple_model_normalizing(
     elif dialect == "redshift":
         assert (
             f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
-            " _dlt_load_id, MD5(_dlt_load_id || '-' || ROW_NUMBER() OVER ()) AS _dlt_id FROM"
+            f" _dlt_load_id, MD5('{load_id}' || '-' || ROW_NUMBER() OVER ()) AS _dlt_id FROM"
             " (SELECT b, A_a, c FROM my_table) AS _dlt_subquery\n"
             == normalized_select_query
         )
@@ -431,47 +431,136 @@ def test_select_column_missing_in_schema(
     ]
 
 
+class EdgeCaseQuery(NamedTuple):
+    query: str
+    add_dlt_columns: bool
+    should_fail: bool
+    expected_sql_template: Optional[str]
+
+
 EDGE_CASE_QUERIES = [
-    (
-        "WITH temp AS (SELECT a, b FROM my_table) SELECT a, b FROM temp",
-        (
+    EdgeCaseQuery(
+        query="WITH temp AS (SELECT a, b FROM my_table) SELECT a, b FROM temp",
+        add_dlt_columns=True,
+        should_fail=False,
+        expected_sql_template=(
             "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
             " _dlt_load_id, UUID() AS _dlt_id FROM (WITH temp AS (SELECT a, b FROM my_table)"
             " SELECT a, b FROM temp) AS _dlt_subquery\n"
         ),
-        True,
     ),
-    (
-        "WITH temp AS (SELECT a, b, c FROM my_table) SELECT a, b FROM temp",
-        (
+    EdgeCaseQuery(
+        query="SELECT t1.*, t2.a FROM (t1 JOIN t2)",
+        add_dlt_columns=True,
+        should_fail=True,
+        expected_sql_template=None,
+    ),
+    EdgeCaseQuery(
+        query="WITH temp AS (SELECT a, b, c FROM my_table) SELECT a, b FROM temp",
+        add_dlt_columns=True,
+        should_fail=False,
+        expected_sql_template=(
             "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
             " _dlt_load_id, UUID() AS _dlt_id FROM (WITH temp AS (SELECT a, b, c FROM my_table)"
             " SELECT a, b FROM temp) AS _dlt_subquery\n"
         ),
-        True,
+    ),
+    EdgeCaseQuery(
+        query="SELECT a, b FROM (SELECT * FROM my_table)",
+        add_dlt_columns=True,
+        should_fail=False,
+        expected_sql_template=(
+            "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            " _dlt_load_id, UUID() AS _dlt_id FROM (SELECT a, b FROM (SELECT * FROM my_table))"
+            " AS _dlt_subquery\n"
+        ),
+    ),
+    EdgeCaseQuery(
+        query="SELECT t1.*, t2.a FROM (t1 JOIN t2)",
+        add_dlt_columns=True,
+        should_fail=True,
+        expected_sql_template=None,
+    ),
+    EdgeCaseQuery(
+        query=(
+            "SELECT my_table.b, other_table.a FROM my_table JOIN other_table ON my_table.id ="
+            " other_table.id"
+        ),
+        add_dlt_columns=True,
+        should_fail=False,
+        expected_sql_template=(
+            "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            " _dlt_load_id, UUID() AS _dlt_id FROM (SELECT my_table.b, other_table.a FROM my_table"
+            " JOIN other_table ON my_table.id = other_table.id) AS _dlt_subquery\n"
+        ),
+    ),
+    EdgeCaseQuery(
+        query=(
+            "SELECT my_table.b AS a, other_table.a AS b FROM my_table JOIN other_table ON"
+            " my_table.id = other_table.id"
+        ),
+        add_dlt_columns=False,
+        should_fail=False,
+        expected_sql_template=(
+            "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, NULL AS d FROM (SELECT my_table.b"
+            " AS a, other_table.a AS b FROM my_table JOIN other_table ON my_table.id ="
+            " other_table.id) AS _dlt_subquery\n"
+        ),
+    ),
+    EdgeCaseQuery(
+        query=(
+            "SELECT my_table.b AS a, my_table.a AS b FROM (SELECT a AS a, b AS b FROM my_table) AS"
+            " my_table"
+        ),
+        add_dlt_columns=False,
+        should_fail=False,
+        expected_sql_template=(
+            "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, NULL AS d FROM (SELECT my_table.b"
+            " AS a, my_table.a AS b FROM (SELECT a AS a, b AS b FROM my_table) AS my_table)"
+            " AS _dlt_subquery\n"
+        ),
+    ),
+    EdgeCaseQuery(
+        query="WITH my_table AS (SELECT 1 AS a, 2 AS b) SELECT a, b FROM my_table",
+        add_dlt_columns=False,
+        should_fail=False,
+        expected_sql_template=(
+            "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, NULL AS d FROM (WITH my_table AS"
+            " (SELECT 1 AS a, 2 AS b) SELECT a, b FROM my_table) AS _dlt_subquery\n"
+        ),
     ),
 ]
 
 
 @pytest.mark.parametrize(
-    "query, expected_sql_template, add_dlt_columns",
+    "case",
     EDGE_CASE_QUERIES,
     ids=[f"query-{i}" for i in range(len(EDGE_CASE_QUERIES))],
 )
 @pytest.mark.parametrize("caps", [get_caps("duckdb")], indirect=True, ids=["duckdb"])
 def test_duckdb_model_normalizer_edge_cases(
-    caps: DestinationCapabilitiesContext, query, expected_sql_template: str, add_dlt_columns: bool
+    caps: DestinationCapabilitiesContext,
+    case: EdgeCaseQuery,
 ):
-    os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_LOAD_ID"] = str(add_dlt_columns)
-    os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(add_dlt_columns)
+    os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_LOAD_ID"] = str(case.add_dlt_columns)
+    os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(case.add_dlt_columns)
     model_normalize = next(init_normalize())
     dialect = "duckdb"
 
-    model = SqlModel.from_query_string(query=query, dialect=dialect)
+    model = SqlModel.from_query_string(query=case.query, dialect=dialect)
     schema = create_schema_with_complete_columns("my_table", "text", ["a", "b", "d"])
 
-    _, normalized_query, load_id = extract_normalize_retrieve(
-        model_normalize, model, schema, "my_table", dialect
-    )
-    expected_sql = expected_sql_template.format(load_id=load_id)
-    assert normalized_query == expected_sql
+    if not case.should_fail:
+        _, normalized_query, load_id = extract_normalize_retrieve(
+            model_normalize, model, schema, "my_table", dialect
+        )
+        expected_sql = case.expected_sql_template.format(load_id=load_id)
+        assert normalized_query == expected_sql
+    else:
+        with pytest.raises(
+            NormalizeJobFailed,
+            match=r"Model queries using a star \(`\*`\) expression cannot be normalized\.",
+        ):
+            _, _, _ = extract_normalize_retrieve(
+                model_normalize, model, schema, "my_table", dialect
+            )
