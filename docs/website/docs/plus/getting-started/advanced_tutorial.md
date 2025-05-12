@@ -4,8 +4,6 @@ description: Using the dlt+ cli commands to package a dlt+ Project and enable se
 keywords: [command line interface, cli, dlt init, dlt+, project]
 ---
 
-import Link from '../../_plus_admonition.md';
-
 <Link/>
 Packaging a dlt+ Project simplifies distribution across teams or stakeholders, such as data analysts or data science teams, without requiring direct access to the project’s internal code. Once installed, the package can be used to run pipelines and access production data through a standardized Python interface.
 
