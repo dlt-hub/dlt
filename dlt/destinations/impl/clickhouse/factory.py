@@ -10,7 +10,9 @@ from dlt.common.data_writers.escape import (
 )
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 
-from dlt.common.schema.typing import TColumnType
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.exceptions import TerminalValueError
+from dlt.common.schema.typing import TColumnSchema, TColumnType
 from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseClientConfiguration,
@@ -53,6 +55,9 @@ class ClickHouseTypeMapper(TypeMapperImpl):
         "DateTime": "timestamp",
         "DateTime64": "timestamp",
         "Time": "timestamp",
+        "Int8": "bigint",
+        "Int16": "bigint",
+        "Int32": "bigint",
         "Int64": "bigint",
         "Object('json')": "json",
         "Decimal": "decimal",
@@ -90,6 +95,23 @@ class ClickHouseTypeMapper(TypeMapperImpl):
             return cast(TColumnType, dict(data_type="wei"))
 
         return super().from_destination_type(db_type, precision, scale)
+
+    def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
+        """Map integer precision to the appropriate ClickHouse integer type."""
+        precision = column.get("precision")
+        if precision is None:
+            return "Int64"
+        if precision <= 8:
+            return "Int8"
+        if precision <= 16:
+            return "Int16"
+        if precision <= 32:
+            return "Int32"
+        if precision <= 64:
+            return "Int64"
+        raise TerminalValueError(
+            f"bigint with {precision} bits precision cannot be mapped into ClickHouse integer type"
+        )
 
 
 class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"]):
