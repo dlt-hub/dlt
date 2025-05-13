@@ -76,6 +76,11 @@ VARIOUS_QUERIES: List[Dict[str, Union[str, bool]]] = [
         "description": "cte + two table refs",
     },
     {
+        "query": "WITH x AS (SELECT a FROM y) SELECT a FROM x",
+        "complex": True,
+        "description": "cte + two table refs + sqlglot example",
+    },
+    {
         "query": "SELECT col1, col2 FROM my_table",
         "complex": True,
         "description": "subset select",
