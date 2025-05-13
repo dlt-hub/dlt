@@ -31,3 +31,23 @@ def get_pipeline(pipeline_name: str) -> dlt.Pipeline:
         dlt.Pipeline: The pipeline.
     """
     return dlt.attach(pipeline_name)
+
+
+def create_table_list(pipeline_name: str) -> List[dict]:
+    """Create a list of tables for the pipeline.
+
+    Args:
+        pipeline_name (str): The name of the pipeline to create the table list for.
+    """
+    list = [
+        {
+            "Name": table["name"],
+            "Parent": table.get("parent", "-"),
+            "Resource": table.get("resource", "-"),
+            "Write disposition": table.get("write_disposition", ""),
+            "Description": table.get("description", ""),
+        }
+        for table in get_pipeline(pipeline_name).default_schema.tables.values()
+    ]
+    list.sort(key=lambda x: x["Name"])
+    return list
