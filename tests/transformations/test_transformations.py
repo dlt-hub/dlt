@@ -87,9 +87,13 @@ def test_extract_without_destination(destination_config: DestinationTestConfigur
         return dataset["customers"]
 
     pipeline_no_destination = dlt.pipeline(pipeline_name="no_destination")
+    pipeline_no_destination._destination = None
     extract_info = pipeline_no_destination.extract(extract_test(fruit_p.dataset()))
 
     # there is no destination, so we should have arrow extraction
+    found_job = False
     for job in extract_info.load_packages[0].jobs["new_jobs"]:
-        assert job.job_file_info.file_format == "model"
-        assert job.job_file_info.table_name == "extract_test"
+        if job.job_file_info.table_name == "extract_test":
+            assert job.job_file_info.file_format == "model"
+            found_job = True
+    assert found_job
