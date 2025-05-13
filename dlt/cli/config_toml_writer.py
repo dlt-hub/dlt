@@ -130,7 +130,8 @@ def write_values(
     toml: TOMLContainer,
     values: Iterable[WritableConfigValue],
     overwrite_existing: bool,
-    config_flavor: str = None,
+    source_flavor: str = None,
+    destination_flavor: str = None,
 ) -> None:
     # TODO: decouple writers from a particular object model ie. TOML
     for value in values:
@@ -143,6 +144,7 @@ def write_values(
             else:
                 toml_table = toml_table[section]  # type: ignore
 
+        config_flavor = source_flavor if "sources" in value.sections else destination_flavor
         write_value(
             toml_table,
             value.name,

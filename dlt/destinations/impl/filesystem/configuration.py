@@ -24,6 +24,20 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
     max_state_files: int = 100
     """Maximum number of pipeline state files to keep; 0 or negative value disables cleanup."""
 
+    __config_gen_annotations__ = {
+        # do we repeat the CredentialOnes here? this is messy
+        # can we do protocol types -> credential instances -> example values?
+        "s3": {},
+        "minio": {},
+        "gcs": {},
+        "gcp-oauth2": {},
+        "az-token": {},
+        "az-client": {},
+        "az-token": {},
+        "sftp": {},
+        "sftp-password": {},
+    }
+
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
         # use known credentials or empty credentials for unknown protocol

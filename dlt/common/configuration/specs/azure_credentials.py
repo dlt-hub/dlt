@@ -51,6 +51,16 @@ class AzureCredentialsWithoutDefaults(AzureCredentialsBase, WithPyicebergConfig)
     azure_sas_token_permissions: str = "racwdl"
     """Permissions to use when generating a SAS token. Ignored when sas token is provided directly"""
 
+    __config_gen_annotations__ = {
+        "az-token": {
+            "azure_storage_account_name": "configure me",
+            "azure_account_host": "configure me",
+            "azure_storage_account_key": "configure me",
+            "azure_storage_sas_token": "configure me",
+            "azure_sas_token_permissions": "racwdl",
+        }
+    }
+
     def to_adlfs_credentials(self) -> Dict[str, Any]:
         """Return a dict that can be passed as kwargs to adlfs"""
         return dict(
@@ -114,6 +124,16 @@ class AzureServicePrincipalCredentialsWithoutDefaults(AzureCredentialsBase, With
     azure_tenant_id: str = None
     azure_client_id: str = None
     azure_client_secret: TSecretStrValue = None
+
+    __config_gen_annotations__ = {
+        "az-client": {
+            "azure_storage_account_name": "configure me",
+            "azure_account_host": "configure me",
+            "azure_storage_tenant_id": "configure me",
+            "azure_client_id": "configure me",
+            "azure_client_secret": "configure me",
+        }
+    }
 
     def to_adlfs_credentials(self) -> Dict[str, Any]:
         return dict(

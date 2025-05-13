@@ -8,7 +8,12 @@ from pathlib import Path
 import dlt.destinations
 from dlt.common import git
 from dlt.common.configuration.specs import known_sections
-from dlt.common.configuration.specs.base_configuration import print_config_flavor_menu_from_union
+from dlt.common.configuration.specs.base_configuration import (
+    get_all_base_config_flavors_of_union_type,
+    get_all_base_config_flavors_of_type,
+    is_base_configuration_inner_hint,
+    is_union_type,
+)
 from dlt.common.configuration.providers import (
     CONFIG_TOML,
     SECRETS_TOML,
@@ -394,6 +399,7 @@ def init_pipeline_at_destination(
         return value, None
 
     source_name, source_flavor = parse_flavored_argument(source_name)
+    destination_type, destination_flavor = parse_flavored_argument(destination_type)
     if destination_type:
         destination_reference = Destination.from_reference(destination_type)
         destination_spec = destination_reference.spec
@@ -669,6 +675,7 @@ def init_pipeline_at_destination(
             raise CliCommandInnerException("init", "Aborted")
 
     dependency_system = target_dependency_system or _get_dependency_system(dest_storage)
+
     _welcome_message(
         source_name,
         destination_type,
@@ -737,19 +744,28 @@ def init_pipeline_at_destination(
         ):
             dest_storage.save(pipeline_script_target_path, dest_script_source)
 
+        if not source_flavor:
+            source_flavor = check_for_config_flavors(required_secrets, "sources")
+        if not destination_flavor:
+            destination_flavor = check_for_config_flavors(required_secrets, "destination")
+
         # generate tomls with comments
         secrets_prov = SecretsTomlProvider(settings_dir)
         write_values(
             secrets_prov._config_toml,
             required_secrets.values(),
             overwrite_existing=False,
-            config_flavor=source_flavor,
+            source_flavor=source_flavor,
+            destination_flavor=destination_flavor,
         )
-        if not source_flavor:
-            config_flavor_message(required_secrets.values())
-
         config_prov = ConfigTomlProvider(settings_dir)
-        write_values(config_prov._config_toml, required_config.values(), overwrite_existing=False)
+        write_values(
+            config_prov._config_toml,
+            required_config.values(),
+            overwrite_existing=False,
+            source_flavor=source_flavor,
+            destination_flavor=destination_flavor,
+        )
 
         # write toml files
         secrets_prov.write_toml()
@@ -764,8 +780,47 @@ def init_pipeline_at_destination(
         return copied_files, source_type
 
 
-def config_flavor_message(required_secrets: Sequence[WritableConfigValue]) -> None:
-    # get all unique secret hints and print their config flavor menu's
-    hints = set(secret.hint for secret in required_secrets)
-    for hint in hints:
-        print_config_flavor_menu_from_union(hint)
+# def inform_about_config_flavor_message(required_secrets: Sequence[WritableConfigValue], section: str) -> None:
+#     # get all unique secret hints and print their config flavor menu's
+#     possible_choices = set(secret.hint for secret in required_secrets if section in secret.sections)
+#     for hint in possible_choices:
+#         print_config_flavor_menu_from_union(hint)
+
+
+def check_for_config_flavors(config_values: Dict[str, WritableConfigValue], section: str) -> str:
+    """
+    If there are some Config values that are union type, ask the user to select a flavor
+    params:
+        config_values: Dict[str, WritableConfigValue] - the config or secret values to check
+        section: str - "sources" or "destinations"
+    returns:
+        str - the selected flavor
+    """
+    section_configs = {k: v for k, v in config_values.items() if section in v.sections}
+    # NOTE: add all flavors together, only one can be chosen
+    unique_configs_with_flavors = set(
+        config
+        for config in section_configs.values()
+        if is_union_type(config.hint)
+        or (
+            is_base_configuration_inner_hint(config.hint)
+            and isinstance(config.hint.__config_gen_annotations__, dict)
+        )
+    )
+
+    all_flavors = []
+    for config in unique_configs_with_flavors:
+        all_flavors.extend(get_all_base_config_flavors_of_type(config.hint))
+    # make unique and preserve order
+    flattened_flavors = list(dict.fromkeys(all_flavors))
+
+    if len(flattened_flavors) > 1:
+        flavor = fmt.prompt(
+            f"There are multiple ways the {section} can be configured. Please a preset to use:\n",
+            choices=flattened_flavors,
+            default=flattened_flavors[0],
+        )
+        print("chosen flavor", flavor)
+        return flavor
+    else:
+        return None

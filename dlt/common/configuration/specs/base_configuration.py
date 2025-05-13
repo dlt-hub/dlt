@@ -50,11 +50,12 @@ from dlt.common.configuration.exceptions import (
     ConfigFieldTypeHintNotSupported,
 )
 
-
 # forward class declaration
 _F_BaseConfiguration: Any = type(object)
 _F_ContainerInjectableContext: Any = type(object)
 _B = TypeVar("_B", bound="BaseConfiguration")
+
+INTERACTIVE = False
 
 
 class NotResolved:
@@ -104,12 +105,13 @@ def get_config_if_union_hint(hint: Type[Any], flavor: str = None) -> Type[Any]:
     """
     if not is_union_type(hint):
         return None
-
+    # try to use user input to resolve flavor
     flavored_config = get_flavored_config_from_union(hint, flavor)
-    if flavor and not flavored_config:
-        # log warning that flavor was not found (or raise?)
+    if not flavored_config:
+        # fmt.warning(
+        #     f"Could not find a configuration type for {hint} with flavor {flavor}. "
+        # )
         pass
-
     return flavored_config or get_first_base_config_from_union(hint)
 
 
@@ -118,47 +120,36 @@ def get_first_base_config_from_union(hint: Type[Any]) -> Type[Any]:
     return next((t for t in get_args(hint) if is_base_configuration_inner_hint(t)), None)
 
 
-def print_config_flavor_menu_from_union(hint: Type[Any]) -> Dict[str, List[str]]:
+def get_all_base_config_flavors_of_type(hint: Type[Any]) -> List[str]:
     """
-    Prints a dictionary of configuration flavors and their corresponding types from a union type.
-    keys are the parameter names of the configuration types, and values are lists of flavor names.
-    example:
-    {
-        "FilesystemCredentials: ["gcs", "s3", "minio"],
-    }
+    If the config supports flavors, return the list, and unique
     """
-    if not is_union_type(hint):
-        return
-    flavor_menu = get_config_flavors_from_union_type(hint)
-    first_config = get_first_base_config_from_union(hint)
-    vanilla = f"{first_config.__name__}-{flavor_menu[first_config.__name__][0]}"
-    print(
-        f"You didn't specify a flavor, so I chose vanilla {vanilla} for you. These were your"
-        " options:"
-    )
-    for name, flavors in flavor_menu.items():
-        print(f"{name}: {', '.join(flavors)}")
 
+    # if is union type, get flavors from all union members
+    if is_union_type(hint):
+        return get_all_base_config_flavors_of_union_type(hint)
 
-def get_config_flavors_from_union_type(hint: Type[Any]) -> Dict[str, List[str]]:
-    if not is_union_type(hint):
-        return {}
-    return {
-        t.__name__: get_flavors_of_base_config_type(t)
-        for t in get_args(hint)
-        if is_base_configuration_inner_hint(t)
-    }
-
-
-def get_flavors_of_base_config_type(hint: Type[Any]) -> List[str]:
-    """
-    If the config supports flavors, return the list, else just return ["vanilla"]
-    """
     if not is_base_configuration_inner_hint(hint):
         raise TypeError(f"{hint} is not a base configuration type")
+
+    flavors = []
     if isinstance(hint.__config_gen_annotations__, dict):
-        return list(hint.__config_gen_annotations__.keys())
-    return ["vanilla"]  # note remove later :)
+        flavors.extend(hint.__config_gen_annotations__.keys())
+    return list(dict.fromkeys(flavors))
+
+
+def get_all_base_config_flavors_of_union_type(hint: Type[Any]) -> List[str]:
+    """
+    If the config supports flavors, return the list, and unique
+    """
+    if not is_union_type(hint):
+        raise TypeError(f"{hint} is not a union type")
+    flavors = []
+    for t in get_args(hint):
+        if is_base_configuration_inner_hint(t) and isinstance(t.__config_gen_annotations__, dict):
+            flavors.extend(t.__config_gen_annotations__.keys())
+
+    return list(dict.fromkeys(flavors))
 
 
 def get_flavored_config_from_union(hint: Type[Any], flavor: str) -> Type[Any]:
