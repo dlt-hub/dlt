@@ -441,7 +441,7 @@ def test_select_resources() -> None:
     # make sure the selected list was not changed
     assert list(s.selected_resources) == all_resource_names
     info = str(s)
-    assert "resource resource_1 is selected" in info
+    assert "resource `resource_1` is selected" in info
 
     # successful select
     s_sel = s.with_resources("resource_1", "resource_7")
@@ -454,7 +454,7 @@ def test_select_resources() -> None:
     )
     assert list(s_sel.resources) == all_resource_names
     info = str(s_sel)
-    assert "resource resource_0 is not selected" in info
+    assert "resource `resource_0` is not selected" in info
     # original is not affected
     assert list(s.selected_resources) == all_resource_names
 

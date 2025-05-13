@@ -30,7 +30,13 @@ from dlt.common.pipeline import (
     source_state,
     pipeline_state,
 )
-from dlt.common.utils import graph_find_scc_nodes, flatten_list_or_items, graph_edges_to_nodes, simple_repr, without_none
+from dlt.common.utils import (
+    graph_find_scc_nodes,
+    flatten_list_or_items,
+    graph_edges_to_nodes,
+    simple_repr,
+    without_none,
+)
 
 from dlt.extract.items import TDecompositionStrategy
 from dlt.extract.pipe_iterator import ManagedPipeIterator
@@ -190,11 +196,11 @@ class DltResourceDict(Dict[str, DltResource]):
 
     def __delitem__(self, resource_name: str) -> None:
         raise DeletingResourcesNotSupported(self.source_name, resource_name)
-    
+
     def __repr__(self) -> str:
         if not self:
             return "{}"
-        
+
         s = "{\n  'selected': {"
         for name, r in self.selected.items():
             s += f"\n    '{name}': {r.__repr__()}, "
@@ -205,7 +211,7 @@ class DltResourceDict(Dict[str, DltResource]):
             s += f"\n    '{name}': {r.__repr__()}, "
         s += "\n  }"
         s += "\n}"
-        
+
         return s
 
 

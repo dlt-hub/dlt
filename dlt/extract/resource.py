@@ -30,7 +30,13 @@ from dlt.common.pipeline import (
     resource_state,
     pipeline_state,
 )
-from dlt.common.utils import flatten_list_or_items, get_callable_name, uniq_id, without_none, simple_repr
+from dlt.common.utils import (
+    flatten_list_or_items,
+    get_callable_name,
+    uniq_id,
+    without_none,
+    simple_repr,
+)
 
 from dlt.common.schema.typing import TTableSchema
 from dlt.extract.utils import (
@@ -755,7 +761,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             kwargs["n_steps"] = len(self._pipe.steps)
             kwargs["steps"] = [type(step).__name__ for step in self._pipe.steps]
         # the name isn't `DltResource` because it's not the main entrypoint
-        # to create a resource 
+        # to create a resource
         if self.is_transformer:
             return simple_repr("@dlt.transformer", **without_none(kwargs))
         else:
@@ -786,8 +792,8 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 else:
                     info += (
                         "\nIf you want to see the data items in the resource you must iterate it or"
-                        " convert to list ie. `list(resource)`. Note that, like any iterator, you can"
-                        " iterate the resource only once."
+                        " convert to list ie. `list(resource)`. Note that, like any iterator, you"
+                        " can iterate the resource only once."
                     )
             else:
                 info += "\nThis resource is not bound to the data"

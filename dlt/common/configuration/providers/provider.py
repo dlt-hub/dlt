@@ -4,6 +4,7 @@ from typing import Any, Sequence, Tuple, Type, Optional
 from dlt.common.configuration.exceptions import ConfigurationException
 from dlt.common.utils import simple_repr, without_none
 
+
 class ConfigProvider(abc.ABC):
     @abc.abstractmethod
     def get_value(
@@ -50,7 +51,7 @@ class ConfigProvider(abc.ABC):
     def locations(self) -> Sequence[str]:
         """Returns a list of locations where secrets are stored, human readable"""
         return []
-    
+
     def __repr__(self) -> str:
         kwargs = {
             "is_empty": self.is_empty,

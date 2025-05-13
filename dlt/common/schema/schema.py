@@ -1257,4 +1257,3 @@ class Schema:
         del state["naming"]
         del state["data_item_normalizer"]
         return state
-
