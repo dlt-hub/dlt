@@ -15,7 +15,10 @@ from dlt.common.schema.typing import (
 from dlt.transformations.typing import (
     TTransformationFunParams,
 )
-from dlt.transformations.transformation import make_transform_resource, DltTransformResource
+from dlt.transformations.transformation import (
+    make_transformation_resource,
+    DltTransformationResource,
+)
 from dlt.transformations.configuration import TransformConfiguration
 
 
@@ -37,7 +40,7 @@ def transformation(
     spec: Type[TransformConfiguration] = None,
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
-) -> Callable[[Callable[TTransformationFunParams, Any]], DltTransformResource,]: ...
+) -> Callable[[Callable[TTransformationFunParams, Any]], DltTransformationResource,]: ...
 
 
 @overload
@@ -57,7 +60,7 @@ def transformation(
     spec: Type[TransformConfiguration] = None,
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
-) -> Callable[[Callable[TTransformationFunParams, Any]], DltTransformResource,]: ...
+) -> Callable[[Callable[TTransformationFunParams, Any]], DltTransformationResource,]: ...
 
 
 def transformation(
@@ -83,11 +86,11 @@ def transformation(
 
     def decorator(
         f: Callable[TTransformationFunParams, Any],
-    ) -> DltTransformResource:
+    ) -> DltTransformationResource:
         nonlocal name, write_disposition
 
         name = name or get_callable_name(f)
-        return make_transform_resource(
+        return make_transformation_resource(
             f,
             name=name,
             table_name=table_name,

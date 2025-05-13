@@ -190,7 +190,6 @@ def test_explicit_dataset_type_selection(populated_pipeline: Pipeline):
 
 
 @pytest.mark.no_load
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "populated_pipeline",
     configs,
@@ -202,9 +201,14 @@ def test_scalar(populated_pipeline: Pipeline) -> None:
         populated_pipeline.destination.destination_type
     )
 
-    # test error if more than one column is returned and we use scalar
-    with pytest.raises(ValueError):
+    # test error if more than one row is returned and we use scalar
+    with pytest.raises(ValueError) as ex:
         populated_pipeline.dataset().items.scalar()
+    assert "got more than one row" in str(ex.value)
+
+    with pytest.raises(ValueError) as ex:
+        populated_pipeline.dataset().items.limit(1).scalar()
+    assert "got 1 row with 5 columns" in str(ex.value)
 
 
 @pytest.mark.no_load

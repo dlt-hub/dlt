@@ -7,6 +7,7 @@ import os
 
 from dlt.common.destination.dataset import SupportsReadableDataset
 from tests.pipeline.utils import load_table_counts
+from dlt.extract.hints import SqlModel
 
 from tests.load.utils import DestinationTestConfiguration
 from tests.load.transformations.utils import (
@@ -65,19 +66,11 @@ def test_extract_without_source_name_or_pipeline(
     def buffer_size_test(dataset: SupportsReadableDataset[Any]) -> Any:
         return dataset["customers"]
 
-    # transformations switch to arrow extraction
+    # transformations switch to model extraction
     fruit_p.deactivate()
-    arrow_tables = list(buffer_size_test(fruit_p.dataset()))
-    assert len(arrow_tables) == 1
-    assert arrow_tables[0].num_rows == 13
-
-    # we can control the buffer size
-    os.environ["EXTRACT__BUFFER_MAX_ITEMS"] = "5"
-    arrow_tables = list(buffer_size_test(fruit_p.dataset()))
-    assert len(arrow_tables) == 3
-    assert arrow_tables[0].num_rows == 5
-    assert arrow_tables[1].num_rows == 5
-    assert arrow_tables[2].num_rows == 3
+    model_rows = list(buffer_size_test(fruit_p.dataset()))
+    assert len(model_rows) == 1
+    assert isinstance(model_rows[0], SqlModel)
 
 
 @pytest.mark.parametrize(
@@ -98,5 +91,5 @@ def test_extract_without_destination(destination_config: DestinationTestConfigur
 
     # there is no destination, so we should have arrow extraction
     for job in extract_info.load_packages[0].jobs["new_jobs"]:
-        assert job.job_file_info.file_format == "parquet"
+        assert job.job_file_info.file_format == "model"
         assert job.job_file_info.table_name == "extract_test"
