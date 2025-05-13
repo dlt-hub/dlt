@@ -395,6 +395,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         schema = self.schema
         schema_name = schema.name
         normalize_data_fun = self.schema.normalize_data_item
+        non_coerced_fields: set[str] = set()
 
         for item in items:
             items_gen = normalize_data_fun(item, self.load_id, root_table_name)
@@ -434,7 +435,10 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                             row[k] = custom_pua_decode(v)  # type: ignore
 
                     # coerce row of values into schema table, generating partial table with new columns if any
+                    # track non coerced rows
+                    original_row_keys = set(row.keys())
                     row, partial_table = schema.coerce_row(table_name, parent_table, row)
+                    non_coerced_fields = original_row_keys - set(row.keys())
 
                     # if we detect a migration, check schema contract
                     if partial_table:
@@ -496,6 +500,14 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             except StopIteration:
                 pass
             signals.raise_if_signalled()
+
+        if non_coerced_fields:
+            logger.warning(
+                f"Schema coercion could not infer types for columns {sorted(non_coerced_fields)} "
+                f"in table '{table_name}' of schema '{schema.name}'. "
+                "Consider providing type hints for these columns in the schema definition."
+            )
+
         return schema_update
 
     def __call__(
