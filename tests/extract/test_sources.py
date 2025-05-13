@@ -1962,3 +1962,75 @@ def test_selected_pipes_with_duplicates():
     selected_pipes = source.resources.selected_pipes
     assert len(selected_pipes) == 2
     assert list(source) == [1, 2, 3, 2, 4, 6]
+
+
+def test_source_repr() -> None:
+    @dlt.source
+    def number_source():
+        @dlt.resource(name="numbers")
+        def number_gen(init):
+            yield from range(init, init + 5)
+
+        return [number_gen]
+
+    sentinel = object()
+    source = number_source()
+
+    repr_ = source.__repr__()
+    assert isinstance(repr_, str)
+    assert "dlt.source(" in repr_
+
+        # check that properties used by `__repr__` exist
+    assert getattr(source, "name", sentinel) is not sentinel
+    assert getattr(source, "schema_contract", sentinel) is not sentinel
+    assert getattr(source, "exhausted", sentinel) is not sentinel
+    assert getattr(source, "resources", sentinel) is not sentinel
+    # we expected resources to exist
+    assert isinstance(source.resources, dict)
+
+
+def test_resource_dict_repr() -> None:
+    @dlt.source
+    def number_source():
+        @dlt.resource(name="numbers")
+        def number_gen(init):
+            yield from range(init, init + 5)
+
+        return [number_gen]
+    
+    sentinel = object()
+    resources = number_source().resources
+
+    repr_ = resources.__repr__()
+    assert isinstance(repr_, str)
+
+    # check that properties used by `__repr__` exist
+    assert getattr(resources, "selected", sentinel) is not sentinel
+    assert getattr(resources, "extracted", sentinel) is not sentinel
+
+
+def test_resource_repr() -> None:
+    from dlt.extract.items_transform import LimitItem
+
+    @dlt.resource(name="numbers")
+    def number_gen(init):
+        yield from range(init, init + 5)
+
+    sentinel = object()
+    resource = number_gen(0)
+
+    repr_ = resource.__repr__()
+    assert isinstance(repr_, str)
+    assert "dlt.resource(" in repr_
+
+        # check that properties used by `__repr__` exist
+    assert getattr(resource, "name", sentinel) is not sentinel
+    assert getattr(resource, "_hints", sentinel) is not sentinel
+    assert getattr(resource, "_pipe", sentinel) is not sentinel
+    assert getattr(resource._pipe, "steps", sentinel) is not sentinel
+    assert getattr(resource, "incremental", sentinel) is not sentinel
+    assert getattr(resource, "validator", sentinel) is not sentinel
+    assert getattr(resource, "is_transformer", sentinel) is not sentinel
+
+    # the resource repr check if `._pipe.step` includes a `LimitItem` step
+    assert getattr(LimitItem(None, None), "max_items", sentinel) is not sentinel

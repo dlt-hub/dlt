@@ -930,7 +930,6 @@ class Pipeline(SupportsPipeline):
             "schema_names": self.schema_names if self.schema_names else None,
             "first_run": self.first_run if self.first_run else None,
             "dev_mode": self.dev_mode if self.dev_mode else None,
-            "import"
             # we check for `not is_active` which is the less common case
             "is_active": self.is_active if not self.is_active else None,
             "pipelines_dir": self.pipelines_dir,

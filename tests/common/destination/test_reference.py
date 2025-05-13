@@ -1,4 +1,6 @@
+from collections.abc import MutableMapping
 from typing import Dict
+
 import pytest
 
 from dlt.common.destination import Destination, DestinationReference
@@ -458,3 +460,21 @@ def test_normalize_dataset_name_none_default_schema() -> None:
         .normalize_dataset_name(Schema("default"))
         == "ban_ana_dataset"
     )
+
+
+def test_destination_repr() -> None:
+    from dlt import destinations
+
+    sentinel = object()
+    destination = destinations.dummy()
+
+    repr_ = destination.__repr__()
+    assert isinstance(repr_, str)
+    assert "dlt.destinations." in repr_
+
+    # check that properties used by `__repr__` exist
+    assert getattr(destination, "config_params", sentinel) is not sentinel
+    assert isinstance(destination.config_params, dict)
+    assert callable(getattr(destination, "spec", sentinel))
+    # we need to be able to **unpack the spec() object
+    assert isinstance(destination.spec(), MutableMapping)
