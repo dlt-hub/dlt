@@ -256,6 +256,9 @@ class ArrowItemsNormalizer(ItemsNormalizer):
             schema.update_table(partial_table, normalize_identifiers=False)
             table_updates = schema_update.setdefault(root_table_name, [])
             table_updates.append(partial_table)
+            # TODO: use get_root_row_id_type to get row id type and generate deterministic
+            #  row ids as well (using pandas helper function prepared for scd2)
+            #  we could also generate random columns with pandas or duckdb if present
             new_columns.append(
                 (
                     -1,
@@ -365,6 +368,7 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         base_schema_update = self._fix_schema_precisions(root_table_name, arrow_schema)
 
         add_dlt_id = self.config.parquet_normalizer.add_dlt_id
+        # TODO: add dlt id only if not present in table
         # if we need to add any columns or the file format is not parquet, we can't just import files
         must_rewrite = add_dlt_id or self.item_storage.writer_spec.file_format != "parquet"
         if not must_rewrite:
