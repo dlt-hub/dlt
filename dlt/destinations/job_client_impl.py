@@ -203,11 +203,9 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
             )
 
         # Get identifiers for the columns in the INSERT statement
-        # Normalizer aliased all selections, unless it was a star
+        # Normalizer aliased all selections
         columns = []
         for _, expr in enumerate(top_level_select.expressions):
-            if isinstance(expr, sqlglot.exp.Star):
-                break
             alias_name = expr.alias
             columns.append(sqlglot.exp.to_identifier(alias_name))
 

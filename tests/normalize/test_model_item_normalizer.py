@@ -62,7 +62,9 @@ def caps(request) -> Iterator[DestinationCapabilitiesContext]:
 
 
 @pytest.fixture
-def model_normalize() -> Iterator[Normalize]:
+def model_normalize(preserve_environ) -> Iterator[Normalize]:
+    # adding dlt id is disabled by default, so we set it to true
+    os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(True)
     yield from init_normalize()
 
 
@@ -89,9 +91,11 @@ def extract_model(
 
 
 def create_schema_with_complete_columns(
-    table_name: str, data_type: str, columns: List[str]
+    table_name: str, data_type: str, columns: List[str], with_dlt_id: Optional[bool] = False
 ) -> Schema:
     cols = [utils.new_column(column_name=col, data_type=data_type) for col in columns]  # type: ignore[arg-type]
+    if with_dlt_id:
+        cols.append(utils.dlt_id_column())
     table = utils.new_table(table_name, columns=cols)
     schema = Schema("my_schema")
     schema.update_table(table)
@@ -142,7 +146,7 @@ def test_star_select_rejection(
         _, _, _ = extract_normalize_retrieve(model_normalize, model, schema, "my_table", dialect)
 
     # Ensure star selects with explicit columns are also rejected
-    another_model = SqlModel.from_query_string(query="SELECT *, NULL AS c FROM my_table")
+    another_model = SqlModel.from_query_string(query="SELECT t.*, NULL AS c FROM my_table AS t1")
     with pytest.raises(
         NormalizeJobFailed,
         match=r"Model queries using a star \(`\*`\) expression cannot be normalized\.",
@@ -431,6 +435,80 @@ def test_select_column_missing_in_schema(
     ]
 
 
+@pytest.mark.parametrize(
+    "add_dlt_load_id, add_dlt_id", [(True, True), (True, False), (False, True), (False, False)]
+)
+@pytest.mark.parametrize("caps", [get_caps("duckdb")], indirect=True, ids=["duckdb"])
+def test_dlt_column_addition_configs(
+    caps: DestinationCapabilitiesContext, add_dlt_load_id: bool, add_dlt_id: bool, preserve_environ
+) -> None:
+    os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_LOAD_ID"] = str(add_dlt_load_id)
+    os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(add_dlt_id)
+    model_normalize = next(init_normalize())
+    dialect = caps.sqlglot_dialect
+
+    schema = create_schema_with_complete_columns("my_table", "text", ["a", "b"])
+
+    model = SqlModel.from_query_string(query="SELECT a, b FROM my_table")
+    _, normalized_query, load_id = extract_normalize_retrieve(
+        model_normalize, model, schema, "my_table", dialect
+    )
+
+    another_model = SqlModel.from_query_string(
+        query="SELECT a, b, MY_CUSTOM_FUNC() AS _dlt_id FROM my_table"
+    )
+    _, another_norm_query, another_load_id = extract_normalize_retrieve(
+        model_normalize, another_model, schema, "my_table", dialect
+    )
+
+    if add_dlt_load_id and add_dlt_id:
+        assert (
+            normalized_query
+            == f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{load_id}' AS _dlt_load_id,"
+            " UUID() AS _dlt_id FROM (SELECT a, b FROM my_table) AS _dlt_subquery\n"
+        )
+        assert (
+            another_norm_query
+            == f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{another_load_id}' AS"
+            " _dlt_load_id, _dlt_subquery._dlt_id AS _dlt_id FROM (SELECT a, b,"
+            " MY_CUSTOM_FUNC() AS _dlt_id FROM my_table) AS _dlt_subquery\n"
+        )
+    elif add_dlt_load_id and not add_dlt_id:
+        assert (
+            normalized_query
+            == f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{load_id}' AS _dlt_load_id"
+            " FROM (SELECT a, b FROM my_table) AS _dlt_subquery\n"
+        )
+        assert (
+            another_norm_query
+            == f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{another_load_id}' AS"
+            " _dlt_load_id FROM (SELECT a, b,"
+            " MY_CUSTOM_FUNC() AS _dlt_id FROM my_table) AS _dlt_subquery\n"
+        )
+    elif not add_dlt_load_id and add_dlt_id:
+        assert (
+            normalized_query
+            == "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, UUID() AS _dlt_id FROM (SELECT"
+            " a, b FROM my_table) AS _dlt_subquery\n"
+        )
+        assert (
+            another_norm_query
+            == "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, _dlt_subquery._dlt_id AS _dlt_id"
+            " FROM (SELECT a, b, MY_CUSTOM_FUNC() AS _dlt_id FROM my_table) AS _dlt_subquery\n"
+        )
+    elif not add_dlt_load_id and not add_dlt_id:
+        assert (
+            normalized_query
+            == "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b FROM (SELECT a, b FROM my_table)"
+            " AS _dlt_subquery\n"
+        )
+        assert (
+            another_norm_query
+            == "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b"
+            " FROM (SELECT a, b, MY_CUSTOM_FUNC() AS _dlt_id FROM my_table) AS _dlt_subquery\n"
+        )
+
+
 class EdgeCaseQuery(NamedTuple):
     query: str
     add_dlt_columns: bool
@@ -538,14 +616,15 @@ EDGE_CASE_QUERIES = [
     ids=[f"query-{i}" for i in range(len(EDGE_CASE_QUERIES))],
 )
 @pytest.mark.parametrize("caps", [get_caps("duckdb")], indirect=True, ids=["duckdb"])
-def test_duckdb_model_normalizer_edge_cases(
+def test_model_normalizer_edge_cases_on_duckdb(
     caps: DestinationCapabilitiesContext,
     case: EdgeCaseQuery,
+    preserve_environ,
 ):
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_LOAD_ID"] = str(case.add_dlt_columns)
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(case.add_dlt_columns)
     model_normalize = next(init_normalize())
-    dialect = "duckdb"
+    dialect = caps.sqlglot_dialect
 
     model = SqlModel.from_query_string(query=case.query, dialect=dialect)
     schema = create_schema_with_complete_columns("my_table", "text", ["a", "b", "d"])

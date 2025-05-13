@@ -9,6 +9,7 @@ from dlt.common.data_writers.writers import ArrowToObjectAdapter
 from dlt.common.json import custom_pua_decode, may_have_pua
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
+from dlt.common.normalizers.json.helpers import get_root_row_id_type
 from dlt.common.runtime import signals
 from dlt.common.schema.typing import (
     C_DLT_ID,
@@ -33,6 +34,7 @@ from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.normalizers.utils import generate_dlt_ids
 from dlt.extract.hints import SqlModel
+from dlt.normalize.exceptions import NormalizeException
 
 from dlt.normalize.configuration import NormalizeConfiguration
 
@@ -137,48 +139,59 @@ class ModelItemsNormalizer(ItemsNormalizer):
         schema = self.schema
         dialect = self.config.destination_capabilities.sqlglot_dialect
 
-        # 1. Build dlt column aliases we *might* need
-        dlt_aliased_columns: dict[str, Optional[sqlglot.exp.Alias]] = {}
-
-        NORM_C_DLT_LOAD_ID = self._normalize_casefold(C_DLT_LOAD_ID)
-        NORM_C_DLT_ID = self._normalize_casefold(C_DLT_ID)
-
-        if model_config.add_dlt_load_id:
-            dlt_aliased_columns[C_DLT_LOAD_ID] = sqlglot.exp.Alias(
-                this=sqlglot.exp.Literal.string(self.load_id),
-                alias=sqlglot.exp.to_identifier(NORM_C_DLT_LOAD_ID),
-            )
-
-        if model_config.add_dlt_id:
-            dlt_aliased_columns[C_DLT_ID] = sqlglot.exp.Alias(
-                this=self._uuid_expr_for_dialect(dialect),
-                alias=sqlglot.exp.to_identifier(NORM_C_DLT_ID),
-            )
-
-        # 2. Replace any existing dlt column aliases
         existing = {
             select.alias.lower(): idx for idx, select in enumerate(outer_parsed_select.selects)
         }
 
-        for column_name, alias_expr in dlt_aliased_columns.items():
-            idx = existing.get(column_name)
-            if idx is not None:
-                outer_parsed_select.selects[idx] = (
-                    alias_expr  # -> replace in-place if already present
-                )
-            else:
-                outer_parsed_select.selects.append(alias_expr)  # -> append and update schema
+        NORM_C_DLT_LOAD_ID = self._normalize_casefold(C_DLT_LOAD_ID)
+        NORM_C_DLT_ID = self._normalize_casefold(C_DLT_ID)
 
+        # 1. Handle _dlt_load_id addition
+        if model_config.add_dlt_load_id:
+            # Build aliased expression
+            dlt_load_id_expr = sqlglot.exp.Alias(
+                this=sqlglot.exp.Literal.string(self.load_id),
+                alias=sqlglot.exp.to_identifier(NORM_C_DLT_LOAD_ID),
+            )
+            # Replace in-place if already present, otherwise append and update schema
+            idx = existing.get(C_DLT_LOAD_ID)
+            if idx is not None:
+                outer_parsed_select.selects[idx] = dlt_load_id_expr
+            else:
+                outer_parsed_select.selects.append(dlt_load_id_expr)
                 partial_table = normalize_table_identifiers(
                     {
                         "name": root_table_name,
-                        "columns": {
-                            column_name: (
-                                dlt_id_column()
-                                if column_name == "_dlt_id"
-                                else dlt_load_id_column()
-                            )
-                        },
+                        "columns": {C_DLT_LOAD_ID: dlt_load_id_column()},
+                    },
+                    schema.naming,
+                )
+                schema.update_table(partial_table)
+                table_updates = schema_update.setdefault(root_table_name, [])
+                table_updates.append(partial_table)
+
+        # 2. Handle _dlt_id addition
+        if model_config.add_dlt_id:
+            idx = existing.get(C_DLT_ID)
+            # Do nothing if already present,
+            # otherwise append and update schema only if possible
+            if idx is None:
+                row_id_type = get_root_row_id_type(schema, root_table_name)
+                if row_id_type != "random":
+                    raise NormalizeException(
+                        "`add_dlt_id` was enabled in the model normalizer config, "
+                        "but this is only supported when the row id type equals 'random'`. "
+                        f"Received row id type: '{row_id_type}'."
+                    )
+                dlt_id_expr = sqlglot.exp.Alias(
+                    this=self._uuid_expr_for_dialect(dialect),
+                    alias=sqlglot.exp.to_identifier(NORM_C_DLT_ID),
+                )
+                outer_parsed_select.selects.append(dlt_id_expr)
+                partial_table = normalize_table_identifiers(
+                    {
+                        "name": root_table_name,
+                        "columns": {C_DLT_ID: dlt_id_column()},
                     },
                     schema.naming,
                 )

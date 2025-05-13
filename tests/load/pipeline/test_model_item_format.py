@@ -24,6 +24,7 @@ from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
 )
+from tests.utils import preserve_environ
 from tests.pipeline.utils import assert_load_info, load_tables_to_dicts, load_table_counts
 
 import sqlglot
@@ -200,7 +201,9 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
     destination_configs,
     ids=lambda x: x.name,
 )
-def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> None:
+def test_simple_model_jobs(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     """
     Test creating SQL model jobs for various scenarios:
     - Copying a table using a query without a specific column ("b") which will be added as null by the normalizer.
@@ -222,7 +225,8 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
 
     # Define a resource for a SQL model that excludes column "b" and "_dlt_id" from the query
     # The normalizer will add "b" as null since it is included in the schema hints,
-    # as well as include "_dlt_id" into the schema and insert statement
+    # without including "_dlt_id" into the schema and insert statement
+    # because the addition of the column "_dlt_id" is disabled by default
     @dlt.resource()
     def model_with_no_b() -> Any:
         query = dataset["example_table"][["a", "_dlt_load_id"]].order_by("a").limit(5).query()
@@ -236,13 +240,16 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
 
     # Define a resource for a SQL model that reverses the column order in the query
     # The normalizer will reorder the columns to match the schema's order,
-    # add "_dlt_load_id" as a constant value as it is included in the schema,
+    # add "_dlt_load_id" into the schema and as a constant value to the insert statement
+    # because the addition of the column "_dlt_load_id" is enabled by default
     @dlt.resource()
     def model_reversed_select() -> Any:
         query = dataset["example_table"][["_dlt_id", "b", "a"]].order_by("a").limit(7).query()
         yield dlt.mark.with_hints(
             SqlModel.from_query_string(query=query, dialect=select_dialect),
-            hints=make_hints(columns=example_table_columns),
+            hints=make_hints(
+                columns={k: v for k, v in example_table_columns.items() if k != "_dlt_load_id"}
+            ),
         )
 
     # Run model jobs
@@ -266,7 +273,15 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     assert "model_reversed_select" in pipeline.default_schema.tables
 
     # Validate that the table "model_with_no_b" includes all columns in the schema
+    # except for "_dlt_id"
     assert set(pipeline.default_schema.tables["model_with_no_b"]["columns"].keys()) == {
+        "a",
+        "b",
+        "_dlt_load_id",
+    }
+
+    # Validate that the table "model_reversed_select" includes all columns in the schema
+    assert set(pipeline.default_schema.tables["model_reversed_select"]["columns"].keys()) == {
         "a",
         "b",
         "_dlt_id",
@@ -281,14 +296,11 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     model_with_no_b_df = dataset["model_with_no_b"].df()
     assert set([0, 1, 2, 3, 4]) == set(model_with_no_b_df[casefolder("a")].to_list())
     assert [] == model_with_no_b_df[casefolder("b")].dropna().to_list()
-    prev_dlt_ids = dataset["example_table"].df()[casefolder("_dlt_id")].to_list()
-    new_dlt_ids = model_with_no_b_df[casefolder("_dlt_id")].to_list()
-    assert set(prev_dlt_ids).isdisjoint(new_dlt_ids), "Seems like _dlt_id values were copied"
 
     # Validate the column order in the table created with a query with reversed column order,
-    # ensuring _dlt_load_id was created anew
+    # ensuring _dlt_load_id was added and created anew
     model_reversed_select_df = dataset["model_reversed_select"].df()
-    expected_columns = [casefolder(key) for key in ["a", "b", "_dlt_load_id", "_dlt_id"]]
+    expected_columns = [casefolder(key) for key in ["a", "b", "_dlt_id", "_dlt_load_id"]]
     actual_columns = list(model_reversed_select_df.columns)
     assert (
         actual_columns == expected_columns
@@ -314,7 +326,11 @@ def test_simple_model_jobs(destination_config: DestinationTestConfiguration) -> 
     destination_configs,
     ids=lambda x: x.name,
 )
-def test_model_from_two_tables(destination_config: DestinationTestConfiguration):
+def test_model_from_two_tables(destination_config: DestinationTestConfiguration, preserve_environ):
+    # adding dlt id is disabled by default, so we set it to true
+    # because here we insert to a pre-existing table "merged_table" for which "_dlt_id" column is present
+    os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(True)
+
     pipeline = destination_config.setup_pipeline("test_model_from_two_tables", dev_mode=True)
 
     pipeline.run(
@@ -403,7 +419,7 @@ def test_model_from_two_consecutive_tables(destination_config: DestinationTestCo
         query = relation_ab[["a", "b"]].query()
         yield dlt.mark.with_hints(
             SqlModel.from_query_string(query=query, dialect=select_dialect),
-            hints=make_hints(columns=ab_cols),
+            hints=make_hints(columns={k: v for k, v in ab_cols.items() if k in ["a", "b"]}),
         )
 
     @dlt.resource(table_name="result_table")
@@ -411,7 +427,7 @@ def test_model_from_two_consecutive_tables(destination_config: DestinationTestCo
         query = relation_ac[["a", "c"]].query()
         yield dlt.mark.with_hints(
             SqlModel.from_query_string(query=query, dialect=select_dialect),
-            hints=make_hints(columns=ac_cols),
+            hints=make_hints(columns={k: v for k, v in ac_cols.items() if k in ["a", "c"]}),
         )
 
     pipeline.run(
@@ -427,11 +443,11 @@ def test_model_from_two_consecutive_tables(destination_config: DestinationTestCo
     )
 
     # Validate columns for the result table
+    # Note that the addition of "_dlt_id" is disabled by default
     assert set(pipeline.default_schema.tables["result_table"]["columns"].keys()) == {
         "a",
         "b",
         "c",
-        "_dlt_id",
         "_dlt_load_id",
     }
 
@@ -456,8 +472,13 @@ def test_model_from_two_consecutive_tables(destination_config: DestinationTestCo
     ids=lambda x: x,
 )
 def test_write_dispositions(
-    destination_config: DestinationTestConfiguration, write_disposition: TWriteDisposition
+    destination_config: DestinationTestConfiguration,
+    write_disposition: TWriteDisposition,
+    preserve_environ,
 ) -> None:
+    # adding dlt id is disabled by default, so we set it to true
+    os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(True)
+
     pipeline = destination_config.setup_pipeline("test_write_dispositions", dev_mode=True)
 
     pipeline.run(
@@ -481,11 +502,12 @@ def test_write_dispositions(
     example_table_columns = dataset.schema.tables["example_table_1"]["columns"]
     # In Databricks, Ibis adds a helper column to emulate offset, causing a schema mismatch
     # when the query attempts to insert it. We explicitly select only the expected columns.
+    # Note that we also explicitly select "_dlt_id" because its addition is disabled by default
     relation = (
         dataset["example_table_2"]
         .filter(dataset["example_table_2"].a >= 3)
         .order_by("a")
-        .limit(7)[["a"]]
+        .limit(7)[["a", "_dlt_id"]]
     )
     query = relation.query()
 
@@ -531,7 +553,9 @@ def test_write_dispositions(
     destination_configs,
     ids=lambda x: x.name,
 )
-def test_multiple_statements_per_resource(destination_config: DestinationTestConfiguration) -> None:
+def test_multiple_statements_per_resource(
+    destination_config: DestinationTestConfiguration, preserve_environ
+) -> None:
     # Disable unique indexing for postgres, otherwise there will be a not null constraint error
     # because we're copying from the same table
     if destination_config.destination_type == "postgres":
@@ -553,16 +577,17 @@ def test_multiple_statements_per_resource(destination_config: DestinationTestCon
     select_dialect = pipeline.destination.capabilities().sqlglot_dialect
 
     # create a resource that generates sql statements to create 2 new tables
-    # we also need to supply all hints so the table can be created
+    # we also need to supply all hints so the table can be created,
+    # note that we explicitly select "_dlt_id" as its addition is disabled by default
     @dlt.resource()
     def copied_table() -> Any:
-        query1 = dataset["example_table"][["a"]].limit(5).query()
+        query1 = dataset["example_table"][["a", "_dlt_id"]].limit(5).query()
         yield dlt.mark.with_hints(
             SqlModel.from_query_string(query=query1, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),
         )
 
-        query2 = dataset["example_table"][["a"]].limit(7).query()
+        query2 = dataset["example_table"][["a", "_dlt_id"]].limit(7).query()
         yield dlt.mark.with_hints(
             SqlModel.from_query_string(query=query2, dialect=select_dialect),
             hints=make_hints(columns=example_table_columns),
@@ -620,6 +645,7 @@ def test_model_writer_without_destination(mocker) -> None:
     assert writer.items_count == len(mock_item)
 
     # Test the writer at the pipeline level to ensure it works without destination
+    # Note that star selects are rejected by the model normalizer, but works in the extract phase
     @dlt.resource
     def example_table() -> Any:
         query = 'SELECT * FROM "test_model_writer_without_destination"."example_table"'
@@ -642,7 +668,7 @@ def test_model_writer_without_destination(mocker) -> None:
 )
 @pytest.mark.parametrize("drop_column", ["_dlt_load_id", "_dlt_id"])
 def test_copying_table_with_dropped_column(
-    destination_config: DestinationTestConfiguration, drop_column: str
+    destination_config: DestinationTestConfiguration, drop_column: str, preserve_environ
 ) -> None:
     """
     Test copying a table while excluding one of the DLT-injected columns (`_dlt_id` or `_dlt_load_id`),
@@ -652,6 +678,9 @@ def test_copying_table_with_dropped_column(
     - Load id is correct.
     _ dlt ids are unique.
     """
+    # adding dlt id is disabled by default, so we set it to true
+    os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(True)
+
     table_suffix = "no_dlt_id" if drop_column == "_dlt_id" else "dlt_id"
     target_table_name = f"copied_table_{table_suffix}"
 
@@ -735,7 +764,12 @@ def test_copying_table_with_dropped_column(
     destination_configs,
     ids=lambda x: x.name,
 )
-def test_load_model_with_all_types(destination_config: DestinationTestConfiguration) -> None:
+def test_load_model_with_all_types(
+    destination_config: DestinationTestConfiguration, preserve_environ
+) -> None:
+    # adding dlt id is disabled by default, so we set it to true
+    os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(True)
+
     pipeline = destination_config.setup_pipeline("test_load_model_with_all_types", dev_mode=True)
 
     exclude_types: List[TDataType] = []
@@ -823,7 +857,7 @@ def test_data_contract_on_tables(
     # Define a resource to create a new copied table
     @dlt.resource(schema_contract={"tables": tables_contract})  # type: ignore
     def copied_table() -> Any:
-        query = dataset["example_table"][["a", "b"]].limit(5).query()
+        query = dataset["example_table"][["a", "b", "_dlt_id"]].limit(5).query()
         sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
         yield dlt.mark.with_hints(
             sql_model,
