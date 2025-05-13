@@ -153,21 +153,7 @@ def sql_database(
 
 
 @decorators.resource(
-    name=lambda args: args["table"],
-    standalone=True,
-    spec=SqlTableResourceConfiguration,
-    example_values={
-        # "credentials": "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
-        # or
-        "credentials": {
-            "drivername": "mysql+pymysql",
-            "database": "Rfam",
-            "username": "rfamro",
-            "host": "mysql-rfam-public.ebi.ac.uk",
-            "port": "4497",
-        },
-        "table": ["genome"],
-    },
+    name=lambda args: args["table"], standalone=True, spec=SqlTableResourceConfiguration
 )
 def sql_table(
     credentials: Union[ConnectionStringCredentials, Engine, str] = dlt.secrets.value,
