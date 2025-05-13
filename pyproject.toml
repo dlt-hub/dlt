@@ -31,11 +31,7 @@ packages = [
 [tool.poetry.dependencies]
 python = ">=3.9,<3.14"
 requests = ">=2.26.0"
-pendulum = {version = ">=2.1.2", markers = "python_version < '3.13'"}
-# NOTE: revert to normal pendulum once it supports python 3.13
-dlt-pendulum = [
-    {version=">=3.0.2", markers = "python_version >= '3.13'"}
-]
+pendulum = ">=2.1.2"
 simplejson = ">=3.17.5"
 PyYAML = ">=5.4.1"
 semver = ">=3.0.0"
