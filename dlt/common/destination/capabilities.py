@@ -220,7 +220,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
 
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = preferred_loader_file_format
-        caps.supported_loader_file_formats = ["jsonl", "insert_values", "parquet", "csv"]
+        caps.supported_loader_file_formats = ["jsonl", "insert_values", "parquet", "csv", "model"]
         caps.loader_file_format_selector = loader_file_format_selector
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []

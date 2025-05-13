@@ -1,8 +1,6 @@
 import inspect
 import makefun
-import asyncio
 from typing import (
-    Callable,
     Optional,
     Tuple,
     Union,
@@ -11,18 +9,19 @@ from typing import (
     Sequence,
     cast,
     AsyncIterator,
-    AsyncGenerator,
     Awaitable,
     Generator,
     Iterator,
 )
 from collections.abc import Mapping as C_Mapping
-from functools import wraps, partial
+from functools import wraps
 
 from dlt.common.data_writers import TDataItemFormat
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.pipeline import reset_resource_state
+from dlt.common.schema import Schema
 from dlt.common.schema.typing import TAnySchemaColumns, TTableSchemaColumns
+from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.typing import (
     AnyFun,
     DictStrAny,
@@ -328,3 +327,12 @@ def wrap_resource_gen(
         return makefun.wraps(f, new_sig=inspect.signature(_partial))(_partial)  # type: ignore
     else:
         raise InvalidResourceDataTypeFunctionNotAGenerator(name, f, type(f))
+
+
+def make_schema_with_default_name(pipeline_name: str) -> str:
+    """Makes schema name from the pipeline name using the name normalizer. "_pipeline" suffix is removed if present"""
+    if pipeline_name.endswith("_pipeline"):
+        schema_name = pipeline_name[:-9]
+    else:
+        schema_name = pipeline_name
+    return normalize_schema_name(schema_name)

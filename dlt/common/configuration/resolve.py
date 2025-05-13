@@ -388,10 +388,12 @@ def _resolve_config_field(
             # accept partial becomes True if type if optional so we do not fail on optional configs that do not resolve fully
             accept_partial = accept_partial or is_optional
             # create new instance and pass value from the provider as initial, add key to sections
+            # if current config has section, propagate it
+            sec_ = (config_sections,) if config_sections else ()
             value = _resolve_configuration(
                 embedded_config,
                 explicit_sections,
-                embedded_sections + (key,),
+                embedded_sections + sec_ + (key,),
                 default_value if value is None else value,
                 accept_partial,
             )
