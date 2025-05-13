@@ -31,7 +31,7 @@ else:
     IbisBackend = Any
 
 
-class SupportsReadableRelation(ABC):
+class SupportsReadableRelation:
     """A readable relation retrieved from a destination that supports it"""
 
     columns_schema: TTableSchemaColumns
@@ -140,12 +140,19 @@ class SupportsReadableRelation(ABC):
 
     def scalar(self) -> Any:
         """fetch first value of first column on first row as python primitive"""
-        row = self.fetchone()
+        row = self.fetchmany(2)
         if not row:
             return None
         if len(row) != 1:
-            raise ValueError(f"Expected scalar result (single column), got {len(row)} columns")
-        return row[0]
+            raise ValueError(
+                "Expected scalar result (single row, single column), got more than one row"
+            )
+        if len(row[0]) != 1:
+            raise ValueError(
+                "Expected scalar result (single row, single column), got 1 row with"
+                f" {len(row[0])} columns"
+            )
+        return row[0][0]
 
     # modifying access parameters
     def limit(self, limit: int, **kwargs: Any) -> Self:

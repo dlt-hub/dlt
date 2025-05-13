@@ -39,12 +39,12 @@ from dlt.extract.exceptions import (
 )
 
 
-class DltTransformResource(DltResource):
+class DltTransformationResource(DltResource):
     def __init__(self, *args: Any, **kwds: Any) -> None:
         super().__init__(*args, **kwds)
 
 
-def make_transform_resource(
+def make_transformation_resource(
     func: Callable[TTransformationFunParams, Any],
     name: str = None,
     table_name: str = None,
@@ -59,15 +59,13 @@ def make_transform_resource(
     spec: Type[TransformConfiguration] = None,
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
-) -> DltTransformResource:
+) -> DltTransformationResource:
     # resolve defaults etc
 
     resource_name = name if name and not callable(name) else get_callable_name(func)
 
     # check function type, for generators we assume a regular resource
-    is_regular_resource = inspect.isgeneratorfunction(
-        inspect.unwrap(func)
-    ) or inspect.isgeneratorfunction(func)
+    is_regular_resource = inspect.isgeneratorfunction(inspect.unwrap(func))
 
     # build transformation function
     def transformation_function(*args: Any, **kwargs: Any) -> Iterator[TDataItems]:
@@ -108,18 +106,19 @@ def make_transform_resource(
         try:
             schema_name = dlt.current.source().name
             current_pipeline = dlt.current.pipeline()
-            if not current_pipeline._destination:
-                pass
-            elif datasets[0].is_same_physical_destination(
+            current_pipeline.destination_client()  # this line will raise PipelineConfigMissing if destination not configured
+
+            if datasets[0].is_same_physical_destination(
                 dlt.current.pipeline().dataset(schema=schema_name)
             ):
                 resolved_transformation_type = "model"
         # if we cannot reach the destination, or a running outside of a pipeline, we extract frames
         except (PipelineConfigMissing, CurrentSourceNotAvailable):
             logger.info(
-                "Cannot reach destination, switching to python extraction for transformation %s",
+                "Cannot reach destination, defaulting to model extraction for transformation %s",
                 resource_name,
             )
+            resolved_transformation_type = "model"
 
         # extract query from transform function
         select_query: str = None
@@ -190,5 +189,5 @@ def make_transform_resource(
         spec=spec,
         parallelized=parallelized,
         incremental=incremental,
-        _impl_cls=DltTransformResource,
+        _impl_cls=DltTransformationResource,
     )
