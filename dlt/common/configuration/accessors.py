@@ -13,16 +13,6 @@ TConfigAny = TypeVar("TConfigAny", bound=Any)
 
 
 class _Accessor(abc.ABC):
-    # TODO should represent the resolution order
-    def __repr__(self) -> str:
-        s = "dlt.secrets("
-        s += "\n  config_providers=["
-        for p in self.config_providers:
-            s += "\n    " + p.__repr__()
-        s += "\n  ]"
-        s += "\n)"
-        return s
-
     def __getitem__(self, field: str) -> Any:
         value, traces = self._get_value(field)
         if value is None:
@@ -108,6 +98,16 @@ class _Accessor(abc.ABC):
 class _ConfigAccessor(_Accessor):
     """Provides direct access to configured values that are not secrets."""
 
+    # TODO should represent the resolution order
+    def __repr__(self) -> str:
+        s = "dlt.config("
+        s += "\n  config_providers=["
+        for p in self.config_providers:
+            s += "\n    " + p.__repr__()
+        s += "\n  ]"
+        s += "\n)"
+        return s
+
     @property
     def config_providers(self) -> Sequence[ConfigProvider]:
         """Return a list of config providers, in lookup order"""
@@ -132,6 +132,16 @@ class _ConfigAccessor(_Accessor):
 
 class _SecretsAccessor(_Accessor):
     """Provides direct access to secrets."""
+
+    # TODO should represent the resolution order
+    def __repr__(self) -> str:
+        s = "dlt.secrets("
+        s += "\n  config_providers=["
+        for p in self.config_providers:
+            s += "\n    " + p.__repr__()
+        s += "\n  ]"
+        s += "\n)"
+        return s
 
     @property
     def config_providers(self) -> Sequence[ConfigProvider]:
