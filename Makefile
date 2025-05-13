@@ -62,7 +62,7 @@ lint:
 	$(MAKE) lint-docstrings
 
 format:
-	poetry run black dlt marimo docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
+	poetry run black dlt docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
 	# poetry run isort ./
 
 lint-snippets:
