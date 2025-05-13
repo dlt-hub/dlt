@@ -3,59 +3,35 @@
 
 import marimo
 
-
 __generated_with = "0.13.6"
 app = marimo.App(width="medium", css_file="style.css")
 
 
 @app.cell(hide_code=True)
-def app_setup():
-    """Imports the necessary modules and returns them into global scope"""
-    import marimo as mo
-    import dlt
-    from dlt.helpers.studio import helpers
-    from dlt.common.json import json
-
-    return dlt, helpers, mo, json
-
-
-@app.cell(hide_code=True)
-def discover_pipelines(helpers, mo, strings):
-    """
-    Discovers local pipelines and returns a multiselect widget to select one of the pipelines
-    """
-
-    query_params = mo.query_params()
-    dlt_pipelines_dir, pipelines = helpers.get_local_pipelines()
-    pipelines_count = len(pipelines)
-    pipeline_select = mo.ui.multiselect(
-        options=pipelines,
-        value=[query_params.get("pipeline")] if query_params.get("pipeline") else None,
-        max_selections=1,
-        label=strings.pipeline_select_label,
-        on_change=lambda value: query_params.set("pipeline", value[0] if value else None),
-    )
-    return pipeline_select, pipelines_count, dlt_pipelines_dir
-
-
-@app.cell(hide_code=True)
-def welcome_page(mo, pipelines_count, dlt_pipelines_dir, pipeline_select, strings):
+def welcome_page(
+    dlt_pipelines_dir,
+    mo,
+    pipeline_select,
+    pipelines_count,
+    strings,
+):
     """
     Displays the welcome page with the pipeline select widget, will only display pipeline title if a pipeline is selected
     """
 
-    wpn = pipeline_select.value[0] if pipeline_select.value else None
+    _selected_pipeline_name = pipeline_select.value[0] if pipeline_select.value else None
 
-    stack = []
-    if not wpn:
+    if not _selected_pipeline_name:
         stack = [
             mo.image(
                 "https://dlthub.com/docs/img/dlthub-logo.png", width=100, alt="dltHub logo"
             ).style(padding_bottom="2em"),
             mo.md(strings.app_title).center(),
             mo.md(strings.app_intro).center(),
-            mo.callout(mo.vstack([mo.md(strings.quick_start_title), pipeline_select]), kind="info"),
-            mo.md(strings.basics_text.format(pipelines_count, dlt_pipelines_dir)),
+            mo.callout(
+                mo.vstack([mo.md(strings.app_quick_start_title), pipeline_select]), kind="info"
+            ),
+            mo.md(strings.app_basics_text.format(pipelines_count, dlt_pipelines_dir)),
         ]
     else:
         stack = [
@@ -64,35 +40,59 @@ def welcome_page(mo, pipelines_count, dlt_pipelines_dir, pipeline_select, string
                     mo.image(
                         "https://dlthub.com/docs/img/dlthub-logo.png", width=100, alt="dltHub logo"
                     ).style(padding_bottom="1em"),
+                    mo.center(
+                        mo.md(f"### {strings.app_title_pipeline.format(_selected_pipeline_name)}")
+                    ),
                     pipeline_select,
                 ]
             ),
-            mo.center(mo.md(f"# {strings.app_title_pipeline.format(wpn)}")),
         ]
     mo.vstack(stack)
+    return
 
 
 @app.cell(hide_code=True)
-def prepare_query_vars(mo, query_params):
-    """
-    Prepare query params as globals for the following cells
-    """
-
-    dlt_pipeline_name = query_params.get("pipeline") or None
-    page = query_params.get("page") or None
-    return dlt_pipeline_name, page
-
-
-@app.cell(hide_code=True)
-def pipeline_sync(mo, strings, helpers, dlt_pipeline_name):
+def pipeline_sync_and_tabs(dlt_pipeline_name, helpers, mo, strings):
     """
     Syncs the pipeline and renders the result of the sync
     """
 
     mo.stop(not dlt_pipeline_name)
 
-    dlt_destination_credentials = None
+    # build tabs
+    tabs = mo.ui.tabs(
+        {
+            f"{mo.icon('lucide:home')} Overview": "",
+            f"{mo.icon('lucide:table-properties')} Schema": "",
+            f"{mo.icon('lucide:database')} Browse Data": "",
+            f"{mo.icon('lucide:file-chart-column')} State": "",
+            f"{mo.icon('lucide:view')} Ibis-Browser": "",
+        }
+    )
 
+    mo.center(tabs)
+    return tabs
+
+
+@app.cell(hide_code=True)
+def overview_page(
+    dlt_destination_credentials,
+    dlt_pipeline_name,
+    dlt_pipelines_dir,
+    helpers,
+    mo,
+    strings,
+    tabs,
+):
+    """
+    Overview page of currently selected pipeline
+    """
+
+    dlt_destination_credentials = None
+    mo.stop(not dlt_pipeline_name)
+    mo.stop("Overview" not in tabs.value)
+
+    # sync pipeline
     with mo.status.spinner(title="Syncing pipeline state from destination..."):
         try:
             helpers.get_pipeline(dlt_pipeline_name).sync_destination()
@@ -103,7 +103,13 @@ def pipeline_sync(mo, strings, helpers, dlt_pipeline_name):
             )
             sync_result = mo.callout(
                 mo.vstack(
-                    [mo.md(strings.sync_success_text.format(str(dlt_destination_credentials)))]
+                    [
+                        mo.md(
+                            strings.pipeline_sync_success_text.format(
+                                str(dlt_destination_credentials)
+                            )
+                        )
+                    ]
                 ),
                 kind="success",
             )
@@ -112,48 +118,18 @@ def pipeline_sync(mo, strings, helpers, dlt_pipeline_name):
             sync_result = mo.callout(
                 mo.vstack(
                     [
-                        mo.md(strings.sync_error_text),
+                        mo.md(strings.pipeline_sync_error_text),
                         mo.accordion({"Show stacktrace": mo.ui.code_editor(e, language="shell")}),
                     ]
                 ),
                 kind="warn",
             )
-    sync_result
-
-
-@app.cell(hide_code=True)
-def tabs(mo, dlt_pipeline_name):
-    """
-    Renders the tabs for the currently selected pipeline
-    """
-
-    mo.stop(not dlt_pipeline_name)
-    tabs = mo.ui.tabs(
-        {
-            f"{mo.icon('lucide:home')} Overview": "",
-            f"{mo.icon('lucide:table-properties')} Schema": "",
-            f"{mo.icon('lucide:file-chart-column')} State": "",
-            f"{mo.icon('lucide:database')} Data": "",
-            f"{mo.icon('lucide:view')} Ibis-Browser": "",
-        }
-    )
-    mo.center(tabs)
-
-
-@app.cell(hide_code=True)
-def pipeline_overview(
-    mo, dlt_pipeline_name, strings, tabs, helpers, dlt_destination_credentials, dlt_pipelines_dir
-):
-    """
-    Overview page of currently selected pipeline
-    """
-
-    mo.stop(not dlt_pipeline_name)
-    mo.stop("Overview" not in tabs.value)
 
     dlt_pipeline = helpers.get_pipeline(dlt_pipeline_name)
     mo.vstack(
         [
+            mo.md(strings.pipeline_sync_status),
+            sync_result,
             mo.md(strings.pipeline_details),
             mo.ui.table(
                 [
@@ -189,33 +165,65 @@ def pipeline_overview(
 
 
 @app.cell(hide_code=True)
-def state_page(mo, tabs, dlt_pipeline_name, helpers, json):
-    """
-    Show state of the currently selected pipeline
-    """
-
-    mo.stop(not dlt_pipeline_name)
-    mo.stop("State" not in tabs.value)
-    mo.ui.code_editor(
-        json.dumps(helpers.get_pipeline(dlt_pipeline_name).state, pretty=True), language="json"
-    )
-
-
-@app.cell(hide_code=True)
-def schema_page(mo, tabs, dlt_pipeline_name, helpers):
+def schema_page(dlt_pipeline_name, helpers, mo, tabs, strings):
     """
     Show schema of the currently selected pipeline
     """
 
     mo.stop(not dlt_pipeline_name)
     mo.stop("Schema" not in tabs.value)
-    mo.ui.code_editor(
-        helpers.get_pipeline(dlt_pipeline_name).default_schema.to_pretty_json(), language="json"
+    mo.stop(
+        not helpers.get_pipeline(dlt_pipeline_name).default_schema_name,
+        mo.callout(
+            mo.md("No Schema available. Does your pipeline have a completed load?"), kind="warn"
+        ),
     )
+
+    mo.vstack(
+        [
+            mo.md(
+                strings.schema_table_overview.format(
+                    helpers.get_pipeline(dlt_pipeline_name).default_schema_name
+                )
+            ),
+            mo.ui.table(helpers.create_table_list(dlt_pipeline_name)),
+            mo.md(strings.schema_raw_title),
+            mo.accordion(
+                {
+                    "Show": mo.ui.code_editor(
+                        helpers.get_pipeline(dlt_pipeline_name).default_schema.to_pretty_yaml(),
+                        language="yaml",
+                    )
+                }
+            ),
+        ]
+    )
+    return
 
 
 @app.cell(hide_code=True)
-def ibis_browser_page(mo, tabs, dlt_pipeline_name, helpers, strings):
+def state_page(dlt_pipeline_name, helpers, json, mo, tabs, strings):
+    """
+    Show state of the currently selected pipeline
+    """
+
+    mo.stop(not dlt_pipeline_name)
+    mo.stop("State" not in tabs.value)
+
+    mo.vstack(
+        [
+            mo.md(strings.state_raw_title),
+            mo.ui.code_editor(
+                json.dumps(helpers.get_pipeline(dlt_pipeline_name).state, pretty=True),
+                language="json",
+            ),
+        ]
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def ibis_browser_page(dlt_pipeline_name, helpers, mo, strings, tabs):
     """
     Connects to ibis backend and makes it available in the datasources panel
     """
@@ -230,6 +238,52 @@ def ibis_browser_page(mo, tabs, dlt_pipeline_name, helpers, strings):
         mo.vstack([mo.md(strings.ibis_backend_connected)]),
         kind="success",
     )
+    return
+
+
+#
+# Utility cells
+#
+
+
+@app.cell(hide_code=True)
+def app_setup():
+    """Imports the necessary modules and returns them into global scope"""
+    import marimo as mo
+    from dlt.helpers.studio import helpers
+    from dlt.common.json import json
+
+    return (helpers, json, mo)
+
+
+@app.cell(hide_code=True)
+def discover_pipelines(helpers, mo, strings):
+    """
+    Discovers local pipelines and returns a multiselect widget to select one of the pipelines
+    """
+
+    query_params = mo.query_params()
+    dlt_pipelines_dir, pipelines = helpers.get_local_pipelines()
+    pipelines_count = len(pipelines)
+    pipeline_select = mo.ui.multiselect(
+        options=pipelines,
+        value=[query_params.get("pipeline")] if query_params.get("pipeline") else None,
+        max_selections=1,
+        label=strings.pipeline_select_label,
+        on_change=lambda value: query_params.set("pipeline", value[0] if value else None),
+    )
+    return dlt_pipelines_dir, pipeline_select, pipelines_count, query_params
+
+
+@app.cell(hide_code=True)
+def prepare_query_vars(query_params):
+    """
+    Prepare query params as globals for the following cells
+    """
+
+    dlt_pipeline_name = query_params.get("pipeline") or None
+    page = query_params.get("page") or None
+    return (dlt_pipeline_name, page)
 
 
 @app.cell(hide_code=True)
@@ -239,22 +293,20 @@ def app_strings(mo):
     """
 
     class Strings:
-        # general
+        #
+        # App general and welcome page
+        #
         app_title = """
         # Welcome to dltHub Studio...
         """
-
         app_intro = """
         <p align="center">...the hackable data platform for `dlt` developers. Learn how to modify this app and create your personal platform at <a href="https://dlthub.com/docs/studio/overview">dlthub.com</a>.</p>
         """
-
-        quick_start_title = """
+        app_quick_start_title = """
         ### Quick start: Select a pipeline
         Selecting a pipeline from the list will open the pipeline page.
         """
-
-        basics_text = """
-
+        app_basics_text = """
         ### dltHub Studio basics
 
         `dlt studio` has found `{}` pipelines in local directory `{}`. If you select one of the pipelines to inspect. You will be able to:
@@ -289,28 +341,48 @@ def app_strings(mo):
             " create your personal platform at"
             " [dlthub.com](https://dlthub.com/docs/studio/overview)."
         )
-
-        app_title_pipeline = 'Pipeline "{}"'
+        app_title_pipeline = "Pipeline `{}`"
 
         # studio
-        pipeline_select_label = f"{mo.icon('lucide:square-mouse-pointer')} Select a pipeline:"
-
+        pipeline_select_label = f"Pipeline:"
         no_pipeline_selected = "No pipeline selected"
 
-        sync_success_text = "Pipeline state synced successfully from `{}`."
-
-        sync_error_text = (
+        #
+        # Pipeline overview page
+        #
+        pipeline_sync_status = "### Pipeline sync status"
+        pipeline_sync_error_text = (
             "Error syncing pipeline from destination. Make sure the credentials are in scope of"
             " `dltHub studio`. Switching to local mode."
         )
+        pipeline_details = "### Pipeline details"
+        pipeline_sync_status = """
+        ### Pipeline sync status
+        <small>Dlt studio will try to sync the pipeline state and schema from the destination. If the sync fails, studio use local mode and inspect the locally stored information about the pipeline.</small>
+        """
+        pipeline_sync_success_text = "Pipeline state synced successfully from `{}`."
 
+        #
+        # Schema page
+        #
+        schema_raw_title = "### Raw schema"
+        schema_table_overview = """
+            ### Schema table overview for default schema `{}`
+            <small>The following list shows all the tables found in the dlt schema of the selected pipeline. Please note that in some cases the dlt schema can differ from the actual schema materialized in the destination.
+            Select one or more tables to see their full schema.</small>
+            """
+
+        #
+        # State page
+        #
+        state_raw_title = "### Raw state"
+        #
+        # Ibis backend page
+        #
         ibis_backend_connected = (
             "Ibis Backend connected successfully. If you are in marimo edit mode, you can now see"
             " the connected database in the datasources panel."
         )
-
-        state_sync_title = "### State sync"
-        pipeline_details = "### Pipeline details"
 
     strings = Strings()
 
