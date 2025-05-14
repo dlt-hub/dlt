@@ -1,5 +1,6 @@
-# mypy: disable-error-code="no-untyped-def"
 # flake8: noqa: F841
+
+from typing import Any
 
 import marimo
 
@@ -8,7 +9,9 @@ app = marimo.App(width="medium", app_title="dlt studio", css_file="style.css")
 
 
 @app.cell(hide_code=True)
-def page_welcome(dlt_pipelines_dir, dlt_pipeline_select, dlt_pipeline_count):
+def page_welcome(
+    dlt_pipelines_dir: str, dlt_pipeline_select: marimo.ui.multiselect, dlt_pipeline_count: int
+) -> Any:
     """
     Displays the welcome page with the pipeline select widget, will only display pipeline title if a pipeline is selected
     """
@@ -53,7 +56,7 @@ def page_welcome(dlt_pipelines_dir, dlt_pipeline_select, dlt_pipeline_count):
 
 
 @app.cell(hide_code=True)
-def app_tabs(dlt_pipeline_name):
+def app_tabs(dlt_pipeline_name: str) -> Any:
     """
     Syncs the pipeline and renders the result of the sync
     """
@@ -75,64 +78,38 @@ def app_tabs(dlt_pipeline_name):
 
 @app.cell(hide_code=True)
 def page_overview(
-    dlt_pipeline_name,
-    dlt_pipelines_dir,
-    dlt_page_tabs,
-):
+    dlt_pipeline_name: str,
+    dlt_page_tabs: marimo.ui.tabs,
+) -> Any:
     """
     Overview page of currently selected pipeline
     """
     import marimo as _mo
     from dlt.helpers.studio import strings as _s, helpers as _h, ui_elements as _ui
 
-    dlt_destination_credentials = "Could not resolve credentials"
     _mo.stop(not dlt_pipeline_name or _s.app_tab_overview not in dlt_page_tabs.value)
+    _p = _h.get_pipeline(dlt_pipeline_name)
 
     # sync pipeline
     with _mo.status.spinner(title="Syncing pipeline state from destination..."):
         try:
-            _h.get_pipeline(dlt_pipeline_name).sync_destination()
-            dlt_destination_credentials = str(
-                _h.get_pipeline(dlt_pipeline_name).dataset().destination_client.config.credentials
-            )
+            _p.sync_destination()
+            _credentials = str(_p.dataset().destination_client.config.credentials)
             _sync_result = _mo.callout(
-                _mo.vstack(
-                    [_mo.md(_s.pipeline_sync_success_text.format(dlt_destination_credentials))]
-                ),
+                _mo.vstack([_mo.md(_s.pipeline_sync_success_text.format(_credentials))]),
                 kind="success",
             )
 
         except Exception:
             _sync_result = _ui.build_error_callout(_s.pipeline_sync_error_text)
 
-    dlt_pipeline = _h.get_pipeline(dlt_pipeline_name)
     _mo.vstack(
         [
             _mo.md(_s.pipeline_sync_status),
             _sync_result,
             _mo.md(_s.pipeline_details),
             _mo.ui.table(
-                [  # type: ignore[arg-type]
-                    {"Key": "Pipeline name", "Value": dlt_pipeline.pipeline_name},
-                    {
-                        "Key": "Destination",
-                        "Value": (
-                            dlt_pipeline.destination.destination_description
-                            if dlt_pipeline.destination
-                            else "No destination set"
-                        ),
-                    },
-                    {
-                        "Key": "Credentials",
-                        "Value": dlt_destination_credentials,
-                    },
-                    {"Key": "Dataset name", "Value": dlt_pipeline.dataset_name},
-                    {"Key": "Schema name", "Value": dlt_pipeline.default_schema_name},
-                    {
-                        "Key": "Local pipeline directory",
-                        "Value": dlt_pipelines_dir + "/" + dlt_pipeline_name,
-                    },
-                ],
+                _h.pipeline_details(_p),
                 selection=None,
                 style_cell=_h.style_cell,
             ),
@@ -142,7 +119,7 @@ def page_overview(
 
 
 @app.cell(hide_code=True)
-def page_schema_controls():
+def page_schema_controls() -> Any:
     """
     Control panel for the schema page
     """
@@ -172,11 +149,11 @@ def page_schema_controls():
 
 @app.cell(hide_code=True)
 def page_schema_section_table_list(
-    dlt_pipeline_name,
-    dlt_schema_show_child_tables,
-    dlt_schema_show_dlt_tables,
-    dlt_page_tabs,
-):
+    dlt_pipeline_name: str,
+    dlt_schema_show_child_tables: marimo.ui.switch,
+    dlt_schema_show_dlt_tables: marimo.ui.switch,
+    dlt_page_tabs: marimo.ui.tabs,
+) -> Any:
     """
     Show schema of the currently selected pipeline
     """
@@ -184,8 +161,9 @@ def page_schema_section_table_list(
     from dlt.helpers.studio import strings as _s, helpers as _h
 
     _mo.stop(not dlt_pipeline_name or _s.app_tab_schema not in dlt_page_tabs.value)
+    _p = _h.get_pipeline(dlt_pipeline_name)
 
-    if not _h.get_pipeline(dlt_pipeline_name).default_schema_name:
+    if not _p.default_schema_name:
         dlt_schem_table_list = _mo.callout(
             _mo.md("No Schema available. Does your pipeline have a completed load?"),
             kind="warn",
@@ -193,7 +171,7 @@ def page_schema_section_table_list(
     else:
         dlt_schem_table_list = _mo.ui.table(
             _h.create_table_list(  # type: ignore[arg-type]
-                dlt_pipeline_name,
+                _p,
                 show_internals=dlt_schema_show_dlt_tables.value,
                 show_child_tables=dlt_schema_show_child_tables.value,
             ),
@@ -202,11 +180,7 @@ def page_schema_section_table_list(
 
     _mo.vstack(
         [
-            _mo.md(
-                _s.schema_table_overview.format(
-                    _h.get_pipeline(dlt_pipeline_name).default_schema_name or "<no schema found>"
-                )
-            ),
+            _mo.md(_s.schema_table_overview.format(_p.default_schema_name or "<no schema found>")),
             _mo.hstack([dlt_schema_show_dlt_tables, dlt_schema_show_child_tables], justify="start"),
             dlt_schem_table_list,
         ]
@@ -216,14 +190,14 @@ def page_schema_section_table_list(
 
 @app.cell(hide_code=True)
 def page_schema_section_table_schemas(
-    dlt_pipeline_name,
-    dlt_schem_table_list,
-    dlt_schema_show_other_hints,
-    dtl_schema_show_custom_hints,
-    dtl_schema_show_dlt_columns,
-    dtl_schema_show_type_hints,
-    dlt_page_tabs,
-):
+    dlt_pipeline_name: str,
+    dlt_schem_table_list: marimo.ui.table,
+    dlt_schema_show_other_hints: marimo.ui.switch,
+    dtl_schema_show_custom_hints: marimo.ui.switch,
+    dtl_schema_show_dlt_columns: marimo.ui.switch,
+    dtl_schema_show_type_hints: marimo.ui.switch,
+    dlt_page_tabs: marimo.ui.tabs,
+) -> Any:
     """
     Show schema of the currently selected table
     """
@@ -235,16 +209,18 @@ def page_schema_section_table_schemas(
         or _s.app_tab_schema not in dlt_page_tabs.value
         or not _h.get_pipeline(dlt_pipeline_name).default_schema_name
     )
+    _p = _h.get_pipeline(dlt_pipeline_name)
 
     _stack = []
 
-    for table in dlt_schem_table_list.value:
-        _stack.append(_mo.md(f"### `{table['Name']}`"))
+    for table in dlt_schem_table_list.value:  # type: ignore[union-attr]
+        table_name = table["Name"]  # type: ignore[index]
+        _stack.append(_mo.md(f"### `{table_name}`"))
         _stack.append(
             _mo.ui.table(
-                _h.create_column_list(  # type: ignore[arg-type]
-                    dlt_pipeline_name,
-                    table["Name"],
+                _h.create_column_list(
+                    _p,
+                    table_name,
                     show_internals=dtl_schema_show_dlt_columns.value,
                     show_type_hints=dtl_schema_show_type_hints.value,
                     show_other_hints=dlt_schema_show_other_hints.value,
@@ -275,7 +251,7 @@ def page_schema_section_table_schemas(
 
 
 @app.cell(hide_code=True)
-def page_schema_section_raw_schema(dlt_pipeline_name, dlt_page_tabs):
+def page_schema_section_raw_schema(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> Any:
     import marimo as _mo
     from dlt.helpers.studio import strings as _s, helpers as _h
 
@@ -284,6 +260,7 @@ def page_schema_section_raw_schema(dlt_pipeline_name, dlt_page_tabs):
         or _s.app_tab_schema not in dlt_page_tabs.value
         or not _h.get_pipeline(dlt_pipeline_name).default_schema_name
     )
+    _p = _h.get_pipeline(dlt_pipeline_name)
 
     _mo.vstack(
         [
@@ -291,7 +268,7 @@ def page_schema_section_raw_schema(dlt_pipeline_name, dlt_page_tabs):
             _mo.accordion(
                 {
                     "Show raw schema as yaml": _mo.ui.code_editor(
-                        _h.get_pipeline(dlt_pipeline_name).default_schema.to_pretty_yaml(),
+                        _p.default_schema.to_pretty_yaml(),
                         language="yaml",
                     )
                 }
@@ -302,7 +279,7 @@ def page_schema_section_raw_schema(dlt_pipeline_name, dlt_page_tabs):
 
 
 @app.cell(hide_code=True)
-def page_brows_data(dlt_pipeline_name, dlt_page_tabs):
+def page_brows_data(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> Any:
     """
     Show data of the currently selected pipeline
     """
@@ -310,6 +287,7 @@ def page_brows_data(dlt_pipeline_name, dlt_page_tabs):
     from dlt.helpers.studio import strings as _s, helpers as _h
 
     _mo.stop(not dlt_pipeline_name or _s.app_tab_browse_data not in dlt_page_tabs.value)
+    _p = _h.get_pipeline(dlt_pipeline_name)
 
     _mo.md(_s.browse_data_title)
 
@@ -317,7 +295,7 @@ def page_brows_data(dlt_pipeline_name, dlt_page_tabs):
 
 
 @app.cell(hide_code=True)
-def page_state(dlt_pipeline_name, dlt_page_tabs):
+def page_state(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> Any:
     """
     Show state of the currently selected pipeline
     """
@@ -326,12 +304,13 @@ def page_state(dlt_pipeline_name, dlt_page_tabs):
     from dlt.helpers.studio import strings as _s, helpers as _h
 
     _mo.stop(not dlt_pipeline_name or _s.app_tab_state not in dlt_page_tabs.value)
+    _p = _h.get_pipeline(dlt_pipeline_name)
 
     _mo.vstack(
         [
             _mo.md(_s.state_raw_title),
             _mo.ui.code_editor(
-                _json.dumps(_h.get_pipeline(dlt_pipeline_name).state, pretty=True),
+                _json.dumps(_p.state, pretty=True),
                 language="json",
             ),
         ]
@@ -340,7 +319,7 @@ def page_state(dlt_pipeline_name, dlt_page_tabs):
 
 
 @app.cell(hide_code=True)
-def ibis_browser_page(dlt_pipeline_name, dlt_page_tabs):
+def ibis_browser_page(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> Any:
     """
     Connects to ibis backend and makes it available in the datasources panel
     """
@@ -348,10 +327,11 @@ def ibis_browser_page(dlt_pipeline_name, dlt_page_tabs):
     from dlt.helpers.studio import strings as _s, helpers as _h, ui_elements as _ui
 
     _mo.stop(not dlt_pipeline_name or _s.app_tab_ibis_browser not in dlt_page_tabs.value)
+    _p = _h.get_pipeline(dlt_pipeline_name)
 
     try:
         with _mo.status.spinner(title="Connecting Ibis Backend..."):
-            con = _h.get_pipeline(dlt_pipeline_name).dataset().ibis()
+            con = _p.dataset().ibis()
         connect_result = _mo.callout(
             _mo.vstack([_mo.md(_s.ibis_backend_connected)]), kind="success"
         )
@@ -368,7 +348,7 @@ def ibis_browser_page(dlt_pipeline_name, dlt_page_tabs):
 
 
 @app.cell(hide_code=True)
-def app_discover_pipelines():
+def app_discover_pipelines() -> Any:
     """
     Discovers local pipelines and returns a multiselect widget to select one of the pipelines
     """
@@ -390,13 +370,13 @@ def app_discover_pipelines():
 
 
 @app.cell(hide_code=True)
-def prepare_query_vars(query_params):
+def prepare_query_vars(query_params: Any) -> Any:
     """
     Prepare query params as globals for the following cells
     """
     import marimo as _mo
 
-    dlt_pipeline_name = _mo.query_params().get("pipeline") or None
+    dlt_pipeline_name = query_params.get("pipeline") or None
     dlt_current_page = query_params.get("page") or None
     return (dlt_pipeline_name, dlt_current_page)
 
