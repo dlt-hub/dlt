@@ -20,7 +20,9 @@ TSupportedIde = Literal[
 SUPPORTED_IDES: Set[TSupportedIde] = list(get_args(TSupportedIde))  # type: ignore
 VERIFIED_SOURCES_AI_BASE_DIR = "ai"
 AI_CONTRIBUTE_URL = (
-    os.path.splitext(DEFAULT_VERIFIED_SOURCES_REPO)[0] + "/" + VERIFIED_SOURCES_AI_BASE_DIR
+    os.path.splitext(DEFAULT_VERIFIED_SOURCES_REPO)[0]
+    + "/tree/master/"
+    + VERIFIED_SOURCES_AI_BASE_DIR
 )
 
 # TODO Claude Desktop: rules need to be named `CLAUDE.md`, allow command to append to it
