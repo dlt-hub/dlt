@@ -110,7 +110,7 @@ By explicitly using `insert_at=1`, the email masking step (`mask_email`) is exec
 
 ## Incremental behavior with `insert_at`
 
-Use `insert_at` to control when your transformation runs in the pipeline and ensure it executes before incremental filtering. See [incremental loading documentation](../../general-usage/incremental-loading#transform-records-before-incremental-processing) for more details.
+Use `insert_at` to control when your transformation runs in the pipeline and ensure it executes before incremental filtering. See [incremental loading documentation](../../general-usage/incremental/cursor#transform-records-before-incremental-processing) for more details.
 
 ## Filling missing data for incremental loading
 
@@ -118,7 +118,7 @@ Use `add_map` to ensure records are compatible with incremental loading.
 
 If the incremental cursor field (e.g., `updated_at`) is missing, you can provide a fallback like `created_at`. This ensures all records have a valid cursor value and can be processed correctly by the incremental step.
 
-For example, [in this example](../../general-usage/incremental-loading#transform-records-before-incremental-processing), the third record is made incremental-ready by assigning it a fallback `updated_at` value. This ensures it isn't skipped by the incremental loader.
+[In this example](../../general-usage/incremental/cursor#transform-records-before-incremental-processing), the third record is made incremental-ready by assigning it a fallback `updated_at` value. This ensures it isn't skipped by the incremental loader.
 
 
 ## `add_map` vs `add_yield_map`
