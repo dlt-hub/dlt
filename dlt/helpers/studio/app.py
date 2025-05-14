@@ -3,6 +3,7 @@
 from typing import Any
 
 import marimo
+import pandas as pd
 
 __generated_with = "0.13.6"
 app = marimo.App(width="medium", app_title="dlt studio", css_file="style.css")
@@ -305,6 +306,7 @@ def page_browse_data_section_table_list(
             )
             _connect_result = dlt_data_table_list
     except Exception:
+        raise
         dlt_data_table_list = None
         _connect_result = _ui.build_error_callout(_s.browse_data_error)
 
@@ -354,12 +356,43 @@ def page_browse_data_section_query_editor(
         _table_name = dlt_data_table_list.value[0]["Name"]  # type: ignore[index]
         _sql_query = _p.dataset().table(_table_name).limit(1000).query()
 
-    dlt_query_editor = _mo.ui.code_editor(language="sql", value=_sql_query, debounce=True)
-    dlt_run_query_button = _mo.ui.button(label="Run query", tooltip="Run the query in the editor")
+    dlt_query_editor = _mo.ui.code_editor(
+        language="sql",
+        placeholder="SELECT \n  * \nFROM dataset.table \nLIMIT 1000",
+        value=_sql_query,
+        debounce=True,
+    )
+    dlt_run_query_button = _mo.ui.run_button(
+        label="Run query", tooltip="Run the query in the editor"
+    )
 
     _mo.vstack([_mo.md(_s.browse_data_explorer_title), dlt_query_editor, dlt_run_query_button])
 
-    return
+    return dlt_run_query_button
+
+
+@app.cell(hide_code=True)
+def page_browse_data_section_execute_query(
+    dlt_pipeline_name: str,
+    dlt_page_tabs: marimo.ui.tabs,
+    dlt_run_query_button: marimo.ui.button,
+    dlt_query_editor: marimo.ui.code_editor,
+) -> Any:
+    """
+    Execute the query in the editor
+    """
+    import marimo as _mo
+    from dlt.helpers.studio import strings as _s, helpers as _h
+
+    _mo.stop(not dlt_pipeline_name or _s.app_tab_browse_data not in dlt_page_tabs.value)
+
+    _p = _h.get_pipeline(dlt_pipeline_name)
+
+    with _mo.status.spinner(title="Loading data from destination"):
+        if dlt_query_editor.value and dlt_run_query_button.value:
+            dlt_query_result = _h.get_query_result(_p, dlt_query_editor.value)
+        else:
+            dlt_query_result = _h.get_last_query_result(_p)
 
 
 @app.cell(hide_code=True)
@@ -367,8 +400,7 @@ def page_browse_data_section_data_explorer(
     dlt_pipeline_name: str,
     dlt_page_tabs: marimo.ui.tabs,
     dlt_data_table_list: marimo.ui.table,
-    dlt_run_query_button: marimo.ui.button,
-    dlt_query_editor: marimo.ui.code_editor,
+    dlt_query_result: pd.DataFrame,
 ) -> Any:
     """
     Show data of the currently selected pipeline
@@ -381,18 +413,11 @@ def page_browse_data_section_data_explorer(
         or _s.app_tab_browse_data not in dlt_page_tabs.value
         or not dlt_data_table_list
     )
-    _p = _h.get_pipeline(dlt_pipeline_name)
-
-    with _mo.status.spinner(title="Loading data from destination"):
-        if dlt_query_editor.value:
-            _query_result = _h.get_query_result(_p, dlt_query_editor.value)
-        else:
-            _query_result = []
 
     _mo.vstack(
         [
             _mo.md(_s.browse_data_query_result_title),
-            _mo.ui.table(_query_result, selection=None),
+            _mo.ui.table(dlt_query_result, selection=None),
         ]
     )
 

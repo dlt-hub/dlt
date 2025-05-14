@@ -170,15 +170,26 @@ def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
     return [{"Key": k, "Value": v} for k, v in details_dict.items()]
 
 
-# cache results of queries for pipelines
-QUERY_RESULT_CACHE: Dict[str, pd.DataFrame] = {}
+# cache last of query
+LAST_QUERY_RESULT: Dict[str, pd.DataFrame] = {}
 
 
-def get_query_result(pipeline: dlt.Pipeline, query: str, update: bool = False) -> pd.DataFrame:
+def get_query_result(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
     """
     Get the result of a query.
     """
-    return pipeline.dataset()(query).df()
+    global LAST_QUERY_RESULT
+    result = pipeline.dataset()(query).df()
+    LAST_QUERY_RESULT[pipeline.pipeline_name] = result
+    return result
+
+
+def get_last_query_result(pipeline: dlt.Pipeline) -> pd.DataFrame:
+    """
+    Get the last query result.
+    """
+    global LAST_QUERY_RESULT
+    return LAST_QUERY_RESULT.get(pipeline.pipeline_name, pd.DataFrame())
 
 
 def style_cell(row_id: str, name: str, __: Any) -> Dict[str, str]:

@@ -115,7 +115,7 @@ browse_data_explorer_title = """
 """
 
 browse_data_query_result_title = """
-## Query result
+## Last successful query result
 """
 
 #
