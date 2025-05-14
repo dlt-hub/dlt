@@ -503,9 +503,9 @@ class JsonLItemsNormalizer(ItemsNormalizer):
 
         if non_coerced_fields:
             logger.warning(
-                f"Schema coercion could not infer types for columns {sorted(non_coerced_fields)} "
-                f"in table '{table_name}' of schema '{schema.name}'. "
-                "Consider providing type hints for these columns in the schema definition."
+                "Schema coercion could not infer type(s) for column(s)"
+                f" {sorted(non_coerced_fields)} in table '{table_name}' of schema '{schema.name}'."
+                " Consider providing type hints."
             )
 
         return schema_update
