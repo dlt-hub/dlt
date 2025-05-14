@@ -115,7 +115,7 @@ A column schema contains the following basic hints:
 
 1. `primary_key` marks a column as part of the primary key.
 2. `unique` indicates that the column is unique. On some destinations, this generates a unique index.
-3. `merge_key` marks a column as part of the merge key used by [incremental load](./incremental-loading.md#merge-incremental-loading).
+3. `merge_key` marks a column as part of the merge key used by [merge load](./merge-loading.md).
 
 Hints below are used to create [nested references](#nested-references-root-and-nested-tables):
 1. `row_key` is a special form of primary key created by `dlt` to uniquely identify rows of data.
@@ -205,7 +205,7 @@ The precision for **bigint** is mapped to available integer types, i.e., TINYINT
 
 ## Table references
 `dlt` tables refer to other tables. It supports two types of such references:
-1. **Nested reference** created automatically when nested data (i.e., a `json` document containing a nested list) is converted into relational form. These references use specialized column and table hints and are used, for example, when [merging data](incremental-loading.md).
+1. **Nested reference** created automatically when nested data (i.e., a `json` document containing a nested list) is converted into relational form. These references use specialized column and table hints and are used, for example, when [merging data](merge-loading.md).
 2. **Table references** are optional, user-defined annotations that are not verified and enforced but may be used by downstream tools, for example, to generate automatic tests or models for the loaded data.
 
 ### Nested references: root and nested tables
@@ -218,14 +218,14 @@ When `dlt` normalizes nested data into a relational schema, it automatically cre
 `parent` + `row_key` + `parent_key` form a **nested reference**: from the nested table to the `parent` table and are extensively used when loading data. Both `replace` and `merge` write dispositions.
 
 `row_key` is created as follows:
-1. A random string on **root** tables, except for [`upsert`](incremental-loading.md#upsert-strategy) and
-[`scd2`](incremental-loading.md#scd2-strategy) merge strategies, where it is a deterministic hash of the `primary_key` (or whole row, so-called `content_hash`, if PK is not defined).
+1. A random string on **root** tables, except for [`upsert`](merge-loading.md#upsert-strategy) and
+[`scd2`](merge-loading.md#scd2-strategy) merge strategies, where it is a deterministic hash of the `primary_key` (or whole row, so-called `content_hash`, if PK is not defined).
 2. A deterministic hash of `parent_key`, `parent` table name, and position in the list (`_dlt_list_idx`)
 for **nested** tables.
 
 You are able to bring your own `row_key` by adding a `_dlt_id` column/field to your data (both root and nested). All data types with an equal operator are supported.
 
-`merge` write disposition requires an additional nested reference that goes from **nested** to **root** table, skipping all parent tables in between. This reference is created by [adding a column with a hint](incremental-loading.md#forcing-root-key-propagation) `root_key` (named `_dlt_root_id` by default) to nested tables.
+`merge` write disposition requires an additional nested reference that goes from **nested** to **root** table, skipping all parent tables in between. This reference is created by [adding a column with a hint](merge-loading.md#forcing-root-key-propagation) `root_key` (named `_dlt_root_id` by default) to nested tables.
 
 ### Generate custom linking for nested tables
 Using `nested_hints` in `@dlt.resource` you can model your own relations between root and nested tables. You do that by specifying `primary_key` or `merge_key` on

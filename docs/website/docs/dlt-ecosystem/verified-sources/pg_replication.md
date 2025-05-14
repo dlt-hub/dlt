@@ -18,7 +18,7 @@ Resources that can be loaded using this verified source are:
 | replication_resource | Load published messages from a replication slot |
 
 :::info
-The Postgres replication source currently **does not** support the [scd2 merge strategy](../../general-usage/incremental-loading#scd2-strategy). 
+The Postgres replication source currently **does not** support the [scd2 merge strategy](../../general-usage/merge-loading.md#scd2-strategy). 
 :::
 
 ## Setup guide
