@@ -1980,7 +1980,7 @@ def test_source_repr() -> None:
     assert isinstance(repr_, str)
     assert "dlt.source(" in repr_
 
-        # check that properties used by `__repr__` exist
+    # check that properties used by `__repr__` exist
     assert getattr(source, "name", sentinel) is not sentinel
     assert getattr(source, "schema_contract", sentinel) is not sentinel
     assert getattr(source, "exhausted", sentinel) is not sentinel
@@ -1997,7 +1997,7 @@ def test_resource_dict_repr() -> None:
             yield from range(init, init + 5)
 
         return [number_gen]
-    
+
     sentinel = object()
     resources = number_source().resources
 
@@ -2023,7 +2023,7 @@ def test_resource_repr() -> None:
     assert isinstance(repr_, str)
     assert "dlt.resource(" in repr_
 
-        # check that properties used by `__repr__` exist
+    # check that properties used by `__repr__` exist
     assert getattr(resource, "name", sentinel) is not sentinel
     assert getattr(resource, "_hints", sentinel) is not sentinel
     assert getattr(resource, "_pipe", sentinel) is not sentinel

@@ -454,11 +454,11 @@ def test_removeprefix() -> None:
 
 def test_simple_repr() -> None:
     """`simple_repr()` should always return a string.
-    
+
     Internally, it calls the `__repr__()` of the kwargs.
-    In Python, this method should always be accesible through 
+    In Python, this method should always be accesible through
     inheritance of the `object` class.
     """
-    repr_ = simple_repr("name", foo=object(), bar=32.)
+    repr_ = simple_repr("name", foo=object(), bar=32.0)
 
     assert isinstance(repr_, str)
