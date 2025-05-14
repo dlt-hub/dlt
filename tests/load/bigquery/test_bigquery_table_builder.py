@@ -892,7 +892,9 @@ def test_adapter_hints_custom_clustering_order(
             yield {"a": i, "b": 10 - i}
 
     # Specify cluster order as ["b", "a"]
-    data_with_custom_cluster_order = bigquery_adapter(data.with_name("cluster_order"), cluster=["b", "a"])
+    data_with_custom_cluster_order = bigquery_adapter(
+        data.with_name("cluster_order"), cluster=["b", "a"]
+    )
 
     @dlt.source(max_table_nesting=0)
     def sources() -> List[DltResource]:
@@ -911,7 +913,11 @@ def test_adapter_hints_custom_clustering_order(
         table = nc.get_table(fqtn)
         cluster_fields = [] if table.clustering_fields is None else table.clustering_fields
         # The cluster fields must match the user-specified order
-        assert cluster_fields == ["b", "a"], f"Expected cluster order ['b', 'a'], got {cluster_fields}"
+        assert cluster_fields == [
+            "b",
+            "a",
+        ], f"Expected cluster order ['b', 'a'], got {cluster_fields}"
+
 
 @pytest.mark.parametrize(
     "destination_config",
