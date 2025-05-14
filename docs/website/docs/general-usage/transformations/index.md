@@ -174,10 +174,8 @@ Additionally, column names are normalized according to the naming schema selecte
 This allows dlt to maintain data lineage and enables features like incremental loading and merging, even when working with raw SQL queries.
 
 :::info
-This feature is planned but not yet implemented. Currently, you need to explicitly include these columns in your SQL queries if you want to use them for tracking purposes.
+The normalization described here, including automatic injection or replacement of dlt columns, applies only to SQL-based transformations. Python-based transformations, such as those using dataframes or arrow tables, follow the [regular normalization process](../../reference/explainers/how-dlt-works#normalize).
 :::
-
-> The normalization described here, including automatic injection or replacement of dlt columns, applies only to SQL-based transformations. Python-based transformations, such as those using dataframes or arrow tables, follow a different normalization process as regular resources.
 
 ## Local in-transit transformations example
 
