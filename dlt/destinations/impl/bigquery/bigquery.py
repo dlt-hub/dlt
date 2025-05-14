@@ -288,7 +288,7 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                     " GENERATE_ARRAY(-172800000, 691200000, 86400))"
                 )
 
-        cluster_columns = table.get(CLUSTER_COLUMNS_HINT)
+        cluster_columns = cast(Iterable[str], table.get(CLUSTER_COLUMNS_HINT, []))
         if cluster_columns:
             cluster_list = [self.sql_client.escape_column_name(col) for col in cluster_columns]
             sql[0] += "\nCLUSTER BY " + ", ".join(cluster_list)
