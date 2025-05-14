@@ -130,12 +130,12 @@ def app_controls() -> Any:
         label="<small>Show child tables</small>", value=True
     )
     dlt_schema_show_row_counts = _mo.ui.switch(label="<small>Show row counts</small>", value=False)
-    dtl_schema_show_dlt_columns = _mo.ui.switch(label="<small>Show `_dlt` columns</small>")
-    dtl_schema_show_type_hints = _mo.ui.switch(label="<small>Show type hints</small>", value=True)
+    dlt_schema_show_dlt_columns = _mo.ui.switch(label="<small>Show `_dlt` columns</small>")
+    dlt_schema_show_type_hints = _mo.ui.switch(label="<small>Show type hints</small>", value=True)
     dlt_schema_show_other_hints = _mo.ui.switch(
         label="<small>Show other hints</small>", value=False
     )
-    dtl_schema_show_custom_hints = _mo.ui.switch(
+    dlt_schema_show_custom_hints = _mo.ui.switch(
         label="<small>Show custom hints (x-)</small>", value=False
     )
     return
@@ -187,9 +187,9 @@ def page_schema_section_table_schemas(
     dlt_pipeline_name: str,
     dlt_schem_table_list: marimo.ui.table,
     dlt_schema_show_other_hints: marimo.ui.switch,
-    dtl_schema_show_custom_hints: marimo.ui.switch,
-    dtl_schema_show_dlt_columns: marimo.ui.switch,
-    dtl_schema_show_type_hints: marimo.ui.switch,
+    dlt_schema_show_custom_hints: marimo.ui.switch,
+    dlt_schema_show_dlt_columns: marimo.ui.switch,
+    dlt_schema_show_type_hints: marimo.ui.switch,
     dlt_page_tabs: marimo.ui.tabs,
 ) -> Any:
     """
@@ -208,17 +208,17 @@ def page_schema_section_table_schemas(
     _stack = []
 
     for table in dlt_schem_table_list.value:  # type: ignore[union-attr]
-        table_name = table["Name"]  # type: ignore[index]
-        _stack.append(_mo.md(f"### `{table_name}`"))
+        _table_name = table["Name"]  # type: ignore[index]
+        _stack.append(_mo.md(f"### `{_table_name}`"))
         _stack.append(
             _mo.ui.table(
                 _h.create_column_list(
                     _p,
-                    table_name,
-                    show_internals=dtl_schema_show_dlt_columns.value,
-                    show_type_hints=dtl_schema_show_type_hints.value,
+                    _table_name,
+                    show_internals=dlt_schema_show_dlt_columns.value,
+                    show_type_hints=dlt_schema_show_type_hints.value,
                     show_other_hints=dlt_schema_show_other_hints.value,
-                    show_custom_hints=dtl_schema_show_custom_hints.value,
+                    show_custom_hints=dlt_schema_show_custom_hints.value,
                 ),
                 selection=None,
                 style_cell=_h.style_cell,
@@ -231,10 +231,10 @@ def page_schema_section_table_schemas(
             1,
             _mo.hstack(
                 [
-                    dtl_schema_show_dlt_columns,
-                    dtl_schema_show_type_hints,
+                    dlt_schema_show_dlt_columns,
+                    dlt_schema_show_type_hints,
                     dlt_schema_show_other_hints,
-                    dtl_schema_show_custom_hints,
+                    dlt_schema_show_custom_hints,
                 ],
                 justify="start",
             ),
@@ -331,6 +331,75 @@ def page_browse_data_section_table_list(
 
 
 @app.cell(hide_code=True)
+def page_browse_data_section_query_editor(
+    dlt_pipeline_name: str,
+    dlt_page_tabs: marimo.ui.tabs,
+    dlt_data_table_list: marimo.ui.table,
+) -> Any:
+    """
+    Show data of the currently selected pipeline
+    """
+    import marimo as _mo
+    from dlt.helpers.studio import strings as _s, helpers as _h
+
+    _mo.stop(
+        not dlt_pipeline_name
+        or _s.app_tab_browse_data not in dlt_page_tabs.value
+        or not dlt_data_table_list
+    )
+    _p = _h.get_pipeline(dlt_pipeline_name)
+
+    _sql_query = ""
+    if dlt_data_table_list.value:
+        _table_name = dlt_data_table_list.value[0]["Name"]  # type: ignore[index]
+        _sql_query = _p.dataset().table(_table_name).limit(1000).query()
+
+    dlt_query_editor = _mo.ui.code_editor(language="sql", value=_sql_query, debounce=True)
+    dlt_run_query_button = _mo.ui.button(label="Run query", tooltip="Run the query in the editor")
+
+    _mo.vstack([_mo.md(_s.browse_data_explorer_title), dlt_query_editor, dlt_run_query_button])
+
+    return
+
+
+@app.cell(hide_code=True)
+def page_browse_data_section_data_explorer(
+    dlt_pipeline_name: str,
+    dlt_page_tabs: marimo.ui.tabs,
+    dlt_data_table_list: marimo.ui.table,
+    dlt_run_query_button: marimo.ui.button,
+    dlt_query_editor: marimo.ui.code_editor,
+) -> Any:
+    """
+    Show data of the currently selected pipeline
+    """
+    import marimo as _mo
+    from dlt.helpers.studio import strings as _s, helpers as _h
+
+    _mo.stop(
+        not dlt_pipeline_name
+        or _s.app_tab_browse_data not in dlt_page_tabs.value
+        or not dlt_data_table_list
+    )
+    _p = _h.get_pipeline(dlt_pipeline_name)
+
+    with _mo.status.spinner(title="Loading data from destination"):
+        if dlt_query_editor.value:
+            _query_result = _h.get_query_result(_p, dlt_query_editor.value)
+        else:
+            _query_result = []
+
+    _mo.vstack(
+        [
+            _mo.md(_s.browse_data_query_result_title),
+            _mo.ui.table(_query_result, selection=None),
+        ]
+    )
+
+    return
+
+
+@app.cell(hide_code=True)
 def page_state(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> Any:
     """
     Show state of the currently selected pipeline
@@ -351,7 +420,6 @@ def page_state(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> Any:
             ),
         ]
     )
-    return
 
 
 @app.cell(hide_code=True)

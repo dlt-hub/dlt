@@ -1,6 +1,7 @@
 from typing import List, Tuple, Any, Dict, Union, cast
 from itertools import chain
 import dlt
+import pandas as pd
 
 from dlt.common.pipeline import get_dlt_pipelines_dir
 from dlt.common.storages import FileStorage
@@ -65,7 +66,7 @@ def create_table_list(
     elif show_row_counts and not ROW_COUNTS_CACHE.get(pipeline.pipeline_name):
         ROW_COUNTS_CACHE[pipeline.pipeline_name] = {
             i["table_name"]: i["row_count"]
-            for i in pipeline.dataset().row_counts().df().to_dict(orient="records")
+            for i in pipeline.dataset().row_counts(dlt_tables=True).df().to_dict(orient="records")
         }
 
     # get tables and filter as needed
@@ -167,6 +168,17 @@ def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
     }
 
     return [{"Key": k, "Value": v} for k, v in details_dict.items()]
+
+
+# cache results of queries for pipelines
+QUERY_RESULT_CACHE: Dict[str, pd.DataFrame] = {}
+
+
+def get_query_result(pipeline: dlt.Pipeline, query: str, update: bool = False) -> pd.DataFrame:
+    """
+    Get the result of a query.
+    """
+    return pipeline.dataset()(query).df()
 
 
 def style_cell(row_id: str, name: str, __: Any) -> Dict[str, str]:
