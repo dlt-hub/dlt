@@ -159,7 +159,7 @@ class VaultDocProvider(BaseDocProvider):
             return
 
         # print(f"tries '{key}' {pipeline_name} | {sections} at '{full_key}'")
-        logger.info(f"Vault provider {self.name} will make a request for {full_key}")
+        logger.debug(f"Vault provider {self.name} will make a request for {full_key}")
         secret = self._look_vault(full_key, hint)
         self._vault_lookups[full_key] = pendulum.now()
         if secret is not None:
