@@ -153,7 +153,7 @@ for row in resource():
 
 #### Output
 
-```shell
+```sh
 {'name': 'Alice', 'greeting': 'Hello, Alice!'}
 {'name': 'Bob', 'greeting': 'Hello, Bob!'}
 ```
@@ -186,7 +186,7 @@ for row in resource():
 ```
 #### Output
 
-```shell
+```sh
 {'name': 'Alice', 'hobby': 'reading'}
 {'name': 'Alice', 'hobby': 'chess'}
 {'name': 'Bob', 'hobby': 'cycling'}
