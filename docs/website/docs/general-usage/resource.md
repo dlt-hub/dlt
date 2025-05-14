@@ -47,7 +47,7 @@ Typically, resources are declared and grouped with related resources within a [s
 You can modify the generation process by using the table and column hints. The resource decorator accepts the following arguments:
 
 1. `table_name`: the name of the table, if different from the resource name.
-1. `primary_key` and `merge_key`: define the name of the columns (compound keys are allowed) that will receive those hints. Used in [incremental loading](incremental-loading.md).
+1. `primary_key` and `merge_key`: define the name of the columns (compound keys are allowed) that will receive those hints. Used in [incremental loading](incremental-loading.md) and [merge loading](merge-loading.md).
 1. `columns`: lets you define one or more columns, including the data types, nullability, and other hints. The column definition is a `TypedDict`: `TTableSchemaColumns`. In the example below, we tell `dlt` that the column `tags` (containing a list of tags) in the `user` table should have type `json`, which means that it will be loaded as JSON/struct and not as a separate nested table.
 
   ```py
@@ -496,7 +496,7 @@ You can also set the limit to `0` for the resource to not yield any items.
 
 ### Set table name and adjust schema
 
-You can change the schema of a resource, whether it is standalone or part of a source. Look for a method named `apply_hints` which takes the same arguments as the resource decorator. Obviously, you should call this method before data is extracted from the resource. The example below converts an `append` resource loading the `users` table into a [merge](incremental-loading.md#merge-incremental-loading) resource that will keep just one updated record per `user_id`. It also adds ["last value" incremental loading](incremental-loading.md#incremental-loading-with-a-cursor-field) on the `created_at` column to prevent requesting again the already loaded records:
+You can change the schema of a resource, whether it is standalone or part of a source. Look for a method named `apply_hints` which takes the same arguments as the resource decorator. Obviously, you should call this method before data is extracted from the resource. The example below converts an `append` resource loading the `users` table into a [merge](merge-loading.md) resource that will keep just one updated record per `user_id`. It also adds ["last value" incremental loading](incremental/cursor.md) on the `created_at` column to prevent requesting again the already loaded records:
 
 ```py
 tables = sql_database()
