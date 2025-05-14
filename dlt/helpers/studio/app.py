@@ -119,9 +119,9 @@ def page_overview(
 
 
 @app.cell(hide_code=True)
-def page_schema_controls() -> Any:
+def app_controls() -> Any:
     """
-    Control panel for the schema page
+    Control elements for various parts of the app
     """
     import marimo as _mo
 
@@ -129,6 +129,7 @@ def page_schema_controls() -> Any:
     dlt_schema_show_child_tables = _mo.ui.switch(
         label="<small>Show child tables</small>", value=True
     )
+    dlt_schema_show_row_counts = _mo.ui.switch(label="<small>Show row counts</small>", value=False)
     dtl_schema_show_dlt_columns = _mo.ui.switch(label="<small>Show `_dlt` columns</small>")
     dtl_schema_show_type_hints = _mo.ui.switch(label="<small>Show type hints</small>", value=True)
     dlt_schema_show_other_hints = _mo.ui.switch(
@@ -137,14 +138,7 @@ def page_schema_controls() -> Any:
     dtl_schema_show_custom_hints = _mo.ui.switch(
         label="<small>Show custom hints (x-)</small>", value=False
     )
-    return (
-        dlt_schema_show_child_tables,
-        dlt_schema_show_dlt_tables,
-        dlt_schema_show_other_hints,
-        dtl_schema_show_custom_hints,
-        dtl_schema_show_dlt_columns,
-        dtl_schema_show_type_hints,
-    )
+    return
 
 
 @app.cell(hide_code=True)
@@ -279,17 +273,59 @@ def page_schema_section_raw_schema(dlt_pipeline_name: str, dlt_page_tabs: marimo
 
 
 @app.cell(hide_code=True)
-def page_brows_data(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> Any:
+def page_browse_data_section_table_list(
+    dlt_pipeline_name: str,
+    dlt_page_tabs: marimo.ui.tabs,
+    dlt_schema_show_child_tables: marimo.ui.switch,
+    dlt_schema_show_dlt_tables: marimo.ui.switch,
+    dlt_schema_show_row_counts: marimo.ui.switch,
+) -> Any:
     """
     Show data of the currently selected pipeline
     """
     import marimo as _mo
-    from dlt.helpers.studio import strings as _s, helpers as _h
+    from dlt.helpers.studio import strings as _s, helpers as _h, ui_elements as _ui
 
     _mo.stop(not dlt_pipeline_name or _s.app_tab_browse_data not in dlt_page_tabs.value)
     _p = _h.get_pipeline(dlt_pipeline_name)
 
-    _mo.md(_s.browse_data_title)
+    # try to connect to the dataset
+    try:
+        _p.dataset().destination_client.config.credentials
+        with _mo.status.spinner(title="Getting table list..."):
+            dlt_data_table_list = _mo.ui.table(
+                _h.create_table_list(  # type: ignore[arg-type]
+                    _p,
+                    show_internals=dlt_schema_show_dlt_tables.value,
+                    show_child_tables=dlt_schema_show_child_tables.value,
+                    show_row_counts=dlt_schema_show_row_counts.value,
+                ),
+                style_cell=_h.style_cell,
+                selection="single",
+            )
+            _connect_result = dlt_data_table_list
+    except Exception:
+        dlt_data_table_list = None
+        _connect_result = _ui.build_error_callout(_s.browse_data_error)
+
+    _mo.vstack(
+        [
+            _mo.md(
+                _s.browse_data_title.format(
+                    _p.default_schema_name or "<no schema found>", _p.dataset_name
+                )
+            ),
+            _mo.hstack(
+                [
+                    dlt_schema_show_dlt_tables,
+                    dlt_schema_show_child_tables,
+                    dlt_schema_show_row_counts,
+                ],
+                justify="start",
+            ),
+            _connect_result,
+        ]
+    )
 
     return
 
@@ -332,13 +368,13 @@ def ibis_browser_page(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> 
     try:
         with _mo.status.spinner(title="Connecting Ibis Backend..."):
             con = _p.dataset().ibis()
-        connect_result = _mo.callout(
+        _connect_result = _mo.callout(
             _mo.vstack([_mo.md(_s.ibis_backend_connected)]), kind="success"
         )
     except Exception:
-        connect_result = _ui.build_error_callout(_s.ibis_connect_error)
+        _connect_result = _ui.build_error_callout(_s.ibis_connect_error)
 
-    _mo.vstack([_mo.md(_s.ibis_backend_title), connect_result])
+    _mo.vstack([_mo.md(_s.ibis_backend_title), _connect_result])
     return
 
 
