@@ -110,6 +110,14 @@ browse_data_error = (
     " in scope of `dltHub studio`?"
 )
 
+browse_data_explorer_title = """
+<small>Select a table above or write a sql query in the text area below to explore the data in the destination. The query will be executed on the destination and the results will be displayed in a table.</small>
+"""
+
+browse_data_query_result_title = """
+## Query result
+"""
+
 #
 # State page
 #
