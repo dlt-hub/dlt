@@ -1,12 +1,12 @@
 ---
-title: "Destination: Snowflake Plus"
+title: "Destination: Snowflake Open Catalog"
 description: Snowflake destination with Iceberg table support
 keywords: [Snowflake, Iceberg, destination]
 ---
 
-# Snowflake Plus
+# Snowflake Open Catalog
 
-Snowflake Plus is an **experimental** extension of the [Snowflake destination](../../dlt-ecosystem/destinations/snowflake.md) that adds [Apache Iceberg tables](https://docs.snowflake.com/en/user-guide/tables-iceberg) creation and related features.
+Snowflake Open Catalog destination is an **experimental** extension of the [Snowflake destination](../../dlt-ecosystem/destinations/snowflake.md) that adds [Apache Iceberg tables](https://docs.snowflake.com/en/user-guide/tables-iceberg) creation and related features.
 This destination is available starting from dlt+ version 0.9.0. It fully supports all the functionality of the standard Snowflake destination, plus:
 
 1. The ability to create Iceberg tables in Snowflake by configuring `iceberg_mode` in your `config.toml` file or `dlt.yml` file.
@@ -55,7 +55,7 @@ If you don't have a dlt+ project yet, initialize one in the current working dire
 dlt project init sql_database snowflake_plus
 ```
 
-This will create a Snowflake Plus destination in your `dlt.yml` file:
+This will create a Snowflake Open Catalog destination in your `dlt.yml` file:
 
 ```yaml
 destinations:
@@ -188,7 +188,7 @@ All standard write dispositions (`append`, `replace`, and `merge`) are supported
 
 ## Data types
 
-The Snowflake Plus destination supports all standard Snowflake destination data types, with additional type mappings for Iceberg tables:
+The Snowflake Open Catalog destination supports all standard Snowflake destination data types, with additional type mappings for Iceberg tables:
 
 | dlt Type | Iceberg Type |
 |----------|--------------|
