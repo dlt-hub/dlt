@@ -34,6 +34,7 @@ from dlt.destinations.exceptions import (
 )
 from dlt.destinations.impl.bigquery.bigquery_adapter import (
     AUTODETECT_SCHEMA_HINT,
+    CLUSTER_COLUMNS_HINT,
     PARTITION_HINT,
     PARTITION_EXPIRATION_DAYS_HINT,
     CLUSTER_HINT,
@@ -287,11 +288,9 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                     " GENERATE_ARRAY(-172800000, 691200000, 86400))"
                 )
 
-        if cluster_list := [
-            self.sql_client.escape_column_name(c["name"])
-            for c in new_columns
-            if c.get("cluster") or c.get(CLUSTER_HINT, False)
-        ]:
+        cluster_columns = table.get(CLUSTER_COLUMNS_HINT)
+        if cluster_columns:
+            cluster_list = [self.sql_client.escape_column_name(col) for col in cluster_columns]
             sql[0] += "\nCLUSTER BY " + ", ".join(cluster_list)
 
         # Table options.
