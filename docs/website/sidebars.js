@@ -356,7 +356,7 @@ const sidebars = {
           items: [
             {
               type: 'category',
-              label: 'Transforming data with dbt',
+              label: 'Transform data with dbt',
               items: [
                 'dlt-ecosystem/transformations/dbt/dbt',
                 'dlt-ecosystem/transformations/dbt/dbt_cloud',
@@ -368,6 +368,7 @@ const sidebars = {
               type: 'category',
               label: 'Transform before load',
               items: [
+                'dlt-ecosystem/transformations/add-map',
                 'general-usage/customising-pipelines/renaming_columns',
                 'general-usage/customising-pipelines/pseudonymizing_columns',
                 'general-usage/customising-pipelines/removing_columns',
