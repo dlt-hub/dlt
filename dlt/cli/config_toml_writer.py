@@ -36,12 +36,11 @@ def generate_typed_example(name: str, hint: AnyType) -> Any:
             return True
         if sc_type == "json":
             if is_subclass(inner_hint, C_Sequence):
-                return ["customers", "orders", "items"]
+                return ["<configure me>"]
             else:
                 table = tomlkit.table(False)
-                table["base_url"] = "https://jaffle-shop.scalevector.ai/api/v1"
-                table["paginator"] = {"type": "header_link"}
-                table["paginator"].comment("nested object example")
+                table["key_1"] = "<configure me>"
+                table["key_2"] = {"key_2_1": "<configure me>", "key_2_2": "<configure me>"}
                 return table
         if sc_type == "timestamp":
             return pendulum.now().to_iso8601_string()
