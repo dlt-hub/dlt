@@ -1,4 +1,4 @@
-from typing import List, Tuple, Any, Dict, Dict, cast
+from typing import List, Tuple, Any, Dict, Union, cast
 from itertools import chain
 import dlt
 
@@ -45,33 +45,48 @@ def _align_dict_keys(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return items
 
 
+ROW_COUNTS_CACHE: Dict[str, Dict[str, int]] = {}
+
+
 def create_table_list(
-    pipeline: dlt.Pipeline, show_internals: bool = False, show_child_tables: bool = True
+    pipeline: dlt.Pipeline,
+    show_internals: bool = False,
+    show_child_tables: bool = True,
+    show_row_counts: bool = False,
 ) -> List[Dict[str, str]]:
     """Create a list of tables for the pipeline.
 
     Args:
         pipeline_name (str): The name of the pipeline to create the table list for.
     """
+    global ROW_COUNTS_CACHE
+    if not show_row_counts:
+        ROW_COUNTS_CACHE.pop(pipeline.pipeline_name, {})
+    elif show_row_counts and not ROW_COUNTS_CACHE.get(pipeline.pipeline_name):
+        ROW_COUNTS_CACHE[pipeline.pipeline_name] = {
+            i["table_name"]: i["row_count"]
+            for i in pipeline.dataset().row_counts().df().to_dict(orient="records")
+        }
 
+    # get tables and filter as needed
     tables = list(pipeline.default_schema.tables.values())
-
     if not show_child_tables:
         tables = [t for t in tables if t.get("parent") is None]
 
-    table_list = [
+    table_list: List[Dict[str, Union[str, int, None]]] = [
         {
             "Name": table["name"],
             "Parent": table.get("parent", "-"),
             "Resource": table.get("resource", "-"),
             "Write disposition": table.get("write_disposition", ""),
             "Description": table.get("description", None),
+            "Row count": ROW_COUNTS_CACHE.get(pipeline.pipeline_name, {}).get(table["name"], None),
         }
         for table in tables
     ]
-    table_list.sort(key=lambda x: x["Name"])
+    table_list.sort(key=lambda x: str(x["Name"]))
     if not show_internals:
-        table_list = [t for t in table_list if not t["Name"].lower().startswith("_dlt")]
+        table_list = [t for t in table_list if not str(t["Name"]).lower().startswith("_dlt")]
     return _align_dict_keys(table_list)
 
 

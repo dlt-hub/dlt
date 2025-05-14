@@ -101,7 +101,14 @@ schema_table_overview = """
 #
 # Browse data page
 #
-browse_data_title = "## Browse data"
+browse_data_title = """## Browse data of schema `{}` in dataset `{}`
+<small>Browse data of the current pipeline. Select a table from the list to start or write a sql query in the text area below. Toggeling row counts will load the row counts for all tables from the destination. To reload, toggle the switch again.</small>
+"""
+
+browse_data_error = (
+    "Error connecting to destination. Has your pipeline been run and are your credentials"
+    " in scope of `dltHub studio`?"
+)
 
 #
 # State page
