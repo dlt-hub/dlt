@@ -292,6 +292,18 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         if cluster_columns:
             cluster_list = [self.sql_client.escape_column_name(col) for col in cluster_columns]
             sql[0] += "\nCLUSTER BY " + ", ".join(cluster_list)
+        else:
+            # Fallback for legacy and test scenarios where only per-column 'cluster' hints are set.
+            # This is required for backward compatibility and to pass tests like
+            # 'test_create_table_with_partition_and_cluster' in test_bigquery_table_builder.py,
+            # which set clustering only via per-column hints and expect the CLUSTER BY clause.
+            cluster_cols_from_columns = [
+                self.sql_client.escape_column_name(c["name"])
+                for c in new_columns
+                if c.get("cluster") or c.get(CLUSTER_HINT, False)
+            ]
+            if cluster_cols_from_columns:
+                sql[0] += "\nCLUSTER BY " + ", ".join(cluster_cols_from_columns)
 
         # Table options.
         table_options: DictStrAny = {
