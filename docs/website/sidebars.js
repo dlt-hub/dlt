@@ -306,8 +306,13 @@ const sidebars = {
           type: 'category',
           label: 'Load data incrementally',
           items: [
-            'general-usage/incremental-loading',            
             'general-usage/full-loading',
+            'general-usage/merge-loading',
+            'general-usage/incremental-loading',
+            'general-usage/incremental/cursor',
+            'general-usage/incremental/lag',
+            'general-usage/incremental/advanced-state',
+            'general-usage/incremental/troubleshooting',
           ]
         },
         {
@@ -369,7 +374,7 @@ const sidebars = {
               ]
             }
           ]
-        },        
+        },
       ]
     },
     {

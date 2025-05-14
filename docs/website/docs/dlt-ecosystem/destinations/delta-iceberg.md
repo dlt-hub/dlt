@@ -89,7 +89,7 @@ Note that not all authentication methods are supported when using Delta table fo
 - [OAuth](../destinations/bigquery.md#oauth-20-authentication) - ❌ Not supported
 
 ## Table format `merge` support (**experimental**)
-The [`upsert`](../../general-usage/incremental-loading.md#upsert-strategy) merge strategy is supported for `delta`.
+The [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) merge strategy is supported for `delta`.
 
 :::caution
 The `upsert` merge strategy for the filesystem destination with Delta table format is **experimental**.
