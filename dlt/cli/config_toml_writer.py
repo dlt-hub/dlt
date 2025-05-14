@@ -14,6 +14,14 @@ from dlt.common.configuration.specs import (
 from dlt.common.data_types import py_type_to_sc_type
 from dlt.common.typing import AnyType, is_optional_type, is_subclass
 
+MOON_LANDING = pendulum.datetime(1969, 7, 21, 2, 56, 0, tz="UTC")
+TYPE_EXAMPLES = {
+    "text": "<configure me>",
+    "datetime": MOON_LANDING.to_iso8601_string(),
+    "timestamp": MOON_LANDING.timestamp(),
+    "date": MOON_LANDING.to_date_string(),
+}
+
 
 class WritableConfigValue(NamedTuple):
     name: Any
@@ -26,8 +34,8 @@ def generate_typed_example(name: str, hint: AnyType) -> Any:
     inner_hint = extract_inner_hint(hint)
     try:
         sc_type = py_type_to_sc_type(inner_hint)
-        if sc_type == "text":
-            return "<configure me>"
+        if sc_type in TYPE_EXAMPLES.keys():
+            return TYPE_EXAMPLES[sc_type]
         if sc_type == "bigint":
             return 0
         if sc_type == "double":
@@ -35,17 +43,7 @@ def generate_typed_example(name: str, hint: AnyType) -> Any:
         if sc_type == "bool":
             return True
         if sc_type == "json":
-            if is_subclass(inner_hint, C_Sequence):
-                return ["<configure me>"]
-            else:
-                table = tomlkit.table(False)
-                table["key_1"] = "<configure me>"
-                table["key_2"] = {"key_2_1": "<configure me>", "key_2_2": "<configure me>"}
-                return table
-        if sc_type == "timestamp":
-            return pendulum.now().to_iso8601_string()
-        if sc_type == "date":
-            return pendulum.now().date().to_date_string()
+            raise NotImplementedError("example for json-types not supported")
         if sc_type in ("wei", "decimal"):
             return "1.0"
         raise TypeError(sc_type)
@@ -78,11 +76,14 @@ def write_value(
             toml_table[name] = inner_table
     else:
         if default_value is None:
-            example_value = generate_typed_example(name, hint)
-            toml_table[name] = example_value
-            # tomlkit not supporting comments on boolean
-            if not isinstance(example_value, bool):
-                toml_table[name].comment("fill this in!")
+            try:
+                example_value = generate_typed_example(name, hint)
+                toml_table[name] = example_value
+                # tomlkit not supporting comments on boolean
+                if not isinstance(example_value, bool):
+                    toml_table[name].comment("fill this in!")
+            except NotImplementedError:
+                pass
         else:
             toml_table[name] = default_value
 

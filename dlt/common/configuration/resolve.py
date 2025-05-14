@@ -1,6 +1,8 @@
 import itertools
 from collections.abc import Mapping as C_Mapping
 from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, Type, TypeVar
+import dlt.cli.echo as fmt
+from dlt.cli.config_toml_writer import TYPE_EXAMPLES
 
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.typing import (
@@ -46,7 +48,7 @@ def resolve_configuration(
     *,
     sections: Tuple[str, ...] = (),
     explicit_value: Any = None,
-    accept_partial: bool = False
+    accept_partial: bool = False,
 ) -> TConfiguration:
     if not isinstance(config, BaseConfiguration):
         raise ConfigurationWrongTypeException(type(config))
@@ -526,6 +528,19 @@ def resolve_single_provider_value(
             break
         # pop optional sections for less precise lookup
         ns.pop()
+
+    if value in TYPE_EXAMPLES.values():
+        is_secret = is_secret_hint(hint)
+        config_or_secret = "secret" if is_secret else "config"
+        file_to_fix = "secrets.toml" if is_secret else "config.toml"
+        fmt.warning(
+            f"Placeholder value encountered when resolving {config_or_secret}:\n"
+            f"resolved_key:{key} - value:{value}\n"
+            "Most likely, this comes from `dlt init`-command, which creates basic templates for"
+            "non-complex configs and secrets.The {file_to_fix} to adjust is in one of these "
+            "locations: \n{",
+            ".join(provider.locations)}",
+        )
 
     return value, traces
 
