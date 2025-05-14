@@ -356,7 +356,7 @@ const sidebars = {
           items: [
             {
               type: 'category',
-              label: 'Transforming data with dbt',
+              label: 'Transform data with dbt',
               items: [
                 'dlt-ecosystem/transformations/dbt/dbt',
                 'dlt-ecosystem/transformations/dbt/dbt_cloud',

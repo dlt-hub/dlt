@@ -1,5 +1,5 @@
 ---
-title: Transforming data with `add_map`
+title: Transform data with `add_map`
 description: Apply lightweight python transformations to your data inline using `add_map`.
 keywords: [add_map, transform data, remove columns]
 ---
