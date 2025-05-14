@@ -365,11 +365,10 @@ def deserialize_type(type_str: str) -> pyarrow.DataType:
         raise TypeError("Cannot deserialize pyarrow type, only arrow-ipc is supported")
 
 
-def remove_null_columns(item: TAnyArrowItem) -> TAnyArrowItem:
-    """Remove all columns of datatype pyarrow.null() from the table or record batch"""
-    return remove_columns(
-        item, [field.name for field in item.schema if pyarrow.types.is_null(field.type)]
-    )
+def remove_null_columns(item: TAnyArrowItem) -> Tuple[TAnyArrowItem, list[str]]:
+    """Remove all columns of datatype pyarrow.null() from the table or record batch and returns the removed columns"""
+    null_cols = [field.name for field in item.schema if pyarrow.types.is_null(field.type)]
+    return remove_columns(item, null_cols), null_cols
 
 
 def remove_columns(item: TAnyArrowItem, columns: Sequence[str]) -> TAnyArrowItem:
@@ -1019,7 +1018,7 @@ def row_tuples_to_arrow(
     # ref: https://github.com/apache/arrow/issues/41667
     arrow_table = pa.Table.from_arrays(arrow_arrays, schema=pa.schema(arrow_fields))
     # this only removes empty columns that don't have an explicit dlt `data_type`
-    arrow_table = remove_null_columns(arrow_table)
+    arrow_table, _ = remove_null_columns(arrow_table)
     return arrow_table
 
 

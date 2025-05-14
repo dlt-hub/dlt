@@ -387,7 +387,7 @@ def test_remove_null_columns(pa_type: Any) -> None:
             {"a": 1, "b": None, "c": None},
         ]
     )
-    result = remove_null_columns(table)
+    result, _ = remove_null_columns(table)
     assert result.column_names == ["a", "b"]
     assert _row_at_index(result, 0) == [1, 2]
     assert _row_at_index(result, 1) == [1, None]
