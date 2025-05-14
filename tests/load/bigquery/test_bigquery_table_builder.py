@@ -873,6 +873,51 @@ def test_adapter_hints_multiple_clustering(
     destinations_configs(default_sql_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
+def test_adapter_hints_custom_clustering_order(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """
+    Test that the BigQuery destination respects the user-specified clustering column order.
+    Issue #2545: If user specifies cluster=["b", "a"], the table must be clustered by ["b", "a"].
+    """
+
+    @dlt.resource(
+        columns=[
+            {"name": "a", "data_type": "bigint"},
+            {"name": "b", "data_type": "bigint"},
+        ]
+    )
+    def data() -> Iterator[Dict[str, int]]:
+        for i in range(10):
+            yield {"a": i, "b": 10 - i}
+
+    # Specify cluster order as ["b", "a"]
+    data_with_custom_cluster_order = bigquery_adapter(data.with_name("cluster_order"), cluster=["b", "a"])
+
+    @dlt.source(max_table_nesting=0)
+    def sources() -> List[DltResource]:
+        return [data_with_custom_cluster_order]
+
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}",
+        dev_mode=True,
+    )
+
+    pipeline.run(sources())
+
+    with pipeline.sql_client() as c:
+        nc: google.cloud.bigquery.client.Client = c.native_connection
+        fqtn = c.make_qualified_table_name("cluster_order", escape=False)
+        table = nc.get_table(fqtn)
+        cluster_fields = [] if table.clustering_fields is None else table.clustering_fields
+        # The cluster fields must match the user-specified order
+        assert cluster_fields == ["b", "a"], f"Expected cluster order ['b', 'a'], got {cluster_fields}"
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
 def test_adapter_hints_clustering(
     destination_config: DestinationTestConfiguration,
 ) -> None:
