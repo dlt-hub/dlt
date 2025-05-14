@@ -537,9 +537,8 @@ def resolve_single_provider_value(
             f"Placeholder value encountered when resolving {config_or_secret}:\n"
             f"resolved_key:{key} - value:{value}\n"
             "Most likely, this comes from `dlt init`-command, which creates basic templates for"
-            "non-complex configs and secrets.The {file_to_fix} to adjust is in one of these "
-            "locations: \n{",
-            ".join(provider.locations)}",
+            f"non-complex configs and secrets.The {file_to_fix} to adjust is in the .dlt-settings "
+            f"directory in one of these locations:\n{"\n".join(provider.locations)}"
         )
 
     return value, traces

@@ -66,6 +66,7 @@ from dlt.common.configuration.utils import (
     add_config_to_env,
 )
 from dlt.common.pipeline import TRefreshMode
+from dlt.cli.config_toml_writer import TYPE_EXAMPLES
 
 from dlt.destinations.impl.postgres.configuration import PostgresCredentials
 from tests.utils import preserve_environ
@@ -257,6 +258,14 @@ class SubclassConfigWithDynamicType(ConfigWithDynamicType):
 @configspec
 class ConfigWithLiteralField(BaseConfiguration):
     refresh: TRefreshMode = None
+
+
+@configspec
+class ConfigWithPlaceholders(BaseConfiguration):
+    text: str = TYPE_EXAMPLES["text"]
+    date: str = TYPE_EXAMPLES["date"]
+    datetime: str = TYPE_EXAMPLES["datetime"]
+    timestamp: float = TYPE_EXAMPLES["timestamp"]
 
 
 LongInteger = NewType("LongInteger", int)
@@ -569,7 +578,7 @@ def test_embedded_config(environment: Any) -> None:
     with custom_environ(
         {
             "INSTRUMENTED__HEAD": "h",
-            "INSTRUMENTED__TUBE": '["tu", "u", "be"]',
+            "INSTRUMENTED__TUBE": '["tu", "be"]',
             "INSTRUMENTED__HEELS": "xhe",
             "SECTIONED__PASSWORD": "passwd",
             "DEFAULT": "DEF",
@@ -577,7 +586,7 @@ def test_embedded_config(environment: Any) -> None:
     ):
         C = resolve.resolve_configuration(EmbeddedConfiguration())
         assert C.default == "DEF"
-        assert C.instrumented.to_native_representation() == "h>tu>u>be>xhe"
+        assert C.instrumented.to_native_representation() == "h>tu>be>xhe"
         assert C.sectioned.password == "passwd"
 
     # resolve partial, partial is passed to embedded
@@ -1574,3 +1583,14 @@ def test_configuration_with_literal_field(environment: Dict[str, str]) -> None:
 
     spec = resolve.resolve_configuration(ConfigWithLiteralField())
     assert spec.refresh == "drop_data"
+
+
+def test_warn_when_resolving_placeholders(caplog: pytest.LogCaptureFixture) -> None:
+    config = ConfigWithPlaceholders()
+    assert config['text'] == "<configure me>"
+    resolved = None
+    with caplog.at_level("WARNING"):
+        resolved = resolve.resolve_configuration(config, accept_partial=True)
+
+    assert resolved['text'] == "<configure me>"
+    assert "Placeholder value encountered when resolving" in  caplog.text
