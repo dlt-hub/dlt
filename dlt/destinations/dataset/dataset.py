@@ -136,16 +136,15 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
 
         # here we create the client bound to the resolved schema
         if not self._sql_client:
-            with self._destination_client(self._schema) as destination_client:
-                if isinstance(destination_client, WithSqlClient):
-                    self._sql_client = destination_client.sql_client
-                else:
-                    raise Exception(
-                        f"Destination {destination_client.config.destination_type} does not support"
-                        " SqlClient."
-                    )
-                if isinstance(destination_client, SupportsOpenTables):
-                    self._table_client = destination_client
+            client = self._destination_client(self._schema)
+            if isinstance(client, WithSqlClient):
+                self._sql_client = client.sql_client
+            else:
+                raise Exception(
+                    f"Destination {client.config.destination_type} does not support SqlClient."
+                )
+            if isinstance(client, SupportsOpenTables):
+                self._table_client = client
 
     def __call__(self, query: Any) -> ReadableDBAPIRelation:
         # TODO: accept other query types and return a right relation: sqlglot (DBAPI) and ibis (Expr)
