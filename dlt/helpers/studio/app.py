@@ -183,7 +183,7 @@ def page_schema_section_table_list(
             show_child_tables=dlt_schema_show_child_tables.value,
         )
         dlt_schem_table_list = _mo.ui.table(
-            _table_list,  # type: ignore[arg-type]
+            _table_list,
             style_cell=_h.style_cell,
             initial_selection=list(range(0, len(_table_list))),
         )
