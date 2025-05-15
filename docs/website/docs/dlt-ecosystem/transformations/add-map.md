@@ -30,9 +30,9 @@ This page covers how `add_map` works, where it fits in the pipeline, and how to 
 
 In addition to `add_map`, dlt provides:
 
-- **`add_filter`**: Excludes records based on a condition. Works like a filter function that removes items you don't want to load. ([`resource.add_filter`)](../../../api_reference/dlt/extract/resource#add_filter).
-- **`add_yield_map`**: Produces multiple outputs from a single input item. Returns an iterator instead of a single item. ([`resource.add_yield_map`](../../../api_reference/dlt/extract/resource#add_yield_map)).
-- **`add_limit`**: Limits the number of records processed by a resource. Useful for testing or reducing data volume during development. ([`resource.add_limit`](../../../api_reference/dlt/extract/resource#add_limit)).
+- **`add_filter`**: Excludes records based on a condition. Works like a filter function that removes items you don't want to load. ([`resource.add_filter`)](../../api_reference/dlt/extract/resource#add_filter).
+- **`add_yield_map`**: Produces multiple outputs from a single input item. Returns an iterator instead of a single item. ([`resource.add_yield_map`](../../api_reference/dlt/extract/resource#add_yield_map)).
+- **`add_limit`**: Limits the number of records processed by a resource. Useful for testing or reducing data volume during development. ([`resource.add_limit`](../../api_reference/dlt/extract/resource#add_limit)).
 
 These methods help you control the shape and flow of data during transformation.
 
