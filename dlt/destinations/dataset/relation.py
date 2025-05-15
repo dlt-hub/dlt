@@ -2,6 +2,7 @@ from typing import Any, Generator, Sequence, Type, Union, TYPE_CHECKING
 from contextlib import contextmanager
 
 import sqlglot
+import sqlglot.expressions as sge
 
 from dlt.common.destination.dataset import (
     SupportsReadableRelation,
@@ -122,13 +123,10 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
             query = sqlglot.transpile(query, read=dialect, write="duckdb")[0]
             dialect = "duckdb"
 
-        # TODO: maybe store the SQLGlot schema on the dataset
         # TODO: support joins between datasets
-        d = self._dataset
-        sqlglot_schema = lineage.create_sqlglot_schema(d.schema)
         return lineage.compute_columns_schema(
             query,
-            sqlglot_schema,
+            self._dataset.sqlglot_schema,
             dialect,
             infer_sqlglot_schema=infer_sqlglot_schema,
             allow_anonymous_columns=allow_anonymous_columns,
@@ -149,10 +147,11 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         self,
         *,
         readable_dataset: "ReadableDBAPIDataset",
-        provided_query: Any = None,
+        provided_query: Union[str, sge.Select] = None,
         table_name: str = None,
         limit: int = None,
         selected_columns: Sequence[str] = None,
+        load_ids: Union[Sequence[str], Set[str], None] = None,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
 
@@ -167,38 +166,47 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         self._table_name = table_name
         self._limit = limit
         self._selected_columns = selected_columns
+        self._load_ids = set(load_ids) if load_ids else set()
 
+    # TODO can we assume this returns `str`?
     def query(self) -> Any:
         """build the query"""
-        # TODO reimplement this using SQLGLot instead of passing strings
-        if self._provided_query:
+        if isinstance(self._provided_query, str):
             return self._provided_query
+        elif isinstance(self._provided_query, sge.Select):
+            return self._provided_query.sql()
+        else:
+            expr = self.__prepare_relation_expr()
+            return expr.sql()
 
-        dataset_schema = self._dataset.schema
+    def sql(self) -> str:
+        if isinstance(self._provided_query, str):
+            return self._provided_query
+        elif isinstance(self._provided_query, sge.Select):
+            return self._provided_query.sql()
+        else:
+            expr = self.__prepare_relation_expr()
+            return expr.sql()
 
-        table_name = self.sql_client.make_qualified_table_name(
-            dataset_schema.naming.normalize_path(self._table_name)
+    def __prepare_relation_expr(self) -> sge.Expression:
+        qualified_table_name = self.sql_client.make_qualified_table_name(
+            self._dataset.schema.naming.normalize_path(self._table_name)
         )
-
-        maybe_limit_clause_1 = ""
-        maybe_limit_clause_2 = ""
-        if self._limit:
-            maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(
-                self._limit
-            )
-
-        selector = "*"
         if self._selected_columns:
-            selector = ",".join(
-                [
-                    self.sql_client.escape_column_name(
-                        dataset_schema.naming.normalize_tables_path(c)
-                    )
-                    for c in self._selected_columns
-                ]
+            selection = (
+                self.sql_client.escape_column_name(
+                    self._dataset.schema.naming.normalize_tables_path(c)
+                )
+                for c in self._selected_columns
             )
+        else:
+            selection = ["*"]
 
-        return f"SELECT {maybe_limit_clause_1} {selector} FROM {table_name} {maybe_limit_clause_2}"
+        query = sge.select(*selection).from_(qualified_table_name)
+        if isinstance(self._limit, int):
+            query = query.limit(self._limit)
+
+        return query
 
     def __copy__(self) -> Self:
         return self.__class__(
