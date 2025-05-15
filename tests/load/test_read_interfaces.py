@@ -623,7 +623,7 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
 )
 def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # NOTE: we could generalize this with a context for certain deps
-    import ibis  # type: ignore
+    import ibis
 
     # now we should get the more powerful ibis relation
     dataset = populated_pipeline.dataset()
@@ -955,7 +955,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     other_schema.tables["other_table"] = utils.new_table("other_table")
 
     populated_pipeline._inject_schema(other_schema)
-    populated_pipeline.default_schema_name = other_schema.name
+    populated_pipeline.default_schema_name = other_schema.name  # type: ignore[assignment]
     with populated_pipeline.destination_client() as client:
         client.update_stored_schema()
 

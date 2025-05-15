@@ -3,6 +3,7 @@ import os
 from typing import Any, List, NamedTuple
 from dataclasses import dataclass
 import pytest
+from copy import deepcopy
 
 from dlt.common import json, Decimal, pendulum
 from dlt.common.arithmetics import numeric_default_context
@@ -212,11 +213,33 @@ def test_json_pendulum(json_impl: SupportsJson) -> None:
     s_r = json_impl.loads(s)
     assert s_r["date"] == "2022-02-02"
     assert s_r["time"] == "20:37:37.358236"
+
     # Decodes zulu notation as well
     dt_str_z = "2005-04-02T20:37:37.358236Z"
     s = f'"{_DATETIME + dt_str_z}"'
     s_r = json_impl.typed_loads(s)
     assert s_r == pendulum.parse(dt_str_z)
+
+    # decodes timezones and ensures that deepcopy retains timezones
+    # we had a bug where timezones got lost during deepcopy
+    dt_str_utc = "2005-04-02T20:37:37.358236Z"
+    dt_str_0200 = "2005-04-02T20:37:37.358236+02:00"
+    dt_naive = "2005-04-02T20:37:37.358236"
+
+    values = {
+        "utc": pendulum.parse(dt_str_utc),
+        "0200": pendulum.parse(dt_str_0200),
+        "naive": pendulum.parse(dt_naive, tz=None),
+    }
+
+    loaded_values = json_impl.typed_loads(json_impl.typed_dumps(values))
+    assert loaded_values == values
+
+    copied_values = deepcopy(loaded_values)
+    assert copied_values == values == loaded_values
+    assert copied_values["utc"].tzname() == "+00:00"
+    assert copied_values["0200"].tzname() == "+02:00"
+    assert copied_values["naive"].tzname() is None
 
 
 # @pytest.mark.parametrize("json_impl", _JSON_IMPL)

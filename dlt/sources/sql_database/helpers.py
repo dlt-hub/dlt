@@ -241,14 +241,14 @@ def table_rows(
     metadata: MetaData,
     chunk_size: int,
     backend: TableBackend,
-    incremental: Optional[Incremental[Any]] = None,
-    table_adapter_callback: TTableAdapter = None,
-    reflection_level: ReflectionLevel = "minimal",
-    backend_kwargs: Dict[str, Any] = None,
-    type_adapter_callback: Optional[TTypeAdapter] = None,
-    included_columns: Optional[List[str]] = None,
-    query_adapter_callback: Optional[TQueryAdapter] = None,
-    resolve_foreign_keys: bool = False,
+    incremental: Optional[Incremental[Any]],
+    table_adapter_callback: TTableAdapter,
+    reflection_level: ReflectionLevel,
+    backend_kwargs: Dict[str, Any],
+    type_adapter_callback: Optional[TTypeAdapter],
+    included_columns: Optional[List[str]],
+    query_adapter_callback: Optional[TQueryAdapter],
+    resolve_foreign_keys: bool,
 ) -> Iterator[TDataItem]:
     if isinstance(table, str):  # Reflection is deferred
         table = Table(

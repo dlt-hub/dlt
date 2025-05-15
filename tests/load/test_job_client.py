@@ -1073,14 +1073,14 @@ def test_schema_retrieval(destination_config: DestinationTestConfiguration) -> N
 
     def add_schema_to_pipeline(s: Schema) -> None:
         p._inject_schema(s)
-        p.default_schema_name = s.name
+        p.default_schema_name = s.name  # type: ignore[assignment]
         with p.destination_client() as client:
             client.initialize_storage()
             client.update_stored_schema()
 
     # check what happens if there is only one
     add_schema_to_pipeline(s1_v1)
-    p.default_schema_name = s1_v1.name
+    p.default_schema_name = s1_v1.name  # type: ignore[assignment]
     with p.destination_client() as client:  # type: ignore[assignment]
         assert client.get_stored_schema("schema_1").version_hash == s1_v1.version_hash
         assert client.get_stored_schema().version_hash == s1_v1.version_hash
@@ -1089,7 +1089,7 @@ def test_schema_retrieval(destination_config: DestinationTestConfiguration) -> N
     # now we add a different schema
     # but keep default schema name at v1
     add_schema_to_pipeline(s2_v1)
-    p.default_schema_name = s1_v1.name
+    p.default_schema_name = s1_v1.name  # type: ignore[assignment]
     with p.destination_client() as client:  # type: ignore[assignment]
         assert client.get_stored_schema("schema_1").version_hash == s1_v1.version_hash
         # here v2 will be selected as it is newer
@@ -1099,7 +1099,7 @@ def test_schema_retrieval(destination_config: DestinationTestConfiguration) -> N
     # add two more version,
     add_schema_to_pipeline(s1_v2)
     add_schema_to_pipeline(s2_v2)
-    p.default_schema_name = s1_v1.name
+    p.default_schema_name = s1_v1.name  # type: ignore[assignment]
     with p.destination_client() as client:  # type: ignore[assignment]
         assert client.get_stored_schema("schema_1").version_hash == s1_v2.version_hash
         # here v2 will be selected as it is newer
@@ -1107,7 +1107,7 @@ def test_schema_retrieval(destination_config: DestinationTestConfiguration) -> N
         assert not client.get_stored_schema("other_schema")
 
     # check same setup with other default schema name
-    p.default_schema_name = s2_v1.name
+    p.default_schema_name = s2_v1.name  # type: ignore[assignment]
     with p.destination_client() as client:  # type: ignore[assignment]
         assert client.get_stored_schema("schema_2").version_hash == s2_v2.version_hash
         # here v2 will be selected as it is newer

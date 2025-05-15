@@ -1,5 +1,5 @@
 ---
-title: Transforming the Data with dbt Cloud
+title: Transform data with dbt Cloud
 description: Transforming the data loaded by a dlt pipeline with dbt Cloud
 keywords: [transform, sql]
 ---

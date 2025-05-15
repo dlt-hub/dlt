@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "1.10.0"
+version = "1.11.0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Anton Burnashev <anton@dlthub.com>", "David Scharf <david@dlthub.com>" ]
@@ -31,11 +31,7 @@ packages = [
 [tool.poetry.dependencies]
 python = ">=3.9,<3.14"
 requests = ">=2.26.0"
-pendulum = {version = ">=2.1.2", markers = "python_version < '3.13'"}
-# NOTE: revert to normal pendulum once it supports python 3.13
-dlt-pendulum = [
-    {version=">=3.0.2", markers = "python_version >= '3.13'"}
-]
+pendulum = ">=2.1.2"
 simplejson = ">=3.17.5"
 PyYAML = ">=5.4.1"
 semver = ">=3.0.0"
@@ -196,6 +192,7 @@ shapely = ">=2.0.6"
 pip = ">=24.0.0"
 # keep duckdb compatible with motherduck
 duckdb = "<1.3"
+pydoclint = "^0.6.5"
 
 [tool.poetry.group.sources]
 optional = true

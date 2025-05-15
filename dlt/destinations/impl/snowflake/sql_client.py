@@ -52,6 +52,8 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
         # we get dlt expected UTC
         if "timezone" not in conn_params:
             conn_params["timezone"] = "UTC"
+        # set autocommit when opening connection to override account and user level setting
+        conn_params["autocommit"] = True
         self._conn = snowflake_lib.connect(
             schema=self.fully_qualified_dataset_name(), **conn_params
         )

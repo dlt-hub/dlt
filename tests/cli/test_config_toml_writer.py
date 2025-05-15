@@ -6,7 +6,7 @@ from dlt.cli.config_toml_writer import write_value, WritableConfigValue, write_v
 from dlt.common.configuration.specs import configspec
 from dlt.common.destination.client import DEFAULT_FILE_LAYOUT
 
-EXAMPLE_COMMENT = "# please set me up!"
+EXAMPLE_COMMENT = "# fill this in!"
 
 
 @pytest.fixture
@@ -39,7 +39,7 @@ def test_write_value(example_toml):
 
     # Test with is_default_of_interest=True and non-optional, non-final hint
     write_value(toml_table, "species", str, overwrite_existing=True, is_default_of_interest=True)
-    assert toml_table["species"] == "species"
+    assert toml_table["species"] == "<configure me>"
 
     # Test with is_default_of_interest=False and non-optional, non-final hint, and no default
     write_value(
@@ -117,7 +117,7 @@ def test_write_value_without_defaults(example_toml):
     toml_table = example_toml
 
     write_value(toml_table, "species", str, overwrite_existing=True)
-    assert toml_table["species"] == "species"
+    assert toml_table["species"] == "<configure me>"
     assert toml_table["species"].trivia.comment == EXAMPLE_COMMENT
 
     write_value(toml_table, "genome_size", float, overwrite_existing=True)
@@ -145,7 +145,7 @@ def test_write_values_without_defaults(example_toml):
     ]
     write_values(example_toml, values, overwrite_existing=True)
 
-    assert example_toml["taxonomy"]["genus"]["species"] == "species"
+    assert example_toml["taxonomy"]["genus"]["species"] == "<configure me>"
     assert example_toml["taxonomy"]["genus"]["species"].trivia.comment == EXAMPLE_COMMENT
 
     assert example_toml["genomic_info"]["genome_size"] == 1.0
@@ -176,12 +176,12 @@ def test_write_spec_without_defaults(example_toml) -> None:
     # host, database, username are required and will be included
     # "password", "warehouse", "role" are explicitly of interest
     assert example_toml.as_string() == """[snowflake.credentials]
-database = "database" # please set me up!
-password = "password" # please set me up!
-username = "username" # please set me up!
-host = "host" # please set me up!
-warehouse = "warehouse" # please set me up!
-role = "role" # please set me up!
+database = "<configure me>" # fill this in!
+password = "<configure me>" # fill this in!
+username = "<configure me>" # fill this in!
+host = "<configure me>" # fill this in!
+warehouse = "<configure me>" # fill this in!
+role = "<configure me>" # fill this in!
 """
     example_toml = tomlkit.parse("")
     write_value(
@@ -194,11 +194,11 @@ role = "role" # please set me up!
 
     # bucket_url is mandatory, same for aws credentials
     assert example_toml.as_string() == """[filesystem]
-bucket_url = "bucket_url" # please set me up!
+bucket_url = "<configure me>" # fill this in!
 
 [filesystem.credentials]
-aws_access_key_id = "aws_access_key_id" # please set me up!
-aws_secret_access_key = "aws_secret_access_key" # please set me up!
+aws_access_key_id = "<configure me>" # fill this in!
+aws_secret_access_key = "<configure me>" # fill this in!
 """
 
     @configspec
@@ -235,7 +235,7 @@ aws_secret_access_key = "aws_secret_access_key" # please set me up!
     )
     assert example_toml["filesystem"]["bucket_url"] == "az://test-az-bucket"
     # TODO: choose right credentials based on bucket_url
-    assert example_toml["filesystem"]["credentials"]["aws_access_key_id"] == "aws_access_key_id"
+    assert example_toml["filesystem"]["credentials"]["aws_access_key_id"] == "<configure me>"
     # if initial value is different from the default then it is included
     assert example_toml["filesystem"]["credentials"]["region_name"] == "eu"
     # this is same as default so not included

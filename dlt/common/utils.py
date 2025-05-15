@@ -592,7 +592,7 @@ def get_exception_trace_chain(
     return traces
 
 
-def group_dict_of_lists(input_dict: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
+def group_dict_of_lists(input_dict: Dict[str, List[TAny]]) -> List[Dict[str, TAny]]:
     """Decomposes a dictionary with list values into a list of dictionaries with unique keys.
 
     This function takes an input dictionary where each key maps to a list of objects.
