@@ -13,6 +13,16 @@ def customers():
         {"id": 1, "name": "simon", "city": "berlin"},
         {"id": 2, "name": "violet", "city": "london"},
         {"id": 3, "name": "tammo", "city": "new york"},
+        {"id": 4, "name": "dave", "city": "berlin"},
+        {"id": 5, "name": "andrea", "city": "berlin"},
+        {"id": 6, "name": "marcin", "city": "berlin"},
+        {"id": 7, "name": "sarah", "city": "paris"},
+        {"id": 8, "name": "miguel", "city": "madrid"},
+        {"id": 9, "name": "yuki", "city": "tokyo"},
+        {"id": 10, "name": "olivia", "city": "sydney"},
+        {"id": 11, "name": "raj", "city": "mumbai"},
+        {"id": 12, "name": "sofia", "city": "rome"},
+        {"id": 13, "name": "chen", "city": "shanghai"},
     ]
 
 
@@ -26,10 +36,20 @@ def inventory():
     ]
 
 
+@dlt.resource(primary_key="id")
+def purchases():
+    """Load purchases data from a simple python list."""
+    yield [
+        {"id": 1, "customer_id": 1, "inventory_id": 1, "quantity": 1},
+        {"id": 2, "customer_id": 1, "inventory_id": 2, "quantity": 2},
+        {"id": 3, "customer_id": 2, "inventory_id": 3, "quantity": 3},
+    ]
+
+
 @dlt.source
 def fruitshop():
     """A source function groups all resources into one schema."""
-    return customers(), inventory()
+    return customers(), inventory(), purchases()
 
 
 def load_shop() -> None:

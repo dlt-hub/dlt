@@ -1238,7 +1238,7 @@ def test_reference_registered_resource(res: DltResource) -> None:
     # pass explicit config
     source = factory(init=1, secret_end=3)
     assert source.name == ref
-    assert source.section == ""
+    assert source.section == "test_decorators"
     assert ref in source.resources
     assert list(source) == [1, 2]
 

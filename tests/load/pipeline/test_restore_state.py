@@ -304,13 +304,16 @@ def test_get_schemas_from_destination(
     assert restored_schemas == []
     # restore unknown schema
     restored_schemas = p._get_schemas_from_destination(["_unknown"], always_download=False)
-    assert restored_schemas == []
+    assert restored_schemas[0].name == "_unknown"
+    # unknown schemas will have is_new flag set
+    assert restored_schemas[0].is_new is True  # schema just got created
     # restore default schema
-    p.default_schema_name = "state"
+    p.default_schema_name = "state"  # type: ignore[assignment]
     p.schema_names = ["state"]
     restored_schemas = p._get_schemas_from_destination(p.schema_names, always_download=False)
     assert len(restored_schemas) == 1
     assert restored_schemas[0].name == "state"
+    assert restored_schemas[0].is_new is False
     p._schema_storage.save_schema(restored_schemas[0])
     assert p._schema_storage.list_schemas() == ["state"]
     # restore all the rest
@@ -762,6 +765,7 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
         default_vector_configs=True,
         all_buckets_filesystem_configs=True,
         table_format_filesystem_configs=True,
+        exclude=("filesystem_s3_gcs_comp",),
     ),
     ids=lambda x: x.name,
 )

@@ -30,6 +30,7 @@ from typing import (
     List,
     Union,
     Iterable,
+    IO,
 )
 
 from dlt.common.exceptions import (
@@ -592,7 +593,7 @@ def get_exception_trace_chain(
     return traces
 
 
-def group_dict_of_lists(input_dict: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
+def group_dict_of_lists(input_dict: Dict[str, List[TAny]]) -> List[Dict[str, TAny]]:
     """Decomposes a dictionary with list values into a list of dictionaries with unique keys.
 
     This function takes an input dictionary where each key maps to a list of objects.
@@ -661,3 +662,33 @@ def is_typeerror_due_to_wrong_call(exc: Exception, func: AnyFun) -> bool:
 removeprefix = getattr(
     str, "removeprefix", lambda s_, p_: s_[len(p_) :] if s_.startswith(p_) else s_
 )
+
+
+def read_dialect_and_sql(
+    file_obj: IO[str],
+    fallback_dialect: Optional[str] = None,
+) -> Tuple[str, str]:
+    """
+    Read the first line of a file for the dialect (after the first colon),
+    falls back to `fallback_dialect` if not found or empty,
+    and then reads the rest as the SQL statement.
+
+    Args:
+        file_obj (IO[str]): A file-like object opened in text mode.
+        fallback_dialect (Optional[str]): A fallback dialect to use if the first line
+            does not specify a dialect.
+
+    Returns:
+        Tuple[str, str]: A tuple containing:
+            - The extracted or fallback dialect as a string.
+            - The SQL statement read from the rest of the file.
+    """
+    first_line = file_obj.readline()
+    # e.g. something like: "dialect: clickhouse\n"
+    parts = first_line.split(":", 1)
+    parsed_dialect = parts[1].strip() if len(parts) > 1 else ""
+
+    dialect = parsed_dialect if parsed_dialect else fallback_dialect
+
+    sql_statement = file_obj.read()
+    return dialect, sql_statement

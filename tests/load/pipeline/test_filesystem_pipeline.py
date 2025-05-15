@@ -455,8 +455,9 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
 )
 def test_knows_dataset_state(destination_config: DestinationTestConfiguration) -> None:
     # check if pipeline knows initializisation state of dataset
-    p1 = destination_config.setup_pipeline("p1", dataset_name="layout_test")
+    p1 = destination_config.setup_pipeline("p1", dataset_name="layout_test", dev_mode=True)
     assert not p1.destination_client().is_storage_initialized()
+    assert p1.default_schema_name is None
     p1.run([1, 2, 3], table_name="items")
     assert p1.destination_client().is_storage_initialized()
     p1.destination_client().drop_storage()

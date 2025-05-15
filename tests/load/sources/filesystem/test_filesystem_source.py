@@ -1,6 +1,8 @@
 import os
 from typing import Any, Dict, List
 
+from fsspec import AbstractFileSystem
+
 import dlt
 import pytest
 from dlt.common import pendulum
@@ -10,6 +12,7 @@ from dlt.sources.filesystem import filesystem, readers, FileItem, FileItemDict, 
 from dlt.sources.filesystem.helpers import fsspec_from_resource
 
 from tests.common.storages.utils import TEST_SAMPLE_FILES
+from tests.common.configuration.utils import environment
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import (
     assert_load_info,
@@ -17,7 +20,6 @@ from tests.pipeline.utils import (
     assert_query_column,
 )
 from tests.utils import TEST_STORAGE_ROOT
-
 from tests.load.sources.filesystem.cases import GLOB_RESULTS, TESTS_BUCKET_URLS
 
 
@@ -96,16 +98,42 @@ def test_load_content_resources(bucket_url: str, extract_content: bool) -> None:
     assert len(list(nested_file | assert_csv_file)) == 1
 
 
-@pytest.mark.skip("Needs secrets toml to work..")
-def test_fsspec_as_credentials():
-    # get gs filesystem
-    gs_resource = filesystem("gs://ci-test-bucket")
+@pytest.mark.parametrize("bucket_url", TESTS_BUCKET_URLS)
+@pytest.mark.parametrize("skip_instance_cache", (True, False))
+def test_fsspec_as_credentials(
+    bucket_url: str, skip_instance_cache: bool, environment: Dict[str, str]
+) -> None:
+    if bucket_url.startswith(("sftp", "gdrive")):
+        pytest.skip(f"We can't test {bucket_url} here")
+    # enable or disable instance cache
+    environment["SOURCES__FILESYSTEM__KWARGS"] = (
+        '{"skip_instance_cache": %s}' % str(skip_instance_cache).lower()
+    )
+
+    def _assert_cached(fsspec_: AbstractFileSystem) -> None:
+        # check if token (identify fspec instance) is in cache
+        if skip_instance_cache:
+            assert fsspec_._fs_token not in fsspec_._cache
+        else:
+            assert fsspec_._fs_token in fsspec_._cache
+
+    gs_resource = filesystem(bucket_url)
+    item: FileItemDict = None
+    for item in gs_resource:
+        _assert_cached(item.fsspec)
+        break
+    assert item
+
     # get authenticated client
     fs_client = fsspec_from_resource(gs_resource)
-    print(fs_client.ls("ci-test-bucket/standard_source/samples"))
+    print(fs_client.ls(bucket_url))
+    _assert_cached(fs_client)
+
     # use to create resource instead of credentials
-    gs_resource = filesystem("gs://ci-test-bucket/standard_source/samples", credentials=fs_client)
-    print(list(gs_resource))
+    gs_resource = filesystem(bucket_url, credentials=fs_client)
+    for item in gs_resource:
+        _assert_cached(item.fsspec)
+        break
 
 
 @pytest.mark.parametrize("bucket_url", TESTS_BUCKET_URLS)

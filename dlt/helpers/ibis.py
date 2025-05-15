@@ -21,7 +21,7 @@ from dlt.destinations.impl.clickhouse.configuration import ClickHouseClientConfi
 from dlt.destinations.impl.synapse.configuration import SynapseClientConfiguration
 
 try:
-    import ibis  # type: ignore
+    import ibis
     import sqlglot
     from ibis import BaseBackend, Expr, Table
 except ModuleNotFoundError:
