@@ -353,9 +353,8 @@ class ArrowExtractor(Extractor):
                 logger.warning(
                     f"Null type(s) detected for column(s) {sorted(removed_cols)} "
                     f"in table '{static_table_name}' of schema '{self.schema.name}'. "
-                    "Consider providing type hints."
+                    "Unless type hint(s) are provided, the column(s) will not be loaded."
                 )
-
             # 3. remove columns and rows in data contract filters
             tbl = self._apply_contract_filters(tbl, resource, static_table_name)
 
