@@ -1584,12 +1584,11 @@ def test_configuration_with_literal_field(environment: Dict[str, str]) -> None:
 @pytest.mark.parametrize("sc_type", TYPE_EXAMPLES.keys(), ids=TYPE_EXAMPLES.keys())
 def test_warn_when_resolving_placeholders(
     environment: Dict[str, str],
-    capsys: pytest.CaptureFixture,
+    capsys: pytest.CaptureFixture[str],
     toml_providers: ConfigProvidersContainer,
     sc_type: str,
 ) -> None:
     # Plaholder values should emit warning when being resolved from secrets or configs
-    provider: toml.SettingsTomlProvider
     for provider in toml_providers.providers:
         key = f"SOME_{sc_type}".upper()
         placeholder_value = TYPE_EXAMPLES[sc_type]
@@ -1601,7 +1600,7 @@ def test_warn_when_resolving_placeholders(
             provider.set_value(key, placeholder_value, test_section_name)
 
         value, _ = resolve_single_provider_value(
-            provider, key=key, hint=Any, config_section=test_section_name
+            provider, key=key, hint=str, config_section=test_section_name
         )
         captured = capsys.readouterr()
 
