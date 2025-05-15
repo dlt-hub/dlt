@@ -116,6 +116,15 @@ and provide any other `PyAthena` connection setting
 poll_interval=2
 ```
 
+When `dlt` executes SQL queries that look up table names in the `INFORMATION_SCHEMA`
+it can be more effective to filter the tables in the code instead of doing it in the query.
+The threshold for this is usually 1000 tables, but we learned that for Athena a better default is
+90. You can change this threshold with the following setting:
+```toml
+[destination.athena]
+info_tables_query_threshold=90
+```
+
 ## Write disposition
 
 The `athena` destination handles the write dispositions as follows:
