@@ -30,6 +30,7 @@ from dlt.destinations.dataset.exceptions import (
 )
 from tests.load.utils import drop_pipeline_data
 from dlt.destinations.dataset import dataset as _dataset
+from dlt.transformations.exceptions import LineageFailedException
 
 EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
 
@@ -186,6 +187,28 @@ def test_explicit_dataset_type_selection(populated_pipeline: Pipeline):
         populated_pipeline.dataset(dataset_type="default").items, ReadableDBAPIRelation
     )
     assert isinstance(populated_pipeline.dataset(dataset_type="ibis").items, ReadableIbisRelation)
+
+
+@pytest.mark.no_load
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_scalar(populated_pipeline: Pipeline) -> None:
+    assert populated_pipeline.dataset().items.count().scalar() == _total_records(
+        populated_pipeline.destination.destination_type
+    )
+
+    # test error if more than one row is returned and we use scalar
+    with pytest.raises(ValueError) as ex:
+        populated_pipeline.dataset().items.scalar()
+    assert "got more than one row" in str(ex.value)
+
+    with pytest.raises(ValueError) as ex:
+        populated_pipeline.dataset().items.limit(1).scalar()
+    assert "got 1 row with 5 columns" in str(ex.value)
 
 
 @pytest.mark.no_load
@@ -577,7 +600,9 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
     assert arrow_table.schema.field("decimal").type.precision == expected_decimal_precision
     assert arrow_table.schema.field("other_decimal").type.precision == expected_decimal_precision_2
 
-    with pytest.raises(ReadableRelationUnknownColumnException):
+    import sqlglot
+
+    with pytest.raises(LineageFailedException):
         arrow_table = table_relationship.select("unknown_column").head().arrow()
 
 
@@ -597,9 +622,10 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
     assert dataset.schema.name == populated_pipeline.default_schema_name
     assert "items" in dataset.schema.tables
 
-    # if setting a different schema, it must be present in pipeline
-    with pytest.raises(SchemaNotFoundError):
-        populated_pipeline.dataset(schema="unknown_schema")
+    # if setting a different schema, default schema with dataset name will be used
+    populated_pipeline.dataset(schema="source")
+    assert dataset.schema.name == "source"
+    assert "items" in dataset.schema.tables
 
     # explicit schema object is OK
     dataset = populated_pipeline.dataset(schema=Schema("unknown_schema"))
@@ -700,7 +726,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
             'SELECT "t0"."id", "t0"."decimal", "t0"."id" * 2 AS "new_col" FROM'
             ' "dataset"."items" AS "t0"'
         ),
-        None,
+        ["id", "decimal", "new_col"],
     )
 
     # mutating table (add a new column computed from existing columns)
@@ -708,13 +734,16 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         items_table.mutate(double_id=items_table.id * 2).select("id", "double_id")
     ) == (
         'SELECT "t0"."id", "t0"."id" * 2 AS "double_id" FROM "dataset"."items" AS "t0"',
-        None,
+        ["id", "double_id"],
     )
 
     # mutating table add new static column
     assert sql_from_expr(
         items_table.mutate(new_col=ibis.literal("static_value")).select("id", "new_col")
-    ) == ('SELECT "t0"."id", \'static_value\' AS "new_col" FROM "dataset"."items" AS "t0"', None)
+    ) == (
+        'SELECT "t0"."id", \'static_value\' AS "new_col" FROM "dataset"."items" AS "t0"',
+        ["id", "new_col"],
+    )
 
     # check filtering (preserves all columns)
     assert sql_from_expr(items_table.filter(items_table.id < 10)) == (
@@ -751,7 +780,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
             ' COUNT(*) AS "CountStar(items)" FROM "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1"'
             ' WHERE "t1"."CountStar(items)" >= 1000'
         ),
-        None,
+        ["id", "sum_id"],
     )
 
     # sorting and ordering
@@ -788,7 +817,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
             'SELECT "t2"."id", "t3"."double_id" FROM "dataset"."items" AS "t2" INNER JOIN'
             ' "dataset"."double_items" AS "t3" ON "t2"."id" = "t3"."id"'
         ),
-        None,
+        ["id", "double_id"],
     )
 
     # subqueries
@@ -809,7 +838,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
             ' "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1" ORDER BY "t1"."decimal_count" DESC'
             " LIMIT 10"
         ),
-        None,
+        ["decimal", "decimal_count"],
     )
 
 

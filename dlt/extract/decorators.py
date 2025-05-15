@@ -63,7 +63,6 @@ from dlt.extract.utils import simulate_func_call
 from dlt.extract.exceptions import (
     CurrentSourceNotAvailable,
     DynamicNameNotStandaloneResource,
-    InvalidResourceDataTypeFunctionNotAGenerator,
     InvalidTransformerDataTypeGeneratorFunctionRequired,
     ResourceFunctionExpected,
     ResourceInnerCallableConfigWrapDisallowed,
