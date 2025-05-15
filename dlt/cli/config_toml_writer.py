@@ -42,7 +42,7 @@ def generate_typed_example(name: str, hint: AnyType) -> Any:
         if sc_type == "bool":
             return True
         if sc_type == "json":
-            raise NotImplementedError("example for json-types not supported")
+            return "json"
         if sc_type in ("wei", "decimal"):
             return "1.0"
         raise TypeError(sc_type)
@@ -75,11 +75,10 @@ def write_value(
             toml_table[name] = inner_table
     else:
         if default_value is None:
-            try:
-                example_value = generate_typed_example(name, hint)
+            example_value = generate_typed_example(name, hint)
+            # complex types do not get default values for now (#2531)
+            if not example_value == "json":
                 toml_table[name] = example_value
-            except NotImplementedError:
-                pass
             # tomlkit not supporting comments on boolean
             if not isinstance(example_value, bool):
                 toml_table[name].comment("fill this in!")
