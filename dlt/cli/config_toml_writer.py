@@ -78,11 +78,11 @@ def write_value(
             try:
                 example_value = generate_typed_example(name, hint)
                 toml_table[name] = example_value
-                # tomlkit not supporting comments on boolean
-                if not isinstance(example_value, bool):
-                    toml_table[name].comment("fill this in!")
             except NotImplementedError:
                 pass
+            # tomlkit not supporting comments on boolean
+            if not isinstance(example_value, bool):
+                toml_table[name].comment("fill this in!")
         else:
             toml_table[name] = default_value
 
