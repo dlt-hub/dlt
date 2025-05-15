@@ -1,6 +1,6 @@
 import abc
 import contextlib
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Set, Tuple
 
 from dlt.common import logger
 from dlt.common.typing import AnyType
@@ -30,37 +30,41 @@ class VaultDocProvider(BaseDocProvider):
 
     """
 
-    def __init__(self, only_secrets: bool, only_toml_fragments: bool) -> None:
+    def __init__(
+        self, only_secrets: bool, only_toml_fragments: bool, list_secrets: bool = False
+    ) -> None:
         """Initializes the toml backed Vault provider by loading a toml fragment from `dlt_secrets_toml` key and using it as initial configuration.
-
-        _extended_summary_
 
         Args:
             only_secrets (bool): Only looks for secret values (CredentialsConfiguration, TSecretValue) by returning None (not found)
             only_toml_fragments (bool): Only load the known toml fragments and ignore any other lookups by returning None (not found)
+            list_secrets (bool): When True, lists all available secrets once on first access to avoid unnecessary lookups
         """
         self.only_secrets = only_secrets
         self.only_toml_fragments = only_toml_fragments
-        self._vault_lookups: Dict[str, pendulum.DateTime] = {}
-
+        self.list_secrets = list_secrets
+        self._vault_lookups: Dict[str, Any] = {}
+        self._available_keys: Optional[Set[str]] = None
+        if list_secrets and (only_toml_fragments or only_secrets):
+            logger.warning(
+                "Listing secrets is enabled so available keys are known upfront but one or both"
+                f" only_toml_fragments ({only_toml_fragments}) only_secrets ({only_secrets}) are"
+                " enabled too  so lookups of certain keys may be still skipped. Disable both to"
+                " access all keys in vault."
+            )
         super().__init__({})
-        self._update_from_vault(SECRETS_TOML_KEY, None, AnyType, None, ())
 
     def get_value(
         self, key: str, hint: type, pipeline_name: str, *sections: str
     ) -> Tuple[Optional[Any], str]:
+        # global settings must be updated first
+        self._update_from_vault(SECRETS_TOML_KEY, None, AnyType, None, ())
+        # then regular keys
         full_key = self.get_key_name(key, pipeline_name, *sections)
-
         value, _ = super().get_value(key, hint, pipeline_name, *sections)
         if value is None:
-            if self.only_secrets and not is_secret_hint(hint) and hint is not AnyType:
-                # for non secrets still probe destination. and destination.name before bailing out
-                if len(sections) > 1 and sections[0] in [
-                    known_sections.SOURCES,
-                    known_sections.DESTINATION,
-                ]:
-                    self._load_fragments(sections[1], pipeline_name, sections[0])
-                    value, _ = super().get_value(key, hint, pipeline_name, *sections)
+            if self.only_secrets and not is_secret_hint(hint):
+                pass
             else:
                 # only secrets hints are handled fully
                 self._load_fragments(key, pipeline_name, *sections)
@@ -123,6 +127,16 @@ class VaultDocProvider(BaseDocProvider):
 
     @abc.abstractmethod
     def _look_vault(self, full_key: str, hint: type) -> str:
+        """Looks for `full_key` in the vault, may use `hint` to detect if expected value is a secret"""
+        pass
+
+    @abc.abstractmethod
+    def _list_vault(self) -> Set[str]:
+        """Lists keys in the vault in order to skip lookups for non existing keys
+
+        Returns:
+            Set[str]: A set of available key names in the vault
+        """
         pass
 
     def _update_from_vault(
@@ -130,8 +144,22 @@ class VaultDocProvider(BaseDocProvider):
     ) -> None:
         if full_key in self._vault_lookups:
             return
+
+        # list the vault on first access if enabled
+        if self.list_secrets and self._available_keys is None:
+            self._available_keys = self._list_vault()
+
+        # skip lookup if we know the key doesn't exist
+        if (
+            self.list_secrets
+            and self._available_keys is not None
+            and full_key not in self._available_keys
+        ):
+            self._vault_lookups[full_key] = pendulum.now()
+            return
+
         # print(f"tries '{key}' {pipeline_name} | {sections} at '{full_key}'")
-        logger.info(f"Vault provider {self.name} will make a request for {full_key}")
+        logger.debug(f"Vault provider {self.name} will make a request for {full_key}")
         secret = self._look_vault(full_key, hint)
         self._vault_lookups[full_key] = pendulum.now()
         if secret is not None:

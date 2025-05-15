@@ -219,18 +219,13 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
                 expr.set("alias", casefolded_alias)
                 columns.append(sqlglot.exp.to_identifier(casefolded_alias))
 
-        # Generate the normalized SELECT query
-        normalized_select_query = parsed_select.sql(dialect=destination_dialect)
-
         # Build final INSERT
         query = sqlglot.expressions.insert(
-            expression=normalized_select_query,
+            expression=parsed_select,
             into=target_table,
             columns=columns,
             dialect=destination_dialect,
         ).sql(destination_dialect)
-
-        # NOTE: This query doesn't have a trailing ";"
 
         return query
 

@@ -75,7 +75,7 @@ def athena_adapter(
             to generate correctly escaped SQL in the loader.
 
     Returns:
-        A `DltResource` object that is ready to be loaded into BigQuery.
+        A `DltResource` object that is ready to be loaded into Athena.
 
     Raises:
         ValueError: If any hint is invalid or none are specified.

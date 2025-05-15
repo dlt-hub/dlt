@@ -1474,6 +1474,22 @@ def test_configuration_with_configuration_as_default() -> None:
     assert c_resolved.conn_str.is_resolved()
 
 
+def test_configuration_with_section_propagation_to_embedded(environment: Dict[str, str]) -> None:
+    @configspec
+    class EmbeddedConfigurationWithDefaults(BaseConfiguration):
+        default: str = "STR"
+        instrumented: InstrumentedConfiguration = None
+
+        __section__ = "top_level"
+
+    # NOTE: top level will be stripped in less specific searches
+    environment["TOP_LEVEL__INSTRUMENTED__HEAD"] = "h"
+    environment["TOP_LEVEL__INSTRUMENTED__TUBE"] = '["t"]'
+    environment["TOP_LEVEL__INSTRUMENTED__HEELS"] = "he"
+    c_resolved = resolve.resolve_configuration(EmbeddedConfigurationWithDefaults())
+    assert c_resolved.is_resolved()
+
+
 def test_configuration_with_generic(environment: Dict[str, str]) -> None:
     TColumn = TypeVar("TColumn", bound=str)
 

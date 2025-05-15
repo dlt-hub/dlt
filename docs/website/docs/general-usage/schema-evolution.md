@@ -4,14 +4,6 @@ description: A small guide to elaborate on how schema evolution works
 keywords: [schema evolution, schema, dlt schema]
 ---
 
-## When to use schema evolution?
-
-Schema evolution is a best practice when ingesting most data. It's simply a way to get data across a format barrier.
-
-It separates the technical challenge of "loading" data from the business challenge of "curating" data. This enables us to have pipelines that are maintainable by different individuals at different stages.
-
-However, for cases where schema evolution might be triggered by malicious events, such as in web tracking, data contracts are advised. Read more about how to implement data contracts [here](./schema-contracts).
-
 ## Schema evolution with `dlt`
 
 `dlt` automatically infers the initial schema for your first pipeline run. However, in most cases, the schema tends to change over time, which makes it critical for downstream consumers to adapt to schema changes.
