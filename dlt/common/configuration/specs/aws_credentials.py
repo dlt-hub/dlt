@@ -30,6 +30,19 @@ class AwsCredentialsWithoutDefaults(
     s3_url_style: Optional[str] = None
     """Only needed for duckdb sql_client s3 access, for minio this needs to be set to path for example."""
 
+    __config_gen_annotations__ = {
+        "s3": {
+            "aws_access_key_id": "aws_access_key_id_value",
+            "aws_secret_access_key": "aws_secret_access_key_value",
+        },
+        "minio": {
+            "aws_access_key_id": "your-minio-access-key",
+            "aws_secret_access_key": "your-minio-secret-key",
+            "endpoint_url": "http://localhost:9000/bucket-name/object-key",
+            "s3_url_style": "path",  # MinIO requires path-style URLs
+        },
+    }
+
     def to_s3fs_credentials(self) -> Dict[str, Optional[str]]:
         """Dict of keyword arguments that can be passed to s3fs"""
         credentials: DictStrAny = dict(

@@ -50,11 +50,12 @@ from dlt.common.configuration.exceptions import (
     ConfigFieldTypeHintNotSupported,
 )
 
-
 # forward class declaration
 _F_BaseConfiguration: Any = type(object)
 _F_ContainerInjectableContext: Any = type(object)
 _B = TypeVar("_B", bound="BaseConfiguration")
+
+INTERACTIVE = False
 
 
 class NotResolved:
@@ -97,10 +98,75 @@ def is_credentials_inner_hint(inner_hint: Type[Any]) -> bool:
     return is_subclass(inner_hint, CredentialsConfiguration)
 
 
-def get_config_if_union_hint(hint: Type[Any]) -> Type[Any]:
+def get_config_if_union_hint(hint: Type[Any], flavor: str = None) -> Type[Any]:
+    """
+    Return the first configuration type from a union type or None if not found.
+    If a flavor is specified, return the first configuration of the specified flavor.
+    """
+    if not is_union_type(hint):
+        return None
+    # try to use user input to resolve flavor
+    flavored_config = get_flavored_config_from_union(hint, flavor)
+    if not flavored_config:
+        # fmt.warning(
+        #     f"Could not find a configuration type for {hint} with flavor {flavor}. "
+        # )
+        pass
+    return flavored_config or get_first_base_config_from_union(hint)
+
+
+def get_first_base_config_from_union(hint: Type[Any]) -> Type[Any]:
+    # Choose the first base configuration if no flavor is specified
+    return next((t for t in get_args(hint) if is_base_configuration_inner_hint(t)), None)
+
+
+def get_all_base_config_flavors_of_type(hint: Type[Any]) -> List[str]:
+    """
+    If the config supports flavors, return the list, and unique
+    """
+
+    # if is union type, get flavors from all union members
     if is_union_type(hint):
-        return next((t for t in get_args(hint) if is_base_configuration_inner_hint(t)), None)
-    return None
+        return get_all_base_config_flavors_of_union_type(hint)
+
+    if not is_base_configuration_inner_hint(hint):
+        raise TypeError(f"{hint} is not a base configuration type")
+
+    flavors = []
+    if isinstance(hint.__config_gen_annotations__, dict):
+        flavors.extend(hint.__config_gen_annotations__.keys())
+    return list(dict.fromkeys(flavors))
+
+
+def get_all_base_config_flavors_of_union_type(hint: Type[Any]) -> List[str]:
+    """
+    If the config supports flavors, return the list, and unique
+    """
+    if not is_union_type(hint):
+        raise TypeError(f"{hint} is not a union type")
+    flavors = []
+    for t in get_args(hint):
+        if is_base_configuration_inner_hint(t) and isinstance(t.__config_gen_annotations__, dict):
+            flavors.extend(t.__config_gen_annotations__.keys())
+
+    return list(dict.fromkeys(flavors))
+
+
+def get_flavored_config_from_union(hint: Type[Any], flavor: str) -> Type[Any]:
+    """
+    return the first configuration type from a union type with the specified flavor or None if
+    not found
+    """
+    return next((t for t in get_args(hint) if is_configuration_flavor(t, flavor)), None)
+
+
+def is_configuration_flavor(hint: Type[Any], flavor: str) -> bool:
+    if not is_base_configuration_inner_hint(hint):
+        return False
+    if not isinstance(hint.__config_gen_annotations__, dict):
+        return False
+    config_flavors = hint.__config_gen_annotations__.keys()
+    return flavor in config_flavors
 
 
 def is_valid_hint(hint: Type[Any]) -> bool:
@@ -131,11 +197,12 @@ def extract_inner_hint(
     preserve_new_types: bool = False,
     preserve_literal: bool = False,
     preserve_annotated: bool = False,
+    config_flavor: str = None,
 ) -> Type[Any]:
     # extract hint from Optional / Literal / NewType hints
     inner_hint = extract_inner_type(hint, preserve_new_types, preserve_literal, preserve_annotated)
     # get base configuration from union type
-    inner_hint = get_config_if_union_hint(inner_hint) or inner_hint
+    inner_hint = get_config_if_union_hint(inner_hint, config_flavor) or inner_hint
     # extract origin from generic types (ie List[str] -> List)
     origin = get_origin(inner_hint) or inner_hint
     if preserve_literal and origin is Literal or preserve_annotated and origin is Annotated:
@@ -290,11 +357,16 @@ class BaseConfiguration(MutableMapping[str, Any]):
     """Holds the exception that prevented the full resolution"""
     __section__: ClassVar[str] = None
     """Obligatory section used by config providers when searching for keys, always present in the search path"""
-    __config_gen_annotations__: ClassVar[List[str]] = []
+    __config_gen_annotations__: ClassVar[Union[List[str], Dict[str, Any]]] = []
     """Additional annotations for config generator, currently holds a list of fields of interest that have defaults"""
     __dataclass_fields__: ClassVar[Dict[str, TDtcField]]
     """Typing for dataclass fields"""
     __hint_resolvers__: ClassVar[Dict[str, Callable[["BaseConfiguration"], Type[Any]]]] = {}
+
+    @property
+    def has_flavor(self) -> bool:
+        # should return whether config gen annotaions is a list or a dict
+        return self.__config_gen_annotations__ and isinstance(self.__config_gen_annotations__, dict)
 
     @classmethod
     def from_init_value(cls: Type[_B], init_value: Any = None) -> _B:
