@@ -288,22 +288,24 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                     " GENERATE_ARRAY(-172800000, 691200000, 86400))"
                 )
 
-        cluster_columns = cast(Iterable[str], table.get(CLUSTER_COLUMNS_HINT, []))
-        if cluster_columns:
-            cluster_list = [self.sql_client.escape_column_name(col) for col in cluster_columns]
-            sql[0] += "\nCLUSTER BY " + ", ".join(cluster_list)
-        else:
-            # Fallback for legacy and test scenarios where only per-column 'cluster' hints are set.
-            # This is required for backward compatibility and to pass tests like
-            # 'test_create_table_with_partition_and_cluster' in test_bigquery_table_builder.py,
-            # which set clustering only via per-column hints and expect the CLUSTER BY clause.
-            cluster_cols_from_columns = [
-                self.sql_client.escape_column_name(c["name"])
-                for c in new_columns
-                if c.get("cluster") or c.get(CLUSTER_HINT, False)
+        # Collect cluster columns from table-level and per-column hints
+        cluster_columns_from_table_hint = list(cast(Iterable[str], table.get(CLUSTER_COLUMNS_HINT, [])))
+        cluster_columns_from_column_hints = [
+            c["name"] for c in new_columns if c.get("cluster") or c.get(CLUSTER_HINT, False)
+        ]
+
+        # Prefer table-level cluster columns if present, otherwise fallback to per-column hints
+        cluster_columns_final = (
+            cluster_columns_from_table_hint
+            if cluster_columns_from_table_hint
+            else cluster_columns_from_column_hints
+        )
+
+        if cluster_columns_final:
+            cluster_list = [
+                self.sql_client.escape_column_name(col) for col in cluster_columns_final
             ]
-            if cluster_cols_from_columns:
-                sql[0] += "\nCLUSTER BY " + ", ".join(cluster_cols_from_columns)
+            sql[0] += "\nCLUSTER BY " + ", ".join(cluster_list)
 
         # Table options.
         table_options: DictStrAny = {
