@@ -524,7 +524,7 @@ def ibis_browser_page(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> 
 
 
 @app.cell(hide_code=True)
-def app_discover_pipelines(dlt_query_params: Dict[str, Any]) -> Any:
+def app_discover_pipelines() -> Any:
     """
     Discovers local pipelines and returns a multiselect widget to select one of the pipelines
     """
@@ -532,6 +532,12 @@ def app_discover_pipelines(dlt_query_params: Dict[str, Any]) -> Any:
     import marimo as _mo
     from datetime import datetime
     from dlt.helpers.studio import strings as _s, helpers as _h
+
+    # note: this exception handling is only needed for testing
+    try:
+        dlt_query_params = _mo.query_params()
+    except Exception:
+        dlt_query_params = {}
 
     dlt_pipelines_dir, _pipelines = _h.get_local_pipelines()
     dlt_pipeline_count = len(_pipelines)
@@ -564,22 +570,16 @@ def app_discover_pipelines(dlt_query_params: Dict[str, Any]) -> Any:
     if not dlt_pipeline_link_list:
         dlt_pipeline_link_list = "No local pipelines found."
 
-    return (
-        dlt_pipelines_dir,
-        dlt_pipeline_select,
-        dlt_pipeline_count,
-        dlt_pipeline_link_list,
-    )
+    return (dlt_pipelines_dir, dlt_pipeline_select, dlt_pipeline_count, dlt_query_params)
 
 
 @app.cell(hide_code=True)
-def prepare_query_vars() -> Any:
+def prepare_query_vars(dlt_query_params: Any) -> Any:
     """
     Prepare query params as globals for the following cells
     """
     import marimo as _mo
 
-    dlt_query_params = _mo.query_params()
     dlt_pipeline_name = dlt_query_params.get("pipeline") or None
     dlt_current_page = dlt_query_params.get("page") or None
     return (dlt_pipeline_name, dlt_current_page)
