@@ -406,13 +406,12 @@ function checkDocs() {
 
 
 function processDocs() {
-  fs.rmSync(MD_TARGET_DIR, {force: true, recursive: true})
   syncExamples();
   preprocess_docs();
   checkDocs();
 }
 
-processDocs()
+
 
 /**
  * Watch for changes and preprocess the docs if --watch cli command flag is present
@@ -429,4 +428,7 @@ if (process.argv.includes("--watch")) {
       processDocs();
       lastUpdate = Date.now();
   });
+} else {
+  fs.rmSync(MD_TARGET_DIR, {force: true, recursive: true});
+  processDocs();
 }
