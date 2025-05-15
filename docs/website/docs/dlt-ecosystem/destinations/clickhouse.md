@@ -103,7 +103,36 @@ dataset_table_separator = "___"                         # The default separator 
 table_engine_type = "merge_tree"                        # The default table engine to use.
 dataset_sentinel_table_name = "dlt_sentinel_table"      # The default name for sentinel tables.
 staging_use_https = true                                # Wether to connecto to the staging bucket via https (defaults to True)
+
+distributed_tables = false                              # Set to true if you have multiple replicas and use distributed tables
+cluster = "<your cluster name>"                         # If above is true this must be set to generate Clickhouse code for distributed setup, default is None
+base_table_name_postfix = "_optional"                   # If you have a separate DB for base tables which differs only by a prefix, default is empty string
+base_table_database_prefix = "optional_"                # If you use a standard postfix for base tables, default is empty string
 ```
+
+Last four configuration options are for a Clickhouse setup with distributed tables. This implies you need an `ON CLUSTER` clause in DDL statements and you need to create a base table with e.g. ReplicatedMergeTree engine and a distributed table with the Distributed engine on top of it. Deletions will be done on the base table and inserts into the distributed table. Keep in mind that you need to both set the `distributed_tables = true` and set the name for the cluster `cluster = my_cluster` to generate SQL adjusted for the distributed setup, this to ensure disitributed SQL is not generated accidently.
+
+Example:
+If you have Clichouse with a single node and you are ingesting Stripe data you might end up with a table like
+
+```
+dlt_db.stripe___disputes
+```
+
+With a multiple nodes/replicas setup you would have e.g.
+
+```
+_dlt_db.stripe___disputes -> a base table in a seprate db
+dlt_db.stripe___disputes -> distributed table referencing the base table
+```
+
+or
+```
+dlt_db.stripe___disputes_base -> a base table in the same db
+dlt_db.stripe___disputes -> distributed table referencing the base table
+```
+
+You can of course define both, db prefix and the table postfix to get something like `_dlt_db.stripe___disputes_postfix`
 
 ## Write disposition
 

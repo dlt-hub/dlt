@@ -89,10 +89,10 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
     """Set to True if ClickHouse tables are distributed/shareded across multiple nodes, this will enable creating base and distributed tables."""
     cluster: Optional[str] = None
     """Cluster name for sharded tables. This is used in ON CLUSTER clause for sharded distributed tables"""
-    base_table_database_prefix: Optional[str] = None
-    """Prefix for the database name of the base table. This is used for sharded distributed tables."""
-    base_table_name_postfix: Optional[str] = None
-    """Postfix for the base table name. This is used for sharded distributed tables."""
+    base_table_database_prefix: Optional[str] = ""
+    """Prefix for the database name of the base table. Set to empty string to avoid errors if it's not set and distributed setup is enabled. This is used for sharded distributed tables."""
+    base_table_name_postfix: Optional[str] = ""
+    """Postfix for the base table name. Set to empty string to avoid errors if it's not set and distributed setup is enabled. This is used for sharded distributed tables."""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "dataset_table_separator",

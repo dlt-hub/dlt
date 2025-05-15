@@ -24,7 +24,10 @@ from typing import (
     cast,
 )
 
-from pendulum import DateTime  # noqa: I251
+from pendulum import DateTime
+import sqlglot
+from sqlglot import exp
+from .sqlglot_helpers import _add_properties, _add_global, _has_expression
 
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -137,12 +140,34 @@ class ClickHouseSqlClient(
             self.config.dataset_sentinel_table_name
         )
         sentinel_table_type = cast(TTableEngineType, self.config.table_engine_type)
-        self.execute_sql(f"""
-            CREATE TABLE {sentinel_table_name}
-            (_dlt_id String NOT NULL)
-            ENGINE={TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(sentinel_table_type)}
-            PRIMARY KEY _dlt_id
-            COMMENT 'internal dlt sentinel table'""")
+        cluster = self.config.cluster
+        distributed_tables = self.config.distributed_tables
+        if not (cluster and distributed_tables is True):        
+            self.execute_sql(f"""
+                CREATE TABLE {sentinel_table_name}
+                (_dlt_id String NOT NULL)
+                ENGINE={TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(sentinel_table_type)}
+                PRIMARY KEY _dlt_id
+                COMMENT 'internal dlt sentinel table'""")
+        else:
+            config_database = self.credentials.database
+            base_table_database = self.config.base_table_database_prefix + config_database
+            sentinel_base_table_name = self.make_qualified_table_name(
+                self.config.dataset_sentinel_table_name + self.config.base_table_name_postfix
+            ).replace(config_database, base_table_database)
+            # with the current implementation base table doesn't get dropped and we get an error on the next run
+            # it seem like drop_dataset is never called, I've added logging there and nothing is printed
+            self.execute_sql(f"""
+                CREATE TABLE IF NOT EXISTS {sentinel_base_table_name}
+                (_dlt_id String NOT NULL)
+                ENGINE={TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(sentinel_table_type)}
+                PRIMARY KEY _dlt_id
+                COMMENT 'internal dlt sentinel table'""")
+            self.execute_sql(f"""
+                CREATE TABLE IF NOT EXISTS {sentinel_table_name}
+                (_dlt_id String NOT NULL)
+                ENGINE=Distributed('{cluster}', '{base_table_database}', '{sentinel_base_table_name}', rand())
+                COMMENT 'internal dlt sentinel table'""")
 
     def drop_dataset(self) -> None:
         # always try to drop the sentinel table.
@@ -162,10 +187,22 @@ class ClickHouseSqlClient(
                 table_name for table_name in self.known_table_names if table_name in all_ds_tables
             ]
 
-        catalog_name = self.catalog_name()
+        # catalog_name = self.catalog_name()
         # drop a sentinel table only when dataset name was empty (was not included in the schema)
         if not self.dataset_name:
-            self.execute_sql(f"DROP TABLE {sentinel_table_name} SYNC")
+            cluster = self.config.cluster
+            distributed_tables = self.config.distributed_tables
+
+            if not (cluster and distributed_tables is True):
+                self.execute_sql(f"DROP TABLE {sentinel_table_name} SYNC")
+            else:
+                logger.debug(f"**** DROP TABLE : {sentinel_table_name}")
+                self.execute_sql(f"DROP TABLE {sentinel_table_name} ON CLUSTER {cluster} SYNC")
+                config_database = self.credentials.database
+                base_table_database = self.config.base_table_database_prefix + config_database
+                sg_table = sqlglot.to_table(sentinel_table_name, quoted=False, dialect="clickhouse")
+                logger.debug(f"**** DROP TABLE : {base_table_database}.{sg_table.name + self.config.base_table_name_postfix}")
+                self.execute_sql(f"DROP TABLE {base_table_database}.{sg_table.name + self.config.base_table_name_postfix} ON CLUSTER {cluster} SYNC")
             logger.warning(
                 "Dataset without name (tables without prefix) got dropped. Only tables known in the"
                 " current dlt schema and sentinel tables were removed."
@@ -178,23 +215,43 @@ class ClickHouseSqlClient(
                 # no sentinel table, dataset does not exist
                 self.execute_sql(f"SELECT 1 FROM {sentinel_table_name}")
                 raise AssertionError(f"{sentinel_table_name} must not exist")
-        for table in to_drop_results:
-            # The "DROP TABLE" clause is discarded if we allow clickhouse_driver to handle parameter substitution.
-            # This is because the driver incorrectly substitutes the entire query string, causing the "DROP TABLE" keyword to be omitted.
-            # To resolve this, we are forced to provide the full query string here.
-            self.execute_sql(
-                f"DROP TABLE {catalog_name}.{self.capabilities.escape_identifier(table)} SYNC"
-            )
+        self.drop_tables(*to_drop_results)
+        # for table in to_drop_results:
+        #     # The "DROP TABLE" clause is discarded if we allow clickhouse_driver to handle parameter substitution.
+        #     # This is because the driver incorrectly substitutes the entire query string, causing the "DROP TABLE" keyword to be omitted.
+        #     # To resolve this, we are forced to provide the full query string here.
+        #     self.execute_sql(
+        #         f"DROP TABLE {catalog_name}.{self.capabilities.escape_identifier(table)} SYNC"
+        #     )
 
     def drop_tables(self, *tables: str) -> None:
         """Drops a set of tables if they exist"""
         if not tables:
             return
-        statements = [
-            f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)} SYNC;"
-            for table in tables
-        ]
-        self.execute_many(statements)
+        cluster = self.config.cluster
+        distributed_tables = self.config.distributed_tables
+        if not (cluster and distributed_tables is True):
+            statements = [
+                f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)} SYNC;"
+                for table in tables
+            ]
+            self.execute_many(statements)
+        else:            
+            statements = [
+                f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)} ON CLUSTER {self.config.cluster} SYNC;"
+                for table in tables
+            ]
+            config_database = self.credentials.database
+            base_table_database = self.config.base_table_database_prefix + config_database
+
+            for table in tables:
+                base_table_name = self.make_qualified_table_name(table + self.config.base_table_name_postfix).replace(config_database, base_table_database)
+                statements.append(
+                    f"DROP TABLE IF EXISTS {base_table_name} ON CLUSTER {self.config.cluster} SYNC;"
+                )
+
+            logger.debug(f"**** DROP TABLE STATEMENTS:\n{statements}")
+            self.execute_many(statements)
 
     def insert_file(
         self, file_path: str, table_name: str, file_format: str, compression: str
@@ -266,36 +323,9 @@ class ClickHouseSqlClient(
         # Return the original query if no modifications were made
         return query
 
-    def extract_table_name(self, query: str) -> Optional[str]:
-        if self.contains_string(query, "DELETE FROM"):
-            pattern = r'(?i)\bDELETE FROM\s+`?[\w]+`?\.`?([\w]+)`?'
-            group_num = 1
-        elif self.contains_string(query, "CREATE") or self.contains_string(query, "DROP"):
-            pattern = r'(?i)\b(CREATE|DROP)\s+(TEMPORARY\s+)?TABLE(\s+IF\s+(NOT\s+)?EXISTS)*\s+`?[\w]+`?\.`?([\w]+)`?'
-            group_num = 5
-        elif self.contains_string(query, "ALTER TABLE"):
-            pattern = r'(?i)\bALTER TABLE\s+`?[\w]+`?\.`?([\w]+)`?'
-            group_num = 1
-        else:
-            # If no known command is found, return None
-            logger.warning(f"Unknown command in query: {query}")
-            return None
-
-        match = re.search(pattern, query, re.DOTALL)
-        if match:
-            return match.group(group_num)  # Return the captured table name
-        return None  # Return None if no match is found
-
-
-    def add_global_join(self, query: str) -> str:
-        # Define regex patterns for CREATE, DROP, and ALTER TABLE commands
-        join_pattern = r'(?i)\b((INNER|LEFT|RIGHT|FULL|CROSS)?\s*(OUTER)?\s*JOIN)'  # Matches "CREATE TABLE `schema`.`table`"
-
-        modified_query = re.sub(join_pattern, lambda m: f' GLOBAL {m.group(1)}', query, flags=re.IGNORECASE)
-        return modified_query
-
     def contains_string(self, query: str, what: str) -> bool:
         return bool(re.search(fr'\b{what}\b', query, re.IGNORECASE))
+
 
     def adjust_query_for_distributed_setup(self, query: str) -> str:
         # Adjust the query for distributed setup
@@ -304,55 +334,60 @@ class ClickHouseSqlClient(
         # hence we need to modify create statements and all other DDL and DML statements
         cluster = self.config.cluster
         distributed_tables = self.config.distributed_tables
-        if cluster and distributed_tables is True:
+        if cluster and distributed_tables is True:            
+            oncluster = exp.OnCluster(this=exp.var(cluster))
             mod_queries = []
             # query can contain mutliple statements of different types (CREATE, DELETE, INSERT ...) separated by ;
             for qry in query.split(";"):
                 # db name for the base table
+                if qry == "" or qry is None:
+                    continue # skip or sqlglot will throw an error
                 base_db = self.config.base_table_database_prefix + self.credentials.database
+                if not(self.contains_string(qry, "DROP TABLE") or self.contains_string(qry, "TRUNCATE TABLE")):
+                    # DROP and TRUNCATE do not have joins and are not fully supported by sqlglot for clickhouse
+                    stmt = sqlglot.parse_one(qry, dialect='clickhouse')
+                    # if there are joins in the query we need to add global
+                    stmt = stmt.transform(_add_global)
+                    # because of the special case for the DELETE FROM we cannot
+                    # convert sqlglot ast after the if statement so we convert it here
+                    # to adjust joins in a single place
+                    qry = stmt.sql(dialect="clickhouse", pretty=True, identify=False)
+                
+                if (self.contains_string(qry, "CREATE") and self.contains_string(qry, "Engine\\s*=\\s*Memory")):
+                    # Possibly not the best way to catch the CTAS for the temporary table, but it works for now
+                    # _to_temp_table function doesn't have access to the config object so this is the best place to modify the query
 
-                if (self.contains_string(qry, "CREATE") and self.contains_string(qry, "ENGINE = Memory")):
-                    # accroding to CH docs Memory engine is in many cases not much better then using MergeTree
-                    qry = qry.replace("ENGINE = Memory", "ENGINE = ReplicatedMergeTree\nPRIMARY KEY tuple()")
+                    # According to CH docs Memory engine is in many cases not much better then using MergeTree
+                    # also the Memory engine tables exist on a single replica and we need it on all replicas
+                    stmt.args["properties"].find(exp.EngineProperty).replace(exp.EngineProperty(this=exp.var("ReplicatedMergeTree")))
+                    if not _has_expression(stmt.args["properties"], exp.OnCluster):
+                        stmt.args["properties"] = _add_properties(properties=stmt.args["properties"], new_properties=[oncluster])
+                    primary_key = exp.PrimaryKey(expressions=[(exp.Ordered(this="tuple()", nulls_first=False))]) # needs to be defined for the ReplicatedMergeTree engine
+                    stmt.args["properties"] = _add_properties(properties=stmt.args["properties"], new_properties=[primary_key])
+                    qry = stmt.sql(dialect="clickhouse", pretty=True, identify=False)
                 if self.contains_string(qry, "DELETE FROM"):
-                    qry = self.add_on_cluster(qry, cluster)
                     # we need to delete from the base table
-                    table_name = self.extract_table_name(qry)
-                    logger.info(f"***** table_name: {table_name}")
-                    base_table_name = table_name + self.config.base_table_name_postfix
-                    qry = qry.replace(self.credentials.database, base_db, 1).replace(table_name, base_table_name)
-                    # in case subquery is used in DELETE statement we need to add the settings
+                    base_table = exp.to_table(sql_path= base_db + "." + stmt.this.name + self.config.base_table_name_postfix, quoted=False, dialect="clickhouse")
+                    stmt.this.replace(base_table)
+                    qry = stmt.sql(dialect="clickhouse", pretty=True, identify=False)
+                    # sqlglot doesn't support adding ON CLUSTER clause to DELETE statement [2025-09-05]
+                    qry = self.add_on_cluster(qry, cluster)
+                   
+                    # sqlglot cannot parse the settings part of the query so I guess it can't add it as well [2025-09-05]
                     qry = qry + " SETTINGS allow_nondeterministic_mutations=1"
-                    logger.info(f"DELETE qry w cluster: {qry}")
-                elif self.contains_string(qry, "TRUNCATE TABLE"):
+                elif (self.contains_string(qry, "TRUNCATE TABLE") or self.contains_string(qry, "DROP TABLE") or self.contains_string(qry, "ALTER")) and not self.contains_string(qry, "ON CLUSTER"):
+                    # sqlglot doesn't support adding ON CLUSTER clause to TRUNCATE TABLE, DROP TABLE or ALTER TABLE statement
+                    # and it aslo raises an error for the SYNC keyword  [2025-09-05]
                     qry = self.add_on_cluster(qry, cluster)
-                    logger.info(f"TRUNCATE qry w cluster: {qry}")
-                elif (self.contains_string(qry, "CREATE") or self.contains_string(qry, "DROP") or self.contains_string(qry, "ALTER")):
-                    qry = self.add_on_cluster(qry, cluster)
-                    table_name = self.extract_table_name(qry)
-                    if not table_name or table_name is None:
-                        logger.warning(f"Table name not found in qry: {qry}")
-                    table_engine = TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(self.config.table_engine_type)
-                    base_table_name = table_name + self.config.base_table_name_postfix
 
-                    distributed_table = qry.replace(table_engine, f"Distributed('{cluster}', '{base_db}', '{base_table_name}', rand())")
-                    distributed_table = re.sub(r'^\s*PRIMARY KEY.*\n?', '', distributed_table, flags=re.MULTILINE)
-
-                    qry = qry.replace(self.credentials.database, base_db, 1).replace(table_name, base_table_name)
-                    # at this point qry contains the base table create statement
-                    # and we need to add the distributed table statement the code below will split the qry at ;
-                    # and execute both queries
-                    qry = qry + ";\n" + distributed_table
-
-                    if self.contains_string(qry, "CREATE"): # or self.contains_string(qry, "INSERT"):
-                        logger.info(f"qry after change: {qry}")
-
-                if self.contains_string(qry, "JOIN"):
-                    qry = self.add_global_join(qry)
-
+                # unfortunately sqlglot is converting rand() to randCanonical() for clikchouse
+                # rand() returns an integer value and randCanonical() returns a float
+                # Float values are not supported for sharding key values
+                if self.contains_string(qry, "Distributed") and self.contains_string(qry, "randCanonical()"):
+                    qry = qry.replace("randCanonical()", "rand()")
                 mod_queries.append(qry)
             query = ";".join(mod_queries)
-            logger.info(f"**** queries after joining:\n{query}")
+            logger.debug(f"**** queries after joining:\n{query}")
         return query
 
     @contextmanager
@@ -362,7 +397,14 @@ class ClickHouseSqlClient(
     ) -> Iterator[ClickHouseDBApiCursorImpl]:
         assert isinstance(query, str), "Query must be a string."
 
+        # sqlglot doesn't like %s in the query string and throws an error, hence the workaround
+        # and we do this before the _convert_to_old_pyformat function to avoid dealing with the
+        # positional numbers in the placeholders
+        dummy_identifier = 'dummy____845_identifier___2165'
+        query = query.replace("%s", dummy_identifier)
+        logger.debug(f"**** Executing queries after replace:\n{query}")
         query = self.adjust_query_for_distributed_setup(query)
+        query = query.replace(dummy_identifier, "%s")
 
         db_args: DictStrAny = kwargs.copy()
 
