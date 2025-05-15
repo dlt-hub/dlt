@@ -1,6 +1,6 @@
 # flake8: noqa: F841
 
-from typing import Any
+from typing import Any, Dict
 
 import marimo
 import pandas as pd
@@ -524,7 +524,7 @@ def ibis_browser_page(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> 
 
 
 @app.cell(hide_code=True)
-def app_discover_pipelines() -> Any:
+def app_discover_pipelines(dlt_query_params: Dict[str, Any]) -> Any:
     """
     Discovers local pipelines and returns a multiselect widget to select one of the pipelines
     """
@@ -533,28 +533,27 @@ def app_discover_pipelines() -> Any:
     from datetime import datetime
     from dlt.helpers.studio import strings as _s, helpers as _h
 
-    query_params = _mo.query_params()
     dlt_pipelines_dir, _pipelines = _h.get_local_pipelines()
     dlt_pipeline_count = len(_pipelines)
     dlt_pipeline_select = _mo.ui.multiselect(
         options=[p["name"] for p in _pipelines],
-        value=[query_params.get("pipeline")] if query_params.get("pipeline") else None,
+        value=[dlt_query_params.get("pipeline")] if dlt_query_params.get("pipeline") else None,
         max_selections=1,
         label=_s.pipeline_select_label,
-        on_change=lambda value: query_params.set("pipeline", str(value[0]) if value else None),
+        on_change=lambda value: dlt_query_params.set("pipeline", str(value[0]) if value else None),  # type: ignore[attr-defined]
     )
 
     _count = 0
     dlt_pipeline_link_list = ""
-    for pipeline in _pipelines:
-        link = f"* [{pipeline['name']}](?pipeline={pipeline['name']})"
-        if pipeline["timestamp"] == 0:
+    for _p in _pipelines:
+        link = f"* [{_p['name']}](?pipeline={_p['name']})"
+        if _p["timestamp"] == 0:
             link = link + " - never used"
         else:
             link = (
                 link
                 + " - last executed"
-                f" {datetime.fromtimestamp(pipeline['timestamp']).strftime('%Y-%m-%d %H:%M:%S')}"
+                f" {datetime.fromtimestamp(_p['timestamp']).strftime('%Y-%m-%d %H:%M:%S')}"
             )
 
         dlt_pipeline_link_list += f"{link}\n"
@@ -569,20 +568,20 @@ def app_discover_pipelines() -> Any:
         dlt_pipelines_dir,
         dlt_pipeline_select,
         dlt_pipeline_count,
-        query_params,
         dlt_pipeline_link_list,
     )
 
 
 @app.cell(hide_code=True)
-def prepare_query_vars(query_params: Any) -> Any:
+def prepare_query_vars() -> Any:
     """
     Prepare query params as globals for the following cells
     """
     import marimo as _mo
 
-    dlt_pipeline_name = query_params.get("pipeline") or None
-    dlt_current_page = query_params.get("page") or None
+    dlt_query_params = _mo.query_params()
+    dlt_pipeline_name = dlt_query_params.get("pipeline") or None
+    dlt_current_page = dlt_query_params.get("page") or None
     return (dlt_pipeline_name, dlt_current_page)
 
 
