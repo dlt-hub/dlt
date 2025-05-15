@@ -198,7 +198,7 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     enable_dataset_name_normalization: bool = True
     """Whether to normalize the dataset name. Affects staging dataset as well."""
     info_tables_query_threshold: int = 1000
-    """ threshold for info tables query. """
+    """Threshold for information schema tables query, if exceeded tables will be filtered in code."""
 
     def _bind_dataset_name(
         self: TDestinationDwhClient, dataset_name: str, default_schema_name: str = None

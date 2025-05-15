@@ -19,6 +19,8 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     table_location_layout: Optional[str] = "{dataset_name}/{table_name}"
     table_properties: Optional[Dict[str, str]] = None
     info_tables_query_threshold: int = 90
+    # athena slows down when this value is too high, see for context:
+    # https://github.com/dlt-hub/dlt/issues/2529
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "athena_work_group",
