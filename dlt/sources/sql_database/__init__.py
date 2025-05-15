@@ -174,6 +174,8 @@ def sql_table(
     resolve_foreign_keys: bool = False,
     engine_adapter_callback: Callable[[Engine], Engine] = None,
     write_disposition: TWriteDispositionConfig = "append",
+    primary_key: List[str] = None,
+    merge_key: List[str] = None,
 ) -> DltResource:
     """
     A dlt resource which loads data from an SQL database table using SQLAlchemy.
@@ -227,6 +229,9 @@ def sql_table(
             set transaction isolation level.
 
         write_disposition (TWriteDispositionConfig): write disposition of the table resource, defaults to `append`.
+        primary_key (List[str]): A list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
+        merge_key (List[str]): A list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to
+            keep a single record for a given day.
 
     Returns:
         DltResource: The dlt resource for loading data from the SQL database table.
@@ -264,8 +269,15 @@ def sql_table(
     else:
         hints = {}
 
+    if primary_key:
+        hints["primary_key"] = primary_key
+
     return decorators.resource(
-        table_rows, name=str(table), write_disposition=write_disposition, **hints
+        table_rows,
+        name=str(table),
+        write_disposition=write_disposition,
+        merge_key=merge_key,
+        **hints
     )(
         engine,
         table_obj if table_obj is not None else table,  # Pass table name if reflection deferred

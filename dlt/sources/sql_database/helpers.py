@@ -410,3 +410,5 @@ class SqlTableResourceConfiguration(BaseConfiguration):
     reflection_level: Optional[ReflectionLevel] = "full"
     included_columns: Optional[List[str]] = None
     write_disposition: TWriteDispositionConfig = {"disposition": "append"}
+    primary_key: List[str] = None
+    merge_key: List[str] = None
