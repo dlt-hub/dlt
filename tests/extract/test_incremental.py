@@ -42,7 +42,7 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.transform import take_first
 
 from tests.extract.utils import AssertItems, data_item_to_list
-from tests.pipeline.utils import assert_query_data
+from tests.pipeline.utils import assert_query_column
 from tests.utils import (
     ALL_TEST_DATA_ITEM_FORMATS,
     TestDataItemFormat,
@@ -753,8 +753,8 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_1(
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.run(some_data(), destination="duckdb")
 
-    assert_query_data(p, "select count(id) from some_data", [3])
-    assert_query_data(p, "select count(created_at) from some_data", [2])
+    assert_query_column(p, "select count(id) from some_data", [3])
+    assert_query_column(p, "select count(created_at) from some_data", [2])
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
@@ -794,8 +794,8 @@ def test_cursor_path_none_does_not_include_overlapping_records(
     p.run(some_data(1), destination="duckdb")
     p.run(some_data(2), destination="duckdb")
 
-    assert_query_data(p, "select id from some_data order by id", [1, 2, 3, 5, 6])
-    assert_query_data(
+    assert_query_column(p, "select id from some_data order by id", [1, 2, 3, 5, 6])
+    assert_query_column(
         p, "select created_at from some_data order by created_at", [1, 2, 3, None, None]
     )
 
@@ -825,8 +825,8 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_2(
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.run(some_data(), destination="duckdb")
 
-    assert_query_data(p, "select count(id) from some_data", [3])
-    assert_query_data(p, "select count(created_at) from some_data", [2])
+    assert_query_column(p, "select count(id) from some_data", [3])
+    assert_query_column(p, "select count(created_at) from some_data", [2])
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
@@ -853,8 +853,8 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_3(
 
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.run(some_data(), destination="duckdb")
-    assert_query_data(p, "select count(id) from some_data", [3])
-    assert_query_data(p, "select count(created_at) from some_data", [2])
+    assert_query_column(p, "select count(id) from some_data", [3])
+    assert_query_column(p, "select count(created_at) from some_data", [2])
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
@@ -880,8 +880,8 @@ def test_cursor_path_none_includes_records_without_cursor_path(
 
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.run(some_data(), destination="duckdb")
-    assert_query_data(p, "select count(id) from some_data", [2])
-    assert_query_data(p, "select count(created_at) from some_data", [1])
+    assert_query_column(p, "select count(id) from some_data", [2])
+    assert_query_column(p, "select count(created_at) from some_data", [1])
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
@@ -908,7 +908,7 @@ def test_cursor_path_none_excludes_records_and_updates_incremental_cursor(
 
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.run(some_data(), destination="duckdb")
-    assert_query_data(p, "select count(id) from some_data", [2])
+    assert_query_column(p, "select count(id) from some_data", [2])
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
@@ -1049,8 +1049,8 @@ def test_cursor_path_not_nullable_arrow(
     p.run(some_data(1), destination="duckdb")
     p.run(some_data(2), destination="duckdb")
 
-    assert_query_data(p, "select id from some_data order by id", [1, 2, 3, 5, 6])
-    assert_query_data(p, "select created_at from some_data order by id", [1, 1, 2, 2, 3])
+    assert_query_column(p, "select id from some_data order by id", [1, 2, 3, 5, 6])
+    assert_query_column(p, "select created_at from some_data order by id", [1, 1, 2, 2, 3])
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
@@ -1114,7 +1114,7 @@ def test_cursor_path_none_nested_can_include_on_none_1() -> None:
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.run(some_data(), destination="duckdb")
 
-    assert_query_data(p, "select count(*) from some_data__data__items", [2])
+    assert_query_column(p, "select count(*) from some_data__data__items", [2])
 
 
 def test_cursor_path_none_nested_can_include_on_none_2() -> None:
@@ -1143,7 +1143,7 @@ def test_cursor_path_none_nested_can_include_on_none_2() -> None:
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.run(some_data(), destination="duckdb")
 
-    assert_query_data(p, "select count(*) from some_data__data__items", [2])
+    assert_query_column(p, "select count(*) from some_data__data__items", [2])
 
 
 def test_cursor_path_none_nested_includes_rows_without_cursor_path() -> None:
@@ -1172,7 +1172,7 @@ def test_cursor_path_none_nested_includes_rows_without_cursor_path() -> None:
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.run(some_data(), destination="duckdb")
 
-    assert_query_data(p, "select count(*) from some_data__data__items", [2])
+    assert_query_column(p, "select count(*) from some_data__data__items", [2])
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
