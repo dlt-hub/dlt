@@ -237,9 +237,6 @@ class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
 
 
 class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
-    INFO_TABLES_QUERY_THRESHOLD: ClassVar[int] = 1000
-    """Fallback to querying all tables in the information schema if checking more than threshold"""
-
     def __init__(
         self,
         schema: Schema,
@@ -458,7 +455,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         )
         # if we have more tables to lookup than a threshold, we prefer to filter them in code
         if (
-            len(name_lookup) > self.INFO_TABLES_QUERY_THRESHOLD
+            len(name_lookup) > self.config.info_tables_query_threshold
             or len(",".join(folded_table_names)) > self.capabilities.max_query_length / 2
         ):
             logger.info(
