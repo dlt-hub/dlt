@@ -149,19 +149,33 @@ Features and limitations:
 
 ## Normalization
 
-When executing transformations, dlt will automatically normalize your SQL queries by adding dlt internal columns if they are not present:
+When executing transformations, dlt will add internal dlt columns to your SQL queries depending on the configuration:
 
-- `_dlt_load_id`: Tracks which load operation created or modified each row
-- `_dlt_id`: A unique identifier for each row
+- `_dlt_load_id`, which tracks which load operation created or modified each row, is **added by default**. Even if present in your query, the `_dlt_load_id` column will be **replaced with a constant value** corresponding to the current load ID. To disable this behavior, set:
+    ```toml
+    [normalize.model_normalizer]
+    add_dlt_load_id = false
+    ```
+    In this case, the column will not be added or replaced.
+
+- `_dlt_id`, a unique identifier for each row, is **not added by default**. If your query already includes a `_dlt_id` column, it will be left unchanged. To enable automatic generation of this column when it’s missing, set:
+    ```toml
+    [normalize.model_normalizer]
+    add_dlt_id = true
+    ```
+    When enabled and the column is not in the query, dlt will generate a `_dlt_id`. Note that if the column is already present, it will **not** be replaced.
+
+    The `_dlt_id` column is generated using the destination's UUID function, such as `generateUUIDv4()` in ClickHouse. For dialects without native UUID support:
+     - In **Redshift**, `_dlt_id` is generated using an `MD5` hash of the load ID and row number.
+     - In **SQLite**, `_dlt_id` is simulated using `lower(hex(randomblob(16)))`.
 
 Additionally, column names are normalized according to the naming schema selected and the identifier capabilities of the destinations. This ensures compatibility and consistent naming conventions across different data sources and destination systems.
 
 This allows dlt to maintain data lineage and enables features like incremental loading and merging, even when working with raw SQL queries.
 
 :::info
-This feature is planned but not yet implemented. Currently, you need to explicitly include these columns in your SQL queries if you want to use them for tracking purposes.
+The normalization described here, including automatic injection or replacement of dlt columns, applies only to SQL-based transformations. Python-based transformations, such as those using dataframes or arrow tables, follow the [regular normalization process](../../reference/explainers/how-dlt-works#normalize).
 :::
-
 
 ## Local in-transit transformations example
 
