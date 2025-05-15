@@ -184,7 +184,7 @@ def from_sqlglot_type(sqlglot_type: DATA_TYPE) -> TColumnType:
 def _from_integer_type(sqlglot_type: sge.DataType) -> TColumnSchema:
     if sqlglot_type.expressions:  # from parameterized type
         assert len(sqlglot_type.expressions) == 1
-        assert isinstance(sqlglot_type.expressions[0], sge.DataTypeParam) 
+        assert isinstance(sqlglot_type.expressions[0], sge.DataTypeParam)
         precision = sqlglot_type.expressions[0].this.to_py()
 
     else:  # from named type
@@ -214,8 +214,8 @@ def _from_decimal_type(sqlglot_type: sge.DataType) -> TColumnSchema:
             hints = {"precision": precision, "scale": scale}
         else:
             hints = {}
-    
-    return hints
+
+    return hints  # type: ignore[return-value]
 
 
 def _from_timezone_type(sqlglot_type: sge.DataType) -> TColumnSchema:
@@ -223,11 +223,11 @@ def _from_timezone_type(sqlglot_type: sge.DataType) -> TColumnSchema:
 
     if sqlglot_type.expressions:  # from parameterized type
         assert len(sqlglot_type.expressions) == 1
-        assert isinstance(sqlglot_type.expressions[0], sge.DataTypeParam) 
+        assert isinstance(sqlglot_type.expressions[0], sge.DataTypeParam)
         precision = sqlglot_type.expressions[0].this.to_py()
     else:  # from named type
         precision = SQLGLOT_TEMPORAL_PRECISION.get(sqlglot_type.this)
-    
+
     return {"precision": precision, "timezone": timezone}
 
 
@@ -236,13 +236,13 @@ def _from_time_type(sqlglot_type: sge.DataType) -> TColumnSchema:
 
     if sqlglot_type.expressions:  # from parameterized type
         assert len(sqlglot_type.expressions) == 1
-        assert isinstance(sqlglot_type.expressions[0], sge.DataTypeParam) 
+        assert isinstance(sqlglot_type.expressions[0], sge.DataTypeParam)
         precision = sqlglot_type.expressions[0].this.to_py()
         hints = {"precision": precision, "timezone": timezone}
     else:  # from named type
         hints = {"timezone": timezone}
-    
-    return hints
+
+    return hints  # type: ignore[return-value]
 
 
 # TODO support `text` and `binary` precision
@@ -255,7 +255,7 @@ def to_sqlglot_type(
     use_named_types: bool = False,
 ) -> DataType:
     """Convert the dlt `data_type` and column hints to a SQLGlot DataType expression.
-    
+
     `if use_named_type is True:` use "named" types with fallback on "parameterized" types.
     `else:` use "parameterized" types everywhere.
 
@@ -299,6 +299,7 @@ def to_sqlglot_type(
         )
 
     return sqlglot_type
+
 
 # NOTE Let's ignore named types for now
 def _build_named_sqlglot_type(
@@ -388,7 +389,9 @@ def _to_named_integer_type(precision: Optional[int]) -> DataType.Type:
     elif precision <= 78:
         sqlglot_type = DataType.Type.INT256
     else:
-        raise TerminalValueError(f"Precision must be less than maximum precision of 78, got {precision}")
+        raise TerminalValueError(
+            f"Precision must be less than maximum precision of 78, got {precision}"
+        )
 
     return sqlglot_type
 
@@ -414,7 +417,9 @@ def _to_named_timestamp_type(precision: Optional[int], timezone: Optional[bool])
         elif timezone is None:
             sqlglot_type = DataType.Type.TIMESTAMP
         else:
-            raise TerminalValueError(f"Received `timezone` value not in (True, False, None), got {timezone}")
+            raise TerminalValueError(
+                f"Received `timezone` value not in (True, False, None), got {timezone}"
+            )
 
     else:
         if timezone is None and precision == 0:
@@ -424,7 +429,9 @@ def _to_named_timestamp_type(precision: Optional[int], timezone: Optional[bool])
         elif timezone is None and precision <= 9:
             sqlglot_type = sge.DataType.Type.TIMESTAMP_NS
         else:
-            raise TerminalValueError(f"Precision must be less than maximum precision of 9, got {precision}")
+            raise TerminalValueError(
+                f"Precision must be less than maximum precision of 9, got {precision}"
+            )
 
     return sqlglot_type
 
@@ -437,7 +444,9 @@ def _to_named_time_type(timezone: Optional[bool]) -> DataType.Type:
     elif timezone is False:
         sqlglot_type = DataType.Type.TIME
     else:
-        raise TerminalValueError(f"Received `timezone` value not in (True, False, None), got {timezone}")
+        raise TerminalValueError(
+            f"Received `timezone` value not in (True, False, None), got {timezone}"
+        )
 
     return sqlglot_type
 
@@ -471,7 +480,7 @@ def _filter_dlt_hints(hints: TColumnSchema) -> TColumnSchema:
         # those are directly expressed via the DataType and Column
         if k in DATA_TYPE_HINTS:
             continue
-        
+
         if k in ALLOWED_HINTS:
             final_hints[k] = v
         elif k.startswith(CUSTOM_HINT_PREFIX):

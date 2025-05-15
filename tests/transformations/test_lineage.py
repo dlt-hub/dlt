@@ -1,7 +1,10 @@
+from typing import Any, Union
+
 import pytest
 import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema, ensure_schema
 
+from dlt.common.schema import TTableSchemaColumns
 from dlt.transformations import lineage
 from dlt.transformations.exceptions import LineageFailedException
 
@@ -63,49 +66,43 @@ QUERY_KNOWN_AND_UNKNOWN_JOIN_STAR_ON_KNOW_TABLE_SELECT = """\
 
 
 @pytest.mark.parametrize(
-    "sql_query,config,expect_raise,expected_schema",
+    "sql_query,config,expected_dlt_schema",
     [
         (
             QUERY_KNOWN_TABLE_STAR_SELECT,
             {},
-            False,
             {
                 "col_varchar": {"name": "col_varchar", "data_type": "text"},
                 "col_bool": {"name": "col_bool", "data_type": "bool"},
             },
         ),
-        (QUERY_GIBBERISH, {"allow_partial": True}, False, {}),
-        (QUERY_GIBBERISH, {"allow_partial": False}, True, None),
-        (QUERY_DROP, {"allow_partial": True}, False, {}),
-        (QUERY_DROP, {"allow_partial": False}, True, None),
+        (QUERY_GIBBERISH, {"allow_partial": True}, {}),
+        (QUERY_GIBBERISH, {"allow_partial": False}, LineageFailedException()),
+        (QUERY_DROP, {"allow_partial": True}, {}),
+        (QUERY_DROP, {"allow_partial": False}, LineageFailedException()),
         (
             QUERY_ANONYMOUS_SELECT,
             {"allow_anonymous_columns": True},
-            False,
             {"_col_0": {"data_type": "bigint", "name": "_col_0"}},
         ),
         (
             QUERY_ANONYMOUS_SELECT,
             {"allow_anonymous_columns": False},
-            True,
-            None,
+            LineageFailedException(),
         ),
         (
             QUERY_UNKNOWN_TABLE_AND_COLUMN_SELECT,
             {"infer_sqlglot_schema": True},
-            False,
             {"col_unknown": {"name": "col_unknown"}},
         ),
         (
             QUERY_UNKNOWN_TABLE_AND_COLUMN_SELECT,
             {"infer_sqlglot_schema": False},
-            True,
-            None,
+            LineageFailedException(),
         ),
         (
             QUERY_KNOWN_AND_UNKNOWN_JOIN_EXPLICIT_COLUMN_SELECT,
             {"infer_sqlglot_schema": True},
-            False,
             {
                 "col_unknown_1": {"name": "col_unknown_1"},
                 "col_varchar": {"data_type": "text", "name": "col_varchar"},
@@ -114,7 +111,6 @@ QUERY_KNOWN_AND_UNKNOWN_JOIN_STAR_ON_KNOW_TABLE_SELECT = """\
         (
             QUERY_KNOWN_AND_UNKNOWN_JOIN_EXPLICIT_COLUMN_SELECT,
             {"infer_sqlglot_schema": False},
-            False,
             {
                 "col_unknown_1": {"name": "col_unknown_1"},
                 "col_varchar": {"data_type": "text", "name": "col_varchar"},
@@ -123,7 +119,6 @@ QUERY_KNOWN_AND_UNKNOWN_JOIN_STAR_ON_KNOW_TABLE_SELECT = """\
         (
             QUERY_KNOWN_TABLE_STAR_SELECT,
             {"allow_partial": False},
-            False,
             {
                 "col_varchar": {"name": "col_varchar", "data_type": "text"},
                 "col_bool": {"name": "col_bool", "data_type": "bool"},
@@ -132,19 +127,16 @@ QUERY_KNOWN_AND_UNKNOWN_JOIN_STAR_ON_KNOW_TABLE_SELECT = """\
         (
             QUERY_UNKNOWN_TABLE_STAR_SELECT,
             {"allow_partial": True},
-            False,
             {},
         ),
         (
             QUERY_UNKNOWN_TABLE_STAR_SELECT,
             {"allow_partial": False},
-            True,
-            None,
+            LineageFailedException(),
         ),
         (
             QUERY_KNOWN_TABLES_JOIN_STAR_SELECT,
             {"allow_partial": False},
-            False,
             {
                 "col_varchar": {"name": "col_varchar", "data_type": "text"},
                 "col_bool": {"name": "col_bool", "data_type": "bool"},
@@ -154,42 +146,31 @@ QUERY_KNOWN_AND_UNKNOWN_JOIN_STAR_ON_KNOW_TABLE_SELECT = """\
         (
             QUERY_KNOWN_AND_UNKNOWN_JOIN_STAR_SELECT,
             {"allow_partial": True},
-            False,
             {},
         ),
         (
             QUERY_KNOWN_AND_UNKNOWN_JOIN_STAR_SELECT,
             {"allow_partial": False},
-            True,
-            None,
+            LineageFailedException(),
         ),
         (
             QUERY_KNOWN_AND_UNKNOWN_JOIN_STAR_ON_KNOW_TABLE_SELECT,
             {"allow_partial": False},
-            False,
             {
                 "col_varchar": {"name": "col_varchar", "data_type": "text"},
                 "col_bool": {"name": "col_bool", "data_type": "bool"},
                 "col_unknown_1": {"name": "col_unknown_1"},
-            }
+            },
         ),
     ],
 )
 def test_compute_columns_schema(
+    sqlglot_schema: SQLGlotSchema,
     sql_query: str,
-    config: dict,
-    expect_raise: bool,
-    expected_schema: dict,
-    sqlglot_schema,
+    config: dict[str, Any],
+    expected_dlt_schema: Union[TTableSchemaColumns, Exception],
 ) -> None:
-    if expect_raise is False:
-        assert expected_schema == lineage.compute_columns_schema(
-            sql_query=sql_query,
-            sqlglot_schema=sqlglot_schema,
-            dialect=sqlglot_schema.dialect,
-            **config,
-        )
-    else:
+    if isinstance(expected_dlt_schema, Exception):
         with pytest.raises(LineageFailedException):
             lineage.compute_columns_schema(
                 sql_query=sql_query,
@@ -197,3 +178,10 @@ def test_compute_columns_schema(
                 dialect=sqlglot_schema.dialect,
                 **config,
             )
+    else:
+        assert expected_dlt_schema == lineage.compute_columns_schema(
+            sql_query=sql_query,
+            sqlglot_schema=sqlglot_schema,
+            dialect=sqlglot_schema.dialect,
+            **config,
+        )

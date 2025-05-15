@@ -144,9 +144,9 @@ def make_transformation_resource(
         if isinstance(transformation_result, SupportsReadableRelation):
             # strict lineage!
             computed_columns = transformation_result.compute_columns_schema(
-                allow_unknown_columns=False,
+                infer_sqlglot_schema=False,
                 allow_anonymous_columns=False,
-                allow_fail=False,
+                allow_partial=False,
             )
             all_columns = {**computed_columns, **(columns or {})}
 

@@ -138,9 +138,7 @@ def test_to_sqlglot_integer_with_precision(
     expected_sqlglot_type: sge.DataType.Type,
 ) -> None:
     """Test dlt `bigint` with precision to a named SQLGlot type"""
-    sqlglot_type = to_sqlglot_type(
-        dlt_type="bigint", precision=precision, use_named_types=True
-    )
+    sqlglot_type = to_sqlglot_type(dlt_type="bigint", precision=precision, use_named_types=True)
     assert sqlglot_type == sge.DataType.build(expected_sqlglot_type)
 
 
@@ -180,9 +178,7 @@ def test_from_sqlglot_integer_with_precision(
 @pytest.mark.parametrize("use_named_type", [True, False])
 def test_to_sqlglot_with_nullable(nullable: Optional[bool], use_named_type: bool) -> None:
     """Test dlt `nullable` hint to SQLGlot data type object."""
-    sqlglot_type = to_sqlglot_type(
-        "bigint", nullable=nullable, use_named_types=use_named_type
-    )
+    sqlglot_type = to_sqlglot_type("bigint", nullable=nullable, use_named_types=use_named_type)
     if nullable is None:
         assert "nullable" not in sqlglot_type.args
     else:
