@@ -1,6 +1,6 @@
 # flake8: noqa: F841
 
-from typing import Any
+from typing import Any, List
 
 import marimo
 import pandas as pd
@@ -11,7 +11,10 @@ app = marimo.App(width="medium", app_title="dlt studio", css_file="style.css")
 
 @app.cell(hide_code=True)
 def page_welcome(
-    dlt_pipelines_dir: str, dlt_pipeline_select: marimo.ui.multiselect, dlt_pipeline_count: int
+    dlt_pipelines_dir: str,
+    dlt_pipeline_select: marimo.ui.multiselect,
+    dlt_pipeline_count: int,
+    dlt_pipeline_link_list: str,
 ) -> Any:
     """
     Displays the welcome page with the pipeline select widget, will only display pipeline title if a pipeline is selected
@@ -34,7 +37,13 @@ def page_welcome(
             _mo.md(_s.app_title).center(),
             _mo.md(_s.app_intro).center(),
             _mo.callout(
-                _mo.vstack([_mo.md(_s.app_quick_start_title), dlt_pipeline_select]), kind="info"
+                _mo.vstack(
+                    [
+                        _mo.md(_s.app_quick_start_title.format(dlt_pipeline_link_list)),
+                        dlt_pipeline_select,
+                    ]
+                ),
+                kind="info",
             ),
             _mo.md(_s.app_basics_text.format(dlt_pipeline_count, dlt_pipelines_dir)),
         ]
@@ -139,6 +148,10 @@ def app_controls() -> Any:
     dlt_schema_show_custom_hints = _mo.ui.switch(
         label="<small>Show custom hints (x-)</small>", value=False
     )
+    dlt_cache_query_results = _mo.ui.switch(label="<small>Cache query results</small>", value=True)
+    dlt_execute_query_on_change = _mo.ui.switch(
+        label="<small>Execute query automatically on change (loose focus)</small>", value=False
+    )
     return
 
 
@@ -164,13 +177,15 @@ def page_schema_section_table_list(
             kind="warn",
         )
     else:
+        _table_list = _h.create_table_list(
+            _p,
+            show_internals=dlt_schema_show_dlt_tables.value,
+            show_child_tables=dlt_schema_show_child_tables.value,
+        )
         dlt_schem_table_list = _mo.ui.table(
-            _h.create_table_list(  # type: ignore[arg-type]
-                _p,
-                show_internals=dlt_schema_show_dlt_tables.value,
-                show_child_tables=dlt_schema_show_child_tables.value,
-            ),
+            _table_list,  # type: ignore[arg-type]
             style_cell=_h.style_cell,
+            initial_selection=list(range(0, len(_table_list))),
         )
 
     _mo.vstack(
@@ -306,7 +321,6 @@ def page_browse_data_section_table_list(
             )
             _connect_result = dlt_data_table_list
     except Exception:
-        raise
         dlt_data_table_list = None
         _connect_result = _ui.build_error_callout(_s.browse_data_error)
 
@@ -337,6 +351,8 @@ def page_browse_data_section_query_editor(
     dlt_pipeline_name: str,
     dlt_page_tabs: marimo.ui.tabs,
     dlt_data_table_list: marimo.ui.table,
+    dlt_cache_query_results: marimo.ui.switch,
+    dlt_execute_query_on_change: marimo.ui.switch,
 ) -> Any:
     """
     Show data of the currently selected pipeline
@@ -366,7 +382,23 @@ def page_browse_data_section_query_editor(
         label="Run query", tooltip="Run the query in the editor"
     )
 
-    _mo.vstack([_mo.md(_s.browse_data_explorer_title), dlt_query_editor, dlt_run_query_button])
+    _ui_items = [
+        _mo.md(_s.browse_data_explorer_title),
+        _mo.hstack([dlt_cache_query_results, dlt_execute_query_on_change], justify="start"),
+        dlt_query_editor,
+    ]
+
+    if not dlt_execute_query_on_change.value:
+        _ui_items.append(dlt_run_query_button)
+    else:
+        _ui_items.append(
+            _mo.md(
+                "<small>Query will be executed automatically when you select a table or change the"
+                " query</small>"
+            )
+        )
+
+    _mo.vstack(_ui_items)
 
     return dlt_run_query_button
 
@@ -377,22 +409,37 @@ def page_browse_data_section_execute_query(
     dlt_page_tabs: marimo.ui.tabs,
     dlt_run_query_button: marimo.ui.button,
     dlt_query_editor: marimo.ui.code_editor,
+    dlt_cache_query_results: marimo.ui.switch,
+    dlt_execute_query_on_change: marimo.ui.switch,
 ) -> Any:
     """
     Execute the query in the editor
     """
     import marimo as _mo
-    from dlt.helpers.studio import strings as _s, helpers as _h
+    from dlt.helpers.studio import strings as _s, helpers as _h, ui_elements as _ui
 
     _mo.stop(not dlt_pipeline_name or _s.app_tab_browse_data not in dlt_page_tabs.value)
 
     _p = _h.get_pipeline(dlt_pipeline_name)
 
+    _query_error = None
+    dlt_query_result = None
     with _mo.status.spinner(title="Loading data from destination"):
-        if dlt_query_editor.value and dlt_run_query_button.value:
-            dlt_query_result = _h.get_query_result(_p, dlt_query_editor.value)
-        else:
-            dlt_query_result = _h.get_last_query_result(_p)
+        if dlt_query_editor.value and (
+            dlt_run_query_button.value or dlt_execute_query_on_change.value
+        ):
+            try:
+                dlt_query_result = _h.get_query_result(
+                    _p, dlt_query_editor.value, cache_results=dlt_cache_query_results.value
+                )
+            except Exception as e:
+                _query_error = _ui.build_error_callout(_s.browse_data_query_error, code=str(e))
+
+    # always show last query if nothing was found
+    if dlt_query_result is None:
+        dlt_query_result = _h.get_last_query_result(_p)
+
+    _query_error
 
 
 @app.cell(hide_code=True)
@@ -483,19 +530,48 @@ def app_discover_pipelines() -> Any:
     """
 
     import marimo as _mo
+    from datetime import datetime
     from dlt.helpers.studio import strings as _s, helpers as _h
 
     query_params = _mo.query_params()
-    dlt_pipelines_dir, pipelines = _h.get_local_pipelines()
-    dlt_pipeline_count = len(pipelines)
+    dlt_pipelines_dir, _pipelines = _h.get_local_pipelines()
+    dlt_pipeline_count = len(_pipelines)
     dlt_pipeline_select = _mo.ui.multiselect(
-        options=pipelines,
+        options=[p["name"] for p in _pipelines],
         value=[query_params.get("pipeline")] if query_params.get("pipeline") else None,
         max_selections=1,
         label=_s.pipeline_select_label,
         on_change=lambda value: query_params.set("pipeline", str(value[0]) if value else None),
     )
-    return dlt_pipelines_dir, dlt_pipeline_select, dlt_pipeline_count, query_params
+
+    _count = 0
+    dlt_pipeline_link_list = ""
+    for pipeline in _pipelines:
+        link = f"* [{pipeline['name']}](?pipeline={pipeline['name']})"
+        if pipeline["timestamp"] == 0:
+            link = link + " - never used"
+        else:
+            link = (
+                link
+                + " - last executed"
+                f" {datetime.fromtimestamp(pipeline['timestamp']).strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+
+        dlt_pipeline_link_list += f"{link}\n"
+        _count += 1
+        if _count == 5:
+            break
+
+    if not dlt_pipeline_link_list:
+        dlt_pipeline_link_list = "No local pipelines found."
+
+    return (
+        dlt_pipelines_dir,
+        dlt_pipeline_select,
+        dlt_pipeline_count,
+        query_params,
+        dlt_pipeline_link_list,
+    )
 
 
 @app.cell(hide_code=True)

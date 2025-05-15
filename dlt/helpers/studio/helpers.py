@@ -1,26 +1,47 @@
 from typing import List, Tuple, Any, Dict, Union, cast
 from itertools import chain
+import os
 import dlt
 import pandas as pd
+from pathlib import Path
 
 from dlt.common.pipeline import get_dlt_pipelines_dir
 from dlt.common.storages import FileStorage
 from dlt.common.utils import without_none
 
 
-def get_local_pipelines(pipelines_dir: str = None) -> Tuple[str, List[str]]:
+PICKLE_TRACE_FILE = "trace.pickle"
+
+
+def get_local_pipelines(
+    pipelines_dir: str = None, sort_by_trace: bool = True
+) -> Tuple[str, List[Dict[str, Any]]]:
     """Get the local pipelines directory and the list of pipeline names in it.
 
     Args:
         pipelines_dir (str, optional): The local pipelines directory. Defaults to get_dlt_pipelines_dir().
-
+        sort_by_trace (bool, optional): Whether to sort the pipelines by the latet timestamp of trace. Defaults to True.
     Returns:
         Tuple[str, List[str]]: The local pipelines directory and the list of pipeline names in it.
     """
     pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
     storage = FileStorage(pipelines_dir)
-    dirs = storage.list_folder_dirs(".", to_root=False)
-    return pipelines_dir, dirs
+    pipelines = storage.list_folder_dirs(".", to_root=False)
+
+    # check last trace timestamp and create dict
+    pipelines_with_timestamps = []
+    for pipeline in pipelines:
+        trace_file = Path(pipelines_dir) / pipeline / PICKLE_TRACE_FILE
+        if trace_file.exists():
+            pipelines_with_timestamps.append(
+                {"name": pipeline, "timestamp": trace_file.stat().st_mtime}
+            )
+        else:
+            pipelines_with_timestamps.append({"name": pipeline, "timestamp": 0})
+
+    pipelines_with_timestamps.sort(key=lambda x: cast(float, x["timestamp"]), reverse=True)
+
+    return pipelines_dir, pipelines_with_timestamps
 
 
 def get_pipeline(pipeline_name: str) -> dlt.Pipeline:
@@ -170,17 +191,37 @@ def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
     return [{"Key": k, "Value": v} for k, v in details_dict.items()]
 
 
-# cache last of query
+# cache last of query [pipeline_name] = result
 LAST_QUERY_RESULT: Dict[str, pd.DataFrame] = {}
 
+# cache last of query [pipeline_name][query] = result
+QUERY_CACHE: Dict[str, Dict[str, pd.DataFrame]] = {}
 
-def get_query_result(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
+
+def get_query_result(
+    pipeline: dlt.Pipeline, query: str, cache_results: bool = True
+) -> pd.DataFrame:
     """
     Get the result of a query.
     """
+
+    global QUERY_CACHE
+    result = None
+    if not cache_results:
+        # purge cache
+        QUERY_CACHE = {}
+    else:
+        # load from cache if available
+        result = QUERY_CACHE.get(pipeline.pipeline_name, {}).get(query, None)
+
+    if result is None:
+        result = pipeline.dataset()(query).df()
+        QUERY_CACHE.setdefault(pipeline.pipeline_name, {})[query] = result
+
+    # remember last result
     global LAST_QUERY_RESULT
-    result = pipeline.dataset()(query).df()
     LAST_QUERY_RESULT[pipeline.pipeline_name] = result
+
     return result
 
 
