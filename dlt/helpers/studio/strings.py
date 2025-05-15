@@ -29,8 +29,11 @@ app_intro = """
 # Welcome page
 #
 app_quick_start_title = """
-## Quick start: Select a pipeline
-Selecting a pipeline from the list will open the pipeline page.
+### Quick start - Select one of your recently used pipelines:
+
+{}
+
+### Or one of all available pipelines:
 """
 app_basics_text = """
 ## dltHub Studio basics
@@ -111,12 +114,14 @@ browse_data_error = (
 )
 
 browse_data_explorer_title = """
-<small>Select a table above or write a sql query in the text area below to explore the data in the destination. The query will be executed on the destination and the results will be displayed in a table.</small>
+<small>Select a table above or write a sql query in the text area below to explore the data in the destination. The query will be executed on the destination and the results will be displayed in a table. If you disable query caching, all cached queries will be purged.</small>
 """
 
 browse_data_query_result_title = """
 ## Last successful query result
 """
+
+browse_data_query_error = """Error executing sql query:"""
 
 #
 # State page
