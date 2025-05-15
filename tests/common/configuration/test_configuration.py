@@ -1,4 +1,5 @@
 import pytest
+import click
 import datetime  # noqa: I251
 from unittest.mock import patch
 from typing import (
@@ -20,6 +21,7 @@ from typing_extensions import Annotated, TypeVar
 from dlt.common import json, pendulum, Decimal, Wei
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs.base_configuration import NotResolved, is_hint_not_resolvable
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.configuration.specs.gcp_credentials import (
     GcpServiceAccountCredentialsWithoutDefaults,
 )
@@ -56,6 +58,7 @@ from dlt.common.configuration.specs import (
     RuntimeConfiguration,
     ConnectionStringCredentials,
 )
+from dlt.common.configuration.resolve import resolve_single_provider_value
 from dlt.common.configuration.providers import environ as environ_provider, toml
 from dlt.common.configuration.utils import (
     get_resolved_traces,
@@ -80,6 +83,7 @@ from tests.common.configuration.utils import (
     SecretConfiguration,
     SectionedConfiguration,
     environment,
+    toml_providers,
     mock_provider,
     env_provider,
     reset_resolved_traces,
@@ -258,14 +262,6 @@ class SubclassConfigWithDynamicType(ConfigWithDynamicType):
 @configspec
 class ConfigWithLiteralField(BaseConfiguration):
     refresh: TRefreshMode = None
-
-
-@configspec
-class ConfigWithPlaceholders(BaseConfiguration):
-    text: str = TYPE_EXAMPLES["text"]
-    date: str = TYPE_EXAMPLES["date"]
-    datetime: str = TYPE_EXAMPLES["datetime"]
-    timestamp: float = TYPE_EXAMPLES["timestamp"]
 
 
 LongInteger = NewType("LongInteger", int)
@@ -1585,12 +1581,35 @@ def test_configuration_with_literal_field(environment: Dict[str, str]) -> None:
     assert spec.refresh == "drop_data"
 
 
-def test_warn_when_resolving_placeholders(caplog: pytest.LogCaptureFixture) -> None:
-    config = ConfigWithPlaceholders()
-    assert config['text'] == "<configure me>"
-    resolved = None
-    with caplog.at_level("WARNING"):
-        resolved = resolve.resolve_configuration(config, accept_partial=True)
+@pytest.mark.parametrize("sc_type", TYPE_EXAMPLES.keys(), ids=TYPE_EXAMPLES.keys())
+def test_warn_when_resolving_placeholders(
+    environment: Dict[str, str],
+    capsys: pytest.CaptureFixture,
+    toml_providers: ConfigProvidersContainer,
+    sc_type: str,
+) -> None:
+    # Plaholder values should emit warning when being resolved from secrets or configs
+    provider: toml.SettingsTomlProvider
+    for provider in toml_providers.providers:
+        key = f"SOME_{sc_type}".upper()
+        placeholder_value = TYPE_EXAMPLES[sc_type]
+        test_section_name = "TEST_SECTION"
 
-    assert resolved['text'] == "<configure me>"
-    assert "Placeholder value encountered when resolving" in  caplog.text
+        if is_environ := provider.locations == []:
+            environment[f"{test_section_name}__{key}"] = placeholder_value
+        else:
+            provider.set_value(key, placeholder_value, test_section_name)
+
+        value, _ = resolve_single_provider_value(
+            provider, key=key, hint=Any, config_section=test_section_name
+        )
+        captured = capsys.readouterr()
+
+        assert value == placeholder_value
+
+        assert "Placeholder value encountered when resolving config" in captured.out
+        assert key in captured.out
+        assert placeholder_value in captured.out
+        assert test_section_name in captured.out
+        if not is_environ:
+            assert provider.locations[0] in captured.out

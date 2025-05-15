@@ -17,8 +17,7 @@ from dlt.common.typing import AnyType, is_optional_type, is_subclass
 MOON_LANDING = pendulum.datetime(1969, 7, 21, 2, 56, 0, tz="UTC")
 TYPE_EXAMPLES = {
     "text": "<configure me>",
-    "datetime": MOON_LANDING.to_iso8601_string(),
-    "timestamp": MOON_LANDING.timestamp(),
+    "timestamp": MOON_LANDING.to_iso8601_string(),
     "date": MOON_LANDING.to_date_string(),
 }
 
