@@ -110,15 +110,17 @@ def my_upsert_resource():
 - Deleting records from nested tables not supported
   - This means updates to JSON columns that involve element removals are not propagated. For example, if you first load `{"key": 1, "nested": [1, 2]}` and then load `{"key": 1, "nested": [1]}`, then the record for element `2` will not be deleted from the nested table.
 
-## Delta table format storage options
-You can pass storage options by configuring `destination.filesystem.deltalake_storage_options`:
+## Delta table format storage options and configuration
+You can pass storage options and configuration by configuring both `destination.filesystem.deltalake_storage_options` and
+`destination.filesystem.deltalake_configuration`:
 
 ```toml
 [destination.filesystem]
+deltalake_configuration = '{"delta.enableChangeDataFeed": "true", "delta.minWriterVersion": "7"}'
 deltalake_storage_options = '{"AWS_S3_LOCKING_PROVIDER": "dynamodb", "DELTA_DYNAMO_TABLE_NAME": "custom_table_name"}'
 ```
 
-dlt passes these options to the `storage_options` argument of the `write_deltalake` method in the `deltalake` library. Look at their [documentation](https://delta-io.github.io/delta-rs/api/delta_writer/#deltalake.write_deltalake) to see which options can be used.
+dlt passes these as arguments to the `write_deltalake` method in the `deltalake` library (`deltalake_configuration` maps to `configuration` and `deltalake_storage_options` maps to `storage_options`). Look at their [documentation](https://delta-io.github.io/delta-rs/api/delta_writer/#deltalake.write_deltalake) to see which options can be used.
 
 You don't need to specify credentials here. dlt merges the required credentials with the options you provided before passing it as `storage_options`.
 
