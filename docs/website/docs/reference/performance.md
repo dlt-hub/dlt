@@ -122,10 +122,20 @@ Below, we set files to rotate after 100,000 items written or when the filesize e
 
 <!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::file_size_toml-->
 
+:::note NOTE
+When working with a single resource that handles a very large dataset, memory exhaustion may occur during processing. To mitigate this, enable file rotation by configuring `file_max_items` or `file_max_bytes` to split the data into smaller chunks and consider increasing the number of parallel workers for better processing. Read more about [parallel processing.](#parallelism-within-a-pipeline)
+:::
+
 ### Disabling and enabling file compression
 Several [text file formats](../dlt-ecosystem/file-formats/) have `gzip` compression enabled by default. If you wish that your load packages have uncompressed files (e.g., to debug the content easily), change `data_writer.disable_compression` in config.toml. The entry below will disable the compression of the files processed in the `normalize` stage.
 <!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::compression_toml-->
 
+### Handling insufficient RAM for in-memory operations
+If your available RAM is not sufficient for in-memory operations, consider these optimizations:
+
+Adjust the `buffer_max_items` setting to fine-tune the size of in-memory buffers. This helps to prevent memory overconsumption when processing large datasets. For more details, [see the buffer configuration guide.](#controlling-in-memory-buffers)
+
+For handling big data efficiently, process your data in **chunks** rather than loading it entirely into memory. This batching approach allows for more effective resource management and can significantly reduce memory usage.
 
 ### Freeing disk space after loading
 
@@ -197,7 +207,7 @@ The default is to not parallelize normalization and to perform it in the main pr
 :::
 
 :::note
-Normalization is CPU-bound and can easily saturate all your cores. Never allow `dlt` to use all cores on your local machine.
+Normalization is CPU-bound and can easily saturate all your cores if not configured properly. Too many workers may exhaust resources; too few may underutilize capacity. Never allow dlt to use all available cores on your local machine, adjust the worker settings in your `config.toml` accordingly.
 :::
 
 :::caution
