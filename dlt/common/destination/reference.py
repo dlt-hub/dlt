@@ -28,7 +28,7 @@ from dlt.common.destination.client import DestinationClientConfiguration, JobCli
 from dlt.common.runtime.run_context import get_plugin_modules
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import is_subclass
-from dlt.common.utils import get_full_callable_name
+from dlt.common.utils import get_full_callable_name, simple_repr, without_none
 from dlt.common.reflection.ref import object_from_ref
 
 
@@ -144,6 +144,10 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     def client_class(self) -> Type[TDestinationClient]:
         """A job client class responsible for starting and resuming load jobs"""
         ...
+
+    def __repr__(self) -> str:
+        kwargs = {**self.spec(), **self.config_params}
+        return simple_repr(self.destination_type, **without_none(kwargs))
 
     def configuration(
         self, initial_config: TDestinationConfig, accept_partial: bool = False
