@@ -41,6 +41,7 @@ from dlt.cli.exceptions import CliCommandInnerException
 from dlt.cli.requirements import SourceRequirements
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 from dlt.reflection import names as n
+from dlt.cli.config_toml_writer import TYPE_EXAMPLES
 
 from tests.cli.utils import (
     echo_default_choice,
@@ -284,6 +285,18 @@ def test_init_core_sources_ejected(cloned_init_repo: FileStorage) -> None:
             assert_requirements_txt(files, "bigquery")
             # check if files copied
             assert files.has_folder(candidate)
+
+
+def test_init_writes_example_config_placeholders(repo_dir: str) -> None:
+    init_command.init_command("filesystem", "bigquery", repo_dir)
+    # check that written secret of type string was replaced with correct placeholder value
+    secrets = SecretsTomlProvider(settings_dir=dlt.current.run_context().settings_dir)
+    access_key_value, _ = secrets.get_value(
+        "aws_access_key_id", str, "", "sources", "filesystem", "credentials"
+    )
+    # note: we don't have a source that writes timestamps or date as part of the config or secrets
+    # so we only test for this type
+    assert access_key_value == TYPE_EXAMPLES["text"]
 
 
 @pytest.mark.parametrize("destination_name", IMPLEMENTED_DESTINATIONS)
