@@ -14,16 +14,16 @@ from tests.load.transformations.utils import (
 @dlt.transformation
 def customers_by_city(dataset: dlt.Dataset):
     customers_ibis = dataset.table("customers")._ibis_object
-    t = (
+    nw_transform = (
         nw.from_native(customers_ibis)
         .group_by(nw.col("city"))
         .agg(nw.col("name").count().alias("count"))
         .to_native()
     )
-    return ReadableIbisRelation(readable_dataset=dataset, ibis_object=t)
+    return ReadableIbisRelation(readable_dataset=dataset, ibis_object=nw_transform)
 
 
-"""We could rewrite the above as follow and handle the automatically rest behind the scene.
+"""We could rewrite the above as:
 @dlt.transformation
 def customers_by_city(customers):
     return (
@@ -31,6 +31,11 @@ def customers_by_city(customers):
         .group_by(nw.col('city'))
         .agg(nw.col('name').count().alias('count'))
     )
+
+We can automatically:
+- infer that it's using narwhals
+- wrap the narwhals expression in from_native() / to_native()
+- return a Relation (hopefully we deprecate this)
 """
 
 
