@@ -1,15 +1,12 @@
 from tests.extract.test_extract import extract_step
 from tests.normalize.test_normalize import raw_normalize, extract_items, load_or_create_schema, caps
-from tests.load.utils import count_job_types, destinations_configs, DestinationTestConfiguration
+from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from dlt.extract.extract import Extract
-from dlt.extract.hints import make_hints
 from dlt.normalize import Normalize
 from dlt.destinations import duckdb
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.schema.typing import TColumnSchema
 from dlt.common import logger
 import dlt
-import pandas as pd
 import pyarrow as pa
 
 from typing import Optional
@@ -34,13 +31,13 @@ def test_warning_from_arrow_extractor(
         def my_resource():
             col1: list[Optional[str]] = [None, None] if is_none else ["a", "b"]
 
-            df = pd.DataFrame(
+            table = pa.table(
                 {
-                    "id": [1, 2],
-                    "col1": col1,
+                    "id": pa.array([1, 2]),
+                    "col1": pa.array(col1),
                 }
             )
-            table = pa.Table.from_pandas(df)
+
             yield table
 
         return [my_resource()]
