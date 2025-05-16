@@ -271,6 +271,26 @@ def test_general_sql_database_config(sql_source_db: SQLAlchemySourceDB) -> None:
     assert len(list(sql_database(schema=sql_source_db.schema).with_resources("app_user"))) > 0
 
 
+def test_sql_table_accepts_merge_and_primary_key_in_decorator(
+    sql_source_db: SQLAlchemySourceDB,
+) -> None:
+    # setup
+    os.environ["SOURCES__SQL_DATABASE__CREDENTIALS"] = sql_source_db.engine.url.render_as_string(
+        False
+    )
+    table = sql_table(
+        table="chat_message",
+        schema=sql_source_db.schema,
+        write_disposition="merge",
+        primary_key=["id"],
+        merge_key=["merge_id"],
+    )
+    # verify
+    assert table.write_disposition == "merge"
+    assert table._hints["primary_key"] == ["id"]
+    assert table._hints["merge_key"] == ["merge_id"]
+
+
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow"])
 @pytest.mark.parametrize("add_new_columns", [True, False])
 def test_text_query_adapter(
