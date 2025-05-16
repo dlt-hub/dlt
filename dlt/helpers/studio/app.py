@@ -90,6 +90,7 @@ def app_tabs(dlt_pipeline_name: str) -> Any:
 def page_overview(
     dlt_pipeline_name: str,
     dlt_page_tabs: marimo.ui.tabs,
+    dlt_pipelines_dir: str,
 ) -> Any:
     """
     Overview page of currently selected pipeline
@@ -98,7 +99,7 @@ def page_overview(
     from dlt.helpers.studio import strings as _s, utils as _u, ui_elements as _ui
 
     _mo.stop(not dlt_pipeline_name or _s.app_tab_overview not in dlt_page_tabs.value)
-    _p = _u.get_pipeline(dlt_pipeline_name)
+    _p = _u.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
 
     # sync pipeline
     with _mo.status.spinner(title="Syncing pipeline state from destination..."):
@@ -158,6 +159,7 @@ def app_controls() -> Any:
 @app.cell(hide_code=True)
 def page_schema_section_table_list(
     dlt_pipeline_name: str,
+    dlt_pipelines_dir: str,
     dlt_schema_show_child_tables: marimo.ui.switch,
     dlt_schema_show_dlt_tables: marimo.ui.switch,
     dlt_page_tabs: marimo.ui.tabs,
@@ -169,7 +171,7 @@ def page_schema_section_table_list(
     from dlt.helpers.studio import strings as _s, utils as _u
 
     _mo.stop(not dlt_pipeline_name or _s.app_tab_schema not in dlt_page_tabs.value)
-    _p = _u.get_pipeline(dlt_pipeline_name)
+    _p = _u.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
 
     if not _p.default_schema_name:
         dlt_schem_table_list = _mo.callout(
@@ -201,6 +203,7 @@ def page_schema_section_table_list(
 @app.cell(hide_code=True)
 def page_schema_section_table_schemas(
     dlt_pipeline_name: str,
+    dlt_pipelines_dir: str,
     dlt_schem_table_list: marimo.ui.table,
     dlt_schema_show_other_hints: marimo.ui.switch,
     dlt_schema_show_custom_hints: marimo.ui.switch,
@@ -217,9 +220,9 @@ def page_schema_section_table_schemas(
     _mo.stop(
         not dlt_pipeline_name
         or _s.app_tab_schema not in dlt_page_tabs.value
-        or not _u.get_pipeline(dlt_pipeline_name).default_schema_name
+        or not _u.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir).default_schema_name
     )
-    _p = _u.get_pipeline(dlt_pipeline_name)
+    _p = _u.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
 
     _stack = []
 
@@ -261,16 +264,20 @@ def page_schema_section_table_schemas(
 
 
 @app.cell(hide_code=True)
-def page_schema_section_raw_schema(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> Any:
+def page_schema_section_raw_schema(
+    dlt_pipeline_name: str,
+    dlt_pipelines_dir: str,
+    dlt_page_tabs: marimo.ui.tabs,
+) -> Any:
     import marimo as _mo
     from dlt.helpers.studio import strings as _s, utils as _u
 
     _mo.stop(
         not dlt_pipeline_name
         or _s.app_tab_schema not in dlt_page_tabs.value
-        or not _u.get_pipeline(dlt_pipeline_name).default_schema_name
+        or not _u.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir).default_schema_name
     )
-    _p = _u.get_pipeline(dlt_pipeline_name)
+    _p = _u.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
 
     _mo.vstack(
         [
@@ -291,6 +298,7 @@ def page_schema_section_raw_schema(dlt_pipeline_name: str, dlt_page_tabs: marimo
 @app.cell(hide_code=True)
 def page_browse_data_section_table_list(
     dlt_pipeline_name: str,
+    dlt_pipelines_dir: str,
     dlt_page_tabs: marimo.ui.tabs,
     dlt_schema_show_child_tables: marimo.ui.switch,
     dlt_schema_show_dlt_tables: marimo.ui.switch,
@@ -303,7 +311,7 @@ def page_browse_data_section_table_list(
     from dlt.helpers.studio import strings as _s, utils as _u, ui_elements as _ui
 
     _mo.stop(not dlt_pipeline_name or _s.app_tab_browse_data not in dlt_page_tabs.value)
-    _p = _u.get_pipeline(dlt_pipeline_name)
+    _p = _u.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
 
     # try to connect to the dataset
     try:
@@ -349,6 +357,7 @@ def page_browse_data_section_table_list(
 @app.cell(hide_code=True)
 def page_browse_data_section_query_editor(
     dlt_pipeline_name: str,
+    dlt_pipelines_dir: str,
     dlt_page_tabs: marimo.ui.tabs,
     dlt_data_table_list: marimo.ui.table,
     dlt_cache_query_results: marimo.ui.switch,
@@ -365,7 +374,7 @@ def page_browse_data_section_query_editor(
         or _s.app_tab_browse_data not in dlt_page_tabs.value
         or not dlt_data_table_list
     )
-    _p = _u.get_pipeline(dlt_pipeline_name)
+    _p = _u.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
 
     _sql_query = ""
     if dlt_data_table_list.value:
@@ -406,6 +415,7 @@ def page_browse_data_section_query_editor(
 @app.cell(hide_code=True)
 def page_browse_data_section_execute_query(
     dlt_pipeline_name: str,
+    dlt_pipelines_dir: str,
     dlt_page_tabs: marimo.ui.tabs,
     dlt_run_query_button: marimo.ui.button,
     dlt_query_editor: marimo.ui.code_editor,
@@ -420,7 +430,7 @@ def page_browse_data_section_execute_query(
 
     _mo.stop(not dlt_pipeline_name or _s.app_tab_browse_data not in dlt_page_tabs.value)
 
-    _p = _u.get_pipeline(dlt_pipeline_name)
+    _p = _u.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
 
     _query_error = None
     dlt_query_result = None
@@ -472,7 +482,11 @@ def page_browse_data_section_data_explorer(
 
 
 @app.cell(hide_code=True)
-def page_state(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> Any:
+def page_state(
+    dlt_pipeline_name: str,
+    dlt_pipelines_dir: str,
+    dlt_page_tabs: marimo.ui.tabs,
+) -> Any:
     """
     Show state of the currently selected pipeline
     """
@@ -481,7 +495,7 @@ def page_state(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> Any:
     from dlt.helpers.studio import strings as _s, utils as _u
 
     _mo.stop(not dlt_pipeline_name or _s.app_tab_state not in dlt_page_tabs.value)
-    _p = _u.get_pipeline(dlt_pipeline_name)
+    _p = _u.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
 
     _mo.vstack(
         [
@@ -495,7 +509,11 @@ def page_state(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> Any:
 
 
 @app.cell(hide_code=True)
-def ibis_browser_page(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> Any:
+def ibis_browser_page(
+    dlt_pipeline_name: str,
+    dlt_pipelines_dir: str,
+    dlt_page_tabs: marimo.ui.tabs,
+) -> Any:
     """
     Connects to ibis backend and makes it available in the datasources panel
     """
@@ -503,7 +521,7 @@ def ibis_browser_page(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> 
     from dlt.helpers.studio import strings as _s, utils as _u, ui_elements as _ui
 
     _mo.stop(not dlt_pipeline_name or _s.app_tab_ibis_browser not in dlt_page_tabs.value)
-    _p = _u.get_pipeline(dlt_pipeline_name)
+    _p = _u.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
 
     try:
         with _mo.status.spinner(title="Connecting Ibis Backend..."):
@@ -524,7 +542,7 @@ def ibis_browser_page(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> 
 
 
 @app.cell(hide_code=True)
-def app_discover_pipelines() -> Any:
+def app_discover_pipelines(cli_arg_pipelines_dir: str) -> Any:
     """
     Discovers local pipelines and returns a multiselect widget to select one of the pipelines
     """
@@ -535,11 +553,11 @@ def app_discover_pipelines() -> Any:
 
     # note: this exception handling is only needed for testing
     try:
-        dlt_query_params: Any = _mo.query_params()
+        dlt_query_params = _mo.query_params()
     except Exception:
-        dlt_query_params = {}
+        dlt_query_params = {}  # type: ignore[assignment]
 
-    dlt_pipelines_dir, _pipelines = _u.get_local_pipelines()
+    dlt_pipelines_dir, _pipelines = _u.get_local_pipelines(cli_arg_pipelines_dir)
     dlt_pipeline_count = len(_pipelines)
     dlt_pipeline_select = _mo.ui.multiselect(
         options=[p["name"] for p in _pipelines],
@@ -583,6 +601,18 @@ def prepare_query_vars(dlt_query_params: Any) -> Any:
     dlt_pipeline_name = dlt_query_params.get("pipeline") or None
     dlt_current_page = dlt_query_params.get("page") or None
     return (dlt_pipeline_name, dlt_current_page)
+
+
+@app.cell(hide_code=True)
+def prepare_cli_args() -> Any:
+    """
+    Prepare query params as globals for the following cells
+    """
+    import marimo as _mo
+
+    dlt_cli_args = _mo.cli_args()
+
+    cli_arg_pipelines_dir = dlt_cli_args.get("pipelines_dir") or None
 
 
 if __name__ == "__main__":

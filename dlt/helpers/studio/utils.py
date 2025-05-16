@@ -44,7 +44,7 @@ def get_local_pipelines(
     return pipelines_dir, pipelines_with_timestamps
 
 
-def get_pipeline(pipeline_name: str) -> dlt.Pipeline:
+def get_pipeline(pipeline_name: str, pipelines_dir: str) -> dlt.Pipeline:
     """Get a pipeline by name.
 
     Args:
@@ -53,7 +53,7 @@ def get_pipeline(pipeline_name: str) -> dlt.Pipeline:
     Returns:
         dlt.Pipeline: The pipeline.
     """
-    return dlt.attach(pipeline_name)
+    return dlt.attach(pipeline_name, pipelines_dir=pipelines_dir)
 
 
 def _align_dict_keys(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
