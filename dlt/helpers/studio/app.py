@@ -1,6 +1,6 @@
 # flake8: noqa: F841
 
-from typing import Any, Dict
+from typing import Any
 
 import marimo
 import pandas as pd
@@ -20,7 +20,7 @@ def page_welcome(
     Displays the welcome page with the pipeline select widget, will only display pipeline title if a pipeline is selected
     """
     import marimo as _mo
-    from dlt.helpers.studio import strings as _s, helpers as _h
+    from dlt.helpers.studio import strings as _s, utils as _u
 
     _selected_pipeline_name = dlt_pipeline_select.value[0] if dlt_pipeline_select.value else None
 
@@ -95,10 +95,10 @@ def page_overview(
     Overview page of currently selected pipeline
     """
     import marimo as _mo
-    from dlt.helpers.studio import strings as _s, helpers as _h, ui_elements as _ui
+    from dlt.helpers.studio import strings as _s, utils as _u, ui_elements as _ui
 
     _mo.stop(not dlt_pipeline_name or _s.app_tab_overview not in dlt_page_tabs.value)
-    _p = _h.get_pipeline(dlt_pipeline_name)
+    _p = _u.get_pipeline(dlt_pipeline_name)
 
     # sync pipeline
     with _mo.status.spinner(title="Syncing pipeline state from destination..."):
@@ -119,9 +119,9 @@ def page_overview(
             _sync_result,
             _mo.md(_s.pipeline_details),
             _mo.ui.table(
-                _h.pipeline_details(_p),
+                _u.pipeline_details(_p),
                 selection=None,
-                style_cell=_h.style_cell,
+                style_cell=_u.style_cell,
             ),
         ]
     )
@@ -166,10 +166,10 @@ def page_schema_section_table_list(
     Show schema of the currently selected pipeline
     """
     import marimo as _mo
-    from dlt.helpers.studio import strings as _s, helpers as _h
+    from dlt.helpers.studio import strings as _s, utils as _u
 
     _mo.stop(not dlt_pipeline_name or _s.app_tab_schema not in dlt_page_tabs.value)
-    _p = _h.get_pipeline(dlt_pipeline_name)
+    _p = _u.get_pipeline(dlt_pipeline_name)
 
     if not _p.default_schema_name:
         dlt_schem_table_list = _mo.callout(
@@ -177,14 +177,14 @@ def page_schema_section_table_list(
             kind="warn",
         )
     else:
-        _table_list = _h.create_table_list(
+        _table_list = _u.create_table_list(
             _p,
             show_internals=dlt_schema_show_dlt_tables.value,
             show_child_tables=dlt_schema_show_child_tables.value,
         )
         dlt_schem_table_list = _mo.ui.table(
             _table_list,  # type: ignore[arg-type]
-            style_cell=_h.style_cell,
+            style_cell=_u.style_cell,
             initial_selection=list(range(0, len(_table_list))),
         )
 
@@ -212,14 +212,14 @@ def page_schema_section_table_schemas(
     Show schema of the currently selected table
     """
     import marimo as _mo
-    from dlt.helpers.studio import strings as _s, helpers as _h
+    from dlt.helpers.studio import strings as _s, utils as _u
 
     _mo.stop(
         not dlt_pipeline_name
         or _s.app_tab_schema not in dlt_page_tabs.value
-        or not _h.get_pipeline(dlt_pipeline_name).default_schema_name
+        or not _u.get_pipeline(dlt_pipeline_name).default_schema_name
     )
-    _p = _h.get_pipeline(dlt_pipeline_name)
+    _p = _u.get_pipeline(dlt_pipeline_name)
 
     _stack = []
 
@@ -228,7 +228,7 @@ def page_schema_section_table_schemas(
         _stack.append(_mo.md(f"### `{_table_name}`"))
         _stack.append(
             _mo.ui.table(
-                _h.create_column_list(
+                _u.create_column_list(
                     _p,
                     _table_name,
                     show_internals=dlt_schema_show_dlt_columns.value,
@@ -237,7 +237,7 @@ def page_schema_section_table_schemas(
                     show_custom_hints=dlt_schema_show_custom_hints.value,
                 ),
                 selection=None,
-                style_cell=_h.style_cell,
+                style_cell=_u.style_cell,
             )
         )
 
@@ -263,14 +263,14 @@ def page_schema_section_table_schemas(
 @app.cell(hide_code=True)
 def page_schema_section_raw_schema(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> Any:
     import marimo as _mo
-    from dlt.helpers.studio import strings as _s, helpers as _h
+    from dlt.helpers.studio import strings as _s, utils as _u
 
     _mo.stop(
         not dlt_pipeline_name
         or _s.app_tab_schema not in dlt_page_tabs.value
-        or not _h.get_pipeline(dlt_pipeline_name).default_schema_name
+        or not _u.get_pipeline(dlt_pipeline_name).default_schema_name
     )
-    _p = _h.get_pipeline(dlt_pipeline_name)
+    _p = _u.get_pipeline(dlt_pipeline_name)
 
     _mo.vstack(
         [
@@ -300,23 +300,23 @@ def page_browse_data_section_table_list(
     Show data of the currently selected pipeline
     """
     import marimo as _mo
-    from dlt.helpers.studio import strings as _s, helpers as _h, ui_elements as _ui
+    from dlt.helpers.studio import strings as _s, utils as _u, ui_elements as _ui
 
     _mo.stop(not dlt_pipeline_name or _s.app_tab_browse_data not in dlt_page_tabs.value)
-    _p = _h.get_pipeline(dlt_pipeline_name)
+    _p = _u.get_pipeline(dlt_pipeline_name)
 
     # try to connect to the dataset
     try:
         _p.dataset().destination_client.config.credentials
         with _mo.status.spinner(title="Getting table list..."):
             dlt_data_table_list = _mo.ui.table(
-                _h.create_table_list(  # type: ignore[arg-type]
+                _u.create_table_list(  # type: ignore[arg-type]
                     _p,
                     show_internals=dlt_schema_show_dlt_tables.value,
                     show_child_tables=dlt_schema_show_child_tables.value,
                     show_row_counts=dlt_schema_show_row_counts.value,
                 ),
-                style_cell=_h.style_cell,
+                style_cell=_u.style_cell,
                 selection="single",
             )
             _connect_result = dlt_data_table_list
@@ -358,14 +358,14 @@ def page_browse_data_section_query_editor(
     Show data of the currently selected pipeline
     """
     import marimo as _mo
-    from dlt.helpers.studio import strings as _s, helpers as _h
+    from dlt.helpers.studio import strings as _s, utils as _u
 
     _mo.stop(
         not dlt_pipeline_name
         or _s.app_tab_browse_data not in dlt_page_tabs.value
         or not dlt_data_table_list
     )
-    _p = _h.get_pipeline(dlt_pipeline_name)
+    _p = _u.get_pipeline(dlt_pipeline_name)
 
     _sql_query = ""
     if dlt_data_table_list.value:
@@ -416,11 +416,11 @@ def page_browse_data_section_execute_query(
     Execute the query in the editor
     """
     import marimo as _mo
-    from dlt.helpers.studio import strings as _s, helpers as _h, ui_elements as _ui
+    from dlt.helpers.studio import strings as _s, utils as _u, ui_elements as _ui
 
     _mo.stop(not dlt_pipeline_name or _s.app_tab_browse_data not in dlt_page_tabs.value)
 
-    _p = _h.get_pipeline(dlt_pipeline_name)
+    _p = _u.get_pipeline(dlt_pipeline_name)
 
     _query_error = None
     dlt_query_result = None
@@ -429,7 +429,7 @@ def page_browse_data_section_execute_query(
             dlt_run_query_button.value or dlt_execute_query_on_change.value
         ):
             try:
-                dlt_query_result = _h.get_query_result(
+                dlt_query_result = _u.get_query_result(
                     _p, dlt_query_editor.value, cache_results=dlt_cache_query_results.value
                 )
             except Exception as e:
@@ -437,7 +437,7 @@ def page_browse_data_section_execute_query(
 
     # always show last query if nothing was found
     if dlt_query_result is None:
-        dlt_query_result = _h.get_last_query_result(_p)
+        dlt_query_result = _u.get_last_query_result(_p)
 
     _query_error
 
@@ -453,7 +453,7 @@ def page_browse_data_section_data_explorer(
     Show data of the currently selected pipeline
     """
     import marimo as _mo
-    from dlt.helpers.studio import strings as _s, helpers as _h
+    from dlt.helpers.studio import strings as _s, utils as _u
 
     _mo.stop(
         not dlt_pipeline_name
@@ -478,10 +478,10 @@ def page_state(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> Any:
     """
     from dlt.common.json import json as _json
     import marimo as _mo
-    from dlt.helpers.studio import strings as _s, helpers as _h
+    from dlt.helpers.studio import strings as _s, utils as _u
 
     _mo.stop(not dlt_pipeline_name or _s.app_tab_state not in dlt_page_tabs.value)
-    _p = _h.get_pipeline(dlt_pipeline_name)
+    _p = _u.get_pipeline(dlt_pipeline_name)
 
     _mo.vstack(
         [
@@ -500,10 +500,10 @@ def ibis_browser_page(dlt_pipeline_name: str, dlt_page_tabs: marimo.ui.tabs) -> 
     Connects to ibis backend and makes it available in the datasources panel
     """
     import marimo as _mo
-    from dlt.helpers.studio import strings as _s, helpers as _h, ui_elements as _ui
+    from dlt.helpers.studio import strings as _s, utils as _u, ui_elements as _ui
 
     _mo.stop(not dlt_pipeline_name or _s.app_tab_ibis_browser not in dlt_page_tabs.value)
-    _p = _h.get_pipeline(dlt_pipeline_name)
+    _p = _u.get_pipeline(dlt_pipeline_name)
 
     try:
         with _mo.status.spinner(title="Connecting Ibis Backend..."):
@@ -531,22 +531,22 @@ def app_discover_pipelines() -> Any:
 
     import marimo as _mo
     from datetime import datetime
-    from dlt.helpers.studio import strings as _s, helpers as _h
+    from dlt.helpers.studio import strings as _s, utils as _u
 
     # note: this exception handling is only needed for testing
     try:
-        dlt_query_params = _mo.query_params()
+        dlt_query_params: Any = _mo.query_params()
     except Exception:
         dlt_query_params = {}
 
-    dlt_pipelines_dir, _pipelines = _h.get_local_pipelines()
+    dlt_pipelines_dir, _pipelines = _u.get_local_pipelines()
     dlt_pipeline_count = len(_pipelines)
     dlt_pipeline_select = _mo.ui.multiselect(
         options=[p["name"] for p in _pipelines],
         value=[dlt_query_params.get("pipeline")] if dlt_query_params.get("pipeline") else None,
         max_selections=1,
         label=_s.pipeline_select_label,
-        on_change=lambda value: dlt_query_params.set("pipeline", str(value[0]) if value else None),  # type: ignore[attr-defined]
+        on_change=lambda value: dlt_query_params.set("pipeline", str(value[0]) if value else None),
     )
 
     _count = 0
