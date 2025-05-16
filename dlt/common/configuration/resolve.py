@@ -1,6 +1,8 @@
 import itertools
 from collections.abc import Mapping as C_Mapping
 from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, Type, TypeVar
+import dlt.cli.echo as fmt
+from dlt.cli.config_toml_writer import TYPE_EXAMPLES
 
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.typing import (
@@ -46,7 +48,7 @@ def resolve_configuration(
     *,
     sections: Tuple[str, ...] = (),
     explicit_value: Any = None,
-    accept_partial: bool = False
+    accept_partial: bool = False,
 ) -> TConfiguration:
     if not isinstance(config, BaseConfiguration):
         raise ConfigurationWrongTypeException(type(config))
@@ -527,7 +529,25 @@ def resolve_single_provider_value(
         # pop optional sections for less precise lookup
         ns.pop()
 
+    if value in TYPE_EXAMPLES.values():
+        _emit_placeholder_warning(value, hint, key, ns_key, provider)
     return value, traces
+
+
+def _emit_placeholder_warning(
+    value: Any, hint: Type[Any], key: str, full_key: str, provider: ConfigProvider
+) -> None:
+    is_secret = is_secret_hint(hint)
+    config_or_secret = "secret" if is_secret else "config"
+    file_to_fix = "secrets.toml" if is_secret else "config.toml"
+    locations_as_string = "\n".join(provider.locations)
+    fmt.warning(
+        f"Placeholder value encountered when resolving {config_or_secret}:\n"
+        f"resolved_key: {key}, value:{value}, section: {full_key}\n"
+        "Most likely, this comes from `init`-command, which creates basic templates for"
+        f"non-complex configs and secrets. The file to adjust is {file_to_fix} the `.dlt`-settings "
+        f"directory in one of these locations:\n{locations_as_string}"
+    )
 
 
 def _apply_embedded_sections_to_config_sections(
