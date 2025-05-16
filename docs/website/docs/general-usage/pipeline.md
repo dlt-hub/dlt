@@ -169,7 +169,7 @@ tables, and state are not affected. Please check `drop_sources` for a step-by-st
 
 ### Selectively truncate tables and reset resource state with `drop_data`
 
-Same as `drop_resources`, but instead of dropping tables from the schema, only the data is deleted from them (i.e., by `TRUNCATE <table_name>` in SQL destinations). Resource state for selected resources is also wiped. In the case of [incremental resources](incremental-loading.md#incremental-loading-with-a-cursor-field), this will
+Same as `drop_resources`, but instead of dropping tables from the schema, only the data is deleted from them (i.e., by `TRUNCATE <table_name>` in SQL destinations). Resource state for selected resources is also wiped. In the case of [incremental resources](incremental/cursor.md), this will
 reset the cursor state and fully reload the data from the `initial_value`.
 
 The schema remains unmodified in this case.

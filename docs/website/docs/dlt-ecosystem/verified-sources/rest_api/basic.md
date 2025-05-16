@@ -198,7 +198,7 @@ The declarative resource configuration is defined in the `config` dictionary. It
 
 2. `resource_defaults`: Contains default settings for all [resources](#resource-configuration). In this example, we define that all resources:
     - Have `id` as the [primary key](../../../general-usage/resource#define-schema)
-    - Use the `merge` [write disposition](../../../general-usage/incremental-loading#choosing-a-write-disposition) to merge the data with the existing data in the destination.
+    - Use the `merge` [write disposition](../../../general-usage/incremental-loading.md#choosing-a-write-disposition) to merge the data with the existing data in the destination.
     - Send a `per_page=100` query parameter with each request to get more results per page.
 
 3. `resources`: A list of [resources](#resource-configuration) to be loaded. Here, we have two resources: `issues` and `issue_comments`, which correspond to the GitHub API endpoints for [repository issues](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues) and [issue comments](https://docs.github.com/en/rest/issues/comments?apiVersion=2022-11-28#list-issue-comments). Note that we need an issue number to fetch comments for each issue. This number is taken from the `issues` resource. More on this in the [resource relationships](#define-resource-relationships) section.
@@ -1093,7 +1093,7 @@ You can also use different placeholder variants depending on your needs:
 | ----------- | ----------- |
 | `{incremental.start_value}` | The value to use as the starting point for this request (either the initial value or the last tracked maximum value) |
 | `{incremental.initial_value}` | Always uses the initial value specified in the configuration |
-| `{incremental.last_value}` | The last seen value (same as start_value in most cases, see the [incremental loading](../../../general-usage/incremental-loading.md#incremental-loading-with-a-cursor-field) guide for more details) |
+| `{incremental.last_value}` | The last seen value (same as start_value in most cases, see the [incremental loading](../../../general-usage/incremental/cursor.md) guide for more details) |
 | `{incremental.end_value}` | The end value if specified in the configuration |
 
 
@@ -1186,9 +1186,9 @@ The fields are:
 - `end_value` (str): The end value for the cursor to stop the incremental loading. This is optional and can be omitted if you only need to track the start condition. If you set this field, `initial_value` needs to be set as well.
 - `convert` (callable): A callable that converts the cursor value into the format that the query parameter requires. For example, a UNIX timestamp can be converted into an ISO 8601 date or a date can be converted into `created_at+gt+{date}`.
 
-See the [incremental loading](../../../general-usage/incremental-loading.md#incremental-loading-with-a-cursor-field) guide for more details.
+See the [incremental loading](../../../general-usage/incremental/cursor.md) guide for more details.
 
-If you encounter issues with incremental loading, see the [troubleshooting section](../../../general-usage/incremental-loading.md#troubleshooting) in the incremental loading guide.
+If you encounter issues with incremental loading, see the [troubleshooting section](../../../general-usage/incremental/troubleshooting.md) in the incremental loading guide.
 
 ### Convert the incremental value before calling the API
 
@@ -1293,7 +1293,7 @@ Check the `paginator` field in the configuration. When not explicitly specified,
 
 #### Incremental loading not working
 
-See the [troubleshooting guide](../../../general-usage/incremental-loading.md#troubleshooting) for incremental loading issues.
+See the [troubleshooting guide](../../../general-usage/incremental/troubleshooting.md) for incremental loading issues.
 
 #### Getting HTTP 404 errors
 

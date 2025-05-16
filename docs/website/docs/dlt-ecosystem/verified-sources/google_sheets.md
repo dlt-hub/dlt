@@ -442,11 +442,11 @@ dlt.resource(
 `name`: Denotes the table name, set here as "spreadsheet_info".
 
 `write_disposition`: Dictates how data is loaded into the destination.
-[Read more](../../general-usage/incremental-loading#the-3-write-dispositions).
+[Read more](../../general-usage/incremental-loading.md#choosing-a-write-disposition).
 
 `merge_key`: This parameter is used to specify the column used to identify records for merging. In this
 case, "spreadsheet_id" means that the records will be merged based on the values in this column.
-[Read more](../../general-usage/incremental-loading#merge-incremental-loading).
+[Read more](../../general-usage/merge-loading.md).
 
 ## Customization
 
