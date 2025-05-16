@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 
 import dlt
@@ -21,12 +23,12 @@ def pipeline_that_ran() -> dlt.Pipeline:
 
 
 @pytest.fixture
-def expected_pipeline_properties(pipeline_that_ran) -> dict:
+def expected_pipeline_properties(pipeline_that_ran: dlt.Pipeline) -> dict[str, Any]:
     properties = {}
 
     for prop in dlt.Pipeline.STATE_PROPS:
         if not prop.startswith("_"):
-            properties[prop] = getattr(pipeline_that_ran, prop)  # type: ignore
+            properties[prop] = getattr(pipeline_that_ran, prop)
 
     properties["destination_type"] = pipeline_that_ran._destination.destination_type
     properties["destination_name"] = pipeline_that_ran._destination.configured_name
@@ -36,7 +38,7 @@ def expected_pipeline_properties(pipeline_that_ran) -> dict:
 
 def test_access_dataset_via_factory(
     pipeline_that_ran: dlt.Pipeline,
-    expected_pipeline_properties: dict,
+    expected_pipeline_properties: dict[str, Any],
 ) -> None:
     dataset_name = expected_pipeline_properties["dataset_name"]
     dataset = dataset_factory.dataset(dataset_name=dataset_name)
@@ -45,7 +47,7 @@ def test_access_dataset_via_factory(
 
 def test_access_dataset_via_top_level(
     pipeline_that_ran: dlt.Pipeline,
-    expected_pipeline_properties: dict,
+    expected_pipeline_properties: dict[str, Any],
 ) -> None:
     dataset_name = expected_pipeline_properties["dataset_name"]
     dataset = dlt.dataset(dataset_name=dataset_name)

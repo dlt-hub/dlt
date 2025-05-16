@@ -1,10 +1,10 @@
 import pathlib
 from typing import Generator, Literal, TypedDict
 
+from dlt import Schema
 from dlt.pipeline import get_dlt_pipelines_dir, Pipeline
 from dlt.destinations import dataset as destinations_dataset
 from dlt.common.pipeline import TPipelineState
-from dlt import Schema
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.storages.live_schema_storage import LiveSchemaStorage, SchemaStorageConfiguration
 from dlt.common.versioned_state import json_decode_state
@@ -23,7 +23,7 @@ def find_dataset(dataset_name: str) -> TDatasetSpecs:
         if dataset_spec["dataset_name"] == dataset_name:
             return dataset_spec
         dataset_count += 1
-    
+
     raise StopIteration(
         f"No dataset named `{dataset_name}` found. "
         f"Searched directory `{get_dlt_pipelines_dir()}` and found {dataset_count} datasets."
@@ -47,7 +47,9 @@ def _find_all_datasets() -> Generator[TDatasetSpecs, None, None]:
             continue
 
         pipeline_state = _load_pipeline_state(pipelines_storage.load(str(pipeline_state_file_path)))
-        schema_storage = LiveSchemaStorage(SchemaStorageConfiguration(schema_volume_path=f"{pipeline_dir}/schemas"))
+        schema_storage = LiveSchemaStorage(
+            SchemaStorageConfiguration(schema_volume_path=f"{pipeline_dir}/schemas")
+        )
 
         for schema_name in pipeline_state["schema_names"]:
             yield TDatasetSpecs(
@@ -68,7 +70,9 @@ def _load_pipeline_state(state_str: str) -> TPipelineState:
     return migrated_state
 
 
-def dataset(dataset_name: str, *, dataset_type: Literal["auto", "default", "ibis"] = "auto"):
+def dataset(
+    dataset_name: str, *, dataset_type: Literal["auto", "default", "ibis"] = "auto"
+) -> destinations_dataset.ReadableDBAPIDataset:
     specs = find_dataset(dataset_name)
 
     return destinations_dataset.dataset(
