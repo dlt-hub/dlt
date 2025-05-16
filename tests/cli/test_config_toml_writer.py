@@ -127,12 +127,41 @@ def test_write_value_without_defaults(example_toml):
     write_value(toml_table, "is_animal", bool, overwrite_existing=True)
     assert toml_table["is_animal"] is True
 
+    # json types without defaults of interest will not be written (issue#2531)
     write_value(toml_table, "chromosomes", list, overwrite_existing=True)
-    assert toml_table["chromosomes"] == ["a", "b", "c"]
+    assert "chromosomes" not in toml_table
 
     write_value(toml_table, "genes", dict, overwrite_existing=True)
-    assert toml_table["genes"] == {"key": "value"}
-    assert toml_table["genes"].trivia.comment == EXAMPLE_COMMENT
+    assert "genes" not in toml_table
+
+
+def test_write_value_with_defaults(example_toml):
+    toml_table = example_toml
+
+    # json types with defaults do not get skipped
+    write_value(toml_table, "chromosomes", list, default_value=["1", "2"], overwrite_existing=True)
+    assert "chromosomes" not in toml_table
+
+    # ... iff they are of interest
+    write_value(
+        toml_table,
+        "chromosomes",
+        list,
+        default_value=["1", "2"],
+        overwrite_existing=True,
+        is_default_of_interest=True,
+    )
+    assert toml_table["chromosomes"] == ["1", "2"]
+
+    write_value(
+        toml_table,
+        "genes",
+        dict,
+        default_value={"a": "genome"},
+        overwrite_existing=True,
+        is_default_of_interest=True,
+    )
+    assert toml_table["genes"] == {"a": "genome"}
 
 
 def test_write_values_without_defaults(example_toml):
@@ -153,14 +182,8 @@ def test_write_values_without_defaults(example_toml):
 
     assert example_toml["animal_info"]["is_animal"] is True
 
-    assert example_toml["genomic_info"]["chromosome_data"]["chromosomes"] == ["a", "b", "c"]
-    assert (
-        example_toml["genomic_info"]["chromosome_data"]["chromosomes"].trivia.comment
-        == EXAMPLE_COMMENT
-    )
-
-    assert example_toml["genomic_info"]["gene_data"]["genes"] == {"key": "value"}
-    assert example_toml["genomic_info"]["gene_data"]["genes"].trivia.comment == EXAMPLE_COMMENT
+    assert "chromosomes" not in example_toml["genomic_info"]["chromosome_data"]
+    assert "genes" not in example_toml["genomic_info"]["gene_data"]
 
 
 def test_write_spec_without_defaults(example_toml) -> None:
