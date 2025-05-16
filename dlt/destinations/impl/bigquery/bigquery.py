@@ -290,7 +290,9 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                 )
 
         # Collect cluster columns from table-level and per-column hints
-        cluster_columns_from_table_hint = list(cast(Iterable[str], table.get(CLUSTER_COLUMNS_HINT, [])))
+        cluster_columns_from_table_hint = list(
+            cast(Iterable[str], table.get(CLUSTER_COLUMNS_HINT, []))
+        )
         cluster_columns_from_column_hints = [
             c["name"] for c in new_columns if c.get("cluster") or c.get(CLUSTER_HINT, False)
         ]
