@@ -294,8 +294,6 @@ def test_init_writes_example_config_placeholders(repo_dir: str) -> None:
     access_key_value, _ = secrets.get_value(
         "aws_access_key_id", str, "", "sources", "filesystem", "credentials"
     )
-    # note: we don't have a source that writes timestamps or date as part of the config or secrets
-    # so we only test for this type
     assert access_key_value == TYPE_EXAMPLES["text"]
 
 

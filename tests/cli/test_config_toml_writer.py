@@ -1,8 +1,9 @@
+import datetime
 from typing import ClassVar, List, Optional, Final
 import pytest
 import tomlkit
 
-from dlt.cli.config_toml_writer import write_value, WritableConfigValue, write_values
+from dlt.cli.config_toml_writer import write_value, WritableConfigValue, write_values, TYPE_EXAMPLES
 from dlt.common.configuration.specs import configspec
 from dlt.common.destination.client import DEFAULT_FILE_LAYOUT
 
@@ -80,6 +81,14 @@ def test_write_value(example_toml):
     )
     assert "immutable_trait" in toml_table
 
+    # Test for timestamp type
+    write_value(toml_table, "event_time", datetime.datetime, overwrite_existing=True)
+    assert "event_time" in toml_table
+
+    # Test for date type
+    write_value(toml_table, "event_date", datetime.date, overwrite_existing=True)
+    assert "event_date" in toml_table
+
 
 def test_write_values(example_toml):
     values = [
@@ -133,6 +142,13 @@ def test_write_value_without_defaults(example_toml):
 
     write_value(toml_table, "genes", dict, overwrite_existing=True)
     assert "genes" not in toml_table
+
+    write_value(toml_table, "event_time", datetime.datetime, overwrite_existing=True)
+    assert toml_table["event_time"] == TYPE_EXAMPLES["timestamp"]
+
+    # Test for date type
+    write_value(toml_table, "event_date", datetime.date, overwrite_existing=True)
+    assert toml_table["event_date"] == TYPE_EXAMPLES["date"]
 
 
 def test_write_value_with_defaults(example_toml):
