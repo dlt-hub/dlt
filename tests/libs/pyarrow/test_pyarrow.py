@@ -1,11 +1,12 @@
 from datetime import timezone, datetime, date, timedelta  # noqa: I251
 from copy import deepcopy
-from typing import List, Any
+from typing import List, Any, Optional
 
 import pytest
 import pyarrow as pa
 
 from dlt.common import pendulum
+from dlt.common import logger
 from dlt.common.libs.pyarrow import (
     columns_to_arrow,
     deserialize_type,
@@ -25,6 +26,13 @@ from dlt.common.libs.pyarrow import (
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from tests.cases import TABLE_UPDATE_COLUMNS_SCHEMA
+from tests.extract.test_extract import extract_step
+
+from dlt.extract.extract import Extract
+
+from pytest_mock import MockerFixture
+
+import dlt
 
 
 def test_py_arrow_to_table_schema_columns():
@@ -446,3 +454,44 @@ def test_is_arrow_item(pa_type: Any) -> None:
     assert is_arrow_item(table)
     assert not is_arrow_item(table.to_pydict())
     assert not is_arrow_item("hello")
+
+
+@pytest.mark.parametrize("is_none", [True, False])
+def test_warning_from_arrow_extractor_on_null_column(
+    extract_step: Extract, mocker: MockerFixture, is_none: bool
+) -> None:
+    """
+    Test that the ArrowExtractor emits a warning when a pyarrow table is yielded
+    with a column (`col1`) that contains only null values.
+    """
+
+    @dlt.source()
+    def my_source():
+        @dlt.resource
+        def my_resource():
+            col1: list[Optional[str]] = [None, None] if is_none else ["a", "b"]
+
+            table = pa.table(
+                {
+                    "id": pa.array([1, 2]),
+                    "col1": pa.array(col1),
+                }
+            )
+
+            yield table
+
+        return [my_resource()]
+
+    logger_spy = mocker.spy(logger, "warning")
+
+    extract_step.extract(my_source(), 1, 1)
+
+    if is_none:
+        logger_spy.assert_called_once()
+        expected_warning = (
+            "Null type(s) detected for column(s) ['col1'] in table 'my_resource' of schema"
+            " 'my_source'. Unless type hint(s) are provided, the column(s) will not be loaded."
+        )
+        assert expected_warning in logger_spy.call_args_list[0][0][0]
+    else:
+        logger_spy.assert_not_called()
