@@ -574,7 +574,7 @@ def test_embedded_config(environment: Any) -> None:
     with custom_environ(
         {
             "INSTRUMENTED__HEAD": "h",
-            "INSTRUMENTED__TUBE": '["tu", "be"]',
+            "INSTRUMENTED__TUBE": '["tu", "u", "be"]',
             "INSTRUMENTED__HEELS": "xhe",
             "SECTIONED__PASSWORD": "passwd",
             "DEFAULT": "DEF",
@@ -582,7 +582,7 @@ def test_embedded_config(environment: Any) -> None:
     ):
         C = resolve.resolve_configuration(EmbeddedConfiguration())
         assert C.default == "DEF"
-        assert C.instrumented.to_native_representation() == "h>tu>be>xhe"
+        assert C.instrumented.to_native_representation() == "h>tu>u>be>xhe"
         assert C.sectioned.password == "passwd"
 
     # resolve partial, partial is passed to embedded
