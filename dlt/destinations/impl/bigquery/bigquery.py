@@ -45,6 +45,7 @@ from dlt.destinations.impl.bigquery.bigquery_adapter import (
     should_autodetect_schema,
 )
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
+from dlt.destinations.impl.bigquery.warnings import per_column_cluster_hint_deprecated
 from dlt.destinations.impl.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import DestinationJsonlLoadJob, DestinationParquetLoadJob
@@ -293,6 +294,10 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         cluster_columns_from_column_hints = [
             c["name"] for c in new_columns if c.get("cluster") or c.get(CLUSTER_HINT, False)
         ]
+
+        # Deprecation warning for per-column cluster hints
+        if cluster_columns_from_column_hints and not cluster_columns_from_table_hint:
+            per_column_cluster_hint_deprecated(cluster_columns_from_column_hints)
 
         # Prefer table-level cluster columns if present, otherwise fallback to per-column hints
         cluster_columns_final = (
