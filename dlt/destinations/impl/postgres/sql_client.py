@@ -45,9 +45,13 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
         self.credentials = credentials
 
     def open_connection(self) -> "psycopg2.connection":
+        options=f"-c search_path={self.fully_qualified_dataset_name()},public"
+        extra_options = self.credentials.query.get("options")
+        if extra_options:
+            options = f"{extra_options} {options}"
         self._conn = psycopg2.connect(
             dsn=self.credentials.to_native_representation(),
-            options=f"-c search_path={self.fully_qualified_dataset_name()},public",
+            options=options,
         )
         # we'll provide explicit transactions see _reset
         self._reset_connection()
