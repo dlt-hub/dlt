@@ -19,6 +19,7 @@ from dlt.transformations.exceptions import (
     IncompatibleDatasetsException,
 )
 from dlt.pipeline.exceptions import PipelineConfigMissing
+from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 from dlt.destinations.dataset import ReadableDBAPIDataset
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.extract.hints import make_hints
@@ -149,8 +150,11 @@ def make_transformation_resource(
                 finally:
                     Select.is_star_selection = original
 
-            with no_star():
-                select_query = transformation_result[list(computed_columns.keys())].query()
+            if isinstance(transformation_result, ReadableIbisRelation):
+                with no_star():
+                    select_query = transformation_result[list(computed_columns.keys())].query()
+            else:
+                select_query = transformation_result.query()
         else:
             raise TransformationInvalidReturnTypeException(
                 resource_name,
