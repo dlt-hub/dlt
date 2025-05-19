@@ -68,6 +68,13 @@ def test_page_loads(page: Page):
     page.get_by_role("tab", name="Browse Data").click()
     expect(page.get_by_text("Last successful query result").nth(1)).to_be_visible()
 
+    # check first table
+    page.get_by_role("checkbox").nth(0).check()
+    page.get_by_role("button", name="Run Query").click()
+
+    # enable dlt tables
+    page.get_by_role("switch", name="Show _dlt tables").check()
+
     page.get_by_role("tab", name="State").click()
     expect(page.get_by_text('"dataset_name": "one_two_three_dataset"')).to_be_visible()
 
