@@ -32,7 +32,7 @@ def setup_pipelines() -> Any:
     pf.run(fruitshop_source())
 
     # never run pipeline
-    pn = dlt.pipeline(pipeline_name="never_run_pipeline", destination="duckdb")
+    dlt.pipeline(pipeline_name="never_run_pipeline", destination="duckdb")
 
     # no destination pipeline
     pnd = dlt.pipeline(pipeline_name="no_destination_pipeline")
