@@ -1,5 +1,6 @@
 import inspect
 from typing import Callable, Any, Type, Optional, cast, Iterator, List
+from contextlib import contextmanager
 
 
 import dlt
@@ -37,6 +38,8 @@ from dlt.common.configuration.specs import known_sections
 from dlt.extract.exceptions import (
     CurrentSourceNotAvailable,
 )
+
+import ibis.backends.sql.rewrites as rewrites
 
 
 class DltTransformationResource(DltResource):
@@ -123,11 +126,31 @@ def make_transformation_resource(
         # extract query from transform function
         select_query: str = None
         transformation_result: Any = func(*args, **kwargs)
+        computed_columns: TTableSchemaColumns = {}
         if isinstance(transformation_result, str):
             select_query = transformation_result
             resolved_transformation_type = "python"
         elif isinstance(transformation_result, SupportsReadableRelation):
-            select_query = transformation_result.query()
+            computed_columns = transformation_result.compute_columns_schema(
+                allow_unknown_columns=False,
+                allow_anonymous_columns=False,
+                allow_fail=False,
+            )
+
+            # Context manager to temporarily disable SELECT * emission
+            # Forces the compiler to expand all column names explicitly
+            @contextmanager
+            def no_star() -> Iterator[None]:
+                Select = rewrites.Select
+                original = Select.is_star_selection
+                Select.is_star_selection = lambda self: False
+                try:
+                    yield
+                finally:
+                    Select.is_star_selection = original
+
+            with no_star():
+                select_query = transformation_result[list(computed_columns.keys())].query()
         else:
             raise TransformationInvalidReturnTypeException(
                 resource_name,
@@ -139,15 +162,9 @@ def make_transformation_resource(
             )
 
         # compute lineage
-        computed_columns: TTableSchemaColumns = {}
         all_columns: TTableSchemaColumns = columns or {}
         if isinstance(transformation_result, SupportsReadableRelation):
             # strict lineage!
-            computed_columns = transformation_result.compute_columns_schema(
-                allow_unknown_columns=False,
-                allow_anonymous_columns=False,
-                allow_fail=False,
-            )
             all_columns = {**computed_columns, **(columns or {})}
 
             # for sql transfomrations all column types must be known
