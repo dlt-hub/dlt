@@ -137,7 +137,6 @@ def make_transformation_resource(
                 allow_anonymous_columns=False,
                 allow_fail=False,
             )
-
             # Context manager to temporarily disable SELECT * emission
             # Forces the compiler to expand all column names explicitly
             @contextmanager
