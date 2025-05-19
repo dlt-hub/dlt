@@ -81,7 +81,6 @@ jobs:
 
       - run: |
           poetry run pytest tests/load --ignore tests/load/sources
-        if: runner.os != 'Windows'
         name: Run tests Linux/MAC
         env:
           DESTINATION__DREMIO__CREDENTIALS: grpc://dremio:dremio123@localhost:32010/nas
@@ -90,12 +89,6 @@ jobs:
           DESTINATION__MINIO__CREDENTIALS__AWS_ACCESS_KEY_ID: minioadmin
           DESTINATION__MINIO__CREDENTIALS__AWS_SECRET_ACCESS_KEY: minioadmin
           DESTINATION__MINIO__CREDENTIALS__ENDPOINT_URL: http://127.0.0.1:9010
-
-      - run: |
-          poetry run pytest tests/load --ignore tests/load/sources
-        if: runner.os == 'Windows'
-        name: Run tests Windows
-        shell: cmd
 
       - name: Stop dremio
         if: always()
