@@ -26,7 +26,11 @@ def get_local_pipelines(
     """
     pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
     storage = FileStorage(pipelines_dir)
-    pipelines = storage.list_folder_dirs(".", to_root=False)
+
+    try:
+        pipelines = storage.list_folder_dirs(".", to_root=False)
+    except Exception:
+        pipelines = []
 
     # check last trace timestamp and create dict
     pipelines_with_timestamps = []
