@@ -271,8 +271,9 @@ def test_general_sql_database_config(sql_source_db: SQLAlchemySourceDB) -> None:
     assert len(list(sql_database(schema=sql_source_db.schema).with_resources("app_user"))) > 0
 
 
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow"])
 def test_sql_table_accepts_merge_and_primary_key_in_decorator(
-    sql_source_db: SQLAlchemySourceDB,
+    sql_source_db: SQLAlchemySourceDB, backend: TableBackend
 ) -> None:
     # setup
     os.environ["SOURCES__SQL_DATABASE__CREDENTIALS"] = sql_source_db.engine.url.render_as_string(
@@ -281,6 +282,7 @@ def test_sql_table_accepts_merge_and_primary_key_in_decorator(
     table = sql_table(
         table="chat_message",
         schema=sql_source_db.schema,
+        backend=backend,
         write_disposition="merge",
         primary_key=["id"],
         merge_key=["merge_id"],
@@ -289,6 +291,23 @@ def test_sql_table_accepts_merge_and_primary_key_in_decorator(
     assert table.write_disposition == "merge"
     assert table._hints["primary_key"] == ["id"]
     assert table._hints["merge_key"] == ["merge_id"]
+
+    # test that it overwrites the reflected key
+    # use strictest reflection level and resolve_foreign keys to get all original columns properties
+    table = sql_table(
+        table="app_user",
+        backend=backend,
+        schema=sql_source_db.schema,
+        write_disposition="merge",
+        reflection_level="full",
+        resolve_foreign_keys=True,
+        primary_key="created_at",
+    )
+
+    pipeline = make_pipeline("duckdb")
+    pipeline.extract(table)
+    assert pipeline.default_schema.tables["app_user"]["columns"]["created_at"]["primary_key"]
+    assert not pipeline.default_schema.tables["app_user"]["columns"]["id"].get("primary_key", False)
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow"])

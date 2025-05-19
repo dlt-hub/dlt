@@ -23,7 +23,7 @@ from dlt.common.configuration.specs import (
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.schema.typing import TWriteDispositionDict
-from dlt.common.typing import TDataItem, TSortOrder
+from dlt.common.typing import TColumnNames, TDataItem, TSortOrder
 from dlt.common.jsonpath import extract_simple_field_name
 
 from dlt.common.utils import is_typeerror_due_to_wrong_call
@@ -410,5 +410,5 @@ class SqlTableResourceConfiguration(BaseConfiguration):
     reflection_level: Optional[ReflectionLevel] = "full"
     included_columns: Optional[List[str]] = None
     write_disposition: Optional[TWriteDispositionDict] = None
-    primary_key: Optional[List[str]] = None
-    merge_key: Optional[List[str]] = None
+    primary_key: Optional[TColumnNames] = None
+    merge_key: Optional[TColumnNames] = None
