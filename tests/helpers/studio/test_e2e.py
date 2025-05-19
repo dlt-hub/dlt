@@ -21,7 +21,7 @@ from dlt.sources._single_file_templates.fruitshop_pipeline import (
 )
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(autouse=True)
 def setup_pipelines() -> Any:
     # simple pipeline
     po = dlt.pipeline(pipeline_name="one_two_three", destination="duckdb")
