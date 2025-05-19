@@ -38,9 +38,10 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         self._destination = Destination.from_reference(destination)
         self._provided_schema = schema
         self._dataset_name = dataset_name
-        self._sql_client: SqlClientBase[Any] = None
-        self._table_client: SupportsOpenTables = None
         self._schema: Schema = None
+        self._opened_client: SqlClientBase[Any] = (
+            None  # stores a reference to the opened client within the context manager
+        )
         # resolve dataset type
         if dataset_type in ("auto", "ibis"):
             try:
@@ -67,7 +68,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         # NOTE: if this property raises AttributeError, __getattr__ will get called 🤯
         #   this leads to infinite recursion as __getattr_ calls this property
         if not self._schema:
-            self._ensure_client_and_schema()
+            self._ensure_schema()
         return self._schema
 
     @property
@@ -76,9 +77,16 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
 
     @property
     def sql_client(self) -> SqlClientBase[Any]:
-        if not self._sql_client:
-            self._ensure_client_and_schema()
-        return self._sql_client
+        # if we are in a context manager, return the opened client, otherwise create a new one with the current schema
+        if self._opened_client:
+            return self._opened_client
+        client = self._destination_client(self.schema)
+        if isinstance(client, WithSqlClient):
+            return client.sql_client
+        else:
+            raise Exception(
+                f"Destination {client.config.destination_type} does not support SqlClient."
+            )
 
     @property
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
@@ -86,27 +94,24 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
 
     @property
     def destination_client(self) -> JobClientBase:
-        if not self._sql_client:
-            self._ensure_client_and_schema()
-        return self._destination_client(self._schema)
+        return self._destination_client(self.schema)
 
     @property
     def open_table_client(self) -> SupportsOpenTables:
-        if not self._sql_client:
-            self._ensure_client_and_schema()
-        if not self._table_client:
+        if isinstance(self.sql_client, SupportsOpenTables):
+            return self.sql_client
+        else:
             raise OpenTableClientNotAvailable(
                 self._dataset_name, self._destination.destination_name
             )
-        return self._table_client
 
     def _destination_client(self, schema: Schema) -> JobClientBase:
         return get_destination_clients(
             schema, destination=self._destination, destination_dataset_name=self._dataset_name
         )[0]
 
-    def _ensure_client_and_schema(self) -> None:
-        """Lazy load schema and client"""
+    def _ensure_schema(self) -> None:
+        """Lazy load the schema on request"""
 
         # full schema given, nothing to do
         if not self._schema and isinstance(self._provided_schema, Schema):
@@ -133,18 +138,6 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         # default to empty schema with dataset name
         if not self._schema:
             self._schema = Schema(self._dataset_name)
-
-        # here we create the client bound to the resolved schema
-        if not self._sql_client:
-            client = self._destination_client(self._schema)
-            if isinstance(client, WithSqlClient):
-                self._sql_client = client.sql_client
-            else:
-                raise Exception(
-                    f"Destination {client.config.destination_type} does not support SqlClient."
-                )
-            if isinstance(client, SupportsOpenTables):
-                self._table_client = client
 
     def __call__(self, query: Any) -> ReadableDBAPIRelation:
         # TODO: accept other query types and return a right relation: sqlglot (DBAPI) and ibis (Expr)
@@ -205,29 +198,32 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
 
     def __enter__(self) -> Self:
         """Context manager used to open and close sql client and internal connection"""
-        assert not self._sql_client, "context manager can't be used when sql client is initialized"
-        if not self._sql_client:
-            self._ensure_client_and_schema()
-            # return sql_client wrapped so it will not call close on __exit__ as dataset is managing connections
-            # use internal class
+        assert (
+            not self._opened_client
+        ), "context manager can't be used when sql client is initialized"
+        # return sql_client wrapped so it will not call close on __exit__ as dataset is managing connections
+        # use internal class
 
-            NoCloseClient = type(
-                "NoCloseClient",
-                (self._sql_client.__class__,),
-                {
-                    "__exit__": (
-                        lambda self, exc_type, exc_val, exc_tb: None
-                    )  # No-operation: do not close the connection
-                },
-            )
+        # create a new sql client
+        self._opened_client = self.sql_client
 
-            self._sql_client.__class__ = NoCloseClient
+        NoCloseClient = type(
+            "NoCloseClient",
+            (self._opened_client.__class__,),
+            {
+                "__exit__": (
+                    lambda self, exc_type, exc_val, exc_tb: None
+                )  # No-operation: do not close the connection
+            },
+        )
 
-        self.sql_client.open_connection()
+        self._opened_client.__class__ = NoCloseClient
+
+        self._opened_client.open_connection()
         return self
 
     def __exit__(
         self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
     ) -> None:
-        self.sql_client.close_connection()
-        self._sql_client = None
+        self._opened_client.close_connection()
+        self._opened_client = None
