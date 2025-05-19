@@ -40,8 +40,6 @@ from dlt.extract.exceptions import (
     CurrentSourceNotAvailable,
 )
 
-import ibis.backends.sql.rewrites as rewrites
-
 
 class DltTransformationResource(DltResource):
     def __init__(self, *args: Any, **kwds: Any) -> None:
@@ -154,6 +152,8 @@ def make_transformation_resource(
                 isinstance(transformation_result, ReadableIbisRelation)
                 and resolved_transformation_type == "model"
             ):
+                import ibis.backends.sql.rewrites as rewrites
+
                 with no_star():
                     select_query = transformation_result[list(computed_columns.keys())].query()
             else:
