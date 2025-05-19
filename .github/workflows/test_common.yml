@@ -163,6 +163,36 @@ jobs:
       #     poetry run pytest tests/libs
 
 
+      # Run e2e tests for marimo app
+      - name: Install dlt with duckdb and studio
+        run: poetry install --no-interaction -E duckdb -E studio --with sentry-sdk,pipeline,sources
+
+      - name: Install playwright
+        run: poetry run playwright install
+      
+      # NOTE: the block below is not needed later, it will be included in the helper tests above
+      - run: |
+          poetry run pytest tests/helpers/studio
+        if: runner.os != 'Windows'
+        name: Run marimo unit tests Linux/MAC
+      - run: |
+          poetry run pytest tests/helpers/studio
+        if: runner.os == 'Windows'
+        name: Run marimo unit tests Windows
+        shell: cmd
+
+
+      
+      - run: |
+          marimo run --headless dlt/helpers/studio/app.py -- --pipelines_dir _storage/pipelines & poetry run pytest --browser chromium tests/e2e
+        if: runner.os != 'Windows'
+        name: Run marimo e2e tests Linux/MAC
+      - run: |
+          marimo run --headless dlt/helpers/studio/app.py -- --pipelines_dir _storage/pipelines & poetry run pytest --browser chromium tests/e2e
+        if: runner.os == 'Windows'
+        name: Run marimo e2e tests Windows
+        shell: cmd
+
   matrix_job_required_check:
     name: common | common tests
     needs: run_common

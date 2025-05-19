@@ -8,6 +8,7 @@ from marimo._runtime.control_flow import MarimoStopError
 
 global_defaults = {
     "dlt_query_params": {},
+    "cli_arg_pipelines_dir": None,
     "dlt_pipeline_name": "my_pipeline",
     "dlt_page_tabs": mo.ui.tabs({"tab": ""}),
     "dlt_data_table_list": [],
@@ -41,10 +42,14 @@ def test_run_all_cells():
     assert len(cells) > 0, "No cells found"
 
     for cell in cells:
-        if cell.name == "prepare_query_vars":
+        # the two cells below only work in a marimo context
+        if cell.name in ["prepare_query_vars", "prepare_cli_args"]:
             continue
         try:
             run_args = {k: v for k, v in global_defaults.items() if k in cell.refs}
             cell.run(**run_args)
         except MarimoStopError:
             pass
+        except Exception as e:
+            print(f"Failed running cell {cell.name}: {e}")
+            raise e

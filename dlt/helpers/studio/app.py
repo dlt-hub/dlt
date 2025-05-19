@@ -606,7 +606,7 @@ def prepare_query_vars(dlt_query_params: Any) -> Any:
 @app.cell(hide_code=True)
 def prepare_cli_args() -> Any:
     """
-    Prepare query params as globals for the following cells
+    Prepare cli args  as globals for the following cells
     """
     import marimo as _mo
 
