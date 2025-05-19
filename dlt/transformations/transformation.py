@@ -137,6 +137,7 @@ def make_transformation_resource(
                 allow_anonymous_columns=False,
                 allow_fail=False,
             )
+
             # Context manager to temporarily disable SELECT * emission
             # Forces the compiler to expand all column names explicitly
             @contextmanager
@@ -149,7 +150,10 @@ def make_transformation_resource(
                 finally:
                     Select.is_star_selection = original
 
-            if isinstance(transformation_result, ReadableIbisRelation):
+            if (
+                isinstance(transformation_result, ReadableIbisRelation)
+                and resolved_transformation_type == "model"
+            ):
                 with no_star():
                     select_query = transformation_result[list(computed_columns.keys())].query()
             else:
