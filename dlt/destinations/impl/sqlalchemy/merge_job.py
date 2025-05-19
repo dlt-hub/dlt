@@ -151,12 +151,13 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             inner_cols = [staging_row_key_col]
 
             if primary_key_names:
+                order_by_attribute = None
+
                 if dedup_sort is not None:
                     order_by_col = staging_root_table_obj.c[dedup_sort[0]]
                     order_dir_func = sa.asc if dedup_sort[1] == "asc" else sa.desc
-                else:
-                    order_by_col = sa.select(sa.literal(None))
-                    order_dir_func = sa.asc
+                    order_by_attribute = order_dir_func(order_by_col)
+
                 if condition_columns:
                     inner_cols += condition_columns
 
@@ -164,7 +165,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                     sa.func.row_number()
                     .over(
                         partition_by=set(staging_primary_key_cols),
-                        order_by=order_dir_func(order_by_col),
+                        order_by=order_by_attribute,
                     )
                     .label("_dlt_dedup_rn"),
                     *inner_cols,
@@ -220,19 +221,18 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                 staging_primary_key_cols = [
                     staging_table_obj.c[col_name] for col_name in primary_key_names
                 ]
+                order_by_attribute = None
                 if dedup_sort is not None:
                     order_by_col = staging_table_obj.c[dedup_sort[0]]
                     order_dir_func = sa.asc if dedup_sort[1] == "asc" else sa.desc
-                else:
-                    order_by_col = sa.select(sa.literal(None))
-                    order_dir_func = sa.asc
+                    order_by_attribute = order_dir_func(order_by_col)
 
                 inner_select = sa.select(
                     staging_table_obj,
                     sa.func.row_number()
                     .over(
                         partition_by=set(staging_primary_key_cols),
-                        order_by=order_dir_func(order_by_col),
+                        order_by=order_by_attribute,
                     )
                     .label("_dlt_dedup_rn"),
                 ).subquery()
