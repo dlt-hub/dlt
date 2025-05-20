@@ -87,7 +87,6 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         schema = self.schema
         schema_name = schema.name
         normalize_data_fun = self.schema.normalize_data_item
-        non_coerced_fields: set[str] = set()
 
         for item in items:
             items_gen = normalize_data_fun(item, self.load_id, root_table_name)
@@ -127,10 +126,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                             row[k] = custom_pua_decode(v)  # type: ignore
 
                     # coerce row of values into schema table, generating partial table with new columns if any
-                    # track non coerced rows
-                    original_row_keys = set(row.keys())
                     row, partial_table = schema.coerce_row(table_name, parent_table, row)
-                    non_coerced_fields = original_row_keys - set(row.keys())
 
                     # if we detect a migration, check schema contract
                     if partial_table:
@@ -192,14 +188,6 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             except StopIteration:
                 pass
             signals.raise_if_signalled()
-
-        if non_coerced_fields:
-            logger.warning(
-                "Schema coercion could not infer type(s) for column(s)"
-                f" {sorted(non_coerced_fields)} in table '{table_name}' of schema '{schema.name}'."
-                " Unless type hint(s) are provided, the column(s) will not be loaded."
-            )
-
         return schema_update
 
     def __call__(
@@ -268,6 +256,9 @@ class ArrowItemsNormalizer(ItemsNormalizer):
             schema.update_table(partial_table, normalize_identifiers=False)
             table_updates = schema_update.setdefault(root_table_name, [])
             table_updates.append(partial_table)
+            # TODO: use get_root_row_id_type to get row id type and generate deterministic
+            #  row ids as well (using pandas helper function prepared for scd2)
+            #  we could also generate random columns with pandas or duckdb if present
             new_columns.append(
                 (
                     -1,
@@ -377,6 +368,7 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         base_schema_update = self._fix_schema_precisions(root_table_name, arrow_schema)
 
         add_dlt_id = self.config.parquet_normalizer.add_dlt_id
+        # TODO: add dlt id only if not present in table
         # if we need to add any columns or the file format is not parquet, we can't just import files
         must_rewrite = add_dlt_id or self.item_storage.writer_spec.file_format != "parquet"
         if not must_rewrite:

@@ -258,3 +258,18 @@ class UnboundColumnException(SchemaException):
             " 'primary_key' or 'columns' argument but it does not exist in the data."
         )
         super().__init__(schema_name, msg)
+
+
+class UnboundColumnWithoutTypeException(SchemaException):
+    def __init__(self, schema_name: str, table_name: str, column: TColumnSchemaBase) -> None:
+        self.column = column
+        self.schema_name = schema_name
+        self.table_name = table_name
+
+        msg = (
+            f"The column {column['name']} in table {table_name} did not receive any data during"
+            " this load. Therefore, its type couldn't be inferred. Unless a type hint is provided, "
+            "the column will not be materialized in the destination."
+        )
+
+        super().__init__(schema_name, msg)
