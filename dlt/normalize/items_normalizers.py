@@ -603,6 +603,9 @@ class ArrowItemsNormalizer(ItemsNormalizer):
                     batch = pyarrow.normalize_py_arrow_item(
                         batch, columns_schema, schema.naming, self.config.destination_capabilities
                     )
+                # NOTE: Remove null-type columns from the table(s)
+                # The extract phase doesn't handle this
+                batch = pyarrow.remove_null_columns(batch)
                 self.item_storage.write_data_item(
                     load_id,
                     schema.name,

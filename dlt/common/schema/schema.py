@@ -803,7 +803,7 @@ class Schema:
                 data_type=None,
                 nullable=True,
             )
-            column_schema["x-normalizer"] = {"seen-null-first": True}
+            column_schema["x-normalizer"] = {"seen-null-first": True}  # type: ignore[typeddict-unknown-key]
             return column_schema
         column_schema = TColumnSchema(
             name=k,
@@ -829,10 +829,11 @@ class Schema:
         self, table_columns: TTableSchemaColumns, table_name: str, col_name: str
     ) -> Optional[TColumnSchema]:
         """Raises when column is explicitly not nullable or creates unbounded column"""
-        if col_name in table_columns:
+        if col_name in table_columns and utils.is_complete_column(table_columns.get(col_name)):
             existing_column = table_columns[col_name]
             if not utils.is_nullable_column(existing_column):
                 raise CannotCoerceNullException(self.name, table_name, col_name)
+            return None
         else:
             inferred_unbounded_col = self._infer_column(col_name, None, None)
             return inferred_unbounded_col
