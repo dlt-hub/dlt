@@ -16,7 +16,7 @@ from dlt.common.configuration.specs import (
     SFTPCredentials,
 )
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.typing import DictStrAny, get_args
+from dlt.common.typing import DictStrAny, DictStrOptionalStr, get_args
 from dlt.common.utils import digest128
 
 
@@ -186,6 +186,7 @@ class FilesystemConfiguration(BaseConfiguration):
     client_kwargs: Optional[DictStrAny] = None
     """Additional arguments passed to underlying fsspec native client ie. dict(verify="public.crt) for botocore"""
     deltalake_storage_options: Optional[DictStrAny] = None
+    deltalake_configuration: Optional[DictStrOptionalStr] = None
 
     @property
     def protocol(self) -> str:
