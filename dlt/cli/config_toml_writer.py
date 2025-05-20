@@ -5,7 +5,7 @@ from tomlkit.container import Container as TOMLContainer
 from collections.abc import Sequence as C_Sequence
 
 from dlt.common.configuration.specs.base_configuration import is_hint_not_resolvable
-from dlt.common.pendulum import pendulum
+from dlt.common.configuration.const import TYPE_EXAMPLES
 from dlt.common.configuration.specs import (
     BaseConfiguration,
     is_base_configuration_inner_hint,
@@ -13,13 +13,6 @@ from dlt.common.configuration.specs import (
 )
 from dlt.common.data_types import py_type_to_sc_type
 from dlt.common.typing import AnyType, is_optional_type, is_subclass
-
-MOON_LANDING = pendulum.datetime(1969, 7, 21, 2, 56, 0, tz="UTC")
-TYPE_EXAMPLES = {
-    "text": "<configure me>",
-    "timestamp": MOON_LANDING.to_iso8601_string(),
-    "date": MOON_LANDING.to_date_string(),
-}
 
 
 class WritableConfigValue(NamedTuple):

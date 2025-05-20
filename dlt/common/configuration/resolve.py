@@ -1,10 +1,11 @@
 import itertools
 from collections.abc import Mapping as C_Mapping
+import os
 from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, Type, TypeVar
-import dlt.cli.echo as fmt
-from dlt.cli.config_toml_writer import TYPE_EXAMPLES
 
+from dlt.common import logger
 from dlt.common.configuration.providers.provider import ConfigProvider
+from dlt.common.configuration.const import TYPE_EXAMPLES
 from dlt.common.typing import (
     AnyType,
     ConfigValueSentinel,
@@ -530,24 +531,23 @@ def resolve_single_provider_value(
         ns.pop()
 
     if value in TYPE_EXAMPLES.values():
-        _emit_placeholder_warning(value, hint, key, ns_key, provider)
+        _emit_placeholder_warning(value, key, ns_key, provider)
     return value, traces
 
 
 def _emit_placeholder_warning(
-    value: Any, hint: Type[Any], key: str, full_key: str, provider: ConfigProvider
+    value: Any, key: str, full_key: str, provider: ConfigProvider
 ) -> None:
-    is_secret = is_secret_hint(hint)
-    config_or_secret = "secret" if is_secret else "config"
-    file_to_fix = "secrets.toml" if is_secret else "config.toml"
-    locations_as_string = "\n".join(provider.locations)
-    fmt.warning(
-        f"Placeholder value encountered when resolving {config_or_secret}:\n"
+    msg = (
+        "Placeholder value encountered when resolving config or secret:\n"
         f"resolved_key: {key}, value:{value}, section: {full_key}\n"
-        "Most likely, this comes from `init`-command, which creates basic templates for"
-        f"non-complex configs and secrets. The file to adjust is {file_to_fix} the `.dlt`-settings "
-        f"directory in one of these locations:\n{locations_as_string}"
+        "Most likely, this comes from `init`-command, which creates basic templates for "
+        f"non-complex configs and secrets. The provider to adjust is {provider.name}"
     )
+    if bool(provider.locations):
+        locations = "\n".join([f"\t- {os.path.abspath(loc)}" for loc in provider.locations])
+        msg += f" at one of these locations:\n{locations}"
+    logger.warning(msg=msg)
 
 
 def _apply_embedded_sections_to_config_sections(

@@ -1,5 +1,5 @@
+from dlt.common import logger
 import pytest
-import click
 import datetime  # noqa: I251
 from unittest.mock import patch
 from typing import (
@@ -1584,31 +1584,34 @@ def test_configuration_with_literal_field(environment: Dict[str, str]) -> None:
 @pytest.mark.parametrize("sc_type", TYPE_EXAMPLES.keys(), ids=TYPE_EXAMPLES.keys())
 def test_warn_when_resolving_placeholders(
     environment: Dict[str, str],
-    capsys: pytest.CaptureFixture[str],
     toml_providers: ConfigProvidersContainer,
     sc_type: str,
 ) -> None:
-    # Plaholder values should emit warning when being resolved from secrets or configs
     for provider in toml_providers.providers:
-        key = f"SOME_{sc_type}".upper()
-        placeholder_value = TYPE_EXAMPLES[sc_type]
-        test_section_name = "TEST_SECTION"
+        with patch.object(logger.LOGGER, "warning") as mock_warning:
+            # setup
+            key = f"SOME_{sc_type}".upper()
+            placeholder_value = TYPE_EXAMPLES[sc_type]
+            test_section_name = "TEST_SECTION"
+            if is_environ := provider.locations == []:
+                environment[f"{test_section_name}__{key}"] = placeholder_value
+            else:
+                provider.set_value(key, placeholder_value, test_section_name)
 
-        if is_environ := provider.locations == []:
-            environment[f"{test_section_name}__{key}"] = placeholder_value
-        else:
-            provider.set_value(key, placeholder_value, test_section_name)
+            # run
+            value, _ = resolve_single_provider_value(
+                provider, key=key, hint=str, config_section=test_section_name
+            )
 
-        value, _ = resolve_single_provider_value(
-            provider, key=key, hint=str, config_section=test_section_name
-        )
-        captured = capsys.readouterr()
-
-        assert value == placeholder_value
-
-        assert "Placeholder value encountered when resolving config" in captured.out
-        assert key in captured.out
-        assert placeholder_value in captured.out
-        assert test_section_name in captured.out
-        if not is_environ:
-            assert provider.locations[0] in captured.out
+            # verify
+            assert value == placeholder_value
+            assert mock_warning.call_count == 1
+            msg = mock_warning.call_args[0][0]
+            assert "Placeholder value encountered when resolving config or secret" in msg
+            assert key in msg
+            assert str(placeholder_value) in msg
+            assert test_section_name in msg
+            assert provider.name in msg
+            if not is_environ:
+                # strip the relative path bit '.'
+                assert provider.locations[0][1:] in msg
