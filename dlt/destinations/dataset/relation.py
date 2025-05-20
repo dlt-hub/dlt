@@ -87,17 +87,17 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
 
     def compute_columns_schema(
         self,
-        allow_unknown_columns: bool = True,
+        infer_sqlglot_schema: bool = True,
         allow_anonymous_columns: bool = True,
-        allow_fail: bool = True,
+        allow_partial: bool = True,
         **kwargs: Any,
     ) -> TTableSchemaColumns:
         """Provides the expected columns schema for the query
 
         Args:
-            allow_unknown_columns (bool): If False, raise if any column types are not known
+            infer_sqlglot_schema (bool): If False, raise if any column types are not known
             allow_anonymous_columns (bool): If False, raise if any columns have auto assigned names
-            allow_fail (bool): If False, will raise if for some reason no columns can be computed
+            allow_partial (bool): If False, will raise if for some reason no columns can be computed
         """
 
         # NOTE: if we do not have a schema, we cannot compute the columns schema
@@ -121,21 +121,18 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         ]:
             query = sqlglot.transpile(query, read=dialect, write="duckdb")[0]
             dialect = "duckdb"
-            from dlt.destinations import duckdb
-
-            caps = duckdb().capabilities()
 
         # TODO: maybe store the SQLGlot schema on the dataset
         # TODO: support joins between datasets
         d = self._dataset
-        sqlglot_schema = lineage.create_sqlglot_schema(d.sql_client, d.schema, dialect, caps)
+        sqlglot_schema = lineage.create_sqlglot_schema(d.schema)
         return lineage.compute_columns_schema(
             query,
             sqlglot_schema,
             dialect,
-            infer_sqlglot_schema=allow_unknown_columns,
+            infer_sqlglot_schema=infer_sqlglot_schema,
             allow_anonymous_columns=allow_anonymous_columns,
-            allow_partial=allow_fail,
+            allow_partial=allow_partial,
         )
 
     @property

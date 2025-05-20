@@ -60,12 +60,7 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
     destination = destination_config.destination_factory(dataset_name="d1")
     caps = destination.client(example_schema).sql_client.capabilities
     dialect = caps.sqlglot_dialect
-    sqlglot_schema = lineage.create_sqlglot_schema(
-        destination.client(example_schema).sql_client,
-        example_schema,
-        dialect,
-        caps,
-    )
+    sqlglot_schema = lineage.create_sqlglot_schema(example_schema)
 
     # TODO: investigate if we can fix this, this is a side effect of going via duckdb dialect
     # in snowflake bigint is the same as decimal(19,0)
