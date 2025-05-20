@@ -42,7 +42,7 @@ def verify_normalized_table(
         exc = UnboundColumnException(schema.name, table["name"], column)
         if nullable:
             # warn if null column
-            seen_null_first = column.get("x-normalizer", {}).get("seen-null-first")
+            seen_null_first = column.get("x-normalizer", {}).get("seen-null-first")  # type: ignore[attr-defined]
             if seen_null_first is True:
                 null_exc = UnboundColumnWithoutTypeException(schema.name, table["name"], column)
                 logger.warning(str(null_exc))

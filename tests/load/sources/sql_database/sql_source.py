@@ -92,6 +92,7 @@ class SQLAlchemySourceDB:
                 nullable=False,
                 server_default=func.now(),
             ),
+            Column("empty_col", Text()),
         )
         Table(
             "chat_channel",
