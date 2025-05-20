@@ -21,8 +21,6 @@ env:
   # and also for the github_api_pipeline tests
   SOURCES__GITHUB_API_PIPELINE__ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  MAYBE_PYTEST_NOT_FORKED: ""  # Default fallback
-
 jobs:
   get_docs_changes:
     name: docs changes
@@ -36,27 +34,45 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            python-version: "3.11.x"
-            shell: bash
+
+          # macos tests
+
           - os: macos-latest
             python-version: "3.11.x"
-            shell: bash      
-          - os: windows-latest
-            python-version: "3.11.x"
-            shell: cmd
+            shell: bash
+            pytest_args: ""
+
+          # linux tests
           - os: ubuntu-latest
             python-version: "3.9.x"
             shell: bash
+            pytest_args: ""
           - os: ubuntu-latest
             python-version: "3.10.x"
             shell: bash
+            pytest_args: ""
+          - os: ubuntu-latest
+            python-version: "3.11.x"
+            shell: bash
+            pytest_args: ""
           - os: ubuntu-latest
             python-version: "3.12.x"
             shell: bash
+            pytest_args: ""
           - os: ubuntu-latest
             python-version: "3.13.x"
             shell: bash
+            pytest_args: "" 
+          
+          # windows tests
+          - os: windows-latest
+            python-version: "3.11.x"
+            shell: cmd
+            pytest_args: '-m "not forked"'
+          - os: windows-latest
+            python-version: "3.13.x"
+            shell: cmd
+            pytest_args: '-m "not forked"'
 
     defaults:
       run:
@@ -113,28 +129,28 @@ jobs:
         run: poetry install --no-interaction --with sentry-sdk
 
       - run: |
-          poetry run pytest tests/common tests/normalize tests/reflection tests/plugins tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py $MAYBE_PYTEST_NOT_FORKED
+          poetry run pytest tests/common tests/normalize tests/reflection tests/plugins tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py ${{ matrix.pytest_args }}
         name: Run common tests with minimum dependencies Linux/MAC
 
       - name: Install duckdb dependencies
         run: poetry install --no-interaction -E duckdb --with sentry-sdk
 
       - run: |
-          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py $MAYBE_PYTEST_NOT_FORKED
+          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py ${{ matrix.pytest_args }}
         name: Run pipeline smoke tests with minimum deps Linux/MAC
 
       - name: Install pyarrow
         run: poetry install --no-interaction -E duckdb -E cli -E parquet --with sentry-sdk
 
       - run: |
-          poetry run pytest tests/pipeline/test_pipeline_extra.py -k arrow $MAYBE_PYTEST_NOT_FORKED
+          poetry run pytest tests/pipeline/test_pipeline_extra.py -k arrow ${{ matrix.pytest_args }}
         name: Run pipeline tests with pyarrow but no pandas installed
 
       - name: Install pipeline and sources dependencies
         run: poetry install --no-interaction -E duckdb -E cli -E parquet -E deltalake -E sql_database --with sentry-sdk,pipeline,sources
 
       - run: |
-          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources
+          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources ${{ matrix.pytest_args }}
         name: Run extract and pipeline tests Linux/MAC
 
       # here we upgrade sql alchemy to 2 an run the sql_database tests again
