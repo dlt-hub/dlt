@@ -499,7 +499,7 @@ def test_limit_and_head(populated_pipeline: Pipeline) -> None:
     # run multiple requests on one connection
     with dataset_ as d_:
         limit_relationship = table_relationship.limit(24)
-        for data_ in limit_relationship.iter_fetch(6):
+        for _data in limit_relationship.iter_fetch(6):
             # client stays open
             assert limit_relationship._opened_sql_client is not None
             assert (
@@ -508,7 +508,7 @@ def test_limit_and_head(populated_pipeline: Pipeline) -> None:
             )
 
         other_relationship = table_relationship.limit(10)
-        for data_ in other_relationship.iter_fetch(6):
+        for _data in other_relationship.iter_fetch(6):
             assert other_relationship._opened_sql_client is not None
             assert (
                 other_relationship._opened_sql_client.native_connection
