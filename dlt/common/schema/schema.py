@@ -239,7 +239,14 @@ class Schema:
             # skip None values, we should infer the types later
             if v is None:
                 # just check if column is nullable if it exists
-                self._coerce_null_value(table_columns, table_name, col_name)
+                unbounded_column = self._coerce_null_value(table_columns, table_name, col_name)
+                if unbounded_column:
+                    if not updated_table_partial:
+                        # create partial table with only the new columns
+                        updated_table_partial = copy(table)
+                        updated_table_partial["columns"] = {}
+                    updated_table_partial["columns"][col_name] = unbounded_column
+
             else:
                 new_col_name, new_col_def, new_v = self._coerce_non_null_value(
                     table_columns, table_name, col_name, v
@@ -789,6 +796,15 @@ class Schema:
     def _infer_column(
         self, k: str, v: Any, data_type: TDataType = None, is_variant: bool = False
     ) -> TColumnSchema:
+        # return unbounded table
+        if v is None and data_type is None:
+            column_schema = TColumnSchema(
+                name=k,
+                data_type=None,
+                nullable=True,
+            )
+            column_schema["x-normalizer"] = {"seen-null-first": True}
+            return column_schema
         column_schema = TColumnSchema(
             name=k,
             data_type=data_type or self._infer_column_type(v, k),
@@ -811,12 +827,15 @@ class Schema:
 
     def _coerce_null_value(
         self, table_columns: TTableSchemaColumns, table_name: str, col_name: str
-    ) -> None:
-        """Raises when column is explicitly not nullable"""
+    ) -> Optional[TColumnSchema]:
+        """Raises when column is explicitly not nullable or creates unbounded column"""
         if col_name in table_columns:
             existing_column = table_columns[col_name]
             if not utils.is_nullable_column(existing_column):
                 raise CannotCoerceNullException(self.name, table_name, col_name)
+        else:
+            inferred_unbounded_col = self._infer_column(col_name, None, None)
+            return inferred_unbounded_col
 
     def _coerce_non_null_value(
         self,

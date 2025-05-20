@@ -419,7 +419,8 @@ def merge_column(
     """
     col_b_clean = col_b if merge_defaults else remove_column_defaults(copy(col_b))
     for n, v in col_b_clean.items():
-        col_a[n] = v  # type: ignore
+        if v is not None:
+            col_a[n] = v  # type: ignore
 
     return col_a
 
