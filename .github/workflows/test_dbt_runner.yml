@@ -81,13 +81,7 @@ jobs:
 
       - run: |
           poetry run pytest tests/helpers/dbt_tests -k '(not venv)'
-        if: runner.os != 'Windows'
         name: Run dbt runner - Linux/MAC
-      - run: |
-          poetry run pytest tests/helpers/dbt_tests -k "(not venv)"
-        if: runner.os == 'Windows'
-        name: Run dbt runner - Windows
-        shell: cmd
 
       - name: Remove dbt-core
         # install dlt with postgres support
