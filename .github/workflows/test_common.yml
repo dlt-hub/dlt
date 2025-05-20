@@ -60,7 +60,7 @@ jobs:
 
     defaults:
       run:
-        shell: bash
+        shell: ${{ matrix.shell }}
     runs-on: ${{ matrix.os }}
 
     steps:
