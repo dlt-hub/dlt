@@ -1,6 +1,5 @@
 import inspect
 from typing import Callable, Any, Type, Optional, cast, Iterator, List
-from contextlib import contextmanager
 
 
 import dlt
@@ -19,13 +18,14 @@ from dlt.transformations.exceptions import (
     IncompatibleDatasetsException,
 )
 from dlt.pipeline.exceptions import PipelineConfigMissing
-from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 from dlt.destinations.dataset import ReadableDBAPIDataset
+from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.extract.hints import make_hints
 from dlt.common.destination.dataset import SupportsReadableRelation
 from dlt.extract import DltResource
 from dlt.transformations.configuration import TransformConfiguration
+from dlt.transformations.lineage import create_sqlglot_schema
 from dlt.common.utils import get_callable_name
 from dlt.common.schema.typing import (
     TWriteDisposition,
@@ -39,6 +39,9 @@ from dlt.common.configuration.specs import known_sections
 from dlt.extract.exceptions import (
     CurrentSourceNotAvailable,
 )
+
+import sqlglot
+from sqlglot.optimizer.qualify import qualify
 
 
 class DltTransformationResource(DltResource):
@@ -135,29 +138,20 @@ def make_transformation_resource(
                 allow_anonymous_columns=False,
                 allow_fail=False,
             )
-
-            # Context manager to temporarily disable SELECT * emission
-            # Forces the compiler to expand all column names explicitly
-            @contextmanager
-            def no_star() -> Iterator[None]:
-                Select = rewrites.Select
-                original = Select.is_star_selection
-                Select.is_star_selection = lambda self: False
-                try:
-                    yield
-                finally:
-                    Select.is_star_selection = original
-
+            select_query = transformation_result.query()
             if (
                 isinstance(transformation_result, ReadableIbisRelation)
                 and resolved_transformation_type == "model"
             ):
-                import ibis.backends.sql.rewrites as rewrites
-
-                with no_star():
-                    select_query = transformation_result[list(computed_columns.keys())].query()
-            else:
-                select_query = transformation_result.query()
+                # expand star selects
+                parsed_result = sqlglot.parse_one(select_query)
+                test = create_sqlglot_schema(
+                    current_pipeline.dataset(schema=schema_name).sql_client,
+                    current_pipeline.dataset(schema=schema_name).schema,
+                    current_pipeline.destination.capabilities().sqlglot_dialect,
+                    current_pipeline.destination.capabilities(),
+                )
+                select_query = qualify(parsed_result, schema=test).sql()
         else:
             raise TransformationInvalidReturnTypeException(
                 resource_name,
