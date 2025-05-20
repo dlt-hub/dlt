@@ -51,11 +51,25 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
         return self._dataset.sql_client_class
 
-    def query(self) -> Any:
+    def query(self, qualified: bool = False) -> Any:
         # NOTE: converted from property to method due to:
         #   if this property raises AttributeError, __getattr__ will get called 🤯
         #   this leads to infinite recursion as __getattr_ calls this property
         #   also it does a heavy computation inside so it should be a method
+        query = self._query()
+
+        if qualified:
+            caps = self._dataset.sql_client.capabilities
+            dialect: str = caps.sqlglot_dialect
+            sqlglot_schema = lineage.create_sqlglot_schema(self._dataset.schema)
+            parsed_query = sqlglot.parse_one(query, read=dialect)
+            query = sqlglot.optimizer.qualify.qualify(
+                parsed_query, schema=sqlglot_schema, dialect=dialect
+            ).sql(dialect=dialect)
+
+        return query
+
+    def _query(self) -> Any:
         raise NotImplementedError("No query in ReadableDBAPIRelation")
 
     @contextmanager
@@ -124,8 +138,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
 
         # TODO: maybe store the SQLGlot schema on the dataset
         # TODO: support joins between datasets
-        d = self._dataset
-        sqlglot_schema = lineage.create_sqlglot_schema(d.schema)
+        sqlglot_schema = lineage.create_sqlglot_schema(self._dataset.schema)
         return lineage.compute_columns_schema(
             query,
             sqlglot_schema,
@@ -168,7 +181,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         self._limit = limit
         self._selected_columns = selected_columns
 
-    def query(self) -> Any:
+    def _query(self) -> Any:
         """build the query"""
         # TODO reimplement this using SQLGLot instead of passing strings
         if self._provided_query:

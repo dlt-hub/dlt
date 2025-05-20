@@ -3,6 +3,7 @@ from typing import Callable, Any, Type, Optional, cast, Iterator, List
 
 
 import dlt
+import sqlglot
 
 from dlt.common.typing import TDataItems
 from dlt.common import logger
@@ -127,7 +128,7 @@ def make_transformation_resource(
             select_query = transformation_result
             resolved_transformation_type = "python"
         elif isinstance(transformation_result, SupportsReadableRelation):
-            select_query = transformation_result.query()
+            select_query = transformation_result.query(qualified=True)
         else:
             raise TransformationInvalidReturnTypeException(
                 resource_name,

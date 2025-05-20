@@ -34,7 +34,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         super().__init__(readable_dataset=readable_dataset)
         self._ibis_object = ibis_object
 
-    def query(self) -> Any:
+    def _query(self, qualified: bool = False) -> Any:
         """build the query"""
         from dlt.helpers.ibis import ibis
 

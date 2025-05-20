@@ -39,8 +39,11 @@ class SupportsReadableRelation:
     sql glot query analysis and lineage. dlt hints for columns are kept in some cases. Refere to <docs-page> for more details.
     """
 
-    def query(self) -> Any:
+    def query(self, qualified: bool = False) -> Any:
         """Returns the sql query that represents the relation
+
+        Args:
+            qualified (bool, optional): Whether to return the qualified query. Defaults to False.
 
         Returns:
             Any: The sql query that represents the relation
