@@ -85,6 +85,7 @@ class FilesystemSqlClient(WithTableScanners):
                 raise ValueError(
                     f"Cannot create secret or register filesystem for protocol {protocol}"
                 )
+
         return True
 
     def open_connection(self) -> duckdb.DuckDBPyConnection:
@@ -92,6 +93,10 @@ class FilesystemSqlClient(WithTableScanners):
         super().open_connection()
 
         if first_connection:
+            # TODO: we need to frontlaod the httpfs extension for abfss for some reason
+            if self.is_abfss:
+                self._conn.sql("INSTALL httpfs;LOAD httpfs;")
+
             # create single authentication for the whole client
             self.create_secret(
                 self.remote_client.config.bucket_url, self.remote_client.config.credentials
