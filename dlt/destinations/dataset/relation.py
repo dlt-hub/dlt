@@ -28,7 +28,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         """Create a lazy evaluated relation to for the dataset of a destination"""
 
         self._dataset = readable_dataset
-        self._opened_client: SqlClientBase[Any] = None
+        self._opened_sql_client: SqlClientBase[Any] = None
 
         # wire protocol functions
         self.df = self._wrap_func("df")  # type: ignore
@@ -60,7 +60,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     def cursor(self) -> Generator[SupportsReadableRelation, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
         try:
-            self._opened_client = self.sql_client
+            self._opened_sql_client = self.sql_client
 
             # case 1: client is already opened and managed from outside
             if self.sql_client.native_connection:
@@ -76,7 +76,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
                             cursor.columns_schema = columns_schema
                         yield cursor
         finally:
-            self._opened_client = None
+            self._opened_sql_client = None
 
     def _wrap_iter(self, func_name: str) -> Any:
         """wrap SupportsReadableRelation generators in cursor context"""
