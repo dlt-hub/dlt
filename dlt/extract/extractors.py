@@ -338,29 +338,22 @@ class ArrowExtractor(Extractor):
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         static_table_name = self._get_static_table_name(resource, meta)
-
-        iterable = items if isinstance(items, list) else [items]
-        processed: TDataItems = []
-
-        for item in iterable:
-            # 1. Convert pandas frame to arrow Table, remove indexes because we store
-            tbl = pandas_to_arrow(item) if (pandas and isinstance(item, pandas.DataFrame)) else item
-
-            # 2. Remove null-type columns from the table as they can't be loaded
-            tbl, removed_cols = pyarrow.remove_null_columns(tbl)
-
-            if removed_cols:
-                logger.warning(
-                    f"Null type(s) detected for column(s) {sorted(removed_cols)} "
-                    f"in table '{static_table_name}' of schema '{self.schema.name}'. "
-                    "Unless type hint(s) are provided, the column(s) will not be loaded."
-                )
+        items = [
             # 3. remove columns and rows in data contract filters
-            tbl = self._apply_contract_filters(tbl, resource, static_table_name)
-
-            processed.append(tbl)
-
-        super().write_items(resource, processed, meta)
+            # NOTE: We don't remove null-type columns from the table(s) with pyarrow.remove_null_columns(tbl).
+            # The removal is handled in the normalizer.
+            self._apply_contract_filters(tbl, resource, static_table_name)
+            for tbl in (
+                (
+                    # 1. Convert pandas frame(s) to arrow Table, remove indexes because we store
+                    pandas_to_arrow(item)
+                    if (pandas and isinstance(item, pandas.DataFrame))
+                    else item
+                )
+                for item in (items if isinstance(items, list) else [items])
+            )
+        ]
+        super().write_items(resource, items, meta)
 
     def _write_to_static_table(
         self, resource: DltResource, table_name: str, items: TDataItems, meta: Any

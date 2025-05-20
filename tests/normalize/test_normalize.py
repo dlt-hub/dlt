@@ -863,9 +863,9 @@ def test_warning_from_json_normalizer_on_null_column(
         logger_spy.assert_called()
         assert logger_spy.call_count == 1
         expected_warning = (
-            "Schema coercion could not infer type(s) for column(s) ['col1'] in table"
-            " 'nested_table__children' of schema 'test_schema'. Unless type hint(s) are provided,"
-            " the column(s) will not be loaded."
+            "The column col1 in table nested_table__children did not receive any data during this"
+            " load. Therefore, its type couldn't be inferred. Unless a type hint is provided, the"
+            " column will not be materialized in the destination."
         )
         assert expected_warning in logger_spy.call_args_list[0][0][0]
     else:
