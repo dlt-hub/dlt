@@ -201,6 +201,7 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     write_disposition=self._load_table["write_disposition"],
                     partition_by=self._partition_columns,
                     storage_options=storage_options,
+                    configuration=self._job_client.config.deltalake_configuration,
                 )
         # release memory ASAP by deleting objects explicitly
         del source_ds

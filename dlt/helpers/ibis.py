@@ -111,11 +111,12 @@ def create_ibis_backend(
         )
     elif issubclass(destination.spec, MsSqlClientConfiguration) and not issubclass(
         destination.spec, SynapseClientConfiguration
-    ):
+    ):  # exclude synapse
         from dlt.destinations.impl.mssql.mssql import MsSqlJobClient
 
         assert isinstance(client, MsSqlJobClient)
         ms_credentials = client.config.credentials.to_native_representation()
+        ms_credentials = ms_credentials.replace("synapse://", "mssql://")
         con = ibis.connect(ms_credentials, driver=client.config.credentials.driver)
     elif issubclass(destination.spec, BigQueryClientConfiguration):
         from dlt.destinations.impl.bigquery.bigquery import BigQueryClient

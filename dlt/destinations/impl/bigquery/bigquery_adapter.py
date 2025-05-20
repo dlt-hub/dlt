@@ -23,6 +23,7 @@ AUTODETECT_SCHEMA_HINT: Literal["x-bigquery-autodetect-schema"] = "x-bigquery-au
 PARTITION_EXPIRATION_DAYS_HINT: Literal["x-bigquery-partition-expiration-days"] = (
     "x-bigquery-partition-expiration-days"
 )
+CLUSTER_COLUMNS_HINT: Literal["x-bigquery-cluster-columns"] = "x-bigquery-cluster-columns"
 
 
 def bigquery_adapter(
@@ -106,6 +107,7 @@ def bigquery_adapter(
             )
         for column_name in cluster:
             column_hints[column_name] = {"name": column_name, CLUSTER_HINT: True}  # type: ignore[typeddict-unknown-key]
+        additional_table_hints[CLUSTER_COLUMNS_HINT] = cluster
 
     # Implementing rounding logic flags
     if round_half_away_from_zero:
