@@ -41,6 +41,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         self._schema: Schema = None
         self._sql_client: SqlClientBase[Any] = None
         self._opened_sql_client: SqlClientBase[Any] = None
+        self._table_client: SupportsOpenTables = None
         # resolve dataset type
         if dataset_type in ("auto", "ibis"):
             try:
@@ -93,12 +94,15 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
 
     @property
     def open_table_client(self) -> SupportsOpenTables:
-        if isinstance(self.sql_client, SupportsOpenTables):
-            return self.sql_client
-        else:
-            raise OpenTableClientNotAvailable(
-                self._dataset_name, self._destination.destination_name
-            )
+        if not self._table_client:
+            client = self._get_destination_client(self.schema)
+            if isinstance(client, SupportsOpenTables):
+                self._table_client = client
+            else:
+                raise OpenTableClientNotAvailable(
+                    self._dataset_name, self._destination.destination_name
+                )
+        return self._table_client
 
     def _get_destination_client(self, schema: Schema) -> JobClientBase:
         return get_destination_clients(
