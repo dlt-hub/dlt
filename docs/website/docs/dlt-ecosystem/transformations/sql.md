@@ -1,10 +1,10 @@
 ---
-title: Transforming data with SQL
+title: Transform data with SQL
 description: Transforming the data loaded by a dlt pipeline with the dlt SQL client
 keywords: [transform, sql]
 ---
 
-# Transforming data using the `dlt` SQL client
+# Transform data using the `dlt` SQL client
 
 A simple alternative to dbt is to query the data using the `dlt` SQL client and then perform the
 transformations using SQL statements in Python. The `execute_sql` method allows you to execute any SQL statement,
@@ -20,7 +20,7 @@ connection.
 
 
 Typically you will use this type of transformation if you can create or update tables directly from existing tables
-without any need to insert data from your Python environment. 
+without any need to insert data from your Python environment.
 
 The example below creates a new table `aggregated_sales` that contains the total and average sales for each category and region
 
@@ -32,21 +32,21 @@ pipeline = dlt.pipeline(destination="duckdb", dataset_name="crm")
 with pipeline.sql_client() as client:
     client.execute_sql(
         """ CREATE OR REPLACE TABLE aggregated_sales AS
-            SELECT 
+            SELECT
                 category,
                 region,
                 SUM(amount) AS total_sales,
                 AVG(amount) AS average_sales
-            FROM 
+            FROM
                 sales
-            GROUP BY 
-                category, 
+            GROUP BY
+                category,
                 region;
     """)
 ```
 
 You can also use the `execute_sql` method to run select queries. The data is returned as a list of rows, with the elements of a row
-corresponding to selected columns. A more convenient way to extract data is to use dlt datasets. 
+corresponding to selected columns. A more convenient way to extract data is to use dlt datasets.
 
 ```py
 try:

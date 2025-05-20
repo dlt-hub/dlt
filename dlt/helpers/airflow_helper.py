@@ -18,8 +18,8 @@ try:
     from airflow.configuration import conf
     from airflow.models import TaskInstance
     from airflow.utils.task_group import TaskGroup
-    from airflow.operators.dummy import DummyOperator
-    from airflow.operators.python import PythonOperator, get_current_context
+    from airflow.operators.empty import EmptyOperator
+    from airflow.operators.python import BaseOperator, PythonOperator, get_current_context
 except ModuleNotFoundError:
     raise MissingDependencyException("Airflow", ["apache-airflow>=2.5"])
 
@@ -346,7 +346,7 @@ class PipelineTasksGroup(TaskGroup):
         schema_contract: TSchemaContract = None,
         on_before_run: Callable[[], None] = None,
         **kwargs: Any,
-    ) -> List[PythonOperator]:
+    ) -> List[BaseOperator]:
         """Creates a task or a group of tasks to run `data` with `pipeline`
 
         Creates an Airflow task that extracts, normalizes and loads `data` with the passed pipeline instance `pipeline`. If `data` is a source
@@ -407,7 +407,7 @@ class PipelineTasksGroup(TaskGroup):
             # use factory function to make a task, in order to parametrize it
             # passing arguments to task function (_run) is serializing
             # them and running template engine on them
-            def make_task(pipeline: Pipeline, data: Any, name: str = None) -> PythonOperator:
+            def make_task(pipeline: Pipeline, data: Any, name: str = None) -> BaseOperator:
                 f = functools.partial(
                     self._run,
                     pipeline,
@@ -469,7 +469,7 @@ class PipelineTasksGroup(TaskGroup):
 
                     tasks.append(make_task(pipeline, source))
 
-                end = DummyOperator(task_id=f"{t_name}_end")
+                end = EmptyOperator(task_id=f"{t_name}_end")
 
                 if tasks:
                     start >> tasks >> end
@@ -503,7 +503,7 @@ class PipelineTasksGroup(TaskGroup):
                     tasks.append(make_task(pipeline, source, new_pipeline_name))
 
                 t_name = self._task_name(pipeline, data)
-                end = DummyOperator(task_id=f"{t_name}_end")
+                end = EmptyOperator(task_id=f"{t_name}_end")
 
                 if tasks:
                     start >> tasks >> end

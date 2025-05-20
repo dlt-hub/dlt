@@ -111,7 +111,7 @@ def create_ibis_backend(
         )
     elif issubclass(destination.spec, MsSqlClientConfiguration) and not issubclass(
         destination.spec, SynapseClientConfiguration
-    ):
+    ):  # exclude synapse
         from dlt.destinations.impl.mssql.mssql import MsSqlJobClient
 
         assert isinstance(client, MsSqlJobClient)

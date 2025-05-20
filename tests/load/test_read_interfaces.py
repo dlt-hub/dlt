@@ -984,7 +984,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     other_schema.tables["other_table"] = utils.new_table("other_table")
 
     populated_pipeline._inject_schema(other_schema)
-    populated_pipeline.default_schema_name = other_schema.name
+    populated_pipeline.default_schema_name = other_schema.name  # type: ignore[assignment]
     with populated_pipeline.destination_client() as client:
         client.update_stored_schema()
 
