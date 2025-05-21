@@ -826,11 +826,7 @@ def test_removal_of_normalizer_schema_section_and_add_seen_data(raw_normalize: N
 
 
 @pytest.mark.parametrize("is_none", [True, False])
-# @pytest.mark.parametrize(
-#    "caps", DEFAULT_CAPS, indirect=True
-# )
 def test_warning_from_json_normalizer_on_null_column(
-    #    caps: DestinationCapabilitiesContext,
     raw_normalize: Normalize,
     mocker: MockerFixture,
     is_none: bool,
