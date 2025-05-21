@@ -8,12 +8,13 @@ app_tab_schema = "Schema"
 app_tab_browse_data = "Browse Data"
 app_tab_state = "State"
 app_tab_ibis_browser = "Ibis-Browser"
-
+app_tab_loads = "Loads"
 app_tab_mapping = {
     app_tab_overview: f"{_mo.icon('lucide:home')} {app_tab_overview}",
     app_tab_schema: f"{_mo.icon('lucide:table-properties')} {app_tab_schema}",
     app_tab_browse_data: f"{_mo.icon('lucide:database')} {app_tab_browse_data}",
     app_tab_state: f"{_mo.icon('lucide:file-chart-column')} {app_tab_state}",
+    app_tab_loads: f"{_mo.icon('lucide:file-chart-column')} {app_tab_loads}",
     app_tab_ibis_browser: f"{_mo.icon('lucide:view')} {app_tab_ibis_browser}",
 }
 app_tab_mapping_reverse = {v: k for k, v in app_tab_mapping.items()}
