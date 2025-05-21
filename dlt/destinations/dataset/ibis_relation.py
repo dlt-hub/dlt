@@ -101,15 +101,23 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
             )
 
         if not callable(attr):
-            # NOTE: we don't need to forward columns schema for non-callable attributes, these are usually columns
+            # NOTE: This case usually is a column
             return self.__class__(readable_dataset=self._dataset, ibis_object=attr)
 
         return partial(self._proxy_expression_method, name)
 
     def __getitem__(self, columns: Union[str, Sequence[str]]) -> "ReadableIbisRelation":
         # casefold column-names
-        columns = [columns] if isinstance(columns, str) else columns
-        columns = [self.sql_client.capabilities.casefold_identifier(col) for col in columns]
+        if isinstance(columns, str):
+            columns = self.sql_client.capabilities.casefold_identifier(columns)
+        elif isinstance(columns, Sequence):
+            columns = [self.sql_client.capabilities.casefold_identifier(col) for col in columns]
+        else:
+            raise TypeError(
+                f"Invalid argument type: {type(columns).__name__}, requires a sequence of column"
+                " names Sequence[str] or a single column name str"
+            )
+
         expr = self._ibis_object[columns]
         return self.__class__(
             readable_dataset=self._dataset,

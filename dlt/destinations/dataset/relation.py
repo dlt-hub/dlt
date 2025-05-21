@@ -240,13 +240,18 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         rel.compute_columns_schema()
         return rel
 
-    def __getitem__(self, columns: Union[str, Sequence[str]]) -> Self:
+    def __getitem__(self, columns: Sequence[str]) -> Self:
         if isinstance(columns, str):
-            return self.select(columns)
+            raise TypeError(
+                f"Invalid argument type: {type(columns).__name__}, requires a sequence of column"
+                " names Sequence[str]"
+            )
         elif isinstance(columns, Sequence):
             return self.select(*columns)
-        else:
-            raise TypeError(f"Invalid argument type: {type(columns).__name__}")
+        raise TypeError(
+            f"Invalid argument type: {type(columns).__name__}, requires a sequence of column names"
+            " Sequence[str]"
+        )
 
     def head(self, limit: int = 5) -> Self:
         return self.limit(limit)

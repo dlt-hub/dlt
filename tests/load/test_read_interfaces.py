@@ -614,6 +614,36 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
+def test_column_retrieval(populated_pipeline: Pipeline) -> None:
+    import ibis
+
+    # test non - ibis relation
+    table_relationship = populated_pipeline.dataset(dataset_type="default").items
+
+    # accessing single column this way is not supported
+    with pytest.raises(TypeError):
+        table_relationship["other_decimal"]
+
+    table_relationship = populated_pipeline.dataset(dataset_type="ibis").items
+
+    # test different ways of accessing columns
+    decimal_col_get_attr = table_relationship.other_decimal._ibis_object
+    decimal_col_get_item = table_relationship["other_decimal"]._ibis_object
+
+    # we access the same column with both methods
+    assert isinstance(decimal_col_get_attr, ibis.Column)
+    assert isinstance(decimal_col_get_item, ibis.Column)
+    assert decimal_col_get_attr.get_name() == decimal_col_get_item.get_name()
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
 def test_schema_arg(populated_pipeline: Pipeline) -> None:
     """Simple test to ensure schemas may be selected via schema arg"""
 
