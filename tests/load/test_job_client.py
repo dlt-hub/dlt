@@ -641,10 +641,14 @@ def test_load_with_all_types(
         canonical_name = client.sql_client.make_qualified_table_name(table_name)
     # write row
     with io.BytesIO() as f:
-        write_dataset(client, f, [data_row], partial)
+        write_dataset(
+            client, f, [data_row], partial, file_format=client.destination_config.file_format  # type: ignore[attr-defined]
+        )
         query = f.getvalue()
     # print(client.schema.to_pretty_yaml())
-    expect_load_file(client, file_storage, query, table_name)
+    expect_load_file(
+        client, file_storage, query, table_name, file_format=client.destination_config.file_format  # type: ignore[attr-defined]
+    )
     db_row = list(client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0])
     assert len(db_row) == len(data_row)
     # assert_all_data_types_row has many hardcoded columns so for now skip that part
