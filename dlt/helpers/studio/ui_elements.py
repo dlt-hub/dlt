@@ -13,6 +13,7 @@ def build_error_callout(message: str, code: str = None) -> Any:
     Returns:
         mo.ui.Callout: The callout with the message and the stacktrace.
     """
+    code = code.replace("\x1b[4m", ">>>").replace("\x1b[0m", "<<<")
     return mo.callout(
         mo.vstack(
             [
