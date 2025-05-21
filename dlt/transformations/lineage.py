@@ -5,7 +5,7 @@ import sqlglot
 import sqlglot.expressions as sge
 from sqlglot.dialects.dialect import DialectType
 from sqlglot.errors import ParseError, OptimizeError
-from sqlglot.schema import Schema as SQLGlotSchema
+from sqlglot.schema import Schema as SQLGlotSchema, ensure_schema
 from sqlglot.optimizer.annotate_types import annotate_types
 from sqlglot.optimizer.qualify import qualify
 
@@ -31,6 +31,7 @@ logger = logging.getLogger(__file__)
 def create_sqlglot_schema(
     schema: Schema,
     sql_client: SqlClientBase[Any],
+    dialect: Optional[DialectType] = "duckdb",
 ) -> Any:
     """Create an SQLGlot schema using a dlt Schema and the destination capabilities.
 
@@ -57,7 +58,7 @@ def create_sqlglot_schema(
         table_name = sql_client.make_qualified_table_name_path(table_name, escape=False)[-1]
         sqlglot_schema[table_name] = column_mapping
 
-    # ensure proper nesting
+    # ensure proper nesting with db and catalog
     dataset_catalog = sql_client.make_qualified_table_name_path(None, escape=False)
     if len(dataset_catalog) == 2:
         catalog, database = dataset_catalog
@@ -66,9 +67,8 @@ def create_sqlglot_schema(
         (database,) = dataset_catalog
         nested_schema = {database: sqlglot_schema}  # type: ignore
 
-    # TODO: returning a "MappingSchema" here breaks snowflake for some reason, this needs further investigation
-
-    return nested_schema
+    # NOTE: normalize=False is important as we already have normalized identifiers
+    return ensure_schema(nested_schema, dialect=dialect, normalize=False)
 
 
 # NOTE even if `infer_sqlglot_schema=True`, some queries can have undetermined final columns

@@ -62,7 +62,9 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
             caps = self._dataset.sql_client.capabilities
             dialect: str = caps.sqlglot_dialect
             sqlglot_schema = lineage.create_sqlglot_schema(
-                self._dataset.schema, self._dataset.sql_client
+                self._dataset.schema,
+                self._dataset.sql_client,
+                self._dataset.sql_client.capabilities.sqlglot_dialect,
             )
             parsed_query = sqlglot.parse_one(query, read=dialect)
             query = sqlglot.optimizer.qualify.qualify(
@@ -131,7 +133,6 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         query = self.query()
         if self._dataset._destination.destination_type in [
             "dlt.destinations.sqlalchemy",
-            "dlt.destinations.snowflake",
         ]:
             query = sqlglot.transpile(query, read=dialect, write="duckdb")[0]
             dialect = "duckdb"
@@ -139,7 +140,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         # TODO: maybe store the SQLGlot schema on the dataset
         # TODO: support joins between datasets
         sqlglot_schema = lineage.create_sqlglot_schema(
-            self._dataset.schema, self._dataset.sql_client
+            self._dataset.schema, self._dataset.sql_client, dialect=dialect
         )
         return lineage.compute_columns_schema(
             query,
