@@ -26,6 +26,8 @@ global_defaults = {
     "dlt_schema_show_custom_hints": mo.ui.switch(),
     "dlt_schema_show_dlt_columns": mo.ui.switch(),
     "dlt_schema_show_type_hints": mo.ui.switch(),
+    "dlt_pipeline": None,
+    "dlt_query": "",
 }
 
 
@@ -43,7 +45,7 @@ def test_run_all_cells():
 
     for cell in cells:
         # the two cells below only work in a marimo context
-        if cell.name in ["prepare_query_vars", "prepare_cli_args"]:
+        if cell.name in ["prepare_query_vars", "prepare_cli_args", "app_tabs"]:
             continue
         try:
             run_args = {k: v for k, v in global_defaults.items() if k in cell.refs}

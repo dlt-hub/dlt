@@ -1,7 +1,8 @@
 from typing import List, Tuple, Any, Dict, Union, cast
 from itertools import chain
-import os
+import functools
 import dlt
+import marimo as mo
 import pandas as pd
 from pathlib import Path
 
@@ -197,44 +198,38 @@ def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
 
 # cache last of query [pipeline_name] = result
 LAST_QUERY_RESULT: Dict[str, pd.DataFrame] = {}
-
-# cache last of query [pipeline_name][query] = result
-QUERY_CACHE: Dict[str, Dict[str, pd.DataFrame]] = {}
+LAST_QUERY: Dict[str, str] = {}
 
 
-def get_query_result(
-    pipeline: dlt.Pipeline, query: str, cache_results: bool = True
-) -> pd.DataFrame:
+@functools.cache
+def get_query_result(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
     """
     Get the result of a query.
     """
 
-    global QUERY_CACHE
-    result = None
-    if not cache_results:
-        # purge cache
-        QUERY_CACHE = {}
-    else:
-        # load from cache if available
-        result = QUERY_CACHE.get(pipeline.pipeline_name, {}).get(query, None)
-
-    if result is None:
-        result = pipeline.dataset()(query).df()
-        QUERY_CACHE.setdefault(pipeline.pipeline_name, {})[query] = result
-
+    result = pipeline.dataset()(query).df()
     # remember last result
     global LAST_QUERY_RESULT
     LAST_QUERY_RESULT[pipeline.pipeline_name] = result
+    LAST_QUERY[pipeline.pipeline_name] = query
 
     return result
 
 
 def get_last_query_result(pipeline: dlt.Pipeline) -> pd.DataFrame:
     """
-    Get the last query result.
+    Get the last successful query result.
     """
     global LAST_QUERY_RESULT
     return LAST_QUERY_RESULT.get(pipeline.pipeline_name, pd.DataFrame())
+
+
+def get_last_query(pipeline: dlt.Pipeline) -> str:
+    """
+    Get the last successful query.
+    """
+    global LAST_QUERY
+    return LAST_QUERY.get(pipeline.pipeline_name, "")
 
 
 def style_cell(row_id: str, name: str, __: Any) -> Dict[str, str]:
