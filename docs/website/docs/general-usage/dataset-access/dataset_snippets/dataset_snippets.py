@@ -138,7 +138,7 @@ def select_columns_snippet(dataset: ReadableDBAPIDataset) -> None:
     items_list = customers_relation[["id", "name"]].fetchall()
 
     # Only get one column
-    items_list = customers_relation["name"].fetchall()
+    items_list = customers_relation[["name"]].fetchall()
     # @@@DLT_SNIPPET_END select_columns
 
 

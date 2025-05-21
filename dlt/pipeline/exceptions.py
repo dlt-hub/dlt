@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Union, Literal
 from dlt.common.exceptions import PipelineException
 from dlt.common.pipeline import StepInfo, StepMetrics, SupportsPipeline
 from dlt.pipeline.typing import TPipelineStep
@@ -16,13 +16,17 @@ class InvalidPipelineName(PipelineException, ValueError):
 
 class PipelineConfigMissing(PipelineException):
     def __init__(
-        self, pipeline_name: str, config_elem: str, step: TPipelineStep, _help: str = None
+        self,
+        pipeline_name: str,
+        config_elem: str,
+        step_or_func: Union[TPipelineStep, Literal["dataset"]],
+        _help: str = None,
     ) -> None:
         self.config_elem = config_elem
-        self.step = step
+        self.step_or_func = step_or_func
         msg = (
-            f"Configuration element {config_elem} was not provided and {step} step cannot be"
-            " executed"
+            f"Configuration element {config_elem} was not provided and step or function"
+            f" {step_or_func} cannot be executed"
         )
         if _help:
             msg += f"\n{_help}\n"

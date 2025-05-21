@@ -311,16 +311,20 @@ def test_run_dev_mode_underscored_dataset() -> None:
 
 
 def test_dataset_pipeline_never_ran() -> None:
-    p = dlt.pipeline(destination="filesystem", dev_mode=True, dataset_name="_main_")
-    with pytest.raises(PipelineNeverRan):
-        p.dataset()
+    p = dlt.pipeline(destination="duckdb", dev_mode=True, dataset_name="_main_")
+    # we get a dataset with an empty schema with the name of the dataset
+    dataset = p.dataset()
+    assert dataset.schema.name == p.dataset_name
+    assert set(dataset.schema.tables.keys()) == {"_dlt_version", "_dlt_loads"}
 
 
 def test_dataset_unknown_schema() -> None:
     p = dlt.pipeline(destination="duckdb", dev_mode=True, dataset_name="mmmmm")
     p.run([1, 2, 3], table_name="digits")
-    with pytest.raises(SchemaNotFoundError):
-        p.dataset(schema="unknown")
+
+    dataset = p.dataset(schema="unknown")
+    assert dataset.schema.name == "unknown"
+    assert set(dataset.schema.tables.keys()) == {"_dlt_version", "_dlt_loads"}
 
 
 def test_pipeline_with_non_alpha_name() -> None:
@@ -764,10 +768,12 @@ def test_pipeline_resources_injected_sections() -> None:
     s_ = with_external()
     pipeline.run(s_)
     ds_ = pipeline.dataset(schema="with_external")
-    assert ds_.source_val["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
-    assert ds_.inner_resource["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
-    assert ds_.init_resource_f_2["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
-    assert ds_.resource_f_2["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
+    assert ds_.source_val[["value"]].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
+    assert ds_.inner_resource[["value"]].fetchall()[0] == (
+        "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
+    )
+    assert ds_.init_resource_f_2[["value"]].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
+    assert ds_.resource_f_2[["value"]].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
     # assert pipeline.dataset(schema="with_external").init_resource_f_2.fetchall()[0][0] == "SOURCES__SECTION_SOURCE__VAL"
     assert "with_external" in pipeline.schemas
 
@@ -777,10 +783,12 @@ def test_pipeline_resources_injected_sections() -> None:
     s_ = with_bound_external()
     pipeline.run(s_)
     ds_ = pipeline.dataset(schema="with_bound_external")
-    assert ds_.source_val["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
-    assert ds_.inner_resource["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
-    assert ds_.init_resource_f_2["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
-    assert ds_.resource_f_2["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
+    assert ds_.source_val[["value"]].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
+    assert ds_.inner_resource[["value"]].fetchall()[0] == (
+        "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
+    )
+    assert ds_.init_resource_f_2[["value"]].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
+    assert ds_.resource_f_2[["value"]].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
     # assert pipeline.dataset(schema="with_external").init_resource_f_2.fetchall()[0][0] == "SOURCES__SECTION_SOURCE__VAL"
     assert "with_bound_external" in pipeline.schemas
 

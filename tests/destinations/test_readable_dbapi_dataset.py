@@ -8,6 +8,7 @@ from dlt.destinations.dataset.exceptions import (
     ReadableRelationHasQueryException,
     ReadableRelationUnknownColumnException,
 )
+from dlt.transformations.exceptions import LineageFailedException
 
 
 @pytest.mark.parametrize("dataset_type", ("default",))
@@ -100,7 +101,7 @@ def test_computed_schema_columns(dataset_type: TDatasetType) -> None:
     relation = dataset.items
 
     # no schema present
-    assert relation.columns_schema is None
+    assert relation.columns_schema == {}
 
     # we can select any columns because it can't be verified
     relation["one", "two"]
@@ -108,18 +109,28 @@ def test_computed_schema_columns(dataset_type: TDatasetType) -> None:
     # now add columns
     relation = dataset.items
     dataset.schema.tables["items"] = {
-        "columns": {"one": {"data_type": "text"}, "two": {"data_type": "json"}}
+        "columns": {
+            "one": {"data_type": "text", "name": "one"},
+            "two": {"data_type": "json", "name": "two"},
+        }
     }
 
     # computed columns are same as above
-    assert relation.columns_schema == {"one": {"data_type": "text"}, "two": {"data_type": "json"}}
+    assert relation.columns_schema == {
+        "one": {"data_type": "text", "name": "one"},
+        "two": {"data_type": "json", "name": "two"},
+    }
 
     # when selecting only one column, computing schema columns will only show that one
-    assert relation.select("one").columns_schema == {"one": {"data_type": "text"}}
+    assert relation.select("one").columns_schema == {"one": {"data_type": "text", "name": "one"}}
 
     # selecting unknown column fails
-    with pytest.raises(ReadableRelationUnknownColumnException):
-        relation["unknown_columns"]
+
+    # TODO: add correct exception
+    import sqlglot
+
+    with pytest.raises(LineageFailedException):
+        relation[["unknown_columns"]].compute_columns_schema()
 
 
 @pytest.mark.parametrize("dataset_type", ("default",))
