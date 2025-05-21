@@ -5,9 +5,11 @@ import sqlglot
 import sqlglot.expressions as sge
 from sqlglot.dialects.dialect import DialectType
 from sqlglot.errors import ParseError, OptimizeError
-from sqlglot.schema import Schema as SQLGlotSchema, MappingSchema
+from sqlglot.schema import Schema as SQLGlotSchema
 from sqlglot.optimizer.annotate_types import annotate_types
 from sqlglot.optimizer.qualify import qualify
+
+from dlt.destinations.sql_client import SqlClientBase
 
 from dlt.common.libs.sqlglot import (
     to_sqlglot_type,
@@ -28,22 +30,15 @@ logger = logging.getLogger(__file__)
 
 def create_sqlglot_schema(
     schema: Schema,
-    catalog_name: Optional[str] = None,
-    dataset_name: Optional[str] = None,
-) -> SQLGlotSchema:
+    sql_client: SqlClientBase[Any],
+) -> Any:
     """Create an SQLGlot schema using a dlt Schema and the destination capabilities.
 
     The SQLGlot schema automatically includes the database and catalog names if available.
     This can allow cross-dataset transformations on the same physical location.
     """
-    if catalog_name:
-        empty_schema = {catalog_name: {dataset_name: {}}}  # type: ignore
-    elif dataset_name:
-        empty_schema = {dataset_name: {}}
-    else:
-        empty_schema = {}
 
-    sqlglot_schema = MappingSchema(empty_schema, normalize=False)
+    sqlglot_schema = {}  # MappingSchema(empty_schema, normalize=False)
 
     for table_name, table in schema.tables.items():
         column_mapping = {}
@@ -56,11 +51,24 @@ def create_sqlglot_schema(
                 timezone=column.get("timezone"),
             )
             sqlglot_type = set_metadata(sqlglot_type, column)
+            column_name = sql_client.capabilities.casefold_identifier(column_name)
             column_mapping[column_name] = sqlglot_type
 
-        sqlglot_schema.add_table(table_name, column_mapping)
+        table_name = sql_client.make_qualified_table_name_path(table_name, escape=False)[-1]
+        sqlglot_schema[table_name] = column_mapping
 
-    return sqlglot_schema
+    # ensure proper nesting
+    dataset_catalog = sql_client.make_qualified_table_name_path(None, escape=False)
+    if len(dataset_catalog) == 2:
+        catalog, database = dataset_catalog
+        nested_schema = {catalog: {database: sqlglot_schema}}
+    else:
+        (database,) = dataset_catalog
+        nested_schema = {database: sqlglot_schema}  # type: ignore
+
+    # TODO: returning a "MappingSchema" here breaks snowflake for some reason, this needs further investigation
+
+    return nested_schema
 
 
 # NOTE even if `infer_sqlglot_schema=True`, some queries can have undetermined final columns

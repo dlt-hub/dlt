@@ -61,7 +61,9 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         if qualified:
             caps = self._dataset.sql_client.capabilities
             dialect: str = caps.sqlglot_dialect
-            sqlglot_schema = lineage.create_sqlglot_schema(self._dataset.schema)
+            sqlglot_schema = lineage.create_sqlglot_schema(
+                self._dataset.schema, self._dataset.sql_client
+            )
             parsed_query = sqlglot.parse_one(query, read=dialect)
             query = sqlglot.optimizer.qualify.qualify(
                 parsed_query, schema=sqlglot_schema, dialect=dialect
@@ -123,22 +125,22 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
             return {}
 
         # TODO: sqlalchemy does not work with their internal types, so we go via duckdb
-        # TODO: snowflake has some bug in sqlglot lineage, so we go via duckdb
-        # TODO: clickhouse has some bug in sqlglot lineage, so we go via duckdb
+        # TODO: snowflake has some bug in sqlglot lineage, column types are not resolved, so we go via duckdb
         caps = self._dataset.sql_client.capabilities
         dialect: str = caps.sqlglot_dialect
         query = self.query()
         if self._dataset._destination.destination_type in [
             "dlt.destinations.sqlalchemy",
             "dlt.destinations.snowflake",
-            "dlt.destinations.clickhouse",
         ]:
             query = sqlglot.transpile(query, read=dialect, write="duckdb")[0]
             dialect = "duckdb"
 
         # TODO: maybe store the SQLGlot schema on the dataset
         # TODO: support joins between datasets
-        sqlglot_schema = lineage.create_sqlglot_schema(self._dataset.schema)
+        sqlglot_schema = lineage.create_sqlglot_schema(
+            self._dataset.schema, self._dataset.sql_client
+        )
         return lineage.compute_columns_schema(
             query,
             sqlglot_schema,
