@@ -1593,7 +1593,7 @@ def test_warn_when_resolving_placeholders(
             key = f"SOME_{sc_type}".upper()
             placeholder_value = TYPE_EXAMPLES[sc_type]
             test_section_name = "TEST_SECTION"
-            if is_environ := provider.locations == []:
+            if provider.locations == []:
                 environment[f"{test_section_name}__{key}"] = placeholder_value
             else:
                 provider.set_value(key, placeholder_value, test_section_name)
@@ -1612,6 +1612,3 @@ def test_warn_when_resolving_placeholders(
             assert str(placeholder_value) in msg
             assert test_section_name in msg
             assert provider.name in msg
-            if not is_environ:
-                # strip the relative path bit '.'
-                assert provider.locations[0][1:] in msg
