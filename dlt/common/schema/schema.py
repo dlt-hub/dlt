@@ -912,6 +912,13 @@ class Schema:
             # if there's incomplete new_column then merge it with inferred column
             if new_column:
                 # use all values present in incomplete column to override inferred column - also the defaults
+                # NOTE: If the incomplete column initially saw a null value and its data type is still unset,
+                # remove the data type from the incomplete column to avoid incorrect overrides
+                if (
+                    new_column.get("x-normalizer", {}).get("seen-null-first") is True  # type: ignore[attr-defined]
+                    and new_column["data_type"] is None
+                ):
+                    new_column.pop("data_type")
                 new_column = utils.merge_column(inferred_column, new_column)
             else:
                 new_column = inferred_column
