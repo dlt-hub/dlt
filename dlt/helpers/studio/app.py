@@ -1,21 +1,18 @@
-# flake8: noqa: F841
 
-from typing import Any
 
 import marimo
-import pandas as pd
 
-__generated_with = "0.13.6"
-app = marimo.App(width="medium", app_title="dlt studio", css_file="style.css")
+__generated_with = "0.13.3"
+app = marimo.App(width="medium", app_title="dlt studio", css_file="")
 
 
 @app.cell(hide_code=True)
 def page_welcome(
-    dlt_pipelines_dir: str,
-    dlt_pipeline_select: marimo.ui.multiselect,
-    dlt_pipeline_count: int,
-    dlt_pipeline_link_list: str,
-) -> Any:
+    dlt_pipeline_count,
+    dlt_pipeline_link_list,
+    dlt_pipeline_select,
+    dlt_pipelines_dir,
+):
     """
     Displays the welcome page with the pipeline select widget, will only display pipeline title if a pipeline is selected
     """
@@ -66,7 +63,7 @@ def page_welcome(
 
 
 @app.cell(hide_code=True)
-def app_tabs(dlt_pipeline_name: str) -> Any:
+def app_tabs(dlt_pipeline_name):
     """
     Syncs the pipeline and renders the result of the sync
     """
@@ -87,11 +84,7 @@ def app_tabs(dlt_pipeline_name: str) -> Any:
 
 
 @app.cell(hide_code=True)
-def page_overview(
-    dlt_pipeline_name: str,
-    dlt_page_tabs: marimo.ui.tabs,
-    dlt_pipelines_dir: str,
-) -> Any:
+def page_overview(dlt_page_tabs, dlt_pipeline_name, dlt_pipelines_dir):
     """
     Overview page of currently selected pipeline
     """
@@ -130,7 +123,7 @@ def page_overview(
 
 
 @app.cell(hide_code=True)
-def app_controls() -> Any:
+def app_controls():
     """
     Control elements for various parts of the app
     """
@@ -153,17 +146,27 @@ def app_controls() -> Any:
     dlt_execute_query_on_change = _mo.ui.switch(
         label="<small>Execute query automatically on change (loose focus)</small>", value=False
     )
-    return
+    return (
+        dlt_cache_query_results,
+        dlt_execute_query_on_change,
+        dlt_schema_show_child_tables,
+        dlt_schema_show_custom_hints,
+        dlt_schema_show_dlt_columns,
+        dlt_schema_show_dlt_tables,
+        dlt_schema_show_other_hints,
+        dlt_schema_show_row_counts,
+        dlt_schema_show_type_hints,
+    )
 
 
 @app.cell(hide_code=True)
 def page_schema_section_table_list(
-    dlt_pipeline_name: str,
-    dlt_pipelines_dir: str,
-    dlt_schema_show_child_tables: marimo.ui.switch,
-    dlt_schema_show_dlt_tables: marimo.ui.switch,
-    dlt_page_tabs: marimo.ui.tabs,
-) -> Any:
+    dlt_page_tabs,
+    dlt_pipeline_name,
+    dlt_pipelines_dir,
+    dlt_schema_show_child_tables,
+    dlt_schema_show_dlt_tables,
+):
     """
     Show schema of the currently selected pipeline
     """
@@ -202,15 +205,15 @@ def page_schema_section_table_list(
 
 @app.cell(hide_code=True)
 def page_schema_section_table_schemas(
-    dlt_pipeline_name: str,
-    dlt_pipelines_dir: str,
-    dlt_schem_table_list: marimo.ui.table,
-    dlt_schema_show_other_hints: marimo.ui.switch,
-    dlt_schema_show_custom_hints: marimo.ui.switch,
-    dlt_schema_show_dlt_columns: marimo.ui.switch,
-    dlt_schema_show_type_hints: marimo.ui.switch,
-    dlt_page_tabs: marimo.ui.tabs,
-) -> Any:
+    dlt_page_tabs,
+    dlt_pipeline_name,
+    dlt_pipelines_dir,
+    dlt_schem_table_list,
+    dlt_schema_show_custom_hints,
+    dlt_schema_show_dlt_columns,
+    dlt_schema_show_other_hints,
+    dlt_schema_show_type_hints,
+):
     """
     Show schema of the currently selected table
     """
@@ -265,10 +268,10 @@ def page_schema_section_table_schemas(
 
 @app.cell(hide_code=True)
 def page_schema_section_raw_schema(
-    dlt_pipeline_name: str,
-    dlt_pipelines_dir: str,
-    dlt_page_tabs: marimo.ui.tabs,
-) -> Any:
+    dlt_page_tabs,
+    dlt_pipeline_name,
+    dlt_pipelines_dir,
+):
     import marimo as _mo
     from dlt.helpers.studio import strings as _s, utils as _u
 
@@ -297,13 +300,13 @@ def page_schema_section_raw_schema(
 
 @app.cell(hide_code=True)
 def page_browse_data_section_table_list(
-    dlt_pipeline_name: str,
-    dlt_pipelines_dir: str,
-    dlt_page_tabs: marimo.ui.tabs,
-    dlt_schema_show_child_tables: marimo.ui.switch,
-    dlt_schema_show_dlt_tables: marimo.ui.switch,
-    dlt_schema_show_row_counts: marimo.ui.switch,
-) -> Any:
+    dlt_page_tabs,
+    dlt_pipeline_name,
+    dlt_pipelines_dir,
+    dlt_schema_show_child_tables,
+    dlt_schema_show_dlt_tables,
+    dlt_schema_show_row_counts,
+):
     """
     Show data of the currently selected pipeline
     """
@@ -351,18 +354,18 @@ def page_browse_data_section_table_list(
         ]
     )
 
-    return
+    return (dlt_data_table_list,)
 
 
 @app.cell(hide_code=True)
 def page_browse_data_section_query_editor(
-    dlt_pipeline_name: str,
-    dlt_pipelines_dir: str,
-    dlt_page_tabs: marimo.ui.tabs,
-    dlt_data_table_list: marimo.ui.table,
-    dlt_cache_query_results: marimo.ui.switch,
-    dlt_execute_query_on_change: marimo.ui.switch,
-) -> Any:
+    dlt_cache_query_results,
+    dlt_data_table_list,
+    dlt_execute_query_on_change,
+    dlt_page_tabs,
+    dlt_pipeline_name,
+    dlt_pipelines_dir,
+):
     """
     Show data of the currently selected pipeline
     """
@@ -409,19 +412,31 @@ def page_browse_data_section_query_editor(
 
     _mo.vstack(_ui_items)
 
-    return dlt_run_query_button
+    return dlt_query_editor, dlt_run_query_button
+
+
+@app.cell
+def _(dlt_query_result, mo):
+    mo.ui.table(dlt_query_result)
+    return
+
+
+@app.cell
+def _():
+    import marimo as mo
+    return (mo,)
 
 
 @app.cell(hide_code=True)
 def page_browse_data_section_execute_query(
-    dlt_pipeline_name: str,
-    dlt_pipelines_dir: str,
-    dlt_page_tabs: marimo.ui.tabs,
-    dlt_run_query_button: marimo.ui.button,
-    dlt_query_editor: marimo.ui.code_editor,
-    dlt_cache_query_results: marimo.ui.switch,
-    dlt_execute_query_on_change: marimo.ui.switch,
-) -> Any:
+    dlt_cache_query_results,
+    dlt_execute_query_on_change,
+    dlt_page_tabs,
+    dlt_pipeline_name,
+    dlt_pipelines_dir,
+    dlt_query_editor,
+    dlt_run_query_button,
+):
     """
     Execute the query in the editor
     """
@@ -450,15 +465,16 @@ def page_browse_data_section_execute_query(
         dlt_query_result = _u.get_last_query_result(_p)
 
     _query_error
+    return (dlt_query_result,)
 
 
 @app.cell(hide_code=True)
 def page_browse_data_section_data_explorer(
-    dlt_pipeline_name: str,
-    dlt_page_tabs: marimo.ui.tabs,
-    dlt_data_table_list: marimo.ui.table,
-    dlt_query_result: pd.DataFrame,
-) -> Any:
+    dlt_data_table_list,
+    dlt_page_tabs,
+    dlt_pipeline_name,
+    dlt_query_result,
+):
     """
     Show data of the currently selected pipeline
     """
@@ -482,11 +498,7 @@ def page_browse_data_section_data_explorer(
 
 
 @app.cell(hide_code=True)
-def page_state(
-    dlt_pipeline_name: str,
-    dlt_pipelines_dir: str,
-    dlt_page_tabs: marimo.ui.tabs,
-) -> Any:
+def page_state(dlt_page_tabs, dlt_pipeline_name, dlt_pipelines_dir):
     """
     Show state of the currently selected pipeline
     """
@@ -506,14 +518,11 @@ def page_state(
             ),
         ]
     )
+    return
 
 
 @app.cell(hide_code=True)
-def ibis_browser_page(
-    dlt_pipeline_name: str,
-    dlt_pipelines_dir: str,
-    dlt_page_tabs: marimo.ui.tabs,
-) -> Any:
+def ibis_browser_page(dlt_page_tabs, dlt_pipeline_name, dlt_pipelines_dir):
     """
     Connects to ibis backend and makes it available in the datasources panel
     """
@@ -536,13 +545,8 @@ def ibis_browser_page(
     return
 
 
-#
-# Utility Cells
-#
-
-
 @app.cell(hide_code=True)
-def app_discover_pipelines(cli_arg_pipelines_dir: str) -> Any:
+def app_discover_pipelines(cli_arg_pipelines_dir):
     """
     Discovers local pipelines and returns a multiselect widget to select one of the pipelines
     """
@@ -588,11 +592,17 @@ def app_discover_pipelines(cli_arg_pipelines_dir: str) -> Any:
     if not dlt_pipeline_link_list:
         dlt_pipeline_link_list = "No local pipelines found."
 
-    return (dlt_pipelines_dir, dlt_pipeline_select, dlt_pipeline_count, dlt_query_params)
+    return (
+        dlt_pipeline_count,
+        dlt_pipeline_link_list,
+        dlt_pipeline_select,
+        dlt_pipelines_dir,
+        dlt_query_params,
+    )
 
 
 @app.cell(hide_code=True)
-def prepare_query_vars(dlt_query_params: Any) -> Any:
+def prepare_query_vars(dlt_query_params):
     """
     Prepare query params as globals for the following cells
     """
@@ -600,11 +610,11 @@ def prepare_query_vars(dlt_query_params: Any) -> Any:
 
     dlt_pipeline_name = dlt_query_params.get("pipeline") or None
     dlt_current_page = dlt_query_params.get("page") or None
-    return (dlt_pipeline_name, dlt_current_page)
+    return (dlt_pipeline_name,)
 
 
 @app.cell(hide_code=True)
-def prepare_cli_args() -> Any:
+def prepare_cli_args():
     """
     Prepare cli args  as globals for the following cells
     """
@@ -613,6 +623,7 @@ def prepare_cli_args() -> Any:
     dlt_cli_args = _mo.cli_args()
 
     cli_arg_pipelines_dir = dlt_cli_args.get("pipelines_dir") or None
+    return (cli_arg_pipelines_dir,)
 
 
 if __name__ == "__main__":
