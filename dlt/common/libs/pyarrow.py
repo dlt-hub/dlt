@@ -612,7 +612,6 @@ def py_arrow_to_table_schema_columns(
             "nullable": field.nullable,
             **converted_type,
         }
-
     return result
 
 
