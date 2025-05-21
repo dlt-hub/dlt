@@ -120,8 +120,8 @@ The dlt project is quickly growing, and we're excited to have you join our commu
 Please read [CONTRIBUTING](CONTRIBUTING.md) before you make a PR.
 
 - 📣 **New destinations are unlikely to be merged** due to high maintenance cost (but we are happy to improve SQLAlchemy destination to handle more dialects)
-- **Significant changes require tests and docs** and in many cases writing tests will be more laborious than writing code
-- **Bugfixes and improvements are welcome!** You'll get a help with writing tests and docs + a decent review.
+- Significant changes require tests and docs and in many cases writing tests will be more laborious than writing code
+- Bugfixes and improvements are welcome! You'll get help with writing tests and docs + a decent review.
 
 ## License
 

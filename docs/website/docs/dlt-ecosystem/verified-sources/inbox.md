@@ -100,9 +100,9 @@ For more information, read the
 
 3. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to add credentials for your chosen destination, ensuring proper routing of your data to the final destination.
 
-## GMail
+## Gmail
 
-GMail has a concurrency limit on access via IMAP, which at the time of writing is 15.
+Gmail has a concurrency limit on access via IMAP, which at the time of writing is 15.
 In order to not run into `[ALERT] Too many simultaneous connections`, you can reduce
 the concurrency via:
 
