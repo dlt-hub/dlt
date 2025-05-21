@@ -768,10 +768,12 @@ def test_pipeline_resources_injected_sections() -> None:
     s_ = with_external()
     pipeline.run(s_)
     ds_ = pipeline.dataset(schema="with_external")
-    assert ds_.source_val["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
-    assert ds_.inner_resource["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
-    assert ds_.init_resource_f_2["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
-    assert ds_.resource_f_2["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
+    assert ds_.source_val[["value"]].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
+    assert ds_.inner_resource[["value"]].fetchall()[0] == (
+        "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
+    )
+    assert ds_.init_resource_f_2[["value"]].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
+    assert ds_.resource_f_2[["value"]].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
     # assert pipeline.dataset(schema="with_external").init_resource_f_2.fetchall()[0][0] == "SOURCES__SECTION_SOURCE__VAL"
     assert "with_external" in pipeline.schemas
 
@@ -781,10 +783,12 @@ def test_pipeline_resources_injected_sections() -> None:
     s_ = with_bound_external()
     pipeline.run(s_)
     ds_ = pipeline.dataset(schema="with_bound_external")
-    assert ds_.source_val["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
-    assert ds_.inner_resource["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
-    assert ds_.init_resource_f_2["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
-    assert ds_.resource_f_2["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
+    assert ds_.source_val[["value"]].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
+    assert ds_.inner_resource[["value"]].fetchall()[0] == (
+        "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
+    )
+    assert ds_.init_resource_f_2[["value"]].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
+    assert ds_.resource_f_2[["value"]].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
     # assert pipeline.dataset(schema="with_external").init_resource_f_2.fetchall()[0][0] == "SOURCES__SECTION_SOURCE__VAL"
     assert "with_bound_external" in pipeline.schemas
 

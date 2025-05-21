@@ -39,7 +39,6 @@ def transformation(
     selected: bool = True,
     spec: Type[TransformConfiguration] = None,
     parallelized: bool = False,
-    incremental: Optional[TIncrementalConfig] = None,
 ) -> Callable[[Callable[TTransformationFunParams, Any]], DltTransformationResource,]: ...
 
 
@@ -59,7 +58,6 @@ def transformation(
     selected: bool = True,
     spec: Type[TransformConfiguration] = None,
     parallelized: bool = False,
-    incremental: Optional[TIncrementalConfig] = None,
 ) -> Callable[[Callable[TTransformationFunParams, Any]], DltTransformationResource,]: ...
 
 
@@ -78,7 +76,6 @@ def transformation(
     selected: bool = True,
     spec: Type[TransformConfiguration] = None,
     parallelized: bool = False,
-    incremental: Optional[TIncrementalConfig] = None,
 ) -> Any:
     """
     Decorator to mark a function as a transformation. Returns a DltTransformation object.
@@ -104,7 +101,6 @@ def transformation(
             selected=selected,
             spec=spec,
             parallelized=parallelized,
-            incremental=incremental,
         )
 
     if func is None:

@@ -8,7 +8,7 @@ import sqlglot
 from dlt.common.typing import TDataItems
 from dlt.common import logger
 
-from dlt.extract.incremental import TIncrementalConfig
+from dlt.extract.incremental import TIncrementalConfig, Incremental
 
 from dlt.transformations.typing import (
     TTransformationFunParams,
@@ -59,14 +59,14 @@ def make_transformation_resource(
     selected: bool = True,
     spec: Type[TransformConfiguration] = None,
     parallelized: bool = False,
-    incremental: Optional[TIncrementalConfig] = None,
 ) -> DltTransformationResource:
     # resolve defaults etc
 
     resource_name = name if name and not callable(name) else get_callable_name(func)
 
     # check function type, for generators we assume a regular resource
-    is_regular_resource = inspect.isgeneratorfunction(inspect.unwrap(func))
+    unwrapped_func = inspect.unwrap(func)
+    is_regular_resource = inspect.isgeneratorfunction(unwrapped_func)
 
     # build transformation function
     def transformation_function(*args: Any, **kwargs: Any) -> Iterator[TDataItems]:
@@ -77,23 +77,26 @@ def make_transformation_resource(
             accept_partial=False,
         )
 
-        # collect all datasets from args
+        all_arg_values = list(args) + list(kwargs.values())
+
+        # collect all datasets and incrementals from args
         datasets: List[ReadableDBAPIDataset] = []
-        for arg in args:
+        for arg in all_arg_values:
             if isinstance(arg, ReadableDBAPIDataset):
                 datasets.append(arg)
 
+        # find incrementals in func signature
+        for arg_name, arg in inspect.signature(func).parameters.items():
+            if arg.annotation is Incremental or isinstance(arg.default, Incremental):
+                logger.warning(
+                    "Incremental arguments are not supported in transformation functions and will"
+                    " have no effect. Found incremental argument: %s.",
+                    arg_name,
+                )
+
         # NOTE: there may be cases where some other dataset is used to get a starting
         # point and it will be on a different destination.
-        if datasets:
-            for d in datasets:
-                if not d.is_same_physical_destination(datasets[0]):
-                    raise IncompatibleDatasetsException(
-                        resource_name,
-                        "All datasets used in transformation must be on the"
-                        + " same physical destination.",
-                    )
-        else:
+        if not datasets:
             raise IncompatibleDatasetsException(
                 resource_name,
                 "No datasets detected in transformation. Please supply all used datasets via"
@@ -189,6 +192,6 @@ def make_transformation_resource(
         selected=selected,
         spec=spec,
         parallelized=parallelized,
-        incremental=incremental,
+        incremental=None,
         _impl_cls=DltTransformationResource,
     )
