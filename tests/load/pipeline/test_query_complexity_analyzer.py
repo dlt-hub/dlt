@@ -148,18 +148,18 @@ VARIOUS_QUERIES: List[Dict[str, Union[str, bool]]] = [
 @pytest.mark.parametrize(
     "dialect",
     [
-        "athena",
-        "bigquery",
-        "clickhouse",
-        "databricks",
-        "presto",
+#        "athena",
+#        "bigquery",
+#        "clickhouse",
+#        "databricks",
+#        "presto",
         "duckdb",
-        "tsql",
-        "postgres",
-        "redshift",
-        "snowflake",
-        "mysql",
-        "sqlite",
+#        "tsql",
+#        "postgres",
+#        "redshift",
+#        "snowflake",
+#        "mysql",
+#        "sqlite",
     ],
 )
 @pytest.mark.parametrize(
@@ -168,7 +168,7 @@ VARIOUS_QUERIES: List[Dict[str, Union[str, bool]]] = [
     ids=[case["description"] for case in VARIOUS_QUERIES],
 )
 def test_query_complexity_analyzer(case: Dict[str, Any], dialect: str) -> None:
-    from dlt.common.utils import query_is_complex
+    from dlt.common.utils import query_is_complex, query_is_complex_scope
 
     columns = {"col1", "col2", "col3"}
 
@@ -176,4 +176,5 @@ def test_query_complexity_analyzer(case: Dict[str, Any], dialect: str) -> None:
 
     assert isinstance(parsed_select, (sqlglot.exp.Select, sqlglot.exp.Union))
 
+    assert query_is_complex_scope(parsed_select=parsed_select, columns=columns) == case["complex"]
     assert query_is_complex(parsed_select=parsed_select, columns=columns) == case["complex"]

@@ -34,8 +34,7 @@ from typing import (
     IO,
 )
 
-import sqlglot.optimizer
-import sqlglot.planner
+from sqlglot.optimizer.scope import build_scope
 
 from dlt.common.exceptions import (
     DltException,
