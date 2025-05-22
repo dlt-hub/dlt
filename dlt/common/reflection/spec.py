@@ -53,7 +53,7 @@ def spec_from_signature(
     base_fields = base.get_resolvable_fields()
 
     # check if spec for that function exists
-    spec_id = name  # f"SPEC_{name}_kw_only_{kw_only}"
+    spec_id = name
     if hasattr(module, spec_id):
         MOD_SPEC: Type[BaseConfiguration] = getattr(module, spec_id)
         return MOD_SPEC, MOD_SPEC.get_resolvable_fields()
