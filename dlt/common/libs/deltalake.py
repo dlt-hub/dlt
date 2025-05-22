@@ -149,7 +149,7 @@ def merge_delta_table(
 
         qry.execute()
     else:
-        ValueError(f'Merge strategy "{strategy}" not supported.')
+        raise ValueError(f'Merge strategy "{strategy}" not supported.')
 
 
 def get_delta_tables(

@@ -440,7 +440,7 @@ def test_merge_nested_records_inserted_deleted(
     table_data = load_tables_to_dicts(p, "parent", "parent__child", exclude_system_cols=True)
     if merge_strategy == "upsert":
         # merge keys will not apply and parent will not be deleted
-        if destination_config.table_format == "delta":
+        if destination_config.table_format in ["delta", "iceberg"]:
             # delta merges cannot delete from nested tables
             assert table_counts == {
                 "parent": 3,  # id == 3 not deleted (not present in the data)
