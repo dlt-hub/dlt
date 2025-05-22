@@ -3,21 +3,11 @@
 #
 import marimo as _mo
 
-app_tab_overview = "Overview"
 app_tab_schema = "Schema"
 app_tab_browse_data = "Browse Data"
-app_tab_state = "State"
-app_tab_last_trace = "Last Trace"
-app_tab_ibis_browser = "Ibis-Browser"
-app_tab_loads = "Loads"
 app_tab_mapping = {
-    app_tab_overview: f"{_mo.icon('lucide:home')} {app_tab_overview}",
     app_tab_schema: f"{_mo.icon('lucide:table-properties')} {app_tab_schema}",
     app_tab_browse_data: f"{_mo.icon('lucide:database')} {app_tab_browse_data}",
-    app_tab_state: f"{_mo.icon('lucide:file-chart-column')} {app_tab_state}",
-    app_tab_last_trace: f"{_mo.icon('lucide:file-chart-column')} {app_tab_last_trace}",
-    app_tab_loads: f"{_mo.icon('lucide:file-chart-column')} {app_tab_loads}",
-    app_tab_ibis_browser: f"{_mo.icon('lucide:view')} {app_tab_ibis_browser}",
 }
 app_tab_mapping_reverse = {v: k for k, v in app_tab_mapping.items()}
 
@@ -85,6 +75,7 @@ no_pipeline_selected = "No pipeline selected"
 # Pipeline overview page
 #
 overview_title = "Pipeline overview"
+overview_subtitle = "Overview of the selected pipeline"
 pipeline_sync_status = "## Pipeline sync status"
 pipeline_sync_error_text = (
     f"Error syncing pipeline from destination. {credentials_info} Switching to local mode."
@@ -98,7 +89,9 @@ pipeline_sync_success_text = "Pipeline state synced successfully from `{}`."
 #
 # Schema page
 #
-schema_raw_title = "## Raw schema"
+schema_title = "Schema Browser"
+schema_subtitle = "Overview of the selected pipeline's schema"
+
 schema_table_overview = """
     ## Table overview for default schema `{}` version `{}`
     <small>The following list shows all the tables found in the dlt schema of the selected pipeline. Please note that in some cases the dlt schema can differ from the actual schema materialized in the destination.
@@ -108,9 +101,8 @@ schema_table_overview = """
 #
 # Browse data page
 #
-browse_data_title = """## Browse data of schema `{}` in dataset `{}`
-<small>Browse data of the current pipeline. Select a table from the list to start or write a SQL query in the text area below. Toggling row counts will load the row counts for all tables from the destination. To reload, toggle the switch again.</small>
-"""
+browse_data_title = "Browse data of pipeline"
+browse_data_subtitle = """Browse data of the current pipeline. Select a table from the list to start or write a SQL query in the text area below. Toggling row counts will load the row counts for all tables from the destination. To reload, toggle the switch again."""
 
 browse_data_error = f"Error connecting to destination. {credentials_info}"
 
@@ -119,12 +111,12 @@ browse_data_explorer_title = """
 """
 
 browse_data_query_result_title = """
-## Last successful query result
+### Last successful query result
 <small>`Query: {}`</small>
 """
 
 browse_data_query_history_title = """
-## Cached Queries history
+### Cached Queries history
 <small>The following list shows all the queries that have been executed on the destination and are present in the cache. Select one or more to see the result again below and compare.</small>
 """
 
@@ -133,10 +125,8 @@ browse_data_query_error = """Error executing SQL query:"""
 #
 # State page
 #
-state_raw_title = """
-## Raw state
-<small>A raw view of the currently stored pipeline state.</small>
-"""
+state_title = "Pipeline state"
+state_subtitle = "A raw view of the currently stored pipeline state."
 
 last_trace_no_trace = """
 No local trace available for the selected pipeline. This probably means that your pipeline has never been run on this computer.
@@ -145,34 +135,31 @@ No local trace available for the selected pipeline. This probably means that you
 #
 # Last trace page
 #
-last_trace_title = """
-## Last trace
-<small>An overview of the last load trace of the selected pipeline if available. Scroll down to see the raw trace as json.</small>
-"""
-
-trace_raw_title = "Show raw trace as json"
+trace_title = "Last trace"
+trace_subtitle = "An overview of the last load trace of the selected pipeline if available."
+trace_raw_title = "Show"
 
 #
 # Loads page
 #
-loads_title = """
-## Loads
-<small>A list of all the loads that have been executed on the destination dataset of the selected pipeline. Select one to see all available details. More data will be loaded from the destination, such as the row count for that load and the schema for this load. Depending on the destination and your data, this might take a long time.</small>
-"""
+loads_title = "Pipeline Loads"
+loads_subtitle = (
+    "View a list of all the loads that have been executed on the destination dataset of the"
+    " selected pipeline. Select one to see all available details. More data will be loaded from the"
+    " destination, such as the row count for that load and the schema for this load. Depending on"
+    " the destination and your data, this might take a long time."
+)
 
-loads_details_title = """
-## Details for load {}
-"""
 
 loads_details_row_counts = """
-### Row counts for this load
+### Row counts for load `{}`
 <small>The row counts associated with this load. Will only show tables that have a _dlt_load_id column, which excludes child tables and some of the system tables.</small>
 """
 
 loading_load_failes = f"Loading loads from destination failed. {credentials_info}"
 
 loads_details_schema_version = """
-### Schema `{}` version `{}`
+### Schema `{}` version `{}` for load `{}`
 <small>The full schema that was the result of this load. This schema and version <strong>{}</strong> the current default schema.</small>
 """
 
@@ -180,10 +167,11 @@ loads_details_error = """Error loading load details"""
 #
 # Ibis backend page
 #
-ibis_backend_title = """
-## Connect to Ibis Backend
-<small>This page will automatically connect to the ibis backend of the selected pipeline. This will make the destination available in the datasources panel. Please note that this is a raw view on all tables and data in the destination and might differ from the tables you see in the dlt schema.</small>
-"""
+ibis_backend_title = "Ibis Backend"
+ibis_backend_subtitle = (
+    "Select to automatically connect to the ibis backend of the selected pipeline. This will make"
+    " the destination available in the datasources panel. </small>"
+)
 ibis_backend_connected = (
     "Ibis Backend connected successfully. If you are in marimo edit mode, you can now see"
     " the connected database in the datasources panel."
