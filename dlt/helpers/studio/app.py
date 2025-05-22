@@ -151,6 +151,7 @@ def app_controls() -> Any:
         label="<small>Show custom hints (x-)</small>", value=False
     )
     dlt_cache_query_results = _mo.ui.switch(label="<small>Cache query results</small>", value=True)
+    dlt_restrict_to_last_1000 = _mo.ui.switch(label="<small>Limit to 1000 rows</small>", value=True)
     dlt_execute_query_on_change = _mo.ui.switch(
         label="<small>Execute query automatically on change (loose focus)</small>", value=False
     )
@@ -170,14 +171,18 @@ def page_schema_section_table_list(
     import marimo as _mo
     from dlt.helpers.studio import strings as _s, utils as _u
 
+    dlt_schem_table_list = None
     _mo.stop(not dlt_pipeline or _s.app_tab_schema not in dlt_page_tabs.value)
 
     if not dlt_pipeline.default_schema_name:
-        dlt_schem_table_list = _mo.callout(
+        _result = _mo.callout(
             _mo.md("No Schema available. Does your pipeline have a completed load?"),
             kind="warn",
         )
+        _schema_version = "-"
+
     else:
+        _schema_version = f"{dlt_pipeline.default_schema.version}"
         _table_list = _u.create_table_list(
             dlt_pipeline,
             show_internals=dlt_schema_show_dlt_tables.value,
@@ -188,16 +193,17 @@ def page_schema_section_table_list(
             style_cell=_u.style_cell,
             initial_selection=list(range(0, len(_table_list))),
         )
+        _result = dlt_schem_table_list
 
     _mo.vstack(
         [
             _mo.md(
                 _s.schema_table_overview.format(
-                    dlt_pipeline.default_schema_name or "<no schema found>"
+                    dlt_pipeline.default_schema_name or "<no schema found>", _schema_version
                 )
             ),
             _mo.hstack([dlt_schema_show_dlt_tables, dlt_schema_show_child_tables], justify="start"),
-            dlt_schem_table_list,
+            _result,
         ]
     )
     return (dlt_schem_table_list,)
@@ -219,7 +225,9 @@ def page_schema_section_table_schemas(
     import marimo as _mo
     from dlt.helpers.studio import strings as _s, utils as _u
 
-    _mo.stop(not dlt_pipeline or _s.app_tab_schema not in dlt_page_tabs.value)
+    _mo.stop(
+        not dlt_pipeline or _s.app_tab_schema not in dlt_page_tabs.value or not dlt_schem_table_list
+    )
 
     _stack = []
 
@@ -355,6 +363,7 @@ def page_browse_data_section_query_editor(
     dlt_data_table_list: marimo.ui.table,
     dlt_cache_query_results: marimo.ui.switch,
     dlt_execute_query_on_change: marimo.ui.switch,
+    dlt_restrict_to_last_1000: marimo.ui.switch,
 ) -> Any:
     """
     Show data of the currently selected pipeline
@@ -371,7 +380,12 @@ def page_browse_data_section_query_editor(
     _sql_query = ""
     if dlt_data_table_list.value:
         _table_name = dlt_data_table_list.value[0]["Name"]  # type: ignore[index]
-        _sql_query = dlt_pipeline.dataset().table(_table_name).limit(1000).query()
+        _sql_query = (
+            dlt_pipeline.dataset()
+            .table(_table_name)
+            .limit(1000 if dlt_restrict_to_last_1000.value else None)
+            .query()
+        )
 
     dlt_query_editor = _mo.ui.code_editor(
         language="sql",
@@ -385,7 +399,10 @@ def page_browse_data_section_query_editor(
 
     _ui_items = [
         _mo.md(_s.browse_data_explorer_title),
-        _mo.hstack([dlt_cache_query_results, dlt_execute_query_on_change], justify="start"),
+        _mo.hstack(
+            [dlt_cache_query_results, dlt_execute_query_on_change, dlt_restrict_to_last_1000],
+            justify="start",
+        ),
         dlt_query_editor,
     ]
 
@@ -410,7 +427,6 @@ def page_browse_data_section_execute_query(
     dlt_page_tabs: marimo.ui.tabs,
     dlt_run_query_button: marimo.ui.button,
     dlt_query_editor: marimo.ui.code_editor,
-    dlt_cache_query_results: marimo.ui.switch,
     dlt_execute_query_on_change: marimo.ui.switch,
 ) -> Any:
     """
@@ -429,10 +445,12 @@ def page_browse_data_section_execute_query(
             dlt_run_query_button.value or dlt_execute_query_on_change.value
         ):
             try:
-                _slqglot.parse_one(dlt_query_editor.value)
+                _slqglot.parse_one(
+                    dlt_query_editor.value,
+                    dialect=dlt_pipeline.destination.capabilities().sqlglot_dialect,
+                )
                 dlt_query = dlt_query_editor.value
-                if not dlt_cache_query_results.value:
-                    _u.get_query_result.cache_clear()
+
                 dlt_query_result = _u.get_query_result(dlt_pipeline, dlt_query)
             except Exception as e:
                 _query_error = _ui.build_error_callout(_s.browse_data_query_error, code=str(e))
@@ -440,7 +458,6 @@ def page_browse_data_section_execute_query(
     # always show last query if nothing was found
     if dlt_query_result is None:
         dlt_query_result = _u.get_last_query_result(dlt_pipeline)
-        dlt_query = _u.get_last_query(dlt_pipeline)
 
     _query_error
 
@@ -451,7 +468,6 @@ def page_browse_data_section_data_explorer(
     dlt_page_tabs: marimo.ui.tabs,
     dlt_data_table_list: marimo.ui.table,
     dlt_query_result: pd.DataFrame,
-    dlt_query: str,
 ) -> Any:
     """
     Show data of the currently selected pipeline
@@ -459,21 +475,50 @@ def page_browse_data_section_data_explorer(
     import marimo as _mo
     from dlt.helpers.studio import strings as _s, utils as _u
 
+    dlt_query_history_table = None
     _mo.stop(
         not dlt_pipeline
         or _s.app_tab_browse_data not in dlt_page_tabs.value
         or not dlt_data_table_list
     )
-
+    _query_history = _u.get_query_history(dlt_pipeline)
+    dlt_query_history_table = _mo.ui.table(_query_history)
     _mo.vstack(
         [
-            _mo.md(_s.browse_data_query_result_title),
+            _mo.md(_s.browse_data_query_result_title.format(_u.get_last_query(dlt_pipeline))),
             _mo.ui.table(dlt_query_result, selection=None),
-            _mo.md(f"`{dlt_query}`"),
+            _mo.md(_s.browse_data_query_history_title),
+            dlt_query_history_table,
         ]
     )
 
     return
+
+
+@app.cell(hide_code=True)
+def page_browse_data_section_cached_query(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_page_tabs: marimo.ui.tabs,
+    dlt_query_history_table: marimo.ui.table,
+) -> Any:
+    import marimo as _mo
+    from dlt.helpers.studio import strings as _s, utils as _u
+
+    _mo.stop(
+        not dlt_pipeline
+        or _s.app_tab_browse_data not in dlt_page_tabs.value
+        or not dlt_query_history_table
+        or not dlt_query_history_table.value
+    )
+
+    _stacked_results = []
+    for _r in dlt_query_history_table.value:  # type: ignore
+        _query = _r["Query"]  # type: ignore
+        _result = _u.get_query_result(dlt_pipeline, _query)
+        _stacked_results.append(_mo.md(f"<small>`{_query}`</small>"))
+        _stacked_results.append(_mo.ui.table(_result, selection=None))
+
+    _mo.vstack(_stacked_results)
 
 
 @app.cell(hide_code=True)
@@ -486,7 +531,7 @@ def page_state(
     """
     from dlt.common.json import json as _json
     import marimo as _mo
-    from dlt.helpers.studio import strings as _s, utils as _u
+    from dlt.helpers.studio import strings as _s
 
     _mo.stop(not dlt_pipeline or _s.app_tab_state not in dlt_page_tabs.value)
 
@@ -502,7 +547,136 @@ def page_state(
 
 
 @app.cell(hide_code=True)
-def ibis_browser_page(
+def page_last_trace(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_page_tabs: marimo.ui.tabs,
+) -> Any:
+    """
+    Show last trace of the currently selected pipeline
+    """
+    from dlt.common.json import json as _json
+    import marimo as _mo
+    from dlt.helpers.studio import strings as _s
+
+    _mo.stop(not dlt_pipeline or _s.app_tab_last_trace not in dlt_page_tabs.value)
+
+    _last_trace = dlt_pipeline.last_trace
+    if not _last_trace:
+        _result = _mo.callout(
+            _mo.md(_s.last_trace_no_trace),
+            kind="warn",
+        )
+    else:
+        _result = _mo.vstack(
+            [
+                _mo.md(_s.last_trace_title),
+                _mo.ui.code_editor(
+                    _json.dumps(_last_trace, pretty=True),
+                    language="json",
+                ),
+            ]
+        )
+
+    _result
+
+
+@app.cell(hide_code=True)
+def page_loads(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_page_tabs: marimo.ui.tabs,
+    dlt_cache_query_results: marimo.ui.switch,
+    dlt_restrict_to_last_1000: marimo.ui.switch,
+) -> Any:
+    """
+    Show loads of the currently selected pipeline
+    """
+    import marimo as _mo
+    from dlt.helpers.studio import strings as _s, utils as _u, ui_elements as _ui
+
+    _mo.stop(not dlt_pipeline or _s.app_tab_loads not in dlt_page_tabs.value)
+
+    with _mo.status.spinner(title="Loading loads from destination..."):
+        try:
+            _loads_result = _u.get_loads(
+                dlt_pipeline, limit=1000 if dlt_restrict_to_last_1000.value else None
+            )
+        except Exception:
+            _loads_result = _ui.build_error_callout("Loading loads from destination failed.")
+
+    dlt_loads_table = _mo.ui.table(_loads_result, selection="single")
+
+    _mo.vstack(
+        [
+            _mo.md(_s.loads_title),
+            _mo.hstack([dlt_cache_query_results, dlt_restrict_to_last_1000], justify="start"),
+            dlt_loads_table,
+        ]
+    )
+
+
+@app.cell(hide_code=True)
+def page_loads_details(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_page_tabs: marimo.ui.tabs,
+    dlt_loads_table: marimo.ui.table,
+) -> Any:
+    """
+    Show details of the currently selected load
+    """
+    import marimo as _mo
+    from dlt.helpers.studio import strings as _s, utils as _u, ui_elements as _ui
+
+    _mo.stop(
+        not dlt_pipeline or _s.app_tab_loads not in dlt_page_tabs.value or not dlt_loads_table.value
+    )
+
+    _load_id = dlt_loads_table.value[0]["load_id"]  # type: ignore
+
+    try:
+        with _mo.status.spinner(title="Loading row counts and schema..."):
+            _schema = _u.get_schema_by_version(
+                dlt_pipeline, dlt_loads_table.value[0]["schema_version_hash"]  # type: ignore
+            )
+
+            # prepare and sort row counts
+            _row_counts_dict = _u.get_row_counts(dlt_pipeline, _load_id)
+            _row_counts = [{"Table Name": k, "Row Count": v} for k, v in _row_counts_dict.items()]
+            _row_counts.sort(key=lambda x: str(x["Table Name"]))
+
+        _vstack = [
+            _mo.md(_s.loads_details_title.format(_load_id)),
+        ]
+
+        # add row counts
+        _vstack.append(_mo.md(_s.loads_details_row_counts))
+        _vstack.append(_mo.ui.table(_row_counts, selection=None))
+
+        # add schema info
+        if _schema:
+            _vstack.append(
+                _mo.md(
+                    _s.loads_details_schema_version.format(
+                        _schema.name,
+                        _schema.version,
+                        (
+                            "is not"
+                            if _schema.version_hash != dlt_pipeline.default_schema.version_hash
+                            else "is"
+                        ),
+                    )
+                )
+            )
+            _vstack.append(_mo.ui.code_editor(_schema.to_pretty_yaml(), language="yaml"))
+
+        _result = _mo.vstack(_vstack)
+    except Exception:
+        _result = _ui.build_error_callout(_s.loads_details_error)
+
+    _result
+
+
+@app.cell(hide_code=True)
+def page_ibis_browser(
     dlt_pipeline: dlt.Pipeline,
     dlt_page_tabs: marimo.ui.tabs,
 ) -> Any:
@@ -580,6 +754,17 @@ def app_discover_pipelines(cli_arg_pipelines_dir: str) -> Any:
         dlt_pipeline_link_list = "No local pipelines found."
 
     return (dlt_pipelines_dir, dlt_pipeline_select, dlt_pipeline_count, dlt_query_params)
+
+
+@app.cell(hide_code=True)
+def purge_caches(dlt_pipeline: dlt.Pipeline, dlt_cache_query_results: marimo.ui.switch) -> Any:
+    """
+    Purge caches of the currently selected pipeline
+    """
+    from dlt.helpers.studio import utils as _u
+
+    if not dlt_cache_query_results.value:
+        _u.clear_query_cache(dlt_pipeline)
 
 
 @app.cell(hide_code=True)

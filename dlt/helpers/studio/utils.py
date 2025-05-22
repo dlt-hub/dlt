@@ -5,10 +5,12 @@ import dlt
 import marimo as mo
 import pandas as pd
 from pathlib import Path
-
+from dlt.common.pendulum import pendulum
 from dlt.common.pipeline import get_dlt_pipelines_dir
 from dlt.common.storages import FileStorage
 from dlt.common.utils import without_none
+from dlt.common.schema import Schema
+from dlt.common.json import json
 
 
 PICKLE_TRACE_FILE = "trace.pickle"
@@ -72,9 +74,6 @@ def _align_dict_keys(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return items
 
 
-ROW_COUNTS_CACHE: Dict[str, Dict[str, int]] = {}
-
-
 def create_table_list(
     pipeline: dlt.Pipeline,
     show_internals: bool = False,
@@ -86,19 +85,13 @@ def create_table_list(
     Args:
         pipeline_name (str): The name of the pipeline to create the table list for.
     """
-    global ROW_COUNTS_CACHE
-    if not show_row_counts:
-        ROW_COUNTS_CACHE.pop(pipeline.pipeline_name, {})
-    elif show_row_counts and not ROW_COUNTS_CACHE.get(pipeline.pipeline_name):
-        ROW_COUNTS_CACHE[pipeline.pipeline_name] = {
-            i["table_name"]: i["row_count"]
-            for i in pipeline.dataset().row_counts(dlt_tables=True).df().to_dict(orient="records")
-        }
 
     # get tables and filter as needed
     tables = list(pipeline.default_schema.tables.values())
     if not show_child_tables:
         tables = [t for t in tables if t.get("parent") is None]
+
+    row_counts = get_row_counts(pipeline) if show_row_counts else {}
 
     table_list: List[Dict[str, Union[str, int, None]]] = [
         {
@@ -107,7 +100,7 @@ def create_table_list(
             "Resource": table.get("resource", "-"),
             "Write disposition": table.get("write_disposition", ""),
             "Description": table.get("description", None),
-            "Row count": ROW_COUNTS_CACHE.get(pipeline.pipeline_name, {}).get(table["name"], None),
+            "Row count": row_counts.get(table["name"], None),
         }
         for table in tables
     ]
@@ -115,6 +108,23 @@ def create_table_list(
     if not show_internals:
         table_list = [t for t in table_list if not str(t["Name"]).lower().startswith("_dlt")]
     return _align_dict_keys(table_list)
+
+
+@functools.cache
+def get_row_counts(pipeline: dlt.Pipeline, load_id: str = None) -> Dict[str, int]:
+    """Get the row counts for a pipeline.
+
+    Args:
+        pipeline (dlt.Pipeline): The pipeline to get the row counts for.
+        load_id (str): The load id to get the row counts for.
+    """
+    return {
+        i["table_name"]: i["row_count"]
+        for i in pipeline.dataset()
+        .row_counts(dlt_tables=True, load_id=load_id)
+        .df()
+        .to_dict(orient="records")
+    }
 
 
 def create_column_list(
@@ -198,22 +208,57 @@ def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
 
 # cache last of query [pipeline_name] = result
 LAST_QUERY_RESULT: Dict[str, pd.DataFrame] = {}
+QUERY_HISTORY: Dict[str, List[str]] = {}
 LAST_QUERY: Dict[str, str] = {}
 
 
-@functools.cache
 def get_query_result(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
+    query_result = _get_query_result(pipeline, query)
+    LAST_QUERY_RESULT[pipeline.pipeline_name] = query_result
+    LAST_QUERY[pipeline.pipeline_name] = query
+
+    return query_result
+
+
+@functools.cache
+def _get_query_result(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
     """
     Get the result of a query.
     """
 
     result = pipeline.dataset()(query).df()
-    # remember last result
-    global LAST_QUERY_RESULT
-    LAST_QUERY_RESULT[pipeline.pipeline_name] = result
-    LAST_QUERY[pipeline.pipeline_name] = query
+    # add to history
+    global QUERY_HISTORY
+
+    if query not in QUERY_HISTORY.get(pipeline.pipeline_name, []):
+        QUERY_HISTORY.setdefault(pipeline.pipeline_name, []).insert(0, query)
 
     return result
+
+
+def get_query_history(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
+    """
+    Get the query history with a list of query and loaded rows
+    """
+    global QUERY_HISTORY
+    query_list = QUERY_HISTORY.get(pipeline.pipeline_name, [])
+
+    return [
+        {"Query": q, "Loaded rows": _get_query_result(pipeline, q).shape[0]} for q in query_list
+    ]
+
+
+def clear_query_cache(pipeline: dlt.Pipeline) -> None:
+    """
+    Clear the query cache and history
+    """
+    global QUERY_HISTORY
+    QUERY_HISTORY = {}
+
+    _get_query_result.cache_clear()
+    get_loads.cache_clear()
+    get_schema_by_version.cache_clear()
+    get_row_counts.cache_clear()
 
 
 def get_last_query_result(pipeline: dlt.Pipeline) -> pd.DataFrame:
@@ -230,6 +275,42 @@ def get_last_query(pipeline: dlt.Pipeline) -> str:
     """
     global LAST_QUERY
     return LAST_QUERY.get(pipeline.pipeline_name, "")
+
+
+@functools.cache
+def get_loads(pipeline: dlt.Pipeline, limit: int = 100) -> Any:
+    """
+    Get the loads of a pipeline.
+    """
+    loads = pipeline.dataset()._dlt_loads
+    if limit:
+        loads = loads.limit(limit)
+    loads = loads.order_by(loads.inserted_at.desc())
+    loads_list = loads.df().to_dict(orient="records")
+
+    for load in loads_list:
+        load["load_package_created"] = str(
+            pendulum.from_timestamp(float(load["load_id"]), tz="UTC")
+        )
+
+    return loads_list
+
+
+from dlt.common.destination.client import WithStateSync
+
+
+@functools.cache
+def get_schema_by_version(pipeline: dlt.Pipeline, version_hash: str) -> Schema:
+    """
+    Get the schema version of a pipeline.
+    """
+    with pipeline.destination_client() as client:
+        if isinstance(client, WithStateSync):
+            stored_schema = client.get_stored_schema_by_hash(version_hash)
+            if not stored_schema:
+                return None
+            return Schema.from_stored_schema(json.loads(stored_schema.schema))
+    return None
 
 
 def style_cell(row_id: str, name: str, __: Any) -> Dict[str, str]:
