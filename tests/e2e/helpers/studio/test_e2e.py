@@ -104,11 +104,10 @@ def test_page_loads(page: Page):
 
     # last trace page
     _goto_tab(page, "Last Trace")
+    expect(page.get_by_text("An overview of the last load trace ")).to_be_visible()
+    page.get_by_text("Show raw trace as json").click()
     expect(
-        page.get_by_text("A raw view of the last load trace of the selected pipeline if available")
-    ).to_be_visible()
-    expect(
-        page.get_by_text('"pipeline_name": "one_two_three"')
+        page.get_by_text('"pipeline_name": "one_two_three"').nth(0)
     ).to_be_visible()  # this is part of the trace yaml
 
     # loads page
@@ -148,11 +147,10 @@ def test_page_loads(page: Page):
 
     # last trace page
     _goto_tab(page, "Last Trace")
+    expect(page.get_by_text("An overview of the last load trace ")).to_be_visible()
+    page.get_by_text("Show raw trace as json").click()
     expect(
-        page.get_by_text("A raw view of the last load trace of the selected pipeline if available")
-    ).to_be_visible()
-    expect(
-        page.get_by_text('"pipeline_name": "fruit_pipeline"')
+        page.get_by_text('"pipeline_name": "fruit_pipeline"').nth(0)
     ).to_be_visible()  # this is part of the trace yaml
 
     # loads page
@@ -187,11 +185,9 @@ def test_page_loads(page: Page):
     expect(page.get_by_text('"dataset_name": "never_run_pipeline_dataset"')).to_be_visible()
 
     _goto_tab(page, "Last Trace")
+    expect(page.get_by_text("An overview of the last load trace ")).to_be_visible()
     expect(
-        page.get_by_text("A raw view of the last load trace of the selected pipeline if available")
-    ).to_be_visible()
-    expect(
-        page.get_by_text("No local trace available for the selected pipeline.")
+        page.get_by_text("No local trace available for the selected pipeline.").nth(0)
     ).to_be_visible()  # this is part of the trace yaml
 
     # loads page
@@ -234,11 +230,10 @@ def test_page_loads(page: Page):
 
     # last trace page
     _goto_tab(page, "Last Trace")
+    expect(page.get_by_text("An overview of the last load trace ")).to_be_visible()
+    page.get_by_text("Show raw trace as json").click()
     expect(
-        page.get_by_text("A raw view of the last load trace of the selected pipeline if available")
-    ).to_be_visible()
-    expect(
-        page.get_by_text('"pipeline_name": "no_destination_pipeline"')
+        page.get_by_text('"pipeline_name": "no_destination_pipeline"').nth(0)
     ).to_be_visible()  # this is part of the trace yaml
 
     _goto_tab(page, "Ibis-Browser")

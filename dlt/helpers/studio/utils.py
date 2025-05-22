@@ -177,6 +177,10 @@ def create_column_list(
     return _align_dict_keys(column_list)
 
 
+def _dict_to_table_items(d: Dict[str, Any]) -> List[Dict[str, Any]]:
+    return [{"Name": k, "Value": v} for k, v in d.items()]
+
+
 def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
     """
     Get the details of a pipeline.
@@ -203,7 +207,7 @@ def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
         "Pipeline working dir": pipeline.working_dir,
     }
 
-    return [{"Key": k, "Value": v} for k, v in details_dict.items()]
+    return _dict_to_table_items(details_dict)
 
 
 # cache last of query [pipeline_name] = result
@@ -311,6 +315,41 @@ def get_schema_by_version(pipeline: dlt.Pipeline, version_hash: str) -> Schema:
                 return None
             return Schema.from_stored_schema(json.loads(stored_schema.schema))
     return None
+
+
+#
+# trace helpers
+#
+
+
+def trace_execution_context(trace: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Get the execution context of a trace.
+    """
+    return _dict_to_table_items(trace.get("execution_context", {}))
+
+
+def trace_steps_overview(trace: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Get the steps overview of a trace.
+    """
+    result = []
+    for step in trace.get("steps", []):
+        result.append(
+            {
+                "Name": step.get("step", ""),
+                "Started at": step.get("started_at", ""),
+                "Finished at": step.get("finished_at", ""),
+            }
+        )
+    return result
+
+
+def trace_load_id(trace: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Get the load id of a trace.
+    """
+    return _dict_to_table_items(trace["load_id"])
 
 
 def style_cell(row_id: str, name: str, __: Any) -> Dict[str, str]:

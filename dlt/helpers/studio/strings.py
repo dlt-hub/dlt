@@ -147,8 +147,10 @@ No local trace available for the selected pipeline. This probably means that you
 #
 last_trace_title = """
 ## Last trace
-<small>A raw view of the last load trace of the selected pipeline if available.</small>
+<small>An overview of the last load trace of the selected pipeline if available. Scroll down to see the raw trace as json.</small>
 """
+
+trace_raw_title = "Show raw trace as json"
 
 #
 # Loads page
