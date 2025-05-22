@@ -290,7 +290,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
     """Holds the exception that prevented the full resolution"""
     __section__: ClassVar[str] = None
     """Obligatory section used by config providers when searching for keys, always present in the search path"""
-    __config_gen_annotations__: ClassVar[List[str]] = []
+    __config_gen_annotations__: ClassVar[Union[List[str], Dict[str, Any]]] = []
     """Additional annotations for config generator, currently holds a list of fields of interest that have defaults"""
     __dataclass_fields__: ClassVar[Dict[str, TDtcField]]
     """Typing for dataclass fields"""
