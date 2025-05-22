@@ -81,7 +81,7 @@ jobs:
 
       - run: |
           poetry run pytest tests/load --ignore tests/load/sources
-        name: Run tests Linux/MAC
+        name: Run Dremio tests
         env:
           DESTINATION__DREMIO__CREDENTIALS: grpc://dremio:dremio123@localhost:32010/nas
           DESTINATION__DREMIO__STAGING_DATA_SOURCE: minio
