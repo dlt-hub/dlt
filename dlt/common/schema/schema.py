@@ -680,8 +680,7 @@ class Schema:
         kwargs = {
             "name": self.name,
             "version": self.version,
-            "data_tables": self.data_table_names(),
-            "dlt_tables": self.dlt_table_names(),
+            "tables": list(self.tables),
             "version_hash": self.version_hash,
         }
         return simple_repr("dlt.Schema", **without_none(kwargs))
