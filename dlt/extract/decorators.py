@@ -464,6 +464,7 @@ def resource(
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
     section: Optional[str] = None,
+    config_defaults: Dict[str, Any] = None
 ) -> TDltResourceImpl: ...
 
 
@@ -489,6 +490,7 @@ def resource(
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
     section: Optional[str] = None,
+    config_defaults: Dict[str, Any] = None
 ) -> Callable[[Callable[TResourceFunParams, Any]], TDltResourceImpl]: ...
 
 
@@ -515,6 +517,7 @@ def resource(
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
     section: Optional[str] = None,
     standalone: Literal[True] = True,
+    config_defaults: Dict[str, Any] = None
 ) -> Callable[
     [Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, TDltResourceImpl]
 ]: ...
@@ -542,6 +545,7 @@ def resource(
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
     section: Optional[str] = None,
+    config_defaults: Dict[str, Any] = None
 ) -> TDltResourceImpl: ...
 
 
@@ -568,6 +572,7 @@ def resource(
     section: Optional[str] = None,
     standalone: bool = False,
     data_from: TUnboundDltResource = None,
+    config_defaults: Dict[str, Any] = None
 ) -> Any:
     """When used as a decorator, transforms any generator (yielding) function into a `dlt resource`. When used as a function, it transforms data in `data` argument into a `dlt resource`.
 
@@ -744,7 +749,7 @@ def resource(
         if spec is None:
             # autodetect spec
             SPEC, resolvable_fields = spec_from_signature(
-                f, inspect.signature(f), include_defaults=standalone
+                f, inspect.signature(f), include_defaults=standalone, config_defaults=config_defaults
             )
             if is_inner_resource and not standalone:
                 if len(resolvable_fields) > 0:
@@ -755,6 +760,9 @@ def resource(
                     SPEC = BaseConfiguration
         else:
             SPEC = spec
+            if config_defaults:
+                print('must reconcile with possible given defaults')
+                SPEC.__config_gen_annotations__ = config_defaults
         # assign spec to "f"
         set_fun_spec(f, SPEC)
 

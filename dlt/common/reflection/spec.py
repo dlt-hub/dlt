@@ -36,6 +36,7 @@ def spec_from_signature(
     sig: Signature,
     include_defaults: bool = True,
     base: Type[BaseConfiguration] = BaseConfiguration,
+    config_defaults: Dict[str, Any] = None
 ) -> Tuple[Type[BaseConfiguration], Dict[str, Any]]:
     """Creates a SPEC on base `base1 for a function `f` with signature `sig`.
 
@@ -117,6 +118,8 @@ def spec_from_signature(
     new_fields["__annotations__"] = annotations
     # synthesize type
     T: Type[BaseConfiguration] = type(name, (base,), new_fields)
+    if config_defaults:
+        T.__config_gen_annotations__ = config_defaults
     SPEC = configspec()(T)
     # add to the module
     setattr(module, spec_id, SPEC)

@@ -11,8 +11,11 @@ def create_example_arrow_table() -> pa.Table:
     return pa.Table.from_pylist([{"name": "tom", "age": 25}, {"name": "angela", "age": 23}])
 
 
-@dlt.resource(write_disposition="append", name="people")
-def resource():
+@dlt.resource(
+        write_disposition="append", name="people", 
+        config_defaults={"sample_config": "if you read this it works!"}
+)
+def resource(sample_config: str = dlt.config.value):
     """One resource function will materialize as a table in the destination, wie yield example data here"""
     yield create_example_arrow_table()
 
