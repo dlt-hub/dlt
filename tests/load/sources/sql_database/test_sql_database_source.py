@@ -6,6 +6,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 import dlt
+from dlt.common import logger
 from dlt.common import json
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.exceptions import MissingDependencyException
@@ -889,6 +890,41 @@ def test_all_types_no_precision_hints(
         nullable,
         backend in ["sqlalchemy", "pyarrow"],
     )
+
+
+@pytest.mark.parametrize("backend", ["pyarrow", "sqlalchemy"])
+def test_null_column_warning(
+    sql_source_db: SQLAlchemySourceDB,
+    backend: TableBackend,
+    mocker: MockerFixture,
+) -> None:
+    source = (
+        sql_database(
+            credentials=sql_source_db.credentials,
+            schema=sql_source_db.schema,
+            reflection_level="minimal",
+            backend=backend,
+            chunk_size=10,
+        )
+        .with_resources("app_user")
+        .add_limit(1)
+    )
+
+    logger_spy = mocker.spy(logger, "warning")
+
+    pipeline = dlt.pipeline(
+        pipeline_name="blabla", destination="duckdb", dataset_name="anuuns_test"
+    )
+    pipeline.run(source)
+
+    logger_spy.assert_called()
+    assert logger_spy.call_count == 1
+    expected_warning = (
+        "The column empty_col in table app_user did not receive any data during this load."
+        " Therefore, its type couldn't be inferred. Unless a type hint is provided, the column will"
+        " not be materialized in the destination."
+    )
+    assert expected_warning in logger_spy.call_args_list[0][0][0]
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])

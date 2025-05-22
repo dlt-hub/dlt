@@ -686,7 +686,11 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
         # generate merge statement for root table
         on_str = " AND ".join([f"d.{c} = s.{c}" for c in primary_keys])
-        root_table_column_names = list(map(escape_column_id, root_table["columns"]))
+        root_table_column_names = [
+            escape_column_id(col["name"])
+            for col in root_table["columns"].values()
+            if col.get("data_type") is not None
+        ]
         update_str = ", ".join([c + " = " + "s." + c for c in root_table_column_names])
         col_str = ", ".join(["{alias}" + c for c in root_table_column_names])
         delete_str = (
@@ -829,7 +833,11 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         sql.append(retire_sql)
 
         # insert new active records in root table
-        columns = map(escape_column_id, list(root_table["columns"].keys()))
+        columns = [
+            escape_column_id(col["name"])
+            for col in root_table["columns"].values()
+            if col.get("data_type") is not None
+        ]
         col_str = ", ".join([c for c in columns if c not in (from_, to)])
         sql.append(f"""
             INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
