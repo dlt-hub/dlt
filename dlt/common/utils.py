@@ -33,8 +33,7 @@ from typing import (
     Iterable,
 )
 
-import sqlglot.optimizer
-import sqlglot.planner
+from sqlglot.optimizer.scope import build_scope
 
 from dlt.common.exceptions import (
     DltException,
@@ -745,6 +744,85 @@ def query_is_complex(
         return True
 
     # star + only literals
+    if star_present and not non_literal_cols:
+        return False
+
+    if non_literal_cols == columns:
+        return False
+
+    return True
+
+
+def query_is_complex_scope(
+    parsed_select: Union[sqlglot.exp.Select, sqlglot.exp.Union],
+    columns: Set[str],
+) -> bool:
+    """
+    Return **True** unless the query is provably “simple”.
+    A *simple* query
+
+    1. references **exactly one** physical table,
+    2. contains no complex constructs (CTEs, sub-queries, derived tables,
+       unions, window functions, GROUP BY, DISTINCT, etc.),
+    3. projects either
+         • a plain/qualified star with only constant literals after it, or
+         • the full, explicit list of *all* columns with only constant
+           literals after it.
+
+    Anything we cannot *prove* to be simple is conservatively flagged
+    as complex.
+    """
+
+    root_scope = build_scope(parsed_select)
+
+    tables: list[sqlglot.exp.Table] = []
+    non_literal_cols: set[str] = set()
+
+    star_present = False
+
+    for node in root_scope.walk():
+        if isinstance(node, sqlglot.exp.Table):
+            tables.append(node)
+        if isinstance(node, sqlglot.exp.Window):
+            return True
+        if isinstance(node, sqlglot.exp.SetOperation):
+            return True
+        if isinstance(node, sqlglot.exp.With):
+            return True
+        if isinstance(node, sqlglot.exp.Distinct):
+            return True
+        if isinstance(node, sqlglot.exp.Group):
+            return True
+        if isinstance(node, sqlglot.exp.DPipe):
+            return True
+        # Detect a star in the outermost projection list.
+        # A star can be either “*” or a qualified “t.*”.
+        # In the AST:
+        #   • bare  “*”    Star -> SELECT
+        #   • qual. “t.*”  Star -> Column -> SELECT
+        if isinstance(node, sqlglot.exp.Star) and (
+            node.parent == parsed_select or (node.parent and node.parent.parent == parsed_select)
+        ):
+            star_present = True
+        # Detect plain (aliased) column references that belong to the outermost projection list.
+        if isinstance(node, sqlglot.exp.Column) and not isinstance(node.this, sqlglot.exp.Star):
+            # it's an (aliased) column in our outer select
+            if node.parent == parsed_select or (
+                isinstance(node.parent, sqlglot.exp.Alias) and node.parent_select == parsed_select
+            ):
+                non_literal_cols.add(node.name)
+        # An aliased expression that is *not* just a column or a
+        # literal disqualifies the query from being “simple
+        if isinstance(node, sqlglot.exp.Alias):
+            if not (
+                isinstance(node.this, sqlglot.exp.Column)
+                or isinstance(node.this, sqlglot.exp.Literal)
+            ):
+                return True
+
+    if len(tables) > 1:
+        return True
+
     if star_present and not non_literal_cols:
         return False
 
