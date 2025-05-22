@@ -305,11 +305,11 @@ class ClickHouseSqlClient(
         if cluster_name is None:
             return query
         patterns = [
-            r'(?i)\bCREATE (TEMPORARY )*TABLE( IF NOT EXISTS)*\s+(`?[\w]+`?\.`?[\w]+`?)',  # Matches "CREATE TABLE `schema`.`table`"
-            r'(?i)\bDROP (TEMPORARY )*TABLE( IF EXISTS)*\s+(`?[\w]+`?\.`?[\w]+`?)',    # Matches "DROP TABLE `schema`.`table`"
-            r'(?i)\bALTER TABLE\s+(`?[\w]+`?\.`?[\w]+`?)',    # Matches "ALTER TABLE `schema`.`table`"
-            r'(?i)\bDELETE FROM\s+(`?[\w]+`?\.`?[\w]+`?)',    # Matches "DELETE FROM `schema`.`table`"
-            r'(?i)\bTRUNCATE TABLE\s+(`?[\w]+`?\.`?[\w]+`?)',  # Matches "TRUNCATE TABLE `schema`.`table`"
+            r'(?i)\bCREATE (TEMPORARY )*TABLE( IF NOT EXISTS)*\s+([`"]?[\w]+[`"]?\.[`"]?[\w]+[`"]?)',  # Matches "CREATE TABLE `schema`.`table`"
+            r'(?i)\bDROP (TEMPORARY )*TABLE( IF EXISTS)*\s+([`"]?[\w]+[`"]?\.[`"]?[\w]+[`"]?)',    # Matches "DROP TABLE `schema`.`table`"
+            r'(?i)\bALTER TABLE\s+([`"]?[\w]+[`"]?\.[`"]?[\w]+[`"]?)',    # Matches "ALTER TABLE `schema`.`table`"
+            r'(?i)\bDELETE FROM\s+([`"]?[\w]+[`"]?\.[`"]?[\w]+[`"]?)',    # Matches "DELETE FROM `schema`.`table`"
+            r'(?i)\bTRUNCATE TABLE\s+([`"]?[\w]+[`"]?\.[`"]?[\w]+[`"]?)',  # Matches "TRUNCATE TABLE `schema`.`table`"
         ]
 
         # Check each pattern
@@ -378,6 +378,16 @@ class ClickHouseSqlClient(
                 elif (self.contains_string(qry, "TRUNCATE TABLE") or self.contains_string(qry, "DROP TABLE") or self.contains_string(qry, "ALTER")) and not self.contains_string(qry, "ON CLUSTER"):
                     # sqlglot doesn't support adding ON CLUSTER clause to TRUNCATE TABLE, DROP TABLE or ALTER TABLE statement
                     # and it aslo raises an error for the SYNC keyword  [2025-09-05]
+                    if self.contains_string(qry, "TRUNCATE TABLE"):
+                        # we need to truncate the base table or the data will not be deleted
+                        # eventhough according to the docs and github discussion it should be
+                        # https://github.com/ClickHouse/ClickHouse/issues/50447
+                        stmt = sqlglot.parse_one(qry, dialect='clickhouse')
+                        table = stmt.find(sqlglot.expressions.Table)
+                        table.args["db"] = exp.Identifier(this="_" + table.db, quoted=True)
+                        table.args["this"] = exp.Identifier(this=table.name + "_base", quoted=True)
+                        qry = stmt.sql(dialect="clickhouse")
+
                     qry = self.add_on_cluster(qry, cluster)
 
                 # unfortunately sqlglot is converting rand() to randCanonical() for clikchouse
