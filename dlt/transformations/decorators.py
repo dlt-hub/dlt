@@ -19,10 +19,9 @@ from dlt.transformations.transformation import (
     make_transformation_resource,
     DltTransformationResource,
 )
-from dlt.transformations.configuration import TransformConfiguration
+from dlt.transformations.configuration import TransformationConfiguration
 
 
-# NOTE: can we just return a resource directly with some additional hints here?
 @overload
 def transformation(
     func: None = ...,
@@ -37,14 +36,15 @@ def transformation(
     table_format: TTableFormat = None,
     references: TTableReferenceParam = None,
     selected: bool = True,
-    spec: Type[TransformConfiguration] = None,
+    spec: Type[TransformationConfiguration] = None,
     parallelized: bool = False,
+    section: Optional[str] = None,
 ) -> Callable[[Callable[TTransformationFunParams, Any]], DltTransformationResource,]: ...
 
 
 @overload
 def transformation(
-    func: Callable[TTransformationFunParams, Any] = None,
+    func: Callable[TTransformationFunParams, Any],
     /,
     name: str = None,
     table_name: str = None,
@@ -56,9 +56,10 @@ def transformation(
     table_format: TTableFormat = None,
     references: TTableReferenceParam = None,
     selected: bool = True,
-    spec: Type[TransformConfiguration] = None,
+    spec: Type[TransformationConfiguration] = None,
     parallelized: bool = False,
-) -> Callable[[Callable[TTransformationFunParams, Any]], DltTransformationResource,]: ...
+    section: Optional[str] = None,
+) -> DltTransformationResource: ...
 
 
 def transformation(
@@ -74,8 +75,9 @@ def transformation(
     table_format: TTableFormat = None,
     references: TTableReferenceParam = None,
     selected: bool = True,
-    spec: Type[TransformConfiguration] = None,
+    spec: Type[TransformationConfiguration] = None,
     parallelized: bool = False,
+    section: Optional[str] = None,
 ) -> Any:
     """
     Decorator to mark a function as a transformation. Returns a DltTransformation object.
@@ -101,6 +103,7 @@ def transformation(
             selected=selected,
             spec=spec,
             parallelized=parallelized,
+            section=section,
         )
 
     if func is None:
