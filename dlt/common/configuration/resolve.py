@@ -48,7 +48,7 @@ def resolve_configuration(
     explicit_value: Any = None,
     accept_partial: bool = False
 ) -> TConfiguration:
-    if not isinstance(config, BaseConfiguration):
+    if not isinstance(config, BaseConfiguration) or not hasattr(config.__class__, "__configspec__"):
         raise ConfigurationWrongTypeException(type(config))
 
     # try to get the native representation of the top level configuration using the config section as a key

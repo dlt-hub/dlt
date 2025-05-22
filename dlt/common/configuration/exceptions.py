@@ -36,7 +36,7 @@ class ConfigurationWrongTypeException(ConfigurationException):
     def __init__(self, _typ: type) -> None:
         super().__init__(
             f"Invalid configuration instance type {_typ}. Configuration instances must derive from"
-            " BaseConfiguration."
+            " BaseConfiguration and must be decorated with @configspec."
         )
 
 
