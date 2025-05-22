@@ -84,11 +84,11 @@ no_pipeline_selected = "No pipeline selected"
 #
 # Pipeline overview page
 #
+overview_title = "Pipeline overview"
 pipeline_sync_status = "## Pipeline sync status"
 pipeline_sync_error_text = (
     f"Error syncing pipeline from destination. {credentials_info} Switching to local mode."
 )
-pipeline_details = "## Pipeline details"
 pipeline_sync_status = """
 ## Pipeline sync status
 <small>Dlt studio will try to sync the pipeline state and schema from the destination. If the sync fails, studio will use local mode and inspect the locally stored information about the pipeline.</small>
