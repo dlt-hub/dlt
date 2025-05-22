@@ -81,7 +81,7 @@ jobs:
 
       - run: |
           poetry run pytest tests/helpers/dbt_tests -k '(not venv)'
-        name: Run dbt runner - Linux/MAC
+        name: Run dbt tests
 
       - name: Remove dbt-core
         # install dlt with postgres support
