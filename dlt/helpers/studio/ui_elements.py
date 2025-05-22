@@ -56,5 +56,7 @@ def build_pipeline_link_list(pipelines: List[Dict[str, Any]]) -> str:
     return link_list
 
 
-def build_page_header(title: str, button: Any = None) -> Any:
-    return mo.hstack([mo.md(f"## {title}"), button])
+def build_page_header(title: str, subtitle: str, button: Any = None) -> Any:
+    return mo.hstack(
+        [mo.vstack([mo.md(f"## {title}"), mo.md(f"<small>{subtitle}</small>")]), button]
+    )
