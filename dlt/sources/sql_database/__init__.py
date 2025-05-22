@@ -154,7 +154,8 @@ def sql_database(
 
 
 @decorators.resource(
-    name=lambda args: args["table"], standalone=True, spec=SqlTableResourceConfiguration
+    name=lambda args: args["table"], standalone=True, spec=SqlTableResourceConfiguration,
+    config_defaults={"table": "genome2"}
 )
 def sql_table(
     credentials: Union[ConnectionStringCredentials, Engine, str] = dlt.secrets.value,

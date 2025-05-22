@@ -18,13 +18,14 @@ class ConnectionStringCredentials(CredentialsConfiguration):
     port: Optional[int] = None
     query: Optional[Dict[str, Any]] = None
 
-    __config_gen_annotations__: ClassVar[List[str]] = [
-        "database",
-        "port",
-        "username",
-        "password",
-        "host",
-    ]
+    __config_gen_annotations__: ClassVar[Union[List[str], Dict[str, Any]]] = {
+        "drivername": "mysql+pymysql",
+        "database": "Rfam",
+        "username": "rfamro",
+        "host": "mysql-rfam-public.ebi.ac.uk",
+        "port": "4497",
+    }
+
 
     def __init__(self, connection_string: Union[str, Dict[str, Any]] = None) -> None:
         """Initializes the credentials from SQLAlchemy like connection string or from dict holding connection string elements"""
