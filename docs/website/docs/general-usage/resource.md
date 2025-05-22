@@ -440,7 +440,7 @@ resource.max_table_nesting = 0
 ```
 
 Several data sources are prone to contain semi-structured documents with very deep nesting, i.e.,
-MongoDB databases. Our practical experience is that setting the `max_nesting_level` to 2 or 3
+MongoDB databases. Our practical experience is that setting the `max_table_nesting` to 2 or 3
 produces the clearest and human-readable schemas.
 
 ### Sample from large data
@@ -466,9 +466,16 @@ def my_resource():
 dlt.pipeline(destination="duckdb").run(my_resource().add_limit(10))
 ```
 The code above will extract `15*10=150` records. This is happening because in each iteration, 15 records are yielded, and we're limiting the number of iterations to 10.
+
+If you wish to count rows instead:
+```py
+dlt.pipeline(destination="duckdb").run(my_resource().add_limit(10, count_rows=True))
+```
+Note that `dlt` will still process full pages/yields of data. They won't be trimmed even if large so your effective count will probably
+be different from limit that you set.
 :::
 
-Altenatively you can also apply a time limit to the resource. The code below will run the extraction for 10 seconds and extract how ever many items are yielded in that time. In combination with incrementals, this can be useful for batched loading or for loading on machines that have a run time limit.
+Alternatively you can also apply a time limit to the resource. The code below will run the extraction for 10 seconds and extract how ever many items are yielded in that time. In combination with incrementals, this can be useful for batched loading or for loading on machines that have a run time limit.
 
 ```py
 dlt.pipeline(destination="duckdb").run(my_resource().add_limit(max_time=10))
@@ -479,7 +486,6 @@ You can also apply a combination of both limits. In this case the extraction wil
 ```py
 dlt.pipeline(destination="duckdb").run(my_resource().add_limit(max_items=10, max_time=10))
 ```
-
 
 Some notes about the `add_limit`:
 
@@ -493,6 +499,14 @@ Some notes about the `add_limit`:
 If you are parameterizing the value of `add_limit` and sometimes need it to be disabled, you can set `None` or `-1` to disable the limiting.
 You can also set the limit to `0` for the resource to not yield any items.
 :::
+
+### Split large data
+You can use `add_limit` to split incremental resources that process large data into manageable chunks:
+```py
+```
+splits loading of `issues` table into one hour chunks that are loaded in a loop. You'll see your data quicker without impacting the performance.
+Note **row_order** above! this makes sure that your table rows are returned deterministically so `dlt` can process consecutive chunks without
+losing data. Mind that ordering results may increase load on the database server. [Please read about other backfill strategies]
 
 ### Set table name and adjust schema
 

@@ -87,10 +87,6 @@ def get_sql_catalog(
     )
 
 
-# def ensure_pyiceberg_local_path(location: str) -> str:
-#     """Converts local absolute paths into file urls."""
-
-
 def evolve_table(
     catalog: IcebergCatalog,
     client: FilesystemClient,
@@ -126,17 +122,21 @@ def create_table(
     schema: pa.Schema,
     partition_columns: Optional[List[str]] = None,
 ) -> None:
-    # found no metadata; create new table
+    schema = ensure_iceberg_compatible_arrow_schema(schema)
 
-    with catalog.create_table_transaction(
-        table_id,
-        schema=ensure_iceberg_compatible_arrow_schema(schema),
-        location=table_location,
-    ) as txn:
-        # add partitioning
-        with txn.update_spec() as update_spec:
-            for col in partition_columns:
-                update_spec.add_identity(col)
+    if partition_columns:
+        # use two staged table create if we have a partition
+        with catalog.create_table_transaction(
+            table_id,
+            schema=schema,
+            location=table_location,
+        ) as txn:
+            # add partitioning
+            with txn.update_spec() as update_spec:
+                for col in partition_columns:
+                    update_spec.add_identity(col)
+    else:
+        catalog.create_table(table_id, schema=schema, location=table_location)
 
 
 def get_iceberg_tables(

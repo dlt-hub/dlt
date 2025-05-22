@@ -37,9 +37,10 @@ def init_anon_tracker(config: RuntimeConfiguration) -> None:
 
     # lazily import requests to avoid binding config before initialization
     global requests
-    from dlt.sources.helpers import requests as r_
+    from dlt.sources.helpers.requests import Client
 
-    requests = r_  # type: ignore[assignment]
+    # fail fast, don't block user
+    requests = Client(request_timeout=_REQUEST_TIMEOUT, request_max_attempts=0)  # type: ignore[assignment]
 
     global _WRITE_KEY, _ANON_TRACKER_ENDPOINT, _THREAD_POOL
     # start the pool

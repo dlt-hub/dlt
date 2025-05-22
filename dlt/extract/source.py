@@ -7,6 +7,7 @@ from typing import (
     Iterable,
     Iterator,
     List,
+    Optional,
     Sequence,
     Tuple,
     Any,
@@ -254,12 +255,7 @@ class DltSource(Iterable[TDataItem]):
         config = RelationalNormalizer.get_normalizer_config(self._schema).get("propagation")
         data_normalizer = self._schema.data_item_normalizer
         assert isinstance(data_normalizer, RelationalNormalizer)
-        return (
-            config is not None
-            and "root" in config
-            and data_normalizer.c_dlt_id in config["root"]
-            and config["root"][data_normalizer.c_dlt_id] == data_normalizer.c_dlt_root_id
-        )
+        return config.get("root_key_propagation")
 
     @root_key.setter
     def root_key(self, value: bool) -> None:
@@ -268,21 +264,20 @@ class DltSource(Iterable[TDataItem]):
         data_normalizer = self._schema.data_item_normalizer
         assert isinstance(data_normalizer, RelationalNormalizer)
 
-        if value is True:
+        # we must remove root key propagation 
+        with contextlib.suppress(KeyError):
+            propagation_config = config["propagation"]
+            propagation_config["root"].pop(data_normalizer.c_dlt_id)
+            # and set the value below
+            value = True
+
+        if value is not None:
             RelationalNormalizer.update_normalizer_config(
                 self._schema,
                 {
-                    "propagation": {
-                        "root": {
-                            data_normalizer.c_dlt_id: TColumnName(data_normalizer.c_dlt_root_id)
-                        }
-                    }
+                    "root_key_propagation": value
                 },
             )
-        else:
-            if self.root_key:
-                propagation_config = config["propagation"]
-                propagation_config["root"].pop(data_normalizer.c_dlt_id)
 
     @property
     def schema_contract(self) -> TSchemaContract:
@@ -368,23 +363,34 @@ class DltSource(Iterable[TDataItem]):
         else:
             raise ValueError(strategy)
 
-    def add_limit(self, max_items: int) -> "DltSource":  # noqa: A003
-        """Adds a limit `max_items` yielded from all selected resources in the source that are not transformers.
+    def add_limit(
+        self,
+        max_items: Optional[int] = None,
+        max_time: Optional[float] = None,
+        count_rows: Optional[bool] = False
+    ) -> "DltSource":  # noqa: A003
+        """Limits the items processed in all selected resources in the source that are not transformers: by count or time.
 
         This is useful for testing, debugging and generating sample datasets for experimentation. You can easily get your test dataset in a few minutes, when otherwise
         you'd need to wait hours for the full loading to complete.
+
+        For incremental resources that return rows in deterministic order, you can use this function to process large load
+        in batches.
 
         Notes:
             1. Transformers resources won't be limited. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
             2. Each yielded item may contain several records. `add_limit` only limits the "number of yields", not the total number of records.
 
         Args:
-            max_items (int): The maximum number of items to yield
+            max_items (int): The maximum number of items (not rows!) to yield, set to None for no limit
+            max_time (float): The maximum number of seconds for this generator to run after it was opened, set to None for no limit
+            count_rows (bool): Default: false.
+                Count rows instead of pages. Note that if resource yields pages of rows, last page will not be trimmed and more rows that expected will be received.
         Returns:
             "DltSource": returns self
         """
         for resource in self.resources.selected.values():
-            resource.add_limit(max_items)
+            resource.add_limit(max_items, max_time=max_time, count_rows=count_rows)
         return self
 
     def parallelize(self) -> "DltSource":
