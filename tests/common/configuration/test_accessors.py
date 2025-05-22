@@ -251,3 +251,25 @@ def test_provider_registration(toml_providers: ConfigProvidersContainer) -> None
     # now register
     dlt.config.register_provider(provider)
     test_source()
+
+
+def test_secrets_accessor_repr() -> None:
+    sentinel = object()
+
+    repr_ = dlt.secrets.__repr__()
+    assert isinstance(repr_, str)
+    assert "dlt.secrets(" in repr_
+
+    # check that properties used by `__repr__` exist
+    assert getattr(dlt.secrets, "config_providers", sentinel) is not sentinel
+
+
+def test_config_accessor_repr() -> None:
+    sentinel = object()
+
+    repr_ = dlt.config.__repr__()
+    assert isinstance(repr_, str)
+    assert "dlt.config(" in repr_
+
+    # check that properties used by `__repr__` exist
+    assert getattr(dlt.config, "config_providers", sentinel) is not sentinel
