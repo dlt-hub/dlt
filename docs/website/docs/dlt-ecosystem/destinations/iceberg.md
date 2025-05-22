@@ -119,5 +119,19 @@ The [S3-compatible](./filesystem.md#using-s3-compatible-storage) interface for G
 ## Iceberg Azure scheme
 The `az` [scheme](./filesystem.md#supported-schemes) is not supported when using the `iceberg` table format. Please use the `abfss` scheme. This is because `pyiceberg`, which dlt used under the hood, currently does not support `az`.
 
-## Table format `merge` support
-The `merge` write disposition is not supported for Iceberg and falls back to `append`. If you're interested in support for the `merge` write disposition with Iceberg, check out [dlt+ Iceberg destination](../../plus/ecosystem/iceberg.md).
+## Table format `merge` support (**experimental**)
+The [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) merge strategy is supported for `iceberg`.
+
+:::caution
+The `upsert` merge strategy for the filesystem destination with Iceberg table format is **experimental**.
+:::
+
+```py
+@dlt.resource(
+    write_disposition={"disposition": "merge", "strategy": "upsert"},
+    primary_key="my_primary_key",
+    table_format="iceberg"
+)
+def my_upsert_resource():
+    ...
+```
