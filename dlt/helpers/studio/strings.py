@@ -21,6 +21,8 @@ app_tab_mapping = {
 }
 app_tab_mapping_reverse = {v: k for k, v in app_tab_mapping.items()}
 
+credentials_info = "Has your pipeline been run and are your credentials in scope of dltHub studio?"
+
 app_title = """
 # Welcome to dltHub Studio...
 """
@@ -84,8 +86,7 @@ no_pipeline_selected = "No pipeline selected"
 #
 pipeline_sync_status = "## Pipeline sync status"
 pipeline_sync_error_text = (
-    "Error syncing pipeline from destination. Make sure the credentials are in scope of"
-    " `dltHub studio`. Switching to local mode."
+    f"Error syncing pipeline from destination. {credentials_info} Switching to local mode."
 )
 pipeline_details = "## Pipeline details"
 pipeline_sync_status = """
@@ -111,10 +112,7 @@ browse_data_title = """## Browse data of schema `{}` in dataset `{}`
 <small>Browse data of the current pipeline. Select a table from the list to start or write a sql query in the text area below. Toggeling row counts will load the row counts for all tables from the destination. To reload, toggle the switch again.</small>
 """
 
-browse_data_error = (
-    "Error connecting to destination. Has your pipeline been run and are your credentials"
-    " in scope of `dltHub studio`?"
-)
+browse_data_error = f"Error connecting to destination. {credentials_info}"
 
 browse_data_explorer_title = """
 <small>Select a table above or write a sql query in the text area below to explore the data in the destination. The query will be executed on the destination and the results will be displayed in a table. If you disable query caching, all cached queries will be purged.</small>
@@ -141,7 +139,7 @@ state_raw_title = """
 """
 
 last_trace_no_trace = """
-No local trace available for the selected pipeline.
+No local trace available for the selected pipeline. This probably means that your pipeline has never been run on this computer.
 """
 
 #
@@ -169,6 +167,8 @@ loads_details_row_counts = """
 <small>The row counts associated with this load. Will only show tables that have a _dlt_load_id column, which excludes child tables and some of the system tables.</small>
 """
 
+loading_load_failes = f"Loading loads from destination failed. {credentials_info}"
+
 loads_details_schema_version = """
 ### Schema `{}` version `{}`
 <small>The full schema that was the result of this load. This schema and version <strong>{}</strong> the current default schema.</small>
@@ -186,7 +186,4 @@ ibis_backend_connected = (
     "Ibis Backend connected successfully. If you are in marimo edit mode, you can now see"
     " the connected database in the datasources panel."
 )
-ibis_connect_error = (
-    "Error connecting to Ibis Backend. Has your pipeline been run and are your credentials"
-    " in scope of `dltHub studio`?"
-)
+ibis_connect_error = f"Error connecting to Ibis Backend. {credentials_info}"
