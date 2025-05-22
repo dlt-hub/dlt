@@ -176,7 +176,7 @@ def page_schema_section_table_list(
 
     if not dlt_pipeline.default_schema_name:
         _result = _mo.callout(
-            _mo.md("No Schema available. Does your pipeline have a completed load?"),
+            _mo.md("No Default Schema available. Does your pipeline have a completed load?"),
             kind="warn",
         )
         _schema_version = "-"
@@ -567,17 +567,12 @@ def page_last_trace(
             kind="warn",
         )
     else:
-        _result = _mo.vstack(
-            [
-                _mo.md(_s.last_trace_title),
-                _mo.ui.code_editor(
-                    _json.dumps(_last_trace, pretty=True),
-                    language="json",
-                ),
-            ]
+        _result = _mo.ui.code_editor(
+            _json.dumps(_last_trace, pretty=True),
+            language="json",
         )
 
-    _result
+    _mo.vstack([_mo.md(_s.last_trace_title), _result])
 
 
 @app.cell(hide_code=True)
@@ -597,19 +592,20 @@ def page_loads(
 
     with _mo.status.spinner(title="Loading loads from destination..."):
         try:
-            _loads_result = _u.get_loads(
+            _loads_data = _u.get_loads(
                 dlt_pipeline, limit=1000 if dlt_restrict_to_last_1000.value else None
             )
+            dlt_loads_table = _mo.ui.table(_loads_data, selection="single")
+            _loads_result = dlt_loads_table
         except Exception:
-            _loads_result = _ui.build_error_callout("Loading loads from destination failed.")
-
-    dlt_loads_table = _mo.ui.table(_loads_result, selection="single")
+            _loads_result = _ui.build_error_callout(_s.loading_load_failes)
+            dlt_loads_table = None
 
     _mo.vstack(
         [
             _mo.md(_s.loads_title),
             _mo.hstack([dlt_cache_query_results, dlt_restrict_to_last_1000], justify="start"),
-            dlt_loads_table,
+            _loads_result,
         ]
     )
 
@@ -627,7 +623,10 @@ def page_loads_details(
     from dlt.helpers.studio import strings as _s, utils as _u, ui_elements as _ui
 
     _mo.stop(
-        not dlt_pipeline or _s.app_tab_loads not in dlt_page_tabs.value or not dlt_loads_table.value
+        not dlt_pipeline
+        or _s.app_tab_loads not in dlt_page_tabs.value
+        or not dlt_loads_table
+        or not dlt_loads_table.value
     )
 
     _load_id = dlt_loads_table.value[0]["load_id"]  # type: ignore
