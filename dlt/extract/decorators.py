@@ -1,9 +1,10 @@
 import os
 import inspect
 from types import ModuleType
-from functools import wraps
+from functools import update_wrapper, wraps
 from typing import (
     Any,
+    Awaitable,
     Callable,
     ClassVar,
     Dict,
@@ -19,6 +20,7 @@ from typing import (
 )
 from typing_extensions import TypeVar, Self
 
+from dlt.common import logger
 from dlt.common.configuration import with_config, get_fun_spec, known_sections, configspec
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
@@ -29,6 +31,7 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 from dlt.common.exceptions import ArgumentsOverloadException
 from dlt.common.pipeline import PipelineContext
 from dlt.common.reflection.spec import spec_from_signature
+from dlt.common.reflection.inspect import iscoroutinefunction
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import (
@@ -65,7 +68,6 @@ from dlt.extract.exceptions import (
     DynamicNameNotStandaloneResource,
     InvalidTransformerDataTypeGeneratorFunctionRequired,
     ResourceFunctionExpected,
-    ResourceInnerCallableConfigWrapDisallowed,
     SourceDataIsNone,
     SourceIsAClassTypeError,
     ExplicitSourceNameInvalid,
@@ -180,7 +182,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
         # also remember original source function
         ovr._f = self._f
         ovr.ref = self.ref
-        # ovr._deco_f = self._deco_f
+        ovr._update_wrapper()
         # try to bind _f
         ovr.wrap()
         return ovr
@@ -209,6 +211,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
     def bind(self, f: AnyFun) -> Self:
         """Binds wrapper to the original source function and registers the source reference. This method is called only once by the decorator"""
         self._f = f
+        self._update_wrapper()
         self.ref = self.wrap()
         if not is_inner_callable(f):
             SourceReference.register(self.ref)
@@ -221,6 +224,15 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
         if hasattr(self._f, "__qualname__"):
             self.__qualname__ = self._f.__qualname__
         return self._wrap(self._f)
+
+    def _update_wrapper(self) -> None:
+        """wrap self so we preserve signature, module etc. from f"""
+        if not callable(self._f):
+            return None
+        update_wrapper(self, self._f)
+        # also change the signature return annotation to dlt source class
+        sig = inspect.signature(self._f).replace(return_annotation=self._impl_cls)
+        self.__signature__ = sig
 
     def _wrap(self, f: AnyFun) -> SourceReference:
         """Wraps source function `f` in configuration injector."""
@@ -314,7 +326,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
         # get spec for wrapped function
         SPEC = get_fun_spec(conf_f)
         # get correct wrapper
-        self._deco_f = _wrap_coro if inspect.iscoroutinefunction(inspect.unwrap(f)) else _wrap  # type: ignore[assignment]
+        self._deco_f = _wrap_coro if iscoroutinefunction(f) else _wrap  # type: ignore[assignment]
         return SourceReference(get_full_callable_name(f), SPEC, self, source_section, effective_name)  # type: ignore[arg-type]
 
 
@@ -463,6 +475,7 @@ def resource(
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
     section: Optional[str] = None,
+    _base_spec: Type[BaseConfiguration] = BaseConfiguration,
 ) -> TDltResourceImpl: ...
 
 
@@ -488,6 +501,7 @@ def resource(
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
     section: Optional[str] = None,
+    _base_spec: Type[BaseConfiguration] = BaseConfiguration,
 ) -> Callable[[Callable[TResourceFunParams, Any]], TDltResourceImpl]: ...
 
 
@@ -513,6 +527,7 @@ def resource(
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
     section: Optional[str] = None,
+    _base_spec: Type[BaseConfiguration] = BaseConfiguration,
     standalone: Literal[True] = True,
 ) -> Callable[
     [Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, TDltResourceImpl]
@@ -541,6 +556,7 @@ def resource(
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
     section: Optional[str] = None,
+    _base_spec: Type[BaseConfiguration] = BaseConfiguration,
 ) -> TDltResourceImpl: ...
 
 
@@ -565,6 +581,7 @@ def resource(
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
     section: Optional[str] = None,
+    _base_spec: Type[BaseConfiguration] = BaseConfiguration,
     standalone: bool = False,
     data_from: TUnboundDltResource = None,
 ) -> Any:
@@ -644,6 +661,8 @@ def resource(
         section (Optional[str], optional): Configuration section that comes right after 'sources` in default layout. If not present, the current python module name will be used.
             Default layout is `sources.<section>.<name>.<key_name>`. Note that resource section is used only when a single resource is passed to the pipeline.
 
+        _base_spec (Type[BaseConfiguration], optional): A base spec used to which spec derived from resource function arguments is added
+
         standalone (bool, optional): Returns a wrapped decorated function that creates DltResource instance. Must be called before use. Cannot be part of a source.
 
         data_from (TUnboundDltResource, optional): Allows to pipe data from one resource to another to build multi-step pipelines.
@@ -670,7 +689,6 @@ def resource(
             nested_hints=nested_hints,
             incremental=incremental,
         )
-
         resource = _impl_cls.from_data(
             _data,
             _name,
@@ -735,7 +753,6 @@ def resource(
             raise DynamicNameNotStandaloneResource(get_callable_name(f))
 
         resource_name = name if name and not callable(name) else get_callable_name(f)
-
         func_module = inspect.getmodule(f)
         source_section = section or _get_source_section_name(func_module)
         is_inner_resource = is_inner_callable(f)
@@ -743,19 +760,24 @@ def resource(
         if spec is None:
             # autodetect spec
             SPEC, resolvable_fields = spec_from_signature(
-                f, inspect.signature(f), include_defaults=standalone
+                f, inspect.signature(f), include_defaults=standalone, base=_base_spec
             )
-            if is_inner_resource and not standalone:
-                if len(resolvable_fields) > 0:
-                    # prevent required arguments to inner functions that are not standalone
-                    raise ResourceInnerCallableConfigWrapDisallowed(resource_name, source_section)
-                else:
-                    # empty spec for inner functions - they should not be injected
-                    SPEC = BaseConfiguration
         else:
-            SPEC = spec
-        # assign spec to "f"
+            SPEC, resolvable_fields = spec, spec.get_resolvable_fields()
+
+        # add spec to f
         set_fun_spec(f, SPEC)
+
+        if is_inner_resource and len(resolvable_fields) > 0 and data_from is not None:
+            # warn for parametrized inner transformers due to injection costs
+            # we do not warn on top level ones because that's normal pattern here
+            logger.info(
+                f"Transformer {resource_name} in section {source_section} is defined over an inner"
+                " function and has additional arguments that will be injected from the"
+                " configuration. Note that transformers  are called for each data item (typically"
+                " batch or page) and configuration injection is costly .Use the dlt.source to get"
+                " the required configuration and pass them explicitly to your source."
+            )
 
         factory = None
         # register non inner resources as source with single resource in it
@@ -778,7 +800,7 @@ def resource(
                 .clone(
                     name=resource_name,
                     section=source_section,
-                    spec=BaseConfiguration,
+                    spec=_base_spec,
                     _impl_cls=_DltSingleSource,
                 )
                 .bind(_source)
@@ -786,6 +808,7 @@ def resource(
             # mod the reference to keep the right spec
             factory.ref.SPEC = SPEC
 
+        # wrap wrapped (f), not unwrapped (unwrap_f)
         deco: Callable[TResourceFunParams, TDltResourceImpl] = wrap_standalone(
             resource_name, source_section, f
         )
@@ -1114,5 +1137,16 @@ def defer(
             return f(*args, **kwargs)
 
         return _curry
+
+    # copy the signature from f to _wrap, but change the return type
+    sig = inspect.signature(f)
+    return_annotation = (
+        Callable[[], sig.return_annotation]
+        if sig.return_annotation is not inspect.Parameter.empty
+        else None
+    )
+    if return_annotation:
+        new_sig = sig.replace(return_annotation=return_annotation)
+        setattr(_wrap, "__signature__", new_sig)
 
     return _wrap

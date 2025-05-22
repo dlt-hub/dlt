@@ -44,7 +44,11 @@ from dlt.common.schema import Schema
 from dlt.destinations import filesystem, redshift, dummy, duckdb
 import dlt.destinations.dataset
 from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME
-from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted
+from dlt.extract.exceptions import (
+    InvalidResourceDataTypeBasic,
+    ResourceExtractionError,
+    SourceExhausted,
+)
 from dlt.extract.extract import ExtractStorage
 from dlt.extract import DltResource, DltSource
 from dlt.extract.extractors import MaterializedEmptyList
@@ -1687,24 +1691,33 @@ def test_apply_hints_infer_hints() -> None:
 
 
 def test_invalid_data_edge_cases() -> None:
-    # pass not evaluated source function
+    # pass lambda directly to run, allowed now because functions can be extracted too
+    pipeline = dlt.pipeline(pipeline_name="invalid", destination=DUMMY_COMPLETE)
+    pipeline.run(lambda: [1, 2, 3], table_name="late_digits")
+    assert pipeline.last_trace.last_normalize_info.row_counts["late_digits"] == 3
+
+    # pass not called source function
     @dlt.source
     def my_source():
         return dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
 
-    pipeline = dlt.pipeline(pipeline_name="invalid", destination=DUMMY_COMPLETE)
-    with pytest.raises(PipelineStepFailed) as pip_ex:
-        pipeline.run(my_source)
-    assert isinstance(pip_ex.value.__context__, PipeGenInvalid)
-    assert "dlt.source" in str(pip_ex.value)
+    # this function will be evaluated like any other. it returns resource which in the pipe
+    # is just an iterator and it will be iterated
+    # TODO: we should probably block that behavior
+    pipeline.run(my_source)
+
+    assert pipeline.last_trace.last_normalize_info.row_counts["my_source"] == 5
 
     def res_return():
         return dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
 
-    with pytest.raises(PipelineStepFailed) as pip_ex:
-        pipeline.run(res_return)
-    assert isinstance(pip_ex.value.__context__, PipeGenInvalid)
-    assert "dlt.resource" in str(pip_ex.value)
+    pipeline.run(res_return)
+    assert pipeline.last_trace.last_normalize_info.row_counts["res_return"] == 5
+
+    # with pytest.raises(PipelineStepFailed) as pip_ex:
+    #     pipeline.run(res_return)
+    # assert isinstance(pip_ex.value.__context__, PipeGenInvalid)
+    # assert "dlt.resource" in str(pip_ex.value)
 
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run({"a": "b"}, table_name="data")
@@ -1715,19 +1728,24 @@ def test_invalid_data_edge_cases() -> None:
     def my_source_yield():
         yield dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
 
-    pipeline = dlt.pipeline(pipeline_name="invalid", destination=DUMMY_COMPLETE)
-    with pytest.raises(PipelineStepFailed) as pip_ex:
-        pipeline.run(my_source_yield)
-    assert isinstance(pip_ex.value.__context__, PipeGenInvalid)
-    assert "dlt.source" in str(pip_ex.value)
+    pipeline.run(my_source_yield)
+    assert pipeline.last_trace.last_normalize_info.row_counts["my_source_yield"] == 5
+
+    # pipeline = dlt.pipeline(pipeline_name="invalid", destination=DUMMY_COMPLETE)
+    # with pytest.raises(PipelineStepFailed) as pip_ex:
+    #     pipeline.run(my_source_yield)
+    # assert isinstance(pip_ex.value.__context__, PipeGenInvalid)
+    # assert "dlt.source" in str(pip_ex.value)
 
     def res_return_yield():
-        return dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
+        yield dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
+
+    # here extract pipe tries to call yielded resources which is not callable
+    # TODO: better exception, but this is a total messup
 
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(res_return_yield)
-    assert isinstance(pip_ex.value.__context__, PipeGenInvalid)
-    assert "dlt.resource" in str(pip_ex.value)
+    assert isinstance(pip_ex.value.__context__, ResourceExtractionError)
 
 
 def test_resource_rename_same_table():

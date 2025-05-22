@@ -1,5 +1,5 @@
+from functools import wraps
 import inspect
-import makefun
 from copy import copy
 from typing import (
     Any,
@@ -20,7 +20,6 @@ from dlt.common.utils import get_callable_name
 from dlt.extract.exceptions import (
     CreatePipeException,
     InvalidStepFunctionArguments,
-    InvalidResourceDataTypeFunctionNotAGenerator,
     InvalidTransformerGeneratorFunction,
     ParametrizedResourceUnbound,
     PipeNotBoundToData,
@@ -285,6 +284,7 @@ class Pipe(SupportsPipe):
                         str(ex),
                     )
             # otherwise it must be an iterator
+            gen = self.gen
             if isinstance(gen, Iterable):
                 self.replace_gen(iter(gen))
         else:
@@ -303,22 +303,10 @@ class Pipe(SupportsPipe):
 
     def bind_gen(self, *args: Any, **kwargs: Any) -> Any:
         """Finds and wraps with `args` + `kwargs` the callable generating step in the resource pipe and then replaces the pipe gen with the wrapped one"""
-        try:
-            gen = self._wrap_gen(*args, **kwargs)
-            self.replace_gen(gen)
-            return gen
-        except InvalidResourceDataTypeFunctionNotAGenerator:
-            try:
-                # call regular function to check what is inside
-                _data = self.gen(*args, **kwargs)  # type: ignore
-            except Exception as ev_ex:
-                # break chaining
-                raise ev_ex from None
-            # accept if pipe or object holding pipe is returned
-            # TODO: use a protocol (but protocols are slow)
-            if isinstance(_data, Pipe) or hasattr(_data, "_pipe"):
-                return _data
-            raise
+        # try:
+        gen = self._wrap_gen(*args, **kwargs)
+        self.replace_gen(gen)
+        return gen
 
     def _wrap_gen(self, *args: Any, **kwargs: Any) -> Any:
         """Finds and wraps with `args` + `kwargs` the callable generating step in the resource pipe."""
@@ -370,13 +358,6 @@ class Pipe(SupportsPipe):
             meta_arg = check_compat_transformer(self.name, step, sig)
             if meta_arg is None:
                 # add meta parameter when not present
-                orig_step = step
-
-                def _partial(*args: Any, **kwargs: Any) -> Any:
-                    # orig step does not have meta
-                    kwargs.pop("meta", None)
-                    # del kwargs["meta"]
-                    return orig_step(*args, **kwargs)
 
                 meta_arg = inspect.Parameter(
                     "meta", inspect._ParameterKind.KEYWORD_ONLY, default=None
@@ -389,8 +370,20 @@ class Pipe(SupportsPipe):
                     # pass meta in variadic
                     new_sig = sig
                 else:
-                    new_sig = makefun.add_signature_parameters(sig, last=(meta_arg,))
-                step = makefun.wraps(step, new_sig=new_sig)(_partial)
+                    params = list(sig.parameters.values()) + [meta_arg]
+                    new_sig = sig.replace(parameters=params)
+
+                orig_step = step
+
+                @wraps(step)
+                def _partial(*args: Any, **kwargs: Any) -> Any:
+                    # orig step does not have meta
+                    kwargs.pop("meta", None)
+                    # del kwargs["meta"]
+                    return orig_step(*args, **kwargs)
+
+                setattr(_partial, "__signature__", new_sig)
+                step = _partial
 
             # verify the step callable, gen may be parametrized and will be evaluated at run time
             if not self.is_empty:

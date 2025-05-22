@@ -1,6 +1,7 @@
+from functools import wraps
 import inspect
 import os
-from typing import List, Optional, Dict, Iterator, Any, cast
+from typing import Awaitable, Callable, List, Optional, Dict, Iterator, Any, cast
 
 import pytest
 from pydantic import BaseModel
@@ -9,7 +10,7 @@ import dlt
 from dlt.common.configuration import known_sections
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.configuration.inject import get_fun_spec
+from dlt.common.configuration.inject import get_fun_last_config, get_fun_spec
 from dlt.common.configuration.plugins import PluginContext
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
@@ -19,25 +20,24 @@ from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table, new_column
 from dlt.common.schema.typing import TTableReference, TTableSchemaColumns
 from dlt.common.schema.exceptions import InvalidSchemaName
-from dlt.common.typing import TDataItem, TTableNames
+from dlt.common.typing import TDataItem, TFun, TTableNames
 
 from dlt.cli.source_detection import detect_source_configs
 from dlt.common.utils import custom_environ
-from dlt.extract.decorators import _DltSingleSource, DltSourceFactoryWrapper
+from dlt.extract.decorators import _DltSingleSource, DltSourceFactoryWrapper, defer
 from dlt.extract.hints import TResourceNestedHints
 from dlt.extract.reference import SourceReference
 from dlt.extract import DltResource, DltSource
 from dlt.extract.exceptions import (
     DynamicNameNotStandaloneResource,
     ExplicitSourceNameInvalid,
-    InvalidResourceDataTypeFunctionNotAGenerator,
     InvalidResourceDataTypeIsNone,
     InvalidResourceDataTypeMultiplePipes,
+    InvalidResourceReturnsResource,
     ParametrizedResourceUnbound,
     PipeGenInvalid,
     PipeNotBoundToData,
     ResourceFunctionExpected,
-    ResourceInnerCallableConfigWrapDisallowed,
     SourceDataIsNone,
     SourceIsAClassTypeError,
     SourceNotAFunction,
@@ -111,11 +111,11 @@ def test_none_returning_resource() -> None:
     def empty() -> None:
         pass
 
-    with pytest.raises(InvalidResourceDataTypeFunctionNotAGenerator):
-        dlt.resource(empty)()
+    with pytest.raises(InvalidResourceDataTypeIsNone):
+        list(dlt.resource(empty)())
 
-    with pytest.raises(InvalidResourceDataTypeFunctionNotAGenerator):
-        dlt.resource(None)(empty)()
+    with pytest.raises(InvalidResourceDataTypeIsNone):
+        list(dlt.resource(None)(empty)())
 
     with pytest.raises(InvalidResourceDataTypeIsNone):
         DltResource.from_data(None, name="test")
@@ -1029,15 +1029,11 @@ def standalone_resource(secret=dlt.secrets.value, config=dlt.config.value, opt: 
 
 
 def test_spec_generation() -> None:
-    # inner resource cannot take configuration
+    # inner resource taking config
 
-    with pytest.raises(ResourceInnerCallableConfigWrapDisallowed) as py_ex:
-
-        @dlt.resource(write_disposition="merge", primary_key="id")
-        def inner_resource(initial_id=dlt.config.value):
-            yield [{"id": 1, "name": "row1"}, {"id": 1, "name": "row2"}]
-
-    assert py_ex.value.resource_name == "inner_resource"
+    @dlt.resource(write_disposition="merge", primary_key="id")
+    def inner_resource(initial_id=dlt.config.value):
+        yield [{"id": 1, "name": "row1"}, {"id": 1, "name": "row2"}]
 
     # outer resource does not take default params
     SPEC = get_fun_spec(standalone_resource._pipe.gen)  # type: ignore[arg-type]
@@ -1178,7 +1174,7 @@ def regular_signature(init: int, secret_end: int = dlt.secrets.value):
 
 
 def test_standalone_resource() -> None:
-    # wrapped flag will not create the resource but just simple function wrapper that must be called before use
+    # standalone flag will not create the resource but just simple function wrapper that must be called before use
     @dlt.resource(standalone=True)
     def nice_signature(init: int):
         """Has nice signature"""
@@ -1198,11 +1194,12 @@ def test_standalone_resource() -> None:
 
     @dlt.source
     def nice_source():
+        # this returns a function that will return a resource when extracting
         return nice_signature
 
     source = nice_source()
     source.nice_signature.bind(7)
-    with pytest.raises(PipeGenInvalid):
+    with pytest.raises(InvalidResourceReturnsResource):
         assert list(source) == [7, 8, 9]
 
     @dlt.source
@@ -1228,13 +1225,12 @@ def test_standalone_resource() -> None:
 def test_reference_registered_resource(res: DltResource) -> None:
     if isinstance(res, DltResource):
         ref = res(1, 2).name
-        # find reference
-        res_factory = SourceReference.find(f"tests.extract.test_decorators.{ref}")
-        assert res_factory.ref.SPEC is res.SPEC
     else:
         ref = res.__name__
     # create source with single res
     factory = SourceReference.find(f"tests.extract.test_decorators.{ref}")
+    assert factory.ref.SPEC is get_fun_spec(res)
+
     # pass explicit config
     source = factory(init=1, secret_end=3)
     assert source.name == ref
@@ -1410,13 +1406,18 @@ def test_standalone_resource_with_name() -> None:
         standalone_name_2("_N")
 
 
-def test_standalone_resource_returns() -> None:
+def test_resource_returns() -> None:
     @dlt.resource(standalone=True)
     def rv_data(name: str):
         return [name] * 10
 
-    with pytest.raises(InvalidResourceDataTypeFunctionNotAGenerator):
-        rv_data("returned")
+    assert list(rv_data("returned")) == ["returned"] * 10
+
+    @dlt.resource
+    def rv_data_2(name: str):
+        return [name] * 11
+
+    assert list(rv_data_2("rx")) == ["rx"] * 11
 
 
 def test_standalone_resource_returning_resource() -> None:
@@ -1424,10 +1425,14 @@ def test_standalone_resource_returning_resource() -> None:
     def rv_resource(name: str):
         return dlt.resource([1, 2, 3], name=name, primary_key="value")
 
+    # it is just regular returning resource
     r = rv_resource("returned")
-    assert r.name == "returned"
-    assert r.compute_table_schema()["columns"]["value"]["primary_key"] is True
-    assert list(r) == [1, 2, 3]
+    assert r.name == "rv_resource"
+    assert "value" not in r.compute_table_schema()["columns"]
+
+    # until we try to exhaust it
+    with pytest.raises(InvalidResourceReturnsResource):
+        list(r)
 
 
 def test_standalone_resource_returning_resource_exception() -> None:
@@ -1437,7 +1442,7 @@ def test_standalone_resource_returning_resource_exception() -> None:
 
     # pass through of the exception in `rv_resource` when it returns, not yields
     with pytest.raises(ConfigFieldMissingException) as conf_ex:
-        rv_resource()
+        list(rv_resource())
     assert conf_ex.value.fields == ["uniq_name"]
 
 
@@ -1543,6 +1548,124 @@ async def test_async_source() -> None:
     await _assert_source(source_rv_no_parens, [1, 2, 3])
     await _assert_source(source_rv_with_parens, [4, 5, 6])
     await _assert_source(source_yield_with_parens, [7, 8, 9])
+
+
+def test_decorated_source_function() -> None:
+    # NOTE: using defer this way does not defer this resource, it is just a trick to test wrappers
+
+    @dlt.source
+    @defer
+    def will_decorate(secret: str = dlt.secrets.value, opt=1) -> DltResource:
+        assert secret == "secret"
+        return dlt.resource([1, 2, 3], name="digits")
+
+    # get signature for all wrappers
+    sig_bottom = inspect.signature(will_decorate.__wrapped__.__wrapped__)  # type: ignore[attr-defined]
+    sig_middle = inspect.signature(will_decorate.__wrapped__)  # type: ignore[attr-defined]
+    sig_top = inspect.signature(will_decorate)  # this is factory class
+
+    assert sig_bottom.return_annotation == DltResource
+    # return annotation got swapped
+    assert sig_middle.return_annotation == Callable[[], DltResource]
+    assert sig_top.return_annotation == DltSource
+
+    # get SPEC
+    SPEC = get_fun_spec(will_decorate)
+    assert "secret" in SPEC().get_resolvable_fields()
+
+    # get resource
+    os.environ["SECRET"] = "secret"
+    s_ = will_decorate()
+    assert list(s_) == [1, 2, 3]
+
+    # now will_decorate (unwrapped) holds also last resolved config
+    assert get_fun_last_config(will_decorate)["secret"] == "secret"
+
+    # do we copy wrappers when cloning
+    cloned_decorated = will_decorate.clone(name="cloned_decorated")
+    assert get_fun_spec(cloned_decorated) == SPEC
+    sig_top = inspect.signature(cloned_decorated)
+    assert sig_top.return_annotation == DltSource
+
+
+def test_decorated_resource_function() -> None:
+    @dlt.resource
+    @defer
+    def will_decorate(secret: str = dlt.secrets.value, opt=1) -> List[int]:
+        assert secret == "secret"
+        return [1, 2, 3]
+
+    # get signature for all wrappers
+    sig_bottom = inspect.signature(will_decorate.__wrapped__.__wrapped__)  # type: ignore[attr-defined]
+    sig_middle = inspect.signature(will_decorate.__wrapped__)  # type: ignore[attr-defined]
+    sig_top = inspect.signature(will_decorate, follow_wrapped=False)
+    print("SIG YTOP SIG", will_decorate.__signature__)
+
+    assert sig_bottom.return_annotation == List[int]
+    # return annotation got swapped
+    assert sig_middle.return_annotation == Callable[[], List[int]]
+    assert sig_top.return_annotation == DltResource
+
+    # get SPEC
+    SPEC = get_fun_spec(will_decorate)
+    assert "secret" in SPEC().get_resolvable_fields()
+
+    # get resource
+    os.environ["SECRET"] = "secret"
+    r_ = will_decorate()
+    # defer wraps resource function into another function so this is invalid data item
+    # we just use it to test wrapping and changing signatures
+    try:
+        assert list(r_) == [1, 2, 3]
+    except PipeGenInvalid:
+        pass
+
+    # now will_decorate (unwrapped) holds also last resolved config
+    assert get_fun_last_config(will_decorate)["secret"] == "secret"
+
+    # do we copy resource when cloning
+    assert get_fun_last_config(r_)["secret"] == "secret"
+
+
+def simple_async_decorator(func: TFun) -> TFun:
+    @wraps(func)
+    async def wrapper(*args: Any, **kwargs: Any) -> DltResource:
+        return await func(*args, **kwargs)
+
+    setattr(wrapper, "return_annotation", DltResource)
+    return wrapper  # type: ignore
+
+
+@pytest.mark.asyncio
+async def test_decorated_async_source_function() -> None:
+    @dlt.source
+    @simple_async_decorator
+    async def will_decorate(secret: str = dlt.secrets.value, opt=1) -> DltResource:
+        assert secret == "secret"
+        return dlt.resource([1, 2, 3], name="digits")
+
+    # get signature for all wrappers
+    sig_bottom = inspect.signature(will_decorate.__wrapped__.__wrapped__)  # type: ignore[attr-defined]
+    sig_middle = inspect.signature(will_decorate.__wrapped__)  # type: ignore[attr-defined]
+    sig_top = inspect.signature(will_decorate)  # this is factory class
+
+    assert sig_bottom.return_annotation == Awaitable[DltResource]
+    # return annotation got swapped
+    assert sig_middle.return_annotation == Awaitable[DltResource]
+    assert sig_top.return_annotation == DltSource
+
+    # get SPEC
+    SPEC = get_fun_spec(will_decorate)
+    assert "secret" in SPEC().get_resolvable_fields()
+
+    # get resource
+    os.environ["SECRET"] = "secret"
+    # TODO: overloads do not support async
+    s_ = await will_decorate()  # type: ignore[misc]
+    assert list(s_) == [1, 2, 3]
+
+    # now will_decorate (unwrapped) holds also last resolved config
+    assert get_fun_last_config(will_decorate)["secret"] == "secret"
 
 
 @pytest.mark.skip("Not implemented")

@@ -1,5 +1,5 @@
+from functools import update_wrapper
 import inspect
-from functools import partial
 from typing import (
     AsyncIterable,
     cast,
@@ -22,6 +22,7 @@ from dlt.common.configuration.inject import get_fun_spec, with_config
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import BaseConfiguration, known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.reflection.inspect import isgeneratorfunction
 from dlt.common.typing import AnyFun, DictStrAny, StrAny, TDataItem, TDataItems, NoneType
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import (
@@ -114,16 +115,15 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         *,
         section: str = None,
         args_bound: bool = False,
-        SPEC: Type[BaseConfiguration] = None,
     ) -> None:
         self.section = section
         self.selected = selected
         self._pipe = pipe
         self._args_bound = args_bound
         self._explicit_args: DictStrAny = None
-        self.SPEC = SPEC
         self.source_name = None
         super().__init__(hints)
+        self._update_wrapper()
 
     @classmethod
     def from_data(
@@ -151,8 +151,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             return data  # type: ignore[return-value]
 
         if isinstance(data, Pipe):
-            SPEC_ = None if data.is_empty else get_fun_spec(data.gen)  # type: ignore[arg-type]
-            r_ = cls(data, hints, selected, section=section, SPEC=SPEC_)
+            r_ = cls(data, hints, selected, section=section)
             if inject_config:
                 r_._inject_config()
             return r_
@@ -190,7 +189,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 selected,
                 section=section,
                 args_bound=not callable(data),
-                SPEC=get_fun_spec(data),
             )
             if inject_config:
                 r_._inject_config()
@@ -391,10 +389,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         """
         if (
             not inspect.isgenerator(self._pipe.gen)
-            and not (
-                callable(self._pipe.gen)
-                and inspect.isgeneratorfunction(inspect.unwrap(self._pipe.gen))
-            )
+            and not (callable(self._pipe.gen) and isgeneratorfunction(self._pipe.gen))
             and not (callable(self._pipe.gen) and self.is_transformer)
         ):
             raise InvalidParallelResourceDataType(self.name, self._pipe.gen, type(self._pipe.gen))
@@ -497,24 +492,8 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             )
 
         orig_gen = self._pipe.gen
-        gen = self._pipe.bind_gen(*args, **kwargs)
-        if isinstance(gen, DltResource):
-            # the resource returned resource: update in place
-            old_pipe = self._pipe
-            self.__dict__.clear()
-            self.__dict__.update(gen.__dict__)
-            # keep old pipe instance
-            self._pipe = old_pipe
-            self._pipe.__dict__.clear()
-            # write props from new pipe instance
-            self._pipe.__dict__.update(gen._pipe.__dict__)
-        elif isinstance(gen, Pipe):
-            # the resource returned pipe: just replace pipe
-            self._pipe.__dict__.clear()
-            # write props from new pipe instance
-            self._pipe.__dict__.update(gen.__dict__)
-        else:
-            self._args_bound = True
+        self._pipe.bind_gen(*args, **kwargs)
+        self._args_bound = True
         self._set_explicit_args(orig_gen, None, *args, **kwargs)  # type: ignore
         return self
 
@@ -561,7 +540,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             return transform
         else:
             # map or yield map
-            if inspect.isgeneratorfunction(inspect.unwrap(transform)):
+            if isgeneratorfunction(transform):
                 return self.add_yield_map(transform)
             else:
                 return self.add_map(transform)
@@ -682,7 +661,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             selected=self.selected,
             section=self.section,
             args_bound=self._args_bound,
-            SPEC=self.SPEC,
         )
         # try to eject and then inject configuration and incremental wrapper when resource is cloned
         # this makes sure that a take config values from a right section and wrapper has a separated
@@ -690,6 +668,18 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         if r_._eject_config():
             r_._inject_config(incremental_from_hints_override=incremental_from_hints)
         return r_
+
+    def _update_wrapper(self) -> None:
+        """Update wrapper from callable pipe gen to behave as functools wrapper"""
+        if self._pipe.is_empty:
+            return
+        gen = self._pipe.gen
+        if not callable(gen):
+            return
+        update_wrapper(self, gen)
+        # also change the signature return annotation to dlt source class
+        sig = inspect.signature(gen).replace(return_annotation=self.__class__)
+        self.__signature__ = sig
 
     def _get_config_section_context(self) -> ConfigSectionContext:
         container = Container()
