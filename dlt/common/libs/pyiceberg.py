@@ -10,7 +10,8 @@ from dlt.common.time import precise_time
 from dlt.common.libs.pyarrow import cast_arrow_schema_types
 from dlt.common.libs.utils import load_open_tables
 from dlt.common.pipeline import SupportsPipeline
-from dlt.common.schema.typing import TWriteDisposition
+from dlt.common.schema.typing import TWriteDisposition, TTableSchema
+from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns_names_with_prop
 from dlt.common.utils import assert_min_pkg_version
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages.configuration import FileSystemCredentials, FilesystemConfiguration
@@ -61,6 +62,34 @@ def write_iceberg_table(
         f"pyiceberg: {write_disposition} arrow with {data.num_rows} rows to table {table.name()} at"
         f" location {table.location()} took {(precise_time() - start_ts)} seconds."
     )
+
+
+def merge_iceberg_table(
+    table: IcebergTable,
+    data: pa.Table,
+    schema: TTableSchema,
+) -> None:
+    """Merges in-memory Arrow data into on-disk Iceberg table."""
+    strategy = schema["x-merge-strategy"]  # type: ignore[typeddict-item]
+    if strategy == "upsert":
+        # evolve schema
+        with table.update_schema() as update:
+            update.union_by_name(ensure_iceberg_compatible_arrow_schema(data.schema))
+
+        if "parent" in schema:
+            join_cols = [get_first_column_name_with_prop(schema, "unique")]
+        else:
+            join_cols = get_columns_names_with_prop(schema, "primary_key")
+
+        table.upsert(
+            df=ensure_iceberg_compatible_arrow_data(data),
+            join_cols=join_cols,
+            when_matched_update_all=True,
+            when_not_matched_insert_all=True,
+            case_sensitive=True,
+        )
+    else:
+        raise ValueError(f'Merge strategy "{strategy}" not supported.')
 
 
 def get_sql_catalog(

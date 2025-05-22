@@ -212,7 +212,7 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
 
 class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
     def run(self) -> None:
-        from dlt.common.libs.pyiceberg import write_iceberg_table, create_table
+        from dlt.common.libs.pyiceberg import write_iceberg_table, merge_iceberg_table, create_table
 
         try:
             table = self._job_client.load_open_table(
@@ -234,11 +234,18 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             self.run()
             return
 
-        write_iceberg_table(
-            table=table,
-            data=self.arrow_dataset.to_table(),
-            write_disposition=self._load_table["write_disposition"],
-        )
+        if self._load_table["write_disposition"] == "merge" and table is not None:
+            merge_iceberg_table(
+                table=table,
+                data=self.arrow_dataset.to_table(),
+                schema=self._load_table,
+            )
+        else:
+            write_iceberg_table(
+                table=table,
+                data=self.arrow_dataset.to_table(),
+                write_disposition=self._load_table["write_disposition"],
+            )
 
 
 class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
