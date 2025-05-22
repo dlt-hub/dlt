@@ -91,7 +91,7 @@ pipeline_sync_error_text = (
 pipeline_details = "## Pipeline details"
 pipeline_sync_status = """
 ## Pipeline sync status
-<small>Dlt studio will try to sync the pipeline state and schema from the destination. If the sync fails, studio use local mode and inspect the locally stored information about the pipeline.</small>
+<small>Dlt studio will try to sync the pipeline state and schema from the destination. If the sync fails, studio will use local mode and inspect the locally stored information about the pipeline.</small>
 """
 pipeline_sync_success_text = "Pipeline state synced successfully from `{}`."
 
@@ -109,13 +109,13 @@ schema_table_overview = """
 # Browse data page
 #
 browse_data_title = """## Browse data of schema `{}` in dataset `{}`
-<small>Browse data of the current pipeline. Select a table from the list to start or write a sql query in the text area below. Toggeling row counts will load the row counts for all tables from the destination. To reload, toggle the switch again.</small>
+<small>Browse data of the current pipeline. Select a table from the list to start or write a SQL query in the text area below. Toggling row counts will load the row counts for all tables from the destination. To reload, toggle the switch again.</small>
 """
 
 browse_data_error = f"Error connecting to destination. {credentials_info}"
 
 browse_data_explorer_title = """
-<small>Select a table above or write a sql query in the text area below to explore the data in the destination. The query will be executed on the destination and the results will be displayed in a table. If you disable query caching, all cached queries will be purged.</small>
+<small>Select a table above or write a SQL query in the text area below to explore the data in the destination. The query will be executed on the destination and the results will be displayed in a table. If you disable query caching, all cached queries will be purged.</small>
 """
 
 browse_data_query_result_title = """
@@ -128,7 +128,7 @@ browse_data_query_history_title = """
 <small>The following list shows all the queries that have been executed on the destination and are present in the cache. Select one or more to see the result again below and compare.</small>
 """
 
-browse_data_query_error = """Error executing sql query:"""
+browse_data_query_error = """Error executing SQL query:"""
 
 #
 # State page
@@ -155,7 +155,7 @@ last_trace_title = """
 #
 loads_title = """
 ## Loads
-<small>A list of all the loads that have been executed on the destination dataset of the selected pipeline. Select one to see all available details. More data will be loaded from the destination, such as the row count for that load and the schema for this load. Depending on the destination and your datat this might take a long time.</small>
+<small>A list of all the loads that have been executed on the destination dataset of the selected pipeline. Select one to see all available details. More data will be loaded from the destination, such as the row count for that load and the schema for this load. Depending on the destination and your data, this might take a long time.</small>
 """
 
 loads_details_title = """
