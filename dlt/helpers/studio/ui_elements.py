@@ -1,7 +1,8 @@
-from typing import Any
+from typing import Any, Dict, List
 
 import marimo as mo
 import traceback
+import datetime  # noqa: I251
 
 
 def build_error_callout(message: str, code: str = None) -> Any:
@@ -27,3 +28,33 @@ def build_error_callout(message: str, code: str = None) -> Any:
         ),
         kind="warn",
     )
+
+
+def build_pipeline_link_list(pipelines: List[Dict[str, Any]]) -> str:
+    """Build a list of links to the pipeline."""
+    if not pipelines:
+        return "No local pipelines found."
+
+    count = 0
+    link_list: str = ""
+    for _p in pipelines:
+        link = f"* [{_p['name']}](?pipeline={_p['name']})"
+        if _p["timestamp"] == 0:
+            link = link + " - never used"
+        else:
+            link = (
+                link
+                + " - last executed"
+                f" {datetime.datetime.fromtimestamp(_p['timestamp']).strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+
+        link_list += f"{link}\n"
+        count += 1
+        if count == 5:
+            break
+
+    return link_list
+
+
+def build_page_header(title: str, button: Any = None) -> Any:
+    return mo.hstack([mo.md(f"## {title}"), button])

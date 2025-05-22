@@ -1,6 +1,5 @@
 # flake8: noqa: F841
 
-from typing import Any
 
 import marimo
 
@@ -9,7 +8,7 @@ app = marimo.App(width="medium", app_title="dlt studio", css_file="style.css")
 
 # global imports
 with app.setup:
-    import datetime
+    from typing import Any, Dict, List, Tuple, cast
 
     import marimo as mo
 
@@ -22,19 +21,24 @@ with app.setup:
 
 
 @app.cell(hide_code=True)
-def page_welcome(
+def home(
     dlt_pipelines_dir: str,
     dlt_pipeline_select: marimo.ui.multiselect,
-    dlt_pipeline_count: int,
-    dlt_pipeline_link_list: str,
+    dlt_all_pipelines: List[Dict[str, Any]],
 ) -> Any:
     """
     Displays the welcome page with the pipeline select widget, will only display pipeline title if a pipeline is selected
     """
 
-    _selected_pipeline_name = dlt_pipeline_select.value[0] if dlt_pipeline_select.value else None
+    # provide pipeline object to the following cells
+    dlt_pipeline_name: str = (
+        str(dlt_pipeline_select.value[0]) if dlt_pipeline_select.value else None
+    )
+    dlt_pipeline: dlt.Pipeline = None
+    if dlt_pipeline_name:
+        dlt_pipeline = utils.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
 
-    if not _selected_pipeline_name:
+    if not dlt_pipeline:
         _stack = [
             mo.hstack(
                 [
@@ -49,13 +53,17 @@ def page_welcome(
             mo.callout(
                 mo.vstack(
                     [
-                        mo.md(strings.app_quick_start_title.format(dlt_pipeline_link_list)),
+                        mo.md(
+                            strings.app_quick_start_title.format(
+                                ui.build_pipeline_link_list(dlt_all_pipelines)
+                            )
+                        ),
                         dlt_pipeline_select,
                     ]
                 ),
                 kind="info",
             ),
-            mo.md(strings.app_basics_text.format(dlt_pipeline_count, dlt_pipelines_dir)),
+            mo.md(strings.app_basics_text.format(len(dlt_all_pipelines), dlt_pipelines_dir)),
         ]
     else:
         _stack = [
@@ -65,7 +73,7 @@ def page_welcome(
                         "https://dlthub.com/docs/img/dlthub-logo.png", width=100, alt="dltHub logo"
                     ).style(padding_bottom="1em"),
                     mo.center(
-                        mo.md(f"## {strings.app_title_pipeline.format(_selected_pipeline_name)}")
+                        mo.md(f"## {strings.app_title_pipeline.format(dlt_pipeline.pipeline_name)}")
                     ),
                     dlt_pipeline_select,
                 ],
@@ -75,15 +83,37 @@ def page_welcome(
 
 
 @app.cell(hide_code=True)
-def app_tabs(dlt_pipeline_name: str, dlt_pipelines_dir: str) -> Any:
+def pipeline_status(dlt_pipeline: dlt.Pipeline) -> Any:
+    """
+    Returns the status of the pipeline
+    """
+    _result = []
+
+    if dlt_pipeline:
+        # sync pipeline
+        with mo.status.spinner(title="Syncing pipeline state from destination..."):
+            try:
+                dlt_pipeline.sync_destination()
+                _credentials = str(dlt_pipeline.dataset().destination_client.config.credentials)
+                _result.append(
+                    mo.callout(
+                        mo.vstack([mo.md(strings.pipeline_sync_success_text.format(_credentials))]),
+                        kind="success",
+                    )
+                )
+            except Exception:
+                _result.append(ui.build_error_callout(strings.pipeline_sync_error_text))
+
+    mo.vstack(_result)
+
+
+@app.cell(hide_code=True)
+def app_tabs(dlt_pipeline_name: str) -> Any:
     """
     Syncs the pipeline and renders the result of the sync
     """
 
     mo.stop(not dlt_pipeline_name)
-
-    # we also provide the pipeline object to the cells that need it
-    dlt_pipeline = utils.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
 
     # build dlt_page_tabs
     dlt_page_tabs = mo.ui.tabs(
@@ -92,46 +122,30 @@ def app_tabs(dlt_pipeline_name: str, dlt_pipelines_dir: str) -> Any:
     )
 
     mo.center(dlt_page_tabs)
-    return (dlt_page_tabs, dlt_pipeline)
+    return (dlt_page_tabs,)
 
 
 @app.cell(hide_code=True)
-def page_overview(
-    dlt_page_tabs: marimo.ui.tabs,
+def overview(
     dlt_pipeline: dlt.Pipeline,
+    dlt_page_overview: marimo.ui.switch,
 ) -> Any:
     """
     Overview page of currently selected pipeline
     """
 
-    mo.stop(not dlt_pipeline or strings.app_tab_overview not in dlt_page_tabs.value)
+    _result = [ui.build_page_header(strings.overview_title, dlt_page_overview)]
 
-    # sync pipeline
-    with mo.status.spinner(title="Syncing pipeline state from destination..."):
-        try:
-            dlt_pipeline.sync_destination()
-            _credentials = str(dlt_pipeline.dataset().destination_client.config.credentials)
-            _sync_result = mo.callout(
-                mo.vstack([mo.md(strings.pipeline_sync_success_text.format(_credentials))]),
-                kind="success",
-            )
-
-        except Exception:
-            _sync_result = ui.build_error_callout(strings.pipeline_sync_error_text)
-
-    mo.vstack(
-        [
-            mo.md(strings.pipeline_sync_status),
-            _sync_result,
-            mo.md(strings.pipeline_details),
+    if dlt_pipeline and dlt_page_overview.value:
+        _result += [
             mo.ui.table(
                 utils.pipeline_details(dlt_pipeline),
                 selection=None,
                 style_cell=utils.style_cell,
             ),
         ]
-    )
-    return
+
+    mo.vstack(_result)
 
 
 @app.cell(hide_code=True)
@@ -139,6 +153,9 @@ def app_controls() -> Any:
     """
     Control elements for various parts of the app
     """
+
+    # page switches
+    dlt_page_overview = mo.ui.switch(value=True)
 
     dlt_schema_show_dlt_tables = mo.ui.switch(label="<small>Show `_dlt` tables</small>")
     dlt_schema_show_child_tables = mo.ui.switch(
@@ -708,49 +725,24 @@ def page_ibis_browser(
 
 
 @app.cell(hide_code=True)
-def app_discover_pipelines(cli_arg_pipelines_dir: str) -> Any:
+def app_discover_pipelines(cli_arg_pipelines_dir: str, query_var_pipeline_name: str) -> Any:
     """
     Discovers local pipelines and returns a multiselect widget to select one of the pipelines
     """
 
-    # note: this exception handling is only needed for testing
-    try:
-        dlt_query_params = mo.query_params()
-    except Exception:
-        dlt_query_params = {}  # type: ignore[assignment]
-
-    dlt_pipelines_dir, _pipelines = utils.get_local_pipelines(cli_arg_pipelines_dir)
-    dlt_pipeline_count = len(_pipelines)
-    dlt_pipeline_select = mo.ui.multiselect(
-        options=[p["name"] for p in _pipelines],
-        value=[dlt_query_params.get("pipeline")] if dlt_query_params.get("pipeline") else None,
+    # discover pipelines and build selector
+    dlt_pipelines_dir: str = ""
+    dlt_all_pipelines: List[Dict[str, Any]] = []
+    dlt_pipelines_dir, dlt_all_pipelines = utils.get_local_pipelines(cli_arg_pipelines_dir)
+    dlt_pipeline_select: mo.ui.multiselect = mo.ui.multiselect(
+        options=[p["name"] for p in dlt_all_pipelines],
+        value=[query_var_pipeline_name] if query_var_pipeline_name else None,
         max_selections=1,
         label=strings.pipeline_select_label,
-        on_change=lambda value: dlt_query_params.set("pipeline", str(value[0]) if value else None),
+        on_change=lambda value: mo.query_params().set("pipeline", str(value[0]) if value else None),
     )
 
-    _count = 0
-    dlt_pipeline_link_list = ""
-    for _p in _pipelines:
-        link = f"* [{_p['name']}](?pipeline={_p['name']})"
-        if _p["timestamp"] == 0:
-            link = link + " - never used"
-        else:
-            link = (
-                link
-                + " - last executed"
-                f" {datetime.datetime.fromtimestamp(_p['timestamp']).strftime('%Y-%m-%d %H:%M:%S')}"
-            )
-
-        dlt_pipeline_link_list += f"{link}\n"
-        _count += 1
-        if _count == 5:
-            break
-
-    if not dlt_pipeline_link_list:
-        dlt_pipeline_link_list = "No local pipelines found."
-
-    return (dlt_pipelines_dir, dlt_pipeline_select, dlt_pipeline_count, dlt_query_params)
+    return (dlt_pipelines_dir, dlt_pipeline_select, dlt_all_pipelines, dlt_pipeline_select)
 
 
 @app.cell(hide_code=True)
@@ -764,25 +756,13 @@ def purge_caches(dlt_pipeline: dlt.Pipeline, dlt_cache_query_results: marimo.ui.
 
 
 @app.cell(hide_code=True)
-def prepare_query_vars(dlt_query_params: Any) -> Any:
-    """
-    Prepare query params as globals for the following cells
-    """
-
-    dlt_pipeline_name = dlt_query_params.get("pipeline") or None
-    dlt_current_page = dlt_query_params.get("page") or None
-    return (dlt_pipeline_name, dlt_current_page)
-
-
-@app.cell(hide_code=True)
-def prepare_cli_args() -> Any:
+def prepare_cli_args_and_query_vars() -> Any:
     """
     Prepare cli args  as globals for the following cells
     """
-
-    dlt_cli_args = mo.cli_args()
-
-    cli_arg_pipelines_dir = dlt_cli_args.get("pipelines_dir") or None
+    query_var_pipeline_name: str = cast(str, mo.query_params().get("pipeline")) or None
+    cli_arg_pipelines_dir: str = cast(str, mo.cli_args().get("pipelines_dir")) or None
+    return (cli_arg_pipelines_dir,)
 
 
 if __name__ == "__main__":
