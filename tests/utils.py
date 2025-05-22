@@ -499,50 +499,6 @@ skipifgithubci = pytest.mark.skipif(
 )
 
 
-def assert_load_info(info: LoadInfo, expected_load_packages: int = 1) -> None:
-    """Asserts that expected number of packages was loaded and there are no failed jobs"""
-    assert len(info.loads_ids) == expected_load_packages
-    # all packages loaded
-    assert all(package.state == "loaded" for package in info.load_packages) is True
-    # Explicitly check for no failed job in any load package. In case a terminal exception was disabled by raise_on_failed_jobs=False
-    info.raise_on_failed_jobs()
-
-
-def load_table_counts(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
-    """Returns row counts for `table_names` as dict"""
-    with p.sql_client() as c:
-        query = "\nUNION ALL\n".join(
-            [
-                f"SELECT '{name}' as name, COUNT(1) as c FROM {c.make_qualified_table_name(name)}"
-                for name in table_names
-            ]
-        )
-        with c.execute_query(query) as cur:
-            rows = list(cur.fetchall())
-            return {r[0]: r[1] for r in rows}
-
-
-def assert_query_data(
-    p: dlt.Pipeline,
-    sql: str,
-    table_data: List[Any],
-    schema_name: str = None,
-    info: LoadInfo = None,
-) -> None:
-    """Asserts that query selecting single column of values matches `table_data`. If `info` is provided, second column must contain one of load_ids in `info`"""
-    with p.sql_client(schema_name=schema_name) as c:
-        with c.execute_query(sql) as cur:
-            rows = list(cur.fetchall())
-            assert len(rows) == len(table_data)
-            for r, d in zip(rows, table_data):
-                row = list(r)
-                # first element comes from the data
-                assert row[0] == d
-                # the second is load id
-                if info:
-                    assert row[1] in info.loads_ids
-
-
 @contextlib.contextmanager
 def reset_providers(settings_dir: str) -> Iterator[ConfigProvidersContainer]:
     """Context manager injecting standard set of providers where toml providers are initialized from `settings_dir`"""

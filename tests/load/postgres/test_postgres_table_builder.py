@@ -29,7 +29,7 @@ from tests.cases import (
 )
 from tests.load.postgres.utils import generate_sample_geometry_records
 from tests.load.utils import destinations_configs, DestinationTestConfiguration, sequence_generator
-from tests.utils import assert_load_info
+from tests.pipeline.utils import assert_load_info
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential

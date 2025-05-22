@@ -25,7 +25,7 @@ from tests.utils import TEST_STORAGE_ROOT
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_DECODED
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V10, yml_case_path as common_yml_case_path
 from tests.common.configuration.utils import environment
-from tests.pipeline.utils import assert_query_data
+from tests.pipeline.utils import assert_query_column
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
@@ -747,7 +747,7 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
             c_created_at = client.escape_column_name(
                 p.default_schema.naming.normalize_identifier("created_at")
             )
-        assert_query_data(
+        assert_query_column(
             p,
             f"SELECT {c_version} FROM {state_table} ORDER BY {c_created_at} DESC",
             [5, 4, 4, 3, 2],

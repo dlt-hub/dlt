@@ -15,7 +15,7 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.cases import TABLE_UPDATE_ALL_INT_PRECISIONS, TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS
 from tests.load.duckdb.test_duckdb_table_builder import add_timezone_false_on_precision
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
-from tests.pipeline.utils import airtable_emojis, assert_data_table_counts, load_table_counts
+from tests.pipeline.utils import airtable_emojis, assert_table_counts, load_table_counts
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -40,9 +40,7 @@ def test_duck_case_names(destination_config: DestinationTestConfiguration) -> No
         table_name="🦚Peacocks🦚",
         **destination_config.run_kwargs,
     )
-    table_counts = load_table_counts(
-        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
-    )
+    table_counts = load_table_counts(pipeline)
     assert table_counts == {
         "📆 Schedule": 3,
         "🦚Peacock": 1,
@@ -258,7 +256,7 @@ def test_provoke_parallel_parquet_same_table(
     pipeline = destination_config.setup_pipeline("test_provoke_parallel_parquet_same_table")
     pipeline.run(_get_shuffled_events(50), **destination_config.run_kwargs)
 
-    assert_data_table_counts(
+    assert_table_counts(
         pipeline,
         expected_counts={
             "events": 5000,

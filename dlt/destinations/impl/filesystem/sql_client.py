@@ -85,6 +85,7 @@ class FilesystemSqlClient(WithTableScanners):
                 raise ValueError(
                     f"Cannot create secret or register filesystem for protocol {protocol}"
                 )
+
         return True
 
     def open_connection(self) -> duckdb.DuckDBPyConnection:
@@ -92,6 +93,10 @@ class FilesystemSqlClient(WithTableScanners):
         super().open_connection()
 
         if first_connection:
+            # TODO: we need to frontlaod the httpfs extension for abfss for some reason
+            if self.is_abfss:
+                self._conn.sql("INSTALL httpfs;LOAD httpfs;")
+
             # create single authentication for the whole client
             self.create_secret(
                 self.remote_client.config.bucket_url, self.remote_client.config.credentials
@@ -115,7 +120,9 @@ class FilesystemSqlClient(WithTableScanners):
         table_name = table_schema["name"]
         table_format = table_schema.get("table_format")
         protocol = self.remote_client.config.protocol
-        table_location = self.remote_client.get_open_table_location(table_format, table_name)
+        table_location, is_folder = self.remote_client.get_open_table_location(
+            table_format, table_name
+        )
 
         # discover whether compression is enabled
         compression = "" if is_compression_disabled() else ", compression = 'gzip'"
@@ -168,12 +175,17 @@ class FilesystemSqlClient(WithTableScanners):
             first_file_type = self.get_file_format(table_schema)
 
             # build files string
-            supports_wildcard_notation = not self.is_abfss
+            supports_wildcard_notation = not self.is_abfss and is_folder
 
             resolved_files_string = f"'{table_location}/**/*.{first_file_type}'"
+
             if not supports_wildcard_notation:
+                # list_table_files returns a list of absolute paths but without scheme
                 files = self.remote_client.list_table_files(table_name)
-                resolved_files_string = ",".join(map(lambda f: f"'{protocol}://{f}'", files))
+                if protocol == "file":
+                    resolved_files_string = ",".join(map(lambda f: f"'{f}'", files))
+                else:
+                    resolved_files_string = ",".join(map(lambda f: f"'{protocol}://{f}'", files))
 
             if first_file_type == "parquet":
                 from_statement = f"read_parquet([{resolved_files_string}], union_by_name=true)"

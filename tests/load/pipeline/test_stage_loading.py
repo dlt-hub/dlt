@@ -118,9 +118,7 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
             == num_sql_jobs
         )
 
-    initial_counts = load_table_counts(
-        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
-    )
+    initial_counts = load_table_counts(pipeline)
     assert initial_counts["issues"] == 100
 
     # check item of first row in db
@@ -141,9 +139,7 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
         info = pipeline.run(load_modified_issues, **destination_config.run_kwargs)
         assert_load_info(info)
         assert pipeline.default_schema.tables["issues"]["write_disposition"] == "merge"
-        merge_counts = load_table_counts(
-            pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
-        )
+        merge_counts = load_table_counts(pipeline)
         assert merge_counts == initial_counts
 
         # check changes where merged in
@@ -175,9 +171,7 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
     assert_load_info(info)
     assert pipeline.default_schema.tables["issues"]["write_disposition"] == "append"
     # the counts of all tables must be double
-    append_counts = load_table_counts(
-        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
-    )
+    append_counts = load_table_counts(pipeline)
     assert {k: v * 2 for k, v in initial_counts.items()} == append_counts
 
     # test replace
@@ -189,9 +183,7 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
     assert_load_info(info)
     assert pipeline.default_schema.tables["issues"]["write_disposition"] == "replace"
     # the counts of all tables must be double
-    replace_counts = load_table_counts(
-        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
-    )
+    replace_counts = load_table_counts(pipeline)
     assert replace_counts == initial_counts
 
 
