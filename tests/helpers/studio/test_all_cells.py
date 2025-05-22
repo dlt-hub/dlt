@@ -27,7 +27,9 @@ global_defaults = {
     "dlt_schema_show_dlt_columns": mo.ui.switch(),
     "dlt_schema_show_type_hints": mo.ui.switch(),
     "dlt_pipeline": None,
+    "dlt_query_history_table": None,
     "dlt_query": "",
+    "dlt_loads_table": None,
 }
 
 
@@ -49,9 +51,11 @@ def test_run_all_cells():
             continue
         try:
             run_args = {k: v for k, v in global_defaults.items() if k in cell.refs}
+            missing_args = [arg for arg in cell.refs if arg not in global_defaults]
             cell.run(**run_args)
         except MarimoStopError:
             pass
         except Exception as e:
             print(f"Failed running cell {cell.name}: {e}")
+            print(f"Missing args: {missing_args}")
             raise e
