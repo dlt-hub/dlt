@@ -547,7 +547,7 @@ def page_state(
 
 
 @app.cell(hide_code=True)
-def page_last_trace(
+def page_trace(
     dlt_pipeline: dlt.Pipeline,
     dlt_page_tabs: marimo.ui.tabs,
 ) -> Any:
@@ -556,23 +556,50 @@ def page_last_trace(
     """
     from dlt.common.json import json as _json
     import marimo as _mo
-    from dlt.helpers.studio import strings as _s
+    from dlt.helpers.studio import strings as _s, utils as _u
 
     _mo.stop(not dlt_pipeline or _s.app_tab_last_trace not in dlt_page_tabs.value)
 
-    _last_trace = dlt_pipeline.last_trace
-    if not _last_trace:
-        _result = _mo.callout(
-            _mo.md(_s.last_trace_no_trace),
-            kind="warn",
+    dlt_trace = dlt_pipeline.last_trace
+    _stack = [_mo.md(_s.last_trace_title)]
+    if not dlt_trace:
+        _stack.append(
+            _mo.callout(
+                _mo.md(_s.last_trace_no_trace),
+                kind="warn",
+            )
         )
     else:
-        _result = _mo.ui.code_editor(
-            _json.dumps(_last_trace, pretty=True),
-            language="json",
-        )
+        _stack.append(_mo.md("## Execution context"))
+        _stack.append(_mo.ui.table(_u.trace_execution_context(dlt_trace.asdict()), selection=None))
+        _stack.append(_mo.md("## Steps overview"))
+        _stack.append(_mo.ui.table(_u.trace_steps_overview(dlt_trace.asdict()), selection="single"))
+    _mo.vstack(_stack)
 
-    _mo.vstack([_mo.md(_s.last_trace_title), _result])
+
+@app.cell(hide_code=True)
+def page_trace_section_raw_trace(
+    dlt_pipeline: dlt.Pipeline, dlt_page_tabs: marimo.ui.tabs, dlt_trace: str
+) -> Any:
+    import marimo as _mo
+    from dlt.helpers.studio import strings as _s, utils as _u
+    from dlt.common.json import json as _json
+
+    _mo.stop(not dlt_pipeline or _s.app_tab_last_trace not in dlt_page_tabs.value or not dlt_trace)
+
+    _mo.vstack(
+        [
+            _mo.accordion(
+                {
+                    _s.trace_raw_title: _mo.ui.code_editor(
+                        _json.dumps(dlt_trace, pretty=True),
+                        language="json",
+                    )
+                }
+            ),
+        ]
+    )
+    return
 
 
 @app.cell(hide_code=True)
