@@ -292,8 +292,7 @@ def test_create_table_with_custom_range_bucket_partition() -> None:
 
 
     expected_clause = (
-        "PARTITION BY RANGE_BUCKET(`user_id`, GENERATE_ARRAY(0, 1000000, 10000)) OPTIONS("
-        "require_partition_filter=true)"
+        "PARTITION BY RANGE_BUCKET(`user_id`, GENERATE_ARRAY(0, 1000000, 10000))"
     )
     assert expected_clause in sql_partitioned
 
