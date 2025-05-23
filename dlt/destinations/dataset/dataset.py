@@ -205,9 +205,9 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
                 f"SELECT '{table}' as table_name, COUNT(*) as row_count FROM"
                 f" {self.sql_client.make_qualified_table_name(table)}"
             )
-            queries.append(query)
             if load_id:
                 query += f" WHERE {dlt_load_id_col} = '{load_id}'"
+            queries.append(query)
 
         query = " UNION ALL ".join(queries)
 
