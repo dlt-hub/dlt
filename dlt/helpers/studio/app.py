@@ -1,4 +1,5 @@
 # flake8: noqa: F841
+# mypy: disable-error-code=no-untyped-def
 
 import marimo
 
@@ -52,7 +53,7 @@ def home(
                 mo.vstack(
                     [
                         mo.md(
-                            strings.app_quick_start_title.format(
+                            strings.home_quick_start_title.format(
                                 ui.build_pipeline_link_list(dlt_all_pipelines)
                             )
                         ),
@@ -61,7 +62,7 @@ def home(
                 ),
                 kind="info",
             ),
-            mo.md(strings.app_basics_text.format(len(dlt_all_pipelines), dlt_pipelines_dir)),
+            mo.md(strings.home_basics_text.format(len(dlt_all_pipelines), dlt_pipelines_dir)),
         ]
     else:
         _stack = [
@@ -82,13 +83,23 @@ def home(
 
 
 @app.cell(hide_code=True)
-def section_sync_status(dlt_pipeline: dlt.Pipeline):
+def section_sync_status(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_section_sync_switch: mo.ui.switch,
+):
     """
     Returns the status of the pipeline
     """
-    _result = []
+    _result = [
+        ui.build_page_header(
+            strings.sync_status_title,
+            strings.sync_status_subtitle,
+            strings.sync_status_subtitle_long,
+            dlt_section_sync_switch,
+        )
+    ]
 
-    if dlt_pipeline:
+    if dlt_pipeline and dlt_section_sync_switch.value:
         # sync pipeline
         with mo.status.spinner(title="Syncing pipeline state from destination..."):
             try:
@@ -96,30 +107,35 @@ def section_sync_status(dlt_pipeline: dlt.Pipeline):
                 _credentials = str(dlt_pipeline.dataset().destination_client.config.credentials)
                 _result.append(
                     mo.callout(
-                        mo.vstack([mo.md(strings.pipeline_sync_success_text.format(_credentials))]),
+                        mo.vstack([mo.md(strings.sync_status_success_text.format(_credentials))]),
                         kind="success",
                     )
                 )
             except Exception:
-                _result.append(ui.build_error_callout(strings.pipeline_sync_error_text))
+                _result.append(ui.build_error_callout(strings.sync_status_error_text))
     mo.vstack(_result) if _result else None
     return
 
 
 @app.cell(hide_code=True)
 def section_overview(
-    dlt_page_overview: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
+    dlt_section_overview_switch: mo.ui.switch,
 ):
     """
     Overview page of currently selected pipeline
     """
 
     _result = [
-        ui.build_page_header(strings.overview_title, strings.overview_subtitle, dlt_page_overview)
+        ui.build_page_header(
+            strings.overview_title,
+            strings.overview_subtitle,
+            strings.overview_subtitle,
+            dlt_section_overview_switch,
+        )
     ]
 
-    if dlt_pipeline and dlt_page_overview.value:
+    if dlt_pipeline and dlt_section_overview_switch.value:
         _result += [
             mo.ui.table(
                 utils.pipeline_details(dlt_pipeline),
@@ -133,19 +149,26 @@ def section_overview(
 
 @app.cell(hide_code=True)
 def section_schema_table_list(
-    dlt_page_schema: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
     dlt_schema_show_child_tables: mo.ui.switch,
     dlt_schema_show_dlt_tables: mo.ui.switch,
+    dlt_section_schema_switch: mo.ui.switch,
 ):
     """
     Show schema of the currently selected pipeline
     """
 
-    _result = [ui.build_page_header(strings.schema_title, strings.schema_subtitle, dlt_page_schema)]
+    _result = [
+        ui.build_page_header(
+            strings.schema_title,
+            strings.schema_subtitle,
+            strings.schema_subtitle_long,
+            dlt_section_schema_switch,
+        )
+    ]
 
-    if dlt_pipeline and dlt_page_schema.value:
-        dlt_schem_table_list: mo.ui.table = None
+    if dlt_pipeline and dlt_section_schema_switch.value:
+        dlt_schema_table_list: mo.ui.table = None
 
         if not dlt_pipeline.default_schema_name:
             _result.append(
@@ -166,25 +189,25 @@ def section_schema_table_list(
                 show_internals=dlt_schema_show_dlt_tables.value,
                 show_child_tables=dlt_schema_show_child_tables.value,
             )
-            dlt_schem_table_list = mo.ui.table(
+            dlt_schema_table_list = mo.ui.table(
                 _table_list,  # type: ignore[arg-type]
                 style_cell=utils.style_cell,
                 initial_selection=list(range(0, len(_table_list))),
             )
-            _result.append(dlt_schem_table_list)
+            _result.append(dlt_schema_table_list)
     mo.vstack(_result) if _result else None
-    return (dlt_schem_table_list,)
+    return (dlt_schema_table_list,)
 
 
 @app.cell(hide_code=True)
 def section_schema_table_details(
-    dlt_page_schema: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
-    dlt_schem_table_list: mo.ui.table,
     dlt_schema_show_custom_hints: mo.ui.switch,
     dlt_schema_show_dlt_columns: mo.ui.switch,
     dlt_schema_show_other_hints: mo.ui.switch,
     dlt_schema_show_type_hints: mo.ui.switch,
+    dlt_schema_table_list: mo.ui.table,
+    dlt_section_schema_switch: mo.ui.switch,
 ):
     """
     Show schema of the currently selected table
@@ -192,7 +215,7 @@ def section_schema_table_details(
 
     _result: List[Any] = []
 
-    if dlt_pipeline and dlt_page_schema.value and dlt_schem_table_list:
+    if dlt_pipeline and dlt_section_schema_switch.value and dlt_schema_table_list:
         # build table details
         _result.insert(0, mo.md("### Table details for selected tables"))
         _result.insert(
@@ -209,7 +232,7 @@ def section_schema_table_details(
         )
 
         # build table list
-        for table in dlt_schem_table_list.value:  # type: ignore[union-attr]
+        for table in dlt_schema_table_list.value:  # type: ignore[union-attr]
             _table_name = table["Name"]  # type: ignore[index]
             _result.append(mo.md(f"### `{_table_name}`"))
             _result.append(
@@ -244,11 +267,11 @@ def section_schema_table_details(
 
 @app.cell(hide_code=True)
 def section_browse_data_table_list(
-    dlt_page_browse_data: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
     dlt_schema_show_child_tables: mo.ui.switch,
     dlt_schema_show_dlt_tables: mo.ui.switch,
     dlt_schema_show_row_counts: mo.ui.switch,
+    dlt_section_browse_data_switch: mo.ui.switch,
 ):
     """
     Show data of the currently selected pipeline
@@ -256,11 +279,14 @@ def section_browse_data_table_list(
 
     _result = [
         ui.build_page_header(
-            strings.browse_data_title, strings.browse_data_subtitle, dlt_page_browse_data
+            strings.browse_data_title,
+            strings.browse_data_subtitle,
+            strings.browse_data_subtitle_long,
+            dlt_section_browse_data_switch,
         )
     ]
 
-    if dlt_pipeline and dlt_page_browse_data.value:
+    if dlt_pipeline and dlt_section_browse_data_switch.value:
         _result.append(
             mo.hstack(
                 [
@@ -289,7 +315,7 @@ def section_browse_data_table_list(
                 )
                 _result.append(dlt_data_table_list)
         except Exception:
-            _result.append(ui.build_error_callout(strings.browse_data_error))
+            _result.append(ui.build_error_callout(strings.browse_data_error_text))
     mo.vstack(_result) if _result else None
     return (dlt_data_table_list,)
 
@@ -299,9 +325,9 @@ def section_browse_data_query_editor(
     dlt_cache_query_results: mo.ui.switch,
     dlt_data_table_list: mo.ui.table,
     dlt_execute_query_on_change: mo.ui.switch,
-    dlt_page_browse_data: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
     dlt_restrict_to_last_1000: mo.ui.switch,
+    dlt_section_browse_data_switch: mo.ui.switch,
 ):
     """
     Show data of the currently selected pipeline
@@ -309,7 +335,7 @@ def section_browse_data_query_editor(
 
     _result = []
 
-    if dlt_pipeline and dlt_page_browse_data.value and dlt_data_table_list:
+    if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_data_table_list:
         _sql_query = ""
         if dlt_data_table_list.value:
             _table_name = dlt_data_table_list.value[0]["Name"]  # type: ignore[index]
@@ -356,10 +382,10 @@ def section_browse_data_query_editor(
 def section_browse_data_execute_query(
     dlt_data_table_list: mo.ui.table,
     dlt_execute_query_on_change: mo.ui.switch,
-    dlt_page_browse_data: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
     dlt_query_editor: mo.ui.code_editor,
     dlt_run_query_button: mo.ui.run_button,
+    dlt_section_browse_data_switch: mo.ui.switch,
 ):
     """
     Execute the query in the editor
@@ -367,7 +393,7 @@ def section_browse_data_execute_query(
 
     _result = []
 
-    if dlt_pipeline and dlt_page_browse_data.value and dlt_data_table_list:
+    if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_data_table_list:
         dlt_query_result: pd.DataFrame = None
         with mo.status.spinner(title="Loading data from destination"):
             if dlt_query_editor.value and (
@@ -396,9 +422,9 @@ def section_browse_data_execute_query(
 @app.cell(hide_code=True)
 def section_browse_data_data_explorer(
     dlt_data_table_list: mo.ui.table,
-    dlt_page_browse_data: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
     dlt_query_result: pd.DataFrame,
+    dlt_section_browse_data_switch: mo.ui.switch,
 ):
     """
     Show data of the currently selected pipeline
@@ -406,7 +432,7 @@ def section_browse_data_data_explorer(
 
     _result: List[Any] = []
     dlt_query_history_table: mo.ui.table = None
-    if dlt_pipeline and dlt_page_browse_data.value and dlt_data_table_list:
+    if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_data_table_list:
         _query_history = utils.get_query_history(dlt_pipeline)
         dlt_query_history_table = mo.ui.table(_query_history)
 
@@ -425,12 +451,12 @@ def section_browse_data_data_explorer(
 @app.cell(hide_code=True)
 def section_browse_data_cached_query(
     dlt_data_table_list: mo.ui.table,
-    dlt_page_browse_data: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
     dlt_query_history_table: mo.ui.table,
+    dlt_section_browse_data_switch: mo.ui.switch,
 ):
     _result: List[Any] = []
-    if dlt_pipeline and dlt_page_browse_data.value and dlt_data_table_list:
+    if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_data_table_list:
         for _r in dlt_query_history_table.value:  # type: ignore
             _query = _r["Query"]  # type: ignore
             _q_result = utils.get_query_result(dlt_pipeline, _query)
@@ -441,13 +467,23 @@ def section_browse_data_cached_query(
 
 
 @app.cell(hide_code=True)
-def section_state(dlt_page_state: mo.ui.switch, dlt_pipeline: dlt.Pipeline):
+def section_state(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_section_state_switch: mo.ui.switch,
+):
     """
     Show state of the currently selected pipeline
     """
-    _result = [ui.build_page_header(strings.state_title, strings.state_subtitle, dlt_page_state)]
+    _result = [
+        ui.build_page_header(
+            strings.state_title,
+            strings.state_subtitle,
+            strings.state_subtitle,
+            dlt_section_state_switch,
+        )
+    ]
 
-    if dlt_pipeline and dlt_page_state.value:
+    if dlt_pipeline and dlt_section_state_switch.value:
         _result.append(
             mo.ui.code_editor(
                 json.dumps(dlt_pipeline.state, pretty=True),
@@ -459,19 +495,29 @@ def section_state(dlt_page_state: mo.ui.switch, dlt_pipeline: dlt.Pipeline):
 
 
 @app.cell(hide_code=True)
-def section_trace(dlt_page_trace: mo.ui.switch, dlt_pipeline: dlt.Pipeline):
+def section_trace(
+    dlt_pipeline: dlt.Pipeline,
+    dlt_section_trace_switch: mo.ui.switch,
+):
     """
     Show last trace of the currently selected pipeline
     """
 
-    _result = [ui.build_page_header(strings.trace_title, strings.trace_subtitle, dlt_page_trace)]
+    _result = [
+        ui.build_page_header(
+            strings.trace_title,
+            strings.trace_subtitle,
+            strings.trace_subtitle,
+            dlt_section_trace_switch,
+        )
+    ]
 
-    if dlt_pipeline and dlt_page_trace.value:
+    if dlt_pipeline and dlt_section_trace_switch.value:
         dlt_trace = dlt_pipeline.last_trace
         if not dlt_trace:
             _result.append(
                 mo.callout(
-                    mo.md(strings.last_trace_no_trace),
+                    mo.md(strings.trace_no_trace_text),
                     kind="warn",
                 )
             )
@@ -488,7 +534,7 @@ def section_trace(dlt_page_trace: mo.ui.switch, dlt_pipeline: dlt.Pipeline):
             _result.append(
                 mo.accordion(
                     {
-                        strings.trace_raw_title: mo.ui.code_editor(
+                        strings.trace_show_raw_trace_text: mo.ui.code_editor(
                             json.dumps(dlt_trace, pretty=True),
                             language="json",
                         )
@@ -502,17 +548,24 @@ def section_trace(dlt_page_trace: mo.ui.switch, dlt_pipeline: dlt.Pipeline):
 @app.cell(hide_code=True)
 def section_loads(
     dlt_cache_query_results: mo.ui.switch,
-    dlt_page_loads: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
     dlt_restrict_to_last_1000: mo.ui.switch,
+    dlt_section_loads_switch: mo.ui.switch,
 ):
     """
     Show loads of the currently selected pipeline
     """
 
-    _result = [ui.build_page_header(strings.loads_title, strings.loads_subtitle, dlt_page_loads)]
+    _result = [
+        ui.build_page_header(
+            strings.loads_title,
+            strings.loads_subtitle,
+            strings.loads_subtitle_long,
+            dlt_section_loads_switch,
+        )
+    ]
 
-    if dlt_pipeline and dlt_page_loads.value:
+    if dlt_pipeline and dlt_section_loads_switch.value:
         _result.append(
             mo.hstack([dlt_cache_query_results, dlt_restrict_to_last_1000], justify="start")
         )
@@ -526,7 +579,7 @@ def section_loads(
                 dlt_loads_table = mo.ui.table(_loads_data, selection="single")
                 _result.append(dlt_loads_table)
             except Exception:
-                _result.append(ui.build_error_callout(strings.loading_load_failes))
+                _result.append(ui.build_error_callout(strings.loads_loading_failed_text))
     mo.vstack(_result) if _result else None
     return (dlt_loads_table,)
 
@@ -534,15 +587,20 @@ def section_loads(
 @app.cell(hide_code=True)
 def section_loads_details(
     dlt_loads_table: mo.ui.table,
-    dlt_page_loads: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
+    dlt_section_loads_switch: mo.ui.switch,
 ):
     """
     Show details of the currently selected load
     """
     _result = []
 
-    if dlt_pipeline and dlt_page_loads.value and dlt_loads_table and dlt_loads_table.value:
+    if (
+        dlt_pipeline
+        and dlt_section_loads_switch.value
+        and dlt_loads_table
+        and dlt_loads_table.value
+    ):
         _load_id = dlt_loads_table.value[0]["load_id"]  # type: ignore
 
         try:
@@ -590,42 +648,45 @@ def section_loads_details(
                 )
 
         except Exception:
-            _result.append(ui.build_error_callout(strings.loads_details_error))
+            _result.append(ui.build_error_callout(strings.loads_details_error_text))
     mo.vstack(_result) if _result else None
     return
 
 
 @app.cell(hide_code=True)
 def section_ibis_backend(
-    dlt_page_ibis_browser: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
+    dlt_section_ibis_browser_switch: mo.ui.switch,
 ):
     """
     Connects to ibis backend and makes it available in the datasources panel
     """
     _result = [
         ui.build_page_header(
-            strings.ibis_backend_title, strings.ibis_backend_subtitle, dlt_page_ibis_browser
+            strings.ibis_backend_title,
+            strings.ibis_backend_subtitle,
+            strings.ibis_backend_subtitle,
+            dlt_section_ibis_browser_switch,
         )
     ]
 
-    if dlt_pipeline and dlt_page_ibis_browser.value:
+    if dlt_pipeline and dlt_section_ibis_browser_switch.value:
         try:
             with mo.status.spinner(title="Connecting Ibis Backend..."):
                 con = dlt_pipeline.dataset().ibis()
             _result.append(
-                mo.callout(mo.vstack([mo.md(strings.ibis_backend_connected)]), kind="success")
+                mo.callout(mo.vstack([mo.md(strings.ibis_backend_connected_text)]), kind="success")
             )
         except Exception:
-            _result.append(ui.build_error_callout(strings.ibis_connect_error))
+            _result.append(ui.build_error_callout(strings.ibis_backend_error_text))
     mo.vstack(_result) if _result else None
     return
 
 
 @app.cell(hide_code=True)
 def utils_discover_pipelines(
-    cli_arg_pipelines_dir: str,
-    query_var_pipeline_name: str,
+    mo_cli_arg_pipelines_dir: str,
+    mo_query_var_pipeline_name: str,
 ):
     """
     Discovers local pipelines and returns a multiselect widget to select one of the pipelines
@@ -634,12 +695,12 @@ def utils_discover_pipelines(
     # discover pipelines and build selector
     dlt_pipelines_dir: str = ""
     dlt_all_pipelines: List[Dict[str, Any]] = []
-    dlt_pipelines_dir, dlt_all_pipelines = utils.get_local_pipelines(cli_arg_pipelines_dir)
+    dlt_pipelines_dir, dlt_all_pipelines = utils.get_local_pipelines(mo_cli_arg_pipelines_dir)
     dlt_pipeline_select: mo.ui.multiselect = mo.ui.multiselect(
         options=[p["name"] for p in dlt_all_pipelines],
-        value=[query_var_pipeline_name] if query_var_pipeline_name else None,
+        value=[mo_query_var_pipeline_name] if mo_query_var_pipeline_name else None,
         max_selections=1,
-        label=strings.pipeline_select_label,
+        label=strings.app_pipeline_select_label,
         on_change=lambda value: mo.query_params().set("pipeline", str(value[0]) if value else None),
     )
 
@@ -667,13 +728,14 @@ def utils_controls():
     """
 
     # page switches
-    dlt_page_overview: mo.ui.switch = mo.ui.switch(value=True)
-    dlt_page_schema: mo.ui.switch = mo.ui.switch(value=False)
-    dlt_page_browse_data: mo.ui.switch = mo.ui.switch(value=False)
-    dlt_page_state: mo.ui.switch = mo.ui.switch(value=False)
-    dlt_page_trace: mo.ui.switch = mo.ui.switch(value=False)
-    dlt_page_loads: mo.ui.switch = mo.ui.switch(value=False)
-    dlt_page_ibis_browser: mo.ui.switch = mo.ui.switch(value=False)
+    dlt_section_sync_switch: mo.ui.switch = mo.ui.switch(value=True)
+    dlt_section_overview_switch: mo.ui.switch = mo.ui.switch(value=True)
+    dlt_section_schema_switch: mo.ui.switch = mo.ui.switch(value=False)
+    dlt_section_browse_data_switch: mo.ui.switch = mo.ui.switch(value=False)
+    dlt_section_state_switch: mo.ui.switch = mo.ui.switch(value=False)
+    dlt_section_trace_switch: mo.ui.switch = mo.ui.switch(value=False)
+    dlt_section_loads_switch: mo.ui.switch = mo.ui.switch(value=False)
+    dlt_section_ibis_browser_switch: mo.ui.switch = mo.ui.switch(value=False)
 
     # other switches
     dlt_schema_show_dlt_tables: mo.ui.switch = mo.ui.switch(
@@ -709,13 +771,6 @@ def utils_controls():
     return (
         dlt_cache_query_results,
         dlt_execute_query_on_change,
-        dlt_page_browse_data,
-        dlt_page_ibis_browser,
-        dlt_page_loads,
-        dlt_page_overview,
-        dlt_page_schema,
-        dlt_page_state,
-        dlt_page_trace,
         dlt_restrict_to_last_1000,
         dlt_schema_show_child_tables,
         dlt_schema_show_custom_hints,
@@ -724,6 +779,14 @@ def utils_controls():
         dlt_schema_show_other_hints,
         dlt_schema_show_row_counts,
         dlt_schema_show_type_hints,
+        dlt_section_browse_data_switch,
+        dlt_section_ibis_browser_switch,
+        dlt_section_loads_switch,
+        dlt_section_overview_switch,
+        dlt_section_schema_switch,
+        dlt_section_state_switch,
+        dlt_section_sync_switch,
+        dlt_section_trace_switch,
     )
 
 
@@ -732,9 +795,9 @@ def utils_cli_args_and_query_vars():
     """
     Prepare cli args  as globals for the following cells
     """
-    query_var_pipeline_name: str = cast(str, mo.query_params().get("pipeline")) or None
-    cli_arg_pipelines_dir: str = cast(str, mo.cli_args().get("pipelines_dir")) or None
-    return cli_arg_pipelines_dir, query_var_pipeline_name
+    mo_query_var_pipeline_name: str = cast(str, mo.query_params().get("pipeline")) or None
+    mo_cli_arg_pipelines_dir: str = cast(str, mo.cli_args().get("pipelines_dir")) or None
+    return mo_cli_arg_pipelines_dir, mo_query_var_pipeline_name
 
 
 if __name__ == "__main__":
