@@ -130,13 +130,20 @@ def bigquery_adapter(
     column_hints: TTableSchemaColumns = {}
 
     if partition:
-        if not isinstance(partition, str):
-            raise ValueError("`partition` must be a single column name as a string.")
+        if not (isinstance(partition, str) or isinstance(partition, PartitionTransformation)):
+            raise ValueError("`partition` must be a single column name as a string or a PartitionTransformation.")
 
         # Can only have one partition column.
         for column in resource.columns.values():  # type: ignore[union-attr]
             column.pop(PARTITION_HINT, None)  # type: ignore[typeddict-item]
-        column_hints[partition] = {"name": partition, PARTITION_HINT: True}  # type: ignore[typeddict-unknown-key]
+        
+        if isinstance(partition, str):
+            column_hints[partition] = {"name": partition, PARTITION_HINT: True}  # type: ignore[typeddict-unknown-key]
+        
+        if isinstance(partition, PartitionTransformation):
+            partition_hint: Dict[str, str] = {}
+            partition_hint[partition.column_name] = partition.template
+            additional_table_hints[PARTITION_HINT] = partition_hint
 
     if cluster:
         if isinstance(cluster, str):

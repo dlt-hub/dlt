@@ -571,7 +571,7 @@ def test_adapter_hints_parsing_partitioning_more_than_one_column() -> None:
         "col2": {"data_type": "bigint", "name": "col2"},
     }
 
-    with pytest.raises(ValueError, match="^`partition` must be a single column name as a string.$"):
+    with pytest.raises(ValueError, match="^`partition` must be a single column name as a string or a PartitionTransformation.$"):
         bigquery_adapter(some_data, partition=["col1", "col2"])
 
 
