@@ -106,14 +106,14 @@ browse_data_explorer_title = """
 <small>Select a table above or write a SQL query in the text area below to explore the data in the destination. The query will be executed on the destination and the results will be displayed in a table. If you disable query caching, all cached queries will be purged.</small>
 """
 
-browse_data_query_result_title = """## Browse data: Query result"""
+browse_data_query_result_title = """Browse data: Query result"""
 
-browse_data_query_history_title = """
-## Browse data: Cached queries history
-<small>The following list shows all the queries that have been executed on the destination and are present in the cache. Select one or more to see the result again below and compare.</small>
-"""
+browse_data_query_history_title = """Browse data: Cached queries history"""
+browse_data_query_history_subtitle = """The following list shows all the queries that have been executed on the destination and are present in the cache. Select one or more to see the result again below and compare."""
 
 browse_data_query_error = """Error executing SQL query:"""
+
+browse_data_query_hint = """SELECT \n  * \nFROM dataset.table \nLIMIT 1000"""
 
 #
 # State page
@@ -149,14 +149,11 @@ loads_subtitle_long = (
 loads_loading_failed_text = f"Loading loads from destination failed. {_credentials_info}"
 
 # loads details
-loads_details_row_counts = """
-### Row counts
-<small>The row counts associated with this load. Will only show tables that have a _dlt_load_id column, which excludes child tables and some of the system tables.</small>
-"""
-loads_details_schema_version = """
-### Schema details
-<small>The full schema that was the result of this load. This schema and version <strong>{}</strong> the current default schema.</small>
-"""
+loads_details_row_counts_title = """Row counts"""
+loads_details_row_counts_subtitle = """The row counts associated with this load. Will only show tables that have a _dlt_load_id column, which excludes child tables and some of the system tables."""
+loads_details_schema_version_title = """Schema details"""
+loads_details_schema_version_subtitle = """The full schema that was the result of this load. This schema and version <strong>{}</strong> the current default schema."""
+
 loads_details_error_text = """Error loading load details"""
 
 #
