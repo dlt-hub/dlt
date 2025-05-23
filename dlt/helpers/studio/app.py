@@ -153,6 +153,11 @@ def section_schema_table_list(
     dlt_schema_show_child_tables: mo.ui.switch,
     dlt_schema_show_dlt_tables: mo.ui.switch,
     dlt_section_schema_switch: mo.ui.switch,
+    dlt_schema_table_list: mo.ui.table,
+    dlt_schema_show_dlt_columns: mo.ui.switch,
+    dlt_schema_show_type_hints: mo.ui.switch,
+    dlt_schema_show_other_hints: mo.ui.switch,
+    dlt_schema_show_custom_hints: mo.ui.switch,
 ):
     """
     Show schema of the currently selected pipeline
@@ -167,59 +172,23 @@ def section_schema_table_list(
         )
     ]
 
-    if dlt_pipeline and dlt_section_schema_switch.value:
-        dlt_schema_table_list: mo.ui.table = None
-
-        if not dlt_pipeline.default_schema_name:
-            _result.append(
-                mo.callout(
-                    mo.md("No Default Schema available. Does your pipeline have a completed load?"),
-                    kind="warn",
-                )
+    if dlt_pipeline and dlt_section_schema_switch.value and not dlt_schema_table_list:
+        _result.append(
+            mo.callout(
+                mo.md("No Default Schema available. Does your pipeline have a completed load?"),
+                kind="warn",
             )
+        )
+    elif dlt_pipeline and dlt_section_schema_switch.value:
+        # build table overview
+        _result.append(
+            mo.hstack([dlt_schema_show_dlt_tables, dlt_schema_show_child_tables], justify="start")
+        )
+        _result.append(dlt_schema_table_list)
 
-        else:
-            _result.append(
-                mo.hstack(
-                    [dlt_schema_show_dlt_tables, dlt_schema_show_child_tables], justify="start"
-                )
-            )
-            _table_list = utils.create_table_list(
-                dlt_pipeline,
-                show_internals=dlt_schema_show_dlt_tables.value,
-                show_child_tables=dlt_schema_show_child_tables.value,
-            )
-            dlt_schema_table_list = mo.ui.table(
-                _table_list,  # type: ignore[arg-type]
-                style_cell=utils.style_cell,
-                initial_selection=list(range(0, len(_table_list))),
-            )
-            _result.append(dlt_schema_table_list)
-    mo.vstack(_result) if _result else None
-    return (dlt_schema_table_list,)
-
-
-@app.cell(hide_code=True)
-def section_schema_table_details(
-    dlt_pipeline: dlt.Pipeline,
-    dlt_schema_show_custom_hints: mo.ui.switch,
-    dlt_schema_show_dlt_columns: mo.ui.switch,
-    dlt_schema_show_other_hints: mo.ui.switch,
-    dlt_schema_show_type_hints: mo.ui.switch,
-    dlt_schema_table_list: mo.ui.table,
-    dlt_section_schema_switch: mo.ui.switch,
-):
-    """
-    Show schema of the currently selected table
-    """
-
-    _result: List[Any] = []
-
-    if dlt_pipeline and dlt_section_schema_switch.value and dlt_schema_table_list:
-        # build table details
-        _result.insert(0, mo.md("### Table details for selected tables"))
-        _result.insert(
-            0,
+        # add table details
+        _result.append(mo.md("### Table details for selected tables"))
+        _result.append(
             mo.hstack(
                 [
                     dlt_schema_show_dlt_columns,
@@ -231,7 +200,6 @@ def section_schema_table_details(
             ),
         )
 
-        # build table list
         for table in dlt_schema_table_list.value:  # type: ignore[union-attr]
             _table_name = table["Name"]  # type: ignore[index]
             _result.append(mo.md(f"### `{_table_name}`"))
@@ -250,7 +218,8 @@ def section_schema_table_details(
                 )
             )
 
-        # build raw schema
+        # add raw schema
+        _result.append(mo.md("### Raw schema as yaml"))
         _result.append(
             mo.accordion(
                 {
@@ -262,7 +231,7 @@ def section_schema_table_details(
             )
         )
     mo.vstack(_result) if _result else None
-    return
+    return (dlt_schema_table_list,)
 
 
 @app.cell(hide_code=True)
@@ -722,7 +691,7 @@ def utils_purge_caches(
 
 
 @app.cell(hide_code=True)
-def utils_controls():
+def ui_controls():
     """
     Control elements for various parts of the app
     """
@@ -788,6 +757,34 @@ def utils_controls():
         dlt_section_sync_switch,
         dlt_section_trace_switch,
     )
+
+
+@app.cell(hide_code=True)
+def ui_primary_controls(
+    dlt_section_schema_switch: mo.ui.switch,
+    dlt_pipeline: dlt.Pipeline,
+    dlt_schema_show_dlt_tables: mo.ui.switch,
+    dlt_schema_show_child_tables: mo.ui.switch,
+):
+    """
+    Helper cell for creating certain controls based on selected sections
+    """
+
+    #
+    # Schema controls
+    #
+    dlt_schema_table_list: mo.ui.table = None
+    if dlt_section_schema_switch.value and dlt_pipeline:
+        _table_list = utils.create_table_list(
+            dlt_pipeline,
+            show_internals=dlt_schema_show_dlt_tables.value,
+            show_child_tables=dlt_schema_show_child_tables.value,
+        )
+        dlt_schema_table_list = mo.ui.table(
+            _table_list,  # type: ignore[arg-type]
+            style_cell=utils.style_cell,
+            initial_selection=list(range(0, len(_table_list))),
+        )
 
 
 @app.cell(hide_code=True)

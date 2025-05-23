@@ -2,6 +2,17 @@
 :root {
   --marimo-heading-font: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell;
   --marimo-monospace-font: monospace;
+
+  /* dlt colors */
+  --dlt-color-lime: #c6d300;
+  --dlt-color-aqua: #59c1d5;
+  --dlt-color-purple: #191937;
+
+  /* background colors */
+  --dlt-color-lime-background: #c6d30006;
+  --dlt-color-aqua-background: #59c1d506;
+  --dlt-color-purple-background: #19193706;
+
 }
 
 /* Make headings bold */
@@ -10,9 +21,15 @@
   margin-bottom: 0.5rem;
 }
 
+.markdown h2 {
+  color: var(--dlt-color-purple);
+}
+
 .markdown h3 {
   font-weight: 600;
   margin-bottom: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #ccc;
 }
 
 
@@ -31,5 +48,6 @@
 
 #App .marimo-cell {
   border: 1px dashed #dddddd;
-  margin: 5px;
+  margin: 0.2rem;
+  background-color: var(--dlt-color-lime-background);
 }
