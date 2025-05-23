@@ -258,6 +258,7 @@ def section_browse_data_table_list(
         )
     ]
 
+    dlt_query_editor: mo.ui.code_editor = None
     if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_data_table_list:
         try:
             # try to connect to the dataset
@@ -284,7 +285,7 @@ def section_browse_data_table_list(
                     .query()
                 )
 
-            dlt_query_editor: mo.ui.code_editor = mo.ui.code_editor(
+            dlt_query_editor = mo.ui.code_editor(
                 language="sql",
                 placeholder=strings.browse_data_query_hint,
                 value=_sql_query,
@@ -306,6 +307,8 @@ def section_browse_data_table_list(
             _result.append(dlt_run_query_button)
         except Exception:
             _result.append(ui.build_error_callout(strings.browse_data_error_text))
+    elif dlt_pipeline and dlt_section_browse_data_switch.value:
+        _result.append(ui.build_error_callout(strings.browse_data_error_text))
     mo.vstack(_result) if _result else None
     return dlt_query_editor, dlt_run_query_button
 
@@ -328,7 +331,12 @@ def section_browse_data_query_result(
     dlt_query_history_table: mo.ui.table = None
     dlt_query_error_encountered: bool = False
 
-    if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_data_table_list:
+    if (
+        dlt_pipeline
+        and dlt_section_browse_data_switch.value
+        and dlt_data_table_list
+        and dlt_query_editor
+    ):
         _result.append(ui.build_title_and_subtitle(strings.browse_data_query_result_title))
         with mo.status.spinner(title="Loading data from destination"):
             if dlt_query_editor.value and (dlt_run_query_button.value):
@@ -647,20 +655,38 @@ def utils_purge_caches(
 
 
 @app.cell(hide_code=True)
-def ui_controls():
+def ui_controls(
+    mo_cli_arg_with_test_identifiers: bool,
+):
     """
     Control elements for various parts of the app
     """
 
     # page switches
-    dlt_section_sync_switch: mo.ui.switch = mo.ui.switch(value=True)
-    dlt_section_overview_switch: mo.ui.switch = mo.ui.switch(value=True)
-    dlt_section_schema_switch: mo.ui.switch = mo.ui.switch(value=False)
-    dlt_section_browse_data_switch: mo.ui.switch = mo.ui.switch(value=False)
-    dlt_section_state_switch: mo.ui.switch = mo.ui.switch(value=False)
-    dlt_section_trace_switch: mo.ui.switch = mo.ui.switch(value=False)
-    dlt_section_loads_switch: mo.ui.switch = mo.ui.switch(value=False)
-    dlt_section_ibis_browser_switch: mo.ui.switch = mo.ui.switch(value=False)
+    dlt_section_sync_switch: mo.ui.switch = mo.ui.switch(
+        value=True, label="sync" if mo_cli_arg_with_test_identifiers else ""
+    )
+    dlt_section_overview_switch: mo.ui.switch = mo.ui.switch(
+        value=True, label="overview" if mo_cli_arg_with_test_identifiers else ""
+    )
+    dlt_section_schema_switch: mo.ui.switch = mo.ui.switch(
+        value=False, label="schema" if mo_cli_arg_with_test_identifiers else ""
+    )
+    dlt_section_browse_data_switch: mo.ui.switch = mo.ui.switch(
+        value=False, label="data" if mo_cli_arg_with_test_identifiers else ""
+    )
+    dlt_section_state_switch: mo.ui.switch = mo.ui.switch(
+        value=False, label="state" if mo_cli_arg_with_test_identifiers else ""
+    )
+    dlt_section_trace_switch: mo.ui.switch = mo.ui.switch(
+        value=False, label="trace" if mo_cli_arg_with_test_identifiers else ""
+    )
+    dlt_section_loads_switch: mo.ui.switch = mo.ui.switch(
+        value=False, label="loads" if mo_cli_arg_with_test_identifiers else ""
+    )
+    dlt_section_ibis_browser_switch: mo.ui.switch = mo.ui.switch(
+        value=False, label="ibis" if mo_cli_arg_with_test_identifiers else ""
+    )
 
     # other switches
     dlt_schema_show_dlt_tables: mo.ui.switch = mo.ui.switch(
@@ -744,7 +770,7 @@ def ui_primary_controls(
     # Browse data controls
     #
     dlt_data_table_list: mo.ui.table = None
-    if dlt_section_browse_data_switch.value and dlt_pipeline:
+    if dlt_section_browse_data_switch.value and dlt_pipeline and dlt_pipeline.default_schema_name:
         dlt_data_table_list = mo.ui.table(
             utils.create_table_list(  # type: ignore[arg-type]
                 dlt_pipeline,
@@ -765,7 +791,10 @@ def utils_cli_args_and_query_vars():
     """
     mo_query_var_pipeline_name: str = cast(str, mo.query_params().get("pipeline")) or None
     mo_cli_arg_pipelines_dir: str = cast(str, mo.cli_args().get("pipelines_dir")) or None
-    return mo_cli_arg_pipelines_dir, mo_query_var_pipeline_name
+    mo_cli_arg_with_test_identifiers: bool = (
+        cast(bool, mo.cli_args().get("with_test_identifiers")) or False
+    )
+    return mo_cli_arg_pipelines_dir, mo_query_var_pipeline_name, mo_cli_arg_with_test_identifiers
 
 
 if __name__ == "__main__":

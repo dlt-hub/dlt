@@ -6,7 +6,6 @@ import marimo as _mo
 
 _credentials_info = "Has your pipeline been run and are your credentials in scope of dltHub studio?"
 
-
 #
 # App general
 #
