@@ -20,6 +20,8 @@ from dlt.sources._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
 )
 
+from dlt.helpers.studio import strings as app_strings
+
 
 @pytest.fixture(autouse=True)
 def setup_pipelines() -> Any:
@@ -48,13 +50,28 @@ def _go_home(page: Page) -> None:
     page.goto("http://localhost:2718")
 
 
-def _goto_tab(
+known_sections = [
+    "sync",
+    "overview",
+    "schema",
+    "data",
+    "state",
+    "trace",
+    "loads",
+    "ibis",
+]
+
+
+def _open_section(
     page: Page,
-    tab: Literal[
-        "Overview", "Schema", "Browse Data", "Last Trace", "State", "Loads", "Ibis-Browser"
-    ],
+    section: Literal["sync", "overview", "schema", "data", "state", "trace", "loads", "ibis"],
+    close_other_sections: bool = True,
 ) -> None:
-    page.get_by_role("tab", name=tab).click()
+    if close_other_sections:
+        for s in known_sections:
+            if s != section:
+                page.get_by_role("switch", name=s).uncheck()
+    page.get_by_role("switch", name=section).check()
 
 
 def test_page_loads(page: Page):
@@ -75,19 +92,22 @@ def test_page_loads(page: Page):
     # simple check for  one two three pipeline
     page.get_by_role("link", name="one_two_three").click()
 
-    # overview page
-    _goto_tab(page, "Overview")
+    # sync page
+    _open_section(page, "sync", close_other_sections=False)
     expect(page.get_by_text("Pipeline state synced successfully from duckdb")).to_be_visible()
+
+    # overview page
+    _open_section(page, "overview")
     expect(page.get_by_text("_storage/.dlt/pipelines/one_two_three")).to_be_visible()
 
     # check schema info (this is the yaml part)
-    _goto_tab(page, "Schema")
+    _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
     expect(page.get_by_text("name: one_two_three").nth(1)).to_be_attached()
 
     # browse data
-    _goto_tab(page, "Browse Data")
-    expect(page.get_by_text("Last successful query result").nth(1)).to_be_visible()
+    _open_section(page, "data")
+    expect(page.get_by_text("Browse data: Query result").nth(1)).to_be_visible()
 
     # check first table
     page.get_by_role("checkbox").nth(0).check()
@@ -97,27 +117,27 @@ def test_page_loads(page: Page):
     page.get_by_role("switch", name="Show _dlt tables").check()
 
     # state page
-    _goto_tab(page, "State")
+    _open_section(page, "state")
     expect(
         page.get_by_text('"dataset_name": "one_two_three_dataset"')
     ).to_be_visible()  # this is part of the state yaml
 
     # last trace page
-    _goto_tab(page, "Last Trace")
+    _open_section(page, "trace")
     expect(page.get_by_text("An overview of the last load trace ")).to_be_visible()
-    page.get_by_text("Show raw trace as json").click()
+    page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
         page.get_by_text('"pipeline_name": "one_two_three"').nth(0)
     ).to_be_visible()  # this is part of the trace yaml
 
     # loads page
-    _goto_tab(page, "Loads")
+    _open_section(page, "loads")
     expect(
         page.get_by_role("row", name="one_two_three").nth(0)
     ).to_be_visible()  #  this is in the loads table
 
     # ibis page
-    _goto_tab(page, "Ibis-Browser")
+    _open_section(page, "ibis")
     expect(page.get_by_text("Ibis Backend connected successfully.")).to_be_visible()
 
     #
@@ -128,39 +148,42 @@ def test_page_loads(page: Page):
     _go_home(page)
     page.get_by_role("link", name="fruit_pipeline").click()
 
-    # overview page
-    _goto_tab(page, "Overview")
+    # sync page
+    _open_section(page, "sync", close_other_sections=False)
     expect(page.get_by_text("Pipeline state synced successfully from duckdb")).to_be_visible()
+
+    # overview page
+    _open_section(page, "overview")
     expect(page.get_by_text("_storage/.dlt/pipelines/fruit_pipeline")).to_be_visible()
 
     # check schema info (this is the yaml part)
-    _goto_tab(page, "Schema")
+    _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
     expect(page.get_by_text("name: fruitshop").nth(1)).to_be_attached()
 
     # browse data
-    _goto_tab(page, "Browse Data")
-    expect(page.get_by_text("Last successful query result").nth(1)).to_be_visible()
+    _open_section(page, "data")
+    expect(page.get_by_text("Browse data: Query result").nth(1)).to_be_visible()
 
-    _goto_tab(page, "State")
+    _open_section(page, "state")
     expect(page.get_by_text('"dataset_name": "fruit_pipeline_dataset"')).to_be_visible()
 
     # last trace page
-    _goto_tab(page, "Last Trace")
+    _open_section(page, "trace")
     expect(page.get_by_text("An overview of the last load trace ")).to_be_visible()
-    page.get_by_text("Show raw trace as json").click()
+    page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
         page.get_by_text('"pipeline_name": "fruit_pipeline"').nth(0)
     ).to_be_visible()  # this is part of the trace yaml
 
     # loads page
-    _goto_tab(page, "Loads")
+    _open_section(page, "loads")
     expect(
         page.get_by_role("row", name="fruitshop").nth(0)
     ).to_be_visible()  #  this is in the loads table
 
     # ibis page
-    _goto_tab(page, "Ibis-Browser")
+    _open_section(page, "ibis")
     expect(page.get_by_text("Ibis Backend connected successfully.")).to_be_visible()
 
     #
@@ -174,29 +197,29 @@ def test_page_loads(page: Page):
     expect(page.get_by_text("_storage/.dlt/pipelines/never_run_pipeline")).to_be_visible()
 
     # check schema info (this is the yaml part)
-    _goto_tab(page, "Schema")
+    _open_section(page, "schema")
     expect(page.get_by_text("No Default Schema available")).to_be_visible()
 
     # browse data
-    _goto_tab(page, "Browse Data")
+    _open_section(page, "data")
     expect(page.get_by_text("Error connecting to destination")).to_be_visible()
 
-    _goto_tab(page, "State")
+    _open_section(page, "state")
     expect(page.get_by_text('"dataset_name": "never_run_pipeline_dataset"')).to_be_visible()
 
-    _goto_tab(page, "Last Trace")
+    _open_section(page, "trace")
     expect(page.get_by_text("An overview of the last load trace ")).to_be_visible()
     expect(
         page.get_by_text("No local trace available for the selected pipeline.").nth(0)
     ).to_be_visible()  # this is part of the trace yaml
 
     # loads page
-    _goto_tab(page, "Loads")
+    _open_section(page, "loads")
     expect(
         page.get_by_text("Loading loads from destination failed.")
     ).to_be_visible()  # this is part of the trace yaml
 
-    _goto_tab(page, "Ibis-Browser")
+    _open_section(page, "ibis")
     expect(page.get_by_text("Error connecting to Ibis Backend")).to_be_visible()
 
     #
@@ -211,30 +234,30 @@ def test_page_loads(page: Page):
     expect(page.get_by_text("_storage/.dlt/pipelines/no_destination_pipeline")).to_be_visible()
 
     # check schema info (this is the yaml part)
-    _goto_tab(page, "Schema")
+    _open_section(page, "schema")
     page.get_by_text("Show raw schema as yaml").click()
     expect(page.get_by_text("name: fruitshop").nth(1)).to_be_attached()
 
     # browse data
-    _goto_tab(page, "Browse Data")
+    _open_section(page, "data")
     expect(page.get_by_text("Error connecting to destination")).to_be_visible()
 
-    _goto_tab(page, "State")
+    _open_section(page, "state")
     expect(page.get_by_text('"dataset_name": null')).to_be_visible()
 
     # loads page
-    _goto_tab(page, "Loads")
+    _open_section(page, "loads")
     expect(
         page.get_by_text("Loading loads from destination failed.")
     ).to_be_visible()  # this is part of the trace yaml
 
     # last trace page
-    _goto_tab(page, "Last Trace")
+    _open_section(page, "trace")
     expect(page.get_by_text("An overview of the last load trace ")).to_be_visible()
-    page.get_by_text("Show raw trace as json").click()
+    page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
         page.get_by_text('"pipeline_name": "no_destination_pipeline"').nth(0)
     ).to_be_visible()  # this is part of the trace yaml
 
-    _goto_tab(page, "Ibis-Browser")
+    _open_section(page, "ibis")
     expect(page.get_by_text("Error connecting to Ibis Backend")).to_be_visible()

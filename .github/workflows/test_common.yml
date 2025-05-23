@@ -182,11 +182,11 @@ jobs:
         shell: cmd
 
       - run: |
-         poetry run marimo run --headless dlt/helpers/studio/app.py -- -- --pipelines_dir _storage/.dlt/pipelines/ & poetry run pytest --browser chromium tests/e2e
+         poetry run marimo run --headless dlt/helpers/studio/app.py -- -- --pipelines_dir _storage/.dlt/pipelines/ --with_test_identifiers true & poetry run pytest --browser chromium tests/e2e
         if: runner.os != 'Windows'
         name: Run marimo e2e tests Linux/MAC
       - run: |
-          poetry run marimo run --headless dlt/helpers/studio/app.py -- -- --pipelines_dir _storage/.dlt/pipelines/ & poetry run pytest --browser chromium tests/e2e
+          poetry run marimo run --headless dlt/helpers/studio/app.py -- -- --pipelines_dir _storage/.dlt/pipelines/ --with_test_identifiers true & poetry run pytest --browser chromium tests/e2e
         if: runner.os == 'Windows'
         name: Run marimo e2e tests Windows
         shell: cmd

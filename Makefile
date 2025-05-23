@@ -151,4 +151,4 @@ test-e2e-studio:
 	poetry run pytest --headed --browser chromium tests/e2e
 
 start-dlt-studio-e2e:
-	poetry run marimo run --headless dlt/helpers/studio/app.py -- -- --pipelines_dir _storage/.dlt/pipelines
+	poetry run marimo run --headless dlt/helpers/studio/app.py -- -- --pipelines_dir _storage/.dlt/pipelines --with_test_identifiers true
