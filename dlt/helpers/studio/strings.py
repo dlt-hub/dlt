@@ -106,10 +106,7 @@ browse_data_explorer_title = """
 <small>Select a table above or write a SQL query in the text area below to explore the data in the destination. The query will be executed on the destination and the results will be displayed in a table. If you disable query caching, all cached queries will be purged.</small>
 """
 
-browse_data_query_result_title = """
-## Browse data: Query result
-<small>Query: {}</small>
-"""
+browse_data_query_result_title = """## Browse data: Query result"""
 
 browse_data_query_history_title = """
 ## Browse data: Cached queries history
