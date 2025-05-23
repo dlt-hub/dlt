@@ -384,8 +384,8 @@ class ClickHouseSqlClient(
                         # https://github.com/ClickHouse/ClickHouse/issues/50447
                         stmt = sqlglot.parse_one(qry, dialect='clickhouse')
                         table = stmt.find(sqlglot.expressions.Table)
-                        table.args["db"] = exp.Identifier(this="_" + table.db, quoted=True)
-                        table.args["this"] = exp.Identifier(this=table.name + "_base", quoted=True)
+                        table.args["db"] = exp.Identifier(this=base_db, quoted=True)
+                        table.args["this"] = exp.Identifier(this=table.name + self.config.base_table_name_postfix, quoted=True)
                         qry = stmt.sql(dialect="clickhouse")
 
                     qry = self.add_on_cluster(qry, cluster)
