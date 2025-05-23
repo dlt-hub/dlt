@@ -19,6 +19,7 @@ with app.setup:
     from dlt.helpers.studio import strings, utils, ui_elements as ui
 
 
+
 @app.cell(hide_code=True)
 def home(
     dlt_all_pipelines: List[Dict[str, Any]],
@@ -151,13 +152,13 @@ def section_overview(
 def section_schema(
     dlt_pipeline: dlt.Pipeline,
     dlt_schema_show_child_tables: mo.ui.switch,
-    dlt_schema_show_dlt_tables: mo.ui.switch,
-    dlt_section_schema_switch: mo.ui.switch,
-    dlt_schema_table_list: mo.ui.table,
-    dlt_schema_show_dlt_columns: mo.ui.switch,
-    dlt_schema_show_type_hints: mo.ui.switch,
-    dlt_schema_show_other_hints: mo.ui.switch,
     dlt_schema_show_custom_hints: mo.ui.switch,
+    dlt_schema_show_dlt_columns: mo.ui.switch,
+    dlt_schema_show_dlt_tables: mo.ui.switch,
+    dlt_schema_show_other_hints: mo.ui.switch,
+    dlt_schema_show_type_hints: mo.ui.switch,
+    dlt_schema_table_list: mo.ui.table,
+    dlt_section_schema_switch: mo.ui.switch,
 ):
     """
     Show schema of the currently selected pipeline
@@ -231,17 +232,19 @@ def section_schema(
             )
         )
     mo.vstack(_result) if _result else None
-    return (dlt_schema_table_list,)
+    return
 
 
 @app.cell(hide_code=True)
 def section_browse_data_table_list(
+    dlt_cache_query_results: mo.ui.switch,
+    dlt_data_table_list: mo.ui.table,
     dlt_pipeline: dlt.Pipeline,
+    dlt_restrict_to_last_1000: mo.ui.switch,
     dlt_schema_show_child_tables: mo.ui.switch,
     dlt_schema_show_dlt_tables: mo.ui.switch,
     dlt_schema_show_row_counts: mo.ui.switch,
     dlt_section_browse_data_switch: mo.ui.switch,
-    dlt_data_table_list: mo.ui.table,
 ):
     """
     Show data of the currently selected pipeline
@@ -256,73 +259,54 @@ def section_browse_data_table_list(
         )
     ]
 
-    if dlt_pipeline and dlt_section_browse_data_switch.value:
-        _result.append(
-            mo.hstack(
-                [
-                    dlt_schema_show_dlt_tables,
-                    dlt_schema_show_child_tables,
-                    dlt_schema_show_row_counts,
-                ],
-                justify="start",
-            ),
-        )
-
-        # try to connect to the dataset
-        try:
-            dlt_pipeline.dataset().destination_client.config.credentials
-            _result.append(dlt_data_table_list)
-        except Exception:
-            _result.append(ui.build_error_callout(strings.browse_data_error_text))
-    mo.vstack(_result) if _result else None
-    return (dlt_data_table_list,)
-
-
-@app.cell(hide_code=True)
-def section_browse_data_query_editor(
-    dlt_cache_query_results: mo.ui.switch,
-    dlt_data_table_list: mo.ui.table,
-    dlt_pipeline: dlt.Pipeline,
-    dlt_restrict_to_last_1000: mo.ui.switch,
-    dlt_section_browse_data_switch: mo.ui.switch,
-):
-    """
-    Show data of the currently selected pipeline
-    """
-
-    _result = []
-
     if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_data_table_list:
-        _sql_query = ""
-        if dlt_data_table_list.value:
-            _table_name = dlt_data_table_list.value[0]["Name"]  # type: ignore[index]
-            _sql_query = (
-                dlt_pipeline.dataset()
-                .table(_table_name)
-                .limit(1000 if dlt_restrict_to_last_1000.value else None)
-                .query()
+        try:
+            # try to connect to the dataset
+            dlt_pipeline.dataset().destination_client.config.credentials
+            _result.append(
+                mo.hstack(
+                    [
+                        dlt_schema_show_dlt_tables,
+                        dlt_schema_show_child_tables,
+                        dlt_schema_show_row_counts,
+                    ],
+                    justify="start",
+                ),
+            )
+            _result.append(dlt_data_table_list)
+
+            _sql_query = ""
+            if dlt_data_table_list.value:
+                _table_name = dlt_data_table_list.value[0]["Name"]  # type: ignore[index]
+                _sql_query = (
+                    dlt_pipeline.dataset()
+                    .table(_table_name)
+                    .limit(1000 if dlt_restrict_to_last_1000.value else None)
+                    .query()
+                )
+
+            dlt_query_editor: mo.ui.code_editor = mo.ui.code_editor(
+                language="sql",
+                placeholder=strings.browse_data_query_hint,
+                value=_sql_query,
+                debounce=True,
+            )
+            dlt_run_query_button: mo.ui.run_button = mo.ui.run_button(
+                label="Run query", tooltip="Run the query in the editor"
             )
 
-        dlt_query_editor: mo.ui.code_editor = mo.ui.code_editor(
-            language="sql",
-            placeholder="SELECT \n  * \nFROM dataset.table \nLIMIT 1000",
-            value=_sql_query,
-            debounce=True,
-        )
-        dlt_run_query_button: mo.ui.run_button = mo.ui.run_button(
-            label="Run query", tooltip="Run the query in the editor"
-        )
+            _result += [
+                mo.md(strings.browse_data_explorer_title),
+                mo.hstack(
+                    [dlt_cache_query_results, dlt_restrict_to_last_1000],
+                    justify="start",
+                ),
+                dlt_query_editor,
+            ]
 
-        _result += [
-            mo.md(strings.browse_data_explorer_title),
-            mo.hstack(
-                [dlt_cache_query_results, dlt_restrict_to_last_1000],
-                justify="start",
-            ),
-            dlt_query_editor,
-        ]
-
-        _result.append(dlt_run_query_button)
+            _result.append(dlt_run_query_button)
+        except Exception:
+            _result.append(ui.build_error_callout(strings.browse_data_error_text))
     mo.vstack(_result) if _result else None
     return dlt_query_editor, dlt_run_query_button
 
@@ -346,7 +330,7 @@ def section_browse_data_query_result(
     dlt_query_error_encountered: bool = False
 
     if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_data_table_list:
-        _result.append(mo.md(strings.browse_data_query_result_title))
+        _result.append(ui.build_title_and_subtitle(strings.browse_data_query_result_title))
         with mo.status.spinner(title="Loading data from destination"):
             if dlt_query_editor.value and (dlt_run_query_button.value):
                 try:
@@ -374,24 +358,28 @@ def section_browse_data_query_result(
         if _query_history:
             dlt_query_history_table = mo.ui.table(_query_history)
     mo.vstack(_result) if _result else None
-    return (dlt_query_result, dlt_query_history_table)
+    return (dlt_query_history_table,)
 
 
 @app.cell(hide_code=True)
-def section_browse_data_cached_query(
+def section_browse_data_query_history(
     dlt_pipeline: dlt.Pipeline,
     dlt_query_history_table: mo.ui.table,
     dlt_section_browse_data_switch: mo.ui.switch,
 ):
     _result: List[Any] = []
     if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_query_history_table:
-        _result.append(mo.md(strings.browse_data_query_history_title))
+        _result.append(
+            ui.build_title_and_subtitle(
+                strings.browse_data_query_history_title, strings.browse_data_query_history_subtitle
+            )
+        )
         _result.append(dlt_query_history_table)
 
         for _r in dlt_query_history_table.value:  # type: ignore
             _query = _r["Query"]  # type: ignore
             _q_result = utils.get_query_result(dlt_pipeline, _query)
-            _result.append(mo.md(f"<small>`{_query}`</small>"))
+            _result.append(mo.md(f"<small>```{_query}```</small>"))
             _result.append(mo.ui.table(_q_result, selection=None))
     mo.vstack(_result) if _result else None
     return
@@ -550,23 +538,28 @@ def section_loads_results(
                 _row_counts.sort(key=lambda x: str(x["Table Name"]))
 
             # add row counts
-            _result.append(mo.md(strings.loads_details_row_counts.format(_load_id)))
+            _result.append(
+                ui.build_title_and_subtitle(
+                    strings.loads_details_row_counts_title,
+                    strings.loads_details_row_counts_subtitle,
+                    3,
+                ),
+            )
             _result.append(mo.ui.table(_row_counts, selection=None))
 
             # add schema info
             if _schema:
                 _result.append(
-                    mo.md(
-                        strings.loads_details_schema_version.format(
-                            _schema.name,
-                            _schema.version,
-                            _load_id,
+                    ui.build_title_and_subtitle(
+                        strings.loads_details_schema_version_title,
+                        strings.loads_details_schema_version_subtitle.format(
                             (
                                 "is not"
                                 if _schema.version_hash != dlt_pipeline.default_schema.version_hash
                                 else "is"
                             ),
-                        )
+                        ),
+                        3,
                     )
                 )
                 _result.append(
@@ -675,7 +668,7 @@ def ui_controls():
         label="<small>Show `_dlt` tables</small>"
     )
     dlt_schema_show_child_tables: mo.ui.switch = mo.ui.switch(
-        label="<small>Show child tables</small>", value=True
+        label="<small>Show child tables</small>", value=False
     )
     dlt_schema_show_row_counts: mo.ui.switch = mo.ui.switch(
         label="<small>Show row counts</small>", value=False
@@ -721,12 +714,12 @@ def ui_controls():
 
 @app.cell(hide_code=True)
 def ui_primary_controls(
-    dlt_section_schema_switch: mo.ui.switch,
-    dlt_section_browse_data_switch: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
-    dlt_schema_show_dlt_tables: mo.ui.switch,
     dlt_schema_show_child_tables: mo.ui.switch,
+    dlt_schema_show_dlt_tables: mo.ui.switch,
     dlt_schema_show_row_counts: mo.ui.switch,
+    dlt_section_browse_data_switch: mo.ui.switch,
+    dlt_section_schema_switch: mo.ui.switch,
 ):
     """
     Helper cell for creating certain controls based on selected sections
@@ -763,6 +756,7 @@ def ui_primary_controls(
             style_cell=utils.style_cell,
             selection="single",
         )
+    return dlt_data_table_list, dlt_schema_table_list
 
 
 @app.cell(hide_code=True)

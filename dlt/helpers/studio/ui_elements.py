@@ -56,15 +56,21 @@ def build_pipeline_link_list(pipelines: List[Dict[str, Any]]) -> str:
     return link_list
 
 
+def build_title_and_subtitle(title: str, subtitle: str = None, title_size: int = 2) -> Any:
+    """Build a title and a subtitle block"""
+    _result = []
+    if title:
+        _result.append(mo.md(f"{title_size * '#'} {title}"))
+    if subtitle:
+        _result.append(mo.md(f"<small>{subtitle}</small>"))
+    return mo.vstack(_result)
+
+
 def build_page_header(title: str, subtitle: str, subtitle_long: str, button: Any = None) -> Any:
+    """Build a page header with a title, a subtitle, button and conditional longer subtitle"""
     return mo.hstack(
         [
-            mo.vstack(
-                [
-                    mo.md(f"## {title}"),
-                    mo.md(f"<small>{subtitle if not button.value else subtitle_long}</small>"),
-                ],
-            ),
+            build_title_and_subtitle(title, subtitle if not button.value else subtitle_long),
             button,
         ],
         align="center",
