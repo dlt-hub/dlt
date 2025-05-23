@@ -19,7 +19,6 @@ with app.setup:
     from dlt.helpers.studio import strings, utils, ui_elements as ui
 
 
-
 @app.cell(hide_code=True)
 def home(
     dlt_all_pipelines: List[Dict[str, Any]],
