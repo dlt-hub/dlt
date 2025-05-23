@@ -359,46 +359,49 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             "name": table_name,
             "columns": {c["name"]: c for c in new_columns},
         }
+        
+        if self.config.create_indexes:
+            # Adding primary key constraint
+            pk_columns = get_columns_names_with_prop(partial, "primary_key")
+        
+            if pk_columns:
+                if generate_alter:
+                    logger.warning(
+                        f"PRIMARY KEY on {table_name} constraint cannot be added in ALTER TABLE and"
+                        " is ignored"
+                    )
+                else:
+                    quoted_pk_cols = ", ".join(
+                        self.sql_client.escape_column_name(col) for col in pk_columns
+                    )
+                    constraints_sql += f",\nPRIMARY KEY ({quoted_pk_cols})"
 
-        # Adding primary key constraint
-        pk_columns = get_columns_names_with_prop(partial, "primary_key")
-    
-        if pk_columns:
+            # Adding primary key constraint
+            table = self.prepare_load_table(table_name)
+            references = table.get("references")
+        
             if generate_alter:
-                logger.warning(
-                    f"PRIMARY KEY on {table_name} constraint cannot be added in ALTER TABLE and"
-                    " is ignored"
+                logger.info(
+                    f"Table options for {table_name} are not applied on ALTER TABLE. Make sure that you"
+                    " set the table options ie. by using bigquery_adapter, before it is created."
                 )
             else:
-                quoted_pk_cols = ", ".join(
-                    self.sql_client.escape_column_name(col) for col in pk_columns
-                )
-                constraints_sql += f",\nPRIMARY KEY ({quoted_pk_cols})"
-
-        # Adding primary key constraint
-        table = self.prepare_load_table(table_name)
-        references = table.get("references")
-    
-        if generate_alter:
-            logger.info(
-                f"Table options for {table_name} are not applied on ALTER TABLE. Make sure that you"
-                " set the table options ie. by using bigquery_adapter, before it is created."
-            )
-        else:
-            if references:
-                for reference in references:
-                    quoted_fk_cols = ", ".join(
-                        self.sql_client.escape_column_name(col) for col in reference.get("columns")
+                if references:
+                    for reference in references:
+                        quoted_fk_cols = ", ".join(
+                            self.sql_client.escape_column_name(col) for col in reference.get("columns")
+                        )
+                    quoted_reference_cols = ", ".join(
+                        self.sql_client.escape_column_name(col) for col in reference.get("referenced_columns")
                     )
-                quoted_reference_cols = ", ".join(
-                    self.sql_client.escape_column_name(col) for col in reference.get("referenced_columns")
-                )
-                constraints_sql += f",\nFOREIGN KEY ({quoted_fk_cols}) REFERENCES {reference.get('referenced_table')}({quoted_reference_cols})"
+                    constraints_sql += f",\nFOREIGN KEY ({quoted_fk_cols}) REFERENCES {reference.get('referenced_table')}({quoted_reference_cols})"
 
-        # Add PK constraint if pk_columns exist
-        pk_columns = get_columns_names_with_prop(partial, "primary_key")
+            # Add PK constraint if pk_columns exist
+            pk_columns = get_columns_names_with_prop(partial, "primary_key")
 
-        return constraints_sql
+            return constraints_sql
+        
+        return ""
 
     def _get_table_update_sql(
         self,
