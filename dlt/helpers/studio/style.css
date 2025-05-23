@@ -25,3 +25,11 @@
 .prose {
   max-width: 100%;
 }
+
+
+/* add colors to cells */
+
+#App .marimo-cell {
+  border: 1px dashed #dddddd;
+  margin: 5px;
+}

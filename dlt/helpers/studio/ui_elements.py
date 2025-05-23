@@ -63,8 +63,9 @@ def build_page_header(title: str, subtitle: str, subtitle_long: str, button: Any
                 [
                     mo.md(f"## {title}"),
                     mo.md(f"<small>{subtitle if not button.value else subtitle_long}</small>"),
-                ]
+                ],
             ),
             button,
-        ]
+        ],
+        align="center",
     )
