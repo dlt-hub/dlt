@@ -333,6 +333,15 @@ Databricks supports the following column hints:
 - `not_null` - adds a not null constraint to the column.
 - `cluster` - adds a clustering constraint to the column. This can also be done by using the adapter method `cluster`.
 
+:::note
+If you want to enforce constraints on the tables, you can set the `create_indexes` option to `true`. This will add PRIMARY KEY and FOREIGN KEY constraints to the tables.
+```toml
+[destination.databricks]
+# Add PRIMARY KEY and FOREIGN KEY constraints to tables
+create_indexes=true
+```
+:::
+
 ## Staging support
 
 Databricks supports both Amazon S3, Azure Blob Storage, and Google Cloud Storage as staging locations. `dlt` will upload files in Parquet format to the staging location and will instruct Databricks to load data from there.
