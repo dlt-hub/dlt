@@ -291,7 +291,6 @@ def table_rows(
     metadata: MetaData,
     chunk_size: int,
     backend: TableBackend,
-    page_size: Optional[int] = None,
     incremental: Optional[Incremental[Any]],
     table_adapter_callback: TTableAdapter,
     reflection_level: ReflectionLevel,
@@ -300,6 +299,7 @@ def table_rows(
     included_columns: Optional[List[str]],
     query_adapter_callback: Optional[TQueryAdapter],
     resolve_foreign_keys: bool,
+    page_size: Optional[int],
 ) -> Iterator[TDataItem]:
     if isinstance(table, str):  # Reflection is deferred
         table = Table(
