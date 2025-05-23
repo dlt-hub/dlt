@@ -87,7 +87,7 @@ def bigquery_adapter(
         data (Any): The data to be transformed.
             This can be raw data or an instance of DltResource.
             If raw data is provided, the function will wrap it into a `DltResource` object.
-        partition (Union[str, PartitionTransformation], optional): The column to partition the BigQuery table by.
+        partition (Union[TColumnNames, PartitionTransformation], optional): The column to partition the BigQuery table by.
             This can be a string representing a single column name for simple partitioning,
             or a PartitionTransformation object for advanced partitioning.
             Use the bigquery_partition helper class to create transformation objects.
