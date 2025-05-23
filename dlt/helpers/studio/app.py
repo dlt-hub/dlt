@@ -187,7 +187,7 @@ def section_schema(
         _result.append(dlt_schema_table_list)
 
         # add table details
-        _result.append(mo.md("### Table details for selected tables"))
+        _result.append(mo.md("## Schema Browser: Table details for selected tables"))
         _result.append(
             mo.hstack(
                 [
@@ -219,7 +219,7 @@ def section_schema(
             )
 
         # add raw schema
-        _result.append(mo.md("### Raw schema as yaml"))
+        _result.append(mo.md("## Schema Browser: Raw schema as yaml"))
         _result.append(
             mo.accordion(
                 {
@@ -361,8 +361,10 @@ def section_browse_data_execute_query(
 
     _result = []
 
+    dlt_query_result: pd.DataFrame = None
+    dlt_query_history_table: mo.ui.table = None
+
     if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_data_table_list:
-        dlt_query_result: pd.DataFrame = None
         with mo.status.spinner(title="Loading data from destination"):
             if dlt_query_editor.value and (
                 dlt_run_query_button.value or dlt_execute_query_on_change.value
@@ -383,8 +385,13 @@ def section_browse_data_execute_query(
         # always show last query if nothing was found
         if dlt_query_result is None:
             dlt_query_result = utils.get_last_query_result(dlt_pipeline)
+
+        # provide query history table
+        _query_history = utils.get_query_history(dlt_pipeline)
+        if _query_history:
+            dlt_query_history_table = mo.ui.table(_query_history)
     mo.vstack(_result) if _result else None
-    return (dlt_query_result,)
+    return (dlt_query_result, dlt_query_history_table)
 
 
 @app.cell(hide_code=True)
@@ -399,32 +406,28 @@ def section_browse_data_data_explorer(
     """
 
     _result: List[Any] = []
-    dlt_query_history_table: mo.ui.table = None
     if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_data_table_list:
-        _query_history = utils.get_query_history(dlt_pipeline)
-        dlt_query_history_table = mo.ui.table(_query_history)
-
-        _result += [
-            mo.md(
-                strings.browse_data_query_result_title.format(utils.get_last_query(dlt_pipeline))
-            ),
-            mo.ui.table(dlt_query_result, selection=None),
-            mo.md(strings.browse_data_query_history_title),
-            dlt_query_history_table,
-        ]
+        _last_query = utils.get_last_query(dlt_pipeline)
+        if _last_query:
+            _result += [
+                mo.md(strings.browse_data_query_result_title.format(_last_query)),
+                mo.ui.table(dlt_query_result, selection=None),
+            ]
     mo.vstack(_result) if _result else None
-    return (dlt_query_history_table,)
+    return
 
 
 @app.cell(hide_code=True)
 def section_browse_data_cached_query(
-    dlt_data_table_list: mo.ui.table,
     dlt_pipeline: dlt.Pipeline,
     dlt_query_history_table: mo.ui.table,
     dlt_section_browse_data_switch: mo.ui.switch,
 ):
     _result: List[Any] = []
-    if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_data_table_list:
+    if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_query_history_table:
+        _result.append(mo.md(strings.browse_data_query_history_title))
+        _result.append(dlt_query_history_table)
+
         for _r in dlt_query_history_table.value:  # type: ignore
             _query = _r["Query"]  # type: ignore
             _q_result = utils.get_query_result(dlt_pipeline, _query)
@@ -490,6 +493,7 @@ def section_trace(
                 )
             )
         else:
+            _result.append(mo.callout("This section is not completed yet!", kind="warn"))
             _result.append(mo.md("### Execution context"))
             _result.append(
                 mo.ui.table(utils.trace_execution_context(dlt_trace.asdict()), selection=None)

@@ -107,12 +107,12 @@ browse_data_explorer_title = """
 """
 
 browse_data_query_result_title = """
-### Last successful query result
-<small>`Query: {}`</small>
+## Browse data: Query result
+<small>Query: {}</small>
 """
 
 browse_data_query_history_title = """
-### Cached Queries history
+## Browse data: Cached queries history
 <small>The following list shows all the queries that have been executed on the destination and are present in the cache. Select one or more to see the result again below and compare.</small>
 """
 
