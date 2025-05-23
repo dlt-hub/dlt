@@ -420,7 +420,7 @@ processDocs()
 if (process.argv.includes("--watch")) {
   console.log(`Watching...`)
   let lastUpdate = Date.now();
-  watch("../", { recursive: true, filter: /\.(py|toml|md)$/  }, function(evt, name) {
+  watch("./docs", { recursive: true, filter: /\.(py|toml|md)$/  }, function(evt, name) {
       // break update loop
       if (Date.now() - lastUpdate < 500) {
           return;
