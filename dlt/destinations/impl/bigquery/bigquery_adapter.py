@@ -60,7 +60,7 @@ class bigquery_partition:
         """
         # Correct BigQuery syntax for integer range partitioning
         template = f"RANGE_BUCKET({{column_name}}, GENERATE_ARRAY({start}, {end}, {interval}))"
-        
+
         return PartitionTransformation(template, column_name)
 
 
@@ -131,15 +131,17 @@ def bigquery_adapter(
 
     if partition:
         if not (isinstance(partition, str) or isinstance(partition, PartitionTransformation)):
-            raise ValueError("`partition` must be a single column name as a string or a PartitionTransformation.")
+            raise ValueError(
+                "`partition` must be a single column name as a string or a PartitionTransformation."
+            )
 
         # Can only have one partition column.
         for column in resource.columns.values():  # type: ignore[union-attr]
             column.pop(PARTITION_HINT, None)  # type: ignore[typeddict-item]
-        
+
         if isinstance(partition, str):
             column_hints[partition] = {"name": partition, PARTITION_HINT: True}  # type: ignore[typeddict-unknown-key]
-        
+
         if isinstance(partition, PartitionTransformation):
             partition_hint: Dict[str, str] = {}
             partition_hint[partition.column_name] = partition.template

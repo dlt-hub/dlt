@@ -251,7 +251,7 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                     self.config.retry_deadline,
                 )
         return job
-    
+
     def _bigquery_partition_clause(self, partition_hint: Optional[Dict[str, str]]) -> str:
         """Generate partition clause for BigQuery SQL.
 
@@ -263,12 +263,17 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         """
         if not partition_hint:
             return ""
-        
+
         if len(partition_hint) > 1:
-            raise DestinationSchemaWillNotUpdate("BigQuery only supports partitioning by one column at a time.")
+            raise DestinationSchemaWillNotUpdate(
+                "BigQuery only supports partitioning by one column at a time."
+            )
 
         [(column_name, clause)] = partition_hint.items()
-        return f"PARTITION BY {clause.format(column_name=self.sql_client.escape_column_name(column_name))}"
+        return (
+            "PARTITION BY"
+            f" {clause.format(column_name=self.sql_client.escape_column_name(column_name))}"
+        )
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
@@ -310,13 +315,14 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         # handle partitioning when user passes a PartitionTransformation to the `partition` param in bigquery_adapter
         partition_hint = table.get(PARTITION_HINT)
         if partition_hint and len(partition_hint) > 1:
-            col_names = [self.sql_client.escape_column_name(col) for col, v in partition_hint.items()]
+            col_names = [
+                self.sql_client.escape_column_name(col) for col, v in partition_hint.items()
+            ]
             raise DestinationSchemaWillNotUpdate(
                 canonical_name, col_names, "Partition requested for more than one column"
             )
 
         sql[0] += self._bigquery_partition_clause(table.get(PARTITION_HINT))
-             
 
         # Collect cluster columns from table-level and per-column hints
         cluster_columns_from_table_hint = list(

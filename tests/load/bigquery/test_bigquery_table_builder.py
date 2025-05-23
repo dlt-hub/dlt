@@ -253,7 +253,6 @@ def test_create_table_with_integer_partition(gcp_client: BigQueryClient) -> None
 
 
 def test_create_table_with_custom_range_bucket_partition() -> None:
-
     @dlt.resource
     def partitioned_table():
         yield {
@@ -290,10 +289,7 @@ def test_create_table_with_custom_range_bucket_partition() -> None:
             False,
         )[0]
 
-
-    expected_clause = (
-        "PARTITION BY RANGE_BUCKET(`user_id`, GENERATE_ARRAY(0, 1000000, 10000))"
-    )
+    expected_clause = "PARTITION BY RANGE_BUCKET(`user_id`, GENERATE_ARRAY(0, 1000000, 10000))"
     assert expected_clause in sql_partitioned
 
 
@@ -570,7 +566,12 @@ def test_adapter_hints_parsing_partitioning_more_than_one_column() -> None:
         "col2": {"data_type": "bigint", "name": "col2"},
     }
 
-    with pytest.raises(ValueError, match="^`partition` must be a single column name as a string or a PartitionTransformation.$"):
+    with pytest.raises(
+        ValueError,
+        match=(
+            "^`partition` must be a single column name as a string or a PartitionTransformation.$"
+        ),
+    ):
         bigquery_adapter(some_data, partition=["col1", "col2"])
 
 
