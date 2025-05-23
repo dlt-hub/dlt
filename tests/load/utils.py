@@ -654,7 +654,7 @@ def destinations_configs(
                     bucket_url=bucket,
                     extra_info=bucket,
                     table_format="iceberg",
-                    supports_merge=False,
+                    supports_merge=True,
                     file_format="parquet",
                     destination_name="fsgcpoauth" if bucket == GCS_BUCKET else None,
                 )
