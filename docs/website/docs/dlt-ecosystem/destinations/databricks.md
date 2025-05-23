@@ -309,7 +309,7 @@ print(pipeline.dataset().pokemon.df())
 - **For production**, explicitly setting *staging_volume_name* is recommended.
 - The volume is used as a **temporary location** to store files before loading.
 
-:::tip::
+:::tip
 You can delete staged files **immediately** after loading by setting the following config option:
 ```toml
 [destination.databricks]
