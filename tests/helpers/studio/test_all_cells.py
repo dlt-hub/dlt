@@ -8,7 +8,8 @@ from marimo._runtime.control_flow import MarimoStopError
 
 global_defaults = {
     "dlt_query_params": {},
-    "cli_arg_pipelines_dir": None,
+    "mo_query_var_pipeline_name": None,
+    "mo_cli_arg_pipelines_dir": None,
     "dlt_pipeline_name": "my_pipeline",
     "dlt_page_tabs": mo.ui.tabs({"tab": ""}),
     "dlt_data_table_list": [],
@@ -30,6 +31,8 @@ global_defaults = {
     "dlt_query_history_table": None,
     "dlt_query": "",
     "dlt_loads_table": None,
+    "dlt_all_pipelines": [],
+    "dlt_schema_table_list": None,
 }
 
 
@@ -47,7 +50,7 @@ def test_run_all_cells():
 
     for cell in cells:
         # the two cells below only work in a marimo context
-        if cell.name in ["prepare_query_vars", "prepare_cli_args", "app_tabs"]:
+        if cell.name in ["utils_cli_args_and_query_vars", "prepare_cli_args", "app_tabs"]:
             continue
         try:
             run_args = {k: v for k, v in global_defaults.items() if k in cell.refs}
