@@ -1,12 +1,10 @@
 # flake8: noqa: F841
 
-
 import marimo
 
-__generated_with = "0.13.6"
+__generated_with = "0.13.9"
 app = marimo.App(width="medium", app_title="dlt studio", css_file="style.css")
 
-# global imports
 with app.setup:
     from typing import Any, Dict, List, Tuple, cast
 
@@ -22,10 +20,10 @@ with app.setup:
 
 @app.cell(hide_code=True)
 def home(
-    dlt_pipelines_dir: str,
-    dlt_pipeline_select: marimo.ui.multiselect,
     dlt_all_pipelines: List[Dict[str, Any]],
-) -> Any:
+    dlt_pipeline_select: mo.ui.multiselect,
+    dlt_pipelines_dir: str,
+):
     """
     Displays the welcome page with the pipeline select widget, will only display pipeline title if a pipeline is selected
     """
@@ -80,10 +78,11 @@ def home(
             ),
         ]
     mo.vstack(_stack)
+    return (dlt_pipeline,)
 
 
 @app.cell(hide_code=True)
-def section_sync_status(dlt_pipeline: dlt.Pipeline) -> Any:
+def section_sync_status(dlt_pipeline: dlt.Pipeline):
     """
     Returns the status of the pipeline
     """
@@ -104,13 +103,14 @@ def section_sync_status(dlt_pipeline: dlt.Pipeline) -> Any:
             except Exception:
                 _result.append(ui.build_error_callout(strings.pipeline_sync_error_text))
     mo.vstack(_result) if _result else None
+    return
 
 
 @app.cell(hide_code=True)
 def section_overview(
+    dlt_page_overview: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
-    dlt_page_overview: marimo.ui.switch,
-) -> Any:
+):
     """
     Overview page of currently selected pipeline
     """
@@ -128,15 +128,16 @@ def section_overview(
             ),
         ]
     mo.vstack(_result) if _result else None
+    return
 
 
 @app.cell(hide_code=True)
 def section_schema_table_list(
+    dlt_page_schema: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
-    dlt_schema_show_child_tables: marimo.ui.switch,
-    dlt_schema_show_dlt_tables: marimo.ui.switch,
-    dlt_page_schema: marimo.ui.switch,
-) -> Any:
+    dlt_schema_show_child_tables: mo.ui.switch,
+    dlt_schema_show_dlt_tables: mo.ui.switch,
+):
     """
     Show schema of the currently selected pipeline
     """
@@ -144,7 +145,7 @@ def section_schema_table_list(
     _result = [ui.build_page_header(strings.schema_title, strings.schema_subtitle, dlt_page_schema)]
 
     if dlt_pipeline and dlt_page_schema.value:
-        dlt_schem_table_list = None
+        dlt_schem_table_list: mo.ui.table = None
 
         if not dlt_pipeline.default_schema_name:
             _result.append(
@@ -153,7 +154,6 @@ def section_schema_table_list(
                     kind="warn",
                 )
             )
-            _schema_version = "-"
 
         else:
             _result.append(
@@ -173,18 +173,19 @@ def section_schema_table_list(
             )
             _result.append(dlt_schem_table_list)
     mo.vstack(_result) if _result else None
+    return (dlt_schem_table_list,)
 
 
 @app.cell(hide_code=True)
 def section_schema_table_details(
+    dlt_page_schema: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
-    dlt_schem_table_list: marimo.ui.table,
-    dlt_schema_show_other_hints: marimo.ui.switch,
-    dlt_schema_show_custom_hints: marimo.ui.switch,
-    dlt_schema_show_dlt_columns: marimo.ui.switch,
-    dlt_schema_show_type_hints: marimo.ui.switch,
-    dlt_page_schema: marimo.ui.switch,
-) -> Any:
+    dlt_schem_table_list: mo.ui.table,
+    dlt_schema_show_custom_hints: mo.ui.switch,
+    dlt_schema_show_dlt_columns: mo.ui.switch,
+    dlt_schema_show_other_hints: mo.ui.switch,
+    dlt_schema_show_type_hints: mo.ui.switch,
+):
     """
     Show schema of the currently selected table
     """
@@ -243,12 +244,12 @@ def section_schema_table_details(
 
 @app.cell(hide_code=True)
 def section_browse_data_table_list(
+    dlt_page_browse_data: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
-    dlt_page_browse_data: marimo.ui.switch,
-    dlt_schema_show_child_tables: marimo.ui.switch,
-    dlt_schema_show_dlt_tables: marimo.ui.switch,
-    dlt_schema_show_row_counts: marimo.ui.switch,
-) -> Any:
+    dlt_schema_show_child_tables: mo.ui.switch,
+    dlt_schema_show_dlt_tables: mo.ui.switch,
+    dlt_schema_show_row_counts: mo.ui.switch,
+):
     """
     Show data of the currently selected pipeline
     """
@@ -272,7 +273,7 @@ def section_browse_data_table_list(
         )
 
         # try to connect to the dataset
-        dlt_data_table_list = None
+        dlt_data_table_list: mo.ui.table = None
         try:
             dlt_pipeline.dataset().destination_client.config.credentials
             with mo.status.spinner(title="Getting table list..."):
@@ -290,17 +291,18 @@ def section_browse_data_table_list(
         except Exception:
             _result.append(ui.build_error_callout(strings.browse_data_error))
     mo.vstack(_result) if _result else None
+    return (dlt_data_table_list,)
 
 
 @app.cell(hide_code=True)
 def section_browse_data_query_editor(
+    dlt_cache_query_results: mo.ui.switch,
+    dlt_data_table_list: mo.ui.table,
+    dlt_execute_query_on_change: mo.ui.switch,
+    dlt_page_browse_data: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
-    dlt_page_browse_data: marimo.ui.switch,
-    dlt_data_table_list: marimo.ui.table,
-    dlt_cache_query_results: marimo.ui.switch,
-    dlt_execute_query_on_change: marimo.ui.switch,
-    dlt_restrict_to_last_1000: marimo.ui.switch,
-) -> Any:
+    dlt_restrict_to_last_1000: mo.ui.switch,
+):
     """
     Show data of the currently selected pipeline
     """
@@ -318,13 +320,13 @@ def section_browse_data_query_editor(
                 .query()
             )
 
-        dlt_query_editor = mo.ui.code_editor(
+        dlt_query_editor: mo.ui.code_editor = mo.ui.code_editor(
             language="sql",
             placeholder="SELECT \n  * \nFROM dataset.table \nLIMIT 1000",
             value=_sql_query,
             debounce=True,
         )
-        dlt_run_query_button = mo.ui.run_button(
+        dlt_run_query_button: mo.ui.run_button = mo.ui.run_button(
             label="Run query", tooltip="Run the query in the editor"
         )
 
@@ -347,17 +349,18 @@ def section_browse_data_query_editor(
                 )
             )
     mo.vstack(_result) if _result else None
+    return dlt_query_editor, dlt_run_query_button
 
 
 @app.cell(hide_code=True)
 def section_browse_data_execute_query(
+    dlt_data_table_list: mo.ui.table,
+    dlt_execute_query_on_change: mo.ui.switch,
+    dlt_page_browse_data: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
-    dlt_page_browse_data: marimo.ui.switch,
-    dlt_run_query_button: marimo.ui.button,
-    dlt_query_editor: marimo.ui.code_editor,
-    dlt_execute_query_on_change: marimo.ui.switch,
-    dlt_data_table_list: marimo.ui.table,
-) -> Any:
+    dlt_query_editor: mo.ui.code_editor,
+    dlt_run_query_button: mo.ui.run_button,
+):
     """
     Execute the query in the editor
     """
@@ -365,7 +368,7 @@ def section_browse_data_execute_query(
     _result = []
 
     if dlt_pipeline and dlt_page_browse_data.value and dlt_data_table_list:
-        dlt_query_result = None
+        dlt_query_result: pd.DataFrame = None
         with mo.status.spinner(title="Loading data from destination"):
             if dlt_query_editor.value and (
                 dlt_run_query_button.value or dlt_execute_query_on_change.value
@@ -387,22 +390,23 @@ def section_browse_data_execute_query(
         if dlt_query_result is None:
             dlt_query_result = utils.get_last_query_result(dlt_pipeline)
     mo.vstack(_result) if _result else None
+    return (dlt_query_result,)
 
 
 @app.cell(hide_code=True)
 def section_browse_data_data_explorer(
+    dlt_data_table_list: mo.ui.table,
+    dlt_page_browse_data: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
-    dlt_page_browse_data: marimo.ui.switch,
-    dlt_data_table_list: marimo.ui.table,
     dlt_query_result: pd.DataFrame,
-) -> Any:
+):
     """
     Show data of the currently selected pipeline
     """
 
     _result: List[Any] = []
+    dlt_query_history_table: mo.ui.table = None
     if dlt_pipeline and dlt_page_browse_data.value and dlt_data_table_list:
-        dlt_query_history_table = None
         _query_history = utils.get_query_history(dlt_pipeline)
         dlt_query_history_table = mo.ui.table(_query_history)
 
@@ -415,15 +419,16 @@ def section_browse_data_data_explorer(
             dlt_query_history_table,
         ]
     mo.vstack(_result) if _result else None
+    return (dlt_query_history_table,)
 
 
 @app.cell(hide_code=True)
 def section_browse_data_cached_query(
+    dlt_data_table_list: mo.ui.table,
+    dlt_page_browse_data: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
-    dlt_page_browse_data: marimo.ui.switch,
-    dlt_query_history_table: marimo.ui.table,
-    dlt_data_table_list: marimo.ui.table,
-) -> Any:
+    dlt_query_history_table: mo.ui.table,
+):
     _result: List[Any] = []
     if dlt_pipeline and dlt_page_browse_data.value and dlt_data_table_list:
         for _r in dlt_query_history_table.value:  # type: ignore
@@ -432,13 +437,11 @@ def section_browse_data_cached_query(
             _result.append(mo.md(f"<small>`{_query}`</small>"))
             _result.append(mo.ui.table(_q_result, selection=None))
     mo.vstack(_result) if _result else None
+    return
 
 
 @app.cell(hide_code=True)
-def section_state(
-    dlt_pipeline: dlt.Pipeline,
-    dlt_page_state: marimo.ui.switch,
-) -> Any:
+def section_state(dlt_page_state: mo.ui.switch, dlt_pipeline: dlt.Pipeline):
     """
     Show state of the currently selected pipeline
     """
@@ -452,13 +455,11 @@ def section_state(
             ),
         )
     mo.vstack(_result) if _result else None
+    return
 
 
 @app.cell(hide_code=True)
-def section_trace(
-    dlt_pipeline: dlt.Pipeline,
-    dlt_page_trace: marimo.ui.switch,
-) -> Any:
+def section_trace(dlt_page_trace: mo.ui.switch, dlt_pipeline: dlt.Pipeline):
     """
     Show last trace of the currently selected pipeline
     """
@@ -495,15 +496,16 @@ def section_trace(
                 )
             )
     mo.vstack(_result) if _result else None
+    return
 
 
 @app.cell(hide_code=True)
 def section_loads(
+    dlt_cache_query_results: mo.ui.switch,
+    dlt_page_loads: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
-    dlt_page_loads: marimo.ui.switch,
-    dlt_cache_query_results: marimo.ui.switch,
-    dlt_restrict_to_last_1000: marimo.ui.switch,
-) -> Any:
+    dlt_restrict_to_last_1000: mo.ui.switch,
+):
     """
     Show loads of the currently selected pipeline
     """
@@ -516,6 +518,7 @@ def section_loads(
         )
 
         with mo.status.spinner(title="Loading loads from destination..."):
+            dlt_loads_table: mo.ui.table = None
             try:
                 _loads_data = utils.get_loads(
                     dlt_pipeline, limit=1000 if dlt_restrict_to_last_1000.value else None
@@ -524,16 +527,16 @@ def section_loads(
                 _result.append(dlt_loads_table)
             except Exception:
                 _result.append(ui.build_error_callout(strings.loading_load_failes))
-                dlt_loads_table = None
     mo.vstack(_result) if _result else None
+    return (dlt_loads_table,)
 
 
 @app.cell(hide_code=True)
 def section_loads_details(
+    dlt_loads_table: mo.ui.table,
+    dlt_page_loads: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
-    dlt_page_loads: marimo.ui.switch,
-    dlt_loads_table: marimo.ui.table,
-) -> Any:
+):
     """
     Show details of the currently selected load
     """
@@ -589,13 +592,14 @@ def section_loads_details(
         except Exception:
             _result.append(ui.build_error_callout(strings.loads_details_error))
     mo.vstack(_result) if _result else None
+    return
 
 
 @app.cell(hide_code=True)
 def section_ibis_backend(
+    dlt_page_ibis_browser: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
-    dlt_page_ibis_browser: marimo.ui.switch,
-) -> Any:
+):
     """
     Connects to ibis backend and makes it available in the datasources panel
     """
@@ -615,15 +619,14 @@ def section_ibis_backend(
         except Exception:
             _result.append(ui.build_error_callout(strings.ibis_connect_error))
     mo.vstack(_result) if _result else None
-
-
-#
-# Utility Cells
-#
+    return
 
 
 @app.cell(hide_code=True)
-def utils_discover_pipelines(cli_arg_pipelines_dir: str, query_var_pipeline_name: str) -> Any:
+def utils_discover_pipelines(
+    cli_arg_pipelines_dir: str,
+    query_var_pipeline_name: str,
+):
     """
     Discovers local pipelines and returns a multiselect widget to select one of the pipelines
     """
@@ -640,64 +643,98 @@ def utils_discover_pipelines(cli_arg_pipelines_dir: str, query_var_pipeline_name
         on_change=lambda value: mo.query_params().set("pipeline", str(value[0]) if value else None),
     )
 
-    return (dlt_pipelines_dir, dlt_pipeline_select, dlt_all_pipelines, dlt_pipeline_select)
+    return dlt_all_pipelines, dlt_pipeline_select, dlt_pipelines_dir
 
 
 @app.cell(hide_code=True)
 def utils_purge_caches(
-    dlt_pipeline: dlt.Pipeline, dlt_cache_query_results: marimo.ui.switch
-) -> Any:
+    dlt_cache_query_results: mo.ui.switch,
+    dlt_pipeline: dlt.Pipeline,
+):
     """
     Purge caches of the currently selected pipeline
     """
 
     if not dlt_cache_query_results.value:
         utils.clear_query_cache(dlt_pipeline)
+    return
 
 
 @app.cell(hide_code=True)
-def utils_controls() -> Any:
+def utils_controls():
     """
     Control elements for various parts of the app
     """
 
     # page switches
-    dlt_page_overview = mo.ui.switch(value=True)
-    dlt_page_schema = mo.ui.switch(value=False)
-    dlt_page_browse_data = mo.ui.switch(value=False)
-    dlt_page_state = mo.ui.switch(value=False)
-    dlt_page_trace = mo.ui.switch(value=False)
-    dlt_page_loads = mo.ui.switch(value=False)
-    dlt_page_ibis_browser = mo.ui.switch(value=False)
+    dlt_page_overview: mo.ui.switch = mo.ui.switch(value=True)
+    dlt_page_schema: mo.ui.switch = mo.ui.switch(value=False)
+    dlt_page_browse_data: mo.ui.switch = mo.ui.switch(value=False)
+    dlt_page_state: mo.ui.switch = mo.ui.switch(value=False)
+    dlt_page_trace: mo.ui.switch = mo.ui.switch(value=False)
+    dlt_page_loads: mo.ui.switch = mo.ui.switch(value=False)
+    dlt_page_ibis_browser: mo.ui.switch = mo.ui.switch(value=False)
 
     # other switches
-    dlt_schema_show_dlt_tables = mo.ui.switch(label="<small>Show `_dlt` tables</small>")
-    dlt_schema_show_child_tables = mo.ui.switch(
+    dlt_schema_show_dlt_tables: mo.ui.switch = mo.ui.switch(
+        label="<small>Show `_dlt` tables</small>"
+    )
+    dlt_schema_show_child_tables: mo.ui.switch = mo.ui.switch(
         label="<small>Show child tables</small>", value=True
     )
-    dlt_schema_show_row_counts = mo.ui.switch(label="<small>Show row counts</small>", value=False)
-    dlt_schema_show_dlt_columns = mo.ui.switch(label="<small>Show `_dlt` columns</small>")
-    dlt_schema_show_type_hints = mo.ui.switch(label="<small>Show type hints</small>", value=True)
-    dlt_schema_show_other_hints = mo.ui.switch(label="<small>Show other hints</small>", value=False)
-    dlt_schema_show_custom_hints = mo.ui.switch(
+    dlt_schema_show_row_counts: mo.ui.switch = mo.ui.switch(
+        label="<small>Show row counts</small>", value=False
+    )
+    dlt_schema_show_dlt_columns: mo.ui.switch = mo.ui.switch(
+        label="<small>Show `_dlt` columns</small>"
+    )
+    dlt_schema_show_type_hints: mo.ui.switch = mo.ui.switch(
+        label="<small>Show type hints</small>", value=True
+    )
+    dlt_schema_show_other_hints: mo.ui.switch = mo.ui.switch(
+        label="<small>Show other hints</small>", value=False
+    )
+    dlt_schema_show_custom_hints: mo.ui.switch = mo.ui.switch(
         label="<small>Show custom hints (x-)</small>", value=False
     )
-    dlt_cache_query_results = mo.ui.switch(label="<small>Cache query results</small>", value=True)
-    dlt_restrict_to_last_1000 = mo.ui.switch(label="<small>Limit to 1000 rows</small>", value=True)
-    dlt_execute_query_on_change = mo.ui.switch(
+    dlt_cache_query_results: mo.ui.switch = mo.ui.switch(
+        label="<small>Cache query results</small>", value=True
+    )
+    dlt_restrict_to_last_1000: mo.ui.switch = mo.ui.switch(
+        label="<small>Limit to 1000 rows</small>", value=True
+    )
+    dlt_execute_query_on_change: mo.ui.switch = mo.ui.switch(
         label="<small>Execute query automatically on change (loose focus)</small>", value=False
     )
-    return
+    return (
+        dlt_cache_query_results,
+        dlt_execute_query_on_change,
+        dlt_page_browse_data,
+        dlt_page_ibis_browser,
+        dlt_page_loads,
+        dlt_page_overview,
+        dlt_page_schema,
+        dlt_page_state,
+        dlt_page_trace,
+        dlt_restrict_to_last_1000,
+        dlt_schema_show_child_tables,
+        dlt_schema_show_custom_hints,
+        dlt_schema_show_dlt_columns,
+        dlt_schema_show_dlt_tables,
+        dlt_schema_show_other_hints,
+        dlt_schema_show_row_counts,
+        dlt_schema_show_type_hints,
+    )
 
 
 @app.cell(hide_code=True)
-def utils_cli_args_and_query_vars() -> Any:
+def utils_cli_args_and_query_vars():
     """
     Prepare cli args  as globals for the following cells
     """
     query_var_pipeline_name: str = cast(str, mo.query_params().get("pipeline")) or None
     cli_arg_pipelines_dir: str = cast(str, mo.cli_args().get("pipelines_dir")) or None
-    return (cli_arg_pipelines_dir,)
+    return cli_arg_pipelines_dir, query_var_pipeline_name
 
 
 if __name__ == "__main__":
