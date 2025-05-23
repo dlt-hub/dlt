@@ -1,14 +1,12 @@
 ---
-title: Accessing loaded data in Python
-description: Conveniently accessing the data loaded to any destination in python
+title: Access datasets in Python
+description: Conveniently access the data loaded to any destination in Python
 keywords: [destination, schema, data, access, retrieval]
 ---
 
-# Accessing loaded data in Python
+# Access loaded data in Python
 
-This guide explains how to access and manipulate data that has been loaded into your destination using the `dlt` Python library. After running your pipelines and loading data, you can use the `ReadableDataset` and `ReadableRelation` classes to interact with your data programmatically.
-
-**Note:** The `ReadableDataset` and `ReadableRelation` objects are **lazy-loading**. They will only query and retrieve data when you perform an action that requires it, such as fetching data into a DataFrame or iterating over the data. This means that simply creating these objects does not load data into memory, making your code more efficient.
+This guide explains how to access and manipulate data that has been loaded into your destination using the `dlt` Python library. After running your pipelines and loading data, you can use the `pipeline.dataset()` and data frame expressions, Ibis or SQL to query the data and read it as records, Pandas frames or Arrow tables.
 
 ## Quick start example
 
@@ -20,11 +18,14 @@ Here's a full example of how to retrieve data from a pipeline and load it into a
 
 Assuming you have a `Pipeline` object (let's call it `pipeline`), you can obtain a `ReadableDataset` and access your tables as `ReadableRelation` objects.
 
-### Access the `ReadableDataset`
+**Note:** The `ReadableDataset` and `ReadableRelation` objects are **lazy-loading**. They will only query and retrieve data when you perform an action that requires it, such as fetching data into a DataFrame or iterating over the data. This means that simply creating these objects does not load data into memory, making your code more efficient.
+
+
+### Access the dataset
 
 <!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::getting_started-->
 
-### Access tables as `ReadableRelation`
+### Access tables as dataset
 
 You can access tables in your dataset using either attribute access or item access.
 
@@ -73,6 +74,12 @@ To handle large datasets efficiently, you can process data in smaller chunks.
 <!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::iterating_fetch_chunks-->
 
 The methods available on the ReadableRelation correspond to the methods available on the cursor returned by the SQL client. Please refer to the [SQL client](./sql-client.md#supported-methods-on-the-cursor) guide for more information.
+
+## Connection Handling
+
+For every call that actually fetches data from the destination, such as `df()`, `arrow()`, `fetchall()` etc., the dataset will open a connection and close it after it has been retrieved or the iterator is completed. You can keep the connection open for multiple requests with the dataset context manager:
+
+<!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::context_manager-->
 
 ## Special queries
 

@@ -1,6 +1,6 @@
 ---
-title: Add credentials
-description: How to use dlt credentials
+title: How to add credentials
+description: How to add credentials locally and in production
 keywords: [credentials, secrets.toml, environment variables]
 ---
 
@@ -42,7 +42,7 @@ Read more about [credential configuration.](../general-usage/credentials)
 To add credentials to your deployment,
 
 - either use one of the `dlt deploy` commands;
-- or follow the instructions to [pass credentials via code](../general-usage/credentials/advanced#example) or [environment](../general-usage/credentials/setup#environment-variables).
+- or follow the instructions to [pass credentials via code](../general-usage/credentials/advanced#configure-destination-credentials-in-code) or [environment](../general-usage/credentials/setup#environment-variables).
 
 ### Reading credentials from environment variables
 
@@ -168,4 +168,4 @@ to Secrets backend.
 
 ## Retrieving credentials from other vault types
 Subclass `VaultDocProvider` and implement methods to fetch a secret and (optionally) to list secrets then
-[register subclass as custom provider](../../examples/custom_config_provider).
+[register subclass as custom provider](../examples/custom_config_provider).

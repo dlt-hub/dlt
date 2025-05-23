@@ -1,6 +1,6 @@
 ---
-title: Native Ibis integration
-description: Accessing your data with native Ibis backends
+title: Access datasets with Ibis
+description: Access your data with native Ibis backends
 keywords: [data, dataset, ibis]
 ---
 

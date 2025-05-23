@@ -46,6 +46,10 @@ has-poetry:
 dev: has-poetry
 	poetry install --all-extras --with docs,providers,pipeline,sources,sentry-sdk,ibis
 
+
+dev-airflow: has-poetry
+	poetry install --all-extras --with docs,providers,pipeline,sources,sentry-sdk,ibis,airflow
+	
 lint:
 	poetry run python ./tools/check-lockfile.py
 	poetry run mypy --config-file mypy.ini dlt tests

@@ -7,6 +7,7 @@ from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.schema.typing import TWriteDispositionConfig
 from dlt.common.libs.sql_alchemy import MetaData, Table, Engine
 
+from dlt.common.typing import TColumnNames
 from dlt.extract import DltResource, Incremental, decorators
 
 from .helpers import (
@@ -72,12 +73,12 @@ def sql_database(
             This is disabled by default.
 
         reflection_level (Optional[ReflectionLevel]): Specifies how much information should be reflected from the source database schema.
-            "minimal": Only table names, nullability and primary keys are reflected. Data types are inferred from the data. This is the default option.
-            "full": Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary.
+            "minimal": Only table names, nullability and primary keys are reflected. Data types are inferred from the data.
+            "full" (default): Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary.
             "full_with_precision": Sets precision and scale on supported data types (ie. decimal, text, binary). Creates big and regular integer types.
 
         defer_table_reflect (Optional[bool]): Will connect and reflect table schema only when yielding data. Requires table_names to be explicitly passed.
-            Enable this option when running on Airflow. Available on dlt 0.4.4 and later.
+            Enable this option when running on Airflow and other orchestrators that create execution DAGs.
 
         table_adapter_callback (Optional[TTableAdapter]): Receives each reflected table. May be used to modify the list of columns that will be selected.
 
@@ -178,6 +179,8 @@ def sql_table(
     resolve_foreign_keys: bool = False,
     engine_adapter_callback: Callable[[Engine], Engine] = None,
     write_disposition: TWriteDispositionConfig = "append",
+    primary_key: TColumnNames = None,
+    merge_key: TColumnNames = None,
 ) -> DltResource:
     """
     A dlt resource which loads data from an SQL database table using SQLAlchemy.
@@ -206,12 +209,12 @@ def sql_table(
             This is disabled by default.
 
         reflection_level (Optional[ReflectionLevel]): Specifies how much information should be reflected from the source database schema.
-            "minimal": Only table names, nullability and primary keys are reflected. Data types are inferred from the data. This is the default option.
-            "full": Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary.
+            "minimal": Only table names, nullability and primary keys are reflected. Data types are inferred from the data.
+            "full" (default): Data types will be reflected on top of "minimal". `dlt` will coerce the data into reflected types if necessary.
             "full_with_precision": Sets precision and scale on supported data types (ie. decimal, text, binary). Creates big and regular integer types.
 
-        defer_table_reflect (Optional[bool]): Will connect and reflect table schema only when yielding data. Enable this option when running on Airflow. Available
-            on dlt 0.4.4 and later
+        defer_table_reflect (Optional[bool]): Will connect and reflect table schema only when yielding data.
+            Enable this option when running on Airflow and other orchestrators that create execution DAGs.
 
         table_adapter_callback (Optional[TTableAdapter]): Receives each reflected table. May be used to modify the list of columns that will be selected.
 
@@ -232,10 +235,16 @@ def sql_table(
             set transaction isolation level.
 
         write_disposition (TWriteDispositionConfig): write disposition of the table resource, defaults to `append`.
+        primary_key (TColumnNames): A list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
+        merge_key (TColumnNames): A list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to
+            keep a single record for a given day.
 
     Returns:
         DltResource: The dlt resource for loading data from the SQL database table.
     """
+    # In case we get None from the config, we want to default to "append"
+    write_disposition = write_disposition if write_disposition else "append"
+
     _detect_precision_hints_deprecated(detect_precision_hints)
 
     if detect_precision_hints:
@@ -269,8 +278,16 @@ def sql_table(
     else:
         hints = {}
 
+    if primary_key:
+        # may be from what is found in the reflection, so it is set explicitly
+        hints["primary_key"] = [primary_key] if isinstance(primary_key, str) else list(primary_key)
+
     return decorators.resource(
-        table_rows, name=str(table), write_disposition=write_disposition, **hints
+        table_rows,
+        name=str(table),
+        write_disposition=write_disposition,
+        merge_key=merge_key,
+        **hints
     )(
         engine,
         table_obj if table_obj is not None else table,  # Pass table name if reflection deferred

@@ -13,7 +13,7 @@ it and, on the next pipeline run, request them back.
 
 You read and write the state in your resources. Below, we use the state to create a list of chess
 game archives, which we then use to
-[prevent requesting duplicates](incremental-loading.md#advanced-state-usage-storing-a-list-of-processed-entities).
+[prevent requesting duplicates](incremental/advanced-state.md#advanced-state-usage-storing-a-list-of-processed-entities).
 
 ```py
 @dlt.resource(write_disposition="append")
@@ -88,11 +88,11 @@ about the pipeline, the pipeline run (to which the state belongs), and the state
 ## When to use pipeline state
 
 - `dlt` uses the state internally to implement
-  [last value incremental loading](incremental-loading.md#incremental-loading-with-a-cursor-field). This
+  [last value incremental loading](incremental/cursor.md). This
   use case should cover around 90% of your needs to use the pipeline state.
-- [Store a list of already requested entities](incremental-loading.md#advanced-state-usage-storing-a-list-of-processed-entities)
+- [Store a list of already requested entities](incremental/advanced-state.md#advanced-state-usage-storing-a-list-of-processed-entities)
   if the list is not much bigger than 100k elements.
-- [Store large dictionaries of last values](incremental-loading.md#advanced-state-usage-tracking-the-last-value-for-all-search-terms-in-twitter-api)
+- [Store large dictionaries of last values](incremental/advanced-state.md#advanced-state-usage-tracking-the-last-value-for-all-search-terms-in-twitter-api)
   if you are not able to implement it with the standard incremental construct.
 - Store custom fields dictionaries, dynamic configurations, and other source-scoped state.
 

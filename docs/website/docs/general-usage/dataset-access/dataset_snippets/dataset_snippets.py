@@ -1,3 +1,4 @@
+# flake8: noqa
 import dlt
 import pandas as pd
 import pytest
@@ -113,6 +114,18 @@ def row_counts_snippet(dataset: ReadableDBAPIDataset) -> None:
     # or as tuples
     print(dataset.row_counts().fetchall())
     # @@@DLT_SNIPPET_END row_counts
+
+
+def context_manager_snippet(dataset: ReadableDBAPIDataset) -> None:
+    # @@@DLT_SNIPPET_START context_manager
+
+    # the dataset context manager will keep the connection open
+    # and close it after the with block is exited
+    with dataset as dataset_:
+        print(dataset.customers.limit(50).arrow())
+        print(dataset.purchases.arrow())
+
+    # @@@DLT_SNIPPET_END context_manager
 
 
 def limiting_records_snippet(dataset: ReadableDBAPIDataset) -> None:

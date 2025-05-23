@@ -52,6 +52,7 @@ def test_filesystem_configuration() -> None:
         "client_kwargs": None,
         "kwargs": None,
         "deltalake_storage_options": None,
+        "deltalake_configuration": None,
     }
 
 
@@ -212,6 +213,10 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
         kwargs={"use_ssl": True},
         client_kwargs={"verify": "public.crt"},
         deltalake_storage_options={"AWS_S3_LOCKING_PROVIDER": "dynamodb"},
+        deltalake_configuration={
+            "delta.minWriterVersion": "7",
+            "delta.enableChangeDataFeed": "true",
+        },
     )
     assert dict(config) == {
         "read_only": False,
@@ -220,6 +225,10 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
         "kwargs": {"use_ssl": True},
         "client_kwargs": {"verify": "public.crt"},
         "deltalake_storage_options": {"AWS_S3_LOCKING_PROVIDER": "dynamodb"},
+        "deltalake_configuration": {
+            "delta.minWriterVersion": "7",
+            "delta.enableChangeDataFeed": "true",
+        },
     }
 
 
