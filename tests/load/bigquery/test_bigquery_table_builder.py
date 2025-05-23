@@ -253,8 +253,6 @@ def test_create_table_with_integer_partition(gcp_client: BigQueryClient) -> None
 
 
 def test_create_table_with_custom_integer_range_partition() -> None:
-    import dlt
-    from dlt.destinations.adapters import bigquery_adapter, bigquery_partition
 
     @dlt.resource
     def partitioned_table():
