@@ -1,4 +1,4 @@
-from typing import Any, Optional, Literal, Dict
+from typing import Any, Optional, Literal, Dict, Union, Sequence
 
 from dateutil import parser
 
@@ -26,9 +26,47 @@ PARTITION_EXPIRATION_DAYS_HINT: Literal["x-bigquery-partition-expiration-days"] 
 CLUSTER_COLUMNS_HINT: Literal["x-bigquery-cluster-columns"] = "x-bigquery-cluster-columns"
 
 
+class PartitionTransformation:
+    template: str
+    """Template string of the transformation including column name placeholder. E.g. `RANGE_BUCKET({column_name}, GENERATE_ARRAY(0, 1000000, 10000))`"""
+    column_name: str
+    """Column name to apply the transformation to"""
+
+    def __init__(self, template: str, column_name: str) -> None:
+        self.template = template
+        self.column_name = column_name
+
+
+class bigquery_partition:
+    """Helper class to generate BigQuery partition transformations."""
+
+    @staticmethod
+    def range_bucket(
+        column_name: str,
+        start: int,
+        end: int,
+        interval: int = 1,
+    ) -> PartitionTransformation:
+        """Partition by an integer column with the specified range, where:
+
+        Args:
+            column_name: The column to partition by
+            start: The start of range partitioning (inclusive)
+            end: The end of the range partitioning (exclusive)
+            interval: The width of each range within the partition (default: 1)
+
+        Returns:
+            A PartitionTransformation object for integer range partitioning
+        """
+        # Correct BigQuery syntax for integer range partitioning
+        template = f"RANGE_BUCKET({{column_name}}, GENERATE_ARRAY({start}, {end}, {interval}))"
+        
+        return PartitionTransformation(template, column_name)
+
+
 def bigquery_adapter(
     data: Any,
-    partition: TColumnNames = None,
+    partition: Union[str, PartitionTransformation] = None,
     cluster: TColumnNames = None,
     round_half_away_from_zero: TColumnNames = None,
     round_half_even: TColumnNames = None,
@@ -49,8 +87,10 @@ def bigquery_adapter(
         data (Any): The data to be transformed.
             This can be raw data or an instance of DltResource.
             If raw data is provided, the function will wrap it into a `DltResource` object.
-        partition (TColumnNames, optional): The name of the column to partition the BigQuery table by.
-            This should be a string representing a single column name.
+        partition (Union[str, PartitionTransformation], optional): The column to partition the BigQuery table by.
+            This can be a string representing a single column name for simple partitioning,
+            or a PartitionTransformation object for advanced partitioning.
+            Use the bigquery_partition helper class to create transformation objects.
         cluster (TColumnNames, optional): A column name or list of column names to cluster the BigQuery table by.
         round_half_away_from_zero (TColumnNames, optional): Determines how values in the column are rounded when written to the table.
             This mode rounds halfway cases away from zero.
