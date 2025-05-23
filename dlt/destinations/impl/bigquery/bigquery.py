@@ -264,11 +264,6 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         if not partition_hint:
             return ""
 
-        if len(partition_hint) > 1:
-            raise DestinationSchemaWillNotUpdate(
-                "BigQuery only supports partitioning by one column at a time."
-            )
-
         [(column_name, clause)] = partition_hint.items()
         return (
             "PARTITION BY"
@@ -314,7 +309,7 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                 )
         # handle partitioning when user passes a PartitionTransformation to the `partition` param in bigquery_adapter
         partition_hint = table.get(PARTITION_HINT)
-        if partition_hint and len(partition_hint) > 1:
+        if isinstance(partition_hint, dict) and len(partition_hint) > 1:
             col_names = [
                 self.sql_client.escape_column_name(col) for col, v in partition_hint.items()
             ]
@@ -322,7 +317,9 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                 canonical_name, col_names, "Partition requested for more than one column"
             )
 
-        sql[0] += self._bigquery_partition_clause(table.get(PARTITION_HINT))
+        sql[0] += self._bigquery_partition_clause(
+            partition_hint if isinstance(partition_hint, dict) else None
+        )
 
         # Collect cluster columns from table-level and per-column hints
         cluster_columns_from_table_hint = list(

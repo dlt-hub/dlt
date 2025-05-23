@@ -66,7 +66,7 @@ class bigquery_partition:
 
 def bigquery_adapter(
     data: Any,
-    partition: Union[str, PartitionTransformation] = None,
+    partition: Union[TColumnNames, PartitionTransformation] = None,
     cluster: TColumnNames = None,
     round_half_away_from_zero: TColumnNames = None,
     round_half_even: TColumnNames = None,

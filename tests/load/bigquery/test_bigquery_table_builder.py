@@ -283,7 +283,7 @@ def test_create_table_with_custom_range_bucket_partition() -> None:
     pipeline.normalize()
 
     with pipeline.destination_client() as client:
-        sql_partitioned = client._get_table_update_sql(
+        sql_partitioned = client._get_table_update_sql(  # type: ignore[attr-defined]
             "partitioned_table",
             list(pipeline.default_schema.tables["partitioned_table"]["columns"].values()),
             False,
