@@ -252,7 +252,7 @@ def test_create_table_with_integer_partition(gcp_client: BigQueryClient) -> None
     assert "PARTITION BY RANGE_BUCKET(`col1`, GENERATE_ARRAY(-172800000, 691200000, 86400))" in sql
 
 
-def test_create_table_with_custom_integer_range_partition() -> None:
+def test_create_table_with_custom_range_bucket_partition() -> None:
 
     @dlt.resource
     def partitioned_table():
@@ -266,7 +266,7 @@ def test_create_table_with_custom_integer_range_partition() -> None:
 
     bigquery_adapter(
         partitioned_table,
-        partition=bigquery_partition.integer_range(
+        partition=bigquery_partition.range_bucket(
             column_name="user_id",
             start=0,
             end=1000000,
