@@ -148,7 +148,7 @@ def section_overview(
 
 
 @app.cell(hide_code=True)
-def section_schema_table_list(
+def section_schema(
     dlt_pipeline: dlt.Pipeline,
     dlt_schema_show_child_tables: mo.ui.switch,
     dlt_schema_show_dlt_tables: mo.ui.switch,
@@ -271,18 +271,17 @@ def section_browse_data_table_list(
         dlt_data_table_list: mo.ui.table = None
         try:
             dlt_pipeline.dataset().destination_client.config.credentials
-            with mo.status.spinner(title="Getting table list..."):
-                dlt_data_table_list = mo.ui.table(
-                    utils.create_table_list(  # type: ignore[arg-type]
-                        dlt_pipeline,
-                        show_internals=dlt_schema_show_dlt_tables.value,
-                        show_child_tables=dlt_schema_show_child_tables.value,
-                        show_row_counts=dlt_schema_show_row_counts.value,
-                    ),
-                    style_cell=utils.style_cell,
-                    selection="single",
-                )
-                _result.append(dlt_data_table_list)
+            dlt_data_table_list = mo.ui.table(
+                utils.create_table_list(  # type: ignore[arg-type]
+                    dlt_pipeline,
+                    show_internals=dlt_schema_show_dlt_tables.value,
+                    show_child_tables=dlt_schema_show_child_tables.value,
+                    show_row_counts=dlt_schema_show_row_counts.value,
+                ),
+                style_cell=utils.style_cell,
+                selection="single",
+            )
+            _result.append(dlt_data_table_list)
         except Exception:
             _result.append(ui.build_error_callout(strings.browse_data_error_text))
     mo.vstack(_result) if _result else None
@@ -554,7 +553,7 @@ def section_loads(
 
 
 @app.cell(hide_code=True)
-def section_loads_details(
+def section_loads_results(
     dlt_loads_table: mo.ui.table,
     dlt_pipeline: dlt.Pipeline,
     dlt_section_loads_switch: mo.ui.switch,
@@ -571,6 +570,7 @@ def section_loads_details(
         and dlt_loads_table.value
     ):
         _load_id = dlt_loads_table.value[0]["load_id"]  # type: ignore
+        _result.append(mo.md("## Load details for load id: {}".format(_load_id)))
 
         try:
             with mo.status.spinner(title="Loading row counts and schema..."):

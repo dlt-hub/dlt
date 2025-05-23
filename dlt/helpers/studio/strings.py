@@ -153,11 +153,11 @@ loads_loading_failed_text = f"Loading loads from destination failed. {_credentia
 
 # loads details
 loads_details_row_counts = """
-### Row counts for load `{}`
+### Row counts
 <small>The row counts associated with this load. Will only show tables that have a _dlt_load_id column, which excludes child tables and some of the system tables.</small>
 """
 loads_details_schema_version = """
-### Schema `{}` version `{}` for load `{}`
+### Schema details
 <small>The full schema that was the result of this load. This schema and version <strong>{}</strong> the current default schema.</small>
 """
 loads_details_error_text = """Error loading load details"""

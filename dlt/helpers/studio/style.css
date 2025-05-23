@@ -10,7 +10,7 @@
 
   /* background colors */
   --dlt-color-lime-background: #c6d30006;
-  --dlt-color-aqua-background: #59c1d506;
+  --dlt-color-aqua-background: #59c1d503;
   --dlt-color-purple-background: #19193706;
 
 }
@@ -29,7 +29,7 @@
   font-weight: 600;
   margin-bottom: 0.5rem;
   padding-top: 0.5rem;
-  border-top: 1px dashed #ccc;
+  /* border-top: 1px dashed #ccc; */
 }
 
 
@@ -49,5 +49,14 @@
 #App .marimo-cell {
   border: 1px dashed #dddddd;
   margin: 0.2rem;
-  background-color: var(--dlt-color-lime-background);
+  background-color: var(--dlt-color-purple-background);
+}
+
+/* data browser cells */
+#App .marimo-cell:nth-child(6),
+#App .marimo-cell:nth-child(7),
+#App .marimo-cell:nth-child(8),
+#App .marimo-cell:nth-child(9),
+#App .marimo-cell:nth-child(10) {
+  background-color: var(--dlt-color-aqua-background);
 }
