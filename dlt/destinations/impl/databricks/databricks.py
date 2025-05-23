@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Sequence, List, cast
+from typing import Dict, Optional, Sequence, List, cast
 from urllib.parse import urlparse, urlunparse
 
 from dlt.common.configuration.specs.azure_credentials import (
@@ -35,7 +35,7 @@ from dlt.destinations.impl.databricks.databricks_adapter import (
     COLUMN_TAGS_HINT,
 )
 from dlt.common.schema import TColumnSchema, Schema
-from dlt.common.schema.typing import TColumnType
+from dlt.common.schema.typing import TColumnHint, TColumnType
 from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 from dlt.common.utils import uniq_id
 from dlt.common import logger
@@ -49,6 +49,7 @@ from dlt.destinations.utils import is_compression_disabled
 
 SUPPORTED_BLOB_STORAGE_PROTOCOLS = AZURE_BLOB_STORAGE_PROTOCOLS + S3_PROTOCOLS + GCS_PROTOCOLS
 
+SUPPORTED_HINTS: Dict[TColumnHint, str] = {"primary_key": "PRIMARY KEY", "foreign_key": "FOREIGN KEY"}
 
 class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
@@ -312,6 +313,7 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         self.config: DatabricksClientConfiguration = config
         self.sql_client: DatabricksSqlClient = sql_client  # type: ignore[assignment, unused-ignore]
         self.type_mapper = self.capabilities.get_type_mapper()
+        self.active_hints = SUPPORTED_HINTS if self.config.create_indexes else {}
 
     def _get_column_def_sql(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         column_def_sql = super()._get_column_def_sql(column, table)
@@ -365,6 +367,7 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             pk_columns = get_columns_names_with_prop(partial, "primary_key")
         
             if pk_columns:
+                logger.info(f"Creating PRIMARY KEY constraint for table {table_name}")
                 if generate_alter:
                     logger.warning(
                         f"PRIMARY KEY on {table_name} constraint cannot be added in ALTER TABLE and"
@@ -387,6 +390,7 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
                 )
             else:
                 if references:
+                    logger.info(f"Creating FOREIGN KEY constraint for table {table_name}")
                     for reference in references:
                         quoted_fk_cols = ", ".join(
                             self.sql_client.escape_column_name(col) for col in reference.get("columns")
