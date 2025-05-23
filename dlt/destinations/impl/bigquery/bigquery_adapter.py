@@ -58,7 +58,7 @@ class bigquery_partition:
         Returns:
             A PartitionTransformation object for integer range partitioning
         """
-        # Correct BigQuery syntax for integer range partitioning
+
         template = f"RANGE_BUCKET({{column_name}}, GENERATE_ARRAY({start}, {end}, {interval}))"
 
         return PartitionTransformation(template, column_name)
