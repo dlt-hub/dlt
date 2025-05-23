@@ -465,43 +465,62 @@ def test_limit_and_head(populated_pipeline: Pipeline) -> None:
     dataset_ = populated_pipeline.dataset()
 
     # test sql_client lifecycle
-    assert dataset_._sql_client is None
+    assert dataset_._opened_sql_client is None
 
     table_relationship = dataset_.items
     # ibis relation creates client, default not
     # assert dataset_._sql_client is None
 
     assert len(table_relationship.head().fetchall()) == 5
-    assert dataset_._sql_client is not None
-    # we close the connection after each use
-    assert dataset_._sql_client.native_connection is None
+    # no client remains
+    assert dataset_._opened_sql_client is None
 
     assert len(table_relationship.limit(24).fetchall()) == 24
-    assert dataset_._sql_client.native_connection is None
+    assert dataset_._opened_sql_client is None
 
     assert len(table_relationship.head().df().index) == 5
-    assert dataset_._sql_client.native_connection is None
+    assert dataset_._opened_sql_client is None
 
     assert len(table_relationship.limit(24).df().index) == 24
-    assert dataset_._sql_client.native_connection is None
+    assert dataset_._opened_sql_client is None
 
     assert table_relationship.head().arrow().num_rows == 5
-    assert dataset_._sql_client.native_connection is None
+    assert dataset_._opened_sql_client is None
 
     assert table_relationship.limit(24).arrow().num_rows == 24
-    assert dataset_._sql_client.native_connection is None
+    assert dataset_._opened_sql_client is None
 
-    for data_ in table_relationship.limit(24).iter_fetch(6):
+    limit_relationship = table_relationship.limit(24)
+    for data_ in limit_relationship.iter_fetch(6):
         assert len(data_) == 6
-        # connection kept open
-        assert dataset_._sql_client.native_connection is not None
+        # client stays open
+        assert limit_relationship._opened_sql_client is not None
+
+    # run multiple requests on one connection
+    with dataset_ as d_:
+        limit_relationship = table_relationship.limit(24)
+        for _data in limit_relationship.iter_fetch(6):
+            # client stays open
+            assert limit_relationship._opened_sql_client is not None
+            assert (
+                limit_relationship._opened_sql_client.native_connection
+                == d_._opened_sql_client.native_connection
+            )
+
+        other_relationship = table_relationship.limit(10)
+        for _data in other_relationship.iter_fetch(6):
+            assert other_relationship._opened_sql_client is not None
+            assert (
+                other_relationship._opened_sql_client.native_connection
+                == d_._opened_sql_client.native_connection
+            )
 
     # connection closed
-    assert dataset_._sql_client.native_connection is None
+    assert dataset_._opened_sql_client is None
 
     chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     list(table_relationship.iter_fetch(chunk_size=chunk_size))
-    assert dataset_._sql_client.native_connection is None
+    assert dataset_._opened_sql_client is None
 
 
 @pytest.mark.no_load
@@ -512,39 +531,68 @@ def test_limit_and_head(populated_pipeline: Pipeline) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
-def test_dataset_context_manager_keeps_connection(populated_pipeline: Pipeline) -> None:
-    with populated_pipeline.dataset() as dataset_:
-        # test sql_client lifecycle
-        assert dataset_._sql_client is not None
+def test_dataset_client_caching_and_connection_handling(populated_pipeline: Pipeline) -> None:
+    # no clients exist yet
+    dataset = populated_pipeline.dataset()
+    assert dataset._opened_sql_client is None
+    assert dataset._sql_client is None
 
+    with dataset as dataset_:
+        # test sql_client lifecycle
+        assert dataset_._opened_sql_client is not None
+
+        first_encountered_opened_sql_client = dataset_._opened_sql_client
+
+        # "regular" clients are not created yet as never used
+        assert dataset_._sql_client is None
+
+        # cached sql client is used
         table_relationship = dataset_.items
-        assert dataset_._sql_client is not None
+        assert dataset_._opened_sql_client is not None
+        assert dataset_._opened_sql_client == first_encountered_opened_sql_client
 
         assert len(table_relationship.head().fetchall()) == 5
-        assert dataset_._sql_client is not None
+        assert dataset_._opened_sql_client is not None
+        assert dataset_._opened_sql_client == first_encountered_opened_sql_client
+
         # connection is kept
-        assert dataset_._sql_client.native_connection is not None
+        assert dataset_._opened_sql_client.native_connection is not None
 
         for data_ in table_relationship.limit(24).iter_fetch(6):
             assert len(data_) == 6
             # connection kept open
-            assert dataset_._sql_client.native_connection is not None
+            assert dataset_._opened_sql_client.native_connection is not None
 
     # connection closed
-    assert dataset_._sql_client is None
+    assert dataset_._opened_sql_client is None
+
+    # we do something that activates the "regular" caching
+    dataset_.items.fetchall()
+    assert dataset_._sql_client is not None
+    assert dataset_._opened_sql_client is None
 
     # open again
     with dataset_:
-        assert dataset_._sql_client is not None
+        assert dataset_._opened_sql_client is not None
         assert len(table_relationship.head().fetchall()) == 5
-        assert dataset_._sql_client is not None
+        assert dataset_._opened_sql_client is not None
         # connection is kept
-        assert dataset_._sql_client.native_connection is not None
+        assert dataset_._opened_sql_client.native_connection is not None
+
+        # the opened client is different from the "regular" one
+        assert dataset_._sql_client != dataset_._opened_sql_client
+        # and different from the last one
+        assert dataset_._opened_sql_client != first_encountered_opened_sql_client
 
         with pytest.raises(AssertionError):
             with dataset_:
                 pass
-    assert dataset_._sql_client is None
+    assert dataset_._opened_sql_client is None
+
+    # check that if the schema needs to be fetched, no opened client is left
+    dataset_._schema = None
+    assert dataset_.schema
+    assert dataset_._opened_sql_client is None
 
 
 @pytest.mark.no_load
@@ -913,7 +961,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     )
     # verify that sql client and schema are lazy loaded
     assert not dataset._schema
-    assert not dataset._sql_client
+    assert not dataset._opened_sql_client
     table_relationship = dataset.items
     table = table_relationship.fetchall()
     assert len(table) == total_records
@@ -955,7 +1003,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     other_schema.tables["other_table"] = utils.new_table("other_table")
 
     populated_pipeline._inject_schema(other_schema)
-    populated_pipeline.default_schema_name = other_schema.name
+    populated_pipeline.default_schema_name = other_schema.name  # type: ignore[assignment]
     with populated_pipeline.destination_client() as client:
         client.update_stored_schema()
 

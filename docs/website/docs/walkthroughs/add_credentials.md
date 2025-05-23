@@ -168,4 +168,4 @@ to Secrets backend.
 
 ## Retrieving credentials from other vault types
 Subclass `VaultDocProvider` and implement methods to fetch a secret and (optionally) to list secrets then
-[register subclass as custom provider](../../examples/custom_config_provider).
+[register subclass as custom provider](../examples/custom_config_provider).

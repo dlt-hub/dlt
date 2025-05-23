@@ -291,28 +291,19 @@ class Pipeline(SupportsPipeline):
     LOCAL_STATE_PROPS: ClassVar[List[str]] = list(get_type_hints(TPipelineLocalState).keys())
     DEFAULT_DATASET_SUFFIX: ClassVar[str] = "_dataset"
 
-    pipeline_name: str
-    """Name of the pipeline"""
-    default_schema_name: str
+    # default_schema_name: str
     schema_names: List[str]
-    first_run: bool
-    """Indicates a first run of the pipeline, where run ends with successful loading of the data"""
     dev_mode: bool
     must_attach_to_local_pipeline: bool
     pipelines_dir: str
     """A directory where the pipelines' working directories are created"""
-    working_dir: str
-    """A working directory of the pipeline"""
     _destination: AnyDestination
     _staging: AnyDestination
     """The destination reference which is the Destination Class. `destination.destination_name` returns the name string"""
-    dataset_name: str
-    """Name of the dataset to which pipeline will be loaded to"""
     is_active: bool
     """Tells if instance is currently active and available via dlt.pipeline()"""
     collector: _Collector
     config: PipelineConfiguration
-    runtime_config: RuntimeConfiguration
     refresh: Optional[TRefreshMode]
 
     def __init__(
@@ -799,6 +790,15 @@ class Pipeline(SupportsPipeline):
                             remote_state["schema_names"], always_download=True
                         )
                         # TODO: we should probably wipe out pipeline here
+                        if self.has_pending_data:
+                            logger.warning(
+                                f"Pipeline {self.pipeline_name} got restored from destination"
+                                " including new version",
+                                "of pipeline state but it has pending load packages that were not"
+                                " yet normalized or loaded. If that packages contain extracted"
+                                " state or schema migrations - those will not be affected and will"
+                                " still be loaded to destination.",
+                            )
                 # if we didn't full refresh schemas, get only missing schemas
                 if restored_schemas is None:
                     restored_schemas = self._get_schemas_from_destination(
@@ -840,9 +840,29 @@ class Pipeline(SupportsPipeline):
                             self._schema_storage_config.export_schema_path,
                             False,
                         )
-
             # write the state back
             self._props_to_state(state)
+            # verify state
+            if state_default_schema_name := state.get("default_schema_name"):
+                # at least empty list is present
+                state_schemas = state["schema_names"]
+                if state_default_schema_name not in state_schemas:
+                    new_default_schema_name: Optional[str] = (
+                        state_schemas[0] if len(state_schemas) > 0 else None
+                    )
+                    logger.warning(
+                        f"Pipeline {self.pipeline_name} was restored from destination with"
+                        " inconsistent state. Default schema name"
+                        f" {state_default_schema_name} could not be found and downloaded from the"
+                        " destination. "
+                        + (
+                            f"Default schema was set to {new_default_schema_name}."
+                            if new_default_schema_name
+                            else "Default schema was removed."
+                        )
+                    )
+                    self.default_schema_name = new_default_schema_name  # type: ignore[assignment]
+                    state["default_schema_name"] = new_default_schema_name
             bump_pipeline_state_version_if_modified(state)
             self._save_state(state)
         except Exception as ex:
@@ -889,7 +909,7 @@ class Pipeline(SupportsPipeline):
 
     @property
     def has_pending_data(self) -> bool:
-        """Tells if the pipeline contains any extracted files or pending load packages"""
+        """Tells if the pipeline contains any pending packages to be normalized or loaded"""
         return (
             len(self.list_normalized_load_packages()) > 0
             or len(self.list_extracted_load_packages()) > 0
@@ -1540,6 +1560,7 @@ class Pipeline(SupportsPipeline):
         for schema_name in schema_names:
             with self._maybe_destination_capabilities():
                 schema = Schema(schema_name)
+
             if not self._schema_storage.has_schema(schema.name) or always_download:
                 with self._get_destination_clients(schema)[0] as job_client:
                     if not isinstance(job_client, WithStateSync):
@@ -1550,13 +1571,16 @@ class Pipeline(SupportsPipeline):
                         return restored_schemas
                     schema_info = job_client.get_stored_schema(schema_name)
                     if schema_info is None:
-                        logger.info(
+                        logger.warning(
                             f"The schema {schema.name} was not found in the destination"
-                            f" {self._destination.destination_name}:{self.dataset_name}"
+                            f" {self._destination.destination_name}:{self.dataset_name}. "
+                            " Pipeline state indicated that this schema should be preset. "
+                            "New or imported schema will be used instead. "
                         )
                         # try to import schema
                         with contextlib.suppress(FileNotFoundError):
-                            self._schema_storage.load_schema(schema.name)
+                            schema = self._schema_storage.load_schema(schema.name)
+                        # imported or new/empty schema will be added to restored schemas
                     else:
                         schema = Schema.from_dict(json.loads(schema_info.schema))
                         logger.info(
@@ -1564,7 +1588,8 @@ class Pipeline(SupportsPipeline):
                             f" {schema.stored_version_hash} was restored from the destination"
                             f" {self._destination.destination_name}:{self.dataset_name}"
                         )
-                        restored_schemas.append(schema)
+
+                    restored_schemas.append(schema)
         return restored_schemas
 
     @contextmanager

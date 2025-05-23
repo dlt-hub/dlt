@@ -69,11 +69,15 @@ Depending on the selected backend, some of the types might require additional pr
 
 The `reflection_level` argument controls how much information is reflected:
 
-- `reflection_level = "minimal"`: Only column names and nullability are detected. Data types are inferred from the data. **This is the default.**
-- `reflection_level = "full"`: Column names, nullability, and data types are detected. For decimal types, we always add precision and scale.
+- `reflection_level = "minimal"`: Only column names and nullability are detected. Data types are inferred from the data.
+- `reflection_level = "full"`: Column names, nullability, and data types are detected. For decimal types, we always add precision and scale. **This is the default.**
 - `reflection_level = "full_with_precision"`: Column names, nullability, data types, and precision/scale are detected, also for types like text and binary. Integer sizes are set to bigint and to int for all other types.
 
-If the SQL type is unknown or not supported by `dlt`, then, in the pyarrow backend, the column will be skipped, whereas in the other backends the type will be inferred directly from the data irrespective of the `reflection_level` specified. In the latter case, this often means that some types are coerced to strings and `dataclass` based values from sqlalchemy are inferred as `json` (JSON in most destinations).
+If the SQL type is unknown or not supported by `dlt`, then we'll try to infer it from the data.
+* `sqlalchemy` follows standard `dlt` inference rules from Python objects. This often means that some types are coerced to strings and `dataclass` based values from sqlalchemy are inferred as `json` (JSON in most destinations).
+* `pyarrow` backend will try to infer types from the data using rules built-in in arrow (we just past an array of Python objects and ask for a type). Variant columns are not created by this backend so columns with inconsistent types cannot be loaded by this backend.
+
+
 :::tip
 If you use reflection level **full** / **full_with_precision**, you may encounter a situation where the data returned by sqlalchemy or pyarrow backend does not match the reflected data types. The most common symptoms are:
 1. The destination complains that it cannot cast one type to another for a certain column. For example, `connector-x` returns TIME in nanoseconds

@@ -84,6 +84,7 @@ const sidebars = {
           items: [
             'plus/getting-started/installation',
             'plus/getting-started/tutorial',
+            'plus/getting-started/advanced_tutorial',
           ]
         },
         {
@@ -305,8 +306,13 @@ const sidebars = {
           type: 'category',
           label: 'Load data incrementally',
           items: [
-            'general-usage/incremental-loading',            
             'general-usage/full-loading',
+            'general-usage/merge-loading',
+            'general-usage/incremental-loading',
+            'general-usage/incremental/cursor',
+            'general-usage/incremental/lag',
+            'general-usage/incremental/advanced-state',
+            'general-usage/incremental/troubleshooting',
           ]
         },
         {
@@ -350,7 +356,7 @@ const sidebars = {
           items: [
             {
               type: 'category',
-              label: 'Transforming data with dbt',
+              label: 'Transform data with dbt',
               items: [
                 'dlt-ecosystem/transformations/dbt/dbt',
                 'dlt-ecosystem/transformations/dbt/dbt_cloud',
@@ -362,13 +368,14 @@ const sidebars = {
               type: 'category',
               label: 'Transform before load',
               items: [
+                'dlt-ecosystem/transformations/add-map',
                 'general-usage/customising-pipelines/renaming_columns',
                 'general-usage/customising-pipelines/pseudonymizing_columns',
                 'general-usage/customising-pipelines/removing_columns',
               ]
             }
           ]
-        },        
+        },
       ]
     },
     {

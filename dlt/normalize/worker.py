@@ -32,6 +32,7 @@ from dlt.normalize.items_normalizers import (
     FileImportNormalizer,
     JsonLItemsNormalizer,
     ItemsNormalizer,
+    ModelItemsNormalizer,
 )
 
 
@@ -170,6 +171,8 @@ def w_normalize_files(
                 cls = ArrowItemsNormalizer
             elif item_format == "object":
                 cls = JsonLItemsNormalizer
+            elif item_format == "model":
+                cls = ModelItemsNormalizer
             else:
                 cls = FileImportNormalizer
             logger.info(
