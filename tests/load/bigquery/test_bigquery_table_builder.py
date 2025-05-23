@@ -267,11 +267,10 @@ def test_create_table_with_custom_integer_range_partition() -> None:
     bigquery_adapter(
         partitioned_table,
         partition=bigquery_partition.integer_range(
-            column="user_id",
+            column_name="user_id",
             start=0,
             end=1000000,
             interval=10000,
-            require_partition_filter=True,
         ),
     )
 
