@@ -66,7 +66,7 @@ for package in load_info.load_packages:
                 )
             )
 ```
-Refer to this [example](../examples/chess_production/) for a practical application of the method in a production environment.
+Refer to this [example](../../../examples/chess_production/chess_production.py) for a practical application of the method in a production environment.
 
 Similarly, Slack notifications can be extended to include information on pipeline execution times, loading durations, schema modifications, and more. For comprehensive details on configuring and sending messages to Slack, please read [here](./running#using-slack-to-send-messages).
 
