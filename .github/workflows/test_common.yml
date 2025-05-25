@@ -33,24 +33,49 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
-        python-version: ["3.11.x"]
-        # Test all python versions on ubuntu only
         include:
-          - python-version: "3.9.x"
-            os: "ubuntu-latest"
-          - python-version: "3.10.x"
-            os: "ubuntu-latest"
-          - python-version: "3.12.x"
-            os: "ubuntu-latest"
-          - python-version: "3.13.x"
-            os: "ubuntu-latest"
-          - python-version: "3.13.x"
-            os: "windows-latest"
+
+          # macos tests
+          - os: macos-latest
+            python-version: "3.11.x"
+            shell: bash
+            pytest_args: ""
+
+          # linux tests
+          - os: ubuntu-latest
+            python-version: "3.9.x"
+            shell: bash
+            pytest_args: ""
+          - os: ubuntu-latest
+            python-version: "3.10.x"
+            shell: bash
+            pytest_args: ""
+          - os: ubuntu-latest
+            python-version: "3.11.x"
+            shell: bash
+            pytest_args: ""
+          - os: ubuntu-latest
+            python-version: "3.12.x"
+            shell: bash
+            pytest_args: ""
+          - os: ubuntu-latest
+            python-version: "3.13.x"
+            shell: bash
+            pytest_args: "" 
+          
+          # windows tests
+          - os: windows-latest
+            python-version: "3.11.x"
+            shell: cmd
+            pytest_args: '-m "not forked"'
+          - os: windows-latest
+            python-version: "3.13.x"
+            shell: cmd
+            pytest_args: '-m "not forked"'
 
     defaults:
       run:
-        shell: bash
+        shell: ${{ matrix.shell }}
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -72,7 +97,6 @@ jobs:
           copy tzdata %USERPROFILE%\Downloads\tzdata
           curl https://raw.githubusercontent.com/unicode-org/cldr/master/common/supplemental/windowsZones.xml --output %USERPROFILE%\Downloads\tzdata\windowsZones.xml
         if: runner.os == 'Windows'
-        shell: cmd
 
       - name: Install Poetry
         # https://github.com/snok/install-poetry#running-on-windows
@@ -82,6 +106,7 @@ jobs:
           virtualenvs-in-project: true
           installer-parallel: true
           version: 1.8.5
+
 
       # NOTE: do not cache. we want to have a clean state each run and we upgrade depdendencies later
       # - name: Load cached venv
@@ -95,81 +120,48 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction --with sentry-sdk
 
-      - run: |
-          poetry run pytest tests/common tests/normalize tests/reflection tests/plugins tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py
-        if: runner.os != 'Windows'
-        name: Run common tests with minimum dependencies Linux/MAC
-      - run: |
-          poetry run pytest tests/common tests/normalize tests/reflection tests/plugins tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py -m "not forked"
-        if: runner.os == 'Windows'
-        name: Run common tests with minimum dependencies Windows
-        shell: cmd
+      - name: Run common tests with minimum dependencies
+        run: |
+          poetry run pytest tests/common tests/normalize tests/reflection tests/plugins tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py ${{ matrix.pytest_args }}
+        
 
       - name: Install duckdb dependencies
         run: poetry install --no-interaction -E duckdb --with sentry-sdk
 
-      - run: |
-          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py
-        if: runner.os != 'Windows'
-        name: Run pipeline smoke tests with minimum deps Linux/MAC
-      - run: |
-          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py -m "not forked"
-        if: runner.os == 'Windows'
-        name: Run smoke tests with minimum deps Windows
-        shell: cmd
+      - name: Run pipeline smoke tests with minimum deps
+        run: |
+          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py ${{ matrix.pytest_args }}
 
       - name: Install pyarrow
         run: poetry install --no-interaction -E duckdb -E cli -E parquet --with sentry-sdk
 
-      - run: |
-          poetry run pytest tests/pipeline/test_pipeline_extra.py -k arrow
-        if: runner.os != 'Windows'
-        name: Run pipeline tests with pyarrow but no pandas installed
-      - run: |
-          poetry run pytest tests/pipeline/test_pipeline_extra.py -k arrow  -m "not forked"
-        if: runner.os == 'Windows'
-        name: Run pipeline tests with pyarrow but no pandas installed Windows
-        shell: cmd
+      - name: Run pipeline tests with pyarrow but no pandas installed
+        run: |
+          poetry run pytest tests/pipeline/test_pipeline_extra.py -k arrow ${{ matrix.pytest_args }}
 
       - name: Install pipeline and sources dependencies
         run: poetry install --no-interaction -E duckdb -E cli -E parquet -E deltalake -E sql_database --with sentry-sdk,pipeline,sources
 
-      - run: |
-          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources
-        if: runner.os != 'Windows'
-        name: Run extract and pipeline tests Linux/MAC
-      - run: |
-          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources -m "not forked"
-        if: runner.os == 'Windows'
-        name: Run extract tests Windows
-        shell: cmd
+      - name: Run extract and pipeline tests
+        run: |
+          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources ${{ matrix.pytest_args }}
 
       # here we upgrade sql alchemy to 2 an run the sql_database tests again
       - name: Upgrade sql alchemy
         run: poetry run pip install sqlalchemy==2.0.32
 
-      - run: |
+      - name: Run extract and pipeline tests 
+        run: |
           poetry run pytest tests/sources/sql_database
-        if: runner.os != 'Windows'
-        name: Run extract and pipeline tests Linux/MAC
-      - run: |
-          poetry run pytest tests/sources/sql_database
-        if: runner.os == 'Windows'
-        name: Run extract tests Windows
-        shell: cmd
+        
 
       # - name: Install Pydantic 1.0
       #   run: pip install "pydantic<2"
 
-      # - run: |
+      # - name: Run extract and pipeline tests
+      #   run: |
       #     poetry run pytest tests/libs
-      #   if: runner.os != 'Windows'
-      #   name: Run extract and pipeline tests Linux/MAC
-      # - run: |
-      #     poetry run pytest tests/libs
-      #   if: runner.os == 'Windows'
-      #   name: Run extract tests Windows
-      #   shell: cmd
+
 
   matrix_job_required_check:
     name: common | common tests
