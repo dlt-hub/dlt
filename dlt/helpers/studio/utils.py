@@ -335,11 +335,26 @@ def trace_steps_overview(trace: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     result = []
     for step in trace.get("steps", []):
+        started_at = step.get("started_at", "")
+        finished_at = step.get("finished_at", "")
         result.append(
             {
                 "Name": step.get("step", ""),
-                "Started at": step.get("started_at", ""),
-                "Finished at": step.get("finished_at", ""),
+                "Started at": (
+                    pendulum.instance(started_at).format("YYYY-MM-DD HH:mm:ss")
+                    if started_at
+                    else ""
+                ),
+                "Finished at": (
+                    pendulum.instance(finished_at).format("YYYY-MM-DD HH:mm:ss")
+                    if finished_at
+                    else ""
+                ),
+                "Duration": (
+                    f"{pendulum.instance(finished_at).diff(pendulum.instance(started_at)).in_words()}"
+                    if started_at and finished_at
+                    else ""
+                ),
             }
         )
     return result

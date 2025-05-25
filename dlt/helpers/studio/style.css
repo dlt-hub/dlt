@@ -70,3 +70,13 @@
   background-color: white;
   border: none;
 }
+
+#App .marimo-cell:nth-child(4) .output-area,
+#App .marimo-cell:nth-child(5) .output-area,
+#App .marimo-cell:nth-child(6) .output-area,
+#App .marimo-cell:nth-child(9) .output-area,
+#App .marimo-cell:nth-child(10) .output-area,
+#App .marimo-cell:nth-child(11) .output-area,
+#App .marimo-cell:nth-child(13) .output-area {
+  margin-top: 0.5rem;
+}

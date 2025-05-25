@@ -453,7 +453,7 @@ def section_trace(
             _result.append(
                 mo.ui.table(utils.trace_execution_context(dlt_trace.asdict()), selection=None)
             )
-            _result.append(mo.md("### Steps overview"))
+            _result.append(ui.build_title_and_subtitle("""Steps overview""", "Select a step to see the execution details"))
             _result.append(
                 mo.ui.table(utils.trace_steps_overview(dlt_trace.asdict()), selection="single")
             )
@@ -763,7 +763,7 @@ def ui_primary_controls(
         dlt_schema_table_list = mo.ui.table(
             _table_list,  # type: ignore[arg-type]
             style_cell=utils.style_cell,
-            initial_selection=list(range(0, len(_table_list))),
+            initial_selection=[0],
         )
 
     #
