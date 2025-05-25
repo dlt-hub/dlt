@@ -205,3 +205,73 @@ Demonstrating schema evolution without talking about schema and data contracts i
 
 Schema and data contracts can be applied to entities such as ‘tables’, ‘columns’, and ‘data_types’ using contract modes such as ‘evolve’, ‘freeze’, ‘discard_rows’, and ‘discard_columns’ to tell dlt how to apply contracts for a particular entity. To read more about **schema and data contracts**, read our [documentation](./schema-contracts).
 
+## Common schema evolution challenges
+
+This section addresses common issues that arise during schema evolution and outlines some possible approaches to resolving them.
+
+### Inconsistent data types
+
+When data types change between pipeline runs, `dlt` creates variant columns to handle the different types. For example, if a column `value` starts as an integer but later contains strings, `dlt` will create a `value__v_text` column for text values while preserving the original `value` column for integers.
+
+```py
+# First run: integers
+data_1 = [{"id": 1, "value": 42}]
+
+# Second run: mixed types
+data_2 = [{"id": 2, "value": "high"}]  # Creates value__v_text column
+```
+
+This requires downstream processes to handle both columns appropriately.
+
+#### Recommended Approaches:
+
+#### Enforce consistent types with `apply_hints`:
+```py
+# Force all values to be treated as text
+resource.apply_hints(columns={"value": {"data_type": "text"}})
+```
+
+#### Validate data before processing:
+
+Implement a validation function to enforce type constraints and normalize values prior to ingestion.
+
+```py
+def validate_value(value):
+    if not isinstance(value, (int, str)):
+        raise TypeError(f"Expected int or str, got {type(value)}")
+    return str(value)  # Convert to consistent type
+
+# Apply to your data
+data = [{"id": 1, "value": validate_value(42)}]
+```
+
+### Nested data evolution challenges
+
+As your data sources evolve, nested structures can become increasingly complex, leading to deeply nested tables that are difficult to manage or query.
+
+#### Recommended Approaches:
+
+#### Control nesting depth during evolution:
+```py
+# Set max_table_nesting on the source
+@dlt.source(max_table_nesting=2)
+def my_source():
+    return dlt.resource(data, name="my_table")
+
+pipeline.run(my_source())
+```
+
+#### Flatten complex structures before processing:
+```py
+import json
+
+def flatten_nested_data(data):
+    # Preprocess to reduce nesting complexity
+    return {"id": data["id"], "details_json": json.dumps(data["complex_nested_field"])}
+
+# Use in your pipeline
+flattened_data = [flatten_nested_data(item) for item in original_data]
+pipeline.run(flattened_data, table_name="my_table")
+```
+
+For more details on nested tables, see [nested tables documentation](destination-tables.md#nested-tables).
