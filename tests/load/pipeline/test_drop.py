@@ -170,7 +170,22 @@ def test_drop_command_resources_and_state(
     pipeline = destination_config.setup_pipeline("droppable", dev_mode=True)
     info = pipeline.run(source, **destination_config.run_kwargs)
     assert_load_info(info)
-    assert load_table_counts(pipeline, *pipeline.default_schema.tables.keys()) == {
+
+    def _load_all_table_counts(pipeline: Pipeline) -> Dict[str, int]:
+        all_tables = list(pipeline.default_schema.tables.keys())
+
+        if (
+            destination_config.destination_type == "filesystem"
+            and "abfss" in destination_config.bucket_url
+        ):
+            table_counts = {}
+            for table in all_tables:
+                table_counts[table] = load_table_counts(pipeline, table)[table]
+        else:
+            table_counts = load_table_counts(pipeline, *all_tables)
+        return table_counts
+
+    assert _load_all_table_counts(pipeline) == {
         "_dlt_version": 1,
         "_dlt_loads": 1,
         "droppable_a": 2,
@@ -211,7 +226,7 @@ def test_drop_command_resources_and_state(
     # 3 loads (one for drop)
     # droppable_no_state correctly replaced
     # all other resources stay at the same count (they are incremental so they got loaded again or not loaded at all ie droppable_a)
-    assert load_table_counts(pipeline, *pipeline.default_schema.tables.keys()) == {
+    assert _load_all_table_counts(pipeline) == {
         "_dlt_version": 2,
         "_dlt_loads": 3,
         "droppable_a": 2,
