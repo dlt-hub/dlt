@@ -268,8 +268,11 @@ class UnboundColumnWithoutTypeException(SchemaException):
 
         msg = (
             f"The column {column['name']} in table {table_name} did not receive any data during"
-            " this load. Therefore, its type couldn't be inferred. Unless a type hint is provided, "
-            "the column will not be materialized in the destination."
+            " this load. Therefore, its type couldn't be inferred. Unless a type hint is provided,"
+            " the column will not be materialized in the destination. One way to provide a type"
+            " hint is to use the 'columns' argument in the '@dlt.resource' decorator. For"
+            f" example:\n\n@dlt.resource(columns={{{repr(column['name'])}: {{'data_type':"
+            " 'text'}})\n\n"
         )
 
         super().__init__(schema_name, msg)

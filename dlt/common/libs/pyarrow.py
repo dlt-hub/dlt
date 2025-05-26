@@ -345,7 +345,7 @@ def get_column_type_from_py_arrow(
         # dictates the "logical" type. We simply delegate to the underlying value_type.
         return get_column_type_from_py_arrow(dtype.value_type, caps)
     elif pyarrow.types.is_null(dtype):
-        dt = dict(data_type=None)
+        dt: dict[str, Any] = {}  # type: ignore[no-redef]
         dt["x-normalizer"] = {"seen-null-first": True}  # type: ignore[assignment]
         return dt  # type: ignore[return-value]
     else:

@@ -922,9 +922,55 @@ def test_null_column_warning(
     expected_warning = (
         "The column empty_col in table app_user did not receive any data during this load."
         " Therefore, its type couldn't be inferred. Unless a type hint is provided, the column will"
-        " not be materialized in the destination."
+        " not be materialized in the destination. One way to provide a type hint is to use"
+        " the 'columns' argument in the '@dlt.resource' decorator. For example:\n\n"
+        "@dlt.resource(columns={'empty_col': {'data_type': 'text'}})\n\n"
     )
     assert expected_warning in logger_spy.call_args_list[0][0][0]
+    assert (
+        pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]["x-normalizer"][  # type: ignore[typeddict-item]
+            "seen-null-first"
+        ]
+        is True
+    )
+    assert "data_type" not in pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]
+
+    def add_value_to_empty_col(
+        query, table, incremental=None, engine=None
+    ) -> sa.sql.elements.TextClause:
+        if table.name == "app_user":
+            t_query = sa.text(
+                "SELECT id, email, display_name, created_at, updated_at, 'constant_value' as"
+                f" empty_col FROM {table.fullname}"
+            )
+        else:
+            t_query = query
+
+        return t_query
+
+    source = (
+        sql_database(
+            credentials=sql_source_db.credentials,
+            schema=sql_source_db.schema,
+            reflection_level="minimal",
+            backend=backend,
+            chunk_size=10,
+            query_adapter_callback=add_value_to_empty_col,
+        )
+        .with_resources("app_user")
+        .add_limit(1)
+    )
+
+    logger_spy = mocker.spy(logger, "warning")
+    pipeline.run(source)
+    assert logger_spy.call_count == 0
+    assert (
+        "seen-null-first"
+        not in pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]["x-normalizer"]  # type: ignore[typeddict-item]
+    )
+    assert (
+        pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]["data_type"] == "text"
+    )
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])

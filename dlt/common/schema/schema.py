@@ -239,25 +239,19 @@ class Schema:
             # skip None values, we should infer the types later
             if v is None:
                 # just check if column is nullable if it exists
-                unbounded_column = self._coerce_null_value(table_columns, table_name, col_name)
-                if unbounded_column:
-                    if not updated_table_partial:
-                        # create partial table with only the new columns
-                        updated_table_partial = copy(table)
-                        updated_table_partial["columns"] = {}
-                    updated_table_partial["columns"][col_name] = unbounded_column
-
+                new_col_def = self._coerce_null_value(table_columns, table_name, col_name)
+                new_col_name = col_name
             else:
                 new_col_name, new_col_def, new_v = self._coerce_non_null_value(
                     table_columns, table_name, col_name, v
                 )
                 new_row[new_col_name] = new_v
-                if new_col_def:
-                    if not updated_table_partial:
-                        # create partial table with only the new columns
-                        updated_table_partial = copy(table)
-                        updated_table_partial["columns"] = {}
-                    updated_table_partial["columns"][new_col_name] = new_col_def
+            if new_col_def:
+                if not updated_table_partial:
+                    # create partial table with only the new columns
+                    updated_table_partial = copy(table)
+                    updated_table_partial["columns"] = {}
+                updated_table_partial["columns"][new_col_name] = new_col_def
 
         return new_row, updated_table_partial
 
@@ -800,7 +794,6 @@ class Schema:
         if v is None and data_type is None:
             column_schema = TColumnSchema(
                 name=k,
-                data_type=None,
                 nullable=True,
             )
             column_schema["x-normalizer"] = {"seen-null-first": True}  # type: ignore[typeddict-unknown-key]
@@ -829,8 +822,8 @@ class Schema:
         self, table_columns: TTableSchemaColumns, table_name: str, col_name: str
     ) -> Optional[TColumnSchema]:
         """Raises when column is explicitly not nullable or creates unbounded column"""
-        if col_name in table_columns and utils.is_complete_column(table_columns.get(col_name)):
-            existing_column = table_columns[col_name]
+        existing_column = table_columns.get(col_name)
+        if existing_column and utils.is_complete_column(existing_column):
             if not utils.is_nullable_column(existing_column):
                 raise CannotCoerceNullException(self.name, table_name, col_name)
             return None
@@ -912,13 +905,6 @@ class Schema:
             # if there's incomplete new_column then merge it with inferred column
             if new_column:
                 # use all values present in incomplete column to override inferred column - also the defaults
-                # NOTE: If the incomplete column initially saw a null value and its data type is still unset,
-                # remove the data type from the incomplete column to avoid incorrect overrides
-                if (
-                    new_column.get("x-normalizer", {}).get("seen-null-first") is True  # type: ignore[attr-defined]
-                    and new_column["data_type"] is None
-                ):
-                    new_column.pop("data_type")
                 new_column = utils.merge_column(inferred_column, new_column)
             else:
                 new_column = inferred_column
