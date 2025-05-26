@@ -147,7 +147,7 @@ def test_context_switch_restores_logger() -> None:
 
 def test_run_dir_module_import() -> None:
     with pytest.raises(ImportError, match="filesystem root"):
-        RunContext.import_run_dir_module(os.sep)
+        RunContext.import_run_dir_module(os.path.sep)
     with pytest.raises(ImportError):
         RunContext.import_run_dir_module(os.path.join("tests", "no_such_module"))
     assert RunContext.import_run_dir_module("tests") is tests

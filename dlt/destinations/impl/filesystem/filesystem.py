@@ -192,9 +192,7 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     schema=self._load_table,
                 )
             else:
-                location, _ = self._job_client.get_open_table_location(
-                    "delta", self.load_table_name
-                )
+                location = self._job_client.get_open_table_location("delta", self.load_table_name)
                 write_delta_table(
                     table_or_uri=location if delta_table is None else delta_table,
                     data=arrow_rbr,
@@ -223,7 +221,7 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                 schema=self.arrow_dataset.schema,
             )
         except DestinationUndefinedEntity:
-            location, _ = self._job_client.get_open_table_location("iceberg", self.load_table_name)
+            location = self._job_client.get_open_table_location("iceberg", self.load_table_name)
             table_id = f"{self._job_client.dataset_name}.{self.load_table_name}"
             create_table(
                 self._job_client.get_open_table_catalog("iceberg"),
@@ -841,7 +839,7 @@ class FilesystemClient(
         detected_format = prepared_table.get("table_format")
         if detected_format != table_format:
             raise OpenTableFormatNotSupported(table_format, table_name, detected_format)
-        table_location, _ = self.get_open_table_location(table_format, table_name)
+        table_location = self.get_open_table_location(table_format, table_name)
 
         if table_format == "iceberg":
             catalog = self.get_open_table_catalog("iceberg")
@@ -897,17 +895,17 @@ class FilesystemClient(
 
         return catalog
 
-    def get_open_table_location(
-        self, table_format: TTableFormat, table_name: str
-    ) -> Tuple[str, bool]:
-        """All tables have location, also those in "native" table format."""
+    def get_open_table_location(self, table_format: TTableFormat, table_name: str) -> str:
+        """All tables have location, also those in "native" table format. A return with a trailing path separator is a folder."""
         folder = self.get_table_dir(table_name)
         prefix = self.get_table_prefix(table_name)
         location = self.make_remote_url(folder)
         if self.config.is_local_filesystem and os.name == "nt":
             # pyiceberg cannot deal with windows absolute urls
             location = location.replace("file:///", "file://")
-        return location, (folder == prefix or (folder + os.path.sep) == prefix)
+        # add trailing separator if the table is a folder
+        is_folder = (folder + os.path.sep) == prefix
+        return location + (os.path.sep if is_folder else "")
 
     def is_open_table(self, table_format: TTableFormat, table_name: str) -> bool:
         if table_name in self.schema.dlt_table_names():

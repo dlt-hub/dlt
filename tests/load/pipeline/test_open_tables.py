@@ -39,7 +39,7 @@ def test_get_open_table_location(destination_config: DestinationTestConfiguratio
 
     with pipeline.destination_client() as client:
         assert isinstance(client, SupportsOpenTables)
-        location, _ = client.get_open_table_location(destination_config.table_format, table_name)
+        location = client.get_open_table_location(destination_config.table_format, table_name)
 
         # location should be a URL with the correct protocol
         protocol = destination_config.bucket_url.split("://")[0]
@@ -222,7 +222,7 @@ def test_load_open_table(destination_config: DestinationTestConfiguration) -> No
     dataset_ = pipeline.dataset()
     assert dataset_.open_table_client.get_open_table_location(
         destination_config.table_format, "open_table"
-    )[0]
+    )
 
 
 def test_table_client_not_available() -> None:

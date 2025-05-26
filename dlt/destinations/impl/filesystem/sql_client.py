@@ -120,9 +120,8 @@ class FilesystemSqlClient(WithTableScanners):
         table_name = table_schema["name"]
         table_format = table_schema.get("table_format")
         protocol = self.remote_client.config.protocol
-        table_location, is_folder = self.remote_client.get_open_table_location(
-            table_format, table_name
-        )
+        table_location = self.remote_client.get_open_table_location(table_format, table_name)
+        is_folder = table_location.endswith(os.path.sep)
 
         # discover whether compression is enabled
         compression = "" if is_compression_disabled() else ", compression = 'gzip'"
@@ -177,9 +176,9 @@ class FilesystemSqlClient(WithTableScanners):
             # build files string
             supports_wildcard_notation = not self.is_abfss and is_folder
 
-            resolved_files_string = f"'{table_location}/**/*.{first_file_type}'"
-
-            if not supports_wildcard_notation:
+            if supports_wildcard_notation:
+                resolved_files_string = f"'{table_location}**/*.{first_file_type}'"
+            else:
                 # list_table_files returns a list of absolute paths but without scheme
                 files = self.remote_client.list_table_files(table_name)
                 if protocol == "file":

@@ -655,13 +655,11 @@ class SupportsOpenTables(ABC):
         """Gets the catalog that keeps tables' metadata. Currently only pyiceberg Catalog is supported"""
 
     @abstractmethod
-    def get_open_table_location(
-        self, table_format: TTableFormat, table_name: str
-    ) -> Tuple[str, bool]:
+    def get_open_table_location(self, table_format: TTableFormat, table_name: str) -> str:
         """Computes location in which table metadata is stored and wether it is a folder or a path prefix.
         Does not verify if table exists
         Returns:
-            Tuple[str, bool]: location and whether it is a folder (True) or a path prefix (False)
+            str: location of the table, has a trailing separator if it is a folder
         """
 
     @abstractmethod

@@ -1,4 +1,5 @@
 import re
+import os
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from dlt.common import logger
@@ -279,7 +280,7 @@ def get_table_prefix_layout(
     prefix = layout[: layout.index("{table_name}") + 13]
     if prefix[-1] == "{":
         raise CantExtractTablePrefix(layout, "A separator is required after a {table_name}. ")
-    if prefix[-1] != "/" and table_needs_own_folder:
+    if prefix[-1] != os.path.sep and table_needs_own_folder:
         raise CantExtractTablePrefix(
             layout, "Table requires it's own folder, please add a '/' after your {table_name}. "
         )
