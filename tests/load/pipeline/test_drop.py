@@ -174,6 +174,9 @@ def test_drop_command_resources_and_state(
     def _load_all_table_counts(pipeline: Pipeline) -> Dict[str, int]:
         all_tables = list(pipeline.default_schema.tables.keys())
 
+        # NOTE: there is a bug in duckdb abfss that cases a race condition error
+        # if we create an query all tables at once, this should be resolved in a
+        # future version of duckdb
         if (
             destination_config.destination_type == "filesystem"
             and "abfss" in destination_config.bucket_url

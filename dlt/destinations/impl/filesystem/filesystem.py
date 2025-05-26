@@ -193,6 +193,7 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
                 )
             else:
                 location = self._job_client.get_open_table_location("delta", self.load_table_name)
+                location = location.rstrip("/")
                 write_delta_table(
                     table_or_uri=location if delta_table is None else delta_table,
                     data=arrow_rbr,
@@ -222,6 +223,7 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             )
         except DestinationUndefinedEntity:
             location = self._job_client.get_open_table_location("iceberg", self.load_table_name)
+            location = location.rstrip("/")
             table_id = f"{self._job_client.dataset_name}.{self.load_table_name}"
             create_table(
                 self._job_client.get_open_table_catalog("iceberg"),
@@ -840,6 +842,7 @@ class FilesystemClient(
         if detected_format != table_format:
             raise OpenTableFormatNotSupported(table_format, table_name, detected_format)
         table_location = self.get_open_table_location(table_format, table_name)
+        table_location = table_location.rstrip("/")
 
         if table_format == "iceberg":
             catalog = self.get_open_table_catalog("iceberg")

@@ -145,8 +145,10 @@ class FilesystemSqlClient(WithTableScanners):
         # create from statement
         from_statement = ""
         if table_format == "delta":
+            table_location = table_location.rstrip("/")
             from_statement = f"delta_scan('{table_location}')"
         elif table_format == "iceberg":
+            table_location = table_location.rstrip("/")
             if not self.iceberg_initialized:
                 self._setup_iceberg(self._conn)
                 self.iceberg_initialized = True
