@@ -1,5 +1,6 @@
 import datetime
 from typing import ClassVar, List, Optional, Final
+import dlt
 import pytest
 import tomlkit
 
@@ -292,3 +293,31 @@ aws_secret_access_key = "<configure me>" # fill this in!
 
     # still here because marked specifically as of interest
     assert example_toml["snowflake"]["database"] == "dlt_db"
+
+
+def test_write_spec_from_resource_takes_defaults_from_config_gen_annotations(example_toml) -> None:
+    from tests.common.cases.sources.valid_config_defaults import resource
+
+    # verify that the resource has a dict with example values
+    assert isinstance(resource.SPEC.__config_gen_annotations__, dict)
+    assert resource.SPEC.__config_gen_annotations__["sample_config"] == "some_str"
+
+    # and that they are written to the toml
+    write_value(
+        example_toml,
+        "resource_with_valid_defaults",
+        resource.SPEC,
+        None,
+        is_default_of_interest=False,
+    )
+
+    assert example_toml["resource_with_valid_defaults"]["sample_config"] == "some_str"
+
+
+def test_config_defaults_checks_types(example_toml) -> None:
+    with pytest.raises(TypeError) as exc_info:
+        from tests.common.cases.sources.invalid_config_default import resource
+
+        assert "Expected type <class 'str'> for sample_config , got <class 'bool'>" in str(
+            exc_info.value
+        )

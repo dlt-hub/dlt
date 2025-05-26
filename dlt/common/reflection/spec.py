@@ -109,6 +109,13 @@ def spec_from_signature(
                     # set field with default value
                     new_fields[p.name] = p.default
                     # print(f"Param {p.name} is {field_type}: {p.default} due to {include_defaults} or {type_from_literal}")
+                if config_defaults and p.name in config_defaults:
+                    # verify that the type of the value is an instance of the field type
+                    if not isinstance(config_defaults[p.name], field_type):
+                        raise TypeError(
+                            f"Invalid default config: Expected type {field_type} for {p.name} , got"
+                            f" {type(config_defaults[p.name])}"
+                        )
 
     signature_fields = {**sig_base_fields, **new_fields}
 

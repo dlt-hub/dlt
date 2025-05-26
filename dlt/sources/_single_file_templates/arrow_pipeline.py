@@ -15,6 +15,7 @@ def create_example_arrow_table() -> pa.Table:
     write_disposition="append",
     name="people",
     config_defaults={"sample_config": "if you read this it works!"},
+    # config_defaults={"sample_config": False}, # uncomment this to test importing wrong config
 )
 def resource(sample_config: str = dlt.config.value):
     """One resource function will materialize as a table in the destination, wie yield example data here"""
