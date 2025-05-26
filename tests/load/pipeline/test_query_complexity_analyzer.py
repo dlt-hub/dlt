@@ -166,7 +166,7 @@ VARIOUS_QUERIES: List[Dict[str, Union[str, bool]]] = [
     ids=[case["description"] for case in VARIOUS_QUERIES],
 )
 def test_query_complexity_analyzer(case: Dict[str, Any]) -> None:
-    from dlt.common.utils import query_is_complex_scope
+    from dlt.common.libs.sqlglot import query_is_complex
 
     columns = {"col1", "col2", "col3", "_dlt_load_id", "_dlt_id"}
 
@@ -174,4 +174,4 @@ def test_query_complexity_analyzer(case: Dict[str, Any]) -> None:
 
     assert isinstance(parsed_select, (sqlglot.exp.Select, sqlglot.exp.Union))
 
-    assert query_is_complex_scope(parsed_select=parsed_select, columns=columns) == case["complex"]
+    assert query_is_complex(parsed_select=parsed_select, columns=columns) == case["complex"]
