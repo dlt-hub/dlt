@@ -52,12 +52,6 @@ def spec_from_signature(
     module = inspect.getmodule(f)
     base_fields = base.get_resolvable_fields()
 
-    # check if spec for that function exists
-    spec_id = name
-    if hasattr(module, spec_id):
-        MOD_SPEC: Type[BaseConfiguration] = getattr(module, spec_id)
-        return MOD_SPEC, MOD_SPEC.get_resolvable_fields()
-
     # synthesize configuration from the signature
     new_fields: Dict[str, Any] = {}
     sig_base_fields: Dict[str, Any] = {}
@@ -119,5 +113,5 @@ def spec_from_signature(
     T: Type[BaseConfiguration] = type(name, (base,), new_fields)
     SPEC = configspec()(T)
     # add to the module
-    setattr(module, spec_id, SPEC)
+    setattr(module, name, SPEC)
     return SPEC, signature_fields
