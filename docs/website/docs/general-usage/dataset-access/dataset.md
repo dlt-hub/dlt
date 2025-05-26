@@ -75,6 +75,12 @@ To handle large datasets efficiently, you can process data in smaller chunks.
 
 The methods available on the ReadableRelation correspond to the methods available on the cursor returned by the SQL client. Please refer to the [SQL client](./sql-client.md#supported-methods-on-the-cursor) guide for more information.
 
+## Connection Handling
+
+For every call that actually fetches data from the destination, such as `df()`, `arrow()`, `fetchall()` etc., the dataset will open a connection and close it after it has been retrieved or the iterator is completed. You can keep the connection open for multiple requests with the dataset context manager:
+
+<!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::context_manager-->
+
 ## Special queries
 
 You can use the `row_counts` method to get the row counts of all tables in the destination as a DataFrame.
