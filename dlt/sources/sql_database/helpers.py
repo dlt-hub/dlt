@@ -412,4 +412,3 @@ class SqlTableResourceConfiguration(BaseConfiguration):
     write_disposition: Optional[TWriteDispositionDict] = None
     primary_key: Optional[TColumnNames] = None
     merge_key: Optional[TColumnNames] = None
-

@@ -26,7 +26,6 @@ class ConnectionStringCredentials(CredentialsConfiguration):
         "port": "4497",
     }
 
-
     def __init__(self, connection_string: Union[str, Dict[str, Any]] = None) -> None:
         """Initializes the credentials from SQLAlchemy like connection string or from dict holding connection string elements"""
         super().__init__()

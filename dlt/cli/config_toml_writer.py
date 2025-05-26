@@ -92,14 +92,12 @@ def write_spec(
         # use default value stored in config
         default_value = getattr(config, name, None)
 
-        if isinstance(config.__config_gen_annotations__, dict) and name in config.__config_gen_annotations__:
-            print("resolving config:", type(config))
-            print("write_spec took default from annotions-dict while writing", name, hint, default_value)
+        # if config is a BaseConfiguration it may have defaults in annotations
+        if (
+            isinstance(config.__config_gen_annotations__, dict)
+            and name in config.__config_gen_annotations__
+        ):
             default_value = config.__config_gen_annotations__.get(name, default_value)
-        else:
-            # print("regular annotated config", type(config))
-            pass
-
 
         # check if field is of particular interest and should be included if it has default
         is_default_of_interest = name in config.__config_gen_annotations__

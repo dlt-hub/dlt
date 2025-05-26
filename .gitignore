@@ -139,10 +139,6 @@ logs/
 # temp
 tmp
 **/tmp
-playground
-repomix-output.xml
-**/*.back
-.dlt/*
 
 # Qdrant embedding models cache
 local_cache/

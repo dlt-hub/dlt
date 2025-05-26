@@ -464,7 +464,7 @@ def resource(
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
     section: Optional[str] = None,
-    config_defaults: Dict[str, Any] = None
+    config_defaults: Dict[str, Any] = None,
 ) -> TDltResourceImpl: ...
 
 
@@ -490,7 +490,7 @@ def resource(
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
     section: Optional[str] = None,
-    config_defaults: Dict[str, Any] = None
+    config_defaults: Dict[str, Any] = None,
 ) -> Callable[[Callable[TResourceFunParams, Any]], TDltResourceImpl]: ...
 
 
@@ -516,8 +516,8 @@ def resource(
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
     section: Optional[str] = None,
+    config_defaults: Dict[str, Any] = None,
     standalone: Literal[True] = True,
-    config_defaults: Dict[str, Any] = None
 ) -> Callable[
     [Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, TDltResourceImpl]
 ]: ...
@@ -545,7 +545,7 @@ def resource(
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
     section: Optional[str] = None,
-    config_defaults: Dict[str, Any] = None
+    config_defaults: Dict[str, Any] = None,
 ) -> TDltResourceImpl: ...
 
 
@@ -570,9 +570,9 @@ def resource(
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
     section: Optional[str] = None,
+    config_defaults: Dict[str, Any] = None,
     standalone: bool = False,
     data_from: TUnboundDltResource = None,
-    config_defaults: Dict[str, Any] = None
 ) -> Any:
     """When used as a decorator, transforms any generator (yielding) function into a `dlt resource`. When used as a function, it transforms data in `data` argument into a `dlt resource`.
 
@@ -649,6 +649,8 @@ def resource(
 
         section (Optional[str], optional): Configuration section that comes right after 'sources` in default layout. If not present, the current python module name will be used.
             Default layout is `sources.<section>.<name>.<key_name>`. Note that resource section is used only when a single resource is passed to the pipeline.
+
+        config_defaults (Dict[str, Any], optional): A dictionary of default values for to be used when writing a `dlt.config.value`s to config.toml
 
         standalone (bool, optional): Returns a wrapped decorated function that creates DltResource instance. Must be called before use. Cannot be part of a source.
 
@@ -749,7 +751,10 @@ def resource(
         if spec is None:
             # autodetect spec
             SPEC, resolvable_fields = spec_from_signature(
-                f, inspect.signature(f), include_defaults=standalone, config_defaults=config_defaults
+                f,
+                inspect.signature(f),
+                include_defaults=standalone,
+                config_defaults=config_defaults,
             )
             if is_inner_resource and not standalone:
                 if len(resolvable_fields) > 0:
@@ -761,7 +766,7 @@ def resource(
         else:
             SPEC = spec
             if config_defaults:
-                print('must reconcile with possible given defaults')
+                # note: should given defaults override spec defaults?
                 SPEC.__config_gen_annotations__ = config_defaults
         # assign spec to "f"
         set_fun_spec(f, SPEC)

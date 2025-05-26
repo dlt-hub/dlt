@@ -36,7 +36,7 @@ def spec_from_signature(
     sig: Signature,
     include_defaults: bool = True,
     base: Type[BaseConfiguration] = BaseConfiguration,
-    config_defaults: Dict[str, Any] = None
+    config_defaults: Dict[str, Any] = None,
 ) -> Tuple[Type[BaseConfiguration], Dict[str, Any]]:
     """Creates a SPEC on base `base1 for a function `f` with signature `sig`.
 

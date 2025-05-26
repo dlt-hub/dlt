@@ -12,8 +12,9 @@ def create_example_arrow_table() -> pa.Table:
 
 
 @dlt.resource(
-        write_disposition="append", name="people", 
-        config_defaults={"sample_config": "if you read this it works!"}
+    write_disposition="append",
+    name="people",
+    config_defaults={"sample_config": "if you read this it works!"},
 )
 def resource(sample_config: str = dlt.config.value):
     """One resource function will materialize as a table in the destination, wie yield example data here"""

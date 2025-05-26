@@ -114,11 +114,9 @@ def extract_secrets_and_configs_from_source_reference(
         if val_store is not None:
             # we are sure that all sources come from single file so we can put them in single section
             default_value = None
+            # check if defaults are defined in annotations
             if isinstance(source_config.__config_gen_annotations__, dict):
                 default_value = source_config.__config_gen_annotations__.get(field_name, None)
-                print("extract secrets looked up a default from config_annootations", default_value)
-                print('section', section)
-                print('field_name', field_name)
             val_store[source_info.name + ":" + field_name] = WritableConfigValue(
                 field_name, field_type, default_value, section
             )

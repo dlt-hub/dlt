@@ -1674,10 +1674,10 @@ class Pipeline(SupportsPipeline):
     ) -> None:
         """Save given state + schema and extract creating a new load package
 
-        Args:
-            state (TPipelineState): The new pipeline state, replaces the current state
-            schema (Schema): The new source schema, replaces current schema of the same name
-            load_package_state_update (Optional[TLoadPackageState]): Dict which items will be included in the load package state
+        p       Args:
+                   state (TPipelineState): The new pipeline state, replaces the current state
+                   schema (Schema): The new source schema, replaces current schema of the same name
+                   load_package_state_update (Optional[TLoadPackageState]): Dict which items will be included in the load package state
         """
         self.schemas.save_schema(schema)
         with self.managed_state() as old_state:
