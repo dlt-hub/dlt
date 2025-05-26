@@ -642,7 +642,7 @@ def resource(
 
         _impl_cls (Type[TDltResourceImpl], optional): A custom implementation of DltResource, may be also used to providing just a typing stub
 
-        section (Optional[str], optional): Configuration section that comes right after 'sources` in default layout. If not present, the current python module name will be used.
+        section (Optional[TTableHintTemplate[str]], optional): Configuration section that comes right after 'sources` in default layout. If not present, the current python module name will be used.
             Default layout is `sources.<section>.<name>.<key_name>`. Note that resource section is used only when a single resource is passed to the pipeline.
 
         _base_spec (Type[BaseConfiguration], optional): A base spec used to which spec derived from resource function arguments is added
@@ -940,7 +940,7 @@ def transformer(
 
         parallelized (bool, optional): When `True` the resource will be loaded in parallel.
 
-        section (Optional[str], optional): Configuration section that comes right after 'sources` in default layout. If not present, the current python module name will be used.
+        section (Optional[TTableHintTemplate[str]], optional): Configuration section that comes right after 'sources` in default layout. If not present, the current python module name will be used.
             Default layout is `sources.<section>.<name>.<key_name>`. Note that resource section is used only when a single resource is passed to the pipeline.
 
         standalone (bool, optional): Deprecated. Past functionality got merged into regular resource

@@ -2504,7 +2504,9 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
     # no generic type information
     @dlt.resource(spec=BaseConfiguration)
     def test_type_5(
-        updated_at=dlt.sources.incremental[int]("updated_at", allow_external_schedulers=True)  # noqa
+        updated_at=dlt.sources.incremental[int](  # noqa: B008
+            "updated_at", allow_external_schedulers=True
+        )
     ):
         assert updated_at.allow_external_schedulers is False
         data = [{"updated_at": d} for d in [1, 2, 3]]
