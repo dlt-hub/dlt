@@ -847,10 +847,8 @@ def test_pipeline_upfront_tables_two_loads(
     destinations_configs(default_sql_configs=True, exclude=["sqlalchemy"]),
     ids=lambda x: x.name,
 )
-def test_query_all_info_tables_fallback(
-    destination_config: DestinationTestConfiguration, environment: Any
-) -> None:
-    environment["INFO_TABLES_QUERY_THRESHOLD"] = "0"
+def test_query_all_info_tables_fallback(destination_config: DestinationTestConfiguration) -> None:
+    os.environ["INFO_TABLES_QUERY_THRESHOLD"] = "0"
     pipeline = destination_config.setup_pipeline(
         "parquet_test_" + uniq_id(), dataset_name="parquet_test_" + uniq_id()
     )
