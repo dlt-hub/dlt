@@ -113,12 +113,16 @@ class PostgresTypeMapper(TypeMapperImpl):
             return dict(data_type="wei")
         if db_type.startswith("geometry"):
             return dict(data_type="text")
+        if db_type.startswith("json"):
+            return dict(data_type="json")
         return super().from_destination_type(db_type, precision, scale)
 
     def to_destination_type(self, column: TColumnSchema, table: PreparedTableSchema) -> str:
         if column.get(GEOMETRY_HINT):
             srid = column.get(SRID_HINT, 4326)
             return f"geometry(Geometry, {srid})"
+        if column["data_type"] == "json" and table["file_format"] == "parquet":
+            return "json"  # adbc cannot do
         return super().to_destination_type(column, table)
 
 
@@ -129,7 +133,14 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         # https://www.postgresql.org/docs/current/limits.html
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "insert_values"
-        caps.supported_loader_file_formats = ["insert_values", "csv", "model"]
+        try:
+            # supports adbc for direct parquet loading
+            import adbc_driver_postgresql.dbapi
+
+            caps.supported_loader_file_formats = ["insert_values", "csv", "parquet", "model"]
+        except ImportError:
+            caps.supported_loader_file_formats = ["insert_values", "csv", "model"]
+
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []
         caps.type_mapper = PostgresTypeMapper

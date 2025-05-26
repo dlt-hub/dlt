@@ -104,15 +104,30 @@ pipeline.run(events())
 ```
 
 ### Fast loading with Arrow tables and CSV
+
 You can use [Arrow tables](../verified-sources/arrow-pandas.md) and [CSV](../file-formats/csv.md) to quickly load tabular data. Pick the CSV loader file format like below:
 ```py
 info = pipeline.run(arrow_table, loader_file_format="csv")
 ```
 In the example above, `arrow_table` will be converted to CSV with **pyarrow** and then streamed into **postgres** with the COPY command. This method skips the regular `dlt` normalizer used for Python objects and is several times faster.
 
+### Fast loading with Arrow tables and parquet
+
+[parquet](../file-formats/parquet.md) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/current/driver/postgresql.html). Install the right driver to enable it:
+```sh
+pip install adbc-driver-postgresql
+```
+with this driver, `dlt` resources will support `loader_file_format="parquet"`. Not all `postgres` types are supported, see driver docs for more details:
+* `JSONB` is not supported so we use `json` instead.
+* `INT8` (128 bit) not supported
+* large decimals are not supported. `postgres` is the only destination that fully supports `wei` (256 bit) decimal precision, this does not work with ADBC
+
+We copy parquet files with batches of size of 1 row group. One files is copied in a single transaction.
+
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default.
 * [CSV](../file-formats/csv.md) is supported.
+* [parquet](../file-formats/parquet.md) is supported via [ADBC](https://arrow.apache.org/adbc/current/driver/postgresql.html)
 
 ## Supported column hints
 `postgres` will create unique indexes for all columns with `unique` hints. This behavior **may be disabled**.

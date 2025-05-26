@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Sequence, List, Any
+from typing import Dict, Iterator, Optional, Sequence, List, Any
 
 from dlt.common import logger
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
@@ -49,6 +49,37 @@ class PostgresStagingReplaceJob(SqlStagingReplaceFollowupJob):
                 )
             )
         return sql
+
+
+class PostgresParquetCopyJob(RunnableLoadJob, HasFollowupJobs):
+    def __init__(self, file_path: str) -> None:
+        super().__init__(file_path)
+        self._job_client: PostgresClient = None
+
+    def run(self) -> None:
+        self._config = self._job_client.config
+
+        from dlt.common.libs.pyarrow import pq_stream_with_new_columns
+        from dlt.common.libs.pyarrow import pyarrow
+        import adbc_driver_postgresql.dbapi as adbapi
+
+        def _iter_batches() -> Iterator[pyarrow.RecordBatch]:
+            for table in pq_stream_with_new_columns(self._file_path, ()):
+                yield from table.to_batches()
+
+        with adbapi.connect(
+            self._config.credentials.to_native_representation()
+        ) as conn, conn.cursor() as cur:
+            rows = cur.adbc_ingest(
+                self.load_table_name,
+                _iter_batches(),
+                mode="append",
+                db_schema_name=self._job_client.sql_client.fully_qualified_dataset_name(
+                    escape=False
+                ),
+            )
+            logger.info(f"{rows} copied from {self._file_name} to {self.load_table_name}")
+            conn.commit()
 
 
 class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
@@ -156,8 +187,11 @@ class PostgresClient(InsertValuesJobClient):
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         job = super().create_load_job(table, file_path, load_id, restore)
-        if not job and file_path.endswith("csv"):
-            job = PostgresCsvCopyJob(file_path)
+        if not job:
+            if file_path.endswith("csv"):
+                job = PostgresCsvCopyJob(file_path)
+            elif file_path.endswith("parquet"):
+                job = PostgresParquetCopyJob(file_path)
         return job
 
     def _create_replace_followup_jobs(
