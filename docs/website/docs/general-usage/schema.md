@@ -173,6 +173,10 @@ On the other hand, if the `id` field was already a string, then introducing new 
 
 Now go ahead and try to add a new record where `id` is a float number; you should see a new field `id__v_double` in the schema.
 
+:::note
+When pipeline runs supply inconsistent timestamp formats, such as YYYY-MM-DD HH:MM:SS, ISO 8601, or non-standard formats like "04th of January 2024", dlt may create variant columns (e.g., `end_date__v_text`) if values cannot be coerced into the existing type. Standardizing timestamp formats across all runs helps ensure stable type inference and avoid schema drift.
+:::
+
 ### Data types
 
 | dlt Data Type | Source Value Example                                | Precision and Scale                                     |

@@ -62,3 +62,35 @@ sources:
 ```
 
 Verify that the `last_value` is updated between pipeline runs.
+
+### Type mismatch errors
+
+If you encounter an `IncrementalCursorInvalidCoercion` error, it usually means the `initial_value` type does not match the data type in your source.
+
+#### Example
+
+This fails because we're using an integer `initial_value` with string timestamps:
+```py
+# This fails: integer initial_value with string timestamps
+@dlt.resource
+def my_data(
+    created_at=dlt.sources.incremental("created_at", initial_value=9999)
+):
+    yield [{"id": 1, "created_at": "2024-01-01 00:00:00"}]
+```
+
+To fix this, match the data type of your `initial_value` with the data in your source:
+```py
+# Fix: match the data type
+@dlt.resource  
+def my_data(
+    created_at=dlt.sources.incremental("created_at", initial_value="2024-01-01 00:00:00")
+):
+    yield [{"id": 1, "created_at": "2024-01-01 00:00:00"}]
+```
+
+To address this issue, consider the following approaches:
+
+- Use string timestamps for incremental loading to ensure compatibility and consistency during data ingestion.
+- Convert your data to match the `initial_value` type by using the `add_map` function, which allows proper type alignment.
+- Create a separate column if you need to compare timestamps while preserving the original format. This helps maintain data integrity without compromising comparison logic.
