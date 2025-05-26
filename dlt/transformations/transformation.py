@@ -5,9 +5,9 @@ from typing import Callable, Any, Optional, Type, Iterator, List
 
 import dlt
 
-from dlt.common.configuration.inject import _LAST_DLT_CONFIG, get_fun_last_config, get_fun_spec
+from dlt.common.configuration.inject import get_fun_last_config, get_fun_spec
 from dlt.common.reflection.inspect import isgeneratorfunction
-from dlt.common.typing import TDataItems
+from dlt.common.typing import TDataItems, TTableHintTemplate
 from dlt.common import logger
 
 from dlt.extract.hints import SqlModel
@@ -49,23 +49,24 @@ class DltTransformationResource(DltResource):
 
 def make_transformation_resource(
     func: Callable[TTransformationFunParams, Any],
-    name: str = None,
-    table_name: str = None,
-    write_disposition: TWriteDisposition = None,
-    columns: TTableSchemaColumns = None,
-    primary_key: TColumnNames = None,
-    merge_key: TColumnNames = None,
-    schema_contract: TSchemaContract = None,
-    table_format: TTableFormat = None,
-    references: TTableReferenceParam = None,
-    selected: bool = True,
-    spec: Type[TransformationConfiguration] = None,
-    parallelized: bool = False,
-    section: Optional[str] = None,
+    name: TTableHintTemplate[str],
+    table_name: str,
+    write_disposition: TWriteDisposition,
+    columns: TTableSchemaColumns,
+    primary_key: TColumnNames,
+    merge_key: TColumnNames,
+    schema_contract: TSchemaContract,
+    table_format: TTableFormat,
+    references: TTableReferenceParam,
+    selected: bool,
+    spec: Type[TransformationConfiguration],
+    parallelized: bool,
+    section: Optional[TTableHintTemplate[str]],
 ) -> DltTransformationResource:
     resource_name = name if name and not callable(name) else get_callable_name(func)
 
     # check function type, for generators we assume a regular resource
+    # TODO: allow to yield models
     is_regular_resource = isgeneratorfunction(func)
     # check if spec derives from right base
     if spec:
@@ -131,6 +132,10 @@ def make_transformation_resource(
         # extract query from transform function
         select_query: str = None
         transformation_result: Any = func(*args, **kwargs)
+
+        # TODO: allow for existing Hints meta and TableName meta to wrap the model and merge them with
+        # our inferred columns
+
         if isinstance(transformation_result, str):
             # use first dataset to convert query into expression
             select_query = transformation_result
@@ -177,8 +182,7 @@ def make_transformation_resource(
             for chunk in datasets[0](select_query).iter_arrow(chunk_size=config.buffer_max_items):
                 yield dlt.mark.with_hints(chunk, hints=make_hints(columns=all_columns))
 
-    return dlt.resource(
-        func if is_regular_resource else transformation_function,
+    return dlt.resource(  # type: ignore[return-value]
         name=name,
         table_name=table_name,
         write_disposition=write_disposition,
@@ -195,4 +199,6 @@ def make_transformation_resource(
         section=section,
         _impl_cls=DltTransformationResource,
         _base_spec=TransformationConfiguration,
+    )(
+        func if is_regular_resource else transformation_function  # type: ignore[arg-type]
     )
