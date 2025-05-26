@@ -211,21 +211,13 @@ This section addresses common issues that arise during schema evolution and outl
 
 ### Inconsistent data types
 
-When data types change between pipeline runs, `dlt` creates variant columns to handle the different types. For example, if a column `value` starts as an integer but later contains strings, `dlt` will create a `value__v_text` column for text values while preserving the original `value` column for integers.
-
-```py
-# First run: integers
-data_1 = [{"id": 1, "value": 42}]
-
-# Second run: mixed types
-data_2 = [{"id": 2, "value": "high"}]  # Creates value__v_text column
-```
-
-This requires downstream processes to handle both columns appropriately.
+When a column’s data type changes across pipeline runs (e.g., from integer to string), dlt creates a variant column (e.g., `value__v_text`) to store the new type, while preserving the original (e.g., value). Downstream processes must account for both.
 
 #### Recommended Approaches:
 
 #### Enforce consistent types with `apply_hints`:
+
+Define expected types explicitly to avoid schema drift and variant columns caused by type inference.
 ```py
 # Force all values to be treated as text
 resource.apply_hints(columns={"value": {"data_type": "text"}})
@@ -233,17 +225,18 @@ resource.apply_hints(columns={"value": {"data_type": "text"}})
 
 #### Validate data before processing:
 
-Implement a validation function to enforce type constraints and normalize values prior to ingestion.
-
+Validate and normalize data upfront to catch type issues early and enforce consistency across runs.
 ```py
 def validate_value(value):
     if not isinstance(value, (int, str)):
         raise TypeError(f"Expected int or str, got {type(value)}")
     return str(value)  # Convert to consistent type
-
+```
+```py
 # Apply to your data
 data = [{"id": 1, "value": validate_value(42)}]
 ```
+Ensures values match expected types, reducing the likelihood of variant columns due to type inconsistencies.
 
 ### Nested data evolution challenges
 
@@ -252,6 +245,8 @@ As your data sources evolve, nested structures can become increasingly complex, 
 #### Recommended Approaches:
 
 #### Control nesting depth during evolution:
+
+Limit how deeply nested structures are normalized to manage the level of nesting in the schema.
 ```py
 # Set max_table_nesting on the source
 @dlt.source(max_table_nesting=2)
@@ -262,6 +257,8 @@ pipeline.run(my_source())
 ```
 
 #### Flatten complex structures before processing:
+
+Convert nested fields to flat representations to simplify schema inference.
 ```py
 import json
 
