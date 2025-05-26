@@ -1,6 +1,7 @@
 import re
+import typing
 import inspect
-from typing import Dict, Tuple, Type, Any, Optional
+from typing import Dict, Tuple, Type, Any, Optional, get_args, get_origin
 from inspect import Signature, Parameter
 
 from dlt.common.typing import (
@@ -111,11 +112,7 @@ def spec_from_signature(
                     # print(f"Param {p.name} is {field_type}: {p.default} due to {include_defaults} or {type_from_literal}")
                 if config_defaults and p.name in config_defaults:
                     # verify that the type of the value is an instance of the field type
-                    if not isinstance(config_defaults[p.name], field_type):
-                        raise TypeError(
-                            f"Invalid default config: Expected type {field_type} for {p.name} , got"
-                            f" {type(config_defaults[p.name])}"
-                        )
+                    check_default_type(field_type, config_defaults, p)
 
     signature_fields = {**sig_base_fields, **new_fields}
 
@@ -131,3 +128,26 @@ def spec_from_signature(
     # add to the module
     setattr(module, spec_id, SPEC)
     return SPEC, signature_fields
+
+def check_default_type(field_type: Any, config_defaults: Dict[str, Any], p: Parameter) -> None:
+    # hacky code, needs to be more thorough
+    value = config_defaults[p.name]
+    origin = get_origin(field_type)
+    args = get_args(field_type)
+    if origin:
+        # For example, origin is list for List[str]
+        if not isinstance(value, origin):
+            raise TypeError(
+                f"Invalid default config: Expected type {field_type} for {p.name}, got {type(value)}"
+            )
+        # Optionally, check inner types (e.g., all elements are str)
+        if origin in (list, tuple) and args:
+            if not all(isinstance(item, args[0]) for item in value):
+                raise TypeError(
+                    f"Invalid default config: Expected elements of type {args[0]} for {p.name}, got {value}"
+                )
+    else:
+        if not isinstance(value, field_type):
+            raise TypeError(
+                f"Invalid default config: Expected type {field_type} for {p.name}, got {type(value)}"
+            )
