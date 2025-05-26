@@ -48,6 +48,7 @@ from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import (
     AnyFun,
     ParamSpec,
+    Generic,
     Concatenate,
     TDataItem,
     TDataItems,
@@ -62,10 +63,9 @@ from dlt.common.utils import (
 )
 
 from dlt.extract.hints import TResourceNestedHints, make_hints
-from dlt.extract.utils import simulate_func_call
+from dlt.extract.utils import dynstr
 from dlt.extract.exceptions import (
     CurrentSourceNotAvailable,
-    DynamicNameNotStandaloneResource,
     InvalidTransformerDataTypeGeneratorFunctionRequired,
     ResourceFunctionExpected,
     SourceDataIsNone,
@@ -453,11 +453,19 @@ def source(
     return source_wrapper(func)
 
 
+class ResourceFactory(DltResource, Generic[TResourceFunParams, TDltResourceImpl]):
+    # this class is used only for typing, do not instantiate, do not add docstring
+    def __call__(  # type: ignore[override]
+        self, *args: TResourceFunParams.args, **kwargs: TResourceFunParams.kwargs
+    ) -> TDltResourceImpl:
+        pass
+
+
 @overload
 def resource(
     data: Callable[TResourceFunParams, Any],
     /,
-    name: str = None,
+    name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
     max_table_nesting: int = None,
     write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
@@ -474,35 +482,10 @@ def resource(
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
-    section: Optional[str] = None,
+    section: Optional[TTableHintTemplate[str]] = None,
     _base_spec: Type[BaseConfiguration] = BaseConfiguration,
-) -> TDltResourceImpl: ...
-
-
-@overload
-def resource(
-    data: None = ...,
-    /,
-    name: str = None,
-    table_name: TTableHintTemplate[str] = None,
-    max_table_nesting: int = None,
-    write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
-    columns: TTableHintTemplate[TAnySchemaColumns] = None,
-    primary_key: TTableHintTemplate[TColumnNames] = None,
-    merge_key: TTableHintTemplate[TColumnNames] = None,
-    schema_contract: TTableHintTemplate[TSchemaContract] = None,
-    table_format: TTableHintTemplate[TTableFormat] = None,
-    file_format: TTableHintTemplate[TFileFormat] = None,
-    references: TTableHintTemplate[TTableReferenceParam] = None,
-    nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
-    selected: bool = True,
-    spec: Type[BaseConfiguration] = None,
-    parallelized: bool = False,
-    incremental: Optional[TIncrementalConfig] = None,
-    _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
-    section: Optional[str] = None,
-    _base_spec: Type[BaseConfiguration] = BaseConfiguration,
-) -> Callable[[Callable[TResourceFunParams, Any]], TDltResourceImpl]: ...
+    standalone: bool = None,
+) -> ResourceFactory[TResourceFunParams, TDltResourceImpl]: ...
 
 
 @overload
@@ -526,17 +509,17 @@ def resource(
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
-    section: Optional[str] = None,
+    section: Optional[TTableHintTemplate[str]] = None,
     _base_spec: Type[BaseConfiguration] = BaseConfiguration,
-    standalone: Literal[True] = True,
+    standalone: bool = None,
 ) -> Callable[
-    [Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, TDltResourceImpl]
+    [Callable[TResourceFunParams, Any]], ResourceFactory[TResourceFunParams, TDltResourceImpl]
 ]: ...
 
 
 @overload
 def resource(
-    data: Union[List[Any], Tuple[Any], Iterator[Any]],
+    data: Union[List[Any], Iterator[Any]],
     /,
     name: str = None,
     table_name: TTableHintTemplate[str] = None,
@@ -557,6 +540,7 @@ def resource(
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
     section: Optional[str] = None,
     _base_spec: Type[BaseConfiguration] = BaseConfiguration,
+    standalone: bool = None,
 ) -> TDltResourceImpl: ...
 
 
@@ -580,9 +564,9 @@ def resource(
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
-    section: Optional[str] = None,
+    section: Optional[TTableHintTemplate[str]] = None,
     _base_spec: Type[BaseConfiguration] = BaseConfiguration,
-    standalone: bool = False,
+    standalone: bool = None,
     data_from: TUnboundDltResource = None,
 ) -> Any:
     """When used as a decorator, transforms any generator (yielding) function into a `dlt resource`. When used as a function, it transforms data in `data` argument into a `dlt resource`.
@@ -663,7 +647,7 @@ def resource(
 
         _base_spec (Type[BaseConfiguration], optional): A base spec used to which spec derived from resource function arguments is added
 
-        standalone (bool, optional): Returns a wrapped decorated function that creates DltResource instance. Must be called before use. Cannot be part of a source.
+        standalone (bool, optional): Deprecated. Past functionality got merged into regular resource
 
         data_from (TUnboundDltResource, optional): Allows to pipe data from one resource to another to build multi-step pipelines.
 
@@ -712,36 +696,9 @@ def resource(
             return resource.parallelize()
         return resource
 
-    def wrap_standalone(
-        _name: str, _section: str, f: AnyFun
-    ) -> Callable[TResourceFunParams, TDltResourceImpl]:
-        if not standalone:
-            # we return a DltResource that is callable and returns dlt resource when called
-            # so it should match the signature
-            return make_resource(_name, _section, f)  # type: ignore[return-value]
-
-        @wraps(f)
-        def _wrap(*args: Any, **kwargs: Any) -> TDltResourceImpl:
-            skip_args = 1 if data_from else 0
-            _, mod_sig, bound_args = simulate_func_call(f, skip_args, *args, **kwargs)
-            actual_resource_name = name(bound_args.arguments) if callable(name) else _name
-            r = make_resource(actual_resource_name, _section, f)
-            # wrap the standalone resource
-            data_ = r._pipe.bind_gen(*args, **kwargs)
-            if isinstance(data_, DltResource):
-                # we allow an edge case: resource can return another resource
-                r = data_  # type: ignore[assignment]
-            # consider transformer arguments bound
-            r._args_bound = True
-            # keep explicit args passed
-            r._set_explicit_args(f, mod_sig, *args, **kwargs)
-            return r
-
-        return _wrap
-
     def decorator(
         f: Callable[TResourceFunParams, Any],
-    ) -> Callable[TResourceFunParams, TDltResourceImpl]:
+    ) -> TDltResourceImpl:
         if not callable(f):
             if data_from:
                 # raise more descriptive exception if we construct transformer
@@ -749,19 +706,23 @@ def resource(
                     name or "<no name>", f, type(f)
                 )
             raise ResourceFunctionExpected(name or "<no name>", f, type(f))
-        if not standalone and callable(name):
-            raise DynamicNameNotStandaloneResource(get_callable_name(f))
 
-        resource_name = name if name and not callable(name) else get_callable_name(f)
+        # allow for name and section to be created at runtime via dynstr which will
+        # be evaluated when resource will be parametrized/called
         func_module = inspect.getmodule(f)
-        source_section = section or _get_source_section_name(func_module)
-        is_inner_resource = is_inner_callable(f)
+        if callable(name):
+            resource_name: str = dynstr(get_callable_name(f), name)
+        else:
+            resource_name = name or get_callable_name(f)
+        if callable(section):
+            source_section: str = dynstr(_get_source_section_name(func_module), section)
+        else:
+            source_section = section or _get_source_section_name(func_module)
 
+        is_inner_resource = is_inner_callable(f)
         if spec is None:
             # autodetect spec
-            SPEC, resolvable_fields = spec_from_signature(
-                f, inspect.signature(f), include_defaults=standalone, base=_base_spec
-            )
+            SPEC, resolvable_fields = spec_from_signature(f, inspect.signature(f), base=_base_spec)
         else:
             SPEC, resolvable_fields = spec, spec.get_resolvable_fields()
 
@@ -780,16 +741,15 @@ def resource(
             )
 
         factory = None
+        r_ = make_resource(resource_name, source_section, f)
         # register non inner resources as source with single resource in it
         if not is_inner_resource:
             # a source function for the source wrapper, args that go to source are forwarded
             # to a single resource within
             def _source(
                 name_ovr: str, section_ovr: str, args: Tuple[Any, ...], kwargs: Dict[str, Any]
-            ) -> TDltResourceImpl:
-                return wrap_standalone(name_ovr or resource_name, section_ovr or source_section, f)(
-                    *args, **kwargs
-                )
+            ) -> DltResource:
+                return r_.with_name(name_ovr, new_section=section_ovr)(*args, **kwargs)
 
             # make the source module same as original resource
             _source.__qualname__ = f.__qualname__
@@ -808,15 +768,11 @@ def resource(
             # mod the reference to keep the right spec
             factory.ref.SPEC = SPEC
 
-        # wrap wrapped (f), not unwrapped (unwrap_f)
-        deco: Callable[TResourceFunParams, TDltResourceImpl] = wrap_standalone(
-            resource_name, source_section, f
-        )
         # associate source factory with the decorated function for the standalone=True resource
         # this provides access to standalone resources in the same way as to sources via SourceReference
-        deco._factory = factory  # type: ignore[attr-defined]
+        r_._factory = factory  # type: ignore[attr-defined]
 
-        return deco
+        return r_
 
     # if data is callable or none use decorator
     if data is None:
@@ -826,13 +782,15 @@ def resource(
     if callable(data):
         return decorator(data)
     else:
+        assert not callable(name)
+        assert not callable(section)
+
         # take name from the generator
         source_section: str = None
         if inspect.isgenerator(data):
             name = name or get_callable_name(data)  # type: ignore
             func_module = inspect.getmodule(data.gi_frame)
             source_section = section or _get_source_section_name(func_module)
-        assert not callable(name)
         return make_resource(name, source_section, data)
 
 
@@ -841,30 +799,6 @@ def transformer(
     f: None = ...,
     /,
     data_from: TUnboundDltResource = DltResource.Empty,
-    name: str = None,
-    table_name: TTableHintTemplate[str] = None,
-    max_table_nesting: int = None,
-    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
-    columns: TTableHintTemplate[TAnySchemaColumns] = None,
-    primary_key: TTableHintTemplate[TColumnNames] = None,
-    merge_key: TTableHintTemplate[TColumnNames] = None,
-    schema_contract: TTableHintTemplate[TSchemaContract] = None,
-    table_format: TTableHintTemplate[TTableFormat] = None,
-    file_format: TTableHintTemplate[TFileFormat] = None,
-    references: TTableHintTemplate[TTableReferenceParam] = None,
-    nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
-    selected: bool = True,
-    spec: Type[BaseConfiguration] = None,
-    parallelized: bool = False,
-    section: Optional[str] = None,
-) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], DltResource]: ...
-
-
-@overload
-def transformer(
-    f: None = ...,
-    /,
-    data_from: TUnboundDltResource = DltResource.Empty,
     name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
     max_table_nesting: int = None,
@@ -880,11 +814,11 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
-    section: Optional[str] = None,
-    standalone: Literal[True] = True,
+    section: Optional[TTableHintTemplate[str]] = None,
+    standalone: bool = None,
 ) -> Callable[
     [Callable[Concatenate[TDataItem, TResourceFunParams], Any]],
-    Callable[TResourceFunParams, DltResource],
+    ResourceFactory[TResourceFunParams, DltResource],
 ]: ...
 
 
@@ -893,30 +827,6 @@ def transformer(
     f: Callable[Concatenate[TDataItem, TResourceFunParams], Any],
     /,
     data_from: TUnboundDltResource = DltResource.Empty,
-    name: str = None,
-    table_name: TTableHintTemplate[str] = None,
-    max_table_nesting: int = None,
-    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
-    columns: TTableHintTemplate[TAnySchemaColumns] = None,
-    primary_key: TTableHintTemplate[TColumnNames] = None,
-    merge_key: TTableHintTemplate[TColumnNames] = None,
-    schema_contract: TTableHintTemplate[TSchemaContract] = None,
-    table_format: TTableHintTemplate[TTableFormat] = None,
-    file_format: TTableHintTemplate[TFileFormat] = None,
-    references: TTableHintTemplate[TTableReferenceParam] = None,
-    nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
-    selected: bool = True,
-    spec: Type[BaseConfiguration] = None,
-    parallelized: bool = False,
-    section: Optional[str] = None,
-) -> DltResource: ...
-
-
-@overload
-def transformer(
-    f: Callable[Concatenate[TDataItem, TResourceFunParams], Any],
-    /,
-    data_from: TUnboundDltResource = DltResource.Empty,
     name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
     max_table_nesting: int = None,
@@ -932,9 +842,9 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
-    section: Optional[str] = None,
-    standalone: Literal[True] = True,
-) -> Callable[TResourceFunParams, DltResource]: ...
+    section: Optional[TTableHintTemplate[str]] = None,
+    standalone: bool = None,
+) -> ResourceFactory[TResourceFunParams, DltResource]: ...
 
 
 def transformer(
@@ -956,8 +866,8 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
-    section: Optional[str] = None,
-    standalone: bool = False,
+    section: Optional[TTableHintTemplate[str]] = None,
+    standalone: bool = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
 ) -> Any:
     """A form of `dlt resource` that takes input from other resources via `data_from` argument in order to enrich or transform the data.
@@ -1033,7 +943,7 @@ def transformer(
         section (Optional[str], optional): Configuration section that comes right after 'sources` in default layout. If not present, the current python module name will be used.
             Default layout is `sources.<section>.<name>.<key_name>`. Note that resource section is used only when a single resource is passed to the pipeline.
 
-        standalone (bool, optional): Returns a wrapped decorated function that creates DltResource instance. Must be called before use. Cannot be part of a source.
+        standalone (bool, optional): Deprecated. Past functionality got merged into regular resource
 
         _impl_cls (Type[TDltResourceImpl], optional): A custom implementation of DltResource, may be also used to providing just a typing stub
 
@@ -1066,7 +976,6 @@ def transformer(
         nested_hints=nested_hints,
         selected=selected,
         spec=spec,
-        standalone=standalone,
         data_from=data_from,
         parallelized=parallelized,
         _impl_cls=_impl_cls,

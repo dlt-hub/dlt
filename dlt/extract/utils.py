@@ -1,5 +1,6 @@
 import inspect
 from typing import (
+    Callable,
     Optional,
     Tuple,
     Union,
@@ -22,6 +23,7 @@ from dlt.common.reflection.inspect import isgeneratorfunction
 from dlt.common.schema.typing import TAnySchemaColumns, TTableSchemaColumns
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.typing import (
+    Self,
     AnyFun,
     DictStrAny,
     TDataItem,
@@ -337,7 +339,7 @@ def wrap_resource_gen(
             raise InvalidResourceDataTypeIsNone(name, rv, NoneType)
         # is it Pipe or resource
         if hasattr(rv, "_gen_idx") or hasattr(rv, "_pipe"):
-            raise InvalidResourceReturnsResource(name, rv, type(rv))
+            raise InvalidResourceReturnsResource(name, f, type(f))
         return rv
 
     _wrapper = wraps(f)(_partial)
@@ -352,3 +354,21 @@ def make_schema_with_default_name(pipeline_name: str) -> str:
     else:
         schema_name = pipeline_name
     return normalize_schema_name(schema_name)
+
+
+class dynstr(str):
+    """Dynamic string which will generate final value when called"""
+
+    __slots__ = "dyn"
+
+    def __new__(cls, placeholder: str, dyn: Callable[..., str]) -> Self:
+        # Create a new str instance
+        instance = super().__new__(cls, placeholder)
+        return instance
+
+    def __init__(self, placeholder: str, dyn: Callable[..., str]):
+        super().__init__()
+        self.dyn = dyn
+
+    def __call__(self, param: Any) -> str:
+        return self.dyn(param)

@@ -34,7 +34,6 @@ class SourceFactory(ABC, Generic[TSourceFunParams, TDltSourceImpl]):
     def __call__(
         self, *args: TSourceFunParams.args, **kwargs: TSourceFunParams.kwargs
     ) -> TDltSourceImpl:
-        """Makes dlt source"""
         pass
 
     # TODO: make factory to expose SourceReference with actual spec, name and section

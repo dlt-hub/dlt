@@ -292,9 +292,9 @@ print(list([1,2] | pokemon()))
 :::
 
 ### Declare a standalone resource
-A standalone resource is defined on a function that is top-level in a module (not an inner function) that accepts config and secrets values. Additionally, if the `standalone` flag is specified, the decorated function signature and docstring will be preserved. `dlt.resource` will just wrap the decorated function, and the user must call the wrapper to get the actual resource. Below we declare a `filesystem` resource that must be called before use.
+A standalone resource is defined on a function that is top-level in a module (not an inner function) that accepts config and secrets values. Here `dlt.resource` just wraps the decorated function, and the user must call the wrapper to get the actual resource. Below we declare a `filesystem` resource that must be called before use.
 ```py
-@dlt.resource(standalone=True)
+@dlt.resource
 def fs_resource(bucket_url=dlt.config.value):
   """List and yield files in `bucket_url`."""
   ...
@@ -303,9 +303,9 @@ def fs_resource(bucket_url=dlt.config.value):
 pipeline.run(fs_resource("s3://my-bucket/reports"), table_name="reports")
 ```
 
-Standalone may have a dynamic name that depends on the arguments passed to the decorated function. For example:
+Resource may have a dynamic name that depends on the arguments passed to the decorated function. For example:
 ```py
-@dlt.resource(standalone=True, name=lambda args: args["stream_name"])
+@dlt.resource(name=lambda args: args["stream_name"])
 def kinesis(stream_name: str):
     ...
 
@@ -605,7 +605,7 @@ You can sniff the schema from the data, i.e., using DuckDB to infer the table sc
 There are cases when your resources are generic (i.e., bucket filesystem) and you want to load several instances of it (i.e., files from different folders) into separate tables. In the example below, we use the `filesystem` source to load csvs from two different folders into separate tables:
 
 ```py
-@dlt.resource(standalone=True)
+@dlt.resource
 def fs_resource(bucket_url):
   # list and yield files in bucket_url
   ...

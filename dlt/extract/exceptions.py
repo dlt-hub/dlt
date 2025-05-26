@@ -123,20 +123,6 @@ class ResourceNameMissing(DltResourceException):
         )
 
 
-class DynamicNameNotStandaloneResource(DltResourceException):
-    def __init__(self, resource_name: str) -> None:
-        super().__init__(
-            resource_name,
-            "You must set the resource as standalone to be able to dynamically set its name based"
-            " on call arguments",
-        )
-
-
-# class DependentResourceIsNotCallable(DltResourceException):
-#     def __init__(self, resource_name: str) -> None:
-#         super().__init__(resource_name, f"Attempted to call the dependent resource {resource_name}. Do not call the dependent resources. They will be called only when iterated.")
-
-
 class ResourceNotFoundError(DltResourceException, KeyError):
     def __init__(self, resource_name: str, context: str) -> None:
         self.resource_name = resource_name
@@ -236,12 +222,10 @@ class InvalidResourceReturnsResource(InvalidResourceDataType):
             resource_name,
             item,
             _typ,
-            "Resources that return resources or Pipe were experimental feature and are now removed."
-            " Instead (1) use standalone resources which allow dynamic names. (2) use"
-            " resource.with_name() to rename section resources. (3) use resource factory function"
-            " that you can decorate `with_config` so it receives injected config like resource and"
-            " return resource from it. NOTE: you will get this error if you return standalone"
-            " resource from @dlt.source without calling it.",
+            "Resource returned another resource but the signature of the resource function is "
+            "missing a correct type annotation (DltResource or derived class). Please annotate "
+            f"function {item} correctly."
+            "",
         )
 
 

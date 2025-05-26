@@ -185,13 +185,13 @@ def test_parametrized_transformer() -> None:
     r = dlt.resource(["itemX", "itemY"], name="items")
     t = dlt.transformer(data_from=r)(good_transformer)
     with pytest.raises(TypeError):
-        list(t("p1", 1, 2, 3, 4))
+        list(t("p1", 1, 2, 3, 4))  # type: ignore
 
     # pass arguments that fully bind the item
     r = dlt.resource(["itemX", "itemY"], name="items")
     t = dlt.transformer(data_from=r)(good_transformer)
     with pytest.raises(TypeError):
-        t(item={}, p1="p2", p2=1)
+        t(item={}, p1="p2", p2=1)  # type: ignore
 
     r = dlt.resource(["itemX", "itemY"], name="items")
     t = dlt.transformer(data_from=r)(good_transformer)
@@ -1093,7 +1093,7 @@ def test_resource_state() -> None:
             "resources": {"test_resource": {"in-source": True}}
         }
         assert s.state == {"resources": {"test_resource": {"in-source": True}}}
-        # the standalone resource will create key which is default schema name
+        # the resource will create key which is default schema name
         assert state.state["sources"][make_schema_with_default_name(p.pipeline_name)] == {
             "resources": {"test_resource": {"direct": True}}
         }

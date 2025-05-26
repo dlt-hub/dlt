@@ -14,6 +14,7 @@ from typing import (
     Tuple,
 )
 
+from dlt.common.reflection.inspect import isasyncgenfunction, isgeneratorfunction
 from dlt.common.typing import AnyFun, AnyType, TDataItems
 from dlt.common.utils import get_callable_name
 
@@ -308,23 +309,49 @@ class Pipe(SupportsPipe):
         self.replace_gen(gen)
         return gen
 
+    def sim_gen(
+        self, *args: Any, **kwargs: Any
+    ) -> Tuple[inspect.Signature, inspect.Signature, inspect.BoundArguments]:
+        """Simulates calling the gen element"""
+        # skip the data item argument for transformers
+        args_to_skip = 1 if self.has_parent else 0
+        # simulate function call
+        return simulate_func_call(self.gen, args_to_skip, *args, **kwargs)
+
     def _wrap_gen(self, *args: Any, **kwargs: Any) -> Any:
         """Finds and wraps with `args` + `kwargs` the callable generating step in the resource pipe."""
         head = self.gen
         _data: Any = None
 
-        # skip the data item argument for transformers
-        args_to_skip = 1 if self.has_parent else 0
-        # simulate function call
-        sig, _, _ = simulate_func_call(head, args_to_skip, *args, **kwargs)
+        sig, _, _ = self.sim_gen(*args, **kwargs)
         assert callable(head)
 
         # create wrappers with partial
         if self.has_parent:
             _data = wrap_compat_transformer(self.name, head, sig, *args, **kwargs)
         else:
-            _data = wrap_resource_gen(self.name, head, sig, *args, **kwargs)
+            if self._should_eval_on_bind(head, sig):
+                # call immediately to replace gen, this will happen before pipe executes
+                _data = head(*args, **kwargs)
+            else:
+                _data = wrap_resource_gen(self.name, head, sig, *args, **kwargs)
         return _data
+
+    def _should_eval_on_bind(self, gen: Any, sig: inspect.Signature) -> bool:
+        """Checks if gen should be evaluated when args are bound to it. Standard behavior is to
+        eval during extraction. Currently only when resource is returned we evaluate
+        """
+        if not isasyncgenfunction(gen) and not isgeneratorfunction(gen):
+            # TODO: some base methods of DltSource and DltResource should be moved to common
+            #  below we import DltResource but Pipe class should not be dependent on it
+            from dlt.extract.resource import DltResource
+
+            if sig.return_annotation != inspect.Signature.empty and inspect.isclass(
+                sig.return_annotation
+            ):
+                return issubclass(sig.return_annotation, DltResource)
+
+        return False
 
     def _verify_head_step(self, step: TPipeStep) -> None:
         # first element must be Iterable, Iterator or Callable in resource pipe
