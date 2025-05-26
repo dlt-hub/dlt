@@ -49,6 +49,11 @@ VARIOUS_QUERIES: List[Dict[str, Union[str, bool]]] = [
         "description": "full select + offset/limit",
     },
     {
+        "query": "SELECT col3, col1, col2 FROM my_table",
+        "complex": False,
+        "description": "full select in different order",
+    },
+    {
         "query": "SELECT *, '123' AS static_val FROM my_table",
         "complex": False,
         "description": "star select + literal",
@@ -142,39 +147,31 @@ VARIOUS_QUERIES: List[Dict[str, Union[str, bool]]] = [
         "complex": True,
         "description": "union",
     },
+    {
+        "query": "SELECT col1, col1, col2, col3 FROM my_table",
+        "complex": True,
+        "description": "column selected twice",
+    },
+    {
+        "query": "SELECT col1, col2, col2 AS col3 FROM my_table",
+        "complex": True,
+        "description": "partial select with alias forming full select",
+    },
 ]
 
 
-@pytest.mark.parametrize(
-    "dialect",
-    [
-#        "athena",
-#        "bigquery",
-#        "clickhouse",
-#        "databricks",
-#        "presto",
-        "duckdb",
-#        "tsql",
-#        "postgres",
-#        "redshift",
-#        "snowflake",
-#        "mysql",
-#        "sqlite",
-    ],
-)
 @pytest.mark.parametrize(
     "case",
     VARIOUS_QUERIES,
     ids=[case["description"] for case in VARIOUS_QUERIES],
 )
-def test_query_complexity_analyzer(case: Dict[str, Any], dialect: str) -> None:
-    from dlt.common.utils import query_is_complex, query_is_complex_scope
+def test_query_complexity_analyzer(case: Dict[str, Any]) -> None:
+    from dlt.common.utils import query_is_complex_scope
 
-    columns = {"col1", "col2", "col3"}
+    columns = {"col1", "col2", "col3", "_dlt_load_id", "_dlt_id"}
 
-    parsed_select = sqlglot.parse_one(case["query"], read=dialect)
+    parsed_select = sqlglot.parse_one(case["query"], read="duckdb")
 
     assert isinstance(parsed_select, (sqlglot.exp.Select, sqlglot.exp.Union))
 
     assert query_is_complex_scope(parsed_select=parsed_select, columns=columns) == case["complex"]
-    assert query_is_complex(parsed_select=parsed_select, columns=columns) == case["complex"]
