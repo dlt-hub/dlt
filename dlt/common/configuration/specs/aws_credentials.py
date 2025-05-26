@@ -100,8 +100,8 @@ class AwsCredentialsWithoutDefaults(
         credentials.aws_session_token = file_io.get("s3.session-token")
         credentials.region_name = file_io.get("s3.region")
         credentials.endpoint_url = file_io.get("s3.endpoint")
-        if not credentials.is_partial():
-            credentials.resolve()
+        # if not credentials.is_partial():
+        #     credentials.resolve()
         return credentials
 
 
