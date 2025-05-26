@@ -861,7 +861,9 @@ def test_warning_from_json_normalizer_on_null_column(
         expected_warning = (
             "The column col1 in table nested_table__children did not receive any data during this"
             " load. Therefore, its type couldn't be inferred. Unless a type hint is provided, the"
-            " column will not be materialized in the destination."
+            " column will not be materialized in the destination. One way to provide a type hint is"
+            " to use the 'columns' argument in the '@dlt.resource' decorator. For"
+            " example:\n\n@dlt.resource(columns={'col1': {'data_type': 'text'}})\n\n"
         )
         assert expected_warning in logger_spy.call_args_list[0][0][0]
     else:

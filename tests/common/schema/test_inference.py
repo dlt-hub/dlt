@@ -378,7 +378,7 @@ def test_coerce_new_null_value(schema: Schema) -> None:
     new_row, new_table = schema.coerce_row("event_user", None, row)
     # No new rows, but new column in schema
     assert "timestamp" not in new_row
-    assert new_table["columns"]["timestamp"]["data_type"] is None
+    assert "data_type" not in new_table["columns"]["timestamp"]
     assert new_table["columns"]["timestamp"]["nullable"] is True
     assert new_table["columns"]["timestamp"]["x-normalizer"]["seen-null-first"] is True  # type: ignore[typeddict-item]
 
