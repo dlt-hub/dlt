@@ -99,18 +99,18 @@ def create_table_list(
 
     table_list: List[Dict[str, Union[str, int, None]]] = [
         {
-            "Name": table["name"],
-            "Parent": table.get("parent", "-"),
-            "Resource": table.get("resource", "-"),
-            "Write disposition": table.get("write_disposition", ""),
-            "Description": table.get("description", None),
-            "Row count": row_counts.get(table["name"], None),
+            "name": table["name"],
+            "parent": table.get("parent", "-"),
+            "resource": table.get("resource", "-"),
+            "write_disposition": table.get("write_disposition", ""),
+            "description": table.get("description", None),
+            "row_count": row_counts.get(table["name"], None),
         }
         for table in tables
     ]
-    table_list.sort(key=lambda x: str(x["Name"]))
+    table_list.sort(key=lambda x: str(x["name"]))
     if not show_internals:
-        table_list = [t for t in table_list if not str(t["Name"]).lower().startswith("_dlt")]
+        table_list = [t for t in table_list if not str(t["name"]).lower().startswith("_dlt")]
     return _align_dict_keys(table_list)
 
 
@@ -150,22 +150,22 @@ def create_column_list(
     column_list: List[Dict[str, Any]] = []
     for column in table["columns"].values():
         column_dict: Dict[str, Any] = {
-            "Column name": column["name"],
+            "name": column["name"],
         }
 
         # show type hints if requested
         if show_type_hints:
-            column_dict["Data Type"] = column.get("data_type", None)
-            column_dict["Nullable"] = column.get("nullable", None)
-            column_dict["Precision"] = column.get("precision", None)
-            column_dict["Scale"] = column.get("scale", None)
-            column_dict["Timezone"] = column.get("timezone", None)
+            column_dict["data_type"] = column.get("data_type", None)
+            column_dict["nullable"] = column.get("nullable", None)
+            column_dict["precision"] = column.get("precision", None)
+            column_dict["scale"] = column.get("scale", None)
+            column_dict["timezone"] = column.get("timezone", None)
 
         # show "other" hints if requested, TODO: define what are these?
         if show_other_hints:
-            column_dict["Primary Key"] = column.get("primary_key", None)
-            column_dict["Merge Key"] = column.get("merge_key", None)
-            column_dict["Unique"] = column.get("unique", None)
+            column_dict["primary_key"] = column.get("primary_key", None)
+            column_dict["merge_key"] = column.get("merge_key", None)
+            column_dict["unique"] = column.get("unique", None)
 
         # show custom hints (x-) if requesed
         if show_custom_hints:
@@ -175,14 +175,14 @@ def create_column_list(
 
         column_list.append(column_dict)
 
-    column_list.sort(key=lambda x: x["Column name"])
+    column_list.sort(key=lambda x: x["name"])
     if not show_internals:
-        column_list = [c for c in column_list if not c["Column name"].lower().startswith("_dlt")]
+        column_list = [c for c in column_list if not c["name"].lower().startswith("_dlt")]
     return _align_dict_keys(column_list)
 
 
 def _dict_to_table_items(d: Dict[str, Any]) -> List[Dict[str, Any]]:
-    return [{"Name": k, "Value": v} for k, v in d.items()]
+    return [{"name": k, "value": v} for k, v in d.items()]
 
 
 def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
@@ -195,20 +195,20 @@ def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
         credentials = "Could not resolve credentials"
 
     details_dict = {
-        "Pipeline name": pipeline.pipeline_name,
-        "Destination": (
+        "pipeline_name": pipeline.pipeline_name,
+        "destination": (
             pipeline.destination.destination_description
             if pipeline.destination
             else "No destination set"
         ),
-        "Credentials": credentials,
-        "Dataset name": pipeline.dataset_name,
-        "Schema name": (
+        "credentials": credentials,
+        "dataset_name": pipeline.dataset_name,
+        "schema": (
             pipeline.default_schema_name
             if pipeline.default_schema_name
             else "No default schema set"
         ),
-        "Pipeline working dir": pipeline.working_dir,
+        "working_dir": pipeline.working_dir,
     }
 
     return _dict_to_table_items(details_dict)
@@ -326,6 +326,22 @@ def get_schema_by_version(pipeline: dlt.Pipeline, version_hash: str) -> Schema:
 #
 
 
+def trace_overview(trace: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Get the overview of a trace.
+    """
+    return _dict_to_table_items(
+        _humanize_datetime_values(
+            {
+                "transaction_id": trace.get("transaction_id", ""),
+                "pipeline_name": trace.get("pipeline_name", ""),
+                "started_at": trace.get("started_at", ""),
+                "finished_at": trace.get("finished_at", ""),
+            }
+        )
+    )
+
+
 def trace_execution_context(trace: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Get the execution context of a trace.
@@ -333,33 +349,38 @@ def trace_execution_context(trace: Dict[str, Any]) -> List[Dict[str, Any]]:
     return _dict_to_table_items(trace.get("execution_context", {}))
 
 
+def _humanize_datetime_values(d: Dict[str, Any]) -> Dict[str, Any]:
+    started_at = d.get("started_at", "")
+    finished_at = d.get("finished_at", "")
+    created = d.get("created", "")
+    last_modified = d.get("last_modified", "")
+
+    if started_at:
+        d["started_at"] = pendulum.instance(started_at).format("YYYY-MM-DD HH:mm:ss Z")
+    if finished_at:
+        d["finished_at"] = pendulum.instance(finished_at).format("YYYY-MM-DD HH:mm:ss Z")
+    if started_at and finished_at:
+        d["duration"] = (
+            f"{pendulum.instance(finished_at).diff(pendulum.instance(started_at)).in_words()}"
+        )
+    if created:
+        d["created"] = pendulum.from_timestamp(created).format("YYYY-MM-DD HH:mm:ss Z")
+    if last_modified:
+        d["last_modified"] = pendulum.from_timestamp(last_modified).format("YYYY-MM-DD HH:mm:ss Z")
+
+    return d
+
+
 def trace_steps_overview(trace: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Get the steps overview of a trace.
     """
+
     result = []
     for step in trace.get("steps", []):
-        started_at = step.get("started_at", "")
-        finished_at = step.get("finished_at", "")
+        step = _humanize_datetime_values(step)
         result.append(
-            {
-                "Name": step.get("step", ""),
-                "Started at": (
-                    pendulum.instance(started_at).format("YYYY-MM-DD HH:mm:ss Z")
-                    if started_at
-                    else ""
-                ),
-                "Finished at": (
-                    pendulum.instance(finished_at).format("YYYY-MM-DD HH:mm:ss Z")
-                    if finished_at
-                    else ""
-                ),
-                "Duration": (
-                    f"{pendulum.instance(finished_at).diff(pendulum.instance(started_at)).in_words()}"
-                    if started_at and finished_at
-                    else ""
-                ),
-            }
+            {k: step[k] for k in ["step", "started_at", "finished_at", "duration"] if k in step}
         )
     return result
 
@@ -387,6 +408,7 @@ def trace_step_details(trace: Dict[str, Any], step_id: str) -> List[Dict[str, An
                     )
                 )
                 table_metrics = _align_dict_keys(info_section.get("table_metrics", []))
+                table_metrics = [_humanize_datetime_values(t) for t in table_metrics]
                 _result.append(
                     mo.ui.table(table_metrics, selection=None, freeze_columns_left=["table_name"])
                 )
@@ -399,6 +421,7 @@ def trace_step_details(trace: Dict[str, Any], step_id: str) -> List[Dict[str, An
                     )
                 )
                 job_metrics = _align_dict_keys(info_section.get("job_metrics", []))
+                job_metrics = [_humanize_datetime_values(j) for j in job_metrics]
                 _result.append(
                     mo.ui.table(job_metrics, selection=None, freeze_columns_left=["table_name"])
                 )

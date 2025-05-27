@@ -199,8 +199,8 @@ def section_schema(
         )
 
         for table in dlt_schema_table_list.value:  # type: ignore[union-attr]
-            _table_name = table["Name"]  # type: ignore[index]
-            _result.append(mo.md(f"### `{_table_name}`"))
+            _table_name = table["name"]  # type: ignore[index]
+            _result.append(mo.md(f"### `{_table_name}` columns"))
             _result.append(
                 mo.ui.table(
                     utils.create_column_list(
@@ -274,7 +274,7 @@ def section_browse_data_table_list(
 
             _sql_query = ""
             if dlt_data_table_list.value:
-                _table_name = dlt_data_table_list.value[0]["Name"]  # type: ignore[index]
+                _table_name = dlt_data_table_list.value[0]["name"]  # type: ignore[index]
                 _sql_query = (
                     dlt_pipeline.dataset()
                     .table(_table_name)
@@ -447,6 +447,13 @@ def section_trace(
             trace_dict = dlt_trace.asdict()
             _result.append(
                 ui.build_title_and_subtitle(
+                    "Trace overview",
+                    title_level=3,
+                )
+            )
+            _result.append(mo.ui.table(utils.trace_overview(trace_dict), selection=None))
+            _result.append(
+                ui.build_title_and_subtitle(
                     "Execution context",
                     "Information about the environment in which the pipeline was executed.",
                     title_level=3,
@@ -463,7 +470,7 @@ def section_trace(
             )
             _result.append(dlt_trace_steps_table)
             for item in dlt_trace_steps_table.value:  # type: ignore
-                step_id = item["Name"]  # type: ignore
+                step_id = item["step"]  # type: ignore
                 _result.append(
                     ui.build_title_and_subtitle(
                         f"{step_id.capitalize()} details",
@@ -567,10 +574,8 @@ def section_loads_results(
 
                 # prepare and sort row counts
                 _row_counts_dict = utils.get_row_counts(dlt_pipeline, _load_id)
-                _row_counts = [
-                    {"Table Name": k, "Row Count": v} for k, v in _row_counts_dict.items()
-                ]
-                _row_counts.sort(key=lambda x: str(x["Table Name"]))
+                _row_counts = [{"name": k, "row_count": v} for k, v in _row_counts_dict.items()]
+                _row_counts.sort(key=lambda x: str(x["name"]))
 
             # add row counts
             _result.append(
@@ -827,11 +832,17 @@ def utils_cli_args_and_query_vars_config():
     """
     Prepare cli args  as globals for the following cells
     """
-    mo_query_var_pipeline_name: str = cast(str, mo.query_params().get("pipeline")) or None
-    mo_cli_arg_pipelines_dir: str = cast(str, mo.cli_args().get("pipelines_dir")) or None
-    mo_cli_arg_with_test_identifiers: bool = (
-        cast(bool, mo.cli_args().get("with_test_identifiers")) or False
-    )
+
+    try:
+        mo_query_var_pipeline_name: str = cast(str, mo.query_params().get("pipeline")) or None
+        mo_cli_arg_pipelines_dir: str = cast(str, mo.cli_args().get("pipelines_dir")) or None
+        mo_cli_arg_with_test_identifiers: bool = (
+            cast(bool, mo.cli_args().get("with_test_identifiers")) or False
+        )
+    except Exception:
+        mo_query_var_pipeline_name = None
+        mo_cli_arg_pipelines_dir = None
+        mo_cli_arg_with_test_identifiers = False
 
     # TODO: properly resolve the config, maybe by pipeline name?
     dlt_config = StudioConfiguration()

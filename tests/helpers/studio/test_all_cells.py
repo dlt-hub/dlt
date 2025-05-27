@@ -32,7 +32,7 @@ global_defaults = {
     "dlt_query": "",
     "dlt_loads_table": None,
     "dlt_all_pipelines": [],
-    "dlt_schema_table_list": None,
+    "mo_cli_arg_with_test_identifiers": True,
 }
 
 
