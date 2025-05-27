@@ -101,7 +101,7 @@ def section_sync_status(
 
     if dlt_pipeline and dlt_section_sync_switch.value:
         # sync pipeline
-        with mo.status.spinner(title="Syncing pipeline state from destination..."):
+        with mo.status.spinner(title=strings.sync_status_spinner_text):
             try:
                 dlt_pipeline.sync_destination()
                 _credentials = str(dlt_pipeline.dataset().destination_client.config.credentials)
@@ -173,7 +173,7 @@ def section_schema(
     if dlt_pipeline and dlt_section_schema_switch.value and dlt_schema_table_list is None:
         _result.append(
             mo.callout(
-                mo.md("No Default Schema available. Does your pipeline have a completed load?"),
+                mo.md(strings.schema_no_default_available_text),
                 kind="warn",
             )
         )
@@ -185,7 +185,7 @@ def section_schema(
         _result.append(dlt_schema_table_list)
 
         # add table details
-        _result.append(mo.md("## Schema Browser: Table details for selected tables"))
+        _result.append(ui.build_title_and_subtitle(strings.schema_table_details_title))
         _result.append(
             mo.hstack(
                 [
@@ -200,7 +200,7 @@ def section_schema(
 
         for table in dlt_schema_table_list.value:  # type: ignore[union-attr]
             _table_name = table["name"]  # type: ignore[index]
-            _result.append(mo.md(f"### `{_table_name}` columns"))
+            _result.append(mo.md(strings.schema_table_columns_title.format(_table_name)))
             _result.append(
                 mo.ui.table(
                     utils.create_column_list(
@@ -217,11 +217,11 @@ def section_schema(
             )
 
         # add raw schema
-        _result.append(mo.md("## Schema Browser: Raw schema as yaml"))
+        _result.append(ui.build_title_and_subtitle(strings.schema_raw_yaml_title))
         _result.append(
             mo.accordion(
                 {
-                    "Show raw schema as yaml": mo.ui.code_editor(
+                    strings.schema_show_raw_yaml_text: mo.ui.code_editor(
                         dlt_pipeline.default_schema.to_pretty_yaml(),
                         language="yaml",
                     )
@@ -289,7 +289,8 @@ def section_browse_data_table_list(
                 debounce=True,
             )
             dlt_run_query_button: mo.ui.run_button = mo.ui.run_button(
-                label="Run query", tooltip="Run the query in the editor"
+                label=strings.browse_data_run_query_button,
+                tooltip=strings.browse_data_run_query_tooltip,
             )
 
             _result += [
@@ -335,7 +336,7 @@ def section_browse_data_query_result(
         and dlt_query_editor is not None
     ):
         _result.append(ui.build_title_and_subtitle(strings.browse_data_query_result_title))
-        with mo.status.spinner(title="Loading data from destination"):
+        with mo.status.spinner(title=strings.browse_data_loading_spinner_text):
             if dlt_query_editor.value and (dlt_run_query_button.value):
                 try:
                     sqlglot.parse_one(
@@ -451,24 +452,23 @@ def section_trace(
             trace_dict = dlt_trace.asdict()
             _result.append(
                 ui.build_title_and_subtitle(
-                    "Trace overview",
+                    strings.trace_overview_title,
                     title_level=3,
                 )
             )
             _result.append(mo.ui.table(utils.trace_overview(trace_dict), selection=None))
             _result.append(
                 ui.build_title_and_subtitle(
-                    "Execution context",
-                    "Information about the environment in which the pipeline was executed.",
+                    strings.trace_execution_context_title,
+                    strings.trace_execution_context_subtitle,
                     title_level=3,
                 )
             )
             _result.append(mo.ui.table(utils.trace_execution_context(trace_dict), selection=None))
             _result.append(
                 ui.build_title_and_subtitle(
-                    "Steps overview",
-                    "Select a step to see the step execution details, such as rows processed,"
-                    " running times and information about load jobs.",
+                    strings.trace_steps_overview_title,
+                    strings.trace_steps_overview_subtitle,
                     title_level=3,
                 )
             )
@@ -477,7 +477,7 @@ def section_trace(
                 step_id = item["step"]  # type: ignore
                 _result.append(
                     ui.build_title_and_subtitle(
-                        f"{step_id.capitalize()} details",
+                        strings.trace_step_details_title.format(step_id.capitalize()),
                         title_level=3,
                     )
                 )
@@ -486,18 +486,20 @@ def section_trace(
             # config values
             _result.append(
                 ui.build_title_and_subtitle(
-                    "Resolved config values",
-                    "A list of config values that were resolved for this pipeline run. You can use"
-                    " this to find errors in your configuration, such as config values that you set"
-                    " up but were not used. The values of the resolved configs are not displayed"
-                    " for security reasons.",
+                    strings.trace_resolved_config_title,
+                    strings.trace_resolved_config_subtitle,
                     title_level=3,
                 )
             )
             _result.append(
                 mo.ui.table(utils.trace_resolved_config_values(trace_dict), selection=None)
             )
-            _result.append(mo.md("### Raw trace"))
+            _result.append(
+                ui.build_title_and_subtitle(
+                    strings.trace_raw_trace_title,
+                    title_level=3,
+                )
+            )
             _result.append(
                 mo.accordion(
                     {
@@ -536,7 +538,7 @@ def section_loads(
             mo.hstack([dlt_cache_query_results, dlt_restrict_to_last_1000], justify="start")
         )
 
-        with mo.status.spinner(title="Loading loads from destination..."):
+        with mo.status.spinner(title=strings.loads_loading_spinner_text):
             dlt_loads_table: mo.ui.table = None
             try:
                 _loads_data = utils.get_loads(
@@ -568,10 +570,10 @@ def section_loads_results(
         and dlt_loads_table.value
     ):
         _load_id = dlt_loads_table.value[0]["load_id"]  # type: ignore
-        _result.append(mo.md("## Load details for load id: {}".format(_load_id)))
+        _result.append(mo.md(strings.loads_details_title.format(_load_id)))
 
         try:
-            with mo.status.spinner(title="Loading row counts and schema..."):
+            with mo.status.spinner(title=strings.loads_details_loading_spinner_text):
                 _schema = utils.get_schema_by_version(
                     dlt_pipeline, dlt_loads_table.value[0]["schema_version_hash"]  # type: ignore
                 )
@@ -609,7 +611,7 @@ def section_loads_results(
                 _result.append(
                     mo.accordion(
                         {
-                            "Show raw schema as yaml": mo.ui.code_editor(
+                            strings.schema_show_raw_yaml_text: mo.ui.code_editor(
                                 _schema.to_pretty_yaml(),
                                 language="yaml",
                             )
@@ -641,7 +643,7 @@ def section_ibis_backend(
 
     if dlt_pipeline and dlt_section_ibis_browser_switch.value:
         try:
-            with mo.status.spinner(title="Connecting Ibis Backend..."):
+            with mo.status.spinner(title=strings.ibis_backend_connecting_spinner_text):
                 con = dlt_pipeline.dataset().ibis()
             _result.append(
                 mo.callout(mo.vstack([mo.md(strings.ibis_backend_connected_text)]), kind="success")
@@ -724,31 +726,31 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
 
     # other switches
     dlt_schema_show_dlt_tables: mo.ui.switch = mo.ui.switch(
-        label="<small>Show `_dlt` tables</small>"
+        label=f"<small>{strings.ui_show_dlt_tables}</small>"
     )
     dlt_schema_show_child_tables: mo.ui.switch = mo.ui.switch(
-        label="<small>Show child tables</small>", value=False
+        label=f"<small>{strings.ui_show_child_tables}</small>", value=False
     )
     dlt_schema_show_row_counts: mo.ui.switch = mo.ui.switch(
-        label="<small>Show row counts</small>", value=False
+        label=f"<small>{strings.ui_show_row_counts}</small>", value=False
     )
     dlt_schema_show_dlt_columns: mo.ui.switch = mo.ui.switch(
-        label="<small>Show `_dlt` columns</small>"
+        label=f"<small>{strings.ui_show_dlt_columns}</small>"
     )
     dlt_schema_show_type_hints: mo.ui.switch = mo.ui.switch(
-        label="<small>Show type hints</small>", value=True
+        label=f"<small>{strings.ui_show_type_hints}</small>", value=True
     )
     dlt_schema_show_other_hints: mo.ui.switch = mo.ui.switch(
-        label="<small>Show other hints</small>", value=False
+        label=f"<small>{strings.ui_show_other_hints}</small>", value=False
     )
     dlt_schema_show_custom_hints: mo.ui.switch = mo.ui.switch(
-        label="<small>Show custom hints (x-)</small>", value=False
+        label=f"<small>{strings.ui_show_custom_hints}</small>", value=False
     )
     dlt_cache_query_results: mo.ui.switch = mo.ui.switch(
-        label="<small>Cache query results</small>", value=True
+        label=f"<small>{strings.ui_cache_query_results}</small>", value=True
     )
     dlt_restrict_to_last_1000: mo.ui.switch = mo.ui.switch(
-        label="<small>Limit to 1000 rows</small>", value=True
+        label=f"<small>{strings.ui_limit_to_1000_rows}</small>", value=True
     )
     return (
         dlt_cache_query_results,
