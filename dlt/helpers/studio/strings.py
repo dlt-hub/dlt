@@ -48,8 +48,6 @@ If dltHub Studio can't connect to the destination, you will receive a warning an
 ## dltHub Studio CLI commands
 
 * `dlt studio` - Start the studio (takes you to this page)
-* `dlt studio -p <dlt_pipeline_name>` - Jump directly to the pipeline page on launch
-* `dlt studio eject` - Eject the code for dltHub Studio and create your own hackable version of the app :)
 
 ## Learn more
 
