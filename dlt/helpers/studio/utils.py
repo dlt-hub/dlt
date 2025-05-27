@@ -1,4 +1,4 @@
-from typing import List, Tuple, Any, Dict, Union, cast
+from typing import List, Tuple, Any, Dict, Union, cast, Mapping, Optional
 from itertools import chain
 import functools
 import dlt
@@ -8,10 +8,9 @@ from pathlib import Path
 from dlt.common.pendulum import pendulum
 from dlt.common.pipeline import get_dlt_pipelines_dir
 from dlt.common.storages import FileStorage
-from dlt.common.utils import without_none
 from dlt.common.schema import Schema
 from dlt.common.json import json
-
+from dlt.helpers.studio import ui_elements as ui
 
 PICKLE_TRACE_FILE = "trace.pickle"
 
@@ -63,11 +62,16 @@ def get_pipeline(pipeline_name: str, pipelines_dir: str) -> dlt.Pipeline:
     return dlt.attach(pipeline_name, pipelines_dir=pipelines_dir)
 
 
+def without_none_or_empty_string(d: Mapping[Any, Any]) -> Mapping[Any, Any]:
+    """Return a new dict with all `None` values removed"""
+    return {k: v for k, v in d.items() if v is not None and v != ""}
+
+
 def _align_dict_keys(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Makes sure all dicts have the same keys, sets "-" as default. Makes for nicer rendering in marimo table
     """
-    items = cast(List[Dict[str, Any]], [without_none(i) for i in items])
+    items = cast(List[Dict[str, Any]], [without_none_or_empty_string(i) for i in items])
     all_keys = set(chain.from_iterable(i.keys() for i in items))
     for i in items:
         i.update({key: "-" for key in all_keys if key not in i})
@@ -341,12 +345,12 @@ def trace_steps_overview(trace: Dict[str, Any]) -> List[Dict[str, Any]]:
             {
                 "Name": step.get("step", ""),
                 "Started at": (
-                    pendulum.instance(started_at).format("YYYY-MM-DD HH:mm:ss")
+                    pendulum.instance(started_at).format("YYYY-MM-DD HH:mm:ss Z")
                     if started_at
                     else ""
                 ),
                 "Finished at": (
-                    pendulum.instance(finished_at).format("YYYY-MM-DD HH:mm:ss")
+                    pendulum.instance(finished_at).format("YYYY-MM-DD HH:mm:ss Z")
                     if finished_at
                     else ""
                 ),
@@ -360,11 +364,51 @@ def trace_steps_overview(trace: Dict[str, Any]) -> List[Dict[str, Any]]:
     return result
 
 
-def trace_load_id(trace: Dict[str, Any]) -> List[Dict[str, Any]]:
+def trace_resolved_config_values(trace: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
-    Get the load id of a trace.
+    Get the resolved config values of a trace.
     """
-    return _dict_to_table_items(trace["load_id"])
+    return [v.asdict() for v in trace.get("resolved_config_values", [])]
+
+
+def trace_step_details(trace: Dict[str, Any], step_id: str) -> List[Dict[str, Any]]:
+    """
+    Get the details of a step.
+    """
+    _result = []
+    for step in trace.get("steps", []):
+        if step.get("step") == step_id:
+            info_section = step.get(f"{step_id}_info", {})
+            if "table_metrics" in info_section:
+                _result.append(
+                    ui.build_title_and_subtitle(
+                        f"{step_id} table metrics",
+                        title_level=4,
+                    )
+                )
+                table_metrics = _align_dict_keys(info_section.get("table_metrics", []))
+                _result.append(
+                    mo.ui.table(table_metrics, selection=None, freeze_columns_left=["table_name"])
+                )
+
+            if "job_metrics" in info_section:
+                _result.append(
+                    ui.build_title_and_subtitle(
+                        f"{step_id} job metrics",
+                        title_level=4,
+                    )
+                )
+                job_metrics = _align_dict_keys(info_section.get("job_metrics", []))
+                _result.append(
+                    mo.ui.table(job_metrics, selection=None, freeze_columns_left=["table_name"])
+                )
+
+    return _result
+
+
+#
+# misc
+#
 
 
 def style_cell(row_id: str, name: str, __: Any) -> Dict[str, str]:

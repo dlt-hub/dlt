@@ -3,7 +3,7 @@
 #
 import marimo as _mo
 
-
+# Reusable string parts
 _credentials_info = "Has your pipeline been run and are your credentials in scope of dltHub studio?"
 
 #
@@ -125,7 +125,10 @@ state_subtitle = "A raw view of the currently stored pipeline state."
 # Last trace page
 #
 trace_title = "Last trace"
-trace_subtitle = "An overview of the last load trace of the selected pipeline if available."
+trace_subtitle = (
+    "An overview of the last load trace of the last successful run of the selected pipeline if"
+    " available."
+)
 trace_show_raw_trace_text = "Show"
 trace_no_trace_text = """
 No local trace available for the selected pipeline. This probably means that your pipeline has never been run on this computer.

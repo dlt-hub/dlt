@@ -17,6 +17,7 @@ with app.setup:
     import dlt
     from dlt.common.json import json
     from dlt.helpers.studio import strings, utils, ui_elements as ui
+    from dlt.helpers.studio.config import StudioConfiguration
 
 
 @app.cell(hide_code=True)
@@ -90,14 +91,13 @@ def section_sync_status(
     """
     Returns the status of the pipeline
     """
-    _result = [
-        ui.build_page_header(
-            strings.sync_status_title,
-            strings.sync_status_subtitle,
-            strings.sync_status_subtitle_long,
-            dlt_section_sync_switch,
-        )
-    ]
+    _result = ui.build_page_header(
+        dlt_pipeline,
+        strings.sync_status_title,
+        strings.sync_status_subtitle,
+        strings.sync_status_subtitle_long,
+        dlt_section_sync_switch,
+    )
 
     if dlt_pipeline and dlt_section_sync_switch.value:
         # sync pipeline
@@ -126,14 +126,13 @@ def section_overview(
     Overview page of currently selected pipeline
     """
 
-    _result = [
-        ui.build_page_header(
-            strings.overview_title,
-            strings.overview_subtitle,
-            strings.overview_subtitle,
-            dlt_section_overview_switch,
-        )
-    ]
+    _result = ui.build_page_header(
+        dlt_pipeline,
+        strings.overview_title,
+        strings.overview_subtitle,
+        strings.overview_subtitle,
+        dlt_section_overview_switch,
+    )
 
     if dlt_pipeline and dlt_section_overview_switch.value:
         _result += [
@@ -163,14 +162,13 @@ def section_schema(
     Show schema of the currently selected pipeline
     """
 
-    _result = [
-        ui.build_page_header(
-            strings.schema_title,
-            strings.schema_subtitle,
-            strings.schema_subtitle_long,
-            dlt_section_schema_switch,
-        )
-    ]
+    _result = ui.build_page_header(
+        dlt_pipeline,
+        strings.schema_title,
+        strings.schema_subtitle,
+        strings.schema_subtitle_long,
+        dlt_section_schema_switch,
+    )
 
     if dlt_pipeline and dlt_section_schema_switch.value and not dlt_schema_table_list:
         _result.append(
@@ -249,14 +247,13 @@ def section_browse_data_table_list(
     Show data of the currently selected pipeline
     """
 
-    _result = [
-        ui.build_page_header(
-            strings.browse_data_title,
-            strings.browse_data_subtitle,
-            strings.browse_data_subtitle_long,
-            dlt_section_browse_data_switch,
-        )
-    ]
+    _result = ui.build_page_header(
+        dlt_pipeline,
+        strings.browse_data_title,
+        strings.browse_data_subtitle,
+        strings.browse_data_subtitle_long,
+        dlt_section_browse_data_switch,
+    )
 
     dlt_query_editor: mo.ui.code_editor = None
     if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_data_table_list:
@@ -400,14 +397,13 @@ def section_state(
     """
     Show state of the currently selected pipeline
     """
-    _result = [
-        ui.build_page_header(
-            strings.state_title,
-            strings.state_subtitle,
-            strings.state_subtitle,
-            dlt_section_state_switch,
-        )
-    ]
+    _result = ui.build_page_header(
+        dlt_pipeline,
+        strings.state_title,
+        strings.state_subtitle,
+        strings.state_subtitle,
+        dlt_section_state_switch,
+    )
 
     if dlt_pipeline and dlt_section_state_switch.value:
         _result.append(
@@ -424,19 +420,19 @@ def section_state(
 def section_trace(
     dlt_pipeline: dlt.Pipeline,
     dlt_section_trace_switch: mo.ui.switch,
+    dlt_trace_steps_table: mo.ui.table,
 ):
     """
     Show last trace of the currently selected pipeline
     """
 
-    _result = [
-        ui.build_page_header(
-            strings.trace_title,
-            strings.trace_subtitle,
-            strings.trace_subtitle,
-            dlt_section_trace_switch,
-        )
-    ]
+    _result = ui.build_page_header(
+        dlt_pipeline,
+        strings.trace_title,
+        strings.trace_subtitle,
+        strings.trace_subtitle,
+        dlt_section_trace_switch,
+    )
 
     if dlt_pipeline and dlt_section_trace_switch.value:
         dlt_trace = dlt_pipeline.last_trace
@@ -448,14 +444,47 @@ def section_trace(
                 )
             )
         else:
-            _result.append(mo.callout("This section is not completed yet!", kind="warn"))
-            _result.append(mo.md("### Execution context"))
+            trace_dict = dlt_trace.asdict()
             _result.append(
-                mo.ui.table(utils.trace_execution_context(dlt_trace.asdict()), selection=None)
+                ui.build_title_and_subtitle(
+                    "Execution context",
+                    "Information about the environment in which the pipeline was executed.",
+                    title_level=3,
+                )
             )
-            _result.append(ui.build_title_and_subtitle("""Steps overview""", "Select a step to see the execution details"))
+            _result.append(mo.ui.table(utils.trace_execution_context(trace_dict), selection=None))
             _result.append(
-                mo.ui.table(utils.trace_steps_overview(dlt_trace.asdict()), selection="single")
+                ui.build_title_and_subtitle(
+                    "Steps overview",
+                    "Select a step to see the step execution details, such as rows processed,"
+                    " running times and information about load jobs.",
+                    title_level=3,
+                )
+            )
+            _result.append(dlt_trace_steps_table)
+            for item in dlt_trace_steps_table.value:  # type: ignore
+                step_id = item["Name"]  # type: ignore
+                _result.append(
+                    ui.build_title_and_subtitle(
+                        f"{step_id.capitalize()} details",
+                        title_level=3,
+                    )
+                )
+                _result += utils.trace_step_details(trace_dict, step_id)
+
+            # config values
+            _result.append(
+                ui.build_title_and_subtitle(
+                    "Resolved config values",
+                    "A list of config values that were resolved for this pipeline run. You can use"
+                    " this to find errors in your configuration, such as config values that you set"
+                    " up but were not used. The values of the resolved configs are not displayed"
+                    " for security reasons.",
+                    title_level=3,
+                )
+            )
+            _result.append(
+                mo.ui.table(utils.trace_resolved_config_values(trace_dict), selection=None)
             )
             _result.append(mo.md("### Raw trace"))
             _result.append(
@@ -483,14 +512,13 @@ def section_loads(
     Show loads of the currently selected pipeline
     """
 
-    _result = [
-        ui.build_page_header(
-            strings.loads_title,
-            strings.loads_subtitle,
-            strings.loads_subtitle_long,
-            dlt_section_loads_switch,
-        )
-    ]
+    _result = ui.build_page_header(
+        dlt_pipeline,
+        strings.loads_title,
+        strings.loads_subtitle,
+        strings.loads_subtitle_long,
+        dlt_section_loads_switch,
+    )
 
     if dlt_pipeline and dlt_section_loads_switch.value:
         _result.append(
@@ -594,14 +622,13 @@ def section_ibis_backend(
     """
     Connects to ibis backend and makes it available in the datasources panel
     """
-    _result = [
-        ui.build_page_header(
-            strings.ibis_backend_title,
-            strings.ibis_backend_subtitle,
-            strings.ibis_backend_subtitle,
-            dlt_section_ibis_browser_switch,
-        )
-    ]
+    _result = ui.build_page_header(
+        dlt_pipeline,
+        strings.ibis_backend_title,
+        strings.ibis_backend_subtitle,
+        strings.ibis_backend_subtitle,
+        dlt_section_ibis_browser_switch,
+    )
 
     if dlt_pipeline and dlt_section_ibis_browser_switch.value:
         try:
@@ -745,6 +772,7 @@ def ui_primary_controls(
     dlt_schema_show_row_counts: mo.ui.switch,
     dlt_section_browse_data_switch: mo.ui.switch,
     dlt_section_schema_switch: mo.ui.switch,
+    dlt_section_trace_switch: mo.ui.switch,
 ):
     """
     Helper cell for creating certain controls based on selected sections
@@ -781,11 +809,21 @@ def ui_primary_controls(
             style_cell=utils.style_cell,
             selection="single",
         )
+
+    #
+    # Trace steps table
+    #
+    dlt_trace_steps_table: mo.ui.table = None
+    if dlt_section_trace_switch.value and dlt_pipeline and dlt_pipeline.last_trace:
+        dlt_trace_steps_table = mo.ui.table(
+            utils.trace_steps_overview(dlt_pipeline.last_trace.asdict())
+        )
+
     return dlt_data_table_list, dlt_schema_table_list
 
 
 @app.cell(hide_code=True)
-def utils_cli_args_and_query_vars():
+def utils_cli_args_and_query_vars_config():
     """
     Prepare cli args  as globals for the following cells
     """
@@ -794,7 +832,16 @@ def utils_cli_args_and_query_vars():
     mo_cli_arg_with_test_identifiers: bool = (
         cast(bool, mo.cli_args().get("with_test_identifiers")) or False
     )
-    return mo_cli_arg_pipelines_dir, mo_query_var_pipeline_name, mo_cli_arg_with_test_identifiers
+
+    # TODO: properly resolve the config, maybe by pipeline name?
+    dlt_config = StudioConfiguration()
+
+    return (
+        mo_cli_arg_pipelines_dir,
+        mo_query_var_pipeline_name,
+        mo_cli_arg_with_test_identifiers,
+        dlt_config,
+    )
 
 
 if __name__ == "__main__":
