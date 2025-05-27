@@ -14,12 +14,11 @@ from typing_extensions import TypeAlias
 from sqlalchemy.exc import NoReferencedTableError
 
 from dlt.common.typing import TypedDict
-from dlt.common.libs.sql_alchemy import Table, Column, Row, sqltypes, Select, TypeEngine
+from dlt.common.libs.sql_alchemy import Table, Column, Row, sqltypes, Select, TypeEngine, TextClause
 from dlt.common import logger
 from dlt.common.schema.typing import TColumnSchema, TTableSchemaColumns, TTableReference
 
 ReflectionLevel = Literal["minimal", "full", "full_with_precision"]
-
 
 # optionally create generics with any so they can be imported by dlt importer
 if TYPE_CHECKING:
@@ -33,6 +32,7 @@ else:
     RowAny: TypeAlias = Type[Any]
     TypeEngineAny = Type[Any]
 
+SelectClause = Union[SelectAny, TextClause]
 
 TTypeAdapter = Callable[[TypeEngineAny], Optional[Union[TypeEngineAny, Type[TypeEngineAny]]]]
 
