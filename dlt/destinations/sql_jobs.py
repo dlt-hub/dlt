@@ -686,11 +686,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
         # generate merge statement for root table
         on_str = " AND ".join([f"d.{c} = s.{c}" for c in primary_keys])
-        root_table_column_names = [
-            escape_column_id(col["name"])
-            for col in root_table["columns"].values()
-            if col.get("data_type") is not None
-        ]
+        root_table_column_names = list(map(escape_column_id, root_table["columns"]))
         update_str = ", ".join([c + " = " + "s." + c for c in root_table_column_names])
         col_str = ", ".join(["{alias}" + c for c in root_table_column_names])
         delete_str = (
