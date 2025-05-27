@@ -338,8 +338,8 @@ aws_secret_access_key = "please set me up!"
 Apache Iceberg supports [table partitioning](https://iceberg.apache.org/docs/latest/partitioning/) to optimize query performance.
 
 There are two ways to configure partitioning in dlt+ Iceberg destination:
-* [Using the `iceberg_adapter` function](#using-the-iceberg_adapter-function)
-* [Using column-level `partition` property](#using-column-level-partition-property)
+* Using the [`iceberg_adapter`](#using-the-iceberg_adapter-function) function
+* Using column-level [`partition`](#using-column-level-partition-property) property
 
 ### Using the `iceberg_adapter` function
 
@@ -480,7 +480,7 @@ iceberg_adapter(
 )
 ```
 
-### Using column-level partition properties
+### Using column-level partition property
 
 You can configure identity partitioning directly at the column level using the `"partition": True` property in the column specification. This approach uses identity transformation (partitioning by exact column values).
 
@@ -519,7 +519,7 @@ def multi_partition_data():
 
 ### Partitioning by dlt load id
 
-dlt [load id](../../../general-usage/destination-tables.md#load-packages-and-load-ids) is a unique identifier for each load package (a batch of data processed by dlt). Each execution of a pipeline generates a unique load id that identifies all data loaded in that specific run. The `_dlt_load_id` is a system column automatically added by `dlt` to each row of data loaded in a table.
+dlt [load id](../../general-usage/destination-tables.md#load-packages-and-load-ids) is a unique identifier for each load package (a batch of data processed by dlt). Each execution of a pipeline generates a unique load id that identifies all data loaded in that specific run. The `_dlt_load_id` is a system column automatically added by `dlt` to each row of data loaded in a table.
 
 To partition by dlt load id, set the `partition` property to `_dlt_load_id` in the column specification:
 
