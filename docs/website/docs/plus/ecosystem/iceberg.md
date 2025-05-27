@@ -384,12 +384,11 @@ Extract time components from date/datetime columns:
 
 ```py
 import dlt
-from datetime import datetime
 from dlt_plus.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
 
 @dlt.resource
 def events():
-    yield [{"id": 1, "event_time": datetime(2024, 3, 15, 10, 30), "data": "..."}]
+    yield [{"id": 1, "event_time": datetime.datetime(2024, 3, 15, 10, 30), "data": "..."}]
 
 iceberg_adapter(
     events,
@@ -423,7 +422,6 @@ iceberg_adapter(
 Combine multiple partition strategies:
 
 ```py
-from datetime import datetime
 import dlt
 from dlt_plus.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
 
@@ -432,14 +430,14 @@ def sales_data():
     yield [
         {
             "id": 1,
-            "timestamp": datetime(2024, 1, 15, 10, 30),
+            "timestamp": datetime.datetime(2024, 1, 15, 10, 30),
             "region": "US",
             "category": "Electronics",
             "amount": 1250.00
         },
         {
             "id": 2,
-            "timestamp": datetime(2024, 1, 16, 14, 20),
+            "timestamp": datetime.datetime(2024, 1, 16, 14, 20),
             "region": "EU",
             "category": "Clothing",
             "amount": 890.50
@@ -464,12 +462,11 @@ Specify custom names for partition fields to make them more descriptive:
 
 ```py
 import dlt
-from datetime import datetime
 from dlt_plus.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
 
 @dlt.resource
 def user_activity():
-    yield [{"user_id": 123, "activity_time": datetime.now(), "action": "click"}]
+    yield [{"user_id": 123, "activity_time": datetime.datetime.now(), "action": "click"}]
 
 iceberg_adapter(
     user_activity,
