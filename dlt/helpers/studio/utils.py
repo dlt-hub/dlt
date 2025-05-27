@@ -1,4 +1,4 @@
-from typing import List, Tuple, Any, Dict, Union, cast, Mapping, Optional
+from typing import List, Tuple, Any, Dict, Union, cast, Mapping, Optional, cast
 from itertools import chain
 import functools
 import dlt
@@ -11,8 +11,19 @@ from dlt.common.storages import FileStorage
 from dlt.common.schema import Schema
 from dlt.common.json import json
 from dlt.helpers.studio import ui_elements as ui
+from dlt.common.configuration.specs import known_sections
+from dlt.helpers.studio.config import StudioConfiguration
+from dlt.common.configuration import resolve_configuration
 
 PICKLE_TRACE_FILE = "trace.pickle"
+
+
+def resolve_studio_config(p: dlt.Pipeline) -> StudioConfiguration:
+    """Resolve the studio configuration"""
+    return resolve_configuration(
+        StudioConfiguration(),
+        sections=(known_sections.STUDIO, p.pipeline_name if p else None),
+    )
 
 
 def get_local_pipelines(
@@ -62,23 +73,8 @@ def get_pipeline(pipeline_name: str, pipelines_dir: str) -> dlt.Pipeline:
     return dlt.attach(pipeline_name, pipelines_dir=pipelines_dir)
 
 
-def without_none_or_empty_string(d: Mapping[Any, Any]) -> Mapping[Any, Any]:
-    """Return a new dict with all `None` values removed"""
-    return {k: v for k, v in d.items() if v is not None and v != ""}
-
-
-def _align_dict_keys(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Makes sure all dicts have the same keys, sets "-" as default. Makes for nicer rendering in marimo table
-    """
-    items = cast(List[Dict[str, Any]], [without_none_or_empty_string(i) for i in items])
-    all_keys = set(chain.from_iterable(i.keys() for i in items))
-    for i in items:
-        i.update({key: "-" for key in all_keys if key not in i})
-    return items
-
-
 def create_table_list(
+    c: StudioConfiguration,
     pipeline: dlt.Pipeline,
     show_internals: bool = False,
     show_child_tables: bool = True,
@@ -99,11 +95,7 @@ def create_table_list(
 
     table_list: List[Dict[str, Union[str, int, None]]] = [
         {
-            "name": table["name"],
-            "parent": table.get("parent", "-"),
-            "resource": table.get("resource", "-"),
-            "write_disposition": table.get("write_disposition", ""),
-            "description": table.get("description", None),
+            **{prop: table.get(prop, None) for prop in ["name", *c.table_list_fields]},  # type: ignore[misc]
             "row_count": row_counts.get(table["name"], None),
         }
         for table in tables
@@ -132,6 +124,7 @@ def get_row_counts(pipeline: dlt.Pipeline, load_id: str = None) -> Dict[str, int
 
 
 def create_column_list(
+    c: StudioConfiguration,
     pipeline: dlt.Pipeline,
     table_name: str,
     show_internals: bool = False,
@@ -155,17 +148,17 @@ def create_column_list(
 
         # show type hints if requested
         if show_type_hints:
-            column_dict["data_type"] = column.get("data_type", None)
-            column_dict["nullable"] = column.get("nullable", None)
-            column_dict["precision"] = column.get("precision", None)
-            column_dict["scale"] = column.get("scale", None)
-            column_dict["timezone"] = column.get("timezone", None)
+            column_dict = {
+                **column_dict,
+                **{hint: column.get(hint, None) for hint in c.column_type_hints},
+            }
 
-        # show "other" hints if requested, TODO: define what are these?
+        # show "other" hints if requested
         if show_other_hints:
-            column_dict["primary_key"] = column.get("primary_key", None)
-            column_dict["merge_key"] = column.get("merge_key", None)
-            column_dict["unique"] = column.get("unique", None)
+            column_dict = {
+                **column_dict,
+                **{hint: column.get(hint, None) for hint in c.column_other_hints},
+            }
 
         # show custom hints (x-) if requesed
         if show_custom_hints:
@@ -179,10 +172,6 @@ def create_column_list(
     if not show_internals:
         column_list = [c for c in column_list if not c["name"].lower().startswith("_dlt")]
     return _align_dict_keys(column_list)
-
-
-def _dict_to_table_items(d: Dict[str, Any]) -> List[Dict[str, Any]]:
-    return [{"name": k, "value": v} for k, v in d.items()]
 
 
 def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
@@ -251,9 +240,7 @@ def get_query_history(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
     global QUERY_HISTORY
     query_list = QUERY_HISTORY.get(pipeline.pipeline_name, [])
 
-    return [
-        {"Query": q, "Loaded rows": _get_query_result(pipeline, q).shape[0]} for q in query_list
-    ]
+    return [{"query": q, "row_count": _get_query_result(pipeline, q).shape[0]} for q in query_list]
 
 
 def clear_query_cache(pipeline: dlt.Pipeline) -> None:
@@ -326,73 +313,55 @@ def get_schema_by_version(pipeline: dlt.Pipeline, version_hash: str) -> Schema:
 #
 
 
-def trace_overview(trace: Dict[str, Any]) -> List[Dict[str, Any]]:
+def trace_overview(c: StudioConfiguration, trace: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Get the overview of a trace.
     """
     return _dict_to_table_items(
         _humanize_datetime_values(
+            c,
             {
-                "transaction_id": trace.get("transaction_id", ""),
-                "pipeline_name": trace.get("pipeline_name", ""),
-                "started_at": trace.get("started_at", ""),
-                "finished_at": trace.get("finished_at", ""),
-            }
+                k: v
+                for k, v in trace.items()
+                if k in ["transaction_id", "pipeline_name", "started_at", "finished_at"]
+            },
         )
     )
 
 
-def trace_execution_context(trace: Dict[str, Any]) -> List[Dict[str, Any]]:
+def trace_execution_context(c: StudioConfiguration, trace: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Get the execution context of a trace.
     """
     return _dict_to_table_items(trace.get("execution_context", {}))
 
 
-def _humanize_datetime_values(d: Dict[str, Any]) -> Dict[str, Any]:
-    started_at = d.get("started_at", "")
-    finished_at = d.get("finished_at", "")
-    created = d.get("created", "")
-    last_modified = d.get("last_modified", "")
-
-    if started_at:
-        d["started_at"] = pendulum.instance(started_at).format("YYYY-MM-DD HH:mm:ss Z")
-    if finished_at:
-        d["finished_at"] = pendulum.instance(finished_at).format("YYYY-MM-DD HH:mm:ss Z")
-    if started_at and finished_at:
-        d["duration"] = (
-            f"{pendulum.instance(finished_at).diff(pendulum.instance(started_at)).in_words()}"
-        )
-    if created:
-        d["created"] = pendulum.from_timestamp(created).format("YYYY-MM-DD HH:mm:ss Z")
-    if last_modified:
-        d["last_modified"] = pendulum.from_timestamp(last_modified).format("YYYY-MM-DD HH:mm:ss Z")
-
-    return d
-
-
-def trace_steps_overview(trace: Dict[str, Any]) -> List[Dict[str, Any]]:
+def trace_steps_overview(c: StudioConfiguration, trace: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Get the steps overview of a trace.
     """
 
     result = []
     for step in trace.get("steps", []):
-        step = _humanize_datetime_values(step)
+        step = _humanize_datetime_values(c, step)
         result.append(
             {k: step[k] for k in ["step", "started_at", "finished_at", "duration"] if k in step}
         )
     return result
 
 
-def trace_resolved_config_values(trace: Dict[str, Any]) -> List[Dict[str, Any]]:
+def trace_resolved_config_values(
+    c: StudioConfiguration, trace: Dict[str, Any]
+) -> List[Dict[str, Any]]:
     """
     Get the resolved config values of a trace.
     """
     return [v.asdict() for v in trace.get("resolved_config_values", [])]
 
 
-def trace_step_details(trace: Dict[str, Any], step_id: str) -> List[Dict[str, Any]]:
+def trace_step_details(
+    c: StudioConfiguration, trace: Dict[str, Any], step_id: str
+) -> List[Dict[str, Any]]:
     """
     Get the details of a step.
     """
@@ -408,7 +377,7 @@ def trace_step_details(trace: Dict[str, Any], step_id: str) -> List[Dict[str, An
                     )
                 )
                 table_metrics = _align_dict_keys(info_section.get("table_metrics", []))
-                table_metrics = [_humanize_datetime_values(t) for t in table_metrics]
+                table_metrics = [_humanize_datetime_values(c, t) for t in table_metrics]
                 _result.append(
                     mo.ui.table(table_metrics, selection=None, freeze_columns_left=["table_name"])
                 )
@@ -421,7 +390,7 @@ def trace_step_details(trace: Dict[str, Any], step_id: str) -> List[Dict[str, An
                     )
                 )
                 job_metrics = _align_dict_keys(info_section.get("job_metrics", []))
-                job_metrics = [_humanize_datetime_values(j) for j in job_metrics]
+                job_metrics = [_humanize_datetime_values(c, j) for j in job_metrics]
                 _result.append(
                     mo.ui.table(job_metrics, selection=None, freeze_columns_left=["table_name"])
                 )
@@ -450,3 +419,53 @@ def style_cell(row_id: str, name: str, __: Any) -> Dict[str, str]:
     if name.lower() == "name":
         style["font-weight"] = "bold"
     return style
+
+
+#
+# internal utils
+#
+
+
+def _without_none_or_empty_string(d: Mapping[Any, Any]) -> Mapping[Any, Any]:
+    """Return a new dict with all `None` values removed"""
+    return {k: v for k, v in d.items() if v is not None and v != ""}
+
+
+def _align_dict_keys(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Makes sure all dicts have the same keys, sets "-" as default. Makes for nicer rendering in marimo table
+    """
+    items = cast(List[Dict[str, Any]], [_without_none_or_empty_string(i) for i in items])
+    all_keys = set(chain.from_iterable(i.keys() for i in items))
+    for i in items:
+        i.update({key: "-" for key in all_keys if key not in i})
+    return items
+
+
+def _humanize_datetime_values(c: StudioConfiguration, d: Dict[str, Any]) -> Dict[str, Any]:
+    """Humanize datetime values in a dict, expects certain keys to be present as found in the trace"""
+
+    started_at = d.get("started_at", "")
+    finished_at = d.get("finished_at", "")
+    created = d.get("created", "")
+    last_modified = d.get("last_modified", "")
+
+    if started_at:
+        d["started_at"] = pendulum.instance(started_at).format(c.datetime_format)
+    if finished_at:
+        d["finished_at"] = pendulum.instance(finished_at).format(c.datetime_format)
+    if started_at and finished_at:
+        d["duration"] = (
+            f"{pendulum.instance(finished_at).diff(pendulum.instance(started_at)).in_words()}"
+        )
+    if created:
+        d["created"] = pendulum.from_timestamp(created).format(c.datetime_format)
+    if last_modified:
+        d["last_modified"] = pendulum.from_timestamp(last_modified).format(c.datetime_format)
+
+    return d
+
+
+def _dict_to_table_items(d: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Convert a dict to a list of dicts with name and value keys"""
+    return [{"name": k, "value": v} for k, v in d.items()]

@@ -37,6 +37,7 @@ def home(
     dlt_pipeline: dlt.Pipeline = None
     if dlt_pipeline_name:
         dlt_pipeline = utils.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
+    dlt_config = utils.resolve_studio_config(dlt_pipeline)
 
     if not dlt_pipeline:
         _stack = [
@@ -55,7 +56,7 @@ def home(
                     [
                         mo.md(
                             strings.home_quick_start_title.format(
-                                ui.build_pipeline_link_list(dlt_all_pipelines)
+                                ui.build_pipeline_link_list(dlt_config, dlt_all_pipelines)
                             )
                         ),
                         dlt_pipeline_select,
@@ -148,6 +149,7 @@ def section_overview(
 
 @app.cell(hide_code=True)
 def section_schema(
+    dlt_config: StudioConfiguration,
     dlt_pipeline: dlt.Pipeline,
     dlt_schema_show_child_tables: mo.ui.switch,
     dlt_schema_show_custom_hints: mo.ui.switch,
@@ -204,6 +206,7 @@ def section_schema(
             _result.append(
                 mo.ui.table(
                     utils.create_column_list(
+                        dlt_config,
                         dlt_pipeline,
                         _table_name,
                         show_internals=dlt_schema_show_dlt_columns.value,
@@ -213,6 +216,7 @@ def section_schema(
                     ),
                     selection=None,
                     style_cell=utils.style_cell,
+                    freeze_columns_left=["name"],
                 )
             )
 
@@ -372,6 +376,10 @@ def section_browse_data_query_history(
     dlt_query_history_table: mo.ui.table,
     dlt_section_browse_data_switch: mo.ui.switch,
 ):
+    """
+    Show the query history
+    """
+
     _result: List[Any] = []
     if (
         dlt_pipeline
@@ -386,7 +394,7 @@ def section_browse_data_query_history(
         _result.append(dlt_query_history_table)
 
         for _r in dlt_query_history_table.value:  # type: ignore
-            _query = _r["Query"]  # type: ignore
+            _query = _r["query"]  # type: ignore
             _q_result = utils.get_query_result(dlt_pipeline, _query)
             _result.append(mo.md(f"<small>```{_query}```</small>"))
             _result.append(mo.ui.table(_q_result, selection=None))
@@ -426,6 +434,7 @@ def section_trace(
     dlt_pipeline: dlt.Pipeline,
     dlt_section_trace_switch: mo.ui.switch,
     dlt_trace_steps_table: mo.ui.table,
+    dlt_config: StudioConfiguration,
 ):
     """
     Show last trace of the currently selected pipeline
@@ -456,7 +465,9 @@ def section_trace(
                     title_level=3,
                 )
             )
-            _result.append(mo.ui.table(utils.trace_overview(trace_dict), selection=None))
+            _result.append(
+                mo.ui.table(utils.trace_overview(dlt_config, trace_dict), selection=None)
+            )
             _result.append(
                 ui.build_title_and_subtitle(
                     strings.trace_execution_context_title,
@@ -464,7 +475,9 @@ def section_trace(
                     title_level=3,
                 )
             )
-            _result.append(mo.ui.table(utils.trace_execution_context(trace_dict), selection=None))
+            _result.append(
+                mo.ui.table(utils.trace_execution_context(dlt_config, trace_dict), selection=None)
+            )
             _result.append(
                 ui.build_title_and_subtitle(
                     strings.trace_steps_overview_title,
@@ -481,7 +494,7 @@ def section_trace(
                         title_level=3,
                     )
                 )
-                _result += utils.trace_step_details(trace_dict, step_id)
+                _result += utils.trace_step_details(dlt_config, trace_dict, step_id)
 
             # config values
             _result.append(
@@ -492,7 +505,9 @@ def section_trace(
                 )
             )
             _result.append(
-                mo.ui.table(utils.trace_resolved_config_values(trace_dict), selection=None)
+                mo.ui.table(
+                    utils.trace_resolved_config_values(dlt_config, trace_dict), selection=None
+                )
             )
             _result.append(
                 ui.build_title_and_subtitle(
@@ -782,6 +797,7 @@ def ui_primary_controls(
     dlt_section_browse_data_switch: mo.ui.switch,
     dlt_section_schema_switch: mo.ui.switch,
     dlt_section_trace_switch: mo.ui.switch,
+    dlt_config: StudioConfiguration,
 ):
     """
     Helper cell for creating certain controls based on selected sections
@@ -793,6 +809,7 @@ def ui_primary_controls(
     dlt_schema_table_list: mo.ui.table = None
     if dlt_section_schema_switch.value and dlt_pipeline and dlt_pipeline.default_schema_name:
         _table_list = utils.create_table_list(
+            dlt_config,
             dlt_pipeline,
             show_internals=dlt_schema_show_dlt_tables.value,
             show_child_tables=dlt_schema_show_child_tables.value,
@@ -801,6 +818,7 @@ def ui_primary_controls(
             _table_list,  # type: ignore[arg-type]
             style_cell=utils.style_cell,
             initial_selection=[0],
+            freeze_columns_left=["name"],
         )
 
     #
@@ -810,6 +828,7 @@ def ui_primary_controls(
     if dlt_section_browse_data_switch.value and dlt_pipeline and dlt_pipeline.default_schema_name:
         dlt_data_table_list = mo.ui.table(
             utils.create_table_list(  # type: ignore[arg-type]
+                dlt_config,
                 dlt_pipeline,
                 show_internals=dlt_schema_show_dlt_tables.value,
                 show_child_tables=dlt_schema_show_child_tables.value,
@@ -817,6 +836,7 @@ def ui_primary_controls(
             ),
             style_cell=utils.style_cell,
             selection="single",
+            freeze_columns_left=["name"],
         )
 
     #
@@ -825,7 +845,7 @@ def ui_primary_controls(
     dlt_trace_steps_table: mo.ui.table = None
     if dlt_section_trace_switch.value and dlt_pipeline and dlt_pipeline.last_trace:
         dlt_trace_steps_table = mo.ui.table(
-            utils.trace_steps_overview(dlt_pipeline.last_trace.asdict())
+            utils.trace_steps_overview(dlt_config, dlt_pipeline.last_trace.asdict())
         )
 
     return dlt_data_table_list, dlt_schema_table_list, dlt_trace_steps_table
@@ -847,9 +867,6 @@ def utils_cli_args_and_query_vars_config():
         mo_query_var_pipeline_name = None
         mo_cli_arg_pipelines_dir = None
         mo_cli_arg_with_test_identifiers = False
-
-    # TODO: properly resolve the config, maybe by pipeline name?
-    dlt_config = StudioConfiguration()
 
     return (
         mo_cli_arg_pipelines_dir,

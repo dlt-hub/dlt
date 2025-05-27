@@ -4,7 +4,10 @@ import dlt
 
 import marimo as mo
 import traceback
-import datetime  # noqa: I251
+
+from dlt.common.pendulum import pendulum
+
+from dlt.helpers.studio.config import StudioConfiguration
 
 
 def build_error_callout(message: str, code: str = None) -> Any:
@@ -32,7 +35,7 @@ def build_error_callout(message: str, code: str = None) -> Any:
     )
 
 
-def build_pipeline_link_list(pipelines: List[Dict[str, Any]]) -> str:
+def build_pipeline_link_list(config: StudioConfiguration, pipelines: List[Dict[str, Any]]) -> str:
     """Build a list of links to the pipeline."""
     if not pipelines:
         return "No local pipelines found."
@@ -47,7 +50,7 @@ def build_pipeline_link_list(pipelines: List[Dict[str, Any]]) -> str:
             link = (
                 link
                 + " - last executed"
-                f" {datetime.datetime.fromtimestamp(_p['timestamp']).strftime('%Y-%m-%d %H:%M:%S')}"
+                f" {pendulum.from_timestamp(_p['timestamp']).format(config.datetime_format)}"
             )
 
         link_list += f"{link}\n"

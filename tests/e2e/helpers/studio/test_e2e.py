@@ -107,7 +107,7 @@ def test_page_loads(page: Page):
 
     # browse data
     _open_section(page, "data")
-    expect(page.get_by_text("Browse data: Query result").nth(1)).to_be_visible()
+    expect(page.get_by_text("Query result").nth(1)).to_be_visible()
 
     # check first table
     page.get_by_role("checkbox").nth(0).check()
@@ -163,7 +163,7 @@ def test_page_loads(page: Page):
 
     # browse data
     _open_section(page, "data")
-    expect(page.get_by_text("Browse data: Query result").nth(1)).to_be_visible()
+    expect(page.get_by_text("Query result").nth(1)).to_be_visible()
 
     _open_section(page, "state")
     expect(page.get_by_text('"dataset_name": "fruit_pipeline_dataset"')).to_be_visible()
@@ -210,13 +210,13 @@ def test_page_loads(page: Page):
     _open_section(page, "trace")
     expect(page.get_by_text("An overview of the last load trace ")).to_be_visible()
     expect(
-        page.get_by_text("No local trace available for the selected pipeline.").nth(0)
+        page.get_by_text("No local trace available for this pipeline.").nth(0)
     ).to_be_visible()  # this is part of the trace yaml
 
     # loads page
     _open_section(page, "loads")
     expect(
-        page.get_by_text("Loading loads from destination failed.")
+        page.get_by_text("Failed to load loads from destination.")
     ).to_be_visible()  # this is part of the trace yaml
 
     _open_section(page, "ibis")
@@ -248,7 +248,7 @@ def test_page_loads(page: Page):
     # loads page
     _open_section(page, "loads")
     expect(
-        page.get_by_text("Loading loads from destination failed.")
+        page.get_by_text("Failed to load loads from destination.")
     ).to_be_visible()  # this is part of the trace yaml
 
     # last trace page
