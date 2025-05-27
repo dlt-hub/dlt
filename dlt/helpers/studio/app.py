@@ -363,7 +363,7 @@ def section_browse_data_query_result(
         if _query_history:
             dlt_query_history_table = mo.ui.table(_query_history)
     mo.vstack(_result) if _result else None
-    return (dlt_query_history_table,)
+    return (dlt_query_history_table, dlt_query_result)
 
 
 @app.cell(hide_code=True)

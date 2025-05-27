@@ -4,7 +4,9 @@
 import marimo as _mo
 
 # Reusable string parts
-_credentials_info = "Have you run your pipeline and are your credentials available to dltHub Studio?"
+_credentials_info = (
+    "Have you run your pipeline and are your credentials available to dltHub Studio?"
+)
 
 #
 # App general
@@ -118,7 +120,11 @@ ui_limit_to_1000_rows = "Limit to 1000 rows"
 #
 browse_data_title = "Browse Pipeline Data"
 browse_data_subtitle = "Browse data from the current pipeline."
-browse_data_subtitle_long = "Browse data from the current pipeline. Select a table from the list to start or write a SQL query in the text area below. Toggling row counts will load the row counts for all tables from the destination. To reload, toggle the switch again."
+browse_data_subtitle_long = (
+    "Browse data from the current pipeline. Select a table from the list to start or write a SQL"
+    " query in the text area below. Toggling row counts will load the row counts for all tables"
+    " from the destination. To reload, toggle the switch again."
+)
 
 browse_data_error_text = f"Error connecting to destination. {_credentials_info}"
 
@@ -129,7 +135,10 @@ browse_data_explorer_title = """
 browse_data_query_result_title = "Query Result"
 
 browse_data_query_history_title = "Cached Query History"
-browse_data_query_history_subtitle = "The following list shows all queries that have been executed on the destination and are present in the cache. Select one or more to see the results again below and compare."
+browse_data_query_history_subtitle = (
+    "The following list shows all queries that have been executed on the destination and are"
+    " present in the cache. Select one or more to see the results again below and compare."
+)
 
 browse_data_query_error = "Error executing SQL query:"
 
@@ -151,8 +160,8 @@ state_subtitle = "A raw view of the currently stored pipeline state."
 #
 trace_title = "Last Trace"
 trace_subtitle = (
-    "An overview of the last load trace from the most recent successful run of the selected pipeline, "
-    "if available."
+    "An overview of the last load trace from the most recent successful run of the selected"
+    " pipeline, if available."
 )
 trace_show_raw_trace_text = "Show"
 trace_no_trace_text = """
@@ -188,10 +197,10 @@ loads_subtitle = (
     "selected pipeline."
 )
 loads_subtitle_long = (
-    "View a list of all loads that have been executed on the destination dataset of the "
-    "selected pipeline. Select one to see all available details. Additional data will be loaded from "
-    "the destination, such as the row count for that load and the schema for this load. Depending on "
-    "the destination and your data, this might take some time."
+    "View a list of all loads that have been executed on the destination dataset of the selected"
+    " pipeline. Select one to see all available details. Additional data will be loaded from the"
+    " destination, such as the row count for that load and the schema for this load. Depending on"
+    " the destination and your data, this might take some time."
 )
 loads_loading_failed_text = f"Failed to load loads from destination. {_credentials_info}"
 loads_loading_spinner_text = "Loading loads from destination..."
@@ -199,9 +208,15 @@ loads_loading_spinner_text = "Loading loads from destination..."
 # loads details
 loads_details_title = "Load Details for Load ID: {}"
 loads_details_row_counts_title = "Row Counts"
-loads_details_row_counts_subtitle = "The row counts associated with this load. Only shows tables that have a _dlt_load_id column, which excludes child tables and some system tables."
+loads_details_row_counts_subtitle = (
+    "The row counts associated with this load. Only shows tables that have a _dlt_load_id column,"
+    " which excludes child tables and some system tables."
+)
 loads_details_schema_version_title = "Schema Details"
-loads_details_schema_version_subtitle = "The full schema that was the result of this load. This schema and version <strong>{}</strong> the current default schema."
+loads_details_schema_version_subtitle = (
+    "The full schema that was the result of this load. This schema and version <strong>{}</strong>"
+    " the current default schema."
+)
 loads_details_loading_spinner_text = "Loading row counts and schema..."
 
 loads_details_error_text = "Error loading load details"

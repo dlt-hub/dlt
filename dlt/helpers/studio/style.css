@@ -52,6 +52,13 @@
 
 }
 
+/**
+*
+* Note: The block below makes it easier to see which cells belong together in app mode.
+* If you start adding new cells, you might need to update (or clear) these styles.
+*
+*/
+
 /* data browser cells */
 #App .marimo-cell:nth-child(4) .output-area,
 #App .marimo-cell:nth-child(6) .output-area,
