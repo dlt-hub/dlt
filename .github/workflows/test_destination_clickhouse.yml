@@ -73,7 +73,7 @@ jobs:
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-gcp
 
       - name: Install dependencies
-        run: poetry install --no-interaction -E clickhouse --with providers -E parquet --with sentry-sdk --with pipeline && poetry run pip install ibis-framework[duckdb,postgres,clickhouse]
+        run: poetry install --no-interaction -E clickhouse --with providers -E parquet --with sentry-sdk --with pipeline --with ibis
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
@@ -86,22 +86,8 @@ jobs:
           echo "ClickHouse is up and running"
         name: Start ClickHouse OSS
 
-
-      - run: poetry run pytest tests/load --ignore tests/load/sources -m "essential"
-        name: Run essential tests Linux (ClickHouse OSS)
-        if: ${{ ! (contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule')}}
-        env:
-          DESTINATION__CLICKHOUSE__CREDENTIALS__HOST: localhost
-          DESTINATION__CLICKHOUSE__CREDENTIALS__DATABASE: dlt_data
-          DESTINATION__CLICKHOUSE__CREDENTIALS__USERNAME: loader
-          DESTINATION__CLICKHOUSE__CREDENTIALS__PASSWORD: loader
-          DESTINATION__CLICKHOUSE__CREDENTIALS__PORT: 9000
-          DESTINATION__CLICKHOUSE__CREDENTIALS__HTTP_PORT: 8123
-          DESTINATION__CLICKHOUSE__CREDENTIALS__SECURE: 0
-
       - run: poetry run pytest tests/load --ignore tests/load/sources
         name: Run all tests Linux (ClickHouse OSS)
-        if: ${{ contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule'}}
         env:
           DESTINATION__CLICKHOUSE__CREDENTIALS__HOST: localhost
           DESTINATION__CLICKHOUSE__CREDENTIALS__DATABASE: dlt_data

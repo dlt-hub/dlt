@@ -1,19 +1,18 @@
 ---
-title: Complex credential types
-description: Instructions for credentials like DB connection string.
+title: Built-in credentials
+description: Configure access to AWS, Azure, Google Cloud and other systems
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment
       variables, specs]
 ---
 
 ## Overview
 
-Often, credentials do not consist of just one `api_key`, but instead can be quite a complex structure. In this section, you'll learn how `dlt` supports different credential types and authentication options.
+`dlt` provides built-in credential (**specs**) for seamless integration with common external systems. These specs can be configured using the methods described in the [overview](setup.md) documentation. For major cloud providers like AWS, Azure, and Google Cloud, `dlt` also calls client-specific code to authenticate users and can automatically retrieve default credentials from the running environment. Additionally, `dlt` understands common string representations for credentials such as connection strings or service json, making it easier to work with different credential formats beyond the typical dictionary representation.
 
 :::tip
 Learn about the authentication methods supported by the `dlt` RestAPI Client in detail in the [RESTClient section](../http/rest-client.md#authentication).
 :::
 
-`dlt` supports different credential types by providing various Python data classes called Configuration Specs. These classes define how complex configuration values, particularly credentials, should be handled. They specify the types, defaults, and parsing methods for these values.
 
 ## Example with ConnectionStringCredentials
 
@@ -379,54 +378,9 @@ assert list(zen_source(credentials={"email": "emx", "password": "pass"}))[0].ema
 ```
 
 :::info
-This applies not only to credentials but to [all specs](#writing-custom-specs).
+This applies not only to credentials but to [all specs](advanced.md#write-custom-specs).
 :::
 
 :::tip
 Check out the [complete example](https://github.com/dlt-hub/dlt/blob/devel/tests/common/configuration/test_spec_union.py), to learn how to create unions of credentials that derive from the common class, so you can handle it seamlessly in your code.
 :::
-
-## Writing custom specs
-
-**Custom specifications** let you take full control over the function arguments. You can:
-
-- Control which values should be injected, the types, default values.
-- Specify optional and final fields.
-- Form hierarchical configurations (specs in specs).
-- Provide your own handlers for `on_partial` (called before failing on missing config key) or `on_resolved`.
-- Provide your own native value parsers.
-- Provide your own default credentials logic.
-- Utilize Python dataclass functionality.
-- Utilize Python `dict` functionality (`specs` instances can be created from dicts and serialized from dicts).
-
-In fact, `dlt` synthesizes a unique spec for each decorated function. For example, in the case of `google_sheets`, the following class is created:
-
-```py
-from dlt.sources.config import configspec, with_config
-
-@configspec
-class GoogleSheetsConfiguration(BaseConfiguration):
-  tab_names: List[str] = None  # mandatory
-  credentials: GcpServiceAccountCredentials = None # mandatory secret
-  only_strings: Optional[bool] = False
-```
-
-### All specs derive from [BaseConfiguration](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/configuration/specs/base_configuration.py#L170)
-This class serves as a foundation for creating configuration objects with specific characteristics:
-
-- It provides methods to parse and represent the configuration in native form (`parse_native_representation` and `to_native_representation`).
-
-- It defines methods for accessing and manipulating configuration fields.
-
-- It implements a dictionary-compatible interface on top of the dataclass. This allows instances of this class to be treated like dictionaries.
-
-- It defines helper functions for checking if a certain attribute is present, if a field is valid, and for calling methods in the method resolution order (MRO).
-
-More information about this class can be found in the class docstrings.
-
-### All credentials derive from [CredentialsConfiguration](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/configuration/specs/base_configuration.py#L307)
-
-This class is a subclass of `BaseConfiguration` and is meant to serve as a base class for handling various types of credentials. It defines methods for initializing credentials, converting them to native representations, and generating string representations while ensuring sensitive information is appropriately handled.
-
-More information about this class can be found in the class docstrings.
-

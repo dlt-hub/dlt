@@ -19,6 +19,10 @@ from typing import (
 import zlib
 import re
 
+import sqlglot.expressions
+import sqlglot.optimizer
+import sqlglot.optimizer.normalize_identifiers
+
 from dlt.common import pendulum, logger
 from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.destination.utils import resolve_replace_strategy
@@ -36,6 +40,7 @@ from dlt.common.schema.utils import (
     normalize_table_identifiers,
     version_table,
 )
+from dlt.common.utils import read_dialect_and_sql
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
@@ -69,6 +74,8 @@ from dlt.destinations.utils import (
     verify_schema_merge_disposition,
     verify_schema_replace_disposition,
 )
+
+import sqlglot
 
 # this should suffice for now
 DDL_COMMANDS = ["ALTER", "CREATE", "DROP"]
@@ -115,6 +122,11 @@ class SqlLoadJob(RunnableLoadJob):
         for cmd in UNLOGGED_COMMANDS:
             if re.search(cmd, sql, re.IGNORECASE):
                 return True
+        # disable transaction on synapse when doing sql jobs, to enable:
+        # TODO: 1. disable transaction if temp table is created via select into
+        # 2. swap TRUNCATE for delete in replace jobs
+        if "SynapseClient" in self._job_client.__class__.__name__:
+            return True
         return False
 
     def _split_fragments(self, sql: str) -> List[str]:
@@ -123,6 +135,93 @@ class SqlLoadJob(RunnableLoadJob):
     @staticmethod
     def is_sql_job(file_path: str) -> bool:
         return os.path.splitext(file_path)[1][1:] == "sql"
+
+
+class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
+    """
+    A job to insert rows into a table from a model file which contains a single select statement
+    """
+
+    def __init__(self, file_path: str) -> None:
+        super().__init__(file_path)
+        self._job_client: "SqlJobClientBase" = None
+
+    def run(self) -> None:
+        with FileStorage.open_zipsafe_ro(self._file_path, "r", encoding="utf-8") as f:
+            select_dialect, select_statement = read_dialect_and_sql(
+                file_obj=f,
+                fallback_dialect=self._job_client.capabilities.sqlglot_dialect,  # caps are available at this point
+            )
+
+        sql_client = self._job_client.sql_client
+        insert_statement = self._insert_statement_from_select_statement(
+            select_dialect, select_statement
+        )
+        sql_client.execute_sql(insert_statement)
+
+    def _insert_statement_from_select_statement(
+        self, select_dialect: str, select_statement: str
+    ) -> str:
+        """
+        Generates an INSERT statement from a SELECT statement using sqlglot.
+        Transpiles the SELECT if needed and adjusts identifiers for the destination dialect.
+        """
+        sql_client = self._job_client.sql_client
+        target_table = sql_client.make_qualified_table_name(self._load_table["name"])
+        target_catalog = sql_client.catalog_name(escape=False)
+        destination_dialect = self._job_client.capabilities.sqlglot_dialect
+
+        # Parse SELECT
+        parsed_select = sqlglot.parse_one(select_statement, read=select_dialect)
+
+        # Adjust table parts (catalog/db/this) based on dialect and catalog presence
+        if select_dialect != destination_dialect:
+            # TODO: We might need this
+            for table in parsed_select.find_all(sqlglot.exp.Table):
+                parts = list(table.parts)
+                if target_catalog:
+                    if len(parts) == 3:
+                        table.set("catalog", sqlglot.exp.to_identifier(target_catalog))
+                        table.set("db", sqlglot.exp.to_identifier(parts[1].name))
+                        table.set("this", sqlglot.exp.to_identifier(parts[2].name))
+                    elif len(parts) == 2:
+                        table.set("catalog", sqlglot.exp.to_identifier(target_catalog))
+                        table.set("db", sqlglot.exp.to_identifier(parts[0].name))
+                        table.set("this", sqlglot.exp.to_identifier(parts[1].name))
+                else:
+                    if len(parts) == 3:
+                        table.set("catalog", None)
+                        table.set("db", sqlglot.exp.to_identifier(parts[1].name))
+                        table.set("this", sqlglot.exp.to_identifier(parts[2].name))
+
+        # Ensure there's a top-level SELECT, otherwise it doesn't make sense
+        top_level_select = parsed_select.find(sqlglot.exp.Select)
+        if top_level_select is None:
+            raise ValueError(
+                "No top-level SELECT statement found in the model query. Models must be defined"
+                " using a SELECT statement."
+            )
+
+        # Get identifiers for the columns in the INSERT statement
+        # Normalizer aliased all selections
+        columns = []
+        for _, expr in enumerate(top_level_select.expressions):
+            alias_name = expr.alias
+            columns.append(sqlglot.exp.to_identifier(alias_name))
+
+        # Build final INSERT
+        query = sqlglot.expressions.insert(
+            expression=parsed_select,
+            into=target_table,
+            columns=columns,
+            dialect=destination_dialect,
+        ).sql(destination_dialect)
+
+        return query
+
+    @staticmethod
+    def is_model_job(file_path: str) -> bool:
+        return os.path.splitext(file_path)[1][1:] == "model"
 
 
 class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -138,9 +237,6 @@ class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
 
 
 class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
-    INFO_TABLES_QUERY_THRESHOLD: ClassVar[int] = 1000
-    """Fallback to querying all tables in the information schema if checking more than threshold"""
-
     def __init__(
         self,
         schema: Schema,
@@ -303,6 +399,9 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         if SqlLoadJob.is_sql_job(file_path):
             # create sql load job
             return SqlLoadJob(file_path)
+        if ModelLoadJob.is_model_job(file_path):
+            # create model load job
+            return ModelLoadJob(file_path)
         return None
 
     def complete_load(self, load_id: str) -> None:
@@ -356,7 +455,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         )
         # if we have more tables to lookup than a threshold, we prefer to filter them in code
         if (
-            len(name_lookup) > self.INFO_TABLES_QUERY_THRESHOLD
+            len(name_lookup) > self.config.info_tables_query_threshold
             or len(",".join(folded_table_names)) > self.capabilities.max_query_length / 2
         ):
             logger.info(

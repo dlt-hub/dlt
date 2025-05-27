@@ -48,7 +48,34 @@ def duckdb_pipeline_location() -> None:
         default_staging_configs=True,
         default_sql_configs=True,
         default_vector_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_no_destination_sync_state(destination_config: DestinationTestConfiguration) -> None:
+    """Tests disable state restore for wide range of destinations"""
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="pipe_" + uniq_id(), dataset_name="state_test_" + uniq_id()
+    )
+    pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
+    assert list(pipeline.last_trace.last_normalize_info.row_counts.keys())[0].lower() == "digits"
+
+    pipeline.drop()
+    pipeline.sync_destination()
+    assert pipeline.first_run is True
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_staging_configs=True,
+        default_sql_configs=True,
+        default_vector_configs=True,
         all_buckets_filesystem_configs=True,
+        table_format_filesystem_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -201,7 +228,10 @@ def test_silently_skip_on_invalid_credentials(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+        default_sql_configs=True,
+        default_vector_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -274,13 +304,16 @@ def test_get_schemas_from_destination(
     assert restored_schemas == []
     # restore unknown schema
     restored_schemas = p._get_schemas_from_destination(["_unknown"], always_download=False)
-    assert restored_schemas == []
+    assert restored_schemas[0].name == "_unknown"
+    # unknown schemas will have is_new flag set
+    assert restored_schemas[0].is_new is True  # schema just got created
     # restore default schema
-    p.default_schema_name = "state"
+    p.default_schema_name = "state"  # type: ignore[assignment]
     p.schema_names = ["state"]
     restored_schemas = p._get_schemas_from_destination(p.schema_names, always_download=False)
     assert len(restored_schemas) == 1
     assert restored_schemas[0].name == "state"
+    assert restored_schemas[0].is_new is False
     p._schema_storage.save_schema(restored_schemas[0])
     assert p._schema_storage.list_schemas() == ["state"]
     # restore all the rest
@@ -304,6 +337,7 @@ def test_get_schemas_from_destination(
         all_staging_configs=True,
         default_vector_configs=True,
         all_buckets_filesystem_configs=True,
+        table_format_filesystem_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -457,7 +491,10 @@ def test_restore_state_pipeline(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+        default_sql_configs=True,
+        default_vector_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -507,7 +544,10 @@ def test_ignore_state_unfinished_load(destination_config: DestinationTestConfigu
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+        default_sql_configs=True,
+        default_vector_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -594,7 +634,10 @@ def test_restore_change_dataset_and_destination(destination_name: str) -> None:
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+        default_sql_configs=True,
+        default_vector_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -718,7 +761,11 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+        default_sql_configs=True,
+        default_vector_configs=True,
+        all_buckets_filesystem_configs=True,
+        table_format_filesystem_configs=True,
+        exclude=("filesystem_s3_gcs_comp",),
     ),
     ids=lambda x: x.name,
 )

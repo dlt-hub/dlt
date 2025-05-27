@@ -34,6 +34,7 @@ from dlt.destinations.exceptions import (
 )
 from dlt.destinations.impl.bigquery.bigquery_adapter import (
     AUTODETECT_SCHEMA_HINT,
+    CLUSTER_COLUMNS_HINT,
     PARTITION_HINT,
     PARTITION_EXPIRATION_DAYS_HINT,
     CLUSTER_HINT,
@@ -44,6 +45,7 @@ from dlt.destinations.impl.bigquery.bigquery_adapter import (
     should_autodetect_schema,
 )
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
+from dlt.destinations.impl.bigquery.warnings import per_column_cluster_hint_deprecated
 from dlt.destinations.impl.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import DestinationJsonlLoadJob, DestinationParquetLoadJob
@@ -287,11 +289,29 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                     " GENERATE_ARRAY(-172800000, 691200000, 86400))"
                 )
 
-        if cluster_list := [
-            self.sql_client.escape_column_name(c["name"])
-            for c in new_columns
-            if c.get("cluster") or c.get(CLUSTER_HINT, False)
-        ]:
+        # Collect cluster columns from table-level and per-column hints
+        cluster_columns_from_table_hint = list(
+            cast(Iterable[str], table.get(CLUSTER_COLUMNS_HINT, []))
+        )
+        cluster_columns_from_column_hints = [
+            c["name"] for c in new_columns if c.get("cluster") or c.get(CLUSTER_HINT, False)
+        ]
+
+        # Deprecation warning for per-column cluster hints
+        if cluster_columns_from_column_hints and not cluster_columns_from_table_hint:
+            per_column_cluster_hint_deprecated(cluster_columns_from_column_hints)
+
+        # Prefer table-level cluster columns if present, otherwise fallback to per-column hints
+        cluster_columns_final = (
+            cluster_columns_from_table_hint
+            if cluster_columns_from_table_hint
+            else cluster_columns_from_column_hints
+        )
+
+        if cluster_columns_final:
+            cluster_list = [
+                self.sql_client.escape_column_name(col) for col in cluster_columns_final
+            ]
             sql[0] += "\nCLUSTER BY " + ", ".join(cluster_list)
 
         # Table options.

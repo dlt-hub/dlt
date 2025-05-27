@@ -1,6 +1,6 @@
 ---
-title: Add credentials
-description: How to use dlt credentials
+title: How to add credentials
+description: How to add credentials locally and in production
 keywords: [credentials, secrets.toml, environment variables]
 ---
 
@@ -42,7 +42,7 @@ Read more about [credential configuration.](../general-usage/credentials)
 To add credentials to your deployment,
 
 - either use one of the `dlt deploy` commands;
-- or follow the instructions to [pass credentials via code](../general-usage/credentials/advanced#example) or [environment](../general-usage/credentials/setup#environment-variables).
+- or follow the instructions to [pass credentials via code](../general-usage/credentials/advanced#configure-destination-credentials-in-code) or [environment](../general-usage/credentials/setup#environment-variables).
 
 ### Reading credentials from environment variables
 
@@ -77,92 +77,95 @@ DESTINATION__BIGQUERY__LOCATION
 
 ## Retrieving credentials from Google Cloud Secret Manager
 
-To retrieve secrets from Google Cloud Secret Manager using Python and convert them into a dictionary format, you'll need to follow these steps. First, ensure that you have the necessary permissions to access the secrets on Google Cloud and have the `google-cloud-secret-manager` library installed. If not, you can install it using pip:
+`dlt` supports reading credentials from Google Cloud Secret Manager. To enable this functionality you must provide
+credentials with following access permissions:
+* **roles/secretmanager.secretAccessor** to read particular secret
+* **roles/secretmanager.secretViewer** to list available secrets (optional but highly recommended)
 
-```sh
-pip install google-cloud-secret-manager
-```
-
-[Google Cloud Documentation: Secret Manager client libraries.](https://cloud.google.com/secret-manager/docs/reference/libraries)
-
-Here's how you can retrieve secrets and convert them into a dictionary:
-
-1. **Set up the Secret Manager client**: Create a client that will interact with the Secret Manager API.
-2. **Access the secret**: Use the client to access the secret's latest version.
-3. **Convert to a dictionary**: If the secret is stored in a structured format (like JSON), parse it into a Python dictionary.
-
-Assume we store secrets in JSON format with the name "temp-secret":
-```json
-{"api_token": "ghp_Kskdgf98dugjf98ghd...."}
-```
-
-Set `.dlt/secrets.toml` as:
-
+Example configuration:
 ```toml
-[google_secrets.credentials]
+[providers]
+enable_google_secrets=true
+
+[providers.google_secrets]
+only_secrets=false
+only_toml_fragments=false
+list_secrets=true
+
+[providers.google_secrets.credentials]
 "project_id" = "<project_id>"
 "private_key" = "-----BEGIN PRIVATE KEY-----\n....\n-----END PRIVATE KEY-----\n"
 "client_email" = "....gserviceaccount.com"
 ```
-or set `GOOGLE_SECRETS__CREDENTIALS` to the path of your service account key file.
 
-Retrieve the secrets stored in the Secret Manager as follows:
+### Allow to list secrets and use toml fragments to reduce calls to backend
+We recommend enabling `list_secrets` to obtain a list of possible keys and avoid calls to the backends. We also recommend
+to store configuration fragments, not single values to reduce the number of calls. Vault provider is able to fetch such fragments
+and combine them into full configuration on the fly.
 
-```py
-import json as json_lib  # Rename the json import to avoid name conflict
+For example you can define:
 
-import dlt
-from dlt.sources.helpers import requests
-from dlt.common.configuration.inject import with_config
-from dlt.common.configuration.specs import GcpServiceAccountCredentials
-from google.cloud import secretmanager # type: ignore[attr-defined]
+**destination** secret to keep credentials for destinations:
+```toml
+[destination]
+postgres.credentials="postgresql://loader:***@host:5432/postgres"
 
-@with_config(sections=("google_secrets",))
-def get_secret_dict(secret_id: str, credentials: GcpServiceAccountCredentials = dlt.secrets.value) -> dict:
-    """
-    Retrieve a secret from Google Cloud Secret Manager and convert it to a dictionary.
-    """
-    # Create the Secret Manager client with provided credentials
-    client = secretmanager.SecretManagerServiceClient(credentials=credentials.to_native_credentials())
-
-    # Build the resource name of the secret version
-    name = f"projects/{credentials.project_id}/secrets/{secret_id}/versions/latest"
-
-    # Access the secret version
-    response = client.access_secret_version(request={"name": name})
-
-    # Decode the payload to a string and convert it to a dictionary
-    secret_string = response.payload.data.decode("UTF-8")
-    secret_dict = json_lib.loads(secret_string)
-
-    return secret_dict
-
-# Retrieve secret data as a dictionary for use in other functions.
-secret_data = get_secret_dict("temp-secret")
-
-# Set up the request URL and headers
-url = "https://api.github.com/orgs/dlt-hub/repos"
-headers = {
-    "Authorization": f"token {secret_data['api_token']}",  # Use the API token from the secret data
-    "Accept": "application/vnd.github+json",  # Set the Accept header for GitHub API
-}
-
-# Make a request to the GitHub API to get the list of repositories
-response = requests.get(url, headers=headers)
-
-# Set up the DLT pipeline
-pipeline = dlt.pipeline(
-    pipeline_name="quick_start", destination="duckdb", dataset_name="mydata"
-)
-# Run the pipeline with the data from the GitHub API response
-load_info = pipeline.run(response.json())
-# Print the load information to check the results
-print(load_info)
+[destination.bigquery.credentials]
+"project_id" = "<project_id>"
+"private_key" = "-----BEGIN PRIVATE KEY-----\n....\n-----END PRIVATE KEY-----\n"
+"client_email" = "....gserviceaccount.com"
 ```
 
-### Points to note:
+or **destination-filesystem** to just store filesystem credentials
+```toml
+[destination.filesystem]
+bucket_url="s3://bucket/path"
+[destination.filesystem.credentials]
+# s3 (same as athena)
+region_name="eu-central-1"
+aws_access_key_id="..."
+aws_secret_access_key="..."
+```
 
-- **Permissions**: Ensure the service account or user credentials you are using have the necessary permissions to access the Secret Manager and the specific secrets.
-- **Secret format**: This example assumes that the secret is stored in a JSON string format. If your secret is in a different format, you will need to adjust the parsing method accordingly.
-- **Google Cloud authentication**: Make sure your environment is authenticated with Google Cloud. This can typically be done by setting credentials in `.dlt/secrets.toml` or setting the `GOOGLE_SECRETS__CREDENTIALS` environment variable to the path of your service account key file or the dict of credentials as a string.
+same for sources ie. **sources-mongodb** will store mongo credentials:
+```toml
+[sources.mongodb]
+connection_url="mongodb+srv://temp_writer:***/dlt_data?authSource=admin&replicaSet=db-mongodb&tls=true"
+```
 
+Note that you still can store single values, in that case google vault works similarly to environment variables provider:
+```sh
+sources-pipedrive-pipedrive_api_key
+destination-bigquery-credentials-project_id
+destination-bigquery-credentials-private_key
+destination-bigquery-credentials-client_email
+destination-bigquery-location
+```
+This will obviously require several calls to Secrets backend.
+
+:::caution
+Vault provider will cache all retrieved keys internally and will not fetch those secrets again (until process is restarted). This
+reduces number of calls to backend (which cost money) but will also not pick up changes at runtime.
+:::
+
+### Access secrets without list secrets permissions
+Following settings will skip listing secrets and still minimize number of backend calls:
+```toml
+[providers.google_secrets]
+only_secrets=true
+only_toml_fragments=true
+list_secrets=false
+```
+
+Vault will fetch only secret values (credentials, `dlt.secrets.value` marked arguments) and only the toml fragments as described
+in the above section, without fetching single values.
+
+
+:::caution
+`dlt` probes several locations for a single value so if you disable `only_toml_fragments` you may receive large amount of calls
+to Secrets backend.
+:::
+
+## Retrieving credentials from other vault types
+Subclass `VaultDocProvider` and implement methods to fetch a secret and (optionally) to list secrets then
+[register subclass as custom provider](../examples/custom_config_provider).

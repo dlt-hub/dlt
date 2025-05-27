@@ -87,23 +87,32 @@ def detect_source_configs(
         # accept only sources declared in the `init` or `pipeline` modules
         if source_info.ref.startswith(module_prefix):
             checked_sources[source_info.name] = source_info
-            source_config = source_info.SPEC() if source_info.SPEC else BaseConfiguration()
-            spec_fields = source_config.get_resolvable_fields()
-            for field_name, field_type in spec_fields.items():
-                val_store = None
-                # all secrets must go to secrets.toml
-                if is_secret_hint(field_type):
-                    val_store = required_secrets
-                # all configs that are required and do not have a default value must go to config.toml
-                elif (
-                    not is_optional_type(field_type) and getattr(source_config, field_name) is None
-                ):
-                    val_store = required_config
-
-                if val_store is not None:
-                    # we are sure that all sources come from single file so we can put them in single section
-                    val_store[source_info.name + ":" + field_name] = WritableConfigValue(
-                        field_name, field_type, None, section
-                    )
+            extract_secrets_and_configs_from_source_reference(
+                source_info, required_secrets, required_config, section
+            )
 
     return required_secrets, required_config, checked_sources
+
+
+def extract_secrets_and_configs_from_source_reference(
+    source_info: SourceReference,
+    required_secrets: Dict[str, WritableConfigValue],
+    required_config: Dict[str, WritableConfigValue],
+    section: Tuple[str, ...],
+) -> None:
+    source_config = source_info.SPEC() if source_info.SPEC else BaseConfiguration()
+    spec_fields = source_config.get_resolvable_fields()
+    for field_name, field_type in spec_fields.items():
+        val_store = None
+        # all secrets must go to secrets.toml
+        if is_secret_hint(field_type):
+            val_store = required_secrets
+        # all configs that are required and do not have a default value must go to config.toml
+        elif not is_optional_type(field_type) and getattr(source_config, field_name) is None:
+            val_store = required_config
+
+        if val_store is not None:
+            # we are sure that all sources come from single file so we can put them in single section
+            val_store[source_info.name + ":" + field_name] = WritableConfigValue(
+                field_name, field_type, None, section
+            )

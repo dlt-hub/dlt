@@ -633,6 +633,158 @@ def test_extract_multiple_sources() -> None:
     assert set(p._schema_storage.list_schemas()) == {"default", "default_2"}
 
 
+@pytest.mark.parametrize(
+    "resource_defs",
+    (
+        # single resource will set the section
+        [("", "fr_n", "TEST_PIPELINE__CONFIG_SECTIONS", "TEST_PIPELINE__FR_N", "single_res")],
+        [("fr_s", "fr_n", "FR_S__CONFIG_SECTIONS", "FR_S__FR_N", "single_res_section")],
+        # multiple resources with the same section will set the section name
+        # writer settings use source/schema name which is pipeline name
+        [
+            ("fr_s", "fr_n", "FR_S__CONFIG_SECTIONS", "FR_S__FR_N", "mul_res_same_section_N"),
+            ("fr_s", "fr_x", "FR_S__CONFIG_SECTIONS", "FR_S__FR_X", "mul_res_same_section_X"),
+        ],
+        [
+            (
+                None,
+                "fr_n",
+                "TEST_PIPELINE__CONFIG_SECTIONS",
+                "TEST_PIPELINE__FR_N",
+                "mul_res_same_auto_N",
+            ),
+            (
+                None,
+                "fr_x",
+                "TEST_PIPELINE__CONFIG_SECTIONS",
+                "TEST_PIPELINE__FR_X",
+                "mul_res_same_auto_X",
+            ),
+        ],
+        # multiple resources from different sections, section and name come from pipeline
+        [
+            (
+                "fr_s_1",
+                "fr_n",
+                "CONFIG_SECTIONS__CONFIG_SECTIONS",
+                "CONFIG_SECTIONS__FR_N",
+                "mul_res_diff_section_N",
+            ),
+            (
+                "fr_s_2",
+                "fr_x",
+                "CONFIG_SECTIONS__CONFIG_SECTIONS",
+                "CONFIG_SECTIONS__FR_X",
+                "mul_res_diff_section_X",
+            ),
+        ],
+    ),
+    ids=(
+        "single_res",
+        "single_res_section",
+        "mul_res_same_section",
+        "mul_res_same_auto",
+        "mul_res_diff_section",
+    ),
+)
+def test_extract_config_sections(resource_defs: List[Tuple[str, str, str, str, str]]) -> None:
+    """Tests if we can configure resources and extract pipe via fine grained SOURCES__... layout"""
+    # do not extract state
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+
+    pipeline_name = "config_sections"
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name)
+
+    rows = 10
+    batches = 12
+
+    resources = []
+
+    for section, name, writer_section, config_section, expected_check in resource_defs:
+
+        @dlt.resource(name=name, section=section, standalone=True)
+        def data_frames(expected_check_: str, check: str = dlt.config.value):
+            # make sure we can pass configuration
+            assert check == expected_check_
+            for i in range(batches):
+                yield [{"i": i, "val": "A" * i}] * rows
+
+        resources.append(data_frames(expected_check))
+
+        # get buffer written and file rotated with each yielded frame
+        os.environ[f"SOURCES__{writer_section}__DATA_WRITER__BUFFER_MAX_ITEMS"] = str(rows)
+        os.environ[f"SOURCES__{writer_section}__DATA_WRITER__FILE_MAX_ITEMS"] = str(rows)
+
+        # pass check value
+        os.environ[f"SOURCES__{config_section}__CHECK"] = expected_check
+
+    pipeline.extract(resources)
+    # default schema name follows single resource name or pipeline name if many
+    # expected_schema_name = name if len(resources) == 1 else pipeline.pipeline_name
+    assert pipeline.default_schema_name == pipeline.pipeline_name
+
+    assert len(pipeline.list_extracted_resources()) == batches * len(resources)
+
+
+def test_pipeline_resources_injected_sections() -> None:
+    from tests.extract.cases.section_source.external_resources import (
+        with_external,
+        with_bound_external,
+        init_resource_f_2,
+        resource_f_2,
+    )
+
+    # standalone resources must accept the injected sections for lookups
+    os.environ["SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL"] = (
+        "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL"
+    )
+    os.environ["SOURCES__EXTERNAL_RESOURCES__VAL"] = "SOURCES__EXTERNAL_RESOURCES__VAL"
+    os.environ["SOURCES__SECTION_SOURCE__VAL"] = "SOURCES__SECTION_SOURCE__VAL"
+    os.environ["SOURCES__NAME_OVERRIDDEN__VAL"] = "SOURCES__NAME_OVERRIDDEN__VAL"
+
+    pipeline_name = "config_sections"
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+
+    # the external resources use their standalone sections
+    pipeline.run(init_resource_f_2())
+    assert pipeline.dataset().init_resource_f_2.fetchall()[0][0] == "SOURCES__SECTION_SOURCE__VAL"
+    # schema is pipeline name
+    assert "config_sections" in pipeline.schemas
+    pipeline.run(resource_f_2())
+    # will join already existing schema in the pipeline
+    assert "resource_f_2" not in pipeline.schemas
+    assert "resource_f_2" in pipeline.default_schema.tables
+    assert pipeline.dataset().resource_f_2.fetchall()[0][0] == "SOURCES__NAME_OVERRIDDEN__VAL"
+
+    # the source returns: it's own argument, same via inner resource, and two external resources that are not bound
+    # the iterator in the source will force its sections so external resource sections are not used
+    pipeline = dlt.pipeline(
+        pipeline_name=pipeline_name, destination="duckdb", dataset_name="with_external"
+    )
+    s_ = with_external()
+    pipeline.run(s_)
+    ds_ = pipeline.dataset(schema="with_external")
+    assert ds_.source_val["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
+    assert ds_.inner_resource["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
+    assert ds_.init_resource_f_2["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
+    assert ds_.resource_f_2["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
+    # assert pipeline.dataset(schema="with_external").init_resource_f_2.fetchall()[0][0] == "SOURCES__SECTION_SOURCE__VAL"
+    assert "with_external" in pipeline.schemas
+
+    pipeline = dlt.pipeline(
+        pipeline_name=pipeline_name, destination="duckdb", dataset_name="with_bound_external"
+    )
+    s_ = with_bound_external()
+    pipeline.run(s_)
+    ds_ = pipeline.dataset(schema="with_bound_external")
+    assert ds_.source_val["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
+    assert ds_.inner_resource["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
+    assert ds_.init_resource_f_2["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
+    assert ds_.resource_f_2["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
+    # assert pipeline.dataset(schema="with_external").init_resource_f_2.fetchall()[0][0] == "SOURCES__SECTION_SOURCE__VAL"
+    assert "with_bound_external" in pipeline.schemas
+
+
 def test_mark_hints() -> None:
     # this resource emits table schema with first item
     @dlt.resource

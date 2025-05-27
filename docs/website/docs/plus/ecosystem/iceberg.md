@@ -6,248 +6,525 @@ keywords: [Iceberg, pyiceberg]
 
 # Iceberg
 
-The Iceberg destination is based on the [filesystem destination](../../dlt-ecosystem/destinations/filesystem.md) in dlt. All configuration options from the filesystem destination can be configured as well.
+Apache Iceberg is an open table format designed for high-performance analytics on large datasets. It supports ACID transactions, schema evolution, and time travel.
 
-Under the hood, dlt+ uses the [pyiceberg library](https://py.iceberg.apache.org/) to write Iceberg tables. One or multiple Parquet files are prepared during the extract and normalize steps. In the load step, these Parquet files are exposed as an Arrow data structure and fed into pyiceberg.
+The Iceberg destination in dlt allows you to load data into Iceberg tables using the [pyiceberg](https://py.iceberg.apache.org/) library. It supports multiple catalog types and both local and cloud storage backends.
 
-## Setup
+## Features
 
+* Compatible with SQL and REST catalogs (Lakekeeper, Polaris)
+* Automatic schema evolution and table creation
+* All write dispositions supported
+* Works with local filesystems and cloud storage (S3, Azure, GCS)
+* Exposes data via DuckDB views using `pipeline.dataset()`
+* Supports partitioning
+
+##  Prerequisites
 Make sure you have installed the necessary dependencies:
 ```sh
-pip install pyiceberg
-pip install sqlalchemy>=2.0.18
+pip install dlt[filesystem,pyiceberg]>=1.9.1
+pip install dlt-plus>=0.9.1
 ```
 
-Initialize a dlt+ project in the current working directory with the following command:
+## Configuration
 
-```sh
-# replace sql_database with the source of your choice
-dlt project init sql_database iceberg
-```
+### Overview
 
-This will create an Iceberg destination in your `dlt.yml`, where you can configure the destination:
+To configure Iceberg destination you need to choose and configure the catalog. The role of iceberg catalog is to:
 
-```yaml
-destinations:
-  iceberg_destination:
-    type: iceberg
-    bucket_url: "s3://your_bucket" # replace with bucket url
-```
+* store metadata and coordinate transactions (required)
+* generate and hand credentials to pyiceberg client (credentials vending)
+* generate and hand locations for newly generated tables (rest catalogs)
 
-The credentials can be defined in the `secrets.toml`:
+Currently, the Iceberg destination supports two catalog types:
+* SQL-based catalog. Ideal for local development; stores metadata in SQLite or PostgreSQL
+* REST catalog. Used in production with systems like Lakekeeper or Polaris
+
+### SQL catalog
+
+The SQL catalog is ideal for development and testing. It does not provide credential or location vending, so these must be configured manually. It supports local storage paths, such as a file-based SQLite database, and is generally used for working with local filesystems.
+
+To configure a SQL catalog, provide the following parameters:
 
 <Tabs
   groupId="filesystem-type"
-  defaultValue="aws"
+  defaultValue="yml"
   values={[
-    {"label": "AWS S3", "value": "aws"},
-    {"label": "GCS/GDrive", "value": "gcp"},
-    {"label": "Azure", "value": "azure"},
-    {"label": "SFTP", "value": "sftp"},
+    {"label": "dlt.yml", "value": "yml"},
+    {"label": "TOML files", "value": "toml"},
+    {"label": "Environment variables", "value": "env"}
 ]}>
 
-<TabItem value="aws">
+<TabItem value="yml">
 
-```toml
-# secrets.toml
-[destination.iceberg.credentials]
-aws_access_key_id="Please set me up!"
-aws_secret_access_key="Please set me up!"
+```yaml
+# we recommend to put sensitive parameters to secrets.toml
+destinations:
+  iceberg_lake:
+    type: iceberg
+    catalog_type: sql
+    credentials: "sqlite:///catalog.db"  # connection string for accessing the database
+    filesystem:
+      bucket_url: "path_to_data" # table location
+      # credentials section below is only needed if you're using the cloud storage (not local disk)
+      # we recommend to put sensitive parameters to secrets.toml
+      credentials:
+        aws_access_key_id: "please set me up!" # only if needed
+        aws_secret_access_key: "please set me up!" # only if needed
+    capabilities:
+      # will register tables if found in storage but not found in the catalog (backward compatibility)
+      register_new_tables: True
+      table_location_layout: "{dataset_name}/{table_name}"
 ```
 </TabItem>
 
-<TabItem value="azure">
+<TabItem value="toml">
 
 ```toml
-# secrets.toml
-[destination.iceberg.credentials]
-azure_storage_account_name="Please set me up!"
-azure_storage_account_key="Please set me up!"
+[destination.iceberg]
+catalog_type="sql"
+credentials="sqlite:///catalog.db" # connection string for accessing the database
+
+[destination.iceberg.filesystem]
+bucket_url="path_to_data" # table location
+
+# credentials section below is only needed if you're using the cloud storage (not local disk)
+[destination.iceberg.filesystem.credentials]
+aws_access_key_id = "please set me up!"
+aws_secret_access_key = "please set me up!"
+
+[destination.iceberg.capabilities]
+# will register tables if found in storage but not found in the catalog (backward compatibility)
+register_new_tables=true
+table_location_layout="{dataset_name}/{table_name}"
 ```
 </TabItem>
 
-<TabItem value="gcp">
+<TabItem value="env">
 
-Only OAuth 2.0 is currently supported for GCS.
+```sh
+export DESTINATION__ICEBERG__CATALOG_TYPE=sql
+export DESTINATION__ICEBERG__CREDENTIALS=sqlite:///catalog.db
+export DESTINATION__ICEBERG__FILESYSTEM__BUCKET_URL=path_to_data
+# credentials section below is only needed if you're using the cloud storage (not local disk)
+export DESTINATION__ICEBERG__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID="please set me up!"
+export DESTINATION__ICEBERG__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY="please set me up!"
 
-```toml
-# secrets.toml
-[destination.iceberg.credentials]
-project_id="project_id"  # please set me up!
-client_id = "client_id"  # please set me up!
-client_secret = "client_secret"  # please set me up!
-refresh_token = "refresh_token"  # please set me up!
-```
-</TabItem>
-
-<TabItem value="sftp">
-
-Learn how to set up SFTP credentials for each authentication method in the [SFTP section](../../dlt-ecosystem/destinations/filesystem#sftp).
-For example, in the case of key-based authentication, you can configure the source the following way:
-
-```toml
-# secrets.toml
-[destination.iceberg.credentials]
-sftp_username = "foo"
-sftp_key_filename = "/path/to/id_rsa"     # Replace with the path to your private key file
-sftp_key_passphrase = "your_passphrase"   # Optional: passphrase for your private key
+export DESTINATION__ICEBERG__CAPABILITIES__REGISTER_NEW_TABLE=True
+export DESTINATION__ICEBERG__CAPABILITIES__TABLE_LOCATION_LAYOUT={dataset_name}/{table_name}
 ```
 </TabItem>
 
 </Tabs>
 
-The Iceberg destination can also be defined in Python as follows:
+* `catalog_type=sql` - this indicates, that you will use SQL-based catalog.
+* `credentials=dialect+database_type://username:password@server:port/database_name` -  the connection string for your catalog database.
+This can be any SQLAlchemy-compatible database such as SQLite or PostgreSQL. For local development, a simple SQLite file like `sqlite:///catalog.db` works well. dlt will create it automatically if it doesn't exist.
+* `filesystem.bucket_url` - the physical location where Iceberg table data is stored.
+This can be a local directory or any cloud storage supported by the [filesystem destination](../../dlt-ecosystem/destinations/filesystem.md). If you’re using cloud storage, be sure to include the appropriate credentials as explained in the
+[credentials setup guide](../../dlt-ecosystem/destinations/filesystem.md#set-up-the-destination-and-credentials). For local filesystems, no additional credentials are needed.
+* `capabilities.register_new_tables=true` - enables automatic registration of tables found in storage but missing in the catalog.
+* `capabilities.table_location_layout` - controls the directory structure for Iceberg table files.
+It supports two modes:
+  * absolute - you provide a full URI that matches the catalog’s warehouse path, optionally including deeper subpaths.
+  * relative - a path that’s appended to the catalog’s warehouse root. This is especially useful with catalogs like Lakekeeper.
 
-```py
-pipeline = dlt.pipeline("loads_iceberg", destination="iceberg")
+The SQL catalog stores one table of the following schema:
+
+| catalog_name | table_namespace     | table_name  | metadata_location                                 | previous_metadata_location                                                          |
+|--------------|---------------------|-------------|---------------------------------------------------|---------------------------------------------------------------------------------------|
+| default      | jaffle_shop_dataset | orders | path/to/files                                     | path/to/files |
+| default      | jaffle_shop_dataset | _dlt_loads  | path/to/files  | path/to/files |
+
+### Lakekeeper catalog
+
+[Lakekeeper](https://docs.lakekeeper.io/) is an open-source, production-grade Iceberg catalog. It’s easy to set up, plays well with any cloud storage, and lets you build real
+data platforms without needing to set up heavy-duty infrastructure. Lakeleeper also supports vended credentials, credential vending, removing the need to pass long-lived secrets directly to dlt.
+
+To configure Lakekeeper, you need to specify both catalog and storage parameters. The catalog handles metadata and credential vending, while the `bucket_url` must align with the warehouse configured in Lakekeeper.
+
+<Tabs
+  groupId="filesystem-type"
+  defaultValue="yml"
+  values={[
+    {"label": "dlt.yml", "value": "yml"},
+    {"label": "TOML files", "value": "toml"},
+    {"label": "Environment variables", "value": "env"}
+]}>
+
+<TabItem value="yml">
+
+```yaml
+# we recommend to put sensitive configurations to secrets.toml
+destinations:
+  iceberg_lake:
+    type: iceberg
+    catalog_type: rest
+    credentials:
+      # we recommend to put sensitive configurations to secrets.toml
+      credential: my_lakekeeper_key
+      uri: https://lakekeeper.path.to.host/catalog
+      warehouse: warehouse
+      properties:
+        scope: lakekeeper
+        oauth2-server-uri: https://keycloak.path.to.host/realms/master/protocol/openid-connect/token
+    filesystem:
+      # bucket for s3 tables - must match Lakekeeper warehouse if defined
+      bucket_url: "s3://warehouse/"
+    capabilities:
+      table_root_layout: "lakekeeper-warehouse/dlt_plus_demo/lakekeeper_demo/{dataset_name}/{table_name}"
 ```
+</TabItem>
+
+<TabItem value="toml">
+
+```toml
+[destination.iceberg]
+catalog_type="rest"
+
+[destination.iceberg.credentials]
+credential="my_lakekeeper_key"
+uri="https://lakekeeper.path.to.host/catalog"
+warehouse="warehouse"
+
+[destination.iceberg.credentials.properties]
+scope="lakekeeper"
+oauth2-server-uri="https://keycloak.path.to.host/realms/master/protocol/openid-connect/token"
+
+[destination.iceberg.filesystem]
+bucket_url="s3://warehouse/"
+
+[destination.iceberg.capabilities]
+table_location_layout="lakekeeper-warehouse/dlt_plus_demo/lakekeeper_demo/{dataset_name}/{table_name}"
+```
+</TabItem>
+
+<TabItem value="env">
+
+```sh
+export DESTINATION__ICEBERG__CATALOG_TYPE=rest
+export DESTINATION__ICEBERG__CREDENTIALS__CREDENTIAL=my_lakekeeper_key
+export DESTINATION__ICEBERG__CREDENTIALS__URI=https://lakekeeper.path.to.host/catalog
+export DESTINATION__ICEBERG__CREDENTIALS__WAREHOUSE=warehouse
+export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES__SCOPE=lakekeeper
+export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES__OAUTH2-SERVER-URI=https://keycloak.path.to.host/realms/master/protocol/openid-connect/token
+export DESTINATION__ICEBERG__FILESYSTEM__BUCKET_URL=s3://warehouse/
+export DESTINATION__ICEBERG__CAPABILITIES__TABLE_LOCATION_LAYOUT=lakekeeper-warehouse/dlt_plus_demo/lakekeeper_demo/{dataset_name}/{table_name}
+```
+</TabItem>
+
+</Tabs>
+
+* `catalog_type=rest` - specifies that you're using a REST-based catalog implementation.
+* `credentials.credential` - your Lakekeeper key or token used to authenticate with the catalog.
+* `credentials.uri` - the URL of your Lakekeeper catalog endpoint.
+* `credentials.warehouse` - the name of the warehouse configured in Lakekeeper, which defines the root location for all data tables.
+* `credentials.properties.scope=lakekeeper` - the scope required for authentication.
+* `credentials.properties.oauth2-server-uri` -- he URL of your OAuth2 token endpoint used for Lakekeeper authentication.
+* `filesystem.bucket_url` - the physical storage location for Iceberg table files. This can be any supported cloud storage backend listed in the [filesystem destination](../../dlt-ecosystem/destinations/filesystem.md).
+
+:::warning
+Currently, the following buckets and credentials combinations are well-tested:
+
+* s3: STS and signer, s3 express
+* azure: both access key and tenant-id (principal) based auth
+* google storage
+:::
+
+* `capabilities.table_location_layout` -- controls the directory structure for Iceberg table files.
+It supports two modes:
+  * absolute - you provide a full URI that matches the catalog’s warehouse path, optionally including deeper subpaths.
+  * relative - a path that’s appended to the catalog’s warehouse root. This is especially useful with catalogs like Lakekeeper.
+
+### Polaris catalog
+
+[Polaris](https://polaris.apache.org/) -- is an open-source, fully-featured catalog for Iceberg. Its configuration is similar to Lakekeeper, with some differences in credential scopes and URI.
+<Tabs
+  groupId="filesystem-type"
+  defaultValue="yml"
+  values={[
+    {"label": "dlt.yml", "value": "yml"},
+    {"label": "TOML files", "value": "toml"},
+    {"label": "Environment variables", "value": "env"}
+]}>
+
+<TabItem value="yml">
+
+```yaml
+# we recommend to put sensitive configurations to secrets.toml
+destinations:
+  iceberg_lake:
+    type: iceberg
+    catalog_type: rest
+    credentials:
+      # we recommend to put sensitive configurations to secrets.toml
+      credential: my_polaris_key
+      uri: https://account.snowflakecomputing.com/polaris/api/catalog
+      warehouse: warehouse
+      properties:
+        scope: PRINCIPAL_ROLE:ALL
+    filesystem:
+      # bucket for s3 tables - must match Lakekeeper warehouse if defined
+      bucket_url: "s3://warehouse"
+    capabilities:
+      table_root_layout: "{dataset_name}/{table_name}"
+```
+</TabItem>
+
+<TabItem value="toml">
+
+```toml
+[destination.iceberg]
+catalog_type="rest"
+
+[destination.iceberg.credentials]
+credential="my_polaris_key"
+uri="https://account.snowflakecomputing.com/polaris/api/catalog"
+warehouse="warehouse"
+
+[destination.iceberg.credentials.properties]
+scope="PRINCIPAL_ROLE:ALL"
+
+[destination.iceberg.filesystem]
+bucket_url="s3://warehouse"
+
+[destination.iceberg.capabilities]
+table_location_layout="{dataset_name}/{table_name}"
+```
+</TabItem>
+
+<TabItem value="env">
+
+```sh
+export DESTINATION__ICEBERG__CATALOG_TYPE=rest
+export DESTINATION__ICEBERG__CREDENTIALS__CREDENTIAL=my_polaris_key
+export DESTINATION__ICEBERG__CREDENTIALS__URI=https://account.snowflakecomputing.com/polaris/api/catalog
+export DESTINATION__ICEBERG__CREDENTIALS__WAREHOUSE=warehouse
+export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES__SCOPE=PRINCIPAL_ROLE:ALL
+export DESTINATION__ICEBERG__FILESYSTEM__BUCKET_URL=s3://warehouse/
+export DESTINATION__ICEBERG__CAPABILITIES__TABLE_LOCATION_LAYOUT={dataset_name}/{table_name}
+```
+</TabItem>
+
+</Tabs>
+
+For more information, refer to the [Lakekeeper section above](#lakekeeper-catalog).
 
 ## Write dispositions
 
-The Iceberg destination handles the write dispositions as follows:
-- `append` - files belonging to such tables are added to the dataset folder.
-- `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
-- `merge` - can be used only with the `delete-insert` [merge strategy](../../general-usage/incremental-loading#delete-insert-strategy).
+All [write dispositions](../../general-usage/incremental-loading.md) are supported.
 
-The `merge` write disposition can be configured as follows on the source/resource level:
+## Data access
 
-<Tabs values={[{"label": "dlt.yml", "value": "yaml"}, {"label": "Python", "value": "python"}]}  groupId="language" defaultValue="yaml">
-  <TabItem value="yaml">
+The Iceberg destination integrates with `pipeline.dataset()` to give users queryable access to their data.
+When invoked, this creates an in-memory DuckDB database with views pointing to Iceberg tables.
 
-```yaml
-sources:
-  my_source:
-    type: sources.my_source
-    with_args:
-      write_disposition:
-        disposition: merge
-        strategy: delete-insert
-```
-  </TabItem>
-  <TabItem value="python">
+The created views reflect the latest available snapshot. To ensure fresh data during development, use the `always_refresh_views` option. Views are materialized only on demand, based on query usage.
 
-```py
-@dlt.resource(
-    primary_key="id",  # merge_key also works; primary_key and merge_key may be used together
-    write_disposition={"disposition": "merge", "strategy": "delete-insert"},
-)
-def my_resource():
-    yield [
-        {"id": 1, "foo": "foo"},
-        {"id": 2, "foo": "bar"}
-    ]
-...
+## Credentials for data access
+By default, credentials for accessing data are vended by the catalog, and per-table secrets are created automatically. This works best with cloud storage providers like AWS S3 using STS credentials.
+However, due to potential performance limitations with temporary credentials, we recommend defining the filesystem explicitly when working with `dataset()` or dlt+ transformations.
+This approach allows for native DuckDB filesystem access, persistent secrets, and faster data access. For example, when using AWS S3 as the storage location
+for your Iceberg tables, you can provide explicit credentials in the destination configuration in `filesystem` section:
 
-pipeline = dlt.pipeline("loads_iceberg", destination="iceberg")
-
-```
-</TabItem>
-</Tabs>
-
-Or on the `pipeline.run` level: <!-- can this also be defined in the yaml??-->
-
-```py
-pipeline.run(write_disposition={"disposition": "merge", "strategy": "delete-insert"})
+```toml
+[destination.iceberg.filesystem.credentials]
+aws_access_key_id = "please set me up!"
+aws_secret_access_key = "please set me up!"
 ```
 
 ## Partitioning
 
-Iceberg tables can be partitioned (using [hidden partitioning](https://iceberg.apache.org/docs/latest/partitioning/)) by specifying one or more partition column hints on the source/resource level:
+Apache Iceberg supports [table partitioning](https://iceberg.apache.org/docs/latest/partitioning/) to optimize query performance.
 
-<Tabs values={[{"label": "dlt.yml", "value": "yaml"}, {"label": "Python", "value": "python"}]}  groupId="language" defaultValue="yaml">
-  <TabItem value="yaml">
+There are two ways to configure partitioning in dlt+ Iceberg destination:
+* Using the [`iceberg_adapter`](#using-the-iceberg_adapter-function) function
+* Using column-level [`partition`](#using-column-level-partition-property) property
 
-  ```yaml
-  sources:
-    my_source:
-      type: sources.my_source
-      with_args:
-        columns:
-          foo:
-            partition: True
-  ```
+### Using the `iceberg_adapter` function
 
-  </TabItem>
-  <TabItem value="python">
+The `iceberg_adapter` function allows you to configure partitioning for your Iceberg tables. This adapter supports various partition transformations that can be applied to your data columns.
 
-  ```py
-  @dlt.resource(
-    columns={"foo": {"partition": True}}
-  )
-  def my_resource():
-      ...
-
-  pipeline = dlt.pipeline("loads_iceberg", destination="iceberg")
-  ```
-
-  </TabItem>
-</Tabs>
-
-:::caution
-Partition evolution (changing partition columns after a table has been created) is not supported.
-:::
-
-## Catalogs
-
-dlt+ uses single-table, ephemeral, in-memory, sqlite-based Iceberg catalogs. These catalogs are created "on demand" when a pipeline is run, and do not persist afterwards. If a table already exists in the filesystem, it gets registered into the catalog using its latest metadata file. This allows for a serverless setup.
-
-It is currently not possible to connect your own Iceberg catalog, but support for multi-vendor catalogs (such as Polaris & Unity Catalog) is coming soon.
-
-:::caution
-While ephemeral catalogs make it easy to get started with Iceberg, they come with limitations:
-* Concurrent writes are not handled and may lead to a corrupt table state.
-* We cannot guarantee that reads concurrent with writes are clean.
-* The latest manifest file needs to be searched for using file listing—this can become slow with large tables, especially in cloud object stores.
-:::
-
-## Table access helper functions
-You can use the `get_iceberg_tables` helper function to access native pyiceberg [Table](https://py.iceberg.apache.org/reference/pyiceberg/table/#pyiceberg.table.Table) objects.
 
 ```py
-from dlt.common.libs.pyiceberg import get_iceberg_tables
+import dlt
+from dlt_plus.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
 
-...
+@dlt.resource
+def my_data():
+    yield [{"id": 1, "created_at": "2024-01-01", "category": "A"}]
 
-# get dictionary of Table objects
-delta_tables = get_iceberg_tables(pipeline)
-
-# execute operations on Table objects
-iceberg_tables["my_iceberg_table"].optimize.compact()
-iceberg_tables["another_iceberg_table"].optimize.z_order(["col_a", "col_b"])
-# iceberg_tables["my_iceberg_table"].vacuum()
+# Apply partitioning to the resource
+iceberg_adapter(
+    my_data,
+    partition=["category"]  # Simple identity partition
+)
 ```
 
-## Table format
-The Iceberg destination automatically assigns the `iceberg` table format to all resources that it will load. You can still fall back to storing files by setting `table_format` to native on the resource level:
+### Partition transformations
 
-  ```py
-  @dlt.resource(
-    table_format="native"
-  )
-  def my_resource():
-      ...
+Iceberg supports several transformation functions for partitioning. Use the `iceberg_partition` helper class to create partition specifications:
 
-  pipeline = dlt.pipeline("loads_iceberg", destination="iceberg")
-  ```
+#### Identity partitioning
+Partition by the exact value of a column (default for string columns when specified by name):
 
-## Known limitations
-The Iceberg destination is still under active development and therefore has a few known limitations described below.
+```py
+# These are equivalent:
+iceberg_adapter(resource, partition=["region"])
+iceberg_adapter(resource, partition=[iceberg_partition.identity("region")])
+```
 
-### GCS authentication methods
+#### Temporal transformations
+Extract time components from date/datetime columns:
 
-Only [OAuth 2.0](../../dlt-ecosystem/destinations/bigquery#oauth-20-authentication) is supported for Google Cloud Storage.
+* `iceberg_partition.year(column_name)`: Partition by year
+* `iceberg_partition.month(column_name)`: Partition by month
+* `iceberg_partition.day(column_name)`: Partition by day
+* `iceberg_partition.hour(column_name)`: Partition by hour
 
-The [S3-compatible](../../dlt-ecosystem/destinations/filesystem#using-s3-compatible-storage) interface for Google Cloud Storage is not supported with the Iceberg destination.
+```py
+import dlt
+from dlt_plus.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
 
-### Azure Blob Storage URL
+@dlt.resource
+def events():
+    yield [{"id": 1, "event_time": datetime.datetime(2024, 3, 15, 10, 30), "data": "..."}]
 
-The `az` [scheme](../../dlt-ecosystem/destinations/filesystem#supported-schemes) for Azure paths specified in `bucket_url` does not work out of the box. To get it to work, you need to specify the environment variable `AZURE_STORAGE_ANON="false"`.
+iceberg_adapter(
+    events,
+    partition=[iceberg_partition.month("event_time")]
+)
+```
 
-### Compound keys
-Compound keys are not supported: use a single `primary_key` **and/or** a single `merge_key`.
+#### Bucket partitioning
+Distribute data across a fixed number of buckets using a hash function:
 
-As a workaround, you can [transform](../../general-usage/resource#filter-transform-and-pivot-data) your resource data with `add_map` to add a new column that contains a hash of the key columns, and use that column as `primary_key` or `merge_key`.
+```py
+iceberg_adapter(
+    resource,
+    partition=[iceberg_partition.bucket(16, "user_id")]
+)
+```
 
-### Nested tables
-Nested tables are currently not supported with the `merge` write disposition: avoid complex data types or [disable nesting](../../general-usage/source#reduce-the-nesting-level-of-generated-tables).
+#### Truncate partitioning
+Partition string values by a fixed prefix length:
 
+```py
+iceberg_adapter(
+    resource,
+    partition=[iceberg_partition.truncate(3, "category")]  # Groups "ELECTRONICS" → "ELE"
+)
+```
+
+### Advanced partitioning examples
+
+#### Multi-column partitioning
+Combine multiple partition strategies:
+
+```py
+import dlt
+from dlt_plus.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
+
+@dlt.resource
+def sales_data():
+    yield [
+        {
+            "id": 1,
+            "timestamp": datetime.datetime(2024, 1, 15, 10, 30),
+            "region": "US",
+            "category": "Electronics",
+            "amount": 1250.00
+        },
+        {
+            "id": 2,
+            "timestamp": datetime.datetime(2024, 1, 16, 14, 20),
+            "region": "EU",
+            "category": "Clothing",
+            "amount": 890.50
+        }
+    ]
+
+# Partition by month and region
+iceberg_adapter(
+    sales_data,
+    partition=[
+        iceberg_partition.month("timestamp"),
+        "region"  # Identity partition on region
+    ]
+)
+
+pipeline = dlt.pipeline("sales_pipeline", destination="iceberg")
+pipeline.run(sales_data)
+```
+
+#### Custom partition field names
+Specify custom names for partition fields to make them more descriptive:
+
+```py
+import dlt
+from dlt_plus.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
+
+@dlt.resource
+def user_activity():
+    yield [{"user_id": 123, "activity_time": datetime.datetime.now(), "action": "click"}]
+
+iceberg_adapter(
+    user_activity,
+    partition=[
+        iceberg_partition.year("activity_time", "activity_year"),
+        iceberg_partition.bucket(8, "user_id", "user_bucket")
+    ]
+)
+```
+
+### Using column-level partition property
+
+You can configure identity partitioning directly at the column level using the `"partition": True` property in the column specification. This approach uses identity transformation (partitioning by exact column values).
+
+#### Basic column-level partitioning
+
+```py
+import dlt
+
+@dlt.resource(columns={"region": {"partition": True}})
+def sales_data():
+    yield [
+        {"id": 1, "region": "US", "amount": 1250.00},
+        {"id": 2, "region": "EU", "amount": 890.50},
+        {"id": 3, "region": "APAC", "amount": 1100.00}
+    ]
+
+pipeline = dlt.pipeline("sales_pipeline", destination="iceberg")
+pipeline.run(sales_data)
+```
+
+#### Multiple column partitioning
+
+You can partition on multiple columns by setting `"partition": True` for each column:
+
+```py
+@dlt.resource(columns={
+    "region": {"partition": True},
+    "category": {"partition": True},
+})
+def multi_partition_data():
+    yield [
+        {"id": 1, "region": "US", "category": "Electronics", "amount": 1250.00},
+        {"id": 2, "region": "EU", "category": "Clothing", "amount": 890.50}
+    ]
+```
+
+### Partitioning by dlt load id
+
+dlt [load id](../../general-usage/destination-tables.md#load-packages-and-load-ids) is a unique identifier for each load package (a batch of data processed by dlt). Each execution of a pipeline generates a unique load id that identifies all data loaded in that specific run. The `_dlt_load_id` is a system column automatically added by `dlt` to each row of data loaded in a table.
+
+To partition by dlt load id, set the `partition` property to `_dlt_load_id` in the column specification:
+
+```py
+@dlt.resource(columns={"_dlt_load_id": {"partition": True}})
+def load_partitioned_data():
+    yield [
+        {"id": 1, "data": "example1"},
+        {"id": 2, "data": "example2"}
+    ]
+```

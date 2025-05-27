@@ -81,7 +81,7 @@ jobs:
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-gcp
 
       - name: Install dependencies
-        run: poetry install --no-interaction -E mssql -E s3 -E gs -E az -E parquet --with sentry-sdk --with pipeline && poetry run pip install ibis-framework[duckdb,postgres,mssql]
+        run: poetry install --no-interaction -E mssql -E s3 -E gs -E az -E parquet --with sentry-sdk --with pipeline --with ibis
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml

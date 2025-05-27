@@ -114,9 +114,14 @@ The dlt project is quickly growing, and we're excited to have you join our commu
 - **Connect with the Community**: Join other dlt users and contributors on our [Slack](https://dlthub.com/community)
 - **Report issues and suggest features**: Please use the [GitHub Issues](https://github.com/dlt-hub/dlt/issues) to report bugs or suggest new features. Before creating a new issue, make sure to search the tracker for possible duplicates and add a comment if you find one.
 - **Track progress of our work and our plans**: Please check out our [public Github project](https://github.com/orgs/dlt-hub/projects/9)
-- **Contribute Verified Sources**: Contribute your custom sources to the [dlt-hub/verified-sources](https://github.com/dlt-hub/verified-sources) to help other folks in handling their data tasks.
-- **Contribute code**: Check out our [contributing guidelines](CONTRIBUTING.md) for information on how to make a pull request.
 - **Improve documentation**: Help us enhance the dlt documentation.
+
+## Contribute code
+Please read [CONTRIBUTING](CONTRIBUTING.md) before you make a PR.
+
+- 📣 **New destinations are unlikely to be merged** due to high maintenance cost (but we are happy to improve SQLAlchemy destination to handle more dialects)
+- Significant changes require tests and docs and in many cases writing tests will be more laborious than writing code
+- Bugfixes and improvements are welcome! You'll get help with writing tests and docs + a decent review.
 
 ## License
 

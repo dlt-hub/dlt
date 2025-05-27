@@ -1852,7 +1852,7 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
     # last value has timezone added
     last_value = resource.state["incremental"]["updated_at"]["last_value"]
     assert isinstance(last_value, pendulum.DateTime)
-    assert last_value.tzname() == "UTC"
+    assert last_value.tzname() == "+00:00"
     # try again with more records
     extract_info = pipeline.extract(some_data(max_hours=3))
     assert (

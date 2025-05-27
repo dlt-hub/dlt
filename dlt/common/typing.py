@@ -88,6 +88,7 @@ CallableAny = NewType("CallableAny", Any)  # type: ignore[valid-newtype]
 NoneType = type(None)
 DictStrAny: TypeAlias = Dict[str, Any]
 DictStrStr: TypeAlias = Dict[str, str]
+DictStrOptionalStr: TypeAlias = Dict[str, Optional[str]]
 StrAny: TypeAlias = Mapping[str, Any]  # immutable, covariant entity
 StrStr: TypeAlias = Mapping[str, str]  # immutable, covariant entity
 StrStrStr: TypeAlias = Mapping[str, Mapping[str, str]]  # immutable, covariant entity
@@ -129,7 +130,9 @@ TVariantRV = Tuple[str, Any]
 VARIANT_FIELD_FORMAT = "v_%s"
 TFileOrPath = Union[str, PathLike, IO[Any]]
 TSortOrder = Literal["asc", "desc"]
-TLoaderFileFormat = Literal["jsonl", "typed-jsonl", "insert_values", "parquet", "csv", "reference"]
+TLoaderFileFormat = Literal[
+    "jsonl", "typed-jsonl", "insert_values", "parquet", "csv", "reference", "model"
+]
 """known loader file formats"""
 
 TDynHintType = TypeVar("TDynHintType")

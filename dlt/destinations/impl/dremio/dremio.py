@@ -22,18 +22,25 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.utils import get_deterministic_temp_table_name
 
 
 class DremioMergeJob(SqlMergeFollowupJob):
     @classmethod
-    def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
-        return sql_client.make_qualified_table_name(
-            cls._shorten_table_name(f"_temp_{name_prefix}_{uniq_id()}", sql_client)
-        )
+    def _new_temp_table_name(cls, table_name: str, op: str, sql_client: SqlClientBase[Any]) -> str:
+        with sql_client.with_staging_dataset():
+            return sql_client.make_qualified_table_name(
+                cls._shorten_table_name(
+                    get_deterministic_temp_table_name(table_name, op), sql_client
+                )
+            )
 
     @classmethod
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
-        return f"CREATE TABLE {temp_table_name} AS {select_sql};"
+        return (
+            f"DROP TABLE IF EXISTS {temp_table_name}; CREATE TABLE {temp_table_name} AS"
+            f" {select_sql};"
+        )
 
     @classmethod
     def default_order_by(cls) -> str:

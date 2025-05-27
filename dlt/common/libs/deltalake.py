@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Optional, Dict, Union, List
 from pathlib import Path
 
@@ -95,6 +96,7 @@ def write_delta_table(
     write_disposition: TWriteDisposition,
     partition_by: Optional[Union[List[str], str]] = None,
     storage_options: Optional[Dict[str, str]] = None,
+    configuration: Optional[Mapping[str, Optional[str]]] = None,
 ) -> None:
     """Writes in-memory Arrow data to on-disk Delta table.
 
@@ -108,6 +110,7 @@ def write_delta_table(
         schema_mode="merge",  # enable schema evolution (adding new columns)
         storage_options=storage_options,
         engine="rust",  # `merge` schema mode requires `rust` engine
+        configuration=configuration,
     )
 
 
@@ -150,7 +153,7 @@ def merge_delta_table(
 
 
 def get_delta_tables(
-    pipeline: Pipeline, *tables: str, schema_name: str = None
+    pipeline: Pipeline, *tables: str, schema_name: str = None, include_dlt_tables: bool = False
 ) -> Dict[str, DeltaTable]:
     """Returns Delta tables in `pipeline.default_schema (default)` or `schema_name` as `deltalake.DeltaTable` objects.
 
@@ -159,7 +162,9 @@ def get_delta_tables(
     Raises ValueError if table name specified as `*tables` is not found. You may try to switch to other
     schemas via `schema_name` argument.
     """
-    return load_open_tables(pipeline, "delta", *tables, schema_name=schema_name)
+    return load_open_tables(
+        pipeline, "delta", *tables, schema_name=schema_name, include_dlt_tables=include_dlt_tables
+    )
 
 
 def deltalake_storage_options(config: FilesystemConfiguration) -> Dict[str, str]:

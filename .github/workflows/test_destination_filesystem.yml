@@ -50,7 +50,7 @@ jobs:
     uses: ./.github/workflows/get_docs_changes.yml
 
   run_loader:
-    name: dest | redshift, postgres and fs tests
+    name: dest | fs tests
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
@@ -89,7 +89,7 @@ jobs:
       #     key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-redshift
 
       - name: Install dependencies
-        run: poetry install --no-interaction -E gs -E s3 -E az -E parquet -E duckdb -E filesystem --with sentry-sdk --with pipeline -E deltalake -E pyiceberg && poetry run pip install ibis-framework[duckdb,postgres]
+        run: poetry install --no-interaction -E gs -E s3 -E az -E parquet -E duckdb -E filesystem --with sentry-sdk --with pipeline -E deltalake -E pyiceberg --with ibis
 
       - name: Upgrade sqlalchemy
         run: poetry run pip install sqlalchemy==2.0.18  # minimum version required by `pyiceberg`

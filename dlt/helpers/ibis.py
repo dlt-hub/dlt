@@ -18,10 +18,10 @@ from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfigu
 from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.impl.clickhouse.configuration import ClickHouseClientConfiguration
-
+from dlt.destinations.impl.synapse.configuration import SynapseClientConfiguration
 
 try:
-    import ibis  # type: ignore
+    import ibis
     import sqlglot
     from ibis import BaseBackend, Expr, Table
 except ModuleNotFoundError:
@@ -109,11 +109,14 @@ def create_ibis_backend(
         con = ibis.snowflake.connect(
             schema=dataset_name, **sn_credentials, create_object_udfs=False
         )
-    elif issubclass(destination.spec, MsSqlClientConfiguration):
+    elif issubclass(destination.spec, MsSqlClientConfiguration) and not issubclass(
+        destination.spec, SynapseClientConfiguration
+    ):  # exclude synapse
         from dlt.destinations.impl.mssql.mssql import MsSqlJobClient
 
         assert isinstance(client, MsSqlJobClient)
         ms_credentials = client.config.credentials.to_native_representation()
+        ms_credentials = ms_credentials.replace("synapse://", "mssql://")
         con = ibis.connect(ms_credentials, driver=client.config.credentials.driver)
     elif issubclass(destination.spec, BigQueryClientConfiguration):
         from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
@@ -139,14 +142,14 @@ def create_ibis_backend(
             secure=bool(ch_client.config.credentials.secure),
             # compression=True,
         )
-    elif issubclass(destination.spec, DatabricksClientConfiguration):
-        from dlt.destinations.impl.databricks.databricks import DatabricksClient
+    # elif issubclass(destination.spec, DatabricksClientConfiguration):
+    #     from dlt.destinations.impl.databricks.databricks import DatabricksClient
 
-        bricks_client = cast(DatabricksClient, client)
-        con = ibis.databricks.connect(
-            **bricks_client.config.credentials.to_connector_params(),
-            schema=bricks_client.sql_client.dataset_name,
-        )
+    #     bricks_client = cast(DatabricksClient, client)
+    #     con = ibis.databricks.connect(
+    #         **bricks_client.config.credentials.to_connector_params(),
+    #         schema=bricks_client.sql_client.dataset_name,
+    #     )
     elif issubclass(destination.spec, AthenaClientConfiguration):
         from dlt.destinations.impl.athena.athena import AthenaClient
 

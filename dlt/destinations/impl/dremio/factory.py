@@ -1,4 +1,4 @@
-import typing as t
+from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING, Sequence, Tuple
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
@@ -14,7 +14,7 @@ from dlt.destinations.impl.dremio.configuration import (
     DremioClientConfiguration,
 )
 
-if t.TYPE_CHECKING:
+if TYPE_CHECKING:
     from dlt.destinations.impl.dremio.dremio import DremioClient
 
 
@@ -71,7 +71,7 @@ class DremioTypeMapper(TypeMapperImpl):
                 )
 
     def from_destination_type(
-        self, db_type: str, precision: t.Optional[int] = None, scale: t.Optional[int] = None
+        self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
     ) -> TColumnType:
         if db_type == "DECIMAL":
             if (precision, scale) == self.capabilities.wei_precision:
@@ -88,7 +88,7 @@ class dremio(Destination[DremioClientConfiguration, "DremioClient"]):
         caps.preferred_loader_file_format = None
         caps.supported_loader_file_formats = []
         caps.preferred_staging_file_format = "parquet"
-        caps.supported_staging_file_formats = ["jsonl", "parquet"]
+        caps.supported_staging_file_formats = ["jsonl", "parquet", "model"]
         caps.escape_identifier = escape_dremio_identifier
         caps.type_mapper = DremioTypeMapper
         # all identifiers are case insensitive but are stored as is
@@ -115,27 +115,30 @@ class dremio(Destination[DremioClientConfiguration, "DremioClient"]):
         return caps
 
     @property
-    def client_class(self) -> t.Type["DremioClient"]:
+    def client_class(self) -> Type["DremioClient"]:
         from dlt.destinations.impl.dremio.dremio import DremioClient
 
         return DremioClient
 
     def __init__(
         self,
-        credentials: t.Union[DremioCredentials, t.Dict[str, t.Any], str] = None,
+        credentials: Union[DremioCredentials, Dict[str, Any], str] = None,
         staging_data_source: str = None,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
-        **kwargs: t.Any,
+        destination_name: str = None,
+        environment: str = None,
+        **kwargs: Any,
     ) -> None:
         """Configure the Dremio destination to use in a pipeline.
 
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials: Credentials to connect to the dremio database. Can be an instance of `DremioCredentials` or
+            credentials (Union[DremioCredentials, Dict[str, Any], str], optional): Credentials to connect to the dremio database. Can be an instance of `DremioCredentials` or
                 a connection string in the format `dremio://user:password@host:port/database`
-            staging_data_source: The name of the "Object Storage" data source in Dremio containing the s3 bucket
+            staging_data_source (str, optional): The name of the "Object Storage" data source in Dremio containing the s3 bucket
+            destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (str, optional): Environment of the destination
+            **kwargs (Any): Additional arguments passed to the destination config
         """
         super().__init__(
             credentials=credentials,

@@ -23,11 +23,12 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     def __init__(
         self,
         *,
-        readable_dataset: "ReadableDBAPIDataset[SupportsReadableRelation]",
+        readable_dataset: "ReadableDBAPIDataset",
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
 
         self._dataset = readable_dataset
+        self._opened_sql_client: SqlClientBase[Any] = None
 
         # wire protocol functions
         self.df = self._wrap_func("df")  # type: ignore
@@ -58,16 +59,24 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     @contextmanager
     def cursor(self) -> Generator[SupportsReadableRelation, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
-        with self.sql_client as client:
-            # this hacky code is needed for mssql to disable autocommit, read iterators
-            # will not work otherwise. in the future we should be able to create a readony
-            # client which will do this automatically
-            if hasattr(self.sql_client, "_conn") and hasattr(self.sql_client._conn, "autocommit"):
-                self.sql_client._conn.autocommit = False
-            with client.execute_query(self.query()) as cursor:
-                if columns_schema := self.columns_schema:
-                    cursor.columns_schema = columns_schema
-                yield cursor
+        try:
+            self._opened_sql_client = self.sql_client
+
+            # case 1: client is already opened and managed from outside
+            if self.sql_client.native_connection:
+                with self.sql_client.execute_query(self.query()) as cursor:
+                    if columns_schema := self.columns_schema:
+                        cursor.columns_schema = columns_schema
+                    yield cursor
+            # case 2: client is not opened, we need to manage it
+            else:
+                with self.sql_client as client:
+                    with client.execute_query(self.query()) as cursor:
+                        if columns_schema := self.columns_schema:
+                            cursor.columns_schema = columns_schema
+                        yield cursor
+        finally:
+            self._opened_sql_client = None
 
     def _wrap_iter(self, func_name: str) -> Any:
         """wrap SupportsReadableRelation generators in cursor context"""
@@ -92,7 +101,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
     def __init__(
         self,
         *,
-        readable_dataset: "ReadableDBAPIDataset[SupportsReadableRelation]",
+        readable_dataset: "ReadableDBAPIDataset",
         provided_query: Any = None,
         table_name: str = None,
         limit: int = None,

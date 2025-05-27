@@ -1,11 +1,7 @@
 import os
 import dataclasses
 import logging
-import sys
-import pytest
-from typing import List, Iterator
-from importlib.metadata import version as pkg_version
-from packaging.version import Version
+from typing import Dict, List, Any
 
 # patch which providers to enable
 from dlt.common.configuration.providers import (
@@ -13,6 +9,7 @@ from dlt.common.configuration.providers import (
     EnvironProvider,
     SecretsTomlProvider,
     ConfigTomlProvider,
+    GoogleSecretsProvider,
 )
 from dlt.common.configuration.specs.config_providers_context import (
     ConfigProvidersConfiguration,
@@ -33,6 +30,26 @@ RunContext.initial_providers = initial_providers  # type: ignore[method-assign]
 # also disable extras
 ConfigProvidersConfiguration.enable_airflow_secrets = False
 ConfigProvidersConfiguration.enable_google_secrets = False
+
+CACHED_GOOGLE_SECRETS: Dict[str, Any] = {}
+
+
+class CachedGoogleSecretsProvider(GoogleSecretsProvider):
+    def _look_vault(self, full_key, hint):
+        if full_key not in CACHED_GOOGLE_SECRETS:
+            CACHED_GOOGLE_SECRETS[full_key] = super()._look_vault(full_key, hint)
+        return CACHED_GOOGLE_SECRETS[full_key]
+
+    def _list_vault(self):
+        key_ = "__list_vault"
+        if key_ not in CACHED_GOOGLE_SECRETS:
+            CACHED_GOOGLE_SECRETS[key_] = super()._list_vault()
+        return CACHED_GOOGLE_SECRETS[key_]
+
+
+from dlt.common.configuration.providers import google_secrets
+
+google_secrets.GoogleSecretsProvider = CachedGoogleSecretsProvider  # type: ignore[misc]
 
 
 def pytest_configure(config):
@@ -150,11 +167,3 @@ def pytest_configure(config):
 
         except Exception:
             pass
-
-
-@pytest.fixture(autouse=True)
-def pyarrow17_check(request) -> Iterator[None]:
-    if "needspyarrow17" in request.keywords:
-        if "pyarrow" not in sys.modules or Version(pkg_version("pyarrow")) < Version("17.0.0"):
-            pytest.skip("test needs `pyarrow>=17.0.0`")
-    yield

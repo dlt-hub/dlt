@@ -18,8 +18,10 @@ from dlt.pipeline.exceptions import (
 )
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from tests.load.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.utils import FILE_BUCKET, destinations_configs, DestinationTestConfiguration
 from tests.pipeline.utils import assert_load_info, load_table_counts
+
+from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
 
 def _attach(pipeline: Pipeline) -> Pipeline:
@@ -143,7 +145,10 @@ def assert_destination_state_loaded(pipeline: Pipeline) -> None:
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, local_filesystem_configs=True, all_buckets_filesystem_configs=True
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        all_buckets_filesystem_configs=True,
+        table_format_filesystem_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -153,6 +158,11 @@ def test_drop_command_resources_and_state(
 ) -> None:
     """Test the drop command with resource and state path options and
     verify correct data is deleted from destination and locally"""
+    if destination_config.destination_type == "filesystem" and destination_config.table_format:
+        pytest.skip(
+            "Cannot run this test on filesystem with open tables enabled, dlt tables are not open"
+            " tables"
+        )
     source: Any = droppable_source()
     if not in_source:
         source = list(source.selected_resources.values())
@@ -232,7 +242,11 @@ def test_drop_command_resources_and_state(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
+    ),
     ids=lambda x: x.name,
 )
 def test_drop_command_only_state(destination_config: DestinationTestConfiguration) -> None:
@@ -259,7 +273,11 @@ def test_drop_command_only_state(destination_config: DestinationTestConfiguratio
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
+    ),
     ids=lambda x: x.name,
 )
 def test_drop_command_only_tables(destination_config: DestinationTestConfiguration) -> None:
@@ -283,7 +301,11 @@ def test_drop_command_only_tables(destination_config: DestinationTestConfigurati
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
+    ),
     ids=lambda x: x.name,
 )
 def test_drop_destination_tables_fails(destination_config: DestinationTestConfiguration) -> None:
@@ -313,7 +335,11 @@ def test_drop_destination_tables_fails(destination_config: DestinationTestConfig
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
+    ),
     ids=lambda x: x.name,
 )
 def test_fail_after_drop_tables(destination_config: DestinationTestConfiguration) -> None:
@@ -346,7 +372,11 @@ def test_fail_after_drop_tables(destination_config: DestinationTestConfiguration
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
+    ),
     ids=lambda x: x.name,
 )
 def test_load_step_fails(destination_config: DestinationTestConfiguration) -> None:
@@ -391,7 +421,11 @@ def test_resource_regex(destination_config: DestinationTestConfiguration) -> Non
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
+    ),
     ids=lambda x: x.name,
 )
 def test_drop_nothing(destination_config: DestinationTestConfiguration) -> None:
@@ -410,7 +444,9 @@ def test_drop_nothing(destination_config: DestinationTestConfiguration) -> None:
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, table_format_local_configs=True),
+    ids=lambda x: x.name,
 )
 def test_drop_all_flag(destination_config: DestinationTestConfiguration) -> None:
     """Using drop_all flag. Destination dataset and all local state is deleted"""
@@ -430,14 +466,18 @@ def test_drop_all_flag(destination_config: DestinationTestConfiguration) -> None
     assert_dropped_resources(attached, list(RESOURCE_TABLES))
 
     # Verify original _dlt tables were not deleted
-    with attached._sql_job_client(attached.default_schema) as client:
-        storage_tables = list(client.get_storage_tables(dlt_tables))
+    with attached._get_destination_clients(attached.default_schema)[0] as client:
+        storage_tables = list(client.get_storage_tables(dlt_tables))  # type: ignore[attr-defined]
         assert all(len(table[1]) > 0 for table in storage_tables)
 
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
+    ),
     ids=lambda x: x.name,
 )
 def test_run_pipeline_after_partial_drop(destination_config: DestinationTestConfiguration) -> None:
@@ -458,7 +498,11 @@ def test_run_pipeline_after_partial_drop(destination_config: DestinationTestConf
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
+    ),
     ids=lambda x: x.name,
 )
 def test_drop_state_only(destination_config: DestinationTestConfiguration) -> None:
@@ -487,3 +531,61 @@ def test_drop_first_run_and_pending_packages() -> None:
     pipeline.extract(droppable_source().with_resources("droppable_b"))
     with pytest.raises(PipelineHasPendingDataException):
         helpers.drop(pipeline, "droppable_a")
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_drop_staging_tables(destination_config: DestinationTestConfiguration) -> None:
+    pipeline = destination_config.setup_pipeline(f"drop_staging_tables_{uniq_id()}", dev_mode=False)
+
+    @dlt.resource(
+        columns={"value": {"data_type": "bool"}}, primary_key="id", write_disposition="merge"
+    )
+    def some_data():
+        yield {"id": 1, "value": True, "children": [{"id": 1}, {"id": 2}]}
+
+    pipeline.run(some_data, **destination_config.run_kwargs)
+
+    attached = _attach(pipeline)
+    helpers.drop(attached, resources=["some_data"])
+
+    # Make sure the "some_data" table doesn't exist anymore
+    with attached.sql_client() as client:
+        qual_table_name, qual_staging_table_name = client.get_qualified_table_names("some_data")
+        with pytest.raises(DatabaseUndefinedRelation):
+            client.execute_sql(f"SELECT * FROM {qual_table_name}")
+
+        with pytest.raises(DatabaseUndefinedRelation):
+            client.execute_sql(f"SELECT * FROM {qual_staging_table_name}")
+
+        # Child table "some_data__children" should also be non-existent
+        qual_table_name, qual_staging_table_name = client.get_qualified_table_names(
+            "some_data__children"
+        )
+        with pytest.raises(DatabaseUndefinedRelation):
+            client.execute_sql(f"SELECT * FROM {qual_table_name}")
+
+        with pytest.raises(DatabaseUndefinedRelation):
+            client.execute_sql(f"SELECT * FROM {qual_staging_table_name}")
+
+    # Change the schema and try to load to the old table
+    # NOTE: we test this because previously staging tables weren't dropped and
+    # resulted in schema mismatch errors
+    @dlt.resource(
+        table_name="some_data",
+        columns={"value": {"data_type": "text"}},
+        primary_key="id",
+        write_disposition="merge",
+    )
+    def some_data_redefined():
+        yield {"id": 1, "value": "random", "children": []}
+
+    attached = _attach(pipeline)
+
+    load_info = attached.run(some_data_redefined, **destination_config.run_kwargs)
+    assert_load_info(load_info)

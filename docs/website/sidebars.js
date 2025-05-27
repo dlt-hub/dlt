@@ -53,6 +53,20 @@ const sidebars = {
         'general-usage/pipeline',
         'general-usage/destination',
         'general-usage/state',
+        {
+          type: 'category',
+          label: 'Schema',
+          link: {
+            type: 'doc',
+            id: 'general-usage/schema',
+          },
+          items: [
+            'general-usage/schema-contracts',
+            'general-usage/schema-evolution',
+            'general-usage/naming-convention',
+            'walkthroughs/adjust-a-schema',
+          ]
+        },
         'general-usage/glossary'
       ]
     },
@@ -70,6 +84,7 @@ const sidebars = {
           items: [
             'plus/getting-started/installation',
             'plus/getting-started/tutorial',
+            'plus/getting-started/advanced_tutorial',
           ]
         },
         {
@@ -180,6 +195,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/sql_database/usage',
             'dlt-ecosystem/verified-sources/sql_database/troubleshooting',
             'dlt-ecosystem/verified-sources/sql_database/advanced',
+            'walkthroughs/add-incremental-configuration',
           ]
         },
         {
@@ -283,50 +299,25 @@ const sidebars = {
           },
           items: [
             "dlt-ecosystem/llm-tooling/mcp-server",
+            "dlt-ecosystem/llm-tooling/cursor-restapi",
           ]
         },
         {
           type: 'category',
-          label: 'Accessing loaded data',
-           link: {
-            type: 'doc',
-            id: 'general-usage/dataset-access/index',
-          },
+          label: 'Load data incrementally',
           items: [
-            'general-usage/dataset-access/streamlit',
-            'general-usage/dataset-access/dataset',
-            'general-usage/dataset-access/ibis-backend',
-            'general-usage/dataset-access/sql-client',
-            'general-usage/dataset-access/data-quality-dashboard',
+            'general-usage/full-loading',
+            'general-usage/merge-loading',
+            'general-usage/incremental-loading',
+            'general-usage/incremental/cursor',
+            'general-usage/incremental/lag',
+            'general-usage/incremental/advanced-state',
+            'general-usage/incremental/troubleshooting',
           ]
         },
         {
           type: 'category',
-          label: 'Transforming data',
-          link: {
-            type: 'doc',
-            id: 'dlt-ecosystem/transformations/index',
-          },
-          items: [
-            {
-              type: 'category',
-              label: 'Transforming data with dbt',
-              items: [
-                'dlt-ecosystem/transformations/dbt/dbt',
-                'dlt-ecosystem/transformations/dbt/dbt_cloud',
-              ]
-            },
-            'dlt-ecosystem/transformations/python',
-            'dlt-ecosystem/transformations/sql',
-            'general-usage/customising-pipelines/renaming_columns',
-            'general-usage/customising-pipelines/pseudonymizing_columns',
-            'general-usage/customising-pipelines/removing_columns',
-            'dlt-ecosystem/transformations/encryption'
-          ]
-        },
-        {
-          type: 'category',
-          label: 'Configuration and secrets',
+          label: 'Configure pipelines and credentials',
            link: {
             type: 'doc',
             id: 'general-usage/credentials/index',
@@ -341,24 +332,48 @@ const sidebars = {
         },
         {
           type: 'category',
-          label: 'Schema',
-          link: {
+          label: 'Access loaded data',
+           link: {
             type: 'doc',
-            id: 'general-usage/schema',
+            id: 'general-usage/dataset-access/index',
           },
           items: [
-            'general-usage/schema-contracts',
-            'general-usage/schema-evolution',
-            'walkthroughs/adjust-a-schema',
+            'general-usage/dataset-access/streamlit',
+            'general-usage/dataset-access/marimo',
+            'general-usage/dataset-access/dataset',
+            'general-usage/dataset-access/ibis-backend',
+            'general-usage/dataset-access/sql-client',
+            'general-usage/destination-tables',
           ]
         },
         {
           type: 'category',
-          label: 'Loading behavior',
+          label: 'Transform data',
+          link: {
+            type: 'doc',
+            id: 'dlt-ecosystem/transformations/index',
+          },
           items: [
-            'general-usage/incremental-loading',
-            'walkthroughs/add-incremental-configuration',
-            'general-usage/full-loading',
+            {
+              type: 'category',
+              label: 'Transform data with dbt',
+              items: [
+                'dlt-ecosystem/transformations/dbt/dbt',
+                'dlt-ecosystem/transformations/dbt/dbt_cloud',
+              ]
+            },
+            'dlt-ecosystem/transformations/python',
+            'dlt-ecosystem/transformations/sql',
+            {
+              type: 'category',
+              label: 'Transform before load',
+              items: [
+                'dlt-ecosystem/transformations/add-map',
+                'general-usage/customising-pipelines/renaming_columns',
+                'general-usage/customising-pipelines/pseudonymizing_columns',
+                'general-usage/customising-pipelines/removing_columns',
+              ]
+            }
           ]
         },
       ]
@@ -444,9 +459,6 @@ const sidebars = {
       items: [
         'reference/command-line-interface',
         'reference/telemetry',
-        // Unsure item
-        'general-usage/destination-tables',
-        'general-usage/naming-convention',
         'dlt-ecosystem/staging',
         {
           type: 'category',
@@ -479,6 +491,7 @@ const sidebars = {
             'dlt-ecosystem/table-formats/iceberg',
           ]
         },
+        'general-usage/dataset-access/data-quality-dashboard',
         'reference/frequently-asked-questions',
       ],
     },
