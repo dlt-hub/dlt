@@ -15,12 +15,21 @@ Thank you for considering contributing to **dlt**! We appreciate your help in ma
 
 ## Before You Begin
 
-- **Proposing significant changes or enhancements**: If you're thinking about making significant changes, make sure to [submit an issue](https://github.com/dlt-hub/dlt/issues/new/choose) first. This ensures your efforts align with the project's direction and that you don't invest time on a feature that may not be merged.
+- **Proposing significant changes or enhancements**: If you're thinking about making significant changes, make sure to [submit an issue](https://github.com/dlt-hub/dlt/issues/new/choose) first. This ensures your efforts align with the project's direction and that you don't invest time on a feature that may not be merged. Please note:
+   - 📣 **New destinations are unlikely to be merged** due to high maintenance cost (but we are happy to improve SQLAlchemy destination to handle more dialects)
+   - Significant changes require tests and docs and in many cases writing tests will be more laborious than writing code
+   - There's probably an [issue](https://github.com/dlt-hub/dlt/issues) for it—if so feel free to implement it
+
+- **Small improvements**: We are super happy to get improvements if they are tested and documented.
+   - more auth methods for destinations, optimization, additional options
+   - quality of life—better log messages, improved exceptions, fixing inconsistent behaviors
+  
 
 - **Fixing bugs**:
-  - **Check existing issues**: search [open issues](https://github.com/dlt-hub/dlt/issues) to see if the bug you've found is already reported.
-    - If **not reported**, [create a new issue](https://github.com/dlt-hub/dlt/issues/new/choose). You're more than welcome to fix it and submit a pull request with your solution. Thank you!
-    - If the bug is **already reported**, please leave a comment on that issue stating you're working on fixing it. This helps keep everyone updated and avoids duplicate efforts.
+  - Check existing issues: search [open issues](https://github.com/dlt-hub/dlt/issues) to see if the bug you've found is already reported.
+    - If not reported, [create a new issue](https://github.com/dlt-hub/dlt/issues/new/choose). You're more than welcome to fix it and submit a pull request with your solution. Thank you!
+    - If the bug is already reported, please leave a comment on that issue stating you're working on fixing it. This helps keep everyone updated and avoids duplicate efforts.
+
 
 ## Getting Started
 

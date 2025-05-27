@@ -1,8 +1,11 @@
 import itertools
 from collections.abc import Mapping as C_Mapping
+import os
 from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, Type, TypeVar
 
+from dlt.common import logger
 from dlt.common.configuration.providers.provider import ConfigProvider
+from dlt.common.configuration.const import TYPE_EXAMPLES
 from dlt.common.typing import (
     AnyType,
     ConfigValueSentinel,
@@ -46,7 +49,7 @@ def resolve_configuration(
     *,
     sections: Tuple[str, ...] = (),
     explicit_value: Any = None,
-    accept_partial: bool = False
+    accept_partial: bool = False,
 ) -> TConfiguration:
     if not isinstance(config, BaseConfiguration):
         raise ConfigurationWrongTypeException(type(config))
@@ -388,10 +391,12 @@ def _resolve_config_field(
             # accept partial becomes True if type if optional so we do not fail on optional configs that do not resolve fully
             accept_partial = accept_partial or is_optional
             # create new instance and pass value from the provider as initial, add key to sections
+            # if current config has section, propagate it
+            sec_ = (config_sections,) if config_sections else ()
             value = _resolve_configuration(
                 embedded_config,
                 explicit_sections,
-                embedded_sections + (key,),
+                embedded_sections + sec_ + (key,),
                 default_value if value is None else value,
                 accept_partial,
             )
@@ -525,7 +530,24 @@ def resolve_single_provider_value(
         # pop optional sections for less precise lookup
         ns.pop()
 
+    if value in TYPE_EXAMPLES.values():
+        _emit_placeholder_warning(value, key, ns_key, provider)
     return value, traces
+
+
+def _emit_placeholder_warning(
+    value: Any, key: str, full_key: str, provider: ConfigProvider
+) -> None:
+    msg = (
+        "Placeholder value encountered when resolving config or secret:\n"
+        f"resolved_key: {key}, value:{value}, section: {full_key}\n"
+        "Most likely, this comes from `init`-command, which creates basic templates for "
+        f"non-complex configs and secrets. The provider to adjust is {provider.name}"
+    )
+    if bool(provider.locations):
+        locations = "\n".join([f"\t- {os.path.abspath(loc)}" for loc in provider.locations])
+        msg += f" at one of these locations:\n{locations}"
+    logger.warning(msg=msg)
 
 
 def _apply_embedded_sections_to_config_sections(

@@ -17,6 +17,7 @@ from dlt.common.storages.load_package import load_package as current_load_packag
 
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
+from dlt.destinations.utils import get_deterministic_temp_table_name
 
 
 class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
@@ -26,9 +27,9 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
     """
 
     @classmethod
-    def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlalchemyClient) -> str:  # type: ignore[override]
+    def _new_temp_table_name(cls, table_name: str, op: str, sql_client: SqlalchemyClient) -> str:  # type: ignore[override]
         # reproducible name so we know which table to drop
-        return cls._shorten_table_name(name_prefix, sql_client)
+        return get_deterministic_temp_table_name(table_name, op)
 
     @classmethod
     def gen_merge_sql(
@@ -72,7 +73,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                 row_key_col = root_table_obj.c[row_key_col_name]
                 # Use a real table cause sqlalchemy doesn't have TEMPORARY TABLE abstractions
                 delete_temp_table = sa.Table(
-                    cls._new_temp_table_name("delete_" + root_table_obj.name, sql_client),
+                    cls._new_temp_table_name(str(root_table_obj.name), "delete", sql_client),
                     temp_metadata,
                     # Give this column a fixed name to be able to reference it later
                     sa.Column("_dlt_id", row_key_col.type),
@@ -134,7 +135,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
 
             # Create the insert "temporary" table (but use a concrete table)
             insert_temp_table = sa.Table(
-                cls._new_temp_table_name("insert_" + root_table_obj.name, sql_client),
+                cls._new_temp_table_name(str(root_table_obj.name), "insert", sql_client),
                 temp_metadata,
                 sa.Column(row_key_col_name, staging_row_key_col.type),
                 schema=staging_root_table_obj.schema,

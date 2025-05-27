@@ -1,12 +1,13 @@
+import datetime
 from typing import ClassVar, List, Optional, Final
 import pytest
 import tomlkit
 
-from dlt.cli.config_toml_writer import write_value, WritableConfigValue, write_values
+from dlt.cli.config_toml_writer import write_value, WritableConfigValue, write_values, TYPE_EXAMPLES
 from dlt.common.configuration.specs import configspec
 from dlt.common.destination.client import DEFAULT_FILE_LAYOUT
 
-EXAMPLE_COMMENT = "# please set me up!"
+EXAMPLE_COMMENT = "# fill this in!"
 
 
 @pytest.fixture
@@ -39,7 +40,7 @@ def test_write_value(example_toml):
 
     # Test with is_default_of_interest=True and non-optional, non-final hint
     write_value(toml_table, "species", str, overwrite_existing=True, is_default_of_interest=True)
-    assert toml_table["species"] == "species"
+    assert toml_table["species"] == "<configure me>"
 
     # Test with is_default_of_interest=False and non-optional, non-final hint, and no default
     write_value(
@@ -80,6 +81,14 @@ def test_write_value(example_toml):
     )
     assert "immutable_trait" in toml_table
 
+    # Test for timestamp type
+    write_value(toml_table, "event_time", datetime.datetime, overwrite_existing=True)
+    assert "event_time" in toml_table
+
+    # Test for date type
+    write_value(toml_table, "event_date", datetime.date, overwrite_existing=True)
+    assert "event_date" in toml_table
+
 
 def test_write_values(example_toml):
     values = [
@@ -117,7 +126,7 @@ def test_write_value_without_defaults(example_toml):
     toml_table = example_toml
 
     write_value(toml_table, "species", str, overwrite_existing=True)
-    assert toml_table["species"] == "species"
+    assert toml_table["species"] == "<configure me>"
     assert toml_table["species"].trivia.comment == EXAMPLE_COMMENT
 
     write_value(toml_table, "genome_size", float, overwrite_existing=True)
@@ -127,12 +136,48 @@ def test_write_value_without_defaults(example_toml):
     write_value(toml_table, "is_animal", bool, overwrite_existing=True)
     assert toml_table["is_animal"] is True
 
+    # json types without defaults of interest will not be written (issue#2531)
     write_value(toml_table, "chromosomes", list, overwrite_existing=True)
-    assert toml_table["chromosomes"] == ["a", "b", "c"]
+    assert "chromosomes" not in toml_table
 
     write_value(toml_table, "genes", dict, overwrite_existing=True)
-    assert toml_table["genes"] == {"key": "value"}
-    assert toml_table["genes"].trivia.comment == EXAMPLE_COMMENT
+    assert "genes" not in toml_table
+
+    write_value(toml_table, "event_time", datetime.datetime, overwrite_existing=True)
+    assert toml_table["event_time"] == TYPE_EXAMPLES["timestamp"]
+
+    # Test for date type
+    write_value(toml_table, "event_date", datetime.date, overwrite_existing=True)
+    assert toml_table["event_date"] == TYPE_EXAMPLES["date"]
+
+
+def test_write_value_with_defaults(example_toml):
+    toml_table = example_toml
+
+    # json types with defaults do not get skipped
+    write_value(toml_table, "chromosomes", list, default_value=["1", "2"], overwrite_existing=True)
+    assert "chromosomes" not in toml_table
+
+    # ... iff they are of interest
+    write_value(
+        toml_table,
+        "chromosomes",
+        list,
+        default_value=["1", "2"],
+        overwrite_existing=True,
+        is_default_of_interest=True,
+    )
+    assert toml_table["chromosomes"] == ["1", "2"]
+
+    write_value(
+        toml_table,
+        "genes",
+        dict,
+        default_value={"a": "genome"},
+        overwrite_existing=True,
+        is_default_of_interest=True,
+    )
+    assert toml_table["genes"] == {"a": "genome"}
 
 
 def test_write_values_without_defaults(example_toml):
@@ -145,7 +190,7 @@ def test_write_values_without_defaults(example_toml):
     ]
     write_values(example_toml, values, overwrite_existing=True)
 
-    assert example_toml["taxonomy"]["genus"]["species"] == "species"
+    assert example_toml["taxonomy"]["genus"]["species"] == "<configure me>"
     assert example_toml["taxonomy"]["genus"]["species"].trivia.comment == EXAMPLE_COMMENT
 
     assert example_toml["genomic_info"]["genome_size"] == 1.0
@@ -153,14 +198,8 @@ def test_write_values_without_defaults(example_toml):
 
     assert example_toml["animal_info"]["is_animal"] is True
 
-    assert example_toml["genomic_info"]["chromosome_data"]["chromosomes"] == ["a", "b", "c"]
-    assert (
-        example_toml["genomic_info"]["chromosome_data"]["chromosomes"].trivia.comment
-        == EXAMPLE_COMMENT
-    )
-
-    assert example_toml["genomic_info"]["gene_data"]["genes"] == {"key": "value"}
-    assert example_toml["genomic_info"]["gene_data"]["genes"].trivia.comment == EXAMPLE_COMMENT
+    assert "chromosomes" not in example_toml["genomic_info"]["chromosome_data"]
+    assert "genes" not in example_toml["genomic_info"]["gene_data"]
 
 
 def test_write_spec_without_defaults(example_toml) -> None:
@@ -176,12 +215,12 @@ def test_write_spec_without_defaults(example_toml) -> None:
     # host, database, username are required and will be included
     # "password", "warehouse", "role" are explicitly of interest
     assert example_toml.as_string() == """[snowflake.credentials]
-database = "database" # please set me up!
-password = "password" # please set me up!
-username = "username" # please set me up!
-host = "host" # please set me up!
-warehouse = "warehouse" # please set me up!
-role = "role" # please set me up!
+database = "<configure me>" # fill this in!
+password = "<configure me>" # fill this in!
+username = "<configure me>" # fill this in!
+host = "<configure me>" # fill this in!
+warehouse = "<configure me>" # fill this in!
+role = "<configure me>" # fill this in!
 """
     example_toml = tomlkit.parse("")
     write_value(
@@ -194,11 +233,11 @@ role = "role" # please set me up!
 
     # bucket_url is mandatory, same for aws credentials
     assert example_toml.as_string() == """[filesystem]
-bucket_url = "bucket_url" # please set me up!
+bucket_url = "<configure me>" # fill this in!
 
 [filesystem.credentials]
-aws_access_key_id = "aws_access_key_id" # please set me up!
-aws_secret_access_key = "aws_secret_access_key" # please set me up!
+aws_access_key_id = "<configure me>" # fill this in!
+aws_secret_access_key = "<configure me>" # fill this in!
 """
 
     @configspec
@@ -235,7 +274,7 @@ aws_secret_access_key = "aws_secret_access_key" # please set me up!
     )
     assert example_toml["filesystem"]["bucket_url"] == "az://test-az-bucket"
     # TODO: choose right credentials based on bucket_url
-    assert example_toml["filesystem"]["credentials"]["aws_access_key_id"] == "aws_access_key_id"
+    assert example_toml["filesystem"]["credentials"]["aws_access_key_id"] == "<configure me>"
     # if initial value is different from the default then it is included
     assert example_toml["filesystem"]["credentials"]["region_name"] == "eu"
     # this is same as default so not included

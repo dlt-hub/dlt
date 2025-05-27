@@ -76,7 +76,6 @@ def test_deltalake_storage_options() -> None:
     assert deltalake_storage_options(config)["aws_access_key_id"] == "i_will_overwrite"
 
 
-@pytest.mark.needspyarrow17
 @pytest.mark.parametrize("arrow_data_type", (pa.Table, pa.RecordBatchReader))
 def test_write_delta_table(
     filesystem_client,
@@ -108,9 +107,15 @@ def test_write_delta_table(
         arrow_data(arrow_table, arrow_data_type),
         write_disposition="append",
         storage_options=storage_options,
+        configuration={"delta.logRetentionDuration": "interval 1 day"},  # default is 30 days
     )
     dt = DeltaTable(remote_dir, storage_options=storage_options)
+
     assert dt.version() == 0
+
+    # Check that the configuration is passed to the Delta table correctly
+    assert dt.metadata().configuration == {"delta.logRetentionDuration": "interval 1 day"}
+
     dt_arrow_table = dt.to_pyarrow_table()
     assert dt_arrow_table.shape == (arrow_table.num_rows, arrow_table.num_columns)
 

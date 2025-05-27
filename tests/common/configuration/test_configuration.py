@@ -1,3 +1,4 @@
+from dlt.common import logger
 import pytest
 import datetime  # noqa: I251
 from unittest.mock import patch
@@ -20,6 +21,7 @@ from typing_extensions import Annotated, TypeVar
 from dlt.common import json, pendulum, Decimal, Wei
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs.base_configuration import NotResolved, is_hint_not_resolvable
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.configuration.specs.gcp_credentials import (
     GcpServiceAccountCredentialsWithoutDefaults,
 )
@@ -56,6 +58,7 @@ from dlt.common.configuration.specs import (
     RuntimeConfiguration,
     ConnectionStringCredentials,
 )
+from dlt.common.configuration.resolve import resolve_single_provider_value
 from dlt.common.configuration.providers import environ as environ_provider, toml
 from dlt.common.configuration.utils import (
     get_resolved_traces,
@@ -66,6 +69,7 @@ from dlt.common.configuration.utils import (
     add_config_to_env,
 )
 from dlt.common.pipeline import TRefreshMode
+from dlt.cli.config_toml_writer import TYPE_EXAMPLES
 
 from dlt.destinations.impl.postgres.configuration import PostgresCredentials
 from tests.utils import preserve_environ
@@ -79,6 +83,7 @@ from tests.common.configuration.utils import (
     SecretConfiguration,
     SectionedConfiguration,
     environment,
+    toml_providers,
     mock_provider,
     env_provider,
     reset_resolved_traces,
@@ -1474,6 +1479,22 @@ def test_configuration_with_configuration_as_default() -> None:
     assert c_resolved.conn_str.is_resolved()
 
 
+def test_configuration_with_section_propagation_to_embedded(environment: Dict[str, str]) -> None:
+    @configspec
+    class EmbeddedConfigurationWithDefaults(BaseConfiguration):
+        default: str = "STR"
+        instrumented: InstrumentedConfiguration = None
+
+        __section__ = "top_level"
+
+    # NOTE: top level will be stripped in less specific searches
+    environment["TOP_LEVEL__INSTRUMENTED__HEAD"] = "h"
+    environment["TOP_LEVEL__INSTRUMENTED__TUBE"] = '["t"]'
+    environment["TOP_LEVEL__INSTRUMENTED__HEELS"] = "he"
+    c_resolved = resolve.resolve_configuration(EmbeddedConfigurationWithDefaults())
+    assert c_resolved.is_resolved()
+
+
 def test_configuration_with_generic(environment: Dict[str, str]) -> None:
     TColumn = TypeVar("TColumn", bound=str)
 
@@ -1558,3 +1579,36 @@ def test_configuration_with_literal_field(environment: Dict[str, str]) -> None:
 
     spec = resolve.resolve_configuration(ConfigWithLiteralField())
     assert spec.refresh == "drop_data"
+
+
+@pytest.mark.parametrize("sc_type", TYPE_EXAMPLES.keys(), ids=TYPE_EXAMPLES.keys())
+def test_warn_when_resolving_placeholders(
+    environment: Dict[str, str],
+    toml_providers: ConfigProvidersContainer,
+    sc_type: str,
+) -> None:
+    for provider in toml_providers.providers:
+        with patch.object(logger.LOGGER, "warning") as mock_warning:
+            # setup
+            key = f"SOME_{sc_type}".upper()
+            placeholder_value = TYPE_EXAMPLES[sc_type]
+            test_section_name = "TEST_SECTION"
+            if provider.locations == []:
+                environment[f"{test_section_name}__{key}"] = placeholder_value
+            else:
+                provider.set_value(key, placeholder_value, test_section_name)
+
+            # run
+            value, _ = resolve_single_provider_value(
+                provider, key=key, hint=str, config_section=test_section_name
+            )
+
+            # verify
+            assert value == placeholder_value
+            assert mock_warning.call_count == 1
+            msg = mock_warning.call_args[0][0]
+            assert "Placeholder value encountered when resolving config or secret" in msg
+            assert key in msg
+            assert str(placeholder_value) in msg
+            assert test_section_name in msg
+            assert provider.name in msg

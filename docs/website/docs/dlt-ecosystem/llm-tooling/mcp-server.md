@@ -77,7 +77,8 @@ uv tool run --with "dlt-plus[mcp]==0.9.0" dlt mcp run
 
 To explain each part:
 - [uv tool run](https://docs.astral.sh/uv/guides/tools/) executes the command in an isolated virtual environment
-- the `--with PACKAGE_NAME` specify the Python dependencies required by the MCP server
+-`--with PACKAGE_NAME` specifies the Python dependencies for the command that follows
+- `dlt-plus[mcp]` ensures to get all the extra dependencies for the MCP server
 - `dlt-plus==0.9.0` pins a specific `dlt-plus` version (where the MCP code lives). We suggest at least pinning the `dlt-plus` version to provide a consistent experience
 - `dlt mcp run` is a CLI command found in dlt+ that starts the dlt MCP server. Use `dlt mcp run_plus` to
 
@@ -110,17 +111,7 @@ mcpServers:
       - tool
       - run
       - --with
-      - dlt-plus==0.9.0
-      - --with
-      - sqlglot
-      - --with
-      - pyarrow
-      - --with
-      - pandas
-      - --with
-      - duckdb
-      - --with
-      - mcp
+      - dlt-plus[mcp]==0.9.0
       - dlt
       - mcp
       - run
@@ -201,3 +192,66 @@ Select **Agent Mode** to enable the MCP server. The [configuration](https://docs
 ### Cline
 
 Follow [this tutorial](https://docs.cline.bot/mcp-servers/mcp-quickstart) to use the IDE's menu to add MCP servers.
+
+### Manual server launch (advanced)
+
+The following methods allow the user to manually launch the MCP server from their preferred directory and Python environment before connecting to the IDE. The basic installation methods let the IDE launch the server over STDIO in isolation from the current project directory and Python environment.
+
+We won't use `uv tool run` because we want to use the local Python environment instead of an isolated one. We assume that `dlt-plus[mcp]` is installed in the environment, giving access to the `dlt mcp` command.
+
+:::caution
+🚧 The MCP, IDE features, and the dlt MCP server are all rapidly evolving and some details are likely to change.
+:::
+
+#### SSE transport
+
+To launch the server using [Server-Sent Events (SSE) transport](https://modelcontextprotocol.io/docs/concepts/transports#server-sent-events-sse), modify the CLI command to:
+
+```sh
+dlt mcp run_plus --sse --port 43655
+```
+
+Then, configure your IDE to connect to the local connection at `http://127.0.0.1:43655/sse` (the `/sse` path is important). Many IDEs don't currently support SSE connection, but [Cline does](https://docs.cline.bot/mcp-servers/configuring-mcp-servers#sse-transport). 
+
+#### Proxy mode
+
+Since many IDEs don't currently support SSE, we use a workaround with two MCP servers using the [mcp-proxy](https://github.com/sparfenyuk/mcp-proxy) library:
+
+- the **proxy server** is launched by the IDE and communicates with the IDE over STDIO
+- the **dlt server** is launched by the user in the desired directory and environment and communicates with the **proxy server** over SSE
+
+The benefit of this approach is that you will never need to update the IDE configuration; it always launches the same proxy server. Then, you can launch the dlt server from any context.
+
+To launch the proxy server, follow the basic installation method (Cursor, Continue, Claude, etc.), but change the command to
+
+```sh
+uv tool run mcp-proxy "http://127.0.0.1:43655/sse"
+```
+
+For example, Cursor would use this config. 
+
+```json
+{
+  "mcpServers": {
+    "dlt": {
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "mcp-proxy",
+        "http://127.0.0.1:43655/sse"
+      ]
+    } 
+  }
+}
+```
+
+To launch the dlt server, use this command to start communication over SSE. The `--port` value should match the IDE config.
+
+```sh
+dlt mcp run_plus --sse --port 43655
+```
+
+:::warning
+The **proxy server** typically fails at startup if the **dlt server** is not already running. After launching the **dlt server**, use the "reconnect" button in the IDE to have the proxy connect to it.
+:::

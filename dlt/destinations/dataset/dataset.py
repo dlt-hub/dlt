@@ -1,3 +1,4 @@
+from types import TracebackType, MethodType
 from typing import Any, Type, Union, TYPE_CHECKING, List
 
 from dlt.common.destination.exceptions import OpenTableClientNotAvailable
@@ -8,12 +9,13 @@ from dlt.common.destination.client import JobClientBase, SupportsOpenTables, Wit
 from dlt.common.destination.dataset import (
     SupportsReadableRelation,
     SupportsReadableDataset,
-    TReadableRelation,
 )
 from dlt.common.destination.typing import TDatasetType
 from dlt.common.schema import Schema
+from dlt.common.typing import Self
 
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
+from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
 
@@ -23,8 +25,8 @@ else:
     IbisBackend = Any
 
 
-class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
-    """Access to dataframes and arrowtables in the destination dataset via dbapi"""
+class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
+    """Access to dataframes and arrow tables in the destination dataset via dbapi"""
 
     def __init__(
         self,
@@ -36,9 +38,10 @@ class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
         self._destination = Destination.from_reference(destination)
         self._provided_schema = schema
         self._dataset_name = dataset_name
-        self._sql_client: SqlClientBase[Any] = None
-        self._table_client: SupportsOpenTables = None
         self._schema: Schema = None
+        self._sql_client: SqlClientBase[Any] = None
+        self._opened_sql_client: SqlClientBase[Any] = None
+        self._table_client: SupportsOpenTables = None
         # resolve dataset type
         if dataset_type in ("auto", "ibis"):
             try:
@@ -57,7 +60,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
 
         return create_ibis_backend(
             self._destination,
-            self._destination_client(self.schema),
+            self._get_destination_client(self.schema),
         )
 
     @property
@@ -65,7 +68,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
         # NOTE: if this property raises AttributeError, __getattr__ will get called 🤯
         #   this leads to infinite recursion as __getattr_ calls this property
         if not self._schema:
-            self._ensure_client_and_schema()
+            self._ensure_schema()
         return self._schema
 
     @property
@@ -74,8 +77,11 @@ class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
 
     @property
     def sql_client(self) -> SqlClientBase[Any]:
+        # return the opened sql client if it exists
+        if self._opened_sql_client:
+            return self._opened_sql_client
         if not self._sql_client:
-            self._ensure_client_and_schema()
+            self._sql_client = self._get_sql_client(self.schema)
         return self._sql_client
 
     @property
@@ -84,27 +90,36 @@ class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
 
     @property
     def destination_client(self) -> JobClientBase:
-        if not self._sql_client:
-            self._ensure_client_and_schema()
-        return self._destination_client(self._schema)
+        return self._get_destination_client(self.schema)
 
     @property
     def open_table_client(self) -> SupportsOpenTables:
-        if not self._sql_client:
-            self._ensure_client_and_schema()
         if not self._table_client:
-            raise OpenTableClientNotAvailable(
-                self._dataset_name, self._destination.destination_name
-            )
+            client = self._get_destination_client(self.schema)
+            if isinstance(client, SupportsOpenTables):
+                self._table_client = client
+            else:
+                raise OpenTableClientNotAvailable(
+                    self._dataset_name, self._destination.destination_name
+                )
         return self._table_client
 
-    def _destination_client(self, schema: Schema) -> JobClientBase:
+    def _get_destination_client(self, schema: Schema) -> JobClientBase:
         return get_destination_clients(
             schema, destination=self._destination, destination_dataset_name=self._dataset_name
         )[0]
 
-    def _ensure_client_and_schema(self) -> None:
-        """Lazy load schema and client"""
+    def _get_sql_client(self, schema: Schema) -> SqlClientBase[Any]:
+        client = self._get_destination_client(self.schema)
+        if isinstance(client, WithSqlClient):
+            return client.sql_client
+        else:
+            raise Exception(
+                f"Destination {client.config.destination_type} does not support SqlClient."
+            )
+
+    def _ensure_schema(self) -> None:
+        """Lazy load the schema on request"""
 
         # full schema given, nothing to do
         if not self._schema and isinstance(self._provided_schema, Schema):
@@ -112,7 +127,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
 
         # schema name given, resolve it from destination by name
         elif not self._schema and isinstance(self._provided_schema, str):
-            with self._destination_client(Schema(self._provided_schema)) as client:
+            with self._get_destination_client(Schema(self._provided_schema)) as client:
                 if isinstance(client, WithStateSync):
                     stored_schema = client.get_stored_schema(self._provided_schema)
                     if stored_schema:
@@ -122,7 +137,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
 
         # no schema name given, load newest schema from destination
         elif not self._schema:
-            with self._destination_client(Schema(self._dataset_name)) as client:
+            with self._get_destination_client(Schema(self._dataset_name)) as client:
                 if isinstance(client, WithStateSync):
                     stored_schema = client.get_stored_schema()
                     if stored_schema:
@@ -132,34 +147,21 @@ class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
         if not self._schema:
             self._schema = Schema(self._dataset_name)
 
-        # here we create the client bound to the resolved schema
-        if not self._sql_client:
-            with self._destination_client(self._schema) as destination_client:
-                if isinstance(destination_client, WithSqlClient):
-                    self._sql_client = destination_client.sql_client
-                else:
-                    raise Exception(
-                        f"Destination {destination_client.config.destination_type} does not support"
-                        " SqlClient."
-                    )
-                if isinstance(destination_client, SupportsOpenTables):
-                    self._table_client = destination_client
-
     def __call__(self, query: Any) -> ReadableDBAPIRelation:
         # TODO: accept other query types and return a right relation: sqlglot (DBAPI) and ibis (Expr)
         return ReadableDBAPIRelation(readable_dataset=self, provided_query=query)  # type: ignore[abstract]
 
-    def table(self, table_name: str) -> TReadableRelation:
+    def table(self, table_name: str) -> ReadableIbisRelation:
         # we can create an ibis powered relation if ibis is available
         if self._dataset_type == "ibis":
             from dlt.helpers.ibis import create_unbound_ibis_table
             from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 
             unbound_table = create_unbound_ibis_table(self.sql_client, self.schema, table_name)
-            return ReadableIbisRelation(  # type: ignore[abstract,return-value]
+            return ReadableIbisRelation(  # type: ignore[abstract]
                 readable_dataset=self,
                 ibis_object=unbound_table,
-                columns_schema=self.schema.tables[table_name]["columns"],
+                columns_schema=self.schema.get_table(table_name)["columns"],
             )
 
         # fallback to the standard dbapi relation
@@ -194,10 +196,42 @@ class ReadableDBAPIDataset(SupportsReadableDataset[TReadableRelation]):
         # Execute query and build result dict
         return self(query)
 
-    def __getitem__(self, table_name: str) -> TReadableRelation:
+    def __getitem__(self, table_name: str) -> ReadableIbisRelation:
         """access of table via dict notation"""
         return self.table(table_name)
 
-    def __getattr__(self, table_name: str) -> TReadableRelation:
+    def __getattr__(self, table_name: str) -> ReadableIbisRelation:
         """access of table via property notation"""
         return self.table(table_name)
+
+    def __enter__(self) -> Self:
+        """Context manager used to open and close sql client and internal connection"""
+        assert (
+            not self._opened_sql_client
+        ), "context manager can't be used when sql client is initialized"
+        # return sql_client wrapped so it will not call close on __exit__ as dataset is managing connections
+        # use internal class
+
+        # create a new sql client
+        self._opened_sql_client = self._get_sql_client(self.schema)
+
+        NoCloseClient = type(
+            "NoCloseClient",
+            (self._opened_sql_client.__class__,),
+            {
+                "__exit__": (
+                    lambda self, exc_type, exc_val, exc_tb: None
+                )  # No-operation: do not close the connection
+            },
+        )
+
+        self._opened_sql_client.__class__ = NoCloseClient
+
+        self._opened_sql_client.open_connection()
+        return self
+
+    def __exit__(
+        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+    ) -> None:
+        self._opened_sql_client.close_connection()
+        self._opened_sql_client = None

@@ -85,7 +85,13 @@ destination.snowflake.credentials="snowflake://loader:<password>@kgiotue-wn98412
 
 ```
 
-In **key pair authentication**, you replace the password with a private key string that should be in Base64-encoded DER format ([dbt also recommends](https://docs.getdbt.com/docs/core/connect-data-platform/snowflake-setup#key-pair-authentication) base64-encoded private keys for Snowflake connections). The private key may also be encrypted. In that case, you must provide a passphrase alongside the private key.
+In **key pair authentication**, you use private - public key pair to authenticate. `dlt` supports the following key formats:
+
+1. Base64-encoded DER format ([dbt also recommends](https://docs.getdbt.com/docs/core/connect-data-platform/snowflake-setup#key-pair-authentication) base64-encoded private keys for Snowflake connections).
+2. Plain-text or base64 encoded PEM format.
+
+The private key may also be encrypted. In that case, you must provide a passphrase alongside the private key.
+
 ```toml
 [destination.snowflake.credentials]
 database = "dlt_data"
@@ -94,13 +100,22 @@ host = "kgiotue-wn98412"
 private_key = "LS0tLS1CRUdJTiBFTkNSWVBURUQgUFJJ....Qo="
 private_key_passphrase="passphrase"
 ```
-> You can easily get the base64-encoded value of your private key by running `base64 -i <path-to-private-key-file>.pem` in your terminal
 
-If you pass a passphrase in the connection string, please URL encode it.
+> You can easily get the base64-encoded value of your private key by running `base64 -i <path-to-private-key-file>.der` in your terminal
+
+If you pass a passphrase or private_key in the connection string, **please URL encode it** or your keys will be mangled after decoding the
+query string:
+
 ```toml
 # Keep it at the top of your TOML file, before any section starts
-destination.snowflake.credentials="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?private_key=<base64 encoded pem>&private_key_passphrase=<url encoded passphrase>"
+destination.snowflake.credentials="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?private_key=<url encoded base64 pem|der>&amp;private_key_passphrase=<url encoded passphrase>"
 ```
+
+If you prefer to just pass a path to a private key file (in one of the formats above, binary formats are not supported), you can use
+`private_key_path` instead of `private_key` in `toml`, query string (**please URL encode it**) or environment variables. For example:
+
+`DESTINATION__SNOWFLAKE__PRIVATE_KEY_PATH=path_to_pem.pem`
+
 
 In **OAuth authentication**, you can use an OAuth provider like Snowflake, Okta, or an external browser to authenticate. In the case of Snowflake OAuth, you pass your `authenticator` and refresh `token` as below:
 ```toml
@@ -146,6 +161,10 @@ The data is loaded using an internal Snowflake stage. We use the `PUT` command a
 [destination.snowflake]
 keep_staged_files = false
 ```
+
+:::note
+`dlt` overrides autocommit settings on Account and User level: `TRUE` is set explicitly when outside of transaction.
+:::
 
 ### Data types
 `snowflake` supports various timestamp types, which can be configured using the column flags `timezone` and `precision` in the `dlt.resource` decorator or the `pipeline.run` method.

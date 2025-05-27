@@ -10,6 +10,7 @@ from dlt.common import Decimal
 from typing import List
 from functools import reduce
 
+from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableFormat
 from dlt.common.storages.exceptions import SchemaNotFoundError
@@ -23,9 +24,7 @@ from tests.load.utils import (
     SFTP_BUCKET,
     MEMORY_BUCKET,
 )
-from dlt.destinations import filesystem
 from tests.utils import TEST_STORAGE_ROOT, clean_test_storage
-from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
 from dlt.destinations.dataset.exceptions import (
     ReadableRelationUnknownColumnException,
 )
@@ -152,19 +151,6 @@ def populated_pipeline(request, autouse_test_storage) -> Any:
     # TODO: we need some kind of idea for multi-schema datasets
     pipeline.run([1, 2, 3], table_name="digits", schema=Schema("aleph"))
     print(pipeline.last_trace.last_normalize_info)
-
-    # in case of delta on gcs we use the s3 compat layer for reading
-    # for writing we still need to use the gc authentication, as delta_rs seems to use
-    # methods on the s3 interface that are not implemented by gcs
-    if destination_config.bucket_url == GCS_BUCKET and destination_config.table_format == "delta":
-        gcp_bucket = filesystem(
-            GCS_BUCKET.replace("gs://", "s3://"), destination_name="filesystem_s3_gcs_comp"
-        )
-        access_pipeline = destination_config.setup_pipeline(
-            "read_pipeline", dataset_name="read_test", destination=gcp_bucket
-        )
-
-        pipeline.destination = access_pipeline.destination
 
     # return pipeline to test
     try:
@@ -476,16 +462,137 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_limit_and_head(populated_pipeline: Pipeline) -> None:
-    table_relationship = populated_pipeline.dataset().items
+    dataset_ = populated_pipeline.dataset()
+
+    # test sql_client lifecycle
+    assert dataset_._opened_sql_client is None
+
+    table_relationship = dataset_.items
+    # ibis relation creates client, default not
+    # assert dataset_._sql_client is None
 
     assert len(table_relationship.head().fetchall()) == 5
+    # no client remains
+    assert dataset_._opened_sql_client is None
+
     assert len(table_relationship.limit(24).fetchall()) == 24
+    assert dataset_._opened_sql_client is None
 
     assert len(table_relationship.head().df().index) == 5
+    assert dataset_._opened_sql_client is None
+
     assert len(table_relationship.limit(24).df().index) == 24
+    assert dataset_._opened_sql_client is None
 
     assert table_relationship.head().arrow().num_rows == 5
+    assert dataset_._opened_sql_client is None
+
     assert table_relationship.limit(24).arrow().num_rows == 24
+    assert dataset_._opened_sql_client is None
+
+    limit_relationship = table_relationship.limit(24)
+    for data_ in limit_relationship.iter_fetch(6):
+        assert len(data_) == 6
+        # client stays open
+        assert limit_relationship._opened_sql_client is not None
+
+    # run multiple requests on one connection
+    with dataset_ as d_:
+        limit_relationship = table_relationship.limit(24)
+        for _data in limit_relationship.iter_fetch(6):
+            # client stays open
+            assert limit_relationship._opened_sql_client is not None
+            assert (
+                limit_relationship._opened_sql_client.native_connection
+                == d_._opened_sql_client.native_connection
+            )
+
+        other_relationship = table_relationship.limit(10)
+        for _data in other_relationship.iter_fetch(6):
+            assert other_relationship._opened_sql_client is not None
+            assert (
+                other_relationship._opened_sql_client.native_connection
+                == d_._opened_sql_client.native_connection
+            )
+
+    # connection closed
+    assert dataset_._opened_sql_client is None
+
+    chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
+    list(table_relationship.iter_fetch(chunk_size=chunk_size))
+    assert dataset_._opened_sql_client is None
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_dataset_client_caching_and_connection_handling(populated_pipeline: Pipeline) -> None:
+    # no clients exist yet
+    dataset = populated_pipeline.dataset()
+    assert dataset._opened_sql_client is None
+    assert dataset._sql_client is None
+
+    with dataset as dataset_:
+        # test sql_client lifecycle
+        assert dataset_._opened_sql_client is not None
+
+        first_encountered_opened_sql_client = dataset_._opened_sql_client
+
+        # "regular" clients are not created yet as never used
+        assert dataset_._sql_client is None
+
+        # cached sql client is used
+        table_relationship = dataset_.items
+        assert dataset_._opened_sql_client is not None
+        assert dataset_._opened_sql_client == first_encountered_opened_sql_client
+
+        assert len(table_relationship.head().fetchall()) == 5
+        assert dataset_._opened_sql_client is not None
+        assert dataset_._opened_sql_client == first_encountered_opened_sql_client
+
+        # connection is kept
+        assert dataset_._opened_sql_client.native_connection is not None
+
+        for data_ in table_relationship.limit(24).iter_fetch(6):
+            assert len(data_) == 6
+            # connection kept open
+            assert dataset_._opened_sql_client.native_connection is not None
+
+    # connection closed
+    assert dataset_._opened_sql_client is None
+
+    # we do something that activates the "regular" caching
+    dataset_.items.fetchall()
+    assert dataset_._sql_client is not None
+    assert dataset_._opened_sql_client is None
+
+    # open again
+    with dataset_:
+        assert dataset_._opened_sql_client is not None
+        assert len(table_relationship.head().fetchall()) == 5
+        assert dataset_._opened_sql_client is not None
+        # connection is kept
+        assert dataset_._opened_sql_client.native_connection is not None
+
+        # the opened client is different from the "regular" one
+        assert dataset_._sql_client != dataset_._opened_sql_client
+        # and different from the last one
+        assert dataset_._opened_sql_client != first_encountered_opened_sql_client
+
+        with pytest.raises(AssertionError):
+            with dataset_:
+                pass
+    assert dataset_._opened_sql_client is None
+
+    # check that if the schema needs to be fetched, no opened client is left
+    dataset_._schema = None
+    assert dataset_.schema
+    assert dataset_._opened_sql_client is None
 
 
 @pytest.mark.no_load
@@ -564,7 +671,7 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
 )
 def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # NOTE: we could generalize this with a context for certain deps
-    import ibis  # type: ignore
+    import ibis
 
     # now we should get the more powerful ibis relation
     dataset = populated_pipeline.dataset()
@@ -854,7 +961,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     )
     # verify that sql client and schema are lazy loaded
     assert not dataset._schema
-    assert not dataset._sql_client
+    assert not dataset._opened_sql_client
     table_relationship = dataset.items
     table = table_relationship.fetchall()
     assert len(table) == total_records
@@ -888,7 +995,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     assert "items" not in dataset.schema.tables
 
     # NOTE: this breaks the following test, it will need to be fixed somehow
-    # create a newer schema with different name and see wether this is loaded
+    # create a newer schema with different name and see whether this is loaded
     from dlt.common.schema import Schema
     from dlt.common.schema import utils
 
@@ -896,7 +1003,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     other_schema.tables["other_table"] = utils.new_table("other_table")
 
     populated_pipeline._inject_schema(other_schema)
-    populated_pipeline.default_schema_name = other_schema.name
+    populated_pipeline.default_schema_name = other_schema.name  # type: ignore[assignment]
     with populated_pipeline.destination_client() as client:
         client.update_stored_schema()
 
@@ -911,9 +1018,64 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
 @pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
+    configs,
+    ids=lambda x: x.name,
+)
+def test_read_not_materialized_table(destination_config: DestinationTestConfiguration):
+    @dlt.source
+    def two_tables():
+        @dlt.resource(
+            columns=[{"name": "id", "data_type": "bigint", "nullable": True, "primary_key": True}],
+            write_disposition="append",
+            table_format=destination_config.table_format,
+        )
+        def table_1():
+            yield {"id": 1}
+
+        @dlt.resource(
+            columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
+            write_disposition="replace",
+            table_format=destination_config.table_format,
+        )
+        def table_3(make_data=False):
+            return
+            yield
+
+        return table_1, table_3
+
+    pipeline = destination_config.setup_pipeline(
+        "test_pipeline_upfront_tables_two_loads",
+        dataset_name="test_pipeline_upfront_tables_two_loads",
+        dev_mode=True,
+    )
+
+    # create table without any data in it and try to access it. destination should not know this table
+    # expected behavior is that table is not found
+    schema = two_tables().discover_schema()
+
+    # now we use this schema but load just one resource
+    source = two_tables()
+    # push state, table 3 not created
+    pipeline.run(source.table_3, schema=schema, **destination_config.run_kwargs)
+
+    with pytest.raises(DestinationUndefinedEntity):
+        pipeline.dataset().table_3.fetchall()
+
+    # now set table_3 so it has seen data
+    with pipeline.dataset() as dataset_:
+        schema = dataset_.schema
+        schema.tables["table_3"]["x-normalizer"] = {"seen-data": True}
+
+    # forces sql_client to map views. but data does not exist so must raise same exceptions
+    with pytest.raises(DestinationUndefinedEntity):
+        pipeline.dataset().table_3.fetchall()
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
     destinations_configs(
-        bucket_subset=(FILE_BUCKET,),
-        table_format_filesystem_configs=True,
+        table_format_local_configs=True,
     ),
     ids=lambda x: x.name,
 )

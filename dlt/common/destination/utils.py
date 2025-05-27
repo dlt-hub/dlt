@@ -13,7 +13,7 @@ from dlt.common.destination.capabilities import DestinationCapabilitiesContext, 
 from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import (
     SchemaIdentifierNormalizationCollision,
-    UnknownTableException,
+    TableNotFound,
 )
 from dlt.common.schema.typing import (
     TColumnType,
@@ -229,15 +229,17 @@ def prepare_load_table(
 
         return prep_table  # type: ignore[return-value]
     except KeyError:
-        raise UnknownTableException("<>", table_name)
+        raise TableNotFound("<>", table_name)
 
 
-@with_config
 def resolve_replace_strategy(
-    table: TTableSchema,
+    table: PreparedTableSchema,
     required_strategy: Optional[TLoaderReplaceStrategy],
-    destination_capabilities: Optional[DestinationCapabilitiesContext] = ConfigValue,
+    destination_capabilities: Optional[DestinationCapabilitiesContext],
 ) -> Optional[TLoaderReplaceStrategy]:
+    """Returns replace strategy for the supplied prepared table and destination capabilities.
+    If `required_strategy` cannot be fulfilled or capabilities do not support replace, None is returned.
+    """
     supported_replace_strategies = (
         destination_capabilities.replace_strategies_selector(
             destination_capabilities.supported_replace_strategies, table_schema=table

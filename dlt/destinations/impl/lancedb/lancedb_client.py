@@ -694,7 +694,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 self.schema.naming.normalize_identifier("schema_name"): self.schema.name,
                 self.schema.naming.normalize_identifier("status"): 0,
                 self.schema.naming.normalize_identifier("inserted_at"): pendulum.now(),
-                self.schema.naming.normalize_identifier("schema_version_hash"): None,
+                self.schema.naming.normalize_identifier(
+                    "schema_version_hash"
+                ): self.schema.version_hash,
             }
         ]
         fq_loads_table_name = self.make_qualified_table_name(self.schema.loads_table_name)

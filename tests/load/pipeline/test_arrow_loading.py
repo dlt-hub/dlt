@@ -33,7 +33,10 @@ pytestmark = pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, default_staging_configs=True, all_staging_configs=True
+        default_sql_configs=True,
+        default_staging_configs=True,
+        all_staging_configs=True,
+        table_format_filesystem_configs=True,
     ),
     ids=lambda x: x.name,
 )

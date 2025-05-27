@@ -56,6 +56,7 @@ from dlt.common.schema.exceptions import (
     ParentTableNotFoundException,
     SchemaCorruptedException,
     TableIdentifiersFrozen,
+    TableNotFound,
 )
 from dlt.common.schema.normalizers import import_normalizers, configured_normalizers
 from dlt.common.schema.exceptions import DataValidationError
@@ -549,20 +550,20 @@ class Schema:
         return diff_c
 
     def get_table(self, table_name: str) -> TTableSchema:
-        return self._schema_tables[table_name]
+        try:
+            return self._schema_tables[table_name]
+        except KeyError as k_exc:
+            raise TableNotFound(self._schema_name, table_name) from k_exc
 
     def get_table_columns(
         self, table_name: str, include_incomplete: bool = False
     ) -> TTableSchemaColumns:
         """Gets columns of `table_name`. Optionally includes incomplete columns"""
+        table = self.get_table(table_name)
         if include_incomplete:
-            return self._schema_tables[table_name]["columns"]
+            return table["columns"]
         else:
-            return {
-                k: v
-                for k, v in self._schema_tables[table_name]["columns"].items()
-                if utils.is_complete_column(v)
-            }
+            return {k: v for k, v in table["columns"].items() if utils.is_complete_column(v)}
 
     def data_tables(
         self, seen_data_only: bool = False, include_incomplete: bool = False
@@ -610,7 +611,7 @@ class Schema:
         return (table_name not in self.tables) or (
             not [
                 c
-                for c in self.tables[table_name]["columns"].values()
+                for c in self._schema_tables[table_name]["columns"].values()
                 if utils.is_complete_column(c)
             ]
         )

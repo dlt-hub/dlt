@@ -2,7 +2,6 @@ from typing import TYPE_CHECKING, Any, Union, Sequence
 from functools import partial
 import sqlglot
 
-from dlt.common.destination.dataset import SupportsReadableRelation
 from dlt.common.schema.typing import TTableSchemaColumns
 
 from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
@@ -28,7 +27,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
     def __init__(
         self,
         *,
-        readable_dataset: "ReadableDBAPIDataset[SupportsReadableRelation]",
+        readable_dataset: "ReadableDBAPIDataset",
         ibis_object: IbisEpr = None,
         columns_schema: TTableSchemaColumns = None,
     ) -> None:

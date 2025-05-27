@@ -24,9 +24,8 @@ def dbt_venv() -> Iterator[Venv]:
     # context manager will delete venv at the end
     # yield Venv.restore_current()
     # NOTE: we limit the max version of dbt to allow all dbt adapters to run. ie. sqlserver does not work on 1.8
-    # TODO: pytest marking below must be fixed
     dbt_configs = set(
-        c.values[0].destination_type  # type: ignore[attr-defined]
+        c.destination_type
         for c in destinations_configs(default_sql_configs=True, supports_dbt=True)
     )
     with create_venv(tempfile.mkdtemp(), list(dbt_configs), dbt_version="<1.9") as venv:

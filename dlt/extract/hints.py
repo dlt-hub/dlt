@@ -7,6 +7,7 @@ from typing import (
     Sequence,
     Mapping,
     List,
+    NamedTuple,
 )
 from typing_extensions import Self
 
@@ -54,6 +55,9 @@ from dlt.extract.items import TFunHintTemplate, TTableHintTemplate, TableNameMet
 from dlt.extract.items_transform import ValidateItem
 from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_columns_hint
 from dlt.extract.validation import create_item_validator
+from dlt.common.data_writers import TDataItemFormat
+
+import sqlglot
 
 
 class TResourceNestedHints(TypedDict, total=False):
@@ -86,9 +90,44 @@ class TResourceHints(TResourceHintsBase, total=False):
 class HintsMeta:
     __slots__ = ("hints", "create_table_variant")
 
-    def __init__(self, hints: TResourceHints, create_table_variant: bool) -> None:
+    def __init__(
+        self,
+        hints: TResourceHints,
+        create_table_variant: bool,
+    ) -> None:
         self.hints = hints
         self.create_table_variant = create_table_variant
+
+
+class SqlModel(NamedTuple):
+    query: str
+    dialect: Optional[str] = None
+
+    @classmethod
+    def from_query_string(cls, query: str, dialect: Optional[str] = None) -> "SqlModel":
+        """
+        Creates a SqlModel from a raw SQL query string using sqlglot.
+        Ensures that the parsed query is an instance of sqlglot.exp.Select.
+
+        Args:
+            query (str): The raw SQL query string.
+            dialect (Optional[str]): The SQL dialect to use for parsing.
+
+        Returns:
+            SqlModel: An instance of SqlModel with the normalized query and dialect.
+
+        Raises:
+            ValueError: If the parsed query is not an instance of sqlglot.exp.Select.
+        """
+
+        parsed_query = sqlglot.parse_one(query, read=dialect)
+
+        # Ensure the parsed query is a SELECT statement
+        if not isinstance(parsed_query, sqlglot.exp.Select):
+            raise ValueError("Only SELECT statements are allowed to create a SqlModel.")
+
+        normalized_query = parsed_query.sql(dialect=dialect)
+        return cls(query=normalized_query, dialect=dialect)
 
 
 NATURAL_CALLABLES = ["incremental", "validator", "original_columns"]

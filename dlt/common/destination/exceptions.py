@@ -223,16 +223,19 @@ class OpenTableCatalogNotSupported(DestinationTerminalException):
 class SqlClientNotAvailable(DestinationTerminalException):
     def __init__(self, pipeline_name: str, destination_name: str) -> None:
         super().__init__(
-            pipeline_name,
             f"SQL Client not available for destination {destination_name} in pipeline"
             f" {pipeline_name}",
         )
 
 
+class DatasetNotAvailable(DestinationTerminalException):
+    def __init__(self, destination_name: str) -> None:
+        super().__init__(f"Destination {destination_name} does not support datasets.")
+
+
 class OpenTableClientNotAvailable(DestinationTerminalException):
     def __init__(self, dataset_name: str, destination_name: str) -> None:
         super().__init__(
-            dataset_name,
             f"Open table client not available for destination {destination_name} in dataset"
             f" {dataset_name}",
         )
@@ -241,7 +244,6 @@ class OpenTableClientNotAvailable(DestinationTerminalException):
 class FSClientNotAvailable(DestinationTerminalException):
     def __init__(self, pipeline_name: str, destination_name: str) -> None:
         super().__init__(
-            pipeline_name,
             f"Filesystem Client not available for destination {destination_name} in pipeline"
             f" {pipeline_name}",
         )

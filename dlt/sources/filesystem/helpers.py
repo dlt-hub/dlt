@@ -4,6 +4,9 @@ from fsspec import AbstractFileSystem
 
 import dlt
 from dlt.common.configuration import resolve_type
+from dlt.common.configuration.specs import known_sections
+from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.storages.fsspec_filesystem import fsspec_from_config
 from dlt.common.typing import TDataItem
 
 from dlt.sources import DltResource
@@ -36,12 +39,15 @@ def fsspec_from_resource(filesystem_instance: DltResource) -> AbstractFileSystem
 
     @with_config(
         spec=FilesystemConfiguration,
-        sections=("sources", filesystem_instance.section, filesystem_instance.name),
+        sections=(known_sections.SOURCES, filesystem_instance.section, filesystem_instance.name),
+        sections_merge_style=ConfigSectionContext.resource_merge_style,
     )
     def _get_fsspec(
-        bucket_url: str, credentials: Optional[FileSystemCredentials]
+        bucket_url: str,
+        credentials: Optional[FileSystemCredentials],
+        _spec: FilesystemConfiguration = None,
     ) -> AbstractFileSystem:
-        return fsspec_filesystem(bucket_url, credentials)[0]
+        return fsspec_from_config(_spec)[0]
 
     return _get_fsspec(
         filesystem_instance.explicit_args.get("bucket_url", dlt.config.value),
