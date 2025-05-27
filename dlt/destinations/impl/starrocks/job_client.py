@@ -87,9 +87,9 @@ class StarrocksObjectStorageLoadJob(CopyRemoteFileLoadJob):
 
             stmt = f'''
                     INSERT INTO {self._job_client.sql_client.dataset_name}.{self.table.name} BY NAME
-                    SELECT {column_list} FROM FILES (
+                    (SELECT {column_list} FROM FILES (
                         {aws_connection_details}
-                    )
+                    ))
                     '''
             # logger.info(stmt)
 
