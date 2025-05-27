@@ -346,7 +346,7 @@ There are two ways to configure partitioning in dlt+ Iceberg destination:
 The `iceberg_adapter` function allows you to configure partitioning for your Iceberg tables. This adapter supports various partition transformations that can be applied to your data columns.
 
 
-```python
+```py
 import dlt
 from dlt_plus.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
 
@@ -368,7 +368,7 @@ Iceberg supports several transformation functions for partitioning. Use the `ice
 #### Identity partitioning
 Partition by the exact value of a column (default for string columns when specified by name):
 
-```python
+```py
 # These are equivalent:
 iceberg_adapter(resource, partition=["region"])
 iceberg_adapter(resource, partition=[iceberg_partition.identity("region")])
@@ -382,7 +382,7 @@ Extract time components from date/datetime columns:
 * `iceberg_partition.day(column_name)`: Partition by day
 * `iceberg_partition.hour(column_name)`: Partition by hour
 
-```python
+```py
 import dlt
 from datetime import datetime
 from dlt_plus.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
@@ -400,7 +400,7 @@ iceberg_adapter(
 #### Bucket partitioning
 Distribute data across a fixed number of buckets using a hash function:
 
-```python
+```py
 iceberg_adapter(
     resource,
     partition=[iceberg_partition.bucket(16, "user_id")]
@@ -410,7 +410,7 @@ iceberg_adapter(
 #### Truncate partitioning
 Partition string values by a fixed prefix length:
 
-```python
+```py
 iceberg_adapter(
     resource,
     partition=[iceberg_partition.truncate(3, "category")]  # Groups "ELECTRONICS" → "ELE"
@@ -422,7 +422,7 @@ iceberg_adapter(
 #### Multi-column partitioning
 Combine multiple partition strategies:
 
-```python
+```py
 from datetime import datetime
 import dlt
 from dlt_plus.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
@@ -462,7 +462,7 @@ pipeline.run(sales_data)
 #### Custom partition field names
 Specify custom names for partition fields to make them more descriptive:
 
-```python
+```py
 import dlt
 from datetime import datetime
 from dlt_plus.destinations.impl.iceberg.iceberg_adapter import iceberg_adapter, iceberg_partition
@@ -486,7 +486,7 @@ You can configure identity partitioning directly at the column level using the `
 
 #### Basic column-level partitioning
 
-```python
+```py
 import dlt
 
 @dlt.resource(columns={"region": {"partition": True}})
@@ -505,7 +505,7 @@ pipeline.run(sales_data)
 
 You can partition on multiple columns by setting `"partition": True` for each column:
 
-```python
+```py
 @dlt.resource(columns={
     "region": {"partition": True},
     "category": {"partition": True},
@@ -523,7 +523,7 @@ dlt [load id](../../general-usage/destination-tables.md#load-packages-and-load-i
 
 To partition by dlt load id, set the `partition` property to `_dlt_load_id` in the column specification:
 
-```python
+```py
 @dlt.resource(columns={"_dlt_load_id": {"partition": True}})
 def load_partitioned_data():
     yield [
