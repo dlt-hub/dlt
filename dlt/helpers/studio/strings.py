@@ -131,7 +131,7 @@ trace_subtitle = (
 )
 trace_show_raw_trace_text = "Show"
 trace_no_trace_text = """
-No local trace available for the selected pipeline. This probably means that your pipeline has never been run on this computer.
+No local trace available for this pipeline. This probably means that your pipeline has never been run on this computer.
 """
 
 #
