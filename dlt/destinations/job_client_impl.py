@@ -258,6 +258,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         self.state_table_columns = ", ".join(
             sql_client.escape_column_name(col) for col in state_table_["columns"]
         )
+        self.state_table_cols = [col for col in state_table_["columns"]]
         self.active_hints: Dict[TColumnHint, str] = {}
         self.type_mapper: DataTypeMapper = None
         super().__init__(schema, config, sql_client.capabilities)
@@ -539,20 +540,97 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             return self._row_to_schema_info(query, schema_name)
 
     def get_stored_state(self, pipeline_name: str) -> StateInfo:
-        state_table = self.sql_client.make_qualified_table_name(self.schema.state_table_name)
-        loads_table = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
+        #        state_table = self.sql_client.make_qualified_table_name(self.schema.state_table_name)
+        #        loads_table = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
+        c_load_id, c_dlt_load_id, c_pipeline_name, c_status = [
+            self.schema.naming.normalize_path(p)
+            for p in ["load_id", C_DLT_LOAD_ID, "pipeline_name", "status"]
+        ]
+
+        dialect = self.sql_client.capabilities.sqlglot_dialect
+
+        state_table_expr = sqlglot.exp.Table(
+            this=sqlglot.exp.to_identifier(self.schema.state_table_name, quoted=True),
+            db=sqlglot.exp.to_identifier(self.sql_client.dataset_name, quoted=True),
+            catalog=sqlglot.exp.to_identifier(
+                self.sql_client.catalog_name(escape=False), quoted=True
+            ),
+            alias=sqlglot.exp.to_identifier("s", quoted=False),
+        )
+
+        loads_table_expr = sqlglot.exp.Table(
+            this=sqlglot.exp.to_identifier(self.schema.loads_table_name, quoted=True),
+            db=sqlglot.exp.to_identifier(self.sql_client.dataset_name, quoted=True),
+            catalog=sqlglot.exp.to_identifier(
+                self.sql_client.catalog_name(escape=False), quoted=True
+            ),
+            alias=sqlglot.exp.to_identifier("l", quoted=False),
+        )
+
+        join_condition = sqlglot.exp.EQ(
+            this=sqlglot.exp.Column(
+                this=sqlglot.exp.to_identifier(c_load_id, quoted=True),
+                table=sqlglot.exp.to_identifier("l", quoted=False),
+            ),
+            expression=sqlglot.exp.Column(
+                this=sqlglot.exp.to_identifier(c_dlt_load_id, quoted=True),
+                table=sqlglot.exp.to_identifier("s", quoted=False),
+            ),
+        )
+
+        where_expr = sqlglot.exp.and_(
+            sqlglot.exp.EQ(
+                this=sqlglot.exp.Column(
+                    this=sqlglot.exp.to_identifier(c_pipeline_name, quoted=True)
+                ),
+                expression=sqlglot.exp.Literal.string(pipeline_name),
+            ),
+            sqlglot.exp.EQ(
+                this=sqlglot.exp.Column(
+                    this=sqlglot.exp.to_identifier(c_status, quoted=True),
+                    table=sqlglot.exp.to_identifier("l", quoted=False),
+                ),
+                expression=sqlglot.exp.Literal.number(0),
+            ),
+        )
+
+        select_expr = sqlglot.exp.Select(
+            expressions=[
+                sqlglot.exp.Column(this=sqlglot.exp.to_identifier(col, quoted=True))
+                for col in self.state_table_cols
+            ]
+        )
+
+        order_expr = sqlglot.exp.Ordered(
+            this=sqlglot.exp.Column(this=sqlglot.exp.to_identifier(c_load_id, quoted=True)),
+            desc=True,
+        )
+
+        select_expr = (
+            select_expr.from_(state_table_expr)
+            .join(loads_table_expr, on=join_condition)
+            .where(where_expr)
+            .order_by(order_expr)
+            .limit(1)
+        )
+
+        test_query = select_expr.sql(dialect=dialect)
+
         c_load_id, c_dlt_load_id, c_pipeline_name, c_status = self._norm_and_escape_columns(
             "load_id", C_DLT_LOAD_ID, "pipeline_name", "status"
         )
 
-        maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(1)
+        #        base_query = (
+        #            f"SELECT {self.state_table_columns} FROM {state_table} AS s JOIN {loads_table} AS l ON"
+        #            f" l.{c_load_id} = s.{c_dlt_load_id} WHERE {c_pipeline_name} = '{pipeline_name}' AND"
+        #            f" l.{c_status} = 0 ORDER BY {c_load_id} DESC"
+        #        )
+        #        base_query_parsed = sqlglot.parse_one(base_query, read=dialect)
+        #        query_parsed = base_query_parsed.limit(1)  # type: ignore[attr-defined]
 
-        query = (
-            f"SELECT {maybe_limit_clause_1} {self.state_table_columns} FROM {state_table} AS s JOIN"
-            f" {loads_table} AS l ON l.{c_load_id} = s.{c_dlt_load_id} WHERE {c_pipeline_name} = %s"
-            f" AND l.{c_status} = 0 ORDER BY {c_load_id} DESC {maybe_limit_clause_2}"
-        )
-        with self.sql_client.execute_query(query, pipeline_name) as cur:
+        #        query = query_parsed.sql(dialect=dialect)
+
+        with self.sql_client.execute_query(test_query) as cur:
             row = cur.fetchone()
         if not row:
             return None
@@ -575,13 +653,18 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         table_name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         (c_version_hash,) = self._norm_and_escape_columns("version_hash")
 
-        maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(1)
+        dialect = self.sql_client.capabilities.sqlglot_dialect
 
-        query = (
-            f"SELECT {maybe_limit_clause_1} {self.version_table_schema_columns} FROM"
-            f" {table_name} WHERE {c_version_hash} = %s {maybe_limit_clause_2};"
+        base_select = f"SELECT {self.version_table_schema_columns} FROM {table_name}"
+        base_select_parsed = sqlglot.parse_one(base_select, read=dialect)
+        where_condition = sqlglot.exp.EQ(
+            this=sqlglot.exp.Column(this=c_version_hash),
+            expression=sqlglot.exp.Literal.string(version_hash),
         )
-        return self._row_to_schema_info(query, version_hash)
+        query_parsed = base_select_parsed.where(where_condition).limit(1)  # type: ignore[attr-defined]
+        query = query_parsed.sql(dialect=dialect)
+
+        return self._row_to_schema_info(query)
 
     def _get_info_schema_columns_query(
         self, catalog_name: Optional[str], schema_name: str, folded_table_names: List[str]
