@@ -965,8 +965,7 @@ def test_null_column_warning(
     pipeline.run(source)
     assert logger_spy.call_count == 0
     assert (
-        "seen-null-first"
-        not in pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]["x-normalizer"]  # type: ignore[typeddict-item]
+        "x-normalizer" not in pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]
     )
     assert (
         pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]["data_type"] == "text"

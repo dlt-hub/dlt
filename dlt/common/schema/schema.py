@@ -797,12 +797,12 @@ class Schema:
                 nullable=True,
             )
             column_schema["x-normalizer"] = {"seen-null-first": True}  # type: ignore[typeddict-unknown-key]
-            return column_schema
-        column_schema = TColumnSchema(
-            name=k,
-            data_type=data_type or self._infer_column_type(v, k),
-            nullable=not self._infer_hint("not_null", k),
-        )
+        else:
+            column_schema = TColumnSchema(
+                name=k,
+                data_type=data_type or self._infer_column_type(v, k),
+                nullable=not self._infer_hint("not_null", k),
+            )
         # check other preferred hints that are available
         for hint in self._compiled_hints:
             # already processed
