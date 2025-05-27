@@ -203,6 +203,24 @@ def _is_sftp(p: dlt.Pipeline) -> bool:
     )
 
 
+def _is_abfss(p: dlt.Pipeline) -> bool:
+    """Check whether *p* is configured to use the ABFS variant of the filesystem destination.
+
+    Args:
+        p (dlt.Pipeline): Pipeline instance under test.
+
+    Returns:
+        bool: ``True`` if ``p.destination`` is "filesystem" *and* its protocol
+        equals "abfss", otherwise ``False``.
+    """
+    if not p.destination:
+        return False
+    return (
+        p.destination.destination_name == "filesystem"
+        and p.destination_client().config.protocol == "abfss"  # type: ignore[attr-defined]
+    )
+
+
 def _load_jsonl_file(client: FSClientBase, filepath: str) -> List[Dict[str, Any]]:
     """Read a ``.jsonl`` file from a filesystem destination into a list of dictionaries.
 
@@ -411,6 +429,14 @@ def load_table_counts(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
     if _is_sftp(p):
         file_tables = _load_tables_to_dicts_fs(p, *table_names)
         return {table_name: len(items) for table_name, items in file_tables.items()}
+
+    # NOTE: filesystem with abfss and no table format requires a fallback where we get each table count individually
+    # this seems to be a bug in duckdb abfss and might be resolved in a future version.
+    if _is_abfss(p):
+        table_counts = {}
+        for table in table_names:
+            table_counts[table] = p.dataset().row_counts(table_names=[table]).fetchall()[0][1]
+        return table_counts
 
     # otherwise we can use the dataset row counts
     counts = p.dataset().row_counts(table_names=list(table_names)).fetchall()
