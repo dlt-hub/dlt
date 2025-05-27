@@ -8,7 +8,7 @@ from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.libs.deltalake import (
     DeltaTable,
     write_delta_table,
-    _deltalake_storage_options,
+    deltalake_storage_options,
 )
 from dlt.common.configuration.specs import AwsCredentials
 from dlt.destinations.impl.filesystem.filesystem import (
@@ -42,11 +42,11 @@ def test_deltalake_storage_options() -> None:
 
     # no credentials, no deltalake_storage_options
     config.bucket_url = "_storage://foo"
-    assert _deltalake_storage_options(config) == dict()
+    assert deltalake_storage_options(config) == dict()
 
     # no credentials, yes deltalake_storage_options
     config.deltalake_storage_options = {"foo": "bar"}
-    assert _deltalake_storage_options(config) == {"foo": "bar"}
+    assert deltalake_storage_options(config) == {"foo": "bar"}
 
     # yes credentials, yes deltalake_storage_options: no shared keys
     creds = AwsCredentials(
@@ -57,7 +57,7 @@ def test_deltalake_storage_options() -> None:
     )
     config.credentials = creds
     config.bucket_url = "s3://foo"
-    assert _deltalake_storage_options(config).keys() == {
+    assert deltalake_storage_options(config).keys() == {
         "aws_access_key_id",
         "aws_secret_access_key",
         "aws_session_token",
@@ -67,13 +67,13 @@ def test_deltalake_storage_options() -> None:
 
     # yes credentials, yes deltalake_storage_options: yes shared keys
     config.deltalake_storage_options = {"aws_access_key_id": "i_will_overwrite"}
-    assert _deltalake_storage_options(config).keys() == {
+    assert deltalake_storage_options(config).keys() == {
         "aws_access_key_id",
         "aws_secret_access_key",
         "aws_session_token",
         "region",
     }
-    assert _deltalake_storage_options(config)["aws_access_key_id"] == "i_will_overwrite"
+    assert deltalake_storage_options(config)["aws_access_key_id"] == "i_will_overwrite"
 
 
 @pytest.mark.needspyarrow17
@@ -93,7 +93,7 @@ def test_write_delta_table(
 
     client, remote_dir = filesystem_client
     client = cast(FilesystemClient, client)
-    storage_options = _deltalake_storage_options(client.config)
+    storage_options = deltalake_storage_options(client.config)
 
     arrow_table = arrow_table_all_data_types(
         "arrow-table",

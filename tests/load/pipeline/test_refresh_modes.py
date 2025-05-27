@@ -527,6 +527,10 @@ def test_refresh_staging_dataset(destination_config: DestinationTestConfiguratio
     ]
 
     pipeline = destination_config.setup_pipeline("test_refresh_staging_dataset" + uniq_id())
+    # this is Athena iceberg setting: use random table location
+    pipeline.destination.config_params["table_location_layout"] = (
+        "{dataset_name}/{table_name}_{location_tag}"
+    )
 
     source = DltSource(
         dlt.Schema("data_x"),

@@ -9,12 +9,14 @@ from typing import (
     ClassVar,
     List,
     Iterator,
+    Literal,
     Optional,
     Sequence,
     Tuple,
     cast,
     ContextManager,
     Union,
+    overload,
 )
 
 import dlt
@@ -74,7 +76,7 @@ from dlt.common.destination.client import (
     JobClientBase,
     DestinationClientStagingConfiguration,
 )
-from dlt.common.destination.dataset import SupportsReadableDataset
+from dlt.common.destination.exceptions import SqlClientNotAvailable, FSClientNotAvailable
 from dlt.common.destination.typing import TDatasetType
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.pipeline import (
@@ -97,6 +99,7 @@ from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
 from dlt.destinations.configuration import WithLocalFiles
+from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.extract import DltSource
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import Extract, data_to_sources
@@ -109,6 +112,9 @@ from dlt.destinations.dataset import (
     dataset,
     get_destination_clients,
 )
+from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
+from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
+
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
 
@@ -121,8 +127,6 @@ from dlt.pipeline.exceptions import (
     PipelineNeverRan,
     PipelineNotActive,
     PipelineStepFailed,
-    SqlClientNotAvailable,
-    FSClientNotAvailable,
 )
 from dlt.pipeline.trace import (
     PipelineTrace,
@@ -435,8 +439,14 @@ class Pipeline(SupportsPipeline):
         table_format: TTableFormat = None,
         schema_contract: TSchemaContract = None,
         refresh: Optional[TRefreshMode] = None,
+        loader_file_format: Optional[TLoaderFileFormat] = None,
     ) -> ExtractInfo:
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
+        if loader_file_format and loader_file_format not in LOADER_FILE_FORMATS:
+            raise ValueError(f"{loader_file_format} is unknown.")
+        with self._maybe_destination_capabilities() as caps:
+            if caps:
+                self._verify_destination_capabilities(caps, loader_file_format)
 
         # create extract storage to which all the sources will be extracted
         extract_step = Extract(
@@ -459,6 +469,7 @@ class Pipeline(SupportsPipeline):
                     primary_key=primary_key,
                     schema_contract=schema_contract,
                     table_format=table_format,
+                    loader_file_format=loader_file_format,
                 ):
                     if source.exhausted:
                         raise SourceExhausted(source.name)
@@ -492,32 +503,13 @@ class Pipeline(SupportsPipeline):
                 step_info,
             ) from exc
 
-    def _verify_destination_capabilities(
-        self,
-        caps: DestinationCapabilitiesContext,
-        loader_file_format: TLoaderFileFormat,
-    ) -> None:
-        # verify loader file format
-        if loader_file_format and loader_file_format not in caps.supported_loader_file_formats:
-            raise DestinationIncompatibleLoaderFileFormatException(
-                self._destination.destination_name,
-                (self._staging.destination_name if self._staging else None),
-                loader_file_format,
-                set(caps.supported_loader_file_formats),
-            )
-
     @with_runtime_trace()
     @with_schemas_sync
     @with_config_section((known_sections.NORMALIZE,))
-    def normalize(
-        self, workers: int = 1, loader_file_format: TLoaderFileFormat = None
-    ) -> NormalizeInfo:
+    def normalize(self, workers: int = 1) -> NormalizeInfo:
         """Normalizes the data prepared with `extract` method, infers the schema and creates load packages for the `load` method. Requires `destination` to be known."""
         if is_interactive():
             workers = 1
-
-        if loader_file_format and loader_file_format not in LOADER_FILE_FORMATS:
-            raise ValueError(f"{loader_file_format} is unknown.")
         # check if any schema is present, if not then no data was extracted
         if not self.default_schema_name:
             return None
@@ -528,14 +520,13 @@ class Pipeline(SupportsPipeline):
         # create default normalize config
         normalize_config = NormalizeConfiguration(
             workers=workers,
-            loader_file_format=loader_file_format,
             _schema_storage_config=self._schema_storage_config,
             _normalize_storage_config=self._normalize_storage_config(),
             _load_storage_config=self._load_storage_config(),
         )
         # run with destination context
         with self._maybe_destination_capabilities() as caps:
-            self._verify_destination_capabilities(caps, loader_file_format)
+            self._verify_destination_capabilities(caps, None)
 
             # shares schema storage with the pipeline so we do not need to install
             normalize_step: Normalize = Normalize(
@@ -714,7 +705,7 @@ class Pipeline(SupportsPipeline):
             self._state_restored = True
         # normalize and load pending data
         if self.list_extracted_load_packages():
-            self.normalize(loader_file_format=loader_file_format)
+            self.normalize()
         if self.list_normalized_load_packages():
             # if there were any pending loads, load them and **exit**
             if data is not None:
@@ -737,8 +728,9 @@ class Pipeline(SupportsPipeline):
                 table_format=table_format,
                 schema_contract=schema_contract,
                 refresh=refresh or self.refresh,
+                loader_file_format=loader_file_format,
             )
-            self.normalize(loader_file_format=loader_file_format)
+            self.normalize()
             return self.load(destination, dataset_name, credentials=credentials)
         else:
             return None
@@ -1085,6 +1077,20 @@ class Pipeline(SupportsPipeline):
     def staging(self, new_value: AnyDestination) -> None:
         self._staging = new_value
         self._on_set_destination(new_value)
+
+    def _verify_destination_capabilities(
+        self,
+        caps: DestinationCapabilitiesContext,
+        loader_file_format: TLoaderFileFormat,
+    ) -> None:
+        # verify loader file format
+        if loader_file_format and loader_file_format not in caps.supported_loader_file_formats:
+            raise DestinationIncompatibleLoaderFileFormatException(
+                self._destination.destination_name,
+                (self._staging.destination_name if self._staging else None),
+                loader_file_format,
+                set(caps.supported_loader_file_formats),
+            )
 
     def _on_set_destination(self, new_value: AnyDestination) -> None:
         if issubclass(new_value.spec, WithLocalFiles):
@@ -1750,9 +1756,30 @@ class Pipeline(SupportsPipeline):
             "working_dir": self.working_dir,
         }
 
+    @overload
+    def dataset(
+        self,
+        schema: Union[Schema, str, None] = None,
+        dataset_type: Literal["ibis"] = "ibis",
+    ) -> ReadableDBAPIDataset[ReadableIbisRelation]: ...
+
+    @overload
+    def dataset(
+        self,
+        schema: Union[Schema, str, None] = None,
+        dataset_type: Literal["default"] = "default",
+    ) -> ReadableDBAPIDataset[ReadableDBAPIRelation]: ...
+
+    @overload
+    def dataset(
+        self,
+        schema: Union[Schema, str, None] = None,
+        dataset_type: TDatasetType = "auto",
+    ) -> ReadableDBAPIDataset[ReadableIbisRelation]: ...
+
     def dataset(
         self, schema: Union[Schema, str, None] = None, dataset_type: TDatasetType = "auto"
-    ) -> SupportsReadableDataset:
+    ) -> Any:
         """Returns a dataset object for querying the destination data.
 
         Args:

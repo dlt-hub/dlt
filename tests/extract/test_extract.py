@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional, Any
 import pytest
 import os
 
@@ -13,16 +13,16 @@ from dlt.common.storages import (
 )
 from dlt.common.storages.schema_storage import SchemaStorage
 
-from dlt.common.typing import TTableNames
+from dlt.common.typing import TTableNames, TDataItems
 from dlt.extract import DltResource, DltSource
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ResourceExtractionError
 from dlt.extract.extract import ExtractStorage, Extract
 from dlt.extract.hints import TResourceNestedHints, make_hints
+from dlt.extract.items_transform import ValidateItem
 
 from dlt.extract.items import TableNameMeta
 from tests.utils import MockPipeline, clean_test_storage, TEST_STORAGE_ROOT
 from tests.extract.utils import expect_extracted_file
-
 
 NESTED_DATA = [
     {
@@ -572,3 +572,40 @@ def expect_tables(extract_step: Extract, resource: DltResource) -> dlt.Schema:
     extract_step.extract_storage.delete_empty_extract_folder()
 
     return schema
+
+
+def test_materialize_table_schema_with_pipe_items():
+    """
+    Ensure that yielding a materialized empty list results in a job being created if all
+    pipe items that we have are applied: incremental, limit, map, filter
+    """
+
+    class LazyValidator(ValidateItem):
+        def __init__(self):
+            pass
+
+        def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+            return item
+
+    @dlt.resource
+    def empty_list(
+        some_id: dlt.sources.incremental[int] = dlt.sources.incremental(
+            cursor_path="some_id", initial_value=0
+        )
+    ):
+        yield dlt.mark.materialize_table_schema()
+
+    empty_list.add_limit(10)
+    empty_list.add_filter(lambda x: True)
+    empty_list.add_map(lambda x: x)
+    empty_list.add_yield_map(lambda x: (yield from x))
+    empty_list.validator = LazyValidator()
+
+    p = dlt.pipeline(pipeline_name="materialize", destination="duckdb", dev_mode=True)
+    extract_info = p.extract(empty_list())
+
+    found_empty_list = False
+    for job in extract_info.load_packages[0].jobs["new_jobs"]:
+        if job.job_file_info.table_name == "empty_list":
+            found_empty_list = True
+    assert found_empty_list

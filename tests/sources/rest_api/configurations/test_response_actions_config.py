@@ -14,11 +14,6 @@ from dlt.sources.rest_api.typing import (
     ResponseAction,
 )
 
-try:
-    from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
-except ImportError:
-    pass
-
 
 def test_create_multiple_response_actions():
     def custom_hook(response, *args, **kwargs):

@@ -1,8 +1,9 @@
+from copy import copy
 from typing import Optional, Dict, Any, Union
 
 from dlt.common.pendulum import pendulum
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.typing import TSecretStrValue
+from dlt.common.typing import TSecretStrValue, Self
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
     CredentialsWithDefault,
@@ -66,6 +67,26 @@ class AzureCredentialsWithoutDefaults(AzureCredentialsBase, WithPyicebergConfig)
             "adls.sas-token": self.azure_storage_sas_token,
         }
 
+    @classmethod
+    def from_pyiceberg_fileio_config(cls, file_io: Dict[str, Any]) -> Self:
+        # we'll modify file_io so make a copy
+        file_io = copy(file_io)
+        # convert signed uri to credentials
+        for key, value in list(file_io.items()):
+            if key.startswith("adls.sas-token."):
+                if "adls.account-name" not in file_io:
+                    file_io["adls.account-name"] = key.split(".")[2]
+                if "adls.sas-token" not in file_io:
+                    file_io["adls.sas-token"] = value  # key value is a sas token
+        credentials: Self = cls()
+        credentials.azure_account_host = file_io.get("adls.connection-string")
+        credentials.azure_storage_account_key = file_io.get("adls.account-key")
+        credentials.azure_storage_account_name = file_io.get("adls.account-name")
+        credentials.azure_storage_sas_token = file_io.get("adls.sas-token")
+        if not credentials.is_partial():
+            credentials.resolve()
+        return credentials
+
     def create_sas_token(self) -> None:
         try:
             from azure.storage.blob import generate_account_sas, ResourceTypes
@@ -103,13 +124,24 @@ class AzureServicePrincipalCredentialsWithoutDefaults(AzureCredentialsBase, With
             client_secret=self.azure_client_secret,
         )
 
-    def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
+    def to_pyiceberg_fileio_config(self) -> Dict[str, str]:
         return {
             "adls.account-name": self.azure_storage_account_name,
             "adls.tenant-id": self.azure_tenant_id,
             "adls.client-id": self.azure_client_id,
             "adls.client-secret": self.azure_client_secret,
         }
+
+    @classmethod
+    def from_pyiceberg_fileio_config(cls, file_io: Dict[str, Any]) -> Self:
+        credentials: Self = cls()
+        credentials.azure_tenant_id = file_io.get("adls.tenant-id")
+        credentials.azure_client_id = file_io.get("adls.client-id")
+        credentials.azure_storage_account_name = file_io.get("adls.account-name")
+        credentials.azure_client_secret = file_io.get("adls.client-secret")
+        if not credentials.is_partial():
+            credentials.resolve()
+        return credentials
 
 
 @configspec

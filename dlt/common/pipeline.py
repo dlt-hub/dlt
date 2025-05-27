@@ -32,6 +32,7 @@ from dlt.common.configuration.specs import ContainerInjectableContext
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.destination import TDestinationReferenceArg, AnyDestination
+from dlt.common.destination.client import JobClientBase
 from dlt.common.destination.exceptions import DestinationHasFailedJobs
 from dlt.common.exceptions import (
     PipelineStateNotAvailable,
@@ -502,11 +503,11 @@ class SupportsPipeline(Protocol):
     def schemas(self) -> Mapping[str, Schema]:
         """Mapping of all pipeline schemas"""
 
-    def set_local_state_val(self, key: str, value: Any) -> None:
-        """Sets value in local state. Local state is not synchronized with destination."""
-
     def get_local_state_val(self, key: str) -> Any:
         """Gets value from local state. Local state is not synchronized with destination."""
+
+    def destination_client(self, schema_name: str = None) -> JobClientBase:
+        """Get the destination job client for the configured destination"""
 
     def run(
         self,
