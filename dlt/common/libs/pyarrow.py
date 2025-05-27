@@ -13,6 +13,7 @@ from typing import (
     Iterable,
     Iterator,
     Sequence,
+    List,
 )
 
 from dlt import version
@@ -374,6 +375,18 @@ def remove_null_columns(item: TAnyArrowItem) -> TAnyArrowItem:
     return remove_columns(
         item, [field.name for field in item.schema if pyarrow.types.is_null(field.type)]
     )
+
+
+def remove_null_columns_from_schema(schema: pyarrow.Schema) -> Tuple[pyarrow.Schema, bool]:
+    """Remove all columns of datatype pyarrow.null() from the schema"""
+    fields: List[pyarrow.field] = []
+    contains_null: bool = False
+    for field in schema:
+        if pyarrow.types.is_null(field.type):
+            contains_null = True
+        else:
+            fields.append(field)
+    return pyarrow.schema(fields), contains_null
 
 
 def remove_columns(item: TAnyArrowItem, columns: Sequence[str]) -> TAnyArrowItem:
