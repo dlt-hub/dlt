@@ -1,3 +1,4 @@
+import glob
 from typing import Any, TYPE_CHECKING
 import os
 import re
@@ -121,7 +122,6 @@ class FilesystemSqlClient(WithTableScanners):
         table_format = table_schema.get("table_format")
         protocol = self.remote_client.config.protocol
         table_location = self.remote_client.get_open_table_location(table_format, table_name)
-        is_folder = table_location.endswith(os.path.sep)
 
         # discover whether compression is enabled
         compression = "" if is_compression_disabled() else ", compression = 'gzip'"
@@ -176,10 +176,10 @@ class FilesystemSqlClient(WithTableScanners):
             first_file_type = self.get_file_format(table_schema)
 
             # build files string
-            supports_wildcard_notation = not self.is_abfss and is_folder
+            supports_wildcard_notation = not self.is_abfss
 
             if supports_wildcard_notation:
-                resolved_files_string = f"'{table_location}**/*.{first_file_type}'"
+                resolved_files_string = f"'{glob.escape(table_location)}*.{first_file_type}'"
             else:
                 # list_table_files returns a list of absolute paths but without scheme
                 files = self.remote_client.list_table_files(table_name)

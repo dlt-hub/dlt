@@ -193,7 +193,6 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
                 )
             else:
                 location = self._job_client.get_open_table_location("delta", self.load_table_name)
-                location = location.rstrip("/")
                 write_delta_table(
                     table_or_uri=location if delta_table is None else delta_table,
                     data=arrow_rbr,
@@ -223,7 +222,6 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             )
         except DestinationUndefinedEntity:
             location = self._job_client.get_open_table_location("iceberg", self.load_table_name)
-            location = location.rstrip("/")
             table_id = f"{self._job_client.dataset_name}.{self.load_table_name}"
             create_table(
                 self._job_client.get_open_table_catalog("iceberg"),
@@ -322,7 +320,7 @@ class FilesystemClient(
         """A path within a bucket to tables in a dataset
         NOTE: dataset_name changes if with_staging_dataset is active
         """
-        return self.pathlib.join(self.bucket_path, self.dataset_name)  # type: ignore[no-any-return]
+        return self.pathlib.join(self.bucket_path, self.dataset_name, "")  # type: ignore[no-any-return]
 
     @contextmanager
     def with_staging_dataset(self) -> Iterator["FilesystemClient"]:
@@ -480,14 +478,18 @@ class FilesystemClient(
         return table
 
     def get_table_dir(self, table_name: str, remote: bool = False) -> str:
+        """Returns a directory containing table files, ending with separator.
+        Note that many tables can share the same table dir
+        """
         # dlt tables do not respect layout (for now)
         table_prefix = self.get_table_prefix(table_name)
-        table_dir: str = self.pathlib.dirname(table_prefix)
+        table_dir: str = self.pathlib.dirname(table_prefix) + self.pathlib.sep
         if remote:
             table_dir = self.make_remote_url(table_dir)
         return table_dir
 
     def get_table_prefix(self, table_name: str) -> str:
+        """For table prefixes that are folders, trailing separator will be preserved"""
         # dlt tables do not respect layout (for now)
         if table_name.startswith(self.schema._dlt_tables_prefix):
             # dlt tables get layout where each tables is a folder
@@ -842,7 +844,6 @@ class FilesystemClient(
         if detected_format != table_format:
             raise OpenTableFormatNotSupported(table_format, table_name, detected_format)
         table_location = self.get_open_table_location(table_format, table_name)
-        table_location = table_location.rstrip("/")
 
         if table_format == "iceberg":
             catalog = self.get_open_table_catalog("iceberg")
@@ -899,16 +900,19 @@ class FilesystemClient(
         return catalog
 
     def get_open_table_location(self, table_format: TTableFormat, table_name: str) -> str:
-        """All tables have location, also those in "native" table format. A return with a trailing path separator is a folder."""
-        folder = self.get_table_dir(table_name)
+        """All tables have location, also those in "native" table format. Native format
+        in case of filesystem is a set of parquet/csv/jsonl files where a table may
+        be placed in a separate folder or share common prefix define in the layout.
+        Locations of native tables will are normalized to include trailing separator
+        if path is a "folder" (includes buckets)
+        Note: location is fully formed url
+        """
         prefix = self.get_table_prefix(table_name)
-        location = self.make_remote_url(folder)
+        location = self.make_remote_url(prefix)
         if self.config.is_local_filesystem and os.name == "nt":
             # pyiceberg cannot deal with windows absolute urls
             location = location.replace("file:///", "file://")
-        # add trailing separator if the table is a folder
-        is_folder = (folder + os.path.sep) == prefix
-        return location + (os.path.sep if is_folder else "")
+        return location
 
     def is_open_table(self, table_format: TTableFormat, table_name: str) -> bool:
         if table_name in self.schema.dlt_table_names():

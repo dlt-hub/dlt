@@ -102,7 +102,7 @@ def evolve_table(
         table = catalog.load_table(table_id)
     except NoSuchTableError:
         # add table to catalog
-        metadata_path = f"{table_location}/metadata"
+        metadata_path = f"{table_location.rstrip('/')}/metadata"
         if client.fs_client.exists(metadata_path):
             # found metadata; register existing table
             table = register_table(

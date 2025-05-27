@@ -656,10 +656,10 @@ class SupportsOpenTables(ABC):
 
     @abstractmethod
     def get_open_table_location(self, table_format: TTableFormat, table_name: str) -> str:
-        """Computes location in which table metadata is stored and wether it is a folder or a path prefix.
-        Does not verify if table exists
+        """Computes location in which table is stored which is typically a "folder" with table
+        data and metadata. Does not verify if table exists.
         Returns:
-            str: location of the table, has a trailing separator if it is a folder
+            str: fully formed url with table location
         """
 
     @abstractmethod
