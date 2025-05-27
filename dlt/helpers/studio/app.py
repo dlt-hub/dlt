@@ -170,7 +170,7 @@ def section_schema(
         dlt_section_schema_switch,
     )
 
-    if dlt_pipeline and dlt_section_schema_switch.value and not dlt_schema_table_list:
+    if dlt_pipeline and dlt_section_schema_switch.value and dlt_schema_table_list is None:
         _result.append(
             mo.callout(
                 mo.md("No Default Schema available. Does your pipeline have a completed load?"),
@@ -256,7 +256,7 @@ def section_browse_data_table_list(
     )
 
     dlt_query_editor: mo.ui.code_editor = None
-    if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_data_table_list:
+    if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_data_table_list is not None:
         try:
             # try to connect to the dataset
             dlt_pipeline.dataset().destination_client.config.credentials
@@ -331,8 +331,8 @@ def section_browse_data_query_result(
     if (
         dlt_pipeline
         and dlt_section_browse_data_switch.value
-        and dlt_data_table_list
-        and dlt_query_editor
+        and dlt_data_table_list is not None
+        and dlt_query_editor is not None
     ):
         _result.append(ui.build_title_and_subtitle(strings.browse_data_query_result_title))
         with mo.status.spinner(title="Loading data from destination"):
@@ -372,7 +372,11 @@ def section_browse_data_query_history(
     dlt_section_browse_data_switch: mo.ui.switch,
 ):
     _result: List[Any] = []
-    if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_query_history_table:
+    if (
+        dlt_pipeline
+        and dlt_section_browse_data_switch.value
+        and dlt_query_history_table is not None
+    ):
         _result.append(
             ui.build_title_and_subtitle(
                 strings.browse_data_query_history_title, strings.browse_data_query_history_subtitle
@@ -560,7 +564,7 @@ def section_loads_results(
     if (
         dlt_pipeline
         and dlt_section_loads_switch.value
-        and dlt_loads_table
+        and dlt_loads_table is not None
         and dlt_loads_table.value
     ):
         _load_id = dlt_loads_table.value[0]["load_id"]  # type: ignore
@@ -615,7 +619,7 @@ def section_loads_results(
 
         except Exception:
             _result.append(ui.build_error_callout(strings.loads_details_error_text))
-    mo.vstack(_result) if _result else None
+    mo.vstack(_result) if len(_result) else None
     return
 
 
@@ -687,9 +691,7 @@ def utils_purge_caches(
 
 
 @app.cell(hide_code=True)
-def ui_controls(
-    mo_cli_arg_with_test_identifiers: bool,
-):
+def ui_controls(mo_cli_arg_with_test_identifiers: bool):
     """
     Control elements for various parts of the app
     """
@@ -824,7 +826,7 @@ def ui_primary_controls(
             utils.trace_steps_overview(dlt_pipeline.last_trace.asdict())
         )
 
-    return dlt_data_table_list, dlt_schema_table_list
+    return dlt_data_table_list, dlt_schema_table_list, dlt_trace_steps_table
 
 
 @app.cell(hide_code=True)
@@ -849,9 +851,8 @@ def utils_cli_args_and_query_vars_config():
 
     return (
         mo_cli_arg_pipelines_dir,
-        mo_query_var_pipeline_name,
         mo_cli_arg_with_test_identifiers,
-        dlt_config,
+        mo_query_var_pipeline_name,
     )
 
 
