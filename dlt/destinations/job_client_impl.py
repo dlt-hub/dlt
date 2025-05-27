@@ -248,6 +248,9 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         self.version_table_schema_columns = ", ".join(
             sql_client.escape_column_name(col) for col in version_table_["columns"]
         )
+        self.version_table_schema_cols = [
+            sql_client.escape_column_name(col) for col in version_table_["columns"]
+        ]
         loads_table_ = normalize_table_identifiers(loads_table(), schema.naming)
         self.loads_table_schema_columns = ", ".join(
             sql_client.escape_column_name(col) for col in loads_table_["columns"]
@@ -545,14 +548,19 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             "load_id", C_DLT_LOAD_ID, "pipeline_name", "status"
         )
 
-        maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(1)
+        dialect = self.sql_client.capabilities.sqlglot_dialect
 
-        query = (
-            f"SELECT {maybe_limit_clause_1} {self.state_table_columns} FROM {state_table} AS s JOIN"
-            f" {loads_table} AS l ON l.{c_load_id} = s.{c_dlt_load_id} WHERE {c_pipeline_name} = %s"
-            f" AND l.{c_status} = 0 ORDER BY {c_load_id} DESC {maybe_limit_clause_2}"
+        base_query = (
+            f"SELECT {self.state_table_columns} FROM {state_table} AS s JOIN {loads_table} AS l ON"
+            f" l.{c_load_id} = s.{c_dlt_load_id} WHERE {c_pipeline_name} = '{pipeline_name}' AND"
+            f" l.{c_status} = 0 ORDER BY {c_load_id} DESC"
         )
-        with self.sql_client.execute_query(query, pipeline_name) as cur:
+        base_query_parsed = sqlglot.parse_one(base_query, read=dialect)
+        query_parsed = base_query_parsed.limit(1)  # type: ignore[attr-defined]
+
+        query = query_parsed.sql(dialect=dialect)
+
+        with self.sql_client.execute_query(query) as cur:
             row = cur.fetchone()
         if not row:
             return None
@@ -575,13 +583,18 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         table_name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         (c_version_hash,) = self._norm_and_escape_columns("version_hash")
 
-        maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(1)
+        dialect = self.sql_client.capabilities.sqlglot_dialect
 
-        query = (
-            f"SELECT {maybe_limit_clause_1} {self.version_table_schema_columns} FROM"
-            f" {table_name} WHERE {c_version_hash} = %s {maybe_limit_clause_2};"
+        base_select = f"SELECT {self.version_table_schema_columns} FROM {table_name}"
+        base_select_parsed = sqlglot.parse_one(base_select, read=dialect)
+        where_condition = sqlglot.exp.EQ(
+            this=sqlglot.exp.Column(this=c_version_hash),
+            expression=sqlglot.exp.Literal.string(version_hash),
         )
-        return self._row_to_schema_info(query, version_hash)
+        query_parsed = base_select_parsed.where(where_condition).limit(1)  # type: ignore[attr-defined]
+        query = query_parsed.sql(dialect=dialect)
+
+        return self._row_to_schema_info(query)
 
     def _get_info_schema_columns_query(
         self, catalog_name: Optional[str], schema_name: str, folded_table_names: List[str]

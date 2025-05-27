@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 else:
     ReadableDBAPIDataset = Any
 
+import sqlglot
+
 
 class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     def __init__(
@@ -132,25 +134,22 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
             dataset_schema.naming.normalize_path(self._table_name)
         )
 
-        maybe_limit_clause_1 = ""
-        maybe_limit_clause_2 = ""
-        if self._limit:
-            maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(
-                self._limit
-            )
-
-        selector = "*"
         if self._selected_columns:
-            selector = ",".join(
-                [
-                    self.sql_client.escape_column_name(
-                        dataset_schema.naming.normalize_tables_path(c)
-                    )
-                    for c in self._selected_columns
-                ]
-            )
+            selector = [
+                self.sql_client.escape_column_name(
+                    self._dataset.schema.naming.normalize_tables_path(c)
+                )
+                for c in self._selected_columns
+            ]
+        else:
+            selector = ["*"]
 
-        return f"SELECT {maybe_limit_clause_1} {selector} FROM {table_name} {maybe_limit_clause_2}"
+        query = sqlglot.exp.select(*selector).from_(table_name)
+        if self._limit:
+            query = query.limit(self._limit)
+
+        dialect = self.sql_client.capabilities.sqlglot_dialect
+        return query.sql(dialect=dialect)
 
     @property
     def columns_schema(self) -> TTableSchemaColumns:
