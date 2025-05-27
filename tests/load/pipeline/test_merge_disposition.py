@@ -1696,3 +1696,32 @@ def test_merge_arrow(
             {"id": 2, "name": "updated bar"},
         ],
     )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
+def test_merge_null_cols(
+    destination_config: DestinationTestConfiguration,
+    merge_strategy: TLoaderMergeStrategy,
+) -> None:
+    pipeline = destination_config.setup_pipeline("merge_null_values", dev_mode=True)
+
+    @dlt.resource(
+        write_disposition={"disposition": "merge", "strategy": merge_strategy},
+        primary_key="id",
+        columns={"incomplete_col": {"nullable": True}},
+    )
+    def r():
+        yield [{"id": 1, "incomplete_col": None}, {"id": 2, "incomplete_col": None}]
+
+    load_info = pipeline.run(r)
+    assert_load_info(load_info)
+
+    schema = pipeline.default_schema
+    assert schema.tables["r"]["columns"]["incomplete_col"]["x-normalizer"]["seen-null-first"] is True  # type: ignore[typeddict-item]
+
+    # TODO assert data, add new data, and make sure everything is still fine
