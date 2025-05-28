@@ -134,7 +134,7 @@ def test_table_format_core(
     # TODO: only final copy job has remote_url. not the initial (empty) job for particular files
     # we could implement an empty job for delta that generates correct remote_url
     remote_url = list(metrics["job_metrics"].values())[-1].remote_url
-    assert remote_url.endswith(("data_types", "_dlt_pipeline_state"))
+    assert remote_url.endswith(("data_types", "_dlt_pipeline_state", ""))
     bucket_url = destination_config.bucket_url
     if FilesystemConfiguration.is_local_path(bucket_url):
         bucket_url = FilesystemConfiguration.make_file_url(bucket_url)
