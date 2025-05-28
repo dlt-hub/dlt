@@ -94,7 +94,7 @@ def test_page_loads(page: Page):
 
     # sync page
     _open_section(page, "sync", close_other_sections=False)
-    expect(page.get_by_text("Pipeline state synced successfully from duckdb")).to_be_visible()
+    expect(page.get_by_text(app_strings.sync_status_success_text.split("from")[0])).to_be_visible()
 
     # overview page
     _open_section(page, "overview")
@@ -107,7 +107,7 @@ def test_page_loads(page: Page):
 
     # browse data
     _open_section(page, "data")
-    expect(page.get_by_text("Query result").nth(1)).to_be_visible()
+    expect(page.get_by_text(app_strings.browse_data_query_result_title).nth(1)).to_be_visible()
 
     # check first table
     page.get_by_role("checkbox").nth(0).check()
@@ -124,7 +124,7 @@ def test_page_loads(page: Page):
 
     # last trace page
     _open_section(page, "trace")
-    expect(page.get_by_text("An overview of the last load trace ")).to_be_visible()
+    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
         page.get_by_text('"pipeline_name": "one_two_three"').nth(0)
@@ -138,7 +138,7 @@ def test_page_loads(page: Page):
 
     # ibis page
     _open_section(page, "ibis")
-    expect(page.get_by_text("Ibis Backend connected successfully.")).to_be_visible()
+    expect(page.get_by_text(app_strings.ibis_backend_connected_text)).to_be_visible()
 
     #
     # Fruit pipeline
@@ -150,7 +150,7 @@ def test_page_loads(page: Page):
 
     # sync page
     _open_section(page, "sync", close_other_sections=False)
-    expect(page.get_by_text("Pipeline state synced successfully from duckdb")).to_be_visible()
+    expect(page.get_by_text(app_strings.sync_status_success_text.split("from")[0])).to_be_visible()
 
     # overview page
     _open_section(page, "overview")
@@ -163,14 +163,14 @@ def test_page_loads(page: Page):
 
     # browse data
     _open_section(page, "data")
-    expect(page.get_by_text("Query result").nth(1)).to_be_visible()
+    expect(page.get_by_text(app_strings.browse_data_query_result_title).nth(1)).to_be_visible()
 
     _open_section(page, "state")
     expect(page.get_by_text('"dataset_name": "fruit_pipeline_dataset"')).to_be_visible()
 
     # last trace page
     _open_section(page, "trace")
-    expect(page.get_by_text("An overview of the last load trace ")).to_be_visible()
+    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
         page.get_by_text('"pipeline_name": "fruit_pipeline"').nth(0)
@@ -184,7 +184,7 @@ def test_page_loads(page: Page):
 
     # ibis page
     _open_section(page, "ibis")
-    expect(page.get_by_text("Ibis Backend connected successfully.")).to_be_visible()
+    expect(page.get_by_text(app_strings.ibis_backend_connected_text)).to_be_visible()
 
     #
     # Never run pipeline
@@ -193,34 +193,30 @@ def test_page_loads(page: Page):
     _go_home(page)
     page.get_by_role("link", name="never_run_pipeline").click()
 
-    expect(page.get_by_text("Error syncing pipeline from destination.")).to_be_visible()
+    expect(page.get_by_text(app_strings.sync_status_error_text)).to_be_visible()
     expect(page.get_by_text("_storage/.dlt/pipelines/never_run_pipeline")).to_be_visible()
 
     # check schema info (this is the yaml part)
     _open_section(page, "schema")
-    expect(page.get_by_text("No Default Schema available")).to_be_visible()
+    expect(page.get_by_text(app_strings.schema_no_default_available_text)).to_be_visible()
 
     # browse data
     _open_section(page, "data")
-    expect(page.get_by_text("Error connecting to destination")).to_be_visible()
+    expect(page.get_by_text(app_strings.browse_data_error_text)).to_be_visible()
 
     _open_section(page, "state")
     expect(page.get_by_text('"dataset_name": "never_run_pipeline_dataset"')).to_be_visible()
 
     _open_section(page, "trace")
-    expect(page.get_by_text("An overview of the last load trace ")).to_be_visible()
-    expect(
-        page.get_by_text("No local trace available for this pipeline.").nth(0)
-    ).to_be_visible()  # this is part of the trace yaml
+    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
+    expect(page.get_by_text(app_strings.trace_no_trace_text.strip()).nth(0)).to_be_visible()
 
     # loads page
     _open_section(page, "loads")
-    expect(
-        page.get_by_text("Failed to load loads from destination.")
-    ).to_be_visible()  # this is part of the trace yaml
+    expect(page.get_by_text(app_strings.loads_loading_failed_text)).to_be_visible()
 
     _open_section(page, "ibis")
-    expect(page.get_by_text("Error connecting to Ibis Backend")).to_be_visible()
+    expect(page.get_by_text(app_strings.ibis_backend_error_text)).to_be_visible()
 
     #
     # No destination pipeline
@@ -230,7 +226,7 @@ def test_page_loads(page: Page):
     _go_home(page)
     page.get_by_role("link", name="no_destination_pipeline").click()
 
-    expect(page.get_by_text("Error syncing pipeline from destination.")).to_be_visible()
+    expect(page.get_by_text(app_strings.sync_status_error_text)).to_be_visible()
     expect(page.get_by_text("_storage/.dlt/pipelines/no_destination_pipeline")).to_be_visible()
 
     # check schema info (this is the yaml part)
@@ -240,24 +236,22 @@ def test_page_loads(page: Page):
 
     # browse data
     _open_section(page, "data")
-    expect(page.get_by_text("Error connecting to destination")).to_be_visible()
+    expect(page.get_by_text(app_strings.browse_data_error_text)).to_be_visible()
 
     _open_section(page, "state")
     expect(page.get_by_text('"dataset_name": null')).to_be_visible()
 
     # loads page
     _open_section(page, "loads")
-    expect(
-        page.get_by_text("Failed to load loads from destination.")
-    ).to_be_visible()  # this is part of the trace yaml
+    expect(page.get_by_text(app_strings.loads_loading_failed_text)).to_be_visible()
 
     # last trace page
     _open_section(page, "trace")
-    expect(page.get_by_text("An overview of the last load trace ")).to_be_visible()
+    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
         page.get_by_text('"pipeline_name": "no_destination_pipeline"').nth(0)
     ).to_be_visible()  # this is part of the trace yaml
 
     _open_section(page, "ibis")
-    expect(page.get_by_text("Error connecting to Ibis Backend")).to_be_visible()
+    expect(page.get_by_text(app_strings.ibis_backend_error_text)).to_be_visible()
