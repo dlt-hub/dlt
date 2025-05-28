@@ -32,3 +32,12 @@ class StudioConfiguration(BaseConfiguration):
 
     datetime_format: str = "YYYY-MM-DD HH:mm:ss Z"
     """The format of the datetime strings"""
+
+    # this is needed for using this as a param in the cache
+    def __hash__(self) -> int:
+        return hash(
+            ", ".join(self.table_list_fields)
+            + ", ".join(self.column_type_hints)
+            + ", ".join(self.column_other_hints)
+            + self.datetime_format
+        )

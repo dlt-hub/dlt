@@ -1,19 +1,22 @@
-from typing import List, Tuple, Any, Dict, Union, cast, Mapping, Optional, cast
-from itertools import chain
 import functools
+from itertools import chain
+from pathlib import Path
+from typing import Any, Dict, List, Mapping, Tuple, Union, cast
+
 import dlt
 import marimo as mo
 import pandas as pd
-from pathlib import Path
+
+from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.specs import known_sections
+from dlt.common.destination.client import WithStateSync
+from dlt.common.json import json
 from dlt.common.pendulum import pendulum
 from dlt.common.pipeline import get_dlt_pipelines_dir
-from dlt.common.storages import FileStorage
 from dlt.common.schema import Schema
-from dlt.common.json import json
+from dlt.common.storages import FileStorage
 from dlt.helpers.studio import ui_elements as ui
-from dlt.common.configuration.specs import known_sections
 from dlt.helpers.studio.config import StudioConfiguration
-from dlt.common.configuration import resolve_configuration
 
 PICKLE_TRACE_FILE = "trace.pickle"
 
@@ -273,7 +276,7 @@ def get_last_query(pipeline: dlt.Pipeline) -> str:
 
 
 @functools.cache
-def get_loads(pipeline: dlt.Pipeline, limit: int = 100) -> Any:
+def get_loads(c: StudioConfiguration, pipeline: dlt.Pipeline, limit: int = 100) -> Any:
     """
     Get the loads of a pipeline.
     """
@@ -283,15 +286,9 @@ def get_loads(pipeline: dlt.Pipeline, limit: int = 100) -> Any:
     loads = loads.order_by(loads.inserted_at.desc())
     loads_list = loads.df().to_dict(orient="records")
 
-    for load in loads_list:
-        load["load_package_created"] = str(
-            pendulum.from_timestamp(float(load["load_id"]), tz="UTC")
-        )
+    loads_list = [_humanize_datetime_values(c, load) for load in loads_list]
 
     return loads_list
-
-
-from dlt.common.destination.client import WithStateSync
 
 
 @functools.cache
@@ -447,21 +444,42 @@ def _humanize_datetime_values(c: StudioConfiguration, d: Dict[str, Any]) -> Dict
 
     started_at = d.get("started_at", "")
     finished_at = d.get("finished_at", "")
+    inserted_at = d.get("inserted_at", "")
     created = d.get("created", "")
     last_modified = d.get("last_modified", "")
+    load_id = d.get("load_id", "")
+
+    def _humanize_datetime(dt: Union[str, int]) -> str:
+        from datetime import datetime  # noqa: I251
+
+        if isinstance(dt, datetime):
+            p = pendulum.instance(dt)
+        elif isinstance(dt, str) and dt.replace(".", "").isdigit():
+            p = pendulum.from_timestamp(float(dt))
+        elif isinstance(dt, str):
+            p = cast(pendulum.DateTime, pendulum.parse(dt))
+        elif isinstance(dt, int) or isinstance(dt, float):
+            p = pendulum.from_timestamp(dt)
+        else:
+            raise ValueError(f"Invalid datetime value: {dt}")
+        return p.format(c.datetime_format)
 
     if started_at:
-        d["started_at"] = pendulum.instance(started_at).format(c.datetime_format)
+        d["started_at"] = _humanize_datetime(started_at)
     if finished_at:
-        d["finished_at"] = pendulum.instance(finished_at).format(c.datetime_format)
+        d["finished_at"] = _humanize_datetime(finished_at)
     if started_at and finished_at:
         d["duration"] = (
             f"{pendulum.instance(finished_at).diff(pendulum.instance(started_at)).in_words()}"
         )
     if created:
-        d["created"] = pendulum.from_timestamp(created).format(c.datetime_format)
+        d["created"] = _humanize_datetime(created)
     if last_modified:
-        d["last_modified"] = pendulum.from_timestamp(last_modified).format(c.datetime_format)
+        d["last_modified"] = _humanize_datetime(last_modified)
+    if inserted_at:
+        d["inserted_at"] = _humanize_datetime(inserted_at)
+    if load_id:
+        d["load_package_created_at"] = _humanize_datetime(load_id)
 
     return d
 

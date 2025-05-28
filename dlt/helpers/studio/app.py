@@ -531,6 +531,7 @@ def section_trace(
 
 @app.cell(hide_code=True)
 def section_loads(
+    dlt_config: StudioConfiguration,
     dlt_cache_query_results: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
     dlt_restrict_to_last_1000: mo.ui.switch,
@@ -557,7 +558,9 @@ def section_loads(
             dlt_loads_table: mo.ui.table = None
             try:
                 _loads_data = utils.get_loads(
-                    dlt_pipeline, limit=1000 if dlt_restrict_to_last_1000.value else None
+                    dlt_config,
+                    dlt_pipeline,
+                    limit=1000 if dlt_restrict_to_last_1000.value else None,
                 )
                 dlt_loads_table = mo.ui.table(_loads_data, selection="single")
                 _result.append(dlt_loads_table)
