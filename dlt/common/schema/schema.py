@@ -787,7 +787,7 @@ class Schema:
                 name=k,
                 nullable=True,
             )
-            column_schema["x-normalizer"] = {"seen-null-first": True}  # type: ignore[typeddict-unknown-key]
+            column_schema["x-normalizer"] = {"seen-null-first": True}
         else:
             column_schema = TColumnSchema(
                 name=k,

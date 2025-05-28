@@ -230,16 +230,18 @@ class SchemaStorage(Mapping[str, Schema]):
                 self.config.export_schema_path == self.config.import_schema_path,
             )
         # if any processing hints are found we should warn the user
-        if check_processing_hints and (processing_hints := get_processing_hints(schema.tables)):
-            msg = (
-                f"Imported schema {schema.name} contains processing hints for some tables."
-                " Processing hints are used by normalizer (x-normalizer) to mark tables that got"
-                " materialized and that prevents destructive changes to the schema. In most cases"
-                " import schema should not contain processing hints because it is mostly used to"
-                " initialize tables in a new dataset. "
-            )
-            msg += "Affected tables are: " + ", ".join(processing_hints.keys())
-            logger.warning(msg)
+        if check_processing_hints:
+            table_hints, _ = get_processing_hints(schema.tables)
+            if table_hints:
+                msg = (
+                    f"Imported schema {schema.name} contains processing hints for some tables."
+                    " Processing hints are used by normalizer (x-normalizer) to mark tables that"
+                    " got materialized and that prevents destructive changes to the schema. In"
+                    " most cases import schema should not contain processing hints because it is"
+                    " mostly used to initialize tables in a new dataset. "
+                )
+                msg += "Affected tables are: " + ", ".join(table_hints.keys())
+                logger.warning(msg)
         return saved_path
 
     @staticmethod

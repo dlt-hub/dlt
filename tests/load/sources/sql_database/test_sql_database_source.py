@@ -928,7 +928,7 @@ def test_null_column_warning(
     )
     assert expected_warning in logger_spy.call_args_list[0][0][0]
     assert (
-        pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]["x-normalizer"][  # type: ignore[typeddict-item]
+        pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]["x-normalizer"][
             "seen-null-first"
         ]
         is True

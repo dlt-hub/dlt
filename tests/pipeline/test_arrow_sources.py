@@ -103,9 +103,9 @@ def test_extract_and_normalize(item_type: TPythonTableFormat, is_list: bool):
 
     # Check schema detection
     schema_columns = schema.tables["some_data"]["columns"]
-    # null column is present, with x-normalizer seen-null-first, without data typ
+    # null column is present, with x-normalizer seen-null-first, without data type
     assert set(schema_columns) - set(df_tbl.columns) == {"null"}
-    assert schema_columns["null"]["x-normalizer"]["seen-null-first"] is True  # type: ignore[typeddict-item]
+    assert schema_columns["null"]["x-normalizer"]["seen-null-first"] is True
     assert "data_type" not in schema_columns["null"]
     assert schema_columns["date"]["data_type"] == "date"
     assert schema_columns["int"]["data_type"] == "bigint"

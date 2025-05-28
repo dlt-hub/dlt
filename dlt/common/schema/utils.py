@@ -33,6 +33,7 @@ from dlt.common.schema.typing import (
     TSimpleRegex,
     TStoredSchema,
     TTableProcessingHints,
+    TColumnProcessingHints,
     TTableSchema,
     TColumnSchemaBase,
     TColumnSchema,
@@ -665,22 +666,53 @@ def has_table_seen_data(table: TTableSchema) -> bool:
 
 
 def remove_processing_hints(tables: TSchemaTables) -> TSchemaTables:
-    "Removes processing hints like x-normalizer and x-loader from schema tables. Modifies the input tables and returns it for convenience"
-    for table_name, hints in get_processing_hints(tables).items():
+    """
+    Removes processing hints like x-normalizer and x-loader from schema tables and columns.
+    Modifies the input tables and returns it for convenience.
+    """
+    table_hints, col_hints = get_processing_hints(tables)
+
+    # Remove table-level hints
+    for table_name, hints in table_hints.items():
         for hint in hints:
-            del tables[table_name][hint]  # type: ignore[misc]
+            tables[table_name].pop(hint, None)  # type: ignore[misc]
+
+    # Remove column-level hints
+    for table_name, cols in col_hints.items():
+        for col_name, hints in cols.items():
+            for hint in hints:
+                tables[table_name]["columns"][col_name].pop(hint, None)  # type: ignore[misc]
+
     return tables
 
 
-def get_processing_hints(tables: TSchemaTables) -> Dict[str, List[str]]:
-    """Finds processing hints in a set of tables and returns table_name: [hints] mapping"""
-    hints: Dict[str, List[str]] = {}
-    for table in tables.values():
+def get_processing_hints(
+    tables: TSchemaTables,
+) -> Tuple[Dict[str, List[str]], Dict[str, Dict[str, List[str]]]]:
+    """
+    Finds processing hints from schema tables and columns.
+
+    Returns:
+        A tuple containing:
+            - A dictionary mapping table names to a list of table-level processing hints (e.g., 'x-normalizer', 'x-loader').
+            - A dictionary mapping table names to another dictionary that maps column names to a list of column-level processing hints (e.g., 'x-normalizer').
+    """
+    table_hints: Dict[str, List[str]] = {}
+    col_hints: Dict[str, Dict[str, List[str]]] = {}
+
+    for table in tables.values():  # <- This is the correct line
+        table_name = table["name"]
+
         for hint in TTableProcessingHints.__annotations__.keys():
             if hint in table:
-                table_hints = hints.setdefault(table["name"], [])
-                table_hints.append(hint)
-    return hints
+                table_hints.setdefault(table_name, []).append(hint)
+
+        for col_name, col in table["columns"].items():
+            for hint in TColumnProcessingHints.__annotations__.keys():
+                if hint in col:
+                    col_hints.setdefault(table_name, {}).setdefault(col_name, []).append(hint)
+
+    return table_hints, col_hints
 
 
 def hint_to_column_prop(h: TColumnDefaultHint) -> TColumnProp:

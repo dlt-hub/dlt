@@ -173,11 +173,11 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         # Handle column-level x-normalizer
         # drop seen-null-first flag if data type was set
         for column in table_schema.get("columns", {}).values():
-            col_x_normalizer = column.setdefault("x-normalizer", {})  # type: ignore[typeddict-item]
+            col_x_normalizer = column.setdefault("x-normalizer", {})
             if col_x_normalizer.get("seen-null-first") and "data_type" in column:
                 col_x_normalizer.pop("seen-null-first", None)
             if not col_x_normalizer:
-                column.pop("x-normalizer", None)  # type: ignore[typeddict-item]
+                column.pop("x-normalizer", None)
 
     def spool_files(
         self, load_id: str, schema: Schema, map_f: TMapFuncType, files: Sequence[str]
