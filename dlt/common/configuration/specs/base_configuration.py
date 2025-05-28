@@ -252,6 +252,13 @@ def configspec(
                         )
                     setattr(cls, att_name, None)
 
+                from types import MappingProxyType
+
+                # make dict immutable: TODO: fix propery
+                # somehow default_factory does not work here..
+                if isinstance(att_value, dict):
+                    setattr(cls, att_name, MappingProxyType(att_value))
+
                 if isinstance(att_value, BaseConfiguration):
                     # Wrap config defaults in default_factory to work around dataclass
                     # blocking mutable defaults

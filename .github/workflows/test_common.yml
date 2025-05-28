@@ -140,7 +140,7 @@ jobs:
           poetry run pytest tests/pipeline/test_pipeline_extra.py -k arrow ${{ matrix.pytest_args }}
 
       - name: Install pipeline and sources dependencies
-        run: poetry install --no-interaction -E duckdb -E cli -E parquet -E deltalake -E sql_database --with sentry-sdk,pipeline,sources
+        run: poetry install --no-interaction -E duckdb -E cli -E parquet -E deltalake -E sql_database --with sentry-sdk,pipeline,sources,ibis
 
       - name: Run extract and pipeline tests
         run: |

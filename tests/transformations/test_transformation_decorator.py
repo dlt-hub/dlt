@@ -146,7 +146,7 @@ def test_base_transformation_spec() -> None:
         dataset: dlt.Dataset, last_id: str = dlt.config.value, limit: int = 5
     ):
         assert last_id == "test_last_id"
-        return dataset.table1["col1"]
+        return dataset.table1[["col1"]]
 
     spec = get_fun_spec(default_transformation_with_args)
     assert "last_id" in spec().get_resolvable_fields()

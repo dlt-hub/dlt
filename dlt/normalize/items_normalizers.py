@@ -84,6 +84,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
         Returns:
             sqlglot.exp.Expression: A SQL expression that generates a UUID for the specified dialect.
         """
+
         # NOTE: redshift and sqlite don't have an in-built uuid function
         if dialect == "redshift":
             row_num = sqlglot.exp.Window(
