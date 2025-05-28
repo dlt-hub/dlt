@@ -132,10 +132,12 @@ browse_data_explorer_title = """
 
 browse_data_query_result_title = "Query Result"
 
-browse_data_query_history_title = "Cached Query History"
+browse_data_query_history_title = "Query History"
 browse_data_query_history_subtitle = (
-    "The following list shows all queries that have been executed on the destination and are"
-    " present in the cache. Select one or more to see the results again below and compare."
+    "The following list shows all queries that have been executed on the destination and are may be"
+    " present in the cache. Select one or more to see the results again below and compare.If you"
+    " have purged or disabled the cache inbetween, selecting a query will load the result from the"
+    " destination."
 )
 
 browse_data_query_error = "Error executing SQL query:"

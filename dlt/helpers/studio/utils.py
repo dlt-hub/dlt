@@ -206,73 +206,23 @@ def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
     return _dict_to_table_items(details_dict)
 
 
-# cache last of query [pipeline_name] = result
-LAST_QUERY_RESULT: Dict[str, pd.DataFrame] = {}
-QUERY_HISTORY: Dict[str, List[str]] = {}
-LAST_QUERY: Dict[str, str] = {}
-
-
-def get_query_result(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
-    query_result = _get_query_result(pipeline, query)
-    LAST_QUERY_RESULT[pipeline.pipeline_name] = query_result
-    LAST_QUERY[pipeline.pipeline_name] = query
-
-    return query_result
-
-
 @functools.cache
-def _get_query_result(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
+def get_query_result(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
     """
     Get the result of a query.
     """
-
-    result = pipeline.dataset()(query).df()
-    # add to history
-    global QUERY_HISTORY
-
-    if query not in QUERY_HISTORY.get(pipeline.pipeline_name, []):
-        QUERY_HISTORY.setdefault(pipeline.pipeline_name, []).insert(0, query)
-
-    return result
-
-
-def get_query_history(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
-    """
-    Get the query history with a list of query and loaded rows
-    """
-    global QUERY_HISTORY
-    query_list = QUERY_HISTORY.get(pipeline.pipeline_name, [])
-
-    return [{"query": q, "row_count": _get_query_result(pipeline, q).shape[0]} for q in query_list]
+    return pipeline.dataset()(query).df()
 
 
 def clear_query_cache(pipeline: dlt.Pipeline) -> None:
     """
     Clear the query cache and history
     """
-    global QUERY_HISTORY
-    QUERY_HISTORY = {}
 
-    _get_query_result.cache_clear()
+    get_query_result.cache_clear()
     get_loads.cache_clear()
     get_schema_by_version.cache_clear()
     get_row_counts.cache_clear()
-
-
-def get_last_query_result(pipeline: dlt.Pipeline) -> pd.DataFrame:
-    """
-    Get the last successful query result.
-    """
-    global LAST_QUERY_RESULT
-    return LAST_QUERY_RESULT.get(pipeline.pipeline_name, pd.DataFrame())
-
-
-def get_last_query(pipeline: dlt.Pipeline) -> str:
-    """
-    Get the last successful query.
-    """
-    global LAST_QUERY
-    return LAST_QUERY.get(pipeline.pipeline_name, "")
 
 
 @functools.cache

@@ -7,7 +7,7 @@ __generated_with = "0.13.9"
 app = marimo.App(width="medium", app_title="dlt studio", css_file="style.css")
 
 with app.setup:
-    from typing import Any, Dict, List, Tuple, cast
+    from typing import Any, Dict, List, Callable, cast
 
     import marimo as mo
 
@@ -322,6 +322,11 @@ def section_browse_data_query_result(
     dlt_query_editor: mo.ui.code_editor,
     dlt_run_query_button: mo.ui.run_button,
     dlt_section_browse_data_switch: mo.ui.switch,
+    dlt_cache_query_results: mo.ui.switch,
+    dlt_get_last_query_result,
+    dlt_set_last_query_result,
+    dlt_set_query_cache,
+    dlt_get_query_cache,
 ):
     """
     Execute the query in the editor
@@ -329,9 +334,9 @@ def section_browse_data_query_result(
 
     _result = []
 
-    dlt_query_result: pd.DataFrame = None
     dlt_query_history_table: mo.ui.table = None
     dlt_query_error_encountered: bool = False
+    dlt_query: str = None
 
     if (
         dlt_pipeline
@@ -347,8 +352,10 @@ def section_browse_data_query_result(
                         dlt_query_editor.value,
                         dialect=dlt_pipeline.destination.capabilities().sqlglot_dialect,
                     )
+                    if not dlt_cache_query_results.value:
+                        utils.clear_query_cache(dlt_pipeline)
                     dlt_query = dlt_query_editor.value
-                    dlt_query_result = utils.get_query_result(dlt_pipeline, dlt_query)
+                    dlt_set_last_query_result(utils.get_query_result(dlt_pipeline, dlt_query))
                 except Exception as e:
                     dlt_query_error_encountered = True
                     _result.append(
@@ -356,18 +363,27 @@ def section_browse_data_query_result(
                     )
 
         # add result
-        _last_result = utils.get_last_query_result(dlt_pipeline)
+        _last_result = dlt_get_last_query_result()
         if _last_result is not None and not dlt_query_error_encountered:
             _result += [
                 mo.ui.table(_last_result, selection=None),
             ]
+            # update query cache
+            cache = dlt_get_query_cache()
+            if dlt_query:
+                # insert into dict with re-ordering most recent first:
+                cache.pop(dlt_query, None)
+                cache = {dlt_query: _last_result.shape[0], **cache}
+            dlt_set_query_cache(cache)
 
-        # provide query history table
-        _query_history = utils.get_query_history(dlt_pipeline)
-        if _query_history:
-            dlt_query_history_table = mo.ui.table(_query_history)
+    # provide query history table
+    _query_history = dlt_get_query_cache()
+    if _query_history:
+        dlt_query_history_table = mo.ui.table(
+            [{"query": q, "row_count": _query_history[q]} for q in _query_history]
+        )
     mo.vstack(_result) if _result else None
-    return (dlt_query_history_table, dlt_query_result)
+    return dlt_query_history_table
 
 
 @app.cell(hide_code=True)
@@ -375,6 +391,7 @@ def section_browse_data_query_history(
     dlt_pipeline: dlt.Pipeline,
     dlt_query_history_table: mo.ui.table,
     dlt_section_browse_data_switch: mo.ui.switch,
+    dlt_cache_query_results: mo.ui.switch,
 ):
     """
     Show the query history
@@ -384,6 +401,7 @@ def section_browse_data_query_history(
     if (
         dlt_pipeline
         and dlt_section_browse_data_switch.value
+        and dlt_cache_query_results.value
         and dlt_query_history_table is not None
     ):
         _result.append(
@@ -697,7 +715,7 @@ def utils_discover_pipelines(
 
 
 @app.cell(hide_code=True)
-def utils_purge_caches(
+def utils_caches_and_state(
     dlt_cache_query_results: mo.ui.switch,
     dlt_pipeline: dlt.Pipeline,
 ):
@@ -705,8 +723,14 @@ def utils_purge_caches(
     Purge caches of the currently selected pipeline
     """
 
+    # some state variables
+    dlt_get_last_query_result, dlt_set_last_query_result = mo.state(pd.DataFrame())
+    # a cache of query results in the form of {query: row_count}
+    dlt_get_query_cache, dlt_set_query_cache = mo.state(cast(Dict[str, int], {}))
+
     if not dlt_cache_query_results.value:
         utils.clear_query_cache(dlt_pipeline)
+
     return
 
 
