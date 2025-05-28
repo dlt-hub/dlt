@@ -218,4 +218,5 @@ def test_destination_config_in_name(environment: DictStrStr) -> None:
     environment["DESTINATION__FILESYSTEM-PROD__BUCKET_URL"] = FilesystemConfiguration.make_file_url(
         "_storage"
     )
-    assert p._fs_client().dataset_path.endswith(p.dataset_name + "/")
+    pathlib = p._fs_client().pathlib  # type: ignore[attr-defined]
+    assert p._fs_client().dataset_path.endswith(p.dataset_name + pathlib.sep)

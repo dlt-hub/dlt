@@ -179,7 +179,12 @@ class FilesystemSqlClient(WithTableScanners):
             supports_wildcard_notation = not self.is_abfss
 
             if supports_wildcard_notation:
-                resolved_files_string = f"'{glob.escape(table_location)}*.{first_file_type}'"
+                # NOTE: if the top level is a folder, we need to select all files recursively, subfolders may be present
+                is_folder = table_location.endswith(self.remote_client.pathlib.sep)
+                glob_select_all_pattern = "**/*" if is_folder else "*"
+                resolved_files_string = (
+                    f"'{glob.escape(table_location)}{glob_select_all_pattern}.{first_file_type}'"
+                )
             else:
                 # list_table_files returns a list of absolute paths but without scheme
                 files = self.remote_client.list_table_files(table_name)
