@@ -224,6 +224,7 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
     chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
+    casefolder = populated_pipeline.destination.capabilities().casefold_identifier
 
     # full table
     table = table_relationship.arrow()
@@ -231,7 +232,7 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
 
     # chunk
     table = table_relationship.arrow(chunk_size=chunk_size)
-    assert set(table.column_names) == set(EXPECTED_COLUMNS)
+    assert set(table.column_names) == set([casefolder(c) for c in EXPECTED_COLUMNS])
     assert table.num_rows == chunk_size
 
     # check frame amount and items counts
@@ -239,7 +240,9 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
     assert [t.num_rows for t in tables] == expected_chunk_counts
 
     # check all items are present
-    ids = reduce(lambda a, b: a + b, [t.column(EXPECTED_COLUMNS[0]).to_pylist() for t in tables])
+    ids = reduce(
+        lambda a, b: a + b, [t.column(casefolder(EXPECTED_COLUMNS[0])).to_pylist() for t in tables]
+    )
     assert set(ids) == set(range(total_records))
 
 
@@ -252,6 +255,7 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_dataframe_access(populated_pipeline: Pipeline) -> None:
+    casefolder = populated_pipeline.destination.capabilities().casefold_identifier
     # access via key
     table_relationship = populated_pipeline.dataset()["items"]
     total_records = _total_records(populated_pipeline.destination.destination_type)
@@ -270,7 +274,7 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
     if not skip_df_chunk_size_check:
         assert len(df.index) == chunk_size
 
-    assert set(df.columns.values) == set(EXPECTED_COLUMNS)
+    assert set(df.columns.values) == set([casefolder(c) for c in EXPECTED_COLUMNS])
 
     # iterate all dataframes
     frames = list(table_relationship.iter_df(chunk_size=chunk_size))
@@ -278,7 +282,7 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
         assert [len(df.index) for df in frames] == expected_chunk_counts
 
     # check all items are present
-    ids = reduce(lambda a, b: a + b, [f[EXPECTED_COLUMNS[0]].to_list() for f in frames])
+    ids = reduce(lambda a, b: a + b, [f[casefolder(EXPECTED_COLUMNS[0])].to_list() for f in frames])
     assert set(ids) == set(range(total_records))
 
 
@@ -327,6 +331,7 @@ def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
 )
 def test_hint_preservation(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset(dataset_type="default").items
+    casefolder = populated_pipeline.destination.capabilities().casefold_identifier
     # check that hints are carried over to arrow table
     expected_decimal_precision = 10
     expected_decimal_precision_2 = 12
@@ -335,11 +340,11 @@ def test_hint_preservation(populated_pipeline: Pipeline) -> None:
         expected_decimal_precision = 38
         expected_decimal_precision_2 = 38
     assert (
-        table_relationship.arrow().schema.field("decimal").type.precision
+        table_relationship.arrow().schema.field(casefolder("decimal")).type.precision
         == expected_decimal_precision
     )
     assert (
-        table_relationship.arrow().schema.field("other_decimal").type.precision
+        table_relationship.arrow().schema.field(casefolder("other_decimal")).type.precision
         == expected_decimal_precision_2
     )
 
@@ -628,12 +633,13 @@ def test_dataset_client_caching_and_connection_handling(populated_pipeline: Pipe
 )
 def test_column_selection(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset(dataset_type="default").items
-    columns = ["_dlt_load_id", "other_decimal"]
+    casefolder = populated_pipeline.destination.capabilities().casefold_identifier
+    columns = [casefolder("_dlt_load_id"), casefolder("other_decimal")]
     data_frame = table_relationship.select(*columns).head().df()
-    assert [v.lower() for v in data_frame.columns.values] == columns
+    assert list(data_frame.columns.values) == columns
     assert len(data_frame.index) == 5
 
-    columns = ["decimal", "other_decimal"]
+    columns = [casefolder("decimal"), casefolder("other_decimal")]
     arrow_table = table_relationship[columns].head().arrow()
     assert arrow_table.column_names == columns
     assert arrow_table.num_rows == 5
@@ -645,13 +651,16 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
         # bigquery does not allow precision configuration..
         expected_decimal_precision = 38
         expected_decimal_precision_2 = 38
-    assert arrow_table.schema.field("decimal").type.precision == expected_decimal_precision
-    assert arrow_table.schema.field("other_decimal").type.precision == expected_decimal_precision_2
-
-    import sqlglot
+    assert (
+        arrow_table.schema.field(casefolder("decimal")).type.precision == expected_decimal_precision
+    )
+    assert (
+        arrow_table.schema.field(casefolder("other_decimal")).type.precision
+        == expected_decimal_precision_2
+    )
 
     with pytest.raises(LineageFailedException):
-        arrow_table = table_relationship.select("unknown_column").head().arrow()
+        arrow_table = table_relationship.select(casefolder("unknown_column")).head().arrow()
 
 
 @pytest.mark.no_load

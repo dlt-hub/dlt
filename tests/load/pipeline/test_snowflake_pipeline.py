@@ -207,8 +207,7 @@ def test_char_replacement_cs_naming_convention(
     rel_ = pipeline.dataset()["AMLPerFornyelseoe"]
     results = rel_.fetchall()
     assert len(results) == 1
-    # TODO: this is a bug in sqlglot, it should be retain casing
-    assert "amlsistutfoertdato" in rel_.columns_schema
+    assert "AmlSistUtfoertDato" in rel_.columns_schema
 
 
 @pytest.mark.parametrize(
