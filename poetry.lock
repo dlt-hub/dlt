@@ -5423,13 +5423,13 @@ tests = ["psutil", "pytest (!=3.3.0)", "pytest-cov"]
 
 [[package]]
 name = "makefun"
-version = "1.15.1"
+version = "1.16.0"
 description = "Small library to dynamically create python functions."
 optional = false
 python-versions = "*"
 files = [
-    {file = "makefun-1.15.1-py2.py3-none-any.whl", hash = "sha256:a63cfc7b47a539c76d97bd4fdb833c7d0461e759fd1225f580cb4be6200294d4"},
-    {file = "makefun-1.15.1.tar.gz", hash = "sha256:40b0f118b6ded0d8d78c78f1eb679b8b6b2462e3c1b3e05fb1b2da8cd46b48a5"},
+    {file = "makefun-1.16.0-py2.py3-none-any.whl", hash = "sha256:43baa4c3e7ae2b17de9ceac20b669e9a67ceeadff31581007cca20a07bbe42c4"},
+    {file = "makefun-1.16.0.tar.gz", hash = "sha256:e14601831570bff1f6d7e68828bcd30d2f5856f24bad5de0ccb22921ceebc947"},
 ]
 
 [[package]]
@@ -11376,4 +11376,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.14"
-content-hash = "2642a59d199ee48fc1abfbadbc1c2ec7fb7da07916992a5f2376a0e4fe68ca43"
+content-hash = "8ffe1652b6aa3b0f3b11bbce4adee6d875bf20a68f07a2db59529ad8498448b1"

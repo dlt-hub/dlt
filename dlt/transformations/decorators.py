@@ -1,9 +1,7 @@
 from typing import Callable, Any, overload, Optional, Type
 
 from dlt.common.utils import get_callable_name
-from dlt.common.typing import AnyFun, TColumnNames
-from dlt.extract.incremental import TIncrementalConfig
-
+from dlt.common.typing import AnyFun, Generic, TColumnNames, TTableHintTemplate
 from dlt.common.schema.typing import (
     TWriteDisposition,
     TTableSchemaColumns,
@@ -12,6 +10,7 @@ from dlt.common.schema.typing import (
     TTableReferenceParam,
 )
 
+from dlt.extract.incremental import TIncrementalConfig
 from dlt.transformations.typing import (
     TTransformationFunParams,
 )
@@ -19,15 +18,22 @@ from dlt.transformations.transformation import (
     make_transformation_resource,
     DltTransformationResource,
 )
-from dlt.transformations.configuration import TransformConfiguration
+from dlt.transformations.configuration import TransformationConfiguration
 
 
-# NOTE: can we just return a resource directly with some additional hints here?
+class TransformationFactory(DltTransformationResource, Generic[TTransformationFunParams]):
+    # this class is used only for typing, do not instantiate, do not add docstring
+    def __call__(  # type: ignore[override]
+        self, *args: TTransformationFunParams.args, **kwargs: TTransformationFunParams.kwargs
+    ) -> DltTransformationResource:
+        pass
+
+
 @overload
 def transformation(
     func: None = ...,
     /,
-    name: str = None,
+    name: TTableHintTemplate[str] = None,
     table_name: str = None,
     write_disposition: TWriteDisposition = None,
     columns: TTableSchemaColumns = None,
@@ -37,16 +43,19 @@ def transformation(
     table_format: TTableFormat = None,
     references: TTableReferenceParam = None,
     selected: bool = True,
-    spec: Type[TransformConfiguration] = None,
+    spec: Type[TransformationConfiguration] = None,
     parallelized: bool = False,
-) -> Callable[[Callable[TTransformationFunParams, Any]], DltTransformationResource,]: ...
+    section: Optional[TTableHintTemplate[str]] = None,
+) -> Callable[
+    [Callable[TTransformationFunParams, Any]], TransformationFactory[TTransformationFunParams]
+]: ...
 
 
 @overload
 def transformation(
-    func: Callable[TTransformationFunParams, Any] = None,
+    func: Callable[TTransformationFunParams, Any],
     /,
-    name: str = None,
+    name: TTableHintTemplate[str] = None,
     table_name: str = None,
     write_disposition: TWriteDisposition = None,
     columns: TTableSchemaColumns = None,
@@ -56,15 +65,16 @@ def transformation(
     table_format: TTableFormat = None,
     references: TTableReferenceParam = None,
     selected: bool = True,
-    spec: Type[TransformConfiguration] = None,
+    spec: Type[TransformationConfiguration] = None,
     parallelized: bool = False,
-) -> Callable[[Callable[TTransformationFunParams, Any]], DltTransformationResource,]: ...
+    section: Optional[TTableHintTemplate[str]] = None,
+) -> TransformationFactory[TTransformationFunParams]: ...
 
 
 def transformation(
     func: Optional[AnyFun] = None,
     /,
-    name: str = None,
+    name: TTableHintTemplate[str] = None,
     table_name: str = None,
     write_disposition: TWriteDisposition = None,
     columns: TTableSchemaColumns = None,
@@ -74,8 +84,9 @@ def transformation(
     table_format: TTableFormat = None,
     references: TTableReferenceParam = None,
     selected: bool = True,
-    spec: Type[TransformConfiguration] = None,
+    spec: Type[TransformationConfiguration] = None,
     parallelized: bool = False,
+    section: Optional[TTableHintTemplate[str]] = None,
 ) -> Any:
     """
     Decorator to mark a function as a transformation. Returns a DltTransformation object.
@@ -84,9 +95,6 @@ def transformation(
     def decorator(
         f: Callable[TTransformationFunParams, Any],
     ) -> DltTransformationResource:
-        nonlocal name, write_disposition
-
-        name = name or get_callable_name(f)
         return make_transformation_resource(
             f,
             name=name,
@@ -101,6 +109,7 @@ def transformation(
             selected=selected,
             spec=spec,
             parallelized=parallelized,
+            section=section,
         )
 
     if func is None:

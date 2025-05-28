@@ -1,10 +1,11 @@
+from contextlib import contextmanager
 import sys
 import os
 import shutil
 import venv
 import types
 import subprocess
-from typing import Any, ClassVar, List, Type
+from typing import Any, ClassVar, Iterator, List, Type
 
 from dlt.common import known_env
 from dlt.common.exceptions import CannotInstallDependencies, VenvNotFound
@@ -38,7 +39,7 @@ class Venv:
         try:
             b.create(os.path.abspath(venv_dir))
             if dependencies:
-                Venv._install_deps(b.context, dependencies)
+                Venv.install_deps(b.context, dependencies)
         except Exception:
             if os.path.isdir(venv_dir):
                 shutil.rmtree(venv_dir)
@@ -97,7 +98,16 @@ class Venv:
     def run_command(self, entry_point: str, *script_args: Any) -> str:
         """Runs any `command` with specified `script_args`. Current `os.environ` and cwd is passed to executed process"""
         # runs one of installed entry points typically CLIs coming with packages and installed into PATH
-        command = os.path.join(self.context.bin_path, entry_point)
+        # command = os.path.join(self.context.bin_path, entry_point)
+        command: str = None
+        if os.path.basename(entry_point) == entry_point:
+            # look into current venv
+            command = shutil.which(entry_point, path=self.context.bin_path)
+
+        if not command:
+            # for all paths do a normal lookup
+            command = entry_point
+
         cmd = [command, *script_args]
         return subprocess.check_output(
             cmd, stderr=subprocess.STDOUT, text=True, errors="backslashreplace"
@@ -125,10 +135,24 @@ class Venv:
         )
 
     def add_dependencies(self, dependencies: List[str] = None) -> None:
-        Venv._install_deps(self.context, dependencies)
+        Venv.install_deps(self.context, dependencies)
+
+    @contextmanager
+    @staticmethod
+    def set_pip_tool(pip_tool: str) -> Iterator[None]:
+        """Sets pip tool in context manager, not thread safe"""
+        old_tool = Venv.PIP_TOOL
+        try:
+            Venv.PIP_TOOL = pip_tool
+            yield
+        finally:
+            Venv.PIP_TOOL = old_tool
 
     @staticmethod
     def get_pip_tool() -> str:
+        """Gets configured tool to manage python packages, using DLT_PIP_TOOL or by
+        autodetecting `uv` and `pip`.
+        """
         if Venv.PIP_TOOL is None:
             # autodetect tool
             import shutil
@@ -137,7 +161,18 @@ class Venv:
         return Venv.PIP_TOOL
 
     @staticmethod
-    def _install_deps(context: types.SimpleNamespace, dependencies: List[str]) -> None:
+    def get_pip_command(context: types.SimpleNamespace, command: str) -> List[str]:
+        """Returns a sequence that is a pip-like command"""
+        pip_tool = Venv.get_pip_tool()
+        if pip_tool == "uv":
+            return ["uv", "pip", command, "--python", context.env_exe]
+        return [pip_tool, command]
+
+    @staticmethod
+    def install_deps(context: types.SimpleNamespace, dependencies: List[str]) -> None:
+        """Install a set of `dependencies` into Venv context using current pip tool. Makes
+        sure that the right command context and arguments are used.
+        """
         pip_tool = Venv.get_pip_tool()
         if pip_tool == "uv":
             cmd = [

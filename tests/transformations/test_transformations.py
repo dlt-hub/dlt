@@ -3,7 +3,6 @@ import pytest
 from typing import Any
 
 import dlt
-import os
 
 from dlt.common.destination.dataset import SupportsReadableDataset
 from tests.pipeline.utils import load_table_counts
@@ -27,7 +26,7 @@ from dlt.sources._single_file_templates.fruitshop_pipeline import (
     ids=lambda x: x.name,
 )
 def test_simple_query_transformations(destination_config: DestinationTestConfiguration) -> None:
-    # get pipelines andpopulate fruit pipeline
+    # get pipelines and populate fruit pipeline
     fruit_p, dest_p = setup_transformation_pipelines(destination_config)
     fruit_p.run(fruitshop_source())
 
@@ -58,7 +57,7 @@ def test_simple_query_transformations(destination_config: DestinationTestConfigu
 def test_extract_without_source_name_or_pipeline(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    # get pipelines andpopulate fruit pipeline
+    # get pipelines and populate fruit pipeline
     fruit_p, dest_p = setup_transformation_pipelines(destination_config)
     fruit_p.run(fruitshop_source())
 

@@ -165,8 +165,6 @@ class InstrumentedConfiguration(BaseConfiguration):
         self.head = parts[0]
         self.heels = parts[-1]
         self.tube = parts[1:-1]
-        if not self.is_partial():
-            self.resolve()
 
     def on_resolved(self) -> None:
         if self.head > self.heels:
@@ -336,18 +334,20 @@ def test_explicit_values_false_when_bool() -> None:
 
 
 def test_explicit_embedded_config(environment: Any) -> None:
-    instr_explicit = InstrumentedConfiguration(head="h", tube=["tu", "be"], heels="xhe")
+    instr_explicit = InstrumentedConfiguration(head="h", tube=["tu", "be"])
 
     environment["INSTRUMENTED__HEAD"] = "hed"
+    environment["INSTRUMENTED__HEELS"] = "xh"
     c = resolve.resolve_configuration(
         EmbeddedConfiguration(default="X", sectioned=SectionedConfiguration(password="S")),
         explicit_value={"instrumented": instr_explicit},
     )
-
-    # explicit value will be part of the resolved configuration
-    assert c.instrumented is instr_explicit
-    # configuration was injected from env
-    assert c.instrumented.head == "hed"
+    # explicit will overwrite empty default
+    assert c.instrumented is not instr_explicit
+    # configuration will not overwrite the explicit value
+    assert c.instrumented.head == "h"
+    # configuration will add missing field
+    assert c.instrumented.heels == "xh"
 
     # the same but with resolved
     instr_explicit = InstrumentedConfiguration(head="h", tube=["tu", "be"], heels="xhe")
@@ -356,9 +356,38 @@ def test_explicit_embedded_config(environment: Any) -> None:
         EmbeddedConfiguration(default="X", sectioned=SectionedConfiguration(password="S")),
         explicit_value={"instrumented": instr_explicit},
     )
+    # explicit value will be part of the resolved configuration
     assert c.instrumented is instr_explicit
     # but configuration is not injected
     assert c.instrumented.head == "h"
+
+
+def test_explicit_and_default_embedded_config() -> None:
+    instr_explicit = InstrumentedConfiguration(head="h", tube=["tu", "be"])
+    instr_default = InstrumentedConfiguration(head="eh", heels="xhe")
+
+    c = resolve.resolve_configuration(
+        EmbeddedConfiguration(
+            default="X", sectioned=SectionedConfiguration(password="S"), instrumented=instr_default
+        ),
+        explicit_value={"instrumented": instr_explicit},
+    )
+    # explicit overwrites default
+    assert c.instrumented.to_native_representation() == "h>tu>be>xhe"
+
+
+def test_default_embedded_provider_overwrites(environment: Any) -> None:
+    instr_default = InstrumentedConfiguration(head="h", tube=["tu", "be"])
+
+    environment["INSTRUMENTED__HEAD"] = "hed"
+    environment["INSTRUMENTED__HEELS"] = "xh"
+    c = resolve.resolve_configuration(
+        EmbeddedConfiguration(
+            default="X", sectioned=SectionedConfiguration(password="S"), instrumented=instr_default
+        ),
+    )
+    # head and heels overwritten
+    assert c.instrumented.to_native_representation() == "hed>tu>be>xh"
 
 
 def test_default_values(environment: Any) -> None:
@@ -519,7 +548,7 @@ def test_maybe_use_explicit_value() -> None:
     dict_explicit = {"explicit": "is_dict"}
     config_explicit = BaseConfiguration()
     assert resolve._maybe_parse_native_value(c, dict_explicit, ()) is dict_explicit
-    assert resolve._maybe_parse_native_value(c, config_explicit, ()) is config_explicit
+    assert resolve._maybe_parse_native_value(c, config_explicit, ()) == config_explicit
 
     # postgres credentials have a default parameter (connect_timeout), which must be removed for explicit value
     pg_c = PostgresCredentials()

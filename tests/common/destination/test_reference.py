@@ -1,6 +1,7 @@
 from typing import Dict
 import pytest
 
+from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.common.destination import Destination, DestinationReference
 from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -302,6 +303,21 @@ def test_import_destination_config() -> None:
     # incorrect name will fail with correct error
     with pytest.raises(UnknownDestinationModule):
         Destination.from_reference(ref=None, destination_name="balh")
+
+
+def test_destination_config_explicit_credentials() -> None:
+    # set explicit credentials via reference
+    dest = Destination.from_reference(
+        "postgres", ConnectionStringCredentials(dict(password="PASS"))
+    )
+    dest_config = dest.spec()._bind_dataset_name(dataset_name="dataset")  # type: ignore
+    # set default value which is cred class instance
+    dest_config.credentials = ConnectionStringCredentials("mysql+pymsql://USER@/dlt_data")
+    config = dest.configuration(dest_config)
+    # will be able to merge and resolve credentials
+    assert config.credentials.is_resolved()
+    assert config.credentials.password == "PASS"  # type: ignore[attr-defined]
+    assert config.credentials.username == "USER"  # type: ignore[attr-defined]
 
 
 def test_normalize_dataset_name() -> None:

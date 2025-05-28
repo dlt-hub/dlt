@@ -1545,7 +1545,7 @@ def test_merge_strategy_config() -> None:
     p = dlt.pipeline(
         pipeline_name="dummy_pipeline",
         destination="dummy",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     # merge strategy not supported by destination
@@ -1596,7 +1596,7 @@ def test_missing_merge_key_column(destination_config: DestinationTestConfigurati
     def merging_test_table():
         yield {"foo": "bar"}
 
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
     with pytest.raises(PipelineStepFailed) as pip_ex:
         p.run(merging_test_table(), **destination_config.run_kwargs)
 
@@ -1621,7 +1621,7 @@ def test_merge_key_null_values(destination_config: DestinationTestConfiguration)
     def r():
         yield [{"id": 1}, {"id": None}, {"id": 2}]
 
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
     with pytest.raises(PipelineStepFailed) as pip_ex:
         p.run(r(), **destination_config.run_kwargs)
 

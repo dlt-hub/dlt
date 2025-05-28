@@ -14,12 +14,12 @@ from dlt.extract.incremental import Incremental
 
 from dlt.sources.rest_api import (
     _validate_param_type,
-    _set_incremental_params,
 )
 
 from dlt.sources.rest_api.config_setup import (
     IncrementalParam,
     setup_incremental_object,
+    _set_incremental_params,
 )
 from dlt.sources.rest_api.typing import (
     IncrementalConfig,
