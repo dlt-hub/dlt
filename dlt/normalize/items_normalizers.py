@@ -286,7 +286,13 @@ class ModelItemsNormalizer(ItemsNormalizer):
 
             norm_casefolded = self._normalize_casefold(name)
             selected_columns.append(norm_casefolded)
-            outer_selects.append(sqlglot.column(name, table=DLT_SUBQUERY_NAME).as_(norm_casefolded))
+
+            column_ref = sqlglot.exp.Dot(
+                this=sqlglot.exp.to_identifier(DLT_SUBQUERY_NAME),
+                expression=sqlglot.exp.to_identifier(name, quoted=True),
+            )
+
+            outer_selects.append(column_ref.as_(norm_casefolded))
 
         needs_reordering = selected_columns != list(columns.keys())
 
