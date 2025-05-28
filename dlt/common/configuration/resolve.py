@@ -137,7 +137,7 @@ def _maybe_parse_native_value(
             try:
                 # parse the native value anyway because there are configs with side effects
                 config.parse_native_representation(native_value)
-            except ValueError:
+            except (ValueError, NotImplementedError):
                 # allow native_values that are already config classes to skip parsing
                 # note that we still try to do that - some like Incremental are able to initialize form those
                 if not is_explicit_instance:

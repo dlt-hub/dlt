@@ -672,6 +672,25 @@ def test_embedded_explicit_value_over_provider(environment: Any) -> None:
             assert not c.instrumented.is_partial()
 
 
+def test_initial_explicit_without_native_representation() -> None:
+    c = resolve.resolve_configuration(
+        ConfigurationWithOptionalTypes(sentry_dsn="dsn"),
+        explicit_value=ConfigurationWithOptionalTypes(pipeline_name="pipeline_custom"),
+    )
+    assert c.pipeline_name == "pipeline_custom"
+    # None in explicit value will not erase default value
+    assert c.sentry_dsn == "dsn"
+
+    # use dict instead
+    c = resolve.resolve_configuration(
+        ConfigurationWithOptionalTypes(sentry_dsn="dsn"),
+        explicit_value={"pipeline_name": "pipeline_custom", "sentry_dsn": None},
+    )
+    assert c.pipeline_name == "pipeline_custom"
+    # None in dict will erase default value
+    assert c.sentry_dsn is None
+
+
 def test_provider_values_over_embedded_default(environment: Any) -> None:
     # make the instance sectioned so it can read from INSTRUMENTED
     with patch.object(InstrumentedConfiguration, "__section__", "instrumented"):
