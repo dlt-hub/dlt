@@ -345,10 +345,7 @@ def test_warning_from_arrow_normalizer_on_null_column(
         logger_spy.assert_called_once()
         expected_warning = (
             "The column col1 in table my_resource did not receive any data during this load."
-            " Therefore, its type couldn't be inferred. Unless a type hint is provided, the column"
-            " will not be materialized in the destination. One way to provide a type hint is to use"
-            " the 'columns' argument in the '@dlt.resource' decorator. For example:\n\n"
-            "@dlt.resource(columns={'col1': {'data_type': 'text'}})\n\n"
+            " Therefore, its type couldn't be inferred."
         )
         assert expected_warning in logger_spy.call_args_list[0][0][0]
     else:

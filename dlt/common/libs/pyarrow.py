@@ -443,6 +443,8 @@ def should_normalize_arrow_schema(
     from rewriting arrow tables when no changes are needed. Refer to `normalize_py_arrow_item`
     for a list of normalizations. Note that `column` must be already normalized.
     """
+    schema, contains_null_cols = remove_null_columns_from_schema(schema)
+
     rename_mapping = get_normalized_arrow_fields_mapping(schema, naming)
     # no clashes in rename ensured above
     rev_mapping = {v: k for k, v in rename_mapping.items()}
@@ -469,8 +471,10 @@ def should_normalize_arrow_schema(
 
     # check if nothing to rename
     skip_normalize = (
-        list(rename_mapping.keys()) == list(rename_mapping.values()) == list(columns.keys())
-    ) and not nullable_updates
+        (list(rename_mapping.keys()) == list(rename_mapping.values()) == list(columns.keys()))
+        and not nullable_updates
+        and not contains_null_cols
+    )
     return (
         not skip_normalize,
         rename_mapping,
@@ -489,11 +493,13 @@ def normalize_py_arrow_item(
     """Normalize arrow `item` schema according to the `columns`. Note that
     columns must be already normalized.
 
+    0. columns with no data type will be dropeed
     1. arrow schema field names will be normalized according to `naming`
     2. arrows columns will be reordered according to `columns`
     3. empty columns will be inserted if they are missing, types will be generated using `caps`
     4. arrow columns with different nullability than corresponding schema columns will be updated
     """
+    item = remove_null_columns(item)
     schema = item.schema
     should_normalize, rename_mapping, rev_mapping, nullable_updates, columns = (
         should_normalize_arrow_schema(schema, columns, naming)

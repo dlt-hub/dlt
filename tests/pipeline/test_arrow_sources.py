@@ -72,10 +72,7 @@ def test_extract_and_normalize(item_type: TPythonTableFormat, is_list: bool):
         normalized_bytes = f.read()
 
         # Normalized is linked/copied exactly and should be the same as the extracted file
-        # NOTE: this is only true if there are no null columns,
-        # as we remove null columns in the normalizer now.
-        # Previously, the null columns were removed in the extractor.
-        assert normalized_bytes != extracted_bytes
+        assert normalized_bytes == extracted_bytes
 
         f.seek(0)
         with pa.parquet.ParquetFile(f) as pq:
@@ -103,9 +100,9 @@ def test_extract_and_normalize(item_type: TPythonTableFormat, is_list: bool):
 
     # Check schema detection
     schema_columns = schema.tables["some_data"]["columns"]
-    # null column is present, with x-normalizer seen-null-first, without data typ
+    # null column is present, with x-normalizer seen-null-first, without data type
     assert set(schema_columns) - set(df_tbl.columns) == {"null"}
-    assert schema_columns["null"]["x-normalizer"]["seen-null-first"] is True  # type: ignore[typeddict-item]
+    assert schema_columns["null"]["x-normalizer"]["seen-null-first"] is True
     assert "data_type" not in schema_columns["null"]
     assert schema_columns["date"]["data_type"] == "date"
     assert schema_columns["int"]["data_type"] == "bigint"

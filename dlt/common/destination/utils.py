@@ -229,7 +229,7 @@ def prepare_load_table(
             prep_table["table_format"] = None
         # remove incomplete columns
         for column, _ in find_incomplete_columns(table):
-            prep_table["columns"].pop(column["name"], None)
+            prep_table["columns"].pop(column["name"])
         return prep_table  # type: ignore[return-value]
     except KeyError:
         raise TableNotFound("<>", table_name)

@@ -788,15 +788,22 @@ class Schema:
             self._settings["schema_contract"] = settings
 
     def _infer_column(
-        self, k: str, v: Any, data_type: TDataType = None, is_variant: bool = False
+        self,
+        k: str,
+        v: Any,
+        data_type: TDataType = None,
+        is_variant: bool = False,
+        table_name: str = None,
     ) -> TColumnSchema:
         # return unbounded table
         if v is None and data_type is None:
+            if self._infer_hint("not_null", k):
+                raise CannotCoerceNullException(self.name, table_name, k)
             column_schema = TColumnSchema(
                 name=k,
                 nullable=True,
             )
-            column_schema["x-normalizer"] = {"seen-null-first": True}  # type: ignore[typeddict-unknown-key]
+            column_schema["x-normalizer"] = {"seen-null-first": True}
         else:
             column_schema = TColumnSchema(
                 name=k,
@@ -828,7 +835,9 @@ class Schema:
                 raise CannotCoerceNullException(self.name, table_name, col_name)
             return None
         else:
-            inferred_unbounded_col = self._infer_column(col_name, None, None)
+            inferred_unbounded_col = self._infer_column(
+                k=col_name, v=None, data_type=None, table_name=table_name
+            )
             return inferred_unbounded_col
 
     def _coerce_non_null_value(

@@ -921,14 +921,11 @@ def test_null_column_warning(
     assert logger_spy.call_count == 1
     expected_warning = (
         "The column empty_col in table app_user did not receive any data during this load."
-        " Therefore, its type couldn't be inferred. Unless a type hint is provided, the column will"
-        " not be materialized in the destination. One way to provide a type hint is to use"
-        " the 'columns' argument in the '@dlt.resource' decorator. For example:\n\n"
-        "@dlt.resource(columns={'empty_col': {'data_type': 'text'}})\n\n"
+        " Therefore, its type couldn't be inferred."
     )
     assert expected_warning in logger_spy.call_args_list[0][0][0]
     assert (
-        pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]["x-normalizer"][  # type: ignore[typeddict-item]
+        pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]["x-normalizer"][
             "seen-null-first"
         ]
         is True

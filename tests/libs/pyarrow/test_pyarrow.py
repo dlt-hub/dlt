@@ -22,6 +22,7 @@ from dlt.common.libs.pyarrow import (
     append_column,
     rename_columns,
     is_arrow_item,
+    remove_null_columns_from_schema,
     UnsupportedArrowTypeException,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -456,43 +457,25 @@ def test_is_arrow_item(pa_type: Any) -> None:
     assert not is_arrow_item("hello")
 
 
-@pytest.mark.parametrize("is_none", [True, False])
-def test_warning_from_arrow_extractor_on_null_column(
-    extract_step: Extract, mocker: MockerFixture, is_none: bool
-) -> None:
-    pytest.skip("Temporary")
-    """
-    Test that the ArrowExtractor emits a warning when a pyarrow table is yielded
-    with a column (`col1`) that contains only null values.
-    """
+def test_null_arrow_type() -> None:
+    obj = pa.null()
+    column_type = get_column_type_from_py_arrow(
+        obj, DestinationCapabilitiesContext.generic_capabilities()
+    )
+    assert {"seen-null-first": True} == column_type["x-normalizer"]  # type: ignore[typeddict-item]
 
-    @dlt.source()
-    def my_source():
-        @dlt.resource
-        def my_resource():
-            col1: list[Optional[str]] = [None, None] if is_none else ["a", "b"]
 
-            table = pa.table(
-                {
-                    "id": pa.array([1, 2]),
-                    "col1": pa.array(col1),
-                }
-            )
+def test_remove_null_columns_from_schema() -> None:
+    schema = pa.schema(
+        [
+            pa.field("col1", pa.int32()),
+            pa.field("col2", pa.null()),
+            pa.field("col3", pa.string()),
+            pa.field("col4", pa.null()),
+        ]
+    )
 
-            yield table
-
-        return [my_resource()]
-
-    logger_spy = mocker.spy(logger, "warning")
-
-    extract_step.extract(my_source(), 1, 1)
-
-    if is_none:
-        logger_spy.assert_called_once()
-        expected_warning = (
-            "Null type(s) detected for column(s) ['col1'] in table 'my_resource' of schema"
-            " 'my_source'. Unless type hint(s) are provided, the column(s) will not be loaded."
-        )
-        assert expected_warning in logger_spy.call_args_list[0][0][0]
-    else:
-        logger_spy.assert_not_called()
+    new_schema, contains_null = remove_null_columns_from_schema(schema)
+    assert contains_null is True
+    assert new_schema.names == ["col1", "col3"]
+    assert all(not pa.types.is_null(f.type) for f in new_schema)

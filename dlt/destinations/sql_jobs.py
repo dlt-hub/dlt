@@ -829,11 +829,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         sql.append(retire_sql)
 
         # insert new active records in root table
-        columns = [
-            escape_column_id(col["name"])
-            for col in root_table["columns"].values()
-            if col.get("data_type") is not None
-        ]
+        columns = map(escape_column_id, list(root_table["columns"].keys()))
         col_str = ", ".join([c for c in columns if c not in (from_, to)])
         sql.append(f"""
             INSERT INTO {root_table_name} ({col_str}, {from_}, {to})

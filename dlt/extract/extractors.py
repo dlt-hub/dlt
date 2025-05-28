@@ -339,9 +339,7 @@ class ArrowExtractor(Extractor):
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         static_table_name = self._get_static_table_name(resource, meta)
         items = [
-            # 3. remove columns and rows in data contract filters
-            # NOTE: We don't remove null-type columns from the table(s) with pyarrow.remove_null_columns(tbl).
-            # The removal is handled in the normalizer.
+            # 2. remove columns and rows in data contract filters
             self._apply_contract_filters(tbl, resource, static_table_name)
             for tbl in (
                 (
