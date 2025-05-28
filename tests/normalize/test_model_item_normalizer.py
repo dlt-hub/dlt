@@ -178,78 +178,78 @@ def test_simple_model_normalizing(
     assert select_dialect == dialect
     if dialect == "duckdb":
         assert (
-            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
-            " _dlt_load_id, UUID() AS _dlt_id FROM (SELECT b, A_a, c FROM my_table) AS"
+            f'SELECT _dlt_subquery."A_a" AS a_a, _dlt_subquery."b" AS b, NULL AS d, \'{load_id}\''
+            " AS _dlt_load_id, UUID() AS _dlt_id FROM (SELECT b, A_a, c FROM my_table) AS"
             " _dlt_subquery\n"
             == normalized_select_query
         )
     elif dialect == "bigquery":
         assert (
-            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            f"SELECT _dlt_subquery.`A_a` AS a_a, _dlt_subquery.`b` AS b, NULL AS d, '{load_id}' AS"
             " _dlt_load_id, GENERATE_UUID() AS _dlt_id FROM (SELECT b, A_a, c FROM my_table) AS"
             " _dlt_subquery\n"
             == normalized_select_query
         )
     elif dialect == "clickhouse":
         assert (
-            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
-            " _dlt_load_id, generateUUIDv4() AS _dlt_id FROM (SELECT b, A_a, c FROM my_table) AS"
-            " _dlt_subquery\n"
+            f'SELECT _dlt_subquery."A_a" AS a_a, _dlt_subquery."b" AS b, NULL AS d, \'{load_id}\''
+            " AS _dlt_load_id, generateUUIDv4() AS _dlt_id FROM (SELECT b, A_a, c FROM my_table)"
+            " AS _dlt_subquery\n"
             == normalized_select_query
         )
     elif dialect == "databricks":
         assert (
-            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            f"SELECT _dlt_subquery.`A_a` AS a_a, _dlt_subquery.`b` AS b, NULL AS d, '{load_id}' AS"
             " _dlt_load_id, UUID() AS _dlt_id FROM (SELECT b, A_a, c FROM my_table) AS"
             " _dlt_subquery\n"
             == normalized_select_query
         )
     elif dialect == "tsql":  # mssql and synapse
         assert (
-            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            f"SELECT _dlt_subquery.[A_a] AS a_a, _dlt_subquery.[b] AS b, NULL AS d, '{load_id}' AS"
             " _dlt_load_id, NEWID() AS _dlt_id FROM (SELECT b AS b, A_a AS A_a, c AS c FROM"
             " my_table) AS _dlt_subquery\n"
             == normalized_select_query
         )
     elif dialect == "postgres":
         assert (
-            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
-            " _dlt_load_id, GEN_RANDOM_UUID() AS _dlt_id FROM (SELECT b, A_a, c FROM my_table) AS"
-            " _dlt_subquery\n"
+            f'SELECT _dlt_subquery."A_a" AS a_a, _dlt_subquery."b" AS b, NULL AS d, \'{load_id}\''
+            " AS _dlt_load_id, GEN_RANDOM_UUID() AS _dlt_id FROM (SELECT b, A_a, c FROM my_table)"
+            " AS _dlt_subquery\n"
             == normalized_select_query
         )
     elif dialect == "redshift":
         assert (
-            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
-            f" _dlt_load_id, MD5('{load_id}' || '-' || ROW_NUMBER() OVER ()) AS _dlt_id FROM"
+            f'SELECT _dlt_subquery."A_a" AS a_a, _dlt_subquery."b" AS b, NULL AS d, \'{load_id}\''
+            f" AS _dlt_load_id, MD5('{load_id}' || '-' || ROW_NUMBER() OVER ()) AS _dlt_id FROM"
             " (SELECT b, A_a, c FROM my_table) AS _dlt_subquery\n"
             == normalized_select_query
         )
     elif dialect == "snowflake":
         assert (
-            f"SELECT _dlt_subquery.A_a AS A_A, _dlt_subquery.b AS B, NULL AS D, '{load_id}' AS"
-            " _DLT_LOAD_ID, UUID_STRING() AS _DLT_ID FROM (SELECT b, A_a, c FROM my_table) AS"
+            f'SELECT _dlt_subquery."A_a" AS A_A, _dlt_subquery."b" AS B, NULL AS D, \'{load_id}\''
+            " AS _DLT_LOAD_ID, UUID_STRING() AS _DLT_ID FROM (SELECT b, A_a, c FROM my_table) AS"
             " _dlt_subquery\n"
             == normalized_select_query
         )
     elif dialect == "athena":
         assert (
-            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
-            " _dlt_load_id, CAST(UUID() AS VARCHAR) AS _dlt_id FROM (SELECT b, A_a, c FROM"
+            f'SELECT _dlt_subquery."A_a" AS a_a, _dlt_subquery."b" AS b, NULL AS d, \'{load_id}\''
+            " AS _dlt_load_id, CAST(UUID() AS VARCHAR) AS _dlt_id FROM (SELECT b, A_a, c FROM"
             " my_table) AS _dlt_subquery\n"
             == normalized_select_query
         )
     elif dialect == "presto":  # dremio
         assert (
-            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
-            " _dlt_load_id, UUID() AS _dlt_id FROM (SELECT b, A_a, c FROM my_table) AS"
+            f'SELECT _dlt_subquery."A_a" AS a_a, _dlt_subquery."b" AS b, NULL AS d, \'{load_id}\''
+            " AS _dlt_load_id, UUID() AS _dlt_id FROM (SELECT b, A_a, c FROM my_table) AS"
             " _dlt_subquery\n"
             == normalized_select_query
         )
     else:
         assert (
-            f"SELECT _dlt_subquery.A_a AS a_a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
-            " _dlt_load_id, UUID() AS _dlt_id FROM (SELECT b, A_a, c FROM my_table) AS"
+            f'SELECT _dlt_subquery."A_a" AS a_a, _dlt_subquery."b" AS b, NULL AS d, \'{load_id}\''
+            " AS _dlt_load_id, UUID() AS _dlt_id FROM (SELECT b, A_a, c FROM my_table) AS"
             " _dlt_subquery\n"
             == normalized_select_query
         )
@@ -464,47 +464,52 @@ def test_dlt_column_addition_configs(
     if add_dlt_load_id and add_dlt_id:
         assert (
             normalized_query
-            == f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{load_id}' AS _dlt_load_id,"
+            == f'SELECT _dlt_subquery."a" AS a, _dlt_subquery."b" AS b, \'{load_id}\' AS'
+            " _dlt_load_id,"
             " UUID() AS _dlt_id FROM (SELECT a, b FROM my_table) AS _dlt_subquery\n"
         )
         assert (
             another_norm_query
-            == f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{another_load_id}' AS"
-            " _dlt_load_id, _dlt_subquery._dlt_id AS _dlt_id FROM (SELECT a, b,"
+            == f'SELECT _dlt_subquery."a" AS a, _dlt_subquery."b" AS b, \'{another_load_id}\' AS'
+            ' _dlt_load_id, _dlt_subquery."_dlt_id" AS _dlt_id FROM (SELECT a, b,'
             " MY_CUSTOM_FUNC() AS _dlt_id FROM my_table) AS _dlt_subquery\n"
         )
     elif add_dlt_load_id and not add_dlt_id:
         assert (
             normalized_query
-            == f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{load_id}' AS _dlt_load_id"
+            == f'SELECT _dlt_subquery."a" AS a, _dlt_subquery."b" AS b, \'{load_id}\' AS'
+            " _dlt_load_id"
             " FROM (SELECT a, b FROM my_table) AS _dlt_subquery\n"
         )
         assert (
             another_norm_query
-            == f"SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, '{another_load_id}' AS"
+            == f'SELECT _dlt_subquery."a" AS a, _dlt_subquery."b" AS b, \'{another_load_id}\' AS'
             " _dlt_load_id FROM (SELECT a, b,"
             " MY_CUSTOM_FUNC() AS _dlt_id FROM my_table) AS _dlt_subquery\n"
         )
     elif not add_dlt_load_id and add_dlt_id:
         assert (
             normalized_query
-            == "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, UUID() AS _dlt_id FROM (SELECT"
+            == 'SELECT _dlt_subquery."a" AS a, _dlt_subquery."b" AS b, UUID() AS _dlt_id FROM'
+            " (SELECT"
             " a, b FROM my_table) AS _dlt_subquery\n"
         )
         assert (
             another_norm_query
-            == "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, _dlt_subquery._dlt_id AS _dlt_id"
-            " FROM (SELECT a, b, MY_CUSTOM_FUNC() AS _dlt_id FROM my_table) AS _dlt_subquery\n"
+            == 'SELECT _dlt_subquery."a" AS a, _dlt_subquery."b" AS b, _dlt_subquery."_dlt_id" AS'
+            " _dlt_id FROM (SELECT a, b, MY_CUSTOM_FUNC() AS _dlt_id FROM my_table) AS"
+            " _dlt_subquery\n"
         )
     elif not add_dlt_load_id and not add_dlt_id:
         assert (
             normalized_query
-            == "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b FROM (SELECT a, b FROM my_table)"
+            == 'SELECT _dlt_subquery."a" AS a, _dlt_subquery."b" AS b FROM (SELECT a, b FROM'
+            " my_table)"
             " AS _dlt_subquery\n"
         )
         assert (
             another_norm_query
-            == "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b"
+            == 'SELECT _dlt_subquery."a" AS a, _dlt_subquery."b" AS b'
             " FROM (SELECT a, b, MY_CUSTOM_FUNC() AS _dlt_id FROM my_table) AS _dlt_subquery\n"
         )
 
@@ -522,7 +527,7 @@ EDGE_CASE_QUERIES = [
         add_dlt_columns=True,
         should_fail=False,
         expected_sql_template=(
-            "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            'SELECT _dlt_subquery."a" AS a, _dlt_subquery."b" AS b, NULL AS d, \'{load_id}\' AS'
             " _dlt_load_id, UUID() AS _dlt_id FROM (WITH temp AS (SELECT a, b FROM my_table)"
             " SELECT a, b FROM temp) AS _dlt_subquery\n"
         ),
@@ -538,7 +543,7 @@ EDGE_CASE_QUERIES = [
         add_dlt_columns=True,
         should_fail=False,
         expected_sql_template=(
-            "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            'SELECT _dlt_subquery."a" AS a, _dlt_subquery."b" AS b, NULL AS d, \'{load_id}\' AS'
             " _dlt_load_id, UUID() AS _dlt_id FROM (WITH temp AS (SELECT a, b, c FROM my_table)"
             " SELECT a, b FROM temp) AS _dlt_subquery\n"
         ),
@@ -548,7 +553,7 @@ EDGE_CASE_QUERIES = [
         add_dlt_columns=True,
         should_fail=False,
         expected_sql_template=(
-            "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            'SELECT _dlt_subquery."a" AS a, _dlt_subquery."b" AS b, NULL AS d, \'{load_id}\' AS'
             " _dlt_load_id, UUID() AS _dlt_id FROM (SELECT a, b FROM (SELECT * FROM my_table))"
             " AS _dlt_subquery\n"
         ),
@@ -567,7 +572,7 @@ EDGE_CASE_QUERIES = [
         add_dlt_columns=True,
         should_fail=False,
         expected_sql_template=(
-            "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, NULL AS d, '{load_id}' AS"
+            'SELECT _dlt_subquery."a" AS a, _dlt_subquery."b" AS b, NULL AS d, \'{load_id}\' AS'
             " _dlt_load_id, UUID() AS _dlt_id FROM (SELECT my_table.b, other_table.a FROM my_table"
             " JOIN other_table ON my_table.id = other_table.id) AS _dlt_subquery\n"
         ),
@@ -580,8 +585,8 @@ EDGE_CASE_QUERIES = [
         add_dlt_columns=False,
         should_fail=False,
         expected_sql_template=(
-            "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, NULL AS d FROM (SELECT my_table.b"
-            " AS a, other_table.a AS b FROM my_table JOIN other_table ON my_table.id ="
+            'SELECT _dlt_subquery."a" AS a, _dlt_subquery."b" AS b, NULL AS d FROM (SELECT'
+            " my_table.b AS a, other_table.a AS b FROM my_table JOIN other_table ON my_table.id ="
             " other_table.id) AS _dlt_subquery\n"
         ),
     ),
@@ -593,9 +598,9 @@ EDGE_CASE_QUERIES = [
         add_dlt_columns=False,
         should_fail=False,
         expected_sql_template=(
-            "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, NULL AS d FROM (SELECT my_table.b"
-            " AS a, my_table.a AS b FROM (SELECT a AS a, b AS b FROM my_table) AS my_table)"
-            " AS _dlt_subquery\n"
+            'SELECT _dlt_subquery."a" AS a, _dlt_subquery."b" AS b, NULL AS d FROM (SELECT'
+            " my_table.b AS a, my_table.a AS b FROM (SELECT a AS a, b AS b FROM my_table) AS"
+            " my_table) AS _dlt_subquery\n"
         ),
     ),
     EdgeCaseQuery(
@@ -603,8 +608,8 @@ EDGE_CASE_QUERIES = [
         add_dlt_columns=False,
         should_fail=False,
         expected_sql_template=(
-            "SELECT _dlt_subquery.a AS a, _dlt_subquery.b AS b, NULL AS d FROM (WITH my_table AS"
-            " (SELECT 1 AS a, 2 AS b) SELECT a, b FROM my_table) AS _dlt_subquery\n"
+            'SELECT _dlt_subquery."a" AS a, _dlt_subquery."b" AS b, NULL AS d FROM (WITH my_table'
+            " AS (SELECT 1 AS a, 2 AS b) SELECT a, b FROM my_table) AS _dlt_subquery\n"
         ),
     ),
 ]
