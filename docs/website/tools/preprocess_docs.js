@@ -210,6 +210,37 @@ function removeRemainingMarkers(lines) {
 }
 
 /**
+ * Process a single documentation file
+ */
+function processDocFile(fileName) {
+    if (!MOVE_FILES_EXTENSION.includes(path.extname(fileName))) {
+        return [0, 0, false];
+    }
+
+    const targetFileName = fileName.replace(MD_SOURCE_DIR, MD_TARGET_DIR);
+    fs.mkdirSync(path.dirname(targetFileName), { recursive: true });
+
+    if (!DOCS_EXTENSIONS.includes(path.extname(fileName))) {
+        fs.copyFileSync(fileName, targetFileName);
+        return [0, 0, true];
+    }
+
+    let lines = fs.readFileSync(fileName, 'utf8').split(/\r?\n/);
+
+    let snippetCount, tubaCount;
+    [snippetCount, lines] = insertSnippets(fileName, lines);
+    [tubaCount, lines] = insertTubaLinks(lines);
+    lines = removeRemainingMarkers(lines);
+
+    fs.writeFileSync(targetFileName, lines.join("\n"));
+    return [snippetCount, tubaCount, true];
+}
+
+function preprocess_doc(fileName) {
+    processDocFile(fileName);
+}
+
+/**
  * Preprocess all docs in the docs folder
  */
 function preprocess_docs() {
@@ -217,38 +248,20 @@ function preprocess_docs() {
     let processedFiles = 0;
     let insertedSnippets = 0;
     let processedTubaBlocks = 0;
+
     for (const fileName of walkSync(MD_SOURCE_DIR)) {
-        if (!MOVE_FILES_EXTENSION.includes(path.extname(fileName))) {
-            continue
+        const [snippetCount, tubaCount, processed] = processDocFile(fileName);
+        if (!processed) {
+            continue;
         }
-
-        // target name, where to copy the file
-        const targetFileName = fileName.replace(MD_SOURCE_DIR, MD_TARGET_DIR);
-        fs.mkdirSync(path.dirname(targetFileName), { recursive: true });
-        
-        // if not markdown file, just copy
-        if (!DOCS_EXTENSIONS.includes(path.extname(fileName))) {
-            fs.copyFileSync(fileName, targetFileName);
-            continue
-        }
-  
-        // copy docs to correct folder
-        let lines = fs.readFileSync(fileName, 'utf8').split(/\r?\n/);
-
-        // insert stuff
-        [snippetCount, lines] = insertSnippets(fileName, lines);
-        insertedSnippets += snippetCount;
-        [tubaCount, lines] = insertTubaLinks(lines);
-        processedTubaBlocks += tubaCount;
-        lines = removeRemainingMarkers(lines);
-
-        fs.writeFileSync(targetFileName, lines.join("\n"));
         processedFiles += 1;
+        insertedSnippets += snippetCount;
+        processedTubaBlocks += tubaCount;
     }
+
     console.log(`Processed ${processedFiles} files.`);
     console.log(`Inserted ${insertedSnippets} snippets.`);
     console.log(`Processed ${processedTubaBlocks} tuba blocks.`);
-
 }
 
 
@@ -268,94 +281,97 @@ function trimArray(lines) {
 /**
  * Sync examples into docs
  */
-function syncExamples() {
+function buildExampleDoc(exampleName) {
+  if (EXAMPLES_EXCLUSIONS.some(ex => exampleName.startsWith(ex))) {
+    return false;
+  }
 
+  const exampleFile = `${EXAMPLES_SOURCE_DIR}${exampleName}/${exampleName}.py`;
+  if (!fs.existsSync(exampleFile)) {
+    return false;
+  }
+
+  const targetFileName = `${EXAMPLES_DESTINATION_DIR}/${exampleName}.md`;
+  const lines = fs.readFileSync(exampleFile, 'utf8').split(/\r?\n/);
+
+  let commentCount = 0;
+  let headerCount = 0;
+
+  const header = [];
+  const markdown = [];
+  const code = [];
+
+  for (const line of lines) {
+    if (line.startsWith(`"""`)) {
+      commentCount += 1;
+      if (commentCount > 2) {
+        throw new Error();
+      }
+      continue;
+    }
+
+    if (line.startsWith(`---`)) {
+      headerCount += 1;
+      if (headerCount > 2) {
+        throw new Error();
+      }
+      continue;
+    }
+
+    if (headerCount == 1) {
+      header.push(line);
+    }
+    else if (commentCount == 1) {
+      markdown.push(line);
+    }
+    else if (commentCount == 2) {
+      code.push(line);
+    }
+  }
+
+  if (headerCount == 0) {
+    return false;
+  }
+
+  let output = [];
+  output.push("---");
+  output = output.concat(header);
+  output.push("---");
+
+  output.push(":::info");
+  const url = `https://github.com/dlt-hub/dlt/tree/devel/docs/examples/${exampleName}`;
+  output.push(`The source code for this example can be found in our repository at: `);
+  output.push(url);
+  output.push(":::");
+
+  output.push("## About this Example");
+  output = output.concat(trimArray(markdown));
+
+  output.push("### Full source code");
+  output.push("```py");
+  output = output.concat(trimArray(code));
+  output.push("```");
+
+  fs.mkdirSync(path.dirname(targetFileName), { recursive: true });
+  fs.writeFileSync(targetFileName, output.join("\n"));
+  return true;
+}
+
+function syncExamples() {
   let count = 0;
   for (const exampleDir of listDirsSync(EXAMPLES_SOURCE_DIR)) {
-
     const exampleName = exampleDir.split("/").slice(-1)[0];
-
-    // exclude some folders
-    if (EXAMPLES_EXCLUSIONS.some(ex => exampleName.startsWith(ex))) {
-      continue;
+    if (buildExampleDoc(exampleName)) {
+      count += 1;
     }
-
-    const exampleFile = `${EXAMPLES_SOURCE_DIR}${exampleName}/${exampleName}.py`;
-    const targetFileName = `${EXAMPLES_DESTINATION_DIR}/${exampleName}.md`;
-    const lines = fs.readFileSync(exampleFile, 'utf8').split(/\r?\n/);
-
-    let commentCount = 0;
-    let headerCount = 0;
-
-    // separate file content
-    const header = []
-    const markdown = []
-    const code = []
-
-    for (const line of lines) {
-
-      // find file docstring boundaries
-      if (line.startsWith(`"""`)) {
-        commentCount += 1
-        if (commentCount > 2) {
-          throw new Error();
-         }
-         continue;
-      }
-
-      // find header boundaries
-      if (line.startsWith(`---`)) {
-         headerCount += 1;
-         if (headerCount > 2) {
-          throw new Error();
-         }
-         continue;
-      }
-
-      if (headerCount == 1) {
-        header.push(line);
-      }
-      else if (commentCount == 1) {
-        markdown.push(line)
-      }
-      else if (commentCount == 2) {
-        code.push(line);
-      }
-
-    }
-    
-    // if there is no header, do not generate a page
-    if (headerCount == 0 ) {
-      continue;
-    }
-
-    let output = [];
-
-    output.push("---")
-    output = output.concat(header);
-    output.push("---")
-
-    // add tip
-    output.push(":::info")
-    const url = `https://github.com/dlt-hub/dlt/tree/devel/docs/examples/${exampleName}`
-    output.push(`The source code for this example can be found in our repository at: `)
-    output.push(url);
-    output.push(":::")
-
-    output.push("## About this Example")
-    output = output.concat(trimArray(markdown));
-
-    output.push("### Full source code")
-    output.push("```py");
-    output = output.concat(trimArray(code));
-    output.push("```");
-
-    fs.mkdirSync(path.dirname(targetFileName), { recursive: true });
-    fs.writeFileSync(targetFileName, output.join("\n"));
-    
-    count += 1;
   }
-  console.log(`Synced ${count} examples`)
+  console.log(`Synced ${count} examples`);
+}
+
+function syncExample(exampleName) {
+  if (buildExampleDoc(exampleName)) {
+    console.log(`Synced example ${exampleName}`);
+  }
 }
 
 // strings to search for, this check could be better but it
@@ -419,14 +435,33 @@ processDocs()
  */
 if (process.argv.includes("--watch")) {
   console.log(`Watching...`)
+  const filter = /\.(py|toml|md)$/;
   let lastUpdate = Date.now();
-  watch("./docs", { recursive: true, filter: /\.(py|toml|md)$/  }, function(evt, name) {
-      // break update loop
+
+  function handleChange(evt, name) {
       if (Date.now() - lastUpdate < 500) {
           return;
       }
+
       console.log('%s changed...', name);
-      processDocs();
+      const absName = path.resolve(name);
+      const docsRoot = path.resolve(MD_SOURCE_DIR);
+      const examplesRoot = path.resolve(EXAMPLES_SOURCE_DIR);
+
+      if (absName.startsWith(examplesRoot)) {
+          const relative = path.relative(examplesRoot, absName);
+          const exampleName = relative.split(path.sep)[0];
+          syncExample(exampleName);
+      } else if (absName.endsWith(SNIPPETS_FILE_SUFFIX)) {
+          preprocess_docs();
+      } else if (absName.startsWith(docsRoot)) {
+          preprocess_doc(name);
+      }
+
+      checkDocs();
       lastUpdate = Date.now();
-  });
+  }
+
+  const watchRoot = path.resolve(__dirname, "../..");
+  watch(watchRoot, { recursive: true, filter }, handleChange);
 }
