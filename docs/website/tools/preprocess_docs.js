@@ -446,16 +446,21 @@ if (process.argv.includes("--watch")) {
       console.log('%s changed...', name);
       const absName = path.resolve(name);
       const docsRoot = path.resolve(MD_SOURCE_DIR);
+      const projectRoot = path.resolve("./");
       const examplesRoot = path.resolve(EXAMPLES_SOURCE_DIR);
 
       if (absName.startsWith(examplesRoot)) {
+          // if an example changes, we reprocess the single example
           const relative = path.relative(examplesRoot, absName);
           const exampleName = relative.split(path.sep)[0];
           syncExample(exampleName);
       } else if (absName.endsWith(SNIPPETS_FILE_SUFFIX)) {
+          // if a snippet file changes, we reprocess all docs (we could be smarter here)
           preprocess_docs();
       } else if (absName.startsWith(docsRoot)) {
-          preprocess_doc(name);
+          // if a doc changes, we reprocess the single doc file
+          const relative = path.relative(projectRoot, absName);
+          preprocess_doc(relative);
       }
 
       checkDocs();
