@@ -440,7 +440,7 @@ function shouldProcess(filePath) {
   if (filePath.startsWith(MD_SOURCE_DIR)){
     return WATCH_EXTENSIONS.includes(path.extname(filePath));
   } else if (filePath.startsWith(EXAMPLES_SOURCE_DIR)){
-    return  WATCH_EXTENSIONS.includes(ext)
+    return  WATCH_EXTENSIONS.includes(path.extname(filePath))
   } else {
     return false
   }
