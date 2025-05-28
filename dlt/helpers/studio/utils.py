@@ -21,6 +21,11 @@ from dlt.helpers.studio.config import StudioConfiguration
 PICKLE_TRACE_FILE = "trace.pickle"
 
 
+#
+# App helpers
+#
+
+
 def resolve_studio_config(p: dlt.Pipeline) -> StudioConfiguration:
     """Resolve the studio configuration"""
     return resolve_configuration(
@@ -76,6 +81,45 @@ def get_pipeline(pipeline_name: str, pipelines_dir: str) -> dlt.Pipeline:
     return dlt.attach(pipeline_name, pipelines_dir=pipelines_dir)
 
 
+#
+# Pipeline details
+#
+
+
+def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
+    """
+    Get the details of a pipeline.
+    """
+    try:
+        credentials = str(pipeline.dataset().destination_client.config.credentials)
+    except Exception:
+        credentials = "Could not resolve credentials"
+
+    details_dict = {
+        "pipeline_name": pipeline.pipeline_name,
+        "destination": (
+            pipeline.destination.destination_description
+            if pipeline.destination
+            else "No destination set"
+        ),
+        "credentials": credentials,
+        "dataset_name": pipeline.dataset_name,
+        "schema": (
+            pipeline.default_schema_name
+            if pipeline.default_schema_name
+            else "No default schema set"
+        ),
+        "working_dir": pipeline.working_dir,
+    }
+
+    return _dict_to_table_items(details_dict)
+
+
+#
+# Schema helpers
+#
+
+
 def create_table_list(
     c: StudioConfiguration,
     pipeline: dlt.Pipeline,
@@ -107,23 +151,6 @@ def create_table_list(
     if not show_internals:
         table_list = [t for t in table_list if not str(t["name"]).lower().startswith("_dlt")]
     return _align_dict_keys(table_list)
-
-
-@functools.cache
-def get_row_counts(pipeline: dlt.Pipeline, load_id: str = None) -> Dict[str, int]:
-    """Get the row counts for a pipeline.
-
-    Args:
-        pipeline (dlt.Pipeline): The pipeline to get the row counts for.
-        load_id (str): The load id to get the row counts for.
-    """
-    return {
-        i["table_name"]: i["row_count"]
-        for i in pipeline.dataset()
-        .row_counts(dlt_tables=True, load_id=load_id)
-        .df()
-        .to_dict(orient="records")
-    }
 
 
 def create_column_list(
@@ -177,41 +204,9 @@ def create_column_list(
     return _align_dict_keys(column_list)
 
 
-def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
-    """
-    Get the details of a pipeline.
-    """
-    try:
-        credentials = str(pipeline.dataset().destination_client.config.credentials)
-    except Exception:
-        credentials = "Could not resolve credentials"
-
-    details_dict = {
-        "pipeline_name": pipeline.pipeline_name,
-        "destination": (
-            pipeline.destination.destination_description
-            if pipeline.destination
-            else "No destination set"
-        ),
-        "credentials": credentials,
-        "dataset_name": pipeline.dataset_name,
-        "schema": (
-            pipeline.default_schema_name
-            if pipeline.default_schema_name
-            else "No default schema set"
-        ),
-        "working_dir": pipeline.working_dir,
-    }
-
-    return _dict_to_table_items(details_dict)
-
-
-@functools.cache
-def get_query_result(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
-    """
-    Get the result of a query.
-    """
-    return pipeline.dataset()(query).df()
+#
+# Cached Queries
+#
 
 
 def clear_query_cache(pipeline: dlt.Pipeline) -> None:
@@ -223,6 +218,31 @@ def clear_query_cache(pipeline: dlt.Pipeline) -> None:
     get_loads.cache_clear()
     get_schema_by_version.cache_clear()
     get_row_counts.cache_clear()
+
+
+@functools.cache
+def get_query_result(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
+    """
+    Get the result of a query.
+    """
+    return pipeline.dataset()(query).df()
+
+
+@functools.cache
+def get_row_counts(pipeline: dlt.Pipeline, load_id: str = None) -> Dict[str, int]:
+    """Get the row counts for a pipeline.
+
+    Args:
+        pipeline (dlt.Pipeline): The pipeline to get the row counts for.
+        load_id (str): The load id to get the row counts for.
+    """
+    return {
+        i["table_name"]: i["row_count"]
+        for i in pipeline.dataset()
+        .row_counts(dlt_tables=True, load_id=load_id)
+        .df()
+        .to_dict(orient="records")
+    }
 
 
 @functools.cache
@@ -390,7 +410,7 @@ def _align_dict_keys(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def _humanize_datetime_values(c: StudioConfiguration, d: Dict[str, Any]) -> Dict[str, Any]:
-    """Humanize datetime values in a dict, expects certain keys to be present as found in the trace"""
+    """Humanize datetime values in a dict, expects certain keys to be present as found in the trace, could be made more configurable"""
 
     started_at = d.get("started_at", "")
     finished_at = d.get("finished_at", "")
