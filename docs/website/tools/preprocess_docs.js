@@ -11,6 +11,8 @@ const MD_TARGET_DIR = "docs_processed/";
 
 const MOVE_FILES_EXTENSION = [".md", ".mdx", ".py", ".png", ".jpg", ".jpeg"];
 const DOCS_EXTENSIONS = [".md", ".mdx"];
+const WATCH_EXTENSIONS = [".md", ".py", ".toml"];
+const DEBOUNCE_INTERVAL_MS = 500;
 
 const SNIPPETS_FILE_SUFFIX = "-snippets.py"
 
@@ -430,43 +432,75 @@ function processDocs() {
 
 processDocs()
 
+
 /**
  * Watch for changes and preprocess the docs if --watch cli command flag is present
  */
-if (process.argv.includes("--watch")) {
-  console.log(`Watching...`)
-  const filter = /\.(py|toml|md)$/;
-  let lastUpdate = Date.now();
+function shouldProcess(filePath) {
+  if (filePath.startsWith(MD_SOURCE_DIR)){
+    return WATCH_EXTENSIONS.includes(path.extname(filePath));
+  } else if (filePath.startsWith(EXAMPLES_SOURCE_DIR)){
+    return  WATCH_EXTENSIONS.includes(ext)
+  } else {
+    return false
+  }
+}
 
-  function handleChange(evt, name) {
-      if (Date.now() - lastUpdate < 500) {
-          return;
-      }
+let lastUpdate = 0;
 
-      console.log('%s changed...', name);
-      const absName = path.resolve(name);
-      const docsRoot = path.resolve(MD_SOURCE_DIR);
-      const projectRoot = path.resolve("./");
-      const examplesRoot = path.resolve(EXAMPLES_SOURCE_DIR);
+function handleChange(eventType, filePath) {
+  console.debug(`${filePath} modified.`);
 
-      if (absName.startsWith(examplesRoot)) {
-          // if an example changes, we reprocess the single example
-          const relative = path.relative(examplesRoot, absName);
-          const exampleName = relative.split(path.sep)[0];
-          syncExample(exampleName);
-      } else if (absName.endsWith(SNIPPETS_FILE_SUFFIX)) {
-          // if a snippet file changes, we reprocess all docs (we could be smarter here)
-          preprocess_docs();
-      } else if (absName.startsWith(docsRoot)) {
-          // if a doc changes, we reprocess the single doc file
-          const relative = path.relative(projectRoot, absName);
-          preprocess_doc(relative);
-      }
-
-      checkDocs();
-      lastUpdate = Date.now();
+  const now = Date.now();
+  if (now - lastUpdate < DEBOUNCE_INTERVAL_MS) {
+    console.debug(`Skipping update. Delay shorter debounce: ${DEBOUNCE_INTERVAL_MS} ms`)
+    return;
   }
 
-  const watchRoot = path.resolve(__dirname, "../..");
-  watch(watchRoot, { recursive: true, filter }, handleChange);
+  if (!shouldProcess(filePath)) {
+    console.debug(`Skipping ${filePath}.`)
+    return;
+  }
+
+  if (filePath.startsWith(EXAMPLES_SOURCE_DIR)) {
+    const exampleName = filePath.split(path.sep)[0];
+    syncExample(exampleName);
+    console.log(`${filePath} processed.`);
+  } else if (filePath.endsWith("snippets.toml")) {
+    preprocess_docs();
+    console.log(`${filePath} processed.`);
+  } else if (filePath.startsWith(MD_SOURCE_DIR)) {
+    preprocess_doc(filePath);
+    console.log(`${filePath} processed.`);
+  }
+
+  checkDocs();
+  lastUpdate = now;
+}
+
+
+function watchDirectory(dir) {
+  fs.watch(dir, { recursive: true }, (eventType, filename) => {
+    if (filename) {
+      const fullPath = path.join(dir, filename);
+      handleChange(eventType, fullPath);
+    }
+  });
+}
+
+function startWatching() {
+  console.log("Watching for file changes...");
+
+  const watchDirs = [MD_SOURCE_DIR, EXAMPLES_SOURCE_DIR, path.resolve(__dirname)];
+
+  for (const dir of watchDirs) {
+    if (fs.existsSync(dir)) {
+      watchDirectory(dir);
+    }
+  }
+}
+
+
+if (process.argv.includes("--watch")) {
+  startWatching();
 }
