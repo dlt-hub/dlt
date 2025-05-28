@@ -37,7 +37,7 @@ destination_cases = destinations_configs(
     all_staging_configs=True,
     table_format_filesystem_configs=True,
 )
-# if postgres got selected, add more postgres
+# if postgres got selected, add postgres config with native parquet support via adbc
 if "postgres" in [case.destination_type for case in destination_cases]:
     destination_cases.append(
         DestinationTestConfiguration(destination_type="postgres", file_format="parquet")
@@ -58,6 +58,7 @@ def test_load_arrow_item(
     # os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = "True"
+
     include_time = destination_config.destination_type not in (
         "athena",
         "redshift",
@@ -71,7 +72,6 @@ def test_load_arrow_item(
     )
 
     include_decimal = True
-
     if (
         destination_config.destination_type == "databricks"
         and destination_config.file_format == "jsonl"

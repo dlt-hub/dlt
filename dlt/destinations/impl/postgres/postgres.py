@@ -63,8 +63,8 @@ class PostgresParquetCopyJob(RunnableLoadJob, HasFollowupJobs):
         from dlt.common.libs.pyarrow import pyarrow
         import adbc_driver_postgresql.dbapi as adbapi
 
-        def _iter_batches() -> Iterator[pyarrow.RecordBatch]:
-            for table in pq_stream_with_new_columns(self._file_path, ()):
+        def _iter_batches(file_path: str) -> Iterator[pyarrow.RecordBatch]:
+            for table in pq_stream_with_new_columns(file_path, ()):
                 yield from table.to_batches()
 
         with adbapi.connect(
@@ -72,13 +72,13 @@ class PostgresParquetCopyJob(RunnableLoadJob, HasFollowupJobs):
         ) as conn, conn.cursor() as cur:
             rows = cur.adbc_ingest(
                 self.load_table_name,
-                _iter_batches(),
+                _iter_batches(self._file_path),
                 mode="append",
                 db_schema_name=self._job_client.sql_client.fully_qualified_dataset_name(
                     escape=False
                 ),
             )
-            logger.info(f"{rows} copied from {self._file_name} to {self.load_table_name}")
+            logger.info(f"{rows} rows copied from {self._file_name} to {self.load_table_name}")
             conn.commit()
 
 
