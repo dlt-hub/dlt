@@ -12,7 +12,7 @@ const MD_TARGET_DIR = "docs_processed/";
 const MOVE_FILES_EXTENSION = [".md", ".mdx", ".py", ".png", ".jpg", ".jpeg"];
 const DOCS_EXTENSIONS = [".md", ".mdx"];
 const WATCH_EXTENSIONS = [".md", ".py", ".toml"];
-const DEBOUNCE_INTERVAL_MS = 500;
+const DEBOUNCE_INTERVAL_MS = 100;
 
 const SNIPPETS_FILE_SUFFIX = "-snippets.py"
 
@@ -238,10 +238,6 @@ function processDocFile(fileName) {
     return [snippetCount, tubaCount, true];
 }
 
-function preprocess_doc(fileName) {
-    processDocFile(fileName);
-}
-
 /**
  * Preprocess all docs in the docs folder
  */
@@ -285,11 +281,13 @@ function trimArray(lines) {
  */
 function buildExampleDoc(exampleName) {
   if (EXAMPLES_EXCLUSIONS.some(ex => exampleName.startsWith(ex))) {
+    console.debug(`Skipping ${exampleName}. Is excluded example.`)
     return false;
   }
 
   const exampleFile = `${EXAMPLES_SOURCE_DIR}${exampleName}/${exampleName}.py`;
   if (!fs.existsSync(exampleFile)) {
+    console.debug(`Skipping ${exampleFile}. File doesn't exist.`)
     return false;
   }
 
@@ -332,6 +330,7 @@ function buildExampleDoc(exampleName) {
   }
 
   if (headerCount == 0) {
+    console.debug(`Aborting ${exampleFile}. No header found.`)
     return false;
   }
 
@@ -356,6 +355,8 @@ function buildExampleDoc(exampleName) {
 
   fs.mkdirSync(path.dirname(targetFileName), { recursive: true });
   fs.writeFileSync(targetFileName, output.join("\n"));
+
+  console.debug(`${targetFileName} generated.`)
   return true;
 }
 
@@ -370,11 +371,6 @@ function syncExamples() {
   console.log(`Synced ${count} examples`);
 }
 
-function syncExample(exampleName) {
-  if (buildExampleDoc(exampleName)) {
-    console.log(`Synced example ${exampleName}`);
-  }
-}
 
 // strings to search for, this check could be better but it
 // is a quick fix
@@ -462,15 +458,19 @@ function handleChange(eventType, filePath) {
     return;
   }
 
-  if (filePath.startsWith(EXAMPLES_SOURCE_DIR)) {
-    const exampleName = filePath.split(path.sep)[0];
-    syncExample(exampleName);
+  if (filePath.startsWith(MD_SOURCE_DIR)) {
+    processDocFile(filePath);
     console.log(`${filePath} processed.`);
+  } else if (filePath.startsWith(EXAMPLES_SOURCE_DIR)) {
+    const exampleName = path.basename(filePath, ".py");
+    console.log(exampleName)
+    if (buildExampleDoc(exampleName)) {
+      const targetFileName = `${EXAMPLES_DESTINATION_DIR}/${exampleName}.md`;
+      processDocFile(targetFileName)
+      console.log(`${filePath} processed.`);
+    }
   } else if (filePath.endsWith("snippets.toml")) {
     preprocess_docs();
-    console.log(`${filePath} processed.`);
-  } else if (filePath.startsWith(MD_SOURCE_DIR)) {
-    preprocess_doc(filePath);
     console.log(`${filePath} processed.`);
   }
 
