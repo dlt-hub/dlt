@@ -117,10 +117,13 @@ In the example above, `arrow_table` will be converted to CSV with **pyarrow** an
 ```sh
 pip install adbc-driver-postgresql
 ```
-with this driver, `dlt` resources will support `loader_file_format="parquet"`. Not all `postgres` types are supported, see driver docs for more details:
-* `JSONB` is not supported so we use `json` instead.
-* `INT8` (128 bit) not supported
-* large decimals are not supported. `postgres` is the only destination that fully supports `wei` (256 bit) decimal precision, this does not work with ADBC
+with this driver installed, you can set `parquet` as `loader_file_format` for `dlt` resources.
+
+Not all `postgres` types are supported, see driver docs for more details:
+* `JSONB` is not supported so we use `JSON` instead if the resource was explicitly decorated.
+* `INT8` (128 bit) not supported and `TIME(3)` (millisecond precision) are not supported
+* We observed problems with some decimal precision/scale ie. `decimal128(6, 2)` is not properly decoded.
+* large decimals are not supported. `postgres` is the only destination that fully supports `wei` (256 bit) decimal precision, this does not work with ADBC.
 
 We copy parquet files with batches of size of 1 row group. One files is copied in a single transaction.
 
