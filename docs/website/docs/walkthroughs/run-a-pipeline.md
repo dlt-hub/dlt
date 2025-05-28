@@ -242,6 +242,10 @@ Step run FAILED in 0.01 seconds.
 Failed due to: connection to server at "localhost" (127.0.0.1), port 5432 failed: FATAL:  password authentication failed for user "loader"
 ```
 
+:::note
+Data loading may be interrupted by connection issues or database downtime. In such cases, some tables could be partially loaded or left empty, causing the pipeline process to halt. Once the connection is restored, you can resume loading by calling `pipeline.load()`. This will continue from the last successful state and load any remaining data packages.
+:::
+
 ### Failed jobs in load package
 
 In rare cases, some jobs in a load package will fail in such a way that `dlt` will not be able
