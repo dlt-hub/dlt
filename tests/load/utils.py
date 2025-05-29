@@ -25,6 +25,7 @@ import dlt
 from dlt.common import json, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
@@ -56,6 +57,7 @@ from dlt.common.utils import uniq_id
 
 from dlt.destinations.exceptions import CantExtractTablePrefix
 from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
+from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
@@ -1121,3 +1123,9 @@ def count_job_types(p: dlt.Pipeline) -> Dict[str, Dict[str, Any]]:
         )
 
     return tables
+
+
+def set_always_refresh_views(config: BaseConfiguration) -> None:
+    # set filesystem views to autorefresh
+    if isinstance(config, FilesystemDestinationClientConfiguration):
+        config["always_refresh_views"] = True

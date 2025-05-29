@@ -166,7 +166,7 @@ def _get_fileio_config(credentials: CredentialsConfiguration) -> Dict[str, Any]:
 def get_last_metadata_file(
     metadata_path: str, fs_client: AbstractFileSystem, config: FilesystemConfiguration
 ) -> str:
-    # TODO: implement faster way to obtain `last_metadata_file` (listing is slow)
+    # TODO: read version-hint.txt first and save it in filesystem
     try:
         metadata_files = [f for f in fs_client.ls(metadata_path) if f.endswith(".json")]
     except FileNotFoundError:

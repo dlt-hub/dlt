@@ -103,9 +103,12 @@ class FilesystemSqlClient(WithTableScanners):
         return self._conn
 
     def should_replace_view(self, view_name: str, table_schema: PreparedTableSchema) -> bool:
-        # we use alternative method to get snapshot on abfss and we need to replace
-        # the view each time to control the freshness (abfss cannot glob)
-        return self.is_abfss  # and table_format == "iceberg"
+        if self.remote_client.config.always_refresh_views:
+            table_format = table_schema.get("table_format")
+            if table_format == "delta":
+                # delta will auto refresh
+                return False
+        return self.remote_client.config.always_refresh_views
 
     @raise_database_error
     def create_view(self, view_name: str, table_schema: PreparedTableSchema) -> None:
@@ -148,24 +151,21 @@ class FilesystemSqlClient(WithTableScanners):
             if not self.iceberg_initialized:
                 self._setup_iceberg(self._conn)
                 self.iceberg_initialized = True
-            if self.is_abfss:
-                # duckdb can't glob on abfss 🤯
-                from dlt.common.libs.pyiceberg import get_last_metadata_file
 
-                metadata_path = f"{table_location}/metadata"
-                last_metadata_file = get_last_metadata_file(
-                    metadata_path, self.remote_client.fs_client, self.remote_client.config
-                )
-                from_statement = (
-                    f"iceberg_scan('{last_metadata_file}', skip_schema_inference=false)"
-                )
+            from dlt.common.libs.pyiceberg import get_last_metadata_file
+
+            metadata_path = f"{table_location}/metadata"
+            last_metadata_file = get_last_metadata_file(
+                metadata_path, self.remote_client.fs_client, self.remote_client.config
+            )
+            if ".gz." in last_metadata_file:
+                compression = ", metadata_compression_codec = 'gzip'"
             else:
-                # skip schema inference to make nested data types work
-                # https://github.com/duckdb/duckdb_iceberg/issues/47
-                from_statement = (
-                    f"iceberg_scan('{table_location}', version='?', allow_moved_paths = true,"
-                    " skip_schema_inference=false)"
-                )
+                compression = ""
+
+            from_statement = (
+                f"iceberg_scan('{last_metadata_file}', {compression} skip_schema_inference=false)"
+            )
         else:
             # get file format and list of table files
             # NOTE: this does not support cases where table contains many different file formats
