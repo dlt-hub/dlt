@@ -300,6 +300,20 @@ class ClickHouseSqlClient(
                 db_args[key] = str(value.replace(microsecond=0, tzinfo=None))
         return db_args
 
+    def extract_alter_table_name(self, query: str) -> Optional[str]:
+        if self.contains_string(query, "ALTER TABLE"):
+            pattern = r'(?i)\bALTER TABLE\s+`?[\w]+`?\.`?([\w]+)`?'
+            group_num = 1
+        else:
+            # If no known command is found, return None
+            logger.warning(f"Unknown command in query: {query}")
+            return None
+
+        match = re.search(pattern, query, re.DOTALL)
+        if match:
+            return match.group(group_num)  # Return the captured table name
+        return None  # Return None if no match is found
+
     def add_on_cluster(self, query: str, cluster_name: str = None) -> str:
         # Define regex patterns for CREATE, DROP, and ALTER TABLE commands
         if cluster_name is None:
@@ -387,6 +401,17 @@ class ClickHouseSqlClient(
                         table.args["db"] = exp.Identifier(this=base_db, quoted=True)
                         table.args["this"] = exp.Identifier(this=table.name + self.config.base_table_name_postfix, quoted=True)
                         qry = stmt.sql(dialect="clickhouse")
+                    elif self.contains_string(qry, "UPDATE"):  
+                        # hadnling ALTER TABLE table_name UPDATE
+                        # We need to update the base table not the distributed one, it's not supported by ClickHouse
+                        # And sqlglot doesn't support this statement, as in, it doesn't parse the table name
+                        # We use sqlglot to parse the table name and then use replace to adjust the query
+                        table_name = self.extract_alter_table_name(qry)
+                        if table_name:
+                            # we need to update the base table
+                            table = exp.to_table(sql_path=table_name,dialect="clickhouse")
+                            qry.replace(table.db, base_db).replace(table.name, table.name + self.config.base_table_name_postfix)
+
 
                     qry = self.add_on_cluster(qry, cluster)
 
