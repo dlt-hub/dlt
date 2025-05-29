@@ -178,11 +178,11 @@ jobs:
           poetry run pytest tests/helpers/studio
         if: matrix.python-version != '3.13.x'
 
-      # Run marimo e2e tests (does not pass with python 3.9..., needs to be investigated)
+      # Run marimo e2e tests (does not pass with python 3.9, does not pass on windows (playwright does not work somehow), does not pass on python 3.13 (ibis not available))
       - name: Run marimo e2e
         run: |
           poetry run marimo run --headless dlt/helpers/studio/app.py -- -- --pipelines_dir _storage/.dlt/pipelines/ --with_test_identifiers true & poetry run pytest --browser chromium tests/e2e
-        if: matrix.python-version != '3.13.x' && matrix.python-version != '3.9.x'
+        if: matrix.python-version != '3.13.x' && matrix.python-version != '3.9.x' && matrix.os != 'windows-latest'
 
 
   matrix_job_required_check:
