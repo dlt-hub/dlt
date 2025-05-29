@@ -156,7 +156,6 @@ def test_base_transformation_spec() -> None:
     os.environ["LAST_ID"] = "test_last_id"
 
     model = list(default_transformation_with_args(ds_))[0]
-    print(model)
     assert isinstance(model, SqlModel)
     assert get_fun_last_config(default_transformation_with_args)["last_id"] == "test_last_id"
 
@@ -178,8 +177,8 @@ def test_base_transformation_spec() -> None:
         assert config.buffer_max_items == 100000
         assert limit == 100
 
-        table1_ = dataset.table1
-        return table1_.filter(dataset.table1.col1 == last_idx).limit(limit)
+        table1_ = dataset(f"SELECT * FROM table1 WHERE col1 = '{last_idx}' LIMIT {limit}")
+        return table1_
 
     assert default_transformation_spec.name == "default_name_ovr"
     assert default_transformation_spec.section == "default_name_ovr"
@@ -192,6 +191,8 @@ def test_base_transformation_spec() -> None:
     assert isinstance(model, SqlModel)
     query = model.query
     # make sure we have our args in query
+    print(model)
+    print(query)
     assert "uniq_last_id" in query
     assert "100" in query
 
