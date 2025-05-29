@@ -118,6 +118,7 @@ def merge_delta_table(
     table: DeltaTable,
     data: Union[pa.Table, pa.RecordBatchReader],
     schema: TTableSchema,
+    load_table_name: str,
 ) -> None:
     """Merges in-memory Arrow data into on-disk Delta table."""
 
@@ -149,7 +150,10 @@ def merge_delta_table(
 
         qry.execute()
     else:
-        raise ValueError(f'Merge strategy "{strategy}" not supported.')
+        raise ValueError(
+            f'Merge strategy "{strategy}" is not supported for Delta tables. '
+            f'Table: "{load_table_name}".'
+        )
 
 
 def get_delta_tables(

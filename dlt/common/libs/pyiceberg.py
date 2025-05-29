@@ -68,6 +68,7 @@ def merge_iceberg_table(
     table: IcebergTable,
     data: pa.Table,
     schema: TTableSchema,
+    load_table_name: str,
 ) -> None:
     """Merges in-memory Arrow data into on-disk Iceberg table."""
     strategy = schema["x-merge-strategy"]  # type: ignore[typeddict-item]
@@ -81,15 +82,22 @@ def merge_iceberg_table(
         else:
             join_cols = get_columns_names_with_prop(schema, "primary_key")
 
-        table.upsert(
-            df=ensure_iceberg_compatible_arrow_data(data),
-            join_cols=join_cols,
-            when_matched_update_all=True,
-            when_not_matched_insert_all=True,
-            case_sensitive=True,
-        )
+        for rb in data.to_batches(max_chunksize=1_000):
+            batch_tbl = pa.Table.from_batches([rb])
+            batch_tbl = ensure_iceberg_compatible_arrow_data(batch_tbl)
+
+            table.upsert(
+                df=batch_tbl,
+                join_cols=join_cols,
+                when_matched_update_all=True,
+                when_not_matched_insert_all=True,
+                case_sensitive=True,
+            )
     else:
-        raise ValueError(f'Merge strategy "{strategy}" not supported.')
+        raise ValueError(
+            f'Merge strategy "{strategy}" is not supported for Iceberg tables. '
+            f'Table: "{load_table_name}".'
+        )
 
 
 def get_sql_catalog(
