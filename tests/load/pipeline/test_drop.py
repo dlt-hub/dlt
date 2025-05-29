@@ -523,7 +523,7 @@ def test_drop_state_only(destination_config: DestinationTestConfiguration) -> No
 
 def test_drop_first_run_and_pending_packages() -> None:
     """Attempts to drop before pipeline runs and when partial loads happen"""
-    pipeline = dlt.pipeline("drop_test_" + uniq_id(), destination="dummy")
+    pipeline = dlt.pipeline("drop_test_" + uniq_id(), destination="duckdb")
     with pytest.raises(PipelineNeverRan):
         helpers.drop(pipeline, "droppable_a")
     os.environ["COMPLETED_PROB"] = "1.0"

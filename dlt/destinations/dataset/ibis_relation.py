@@ -34,11 +34,11 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         super().__init__(readable_dataset=readable_dataset)
         self._ibis_object = ibis_object
 
-    def _query(self, qualified: bool = False) -> Any:
+    def _query(self) -> Any:
         """build the query"""
         from dlt.helpers.ibis import ibis
 
-        target_dialect = self._dataset._destination.capabilities().sqlglot_dialect
+        target_dialect = self._dataset.sql_client.capabilities.sqlglot_dialect
 
         # render sql directly if possible
         if target_dialect not in TRANSPILE_VIA_DEFAULT:

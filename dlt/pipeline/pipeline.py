@@ -515,6 +515,7 @@ class Pipeline(SupportsPipeline):
             _normalize_storage_config=self._normalize_storage_config(),
             _load_storage_config=self._load_storage_config(),
         )
+
         # run with destination context
         with self._maybe_destination_capabilities() as caps:
             self._verify_destination_capabilities(caps, None)
@@ -1311,6 +1312,7 @@ class Pipeline(SupportsPipeline):
                 "Please provide `destination` argument to `pipeline`, `run` or `load` method"
                 " directly or via .dlt config.toml file or environment variable.",
             )
+
         # check if default schema is present
         if (
             self.default_schema_name is not None
@@ -1319,6 +1321,7 @@ class Pipeline(SupportsPipeline):
             naming = self.default_schema.naming
         else:
             naming = None
+
         return self._destination.capabilities(naming=naming)
 
     def _get_staging_capabilities(self) -> Optional[DestinationCapabilitiesContext]:

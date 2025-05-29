@@ -141,7 +141,6 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
             return {}
 
         # TODO: sqlalchemy does not work with their internal types, so we go via duckdb
-        # TODO: snowflake has some bug in sqlglot lineage, column types are not resolved, so we go via duckdb
         caps = self._dataset.sql_client.capabilities
         dialect: str = caps.sqlglot_dialect
         query = self.query()

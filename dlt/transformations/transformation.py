@@ -176,7 +176,10 @@ def make_transformation_resource(
                     + f"for following columns: {unknown_column_types}",
                 )
 
-            yield dlt.mark.with_hints(SqlModel(select_query), hints=make_hints(columns=all_columns))
+            yield dlt.mark.with_hints(
+                SqlModel(select_query, dialect=datasets[0].sql_client.capabilities.sqlglot_dialect),
+                hints=make_hints(columns=all_columns),
+            )
         else:
             # NOTE: dataset will not execute query over unknown tables or columns
             for chunk in datasets[0](select_query).iter_arrow(chunk_size=config.buffer_max_items):
