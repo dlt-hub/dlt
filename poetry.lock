@@ -8378,51 +8378,23 @@ plugins = ["importlib-metadata"]
 
 [[package]]
 name = "pyiceberg"
-version = "0.9.0"
+version = "0.10.0"
 description = "Apache Iceberg is an open table format for huge analytic datasets"
 optional = true
-python-versions = "!=2.7.*,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,!=3.7.*,!=3.8.*,>=3.9"
-files = [
-    {file = "pyiceberg-0.9.0-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:b454d186c33aa3f0d03e4fa888df50d4861ffa4cdcc7c6f766237485d9a091d9"},
-    {file = "pyiceberg-0.9.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:e4f6800f8bd5cb30fd095cf58498b45d8c42709330a0ce72df4e92e030eba402"},
-    {file = "pyiceberg-0.9.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:c7a7f83805dfc3af8aaaa88ac7d208aafe5005400cb9238d2195d8b7113927ef"},
-    {file = "pyiceberg-0.9.0-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:218d31b81c91cd3acf775bd796f8c02740b4bdb8a7bde7278029710c94eb136a"},
-    {file = "pyiceberg-0.9.0-cp310-cp310-win_amd64.whl", hash = "sha256:f3680ac4aa6bada5a6823d4ded1e78ac86207fd3b275ca1a688bad5cb9191c3b"},
-    {file = "pyiceberg-0.9.0-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:0e37f2dc0fef4fba1a51e5a7c87d3aee5bb98bdd82cde9f219b5542201919055"},
-    {file = "pyiceberg-0.9.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:b9d4939c41daf94562b9a29ef322fe42e1aa2c886a23cefe23b5f013f27b3854"},
-    {file = "pyiceberg-0.9.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:91c86e00684427d02ace00fb765af13f75bbff3dd813a6e3928f2974b0ff150c"},
-    {file = "pyiceberg-0.9.0-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:d5c4d6819b2668c3da82683a8f0e69b282b8092c390d7b2c2c99d6234905574c"},
-    {file = "pyiceberg-0.9.0-cp311-cp311-win_amd64.whl", hash = "sha256:a1832f49831d92aac3f62462f2d5fbad05eeb5e93f25e0e308c0d8053cab9fa6"},
-    {file = "pyiceberg-0.9.0-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:6b868726045ccc013a723130aaa7cf2f2ddeae359930b0c54de8bc29f7103326"},
-    {file = "pyiceberg-0.9.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:785b5ee8d00b1f38c8643f9c1ca22f2dd034cf9610804972fddfc6ac97ced002"},
-    {file = "pyiceberg-0.9.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d6630cac07feb5894c2311be5ca62ffa3432803878fb112ae47c1d3edbd08609"},
-    {file = "pyiceberg-0.9.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:ac640aa29f57b2cb282f9a25427b73373d6fb54e82a589e8cc616f90e6f5e5b7"},
-    {file = "pyiceberg-0.9.0-cp312-cp312-win_amd64.whl", hash = "sha256:c13328f6b5bd5210e845e6a69977b38f2d0272ed431d27c825c587b6d7999b5e"},
-    {file = "pyiceberg-0.9.0-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:868c795b9bb49cea30b32cee4ba3fceb346664e24abbba5a3c0330a0015388c2"},
-    {file = "pyiceberg-0.9.0-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:58ceef4fbacf4eda19e2b84a9a850ffc661b489e08d5010a2c206583f387df83"},
-    {file = "pyiceberg-0.9.0-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:38d221a963907a4f706fbd811e638e451efd4491952166550664df156e1ca02c"},
-    {file = "pyiceberg-0.9.0-cp39-cp39-musllinux_1_2_x86_64.whl", hash = "sha256:b7b4de0b94d5f4c83bab443aa449a1714f784953d56f415380a8bc4b5e14c988"},
-    {file = "pyiceberg-0.9.0-cp39-cp39-win_amd64.whl", hash = "sha256:c3bca11ccabfa98a17962b4ffe6d3eaaa83f66d6b997b79c20966907b9c7ccb0"},
-    {file = "pyiceberg-0.9.0-pp310-pypy310_pp73-macosx_10_15_x86_64.whl", hash = "sha256:6d818b01ab259f4892e486b960e999b7a724b6829f9e3919d2ec454f5f3f857b"},
-    {file = "pyiceberg-0.9.0-pp310-pypy310_pp73-macosx_11_0_arm64.whl", hash = "sha256:8161dc350e885d7bdc46f4fb4e9698bf1a84861056687823d53eaeed217e4324"},
-    {file = "pyiceberg-0.9.0-pp310-pypy310_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f3bf765b91e96f66a01205a87cd8fd0eb8ffb148fdd9bf621d9a2a3249336116"},
-    {file = "pyiceberg-0.9.0-pp310-pypy310_pp73-win_amd64.whl", hash = "sha256:a9a8699dbdec4ee81ac4dfc77d7489bffac3a7625a28df296657cec1edf79d6d"},
-    {file = "pyiceberg-0.9.0-pp39-pypy39_pp73-macosx_10_15_x86_64.whl", hash = "sha256:821c8ff026819038780559207cd32ee0500f719fd51ed2a1ab919b21a60ce5f2"},
-    {file = "pyiceberg-0.9.0-pp39-pypy39_pp73-macosx_11_0_arm64.whl", hash = "sha256:2ed7af929ba1b8faef98113b8da0512914450bdcb90d2fb46efe5319800c36ad"},
-    {file = "pyiceberg-0.9.0-pp39-pypy39_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:936fea58f468359a58e9fd03b7d6b1136bf6c5163a5a666e5ea43ebe70a0dba0"},
-    {file = "pyiceberg-0.9.0-pp39-pypy39_pp73-win_amd64.whl", hash = "sha256:76581d226ae67d8be5210bdab60dcdd8fc3a4d6745192a2b446eb746201abdb3"},
-    {file = "pyiceberg-0.9.0.tar.gz", hash = "sha256:70d255903dda31ed1f7753d41fec0c031aae36ef95e8a824cdae7df593439d8b"},
-]
+python-versions = "^3.9.2, !=3.9.7"
+files = []
+develop = false
 
 [package.dependencies]
-cachetools = ">=5.5.0,<6.0.0"
+cachetools = "^5.5.0"
 click = ">=7.1.1,<9.0.0"
 fsspec = ">=2023.1.0"
 mmh3 = ">=4.0.0,<6.0.0"
-pydantic = ">=2.0,<2.4.0 || >2.4.0,<2.4.1 || >2.4.1,<3.0"
+pydantic = ">=2.0,<3.0,!=2.4.0,!=2.4.1"
 pyparsing = ">=3.1.0,<4.0.0"
+pyroaring = ">=1.0.0,<2.0.0"
 requests = ">=2.20.0,<3.0.0"
-rich = ">=10.11.0,<14.0.0"
+rich = ">=10.11.0,<15.0.0"
 sortedcontainers = "2.4.0"
 strictyaml = ">=1.7.0,<2.0.0"
 tenacity = ">=8.2.3,<10.0.0"
@@ -8430,23 +8402,29 @@ tenacity = ">=8.2.3,<10.0.0"
 [package.extras]
 adlfs = ["adlfs (>=2023.1.0)"]
 daft = ["getdaft (>=0.2.12)"]
-duckdb = ["duckdb (>=0.5.0,<2.0.0)", "pyarrow (>=17.0.0,<20.0.0)"]
+duckdb = ["duckdb (>=0.5.0,<2.0.0)", "pyarrow (>=17.0.0,<21.0.0)"]
 dynamodb = ["boto3 (>=1.24.59)"]
 gcsfs = ["gcsfs (>=2023.1.0)"]
 glue = ["boto3 (>=1.24.59)", "mypy-boto3-glue (>=1.28.18)"]
 hive = ["thrift (>=0.13.0,<1.0.0)"]
-hive-kerberos = ["thrift (>=0.13.0,<1.0.0)", "thrift-sasl (>=0.4.3)"]
-pandas = ["pandas (>=1.0.0,<3.0.0)", "pyarrow (>=17.0.0,<20.0.0)"]
+hive-kerberos = ["kerberos (>=1.3.1,<2.0.0)", "thrift (>=0.13.0,<1.0.0)", "thrift-sasl (>=0.4.3)"]
+pandas = ["pandas (>=1.0.0,<3.0.0)", "pyarrow (>=17.0.0,<21.0.0)"]
 polars = ["polars (>=1.21.0,<2.0.0)"]
-pyarrow = ["pyarrow (>=17.0.0,<20.0.0)"]
+pyarrow = ["pyarrow (>=17.0.0,<21.0.0)"]
 pyiceberg-core = ["pyiceberg-core (>=0.4.0,<0.5.0)"]
-ray = ["pandas (>=1.0.0,<3.0.0)", "pyarrow (>=17.0.0,<20.0.0)", "ray (==2.10.0)", "ray (>=2.10.0,<3.0.0)"]
+ray = ["pandas (>=1.0.0,<3.0.0)", "pyarrow (>=17.0.0,<21.0.0)", "ray (==2.10.0)", "ray (>=2.10.0,<3.0.0)"]
 rest-sigv4 = ["boto3 (>=1.24.59)"]
 s3fs = ["s3fs (>=2023.1.0)"]
 snappy = ["python-snappy (>=0.6.0,<1.0.0)"]
 sql-postgres = ["psycopg2-binary (>=2.9.6)", "sqlalchemy (>=2.0.18,<3.0.0)"]
 sql-sqlite = ["sqlalchemy (>=2.0.18,<3.0.0)"]
 zstandard = ["zstandard (>=0.13.0,<1.0.0)"]
+
+[package.source]
+type = "git"
+url = "https://github.com/apache/iceberg-python.git"
+reference = "260ef54e3920d435ae3b2ccda090e66f9c1ac015"
+resolved_reference = "260ef54e3920d435ae3b2ccda090e66f9c1ac015"
 
 [[package]]
 name = "pyjwt"
@@ -8758,6 +8736,99 @@ python-versions = "*"
 files = [
     {file = "pyreadline3-3.4.1-py3-none-any.whl", hash = "sha256:b0efb6516fd4fb07b45949053826a62fa4cb353db5be2bbb4a7aa1fdd1e345fb"},
     {file = "pyreadline3-3.4.1.tar.gz", hash = "sha256:6f3d1f7b8a31ba32b73917cefc1f28cc660562f39aea8646d30bd6eff21f7bae"},
+]
+
+[[package]]
+name = "pyroaring"
+version = "1.0.1"
+description = "Library for handling efficiently sorted integer sets."
+optional = true
+python-versions = "*"
+files = [
+    {file = "pyroaring-1.0.1-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:91b033fab1f32d3bf0149a9669bb496e8dd6cdaf81020948406c20d845bcd3db"},
+    {file = "pyroaring-1.0.1-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:2f0635b4634f91b6a65749f4ff90d669782e079d6cf633ddd20b10b053322197"},
+    {file = "pyroaring-1.0.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:83732c0337a54508e758547cbd869169cdbef0005042532e38a8bad23458712f"},
+    {file = "pyroaring-1.0.1-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:d09198f6680a71a5d4cd058b14988160acab7f771f5acf4c4022d712ac72a34b"},
+    {file = "pyroaring-1.0.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b96cdc047e614312ac4aebf7ff314db9ef3891138268cffa910ea02476c9411b"},
+    {file = "pyroaring-1.0.1-cp310-cp310-manylinux_2_24_armv7l.manylinux_2_31_armv7l.whl", hash = "sha256:7121aebcbb58c2aa49e2a265ded513a04d6ae7626d0078c695c5a12306261584"},
+    {file = "pyroaring-1.0.1-cp310-cp310-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:e69599d814bef20f437d9af6f4575312d4326aef80e3678d927080d3791fe59f"},
+    {file = "pyroaring-1.0.1-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:d652dcc46fba3dc2c2c9b379024050d26d4a2dd74794ee35aae8fb860733ff7c"},
+    {file = "pyroaring-1.0.1-cp310-cp310-musllinux_1_2_armv7l.whl", hash = "sha256:222f178f2c62ca6b867963267db2cbc91d37ba23eb36258c5f02e15c3c1cb225"},
+    {file = "pyroaring-1.0.1-cp310-cp310-musllinux_1_2_i686.whl", hash = "sha256:b4e04d885cb732bcd5fc77aa687c030cb3500eca1ff9e3bd95ddd23d335df8d3"},
+    {file = "pyroaring-1.0.1-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:837ef791c8f49a6787f94b6b1cf5a9002d702ef31b98b31f2e72fed3bbda4b1f"},
+    {file = "pyroaring-1.0.1-cp310-cp310-win32.whl", hash = "sha256:1a731b313a76669a1ff6d48552462ba2f7492fb11b8ef67941fa0309d57fad91"},
+    {file = "pyroaring-1.0.1-cp310-cp310-win_amd64.whl", hash = "sha256:990b34a6f54f04df1581e74252641b2570244fd143dceebc1861c74ae333e509"},
+    {file = "pyroaring-1.0.1-cp310-cp310-win_arm64.whl", hash = "sha256:266c3fffaaa12a76490269848a8ae74550b78fc0dd95c24e685389a1ce114e1a"},
+    {file = "pyroaring-1.0.1-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:eebdd6c3427f0a30663a5c73646ec5397146d1db5de49bd57cf05fe18da93e09"},
+    {file = "pyroaring-1.0.1-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:5ac4ad77298ec6b04f41f26fadcc6fcbd50fc42a434c1a13e4ceff7a344b12c7"},
+    {file = "pyroaring-1.0.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:7abae38e94d2be4b1a525515549e97b5579fe8a219edf82f6e898ef2c1b9cef1"},
+    {file = "pyroaring-1.0.1-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:09f33b16857b435bfe362a91c54ec97b4fc4012ce70faf3ba26dcdf1f2a2d16e"},
+    {file = "pyroaring-1.0.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b53d65fc57bd7c8ee592663a95832512bc9403181eb45d6798f4141bee4feb93"},
+    {file = "pyroaring-1.0.1-cp311-cp311-manylinux_2_24_armv7l.manylinux_2_31_armv7l.whl", hash = "sha256:3ef6c020d6d4e95cfe51cadfc0d72c79cefebff7b83c19cbc3edda4634612c6e"},
+    {file = "pyroaring-1.0.1-cp311-cp311-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:567bd21b13140cfbb9833d6c893590fec52f5d3ba12f102d371523a206efc271"},
+    {file = "pyroaring-1.0.1-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:8a355106643b2293dd4940d3afb8abbfaffe370dfeba110efbd1c157cfbe02e7"},
+    {file = "pyroaring-1.0.1-cp311-cp311-musllinux_1_2_armv7l.whl", hash = "sha256:99aa16b6e1fcccf60dd8885cd671df0161761413cae2d383d5b4c8917788b653"},
+    {file = "pyroaring-1.0.1-cp311-cp311-musllinux_1_2_i686.whl", hash = "sha256:99914d2d759c81cfd0cb23a0f4516caa8a580f9a9ba3bc7ebc6861ea0e7ae38a"},
+    {file = "pyroaring-1.0.1-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:0a449c20042b0146fe2bf88700eb4083f778e3a41bcfdde1c1c80993bad9b7a1"},
+    {file = "pyroaring-1.0.1-cp311-cp311-win32.whl", hash = "sha256:a65741944b637cc3fcaf3c3e54812a2c78ea2cb5135bbb8b4975f4eb7cc04b44"},
+    {file = "pyroaring-1.0.1-cp311-cp311-win_amd64.whl", hash = "sha256:f085909a12ad6edc1b5dbb31bb9eb54186e8fde71cbafc457d1a39ba2f2d3c0a"},
+    {file = "pyroaring-1.0.1-cp311-cp311-win_arm64.whl", hash = "sha256:08ed2b7fe9fe8dcd097811c338c487e8608425d791083af354f91d3af81a67b1"},
+    {file = "pyroaring-1.0.1-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:b0ecba0933fd1ac9037fb7bc832fa36f515982522c4013e681baa1470fcda9d7"},
+    {file = "pyroaring-1.0.1-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:5402e465194d427ee48025c01c78daa1fb40656106561ffe47b338c6277fdd99"},
+    {file = "pyroaring-1.0.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:86b834db274d84e3a50938f1adf4662ad06c23c4d30d9eb0bbf246173ba3ddcc"},
+    {file = "pyroaring-1.0.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:b21b42abdd2fbaf905fc75000ff90084ea180759edbc04e32dc44eaf6204cd09"},
+    {file = "pyroaring-1.0.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:2c8d14855a59aaca23a77897f0f9cb6f2d9960ab35d1393a6a3af3c929436e34"},
+    {file = "pyroaring-1.0.1-cp312-cp312-manylinux_2_24_armv7l.manylinux_2_31_armv7l.whl", hash = "sha256:9af47449b4c72fbb9a5a755d46a1ad65f13f684f7b5eacfacd686e8fec471820"},
+    {file = "pyroaring-1.0.1-cp312-cp312-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:70efe866c90c28dc21ada69baaffac0ed137fc541c2d4d87cd261969a0f59a78"},
+    {file = "pyroaring-1.0.1-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:603cee6c744069dc600d7b2f76cbe2f26aea8b212db69cc57bdb45200f963c32"},
+    {file = "pyroaring-1.0.1-cp312-cp312-musllinux_1_2_armv7l.whl", hash = "sha256:90259cddb3c2d418578d26681c1ac60be7479763514df1f3fe7ca389226c828e"},
+    {file = "pyroaring-1.0.1-cp312-cp312-musllinux_1_2_i686.whl", hash = "sha256:26b727159fa2cce214ddc21438bb80193e66a480628650343612446ab3a291b7"},
+    {file = "pyroaring-1.0.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:31f4adaa5d5232f5ee0dca696eff32391a656e75a92184767b79fcdbe6e7441f"},
+    {file = "pyroaring-1.0.1-cp312-cp312-win32.whl", hash = "sha256:803a6727bb2dca6566ba4da8e3951a09d3b9faffb4b3601481674c8aecff604a"},
+    {file = "pyroaring-1.0.1-cp312-cp312-win_amd64.whl", hash = "sha256:f4e4f34b140a250d0386e9ae4c4049509cc833ef7772d86e01b6aae93370bb22"},
+    {file = "pyroaring-1.0.1-cp312-cp312-win_arm64.whl", hash = "sha256:7952ab4bb8ae176aba746efd872dfaa9e124125810cbe3dc479f5ffaefd8a952"},
+    {file = "pyroaring-1.0.1-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:c53e3511534f8a9176972003b2bcb1abae60c6d22dce4bddc61c99770e426dbf"},
+    {file = "pyroaring-1.0.1-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:7e9b73dc8b2bcb27f20a3be4947cd89841f41f53426bee8f03f8ad68c7cd0b90"},
+    {file = "pyroaring-1.0.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:a25e8ccc7ab2b78a6d937e288a6b15bb89f07e76007273010f8154669c1902be"},
+    {file = "pyroaring-1.0.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:9af383e5b63cef57beb005de343faa5c984574f3e5f23904fc74bba53bbdbfbc"},
+    {file = "pyroaring-1.0.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:cf2b2ea69d218911b244abf05cdc52fb5f45ddb4ef2730921d6b56ce1ba6d57a"},
+    {file = "pyroaring-1.0.1-cp313-cp313-manylinux_2_24_armv7l.manylinux_2_31_armv7l.whl", hash = "sha256:f3068dd1dfc560c92093cf10de8bf7683d6d9b3550bb5ec674a9e5a47e4c9cfa"},
+    {file = "pyroaring-1.0.1-cp313-cp313-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:40b10657164e53ed2618ec7490e166bf37b062abbd64e6096179dd47beb4af70"},
+    {file = "pyroaring-1.0.1-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:b813c7136eecb112379406634a158efcbfbe3ce0503421fc2f8f7c4bf44526cb"},
+    {file = "pyroaring-1.0.1-cp313-cp313-musllinux_1_2_armv7l.whl", hash = "sha256:3d5c047cb9c673c5445fc9f9ba2229609434ae01601e5b0195ac354ad942ee54"},
+    {file = "pyroaring-1.0.1-cp313-cp313-musllinux_1_2_i686.whl", hash = "sha256:8b92fa384e5ac7d6dd69601d5dd828eecf810d7978c92bc85128834bf72e6572"},
+    {file = "pyroaring-1.0.1-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:eff8546f6e96bfb57321cc796cfd32bc9e757de930896f96333fd0d14dfb5e3c"},
+    {file = "pyroaring-1.0.1-cp313-cp313-win32.whl", hash = "sha256:eab133dd4836706e1639fe2c936598ba3464a082c77803b614c4a807f5ea10fe"},
+    {file = "pyroaring-1.0.1-cp313-cp313-win_amd64.whl", hash = "sha256:14b01e0d8acfe2f7b786fc7c6b441c1e67d337835f2b946142e6d79d1137f782"},
+    {file = "pyroaring-1.0.1-cp313-cp313-win_arm64.whl", hash = "sha256:e0537a2e3d5ebd64e5b017e5e11461489b613dae83437a683330ee26012bb828"},
+    {file = "pyroaring-1.0.1-cp38-cp38-macosx_10_9_universal2.whl", hash = "sha256:11519baeb313a32bc038012293a40e50b8e5262791d797eb96dd52e4f1b11aff"},
+    {file = "pyroaring-1.0.1-cp38-cp38-macosx_10_9_x86_64.whl", hash = "sha256:6d255eac739dcaad758f1f561561d13e355156adb023f8107b5594509e093980"},
+    {file = "pyroaring-1.0.1-cp38-cp38-macosx_11_0_arm64.whl", hash = "sha256:98a08b3964665ba22b37dba1a91fb8f4501f6f5d43ae83befa7516daea0bec09"},
+    {file = "pyroaring-1.0.1-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:4c6b401e6f4c5f6d37cb6250435b62b2537cae779e3c09eece639a9cc6ac91e8"},
+    {file = "pyroaring-1.0.1-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:bf6f2083990043dc31254c14991f6a5bc02cb60a4c8481586625eaedd2306386"},
+    {file = "pyroaring-1.0.1-cp38-cp38-manylinux_2_24_armv7l.manylinux_2_31_armv7l.whl", hash = "sha256:c85bffdab56ef10559e5091dde68c5b05a65321a7877c72cea6cbbbfa82e61c3"},
+    {file = "pyroaring-1.0.1-cp38-cp38-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:62918add0aeb120252abb7d2f27251025b35adeb7cdef291269ee7de829f2f43"},
+    {file = "pyroaring-1.0.1-cp38-cp38-musllinux_1_2_aarch64.whl", hash = "sha256:26544c0f99785df03b44923acaccb13358193bc29bcfb4dc74e0d268025af0c9"},
+    {file = "pyroaring-1.0.1-cp38-cp38-musllinux_1_2_armv7l.whl", hash = "sha256:829319976e80c5842ed74824d5b54863d56439643304af3bc20937fc56a54b45"},
+    {file = "pyroaring-1.0.1-cp38-cp38-musllinux_1_2_i686.whl", hash = "sha256:733e409daa9528bc3662d46c1ca44e152cc630af500ee87a570608b8ba9d4cb5"},
+    {file = "pyroaring-1.0.1-cp38-cp38-musllinux_1_2_x86_64.whl", hash = "sha256:e788c1d899ed728b31255114fa755cdef8b437d059f7969da448d249e8bc4f7e"},
+    {file = "pyroaring-1.0.1-cp38-cp38-win32.whl", hash = "sha256:db2de0a399092ab4d294e93de3c6af004e2f0164b9c8e6f9f6a269c29de6d64c"},
+    {file = "pyroaring-1.0.1-cp38-cp38-win_amd64.whl", hash = "sha256:71790cbf2a8c6945698933debb73c9ab8f1ae70f98a4f548c48d257acf078a6d"},
+    {file = "pyroaring-1.0.1-cp39-cp39-macosx_10_9_universal2.whl", hash = "sha256:de325ee535599e5259befa0edbc98c105c4bcc2e7ff0b9165a37f43448c41174"},
+    {file = "pyroaring-1.0.1-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:7b30e47c8d01d78129111bb3ac5d23c64842a63cafeea94810d5c50d1721c3d4"},
+    {file = "pyroaring-1.0.1-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:2f184c7672dd77fa4a1b860d933918d2ffe9a1a6339f29d9afc6840515c64fb6"},
+    {file = "pyroaring-1.0.1-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:47058ca48f2e4cdae5db179653e30b9dde5d4d42a0e877501dcad7116cabc8b9"},
+    {file = "pyroaring-1.0.1-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:91dbbb20646d59c5ecde5f3003bca9727b362e740ec53a770b37aa5b4a386c98"},
+    {file = "pyroaring-1.0.1-cp39-cp39-manylinux_2_24_armv7l.manylinux_2_31_armv7l.whl", hash = "sha256:7ca8e5454d1b9bbbe89b2bb038139142de39503d1499589a019ff7ef38dc3f0b"},
+    {file = "pyroaring-1.0.1-cp39-cp39-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:c5668c8e85c74bd1c6ef2e6f97f35af9a94f6f6254032efd5b87728a3073fd5b"},
+    {file = "pyroaring-1.0.1-cp39-cp39-musllinux_1_2_aarch64.whl", hash = "sha256:56915a8ed3c6cca5839c1a61c3e0d0f339be2da271c9bcc8999ff8acf2a1a687"},
+    {file = "pyroaring-1.0.1-cp39-cp39-musllinux_1_2_armv7l.whl", hash = "sha256:09a670334a5df5e0891690d4e86e1f30537cb47bfcf51cd223a7a809fd3eb8b6"},
+    {file = "pyroaring-1.0.1-cp39-cp39-musllinux_1_2_i686.whl", hash = "sha256:da67411dd64a2b7f8794df9a8e2c99d89803a94a3fe65340410fc85032e22390"},
+    {file = "pyroaring-1.0.1-cp39-cp39-musllinux_1_2_x86_64.whl", hash = "sha256:c3562556856096fbaf10d72d2e350edb00e8c7906c6cf9bb86a17845b631f059"},
+    {file = "pyroaring-1.0.1-cp39-cp39-win32.whl", hash = "sha256:6e194e7c89d6865e90190c30cfe68dd3e641092c4fe48e13ecb67e2368f02489"},
+    {file = "pyroaring-1.0.1-cp39-cp39-win_amd64.whl", hash = "sha256:5e7d9bbdacd557ef0f0e5d4456b0cbd3e85130c8ef102dcfe484f6a4af5df444"},
+    {file = "pyroaring-1.0.1-cp39-cp39-win_arm64.whl", hash = "sha256:15cd0fc12ee797bbb28332bdbac2d65a7826c0b6ab50b7337e75ee41f92c9503"},
+    {file = "pyroaring-1.0.1.tar.gz", hash = "sha256:e0ab5f8a18a7ba99b8f7a152dca300ef5bd9eff0a7df56a08714114497b63f10"},
 ]
 
 [[package]]

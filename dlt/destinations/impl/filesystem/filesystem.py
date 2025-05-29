@@ -190,6 +190,7 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     table=delta_table,
                     data=arrow_rbr,
                     schema=self._load_table,
+                    load_table_name=self.load_table_name,
                 )
             else:
                 location = self._job_client.get_open_table_location("delta", self.load_table_name)
@@ -239,6 +240,7 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                 table=table,
                 data=self.arrow_dataset.to_table(),
                 schema=self._load_table,
+                load_table_name=self.load_table_name,
             )
         else:
             write_iceberg_table(
