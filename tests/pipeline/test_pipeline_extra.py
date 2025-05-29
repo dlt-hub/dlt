@@ -3,6 +3,9 @@ import importlib.util
 from typing import Any, ClassVar, Dict, Iterator, List, Optional
 import pytest
 
+from dlt.common.destination.client import SupportsOpenTables
+from dlt.common.schema.utils import new_table
+from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 try:
@@ -48,6 +51,7 @@ from tests.extract.utils import expect_extracted_file
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import (
     assert_load_info,
+    assert_table_counts,
     load_table_counts,
     load_json_case,
     many_delayed,
@@ -769,3 +773,62 @@ def test_json_custom_encoder(json_impl: SupportsJson):
     finally:
         # revert to whatever custom encoder was set before
         json.set_custom_encoder(current_custom_json_encoder)
+
+
+@pytest.mark.parametrize(
+    "data_dir", (os.path.join(TEST_STORAGE_ROOT, "_data"), os.path.abspath(TEST_STORAGE_ROOT))
+)
+@pytest.mark.parametrize(
+    "layout",
+    (
+        "{table_name}/{load_id}.{file_id}.{ext}",
+        "{table_name}.{load_id}.{file_id}.{ext}",
+        "{table_name}/{load_id}/{file_id}.{ext}",
+        "{table_name}.{load_id}/{file_id}.{ext}",
+    ),
+)
+def test_open_table_location(data_dir: str, layout: str) -> None:
+    # note that data dir is native path fs path
+    pipeline = dlt.pipeline(
+        "open_tables", destination=dlt.destinations.filesystem(data_dir, layout=layout)
+    )
+
+    # run pipeline first, then get client using context manager
+    pipeline.run([1, 2, 3], table_name="digits", loader_file_format="jsonl")
+    pipeline.run(["A", "B", "C", "D"], table_name="letters", loader_file_format="csv")
+    pipeline.run(["one", "two"], table_name="words", loader_file_format="parquet")
+
+    with pipeline.destination_client() as client:
+        assert isinstance(client, SupportsOpenTables)
+        location = client.get_open_table_location(None, "digits")
+        # location must be url
+        assert location.startswith("file://")
+        if os.name == "nt":
+            assert not location.startswith("file:///")
+        is_folder = layout.startswith("{table_name}/")
+        if is_folder:
+            assert location.endswith("digits/")
+        else:
+            assert location.endswith("digits.")
+        assert_table_counts(pipeline, expected_counts={"digits": 3, "letters": 4, "words": 2})
+
+    # create empty file
+    file_format: TLoaderFileFormat
+    for file_format in ("jsonl", "csv", "parquet"):
+        table_name = f"empty_{file_format}"
+        pipeline.run(
+            [dlt.mark.materialize_table_schema()],
+            columns=[{"name": "value", "data_type": "bigint"}],
+            table_name=table_name,
+            loader_file_format=file_format,
+        )
+
+    # fake a table that is not yet created
+    with pipeline.destination_client() as client:
+        assert_table_counts(pipeline, {table_name: 0}, table_name)
+
+        client.schema.update_table(
+            new_table("missing", columns=[{"name": "value", "data_type": "bigint"}])
+        )
+        with pytest.raises(DatabaseUndefinedRelation):
+            assert_table_counts(pipeline, {"missing": 0}, "missing")

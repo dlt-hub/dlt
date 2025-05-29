@@ -21,7 +21,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, InvalidNativeValue
 from dlt.common.data_writers.exceptions import FileImportNotFound, SpecLookupFailed
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.client import SupportsOpenTables, WithStateSync
+from dlt.common.destination.client import WithStateSync
 from dlt.common.destination.exceptions import (
     DestinationHasFailedJobs,
     DestinationIncompatibleLoaderFileFormatException,
@@ -3704,34 +3704,3 @@ def test_nested_hints_primary_key() -> None:
     # load again, merge should overwrite rows
     load_info = p.run(customers().add_map(_pushdown_customer_id))
     assert p.dataset().row_counts().fetchall() == row_count
-
-
-@pytest.mark.parametrize(
-    "data_dir", (os.path.join(TEST_STORAGE_ROOT, "_data"), os.path.abspath(TEST_STORAGE_ROOT))
-)
-@pytest.mark.parametrize(
-    "layout", ("{table_name}/{load_id}.{file_id}.{ext}", "{table_name}.{load_id}.{file_id}.{ext}")
-)
-def test_open_table_location(data_dir: str, layout: str) -> None:
-    # note that data dir is native path fs path
-    pipeline = dlt.pipeline(
-        "open_tables", destination=dlt.destinations.filesystem(data_dir, layout=layout)
-    )
-
-    # run pipeline first, then get client using context manager
-    pipeline.run([1, 2, 3], table_name="digits", loader_file_format="jsonl")
-    pipeline.run(["A", "B", "C", "D"], table_name="letters", loader_file_format="csv")
-
-    with pipeline.destination_client() as client:
-        assert isinstance(client, SupportsOpenTables)
-        location = client.get_open_table_location(None, "digits")
-        # location must be url
-        assert location.startswith("file://")
-        if os.name == "nt":
-            assert not location.startswith("file:///")
-        is_folder = layout.startswith("{table_name}/")
-        if is_folder:
-            assert location.endswith("digits/")
-        else:
-            assert location.endswith("digits.")
-        assert_table_counts(pipeline, expected_counts={"digits": 3, "letters": 4})

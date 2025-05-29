@@ -1,7 +1,5 @@
-import glob
-from typing import Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING, Tuple, List
 import os
-import re
 import duckdb
 
 from dlt.common import logger
@@ -46,17 +44,15 @@ class FilesystemSqlClient(WithTableScanners):
     def can_create_view(self, table_schema: PreparedTableSchema) -> bool:
         if table_schema.get("table_format") in ("delta", "iceberg"):
             return True
-        file_format = self.get_file_format(table_schema)
-        return file_format in ("jsonl", "parquet", "csv")
+        # checking file type is expensive so we optimistically allow to create view and prune later
+        return True
 
-    def get_file_format(self, table_schema: PreparedTableSchema) -> str:
+    def get_file_format_and_files(self, table_schema: PreparedTableSchema) -> Tuple[str, List[str]]:
         table_name = table_schema["name"]
-        if table_name in self.schema.dlt_table_names():
-            return "jsonl"
         files = self.remote_client.list_table_files(table_name)
         if len(files) == 0:
             raise DestinationUndefinedEntity(table_name)
-        return os.path.splitext(files[0])[1][1:]
+        return os.path.splitext(files[0])[1][1:], files
 
     def create_secret(
         self,
@@ -94,9 +90,9 @@ class FilesystemSqlClient(WithTableScanners):
         super().open_connection()
 
         if first_connection:
-            # TODO: we need to frontlaod the httpfs extension for abfss for some reason
+            # TODO: we need to frontload the httpfs extension for abfss for some reason
             if self.is_abfss:
-                self._conn.sql("INSTALL httpfs;LOAD httpfs;")
+                self._conn.sql("LOAD httpfs;")
 
             # create single authentication for the whole client
             self.create_secret(
@@ -171,27 +167,15 @@ class FilesystemSqlClient(WithTableScanners):
                     " skip_schema_inference=false)"
                 )
         else:
-            # get file format from schema
+            # get file format and list of table files
             # NOTE: this does not support cases where table contains many different file formats
-            first_file_type = self.get_file_format(table_schema)
-
-            # build files string
-            supports_wildcard_notation = not self.is_abfss
-
-            if supports_wildcard_notation:
-                # NOTE: if the top level is a folder, we need to select all files recursively, subfolders may be present
-                is_folder = table_location.endswith(self.remote_client.pathlib.sep)
-                glob_select_all_pattern = "**/*" if is_folder else "*"
-                resolved_files_string = (
-                    f"'{glob.escape(table_location)}{glob_select_all_pattern}.{first_file_type}'"
-                )
+            # NOTE: since we must list all the files anyway we just pass them to duckdb without further globbing
+            #   list is in the memory already and query size in duckdb is very large
+            first_file_type, files = self.get_file_format_and_files(table_schema)
+            if protocol == "file":
+                resolved_files_string = ",".join(map(lambda f: f"'{f}'", files))
             else:
-                # list_table_files returns a list of absolute paths but without scheme
-                files = self.remote_client.list_table_files(table_name)
-                if protocol == "file":
-                    resolved_files_string = ",".join(map(lambda f: f"'{f}'", files))
-                else:
-                    resolved_files_string = ",".join(map(lambda f: f"'{protocol}://{f}'", files))
+                resolved_files_string = ",".join(map(lambda f: f"'{protocol}://{f}'", files))
 
             if first_file_type == "parquet":
                 from_statement = f"read_parquet([{resolved_files_string}], union_by_name=true)"
@@ -237,11 +221,14 @@ class FilesystemSqlClient(WithTableScanners):
                     )
 
             else:
-                raise NotImplementedError(
-                    f"Unknown filetype {first_file_type} for table {table_name}. Currently only"
-                    " jsonl and parquet files as well as delta and iceberg tables are"
-                    " supported."
-                )
+                # we skipped checking file type in can_create_view to not repeat globs which are expensive
+                # so we skip here.
+                return
+                # raise NotImplementedError(
+                #     f"Unknown filetype {first_file_type} for table {table_name}. Currently only"
+                #     " jsonl and parquet files as well as delta and iceberg tables are"
+                #     " supported."
+                # )
 
         # create table
         view_name = self.make_qualified_table_name(view_name)

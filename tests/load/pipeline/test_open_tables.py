@@ -65,7 +65,13 @@ def test_get_open_table_location(destination_config: DestinationTestConfiguratio
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize(
-    "layout", ("{table_name}/{load_id}.{file_id}.{ext}", "{table_name}.{load_id}.{file_id}.{ext}")
+    "layout",
+    (
+        "{table_name}/{load_id}.{file_id}.{ext}",
+        "{table_name}.{load_id}.{file_id}.{ext}",
+        "{table_name}/{load_id}/{file_id}.{ext}",
+        "{table_name}.{load_id}/{file_id}.{ext}",
+    ),
 )
 def test_open_table_location_native(
     destination_config: DestinationTestConfiguration, layout: str
