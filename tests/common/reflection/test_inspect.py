@@ -2,6 +2,7 @@ import functools
 import inspect
 from typing import Any
 import pytest
+import sys
 
 from dlt.common.reflection.inspect import (
     _find_code_flag,
@@ -165,8 +166,8 @@ def test_partialmethod_keeps_generator_flag():
 
         greet = functools.partialmethod(_impl, "hello")
 
-    # not following method wraps
-    assert inspect.isgeneratorfunction(Greeter().greet) is True
+    # not following method wraps (seems to have changed in 3.10)
+    assert inspect.isgeneratorfunction(Greeter().greet) is (sys.version_info[:2] > (3, 9))
     # following method wraps
     assert isgeneratorfunction(Greeter().greet) is True
 

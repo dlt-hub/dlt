@@ -5,7 +5,7 @@ import shutil
 import venv
 import types
 import subprocess
-from typing import Any, ClassVar, Iterator, List, Type
+from typing import Any, ClassVar, Generator, Iterator, List, Type, ContextManager
 
 from dlt.common import known_env
 from dlt.common.exceptions import CannotInstallDependencies, VenvNotFound
@@ -137,16 +137,20 @@ class Venv:
     def add_dependencies(self, dependencies: List[str] = None) -> None:
         Venv.install_deps(self.context, dependencies)
 
-    @contextmanager
     @staticmethod
-    def set_pip_tool(pip_tool: str) -> Iterator[None]:
+    def set_pip_tool(pip_tool: str) -> ContextManager[None]:
         """Sets pip tool in context manager, not thread safe"""
-        old_tool = Venv.PIP_TOOL
-        try:
-            Venv.PIP_TOOL = pip_tool
-            yield
-        finally:
-            Venv.PIP_TOOL = old_tool
+
+        @contextmanager
+        def _ctx(pip_tool: str) -> Generator[None, None, None]:
+            old_tool = Venv.PIP_TOOL
+            try:
+                Venv.PIP_TOOL = pip_tool
+                yield
+            finally:
+                Venv.PIP_TOOL = old_tool
+
+        return _ctx(pip_tool)
 
     @staticmethod
     def get_pip_tool() -> str:
