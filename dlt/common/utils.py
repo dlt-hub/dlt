@@ -332,6 +332,20 @@ def dict_remove_nones_in_place(d: Dict[Any, Any]) -> Dict[Any, Any]:
     return d
 
 
+def simple_repr(object_name: str, **kwargs: Any) -> str:
+    """Create a simple string representation of an object.
+
+    For example:
+
+        s = simple_repr("Resource", name="my_resource", table_name="my_table")
+        print(s)
+        # "Resource(name='my_resource', table_name='my_table')"
+
+    """
+    args = [f"{k}={v.__repr__()}" for k, v in kwargs.items()]
+    return f"<{object_name}({', '.join(args)})>"
+
+
 @contextmanager
 def custom_environ(env: StrStr) -> Iterator[None]:
     """Temporarily set environment variables inside the context manager and

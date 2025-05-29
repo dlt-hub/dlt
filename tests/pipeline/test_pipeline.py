@@ -3728,3 +3728,28 @@ def test_nested_hints_primary_key() -> None:
     # load again, merge should overwrite rows
     load_info = p.run(customers().add_map(_pushdown_customer_id))
     assert p.dataset().row_counts().fetchall() == row_count
+
+
+def test_pipeline_repr() -> None:
+    sentinel = object()
+    p = dlt.pipeline(pipeline_name="repr_pipeline", destination="duckdb")
+
+    repr_ = p.__repr__()
+    assert isinstance(repr_, str)
+    assert "dlt.pipeline(" in repr_
+
+    # check that properties used by `__repr__` exist
+    assert getattr(p, "pipeline_name", sentinel) is not sentinel
+    assert getattr(p, "_destination", sentinel) is not sentinel
+    # we know `._destination` is set on this Pipeline
+    assert getattr(p._destination, "destination_name", sentinel) is not sentinel
+    assert getattr(p, "_staging", sentinel) is not sentinel
+    # NOTE we also expect `_staging.destination_name` to exist
+    assert getattr(p, "dataset_name", sentinel) is not sentinel
+    assert getattr(p, "default_schema_name", sentinel) is not sentinel
+    assert getattr(p, "schema_names", sentinel) is not sentinel
+    assert getattr(p, "first_run", sentinel) is not sentinel
+    assert getattr(p, "dev_mode", sentinel) is not sentinel
+    assert getattr(p, "is_active", sentinel) is not sentinel
+    assert getattr(p, "pipelines_dir", sentinel) is not sentinel
+    assert getattr(p, "working_dir", sentinel) is not sentinel

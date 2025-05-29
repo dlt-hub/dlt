@@ -1,5 +1,7 @@
 import os
 from typing import Dict, List, Sequence
+from types import MethodType
+
 import pytest
 from copy import deepcopy
 
@@ -874,3 +876,19 @@ def test_remove_processing_hints() -> None:
     cloned._bump_version()
     no_hints = schema.from_dict(eth_V11, remove_processing_hints=True)
     assert no_hints.stored_version_hash == cloned.stored_version_hash
+
+
+def test_schema_repr() -> None:
+    sentinel = object()
+    schema = Schema.from_dict(load_yml_case("schemas/eth/ethereum_schema_v11"))
+
+    repr_ = schema.__repr__()
+    assert isinstance(repr_, str)
+    assert "dlt.Schema(" in repr_
+
+    # check that properties used by `__repr__` exist
+    assert getattr(schema, "name", sentinel) is not sentinel
+    assert getattr(schema, "version", sentinel) is not sentinel
+    assert getattr(schema, "version_hash", sentinel) is not sentinel
+    assert isinstance(getattr(schema, "data_table_names", sentinel), MethodType)
+    assert isinstance(getattr(schema, "dlt_table_names", sentinel), MethodType)
