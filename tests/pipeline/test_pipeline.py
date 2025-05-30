@@ -359,7 +359,7 @@ def test_file_format_resolution() -> None:
     with pytest.raises(DestinationIncompatibleLoaderFileFormatException):
         pipeline = dlt.pipeline(pipeline_name="managed_state_pipeline", destination="postgres")
         pipeline.config.restore_from_destination = False
-        pipeline.run([1, 2, 3], table_name="numbers", loader_file_format="parquet")
+        pipeline.run([1, 2, 3], table_name="numbers", loader_file_format="jsonl")
 
     # check invalid input
     with pytest.raises(DestinationIncompatibleLoaderFileFormatException):
