@@ -2,15 +2,11 @@ import os
 import tempfile
 import pytest
 import pandas as pd
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-from typing import Dict, Any, List
-from datetime import datetime
+from unittest.mock import Mock, patch
+
 
 import dlt
 from dlt.common.schema import Schema
-from dlt.common.storages import FileStorage
-from dlt.common.pendulum import pendulum
 from dlt.helpers.studio.config import StudioConfiguration
 from dlt.helpers.studio import utils
 from dlt.sources._single_file_templates.fruitshop_pipeline import fruitshop as fruitshop_source

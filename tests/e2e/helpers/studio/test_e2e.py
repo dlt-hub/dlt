@@ -1,19 +1,16 @@
 from typing import Any, Literal
 
 import dlt
-import time
 import pytest
-import os
-import shutil
 
 from playwright.sync_api import Page, expect
 
 from tests.utils import (
     patch_home_dir,
-    # autouse_test_storage,
-    # preserve_environ,
-    # duckdb_pipeline_location,
-    # wipe_pipeline,
+    autouse_test_storage,
+    preserve_environ,
+    duckdb_pipeline_location,
+    wipe_pipeline,
 )
 
 from dlt.sources._single_file_templates.fruitshop_pipeline import (
