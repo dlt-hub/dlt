@@ -88,9 +88,14 @@ def test_page_loads(page: Page):
 
     # simple check for  one two three pipeline
     page.get_by_role("link", name="one_two_three").click()
+    
+
 
     # sync page
     _open_section(page, "sync", close_other_sections=False)
+    html = page.content()
+    print(html)
+
     expect(page.get_by_text(app_strings.sync_status_success_text.split("from")[0])).to_be_visible()
 
     # overview page
