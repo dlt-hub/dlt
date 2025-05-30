@@ -13,6 +13,7 @@ from dlt.common.destination.dataset import (
 from dlt.common.destination.typing import TDatasetType
 from dlt.common.schema import Schema
 from dlt.common.typing import Self
+from dlt.common.schema.typing import C_DLT_LOAD_ID
 
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
@@ -181,7 +182,12 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         return relation  # type: ignore[return-value]
 
     def row_counts(
-        self, *, data_tables: bool = True, dlt_tables: bool = False, table_names: List[str] = None
+        self,
+        *,
+        data_tables: bool = True,
+        dlt_tables: bool = False,
+        table_names: List[str] = None,
+        load_id: str = None,
     ) -> SupportsReadableRelation:
         """Returns a dictionary of table names and their row counts, returns counts of all data tables by default"""
         """If table_names is provided, only the tables in the list are returned regardless of the data_tables and dlt_tables flags"""
@@ -193,13 +199,25 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
             if dlt_tables:
                 selected_tables += self.schema.dlt_table_names()
 
+        # filter tables so only ones with dlt_load_id column are included
+        if load_id:
+            dlt_load_id_col = self.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
+            selected_tables = [
+                table
+                for table in selected_tables
+                if dlt_load_id_col in self.schema.tables[table]["columns"].keys()
+            ]
+
         # Build UNION ALL query to get row counts for all selected tables
         queries = []
         for table in selected_tables:
-            queries.append(
+            query = (
                 f"SELECT '{table}' as table_name, COUNT(*) as row_count FROM"
                 f" {self.sql_client.make_qualified_table_name(table)}"
             )
+            if load_id:
+                query += f" WHERE {dlt_load_id_col} = '{load_id}'"
+            queries.append(query)
 
         query = " UNION ALL ".join(queries)
 

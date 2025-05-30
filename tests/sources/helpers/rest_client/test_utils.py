@@ -3,7 +3,7 @@ from dlt.sources.helpers.rest_client.utils import join_url
 
 
 @pytest.mark.parametrize(
-    "base_url, path, expected",
+    "my_base_url, path, expected",
     [
         # Normal cases
         (
@@ -72,12 +72,12 @@ from dlt.sources.helpers.rest_client.utils import join_url
         ("example.com", "path", "example.com/path"),
     ],
 )
-def test_join_url(base_url, path, expected):
-    assert join_url(base_url, path) == expected
+def test_join_url(my_base_url, path, expected):
+    assert join_url(my_base_url, path) == expected
 
 
 @pytest.mark.parametrize(
-    "base_url, path, exception",
+    "my_base_url, path, exception",
     [
         (None, "path", ValueError),
         ("http://example.com", None, AttributeError),
@@ -85,6 +85,6 @@ def test_join_url(base_url, path, expected):
         ("http://example.com", 123, AttributeError),
     ],
 )
-def test_join_url_invalid_input_types(base_url, path, exception):
+def test_join_url_invalid_input_types(my_base_url, path, exception):
     with pytest.raises(exception):
-        join_url(base_url, path)
+        join_url(my_base_url, path)

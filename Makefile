@@ -149,3 +149,12 @@ update-cli-docs:
 
 check-cli-docs:
 	poetry run dlt --debug render-docs docs/website/docs/reference/command-line-interface.md --compare
+
+test-e2e-studio:
+	poetry run pytest --browser chromium tests/e2e
+
+test-e2e-studio-headed:
+	poetry run pytest --headed --browser chromium tests/e2e
+
+start-dlt-studio-e2e:
+	poetry run marimo run --headless dlt/helpers/studio/app.py -- -- --pipelines_dir _storage/.dlt/pipelines --with_test_identifiers true

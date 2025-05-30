@@ -31,7 +31,7 @@ Creates, adds, inspects and deploys dlt pipelines. Further help is available at 
 ```sh
 dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
     [--non-interactive] [--debug]
-    {telemetry,schema,pipeline,init,render-docs,deploy,ai} ...
+    {telemetry,studio,schema,pipeline,init,render-docs,deploy,ai} ...
 ```
 
 <details>
@@ -48,6 +48,7 @@ dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
 
 **Available subcommands**
 * [`telemetry`](#dlt-telemetry) - Shows telemetry status
+* [`studio`](#dlt-studio) - Starts the dlt studio marimo app
 * [`schema`](#dlt-schema) - Shows, converts and upgrades schemas
 * [`pipeline`](#dlt-pipeline) - Operations on pipelines that were ran locally
 * [`init`](#dlt-init) - Creates a pipeline project in the current folder by adding existing verified source or creating a new one from template.
@@ -69,6 +70,35 @@ dlt telemetry [-h]
 **Description**
 
 The `dlt telemetry` command shows the current status of dlt telemetry. Lern more about telemetry and what we send in our telemetry docs.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt`](#dlt).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+## `dlt studio`
+
+Starts the dlt studio marimo app.
+
+**Usage**
+```sh
+dlt studio [-h]
+```
+
+**Description**
+
+The `dlt studio` command starts the dlt studio app. You can use the studio:
+
+* to list and inspect local pipelines
+* browse the full pipeline schema and all hints
+* browse the data in the destination
+* inspect the pipeline state.
 
 <details>
 

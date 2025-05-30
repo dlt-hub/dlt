@@ -301,7 +301,12 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
         """
 
     def row_counts(
-        self, *, data_tables: bool = True, dlt_tables: bool = False, table_names: List[str] = None
+        self,
+        *,
+        data_tables: bool = True,
+        dlt_tables: bool = False,
+        table_names: List[str] = None,
+        load_id: str = None
     ) -> SupportsReadableRelation:
         """Returns the row counts of the dataset
 
@@ -309,7 +314,7 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
             data_tables (bool, optional): Whether to include data tables. Defaults to True.
             dlt_tables (bool, optional): Whether to include dlt tables. Defaults to False.
             table_names (List[str], optional): The names of the tables to include. Defaults to None. Will override data_tables and dlt_tables if set
-
+            load_id (str, optional): If set, only count rows associated with a given load id. Will exclude tables that do not have a load id.
         Returns:
             SupportsReadableRelation: The row counts of the dataset as ReadableRelation
         """

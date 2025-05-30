@@ -38,3 +38,6 @@ DBT_PACKAGE_RUNNER = "dbt_package_runner"
 
 DBT_CLOUD = "dbt_cloud"
 """dbt cloud helpers configuration (DBTCloudConfiguration)"""
+
+STUDIO = "studio"
+"""studio configuration (StudioConfiguration)"""
