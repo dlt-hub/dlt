@@ -11,6 +11,8 @@ const MD_TARGET_DIR = "docs_processed/";
 
 const MOVE_FILES_EXTENSION = [".md", ".mdx", ".py", ".png", ".jpg", ".jpeg"];
 const DOCS_EXTENSIONS = [".md", ".mdx"];
+const WATCH_EXTENSIONS = [".md", ".py", ".toml"];
+const DEBOUNCE_INTERVAL_MS = 100;
 
 const SNIPPETS_FILE_SUFFIX = "-snippets.py"
 
@@ -210,6 +212,33 @@ function removeRemainingMarkers(lines) {
 }
 
 /**
+ * Process a single documentation file
+ */
+function processDocFile(fileName) {
+    if (!MOVE_FILES_EXTENSION.includes(path.extname(fileName))) {
+        return [0, 0, false];
+    }
+
+    const targetFileName = fileName.replace(MD_SOURCE_DIR, MD_TARGET_DIR);
+    fs.mkdirSync(path.dirname(targetFileName), { recursive: true });
+
+    if (!DOCS_EXTENSIONS.includes(path.extname(fileName))) {
+        fs.copyFileSync(fileName, targetFileName);
+        return [0, 0, true];
+    }
+
+    let lines = fs.readFileSync(fileName, 'utf8').split(/\r?\n/);
+
+    let snippetCount, tubaCount;
+    [snippetCount, lines] = insertSnippets(fileName, lines);
+    [tubaCount, lines] = insertTubaLinks(lines);
+    lines = removeRemainingMarkers(lines);
+
+    fs.writeFileSync(targetFileName, lines.join("\n"));
+    return [snippetCount, tubaCount, true];
+}
+
+/**
  * Preprocess all docs in the docs folder
  */
 function preprocess_docs() {
@@ -217,38 +246,20 @@ function preprocess_docs() {
     let processedFiles = 0;
     let insertedSnippets = 0;
     let processedTubaBlocks = 0;
+
     for (const fileName of walkSync(MD_SOURCE_DIR)) {
-        if (!MOVE_FILES_EXTENSION.includes(path.extname(fileName))) {
-            continue
+        const [snippetCount, tubaCount, processed] = processDocFile(fileName);
+        if (!processed) {
+            continue;
         }
-
-        // target name, where to copy the file
-        const targetFileName = fileName.replace(MD_SOURCE_DIR, MD_TARGET_DIR);
-        fs.mkdirSync(path.dirname(targetFileName), { recursive: true });
-        
-        // if not markdown file, just copy
-        if (!DOCS_EXTENSIONS.includes(path.extname(fileName))) {
-            fs.copyFileSync(fileName, targetFileName);
-            continue
-        }
-  
-        // copy docs to correct folder
-        let lines = fs.readFileSync(fileName, 'utf8').split(/\r?\n/);
-
-        // insert stuff
-        [snippetCount, lines] = insertSnippets(fileName, lines);
-        insertedSnippets += snippetCount;
-        [tubaCount, lines] = insertTubaLinks(lines);
-        processedTubaBlocks += tubaCount;
-        lines = removeRemainingMarkers(lines);
-
-        fs.writeFileSync(targetFileName, lines.join("\n"));
         processedFiles += 1;
+        insertedSnippets += snippetCount;
+        processedTubaBlocks += tubaCount;
     }
+
     console.log(`Processed ${processedFiles} files.`);
     console.log(`Inserted ${insertedSnippets} snippets.`);
     console.log(`Processed ${processedTubaBlocks} tuba blocks.`);
-
 }
 
 
@@ -268,95 +279,98 @@ function trimArray(lines) {
 /**
  * Sync examples into docs
  */
-function syncExamples() {
+function buildExampleDoc(exampleName) {
+  if (EXAMPLES_EXCLUSIONS.some(ex => exampleName.startsWith(ex))) {
+    console.debug(`Skipping ${exampleName}. Is excluded example.`)
+    return false;
+  }
 
+  const exampleFile = `${EXAMPLES_SOURCE_DIR}${exampleName}/${exampleName}.py`;
+  if (!fs.existsSync(exampleFile)) {
+    console.debug(`Skipping ${exampleFile}. File doesn't exist.`)
+    return false;
+  }
+
+  const targetFileName = `${EXAMPLES_DESTINATION_DIR}/${exampleName}.md`;
+  const lines = fs.readFileSync(exampleFile, 'utf8').split(/\r?\n/);
+
+  let commentCount = 0;
+  let headerCount = 0;
+
+  const header = [];
+  const markdown = [];
+  const code = [];
+
+  for (const line of lines) {
+    if (line.startsWith(`"""`)) {
+      commentCount += 1;
+      if (commentCount > 2) {
+        throw new Error();
+      }
+      continue;
+    }
+
+    if (line.startsWith(`---`)) {
+      headerCount += 1;
+      if (headerCount > 2) {
+        throw new Error();
+      }
+      continue;
+    }
+
+    if (headerCount == 1) {
+      header.push(line);
+    }
+    else if (commentCount == 1) {
+      markdown.push(line);
+    }
+    else if (commentCount == 2) {
+      code.push(line);
+    }
+  }
+
+  if (headerCount == 0) {
+    console.debug(`Aborting ${exampleFile}. No header found.`)
+    return false;
+  }
+
+  let output = [];
+  output.push("---");
+  output = output.concat(header);
+  output.push("---");
+
+  output.push(":::info");
+  const url = `https://github.com/dlt-hub/dlt/tree/devel/docs/examples/${exampleName}`;
+  output.push(`The source code for this example can be found in our repository at: `);
+  output.push(url);
+  output.push(":::");
+
+  output.push("## About this Example");
+  output = output.concat(trimArray(markdown));
+
+  output.push("### Full source code");
+  output.push("```py");
+  output = output.concat(trimArray(code));
+  output.push("```");
+
+  fs.mkdirSync(path.dirname(targetFileName), { recursive: true });
+  fs.writeFileSync(targetFileName, output.join("\n"));
+
+  console.debug(`${targetFileName} generated.`)
+  return true;
+}
+
+function syncExamples() {
   let count = 0;
   for (const exampleDir of listDirsSync(EXAMPLES_SOURCE_DIR)) {
-
     const exampleName = exampleDir.split("/").slice(-1)[0];
-
-    // exclude some folders
-    if (EXAMPLES_EXCLUSIONS.some(ex => exampleName.startsWith(ex))) {
-      continue;
+    if (buildExampleDoc(exampleName)) {
+      count += 1;
     }
-
-    const exampleFile = `${EXAMPLES_SOURCE_DIR}${exampleName}/${exampleName}.py`;
-    const targetFileName = `${EXAMPLES_DESTINATION_DIR}/${exampleName}.md`;
-    const lines = fs.readFileSync(exampleFile, 'utf8').split(/\r?\n/);
-
-    let commentCount = 0;
-    let headerCount = 0;
-
-    // separate file content
-    const header = []
-    const markdown = []
-    const code = []
-
-    for (const line of lines) {
-
-      // find file docstring boundaries
-      if (line.startsWith(`"""`)) {
-        commentCount += 1
-        if (commentCount > 2) {
-          throw new Error();
-         }
-         continue;
-      }
-
-      // find header boundaries
-      if (line.startsWith(`---`)) {
-         headerCount += 1;
-         if (headerCount > 2) {
-          throw new Error();
-         }
-         continue;
-      }
-
-      if (headerCount == 1) {
-        header.push(line);
-      }
-      else if (commentCount == 1) {
-        markdown.push(line)
-      }
-      else if (commentCount == 2) {
-        code.push(line);
-      }
-
-    }
-    
-    // if there is no header, do not generate a page
-    if (headerCount == 0 ) {
-      continue;
-    }
-
-    let output = [];
-
-    output.push("---")
-    output = output.concat(header);
-    output.push("---")
-
-    // add tip
-    output.push(":::info")
-    const url = `https://github.com/dlt-hub/dlt/tree/devel/docs/examples/${exampleName}`
-    output.push(`The source code for this example can be found in our repository at: `)
-    output.push(url);
-    output.push(":::")
-
-    output.push("## About this Example")
-    output = output.concat(trimArray(markdown));
-
-    output.push("### Full source code")
-    output.push("```py");
-    output = output.concat(trimArray(code));
-    output.push("```");
-
-    fs.mkdirSync(path.dirname(targetFileName), { recursive: true });
-    fs.writeFileSync(targetFileName, output.join("\n"));
-    
-    count += 1;
   }
-  console.log(`Synced ${count} examples`)
+  console.log(`Synced ${count} examples`);
 }
+
 
 // strings to search for, this check could be better but it
 // is a quick fix
@@ -414,19 +428,79 @@ function processDocs() {
 
 processDocs()
 
+
 /**
  * Watch for changes and preprocess the docs if --watch cli command flag is present
  */
-if (process.argv.includes("--watch")) {
-  console.log(`Watching...`)
-  let lastUpdate = Date.now();
-  watch("./docs", { recursive: true, filter: /\.(py|toml|md)$/  }, function(evt, name) {
-      // break update loop
-      if (Date.now() - lastUpdate < 500) {
-          return;
-      }
-      console.log('%s changed...', name);
-      processDocs();
-      lastUpdate = Date.now();
+function shouldProcess(filePath) {
+  if (filePath.startsWith(MD_SOURCE_DIR)){
+    return WATCH_EXTENSIONS.includes(path.extname(filePath));
+  } else if (filePath.startsWith(EXAMPLES_SOURCE_DIR)){
+    return  WATCH_EXTENSIONS.includes(path.extname(filePath))
+  } else {
+    return false
+  }
+}
+
+let lastUpdate = 0;
+
+function handleChange(eventType, filePath) {
+  console.debug(`${filePath} modified.`);
+
+  const now = Date.now();
+  if (now - lastUpdate < DEBOUNCE_INTERVAL_MS) {
+    console.debug(`Skipping update. Delay shorter debounce: ${DEBOUNCE_INTERVAL_MS} ms`)
+    return;
+  }
+
+  if (!shouldProcess(filePath)) {
+    console.debug(`Skipping ${filePath}.`)
+    return;
+  }
+
+  if (filePath.startsWith(MD_SOURCE_DIR)) {
+    processDocFile(filePath);
+    console.log(`${filePath} processed.`);
+  } else if (filePath.startsWith(EXAMPLES_SOURCE_DIR)) {
+    const exampleName = path.basename(filePath, ".py");
+    console.log(exampleName)
+    if (buildExampleDoc(exampleName)) {
+      const targetFileName = `${EXAMPLES_DESTINATION_DIR}/${exampleName}.md`;
+      processDocFile(targetFileName)
+      console.log(`${filePath} processed.`);
+    }
+  } else if (filePath.endsWith("snippets.toml")) {
+    preprocess_docs();
+    console.log(`${filePath} processed.`);
+  }
+
+  checkDocs();
+  lastUpdate = now;
+}
+
+
+function watchDirectory(dir) {
+  fs.watch(dir, { recursive: true }, (eventType, filename) => {
+    if (filename) {
+      const fullPath = path.join(dir, filename);
+      handleChange(eventType, fullPath);
+    }
   });
+}
+
+function startWatching() {
+  console.log("Watching for file changes...");
+
+  const watchDirs = [MD_SOURCE_DIR, EXAMPLES_SOURCE_DIR, path.resolve(__dirname)];
+
+  for (const dir of watchDirs) {
+    if (fs.existsSync(dir)) {
+      watchDirectory(dir);
+    }
+  }
+}
+
+
+if (process.argv.includes("--watch")) {
+  startWatching();
 }

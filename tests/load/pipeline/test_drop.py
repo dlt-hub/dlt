@@ -170,7 +170,9 @@ def test_drop_command_resources_and_state(
     pipeline = destination_config.setup_pipeline("droppable", dev_mode=True)
     info = pipeline.run(source, **destination_config.run_kwargs)
     assert_load_info(info)
-    assert load_table_counts(pipeline, *pipeline.default_schema.tables.keys()) == {
+
+    all_tables = list(pipeline.default_schema.tables.keys())
+    assert load_table_counts(pipeline, *all_tables) == {
         "_dlt_version": 1,
         "_dlt_loads": 1,
         "droppable_a": 2,
@@ -211,7 +213,8 @@ def test_drop_command_resources_and_state(
     # 3 loads (one for drop)
     # droppable_no_state correctly replaced
     # all other resources stay at the same count (they are incremental so they got loaded again or not loaded at all ie droppable_a)
-    assert load_table_counts(pipeline, *pipeline.default_schema.tables.keys()) == {
+    all_tables = list(pipeline.default_schema.tables.keys())
+    assert load_table_counts(pipeline, *all_tables) == {
         "_dlt_version": 2,
         "_dlt_loads": 3,
         "droppable_a": 2,
@@ -523,7 +526,7 @@ def test_drop_state_only(destination_config: DestinationTestConfiguration) -> No
 
 def test_drop_first_run_and_pending_packages() -> None:
     """Attempts to drop before pipeline runs and when partial loads happen"""
-    pipeline = dlt.pipeline("drop_test_" + uniq_id(), destination="dummy")
+    pipeline = dlt.pipeline("drop_test_" + uniq_id(), destination="duckdb")
     with pytest.raises(PipelineNeverRan):
         helpers.drop(pipeline, "droppable_a")
     os.environ["COMPLETED_PROB"] = "1.0"

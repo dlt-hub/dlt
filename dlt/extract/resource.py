@@ -30,7 +30,13 @@ from dlt.common.pipeline import (
     resource_state,
     pipeline_state,
 )
-from dlt.common.utils import flatten_list_or_items, get_callable_name, uniq_id
+from dlt.common.utils import (
+    flatten_list_or_items,
+    get_callable_name,
+    uniq_id,
+    without_none,
+    simple_repr,
+)
 
 from dlt.common.schema.typing import TTableSchema
 from dlt.extract.utils import (
@@ -717,19 +723,63 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             source_state_key=self.source_name or default_schema_name or self.section or uniq_id(),
         )
 
+    def __repr__(self) -> str:
+        # TODO add a mechanism to truncate the repr of some hints
+        # TODO expand information about steps
+        # TODO ensure consistent ordering between object __repr__
+        # TODO verify that attributes are inexpensive to compute
+        # TODO add a toggle for kwargs that are not valid kwargs, but
+        # helpful for debugging
+
+        limit = None
+        for step in self._pipe.steps:
+            if isinstance(step, LimitItem):
+                limit = step.max_items
+                break
+
+        kwargs = {
+            "name": self.name,
+            #  "section": self.section,  should this be explicitly passed?
+            "table_name": self._hints.get("table_name"),
+            "primary_key": self._hints.get("primary_key"),
+            "merge_key": self._hints.get("merge_key"),
+            "columns": "{...}" if self._hints.get("columns") else None,
+            "parent_table_name": self._hints.get("parent_table_name"),
+            "references": "{...}" if self._hints.get("references") else None,
+            "nested_hints": "{...}" if self._hints.get("nested_hints") else None,
+            "limit": limit,  # NOTE not a valid kwarg for `@dlt.resource`
+            "max_table_nesting": self._hints.get("max_table_nesting"),
+            "write_disposition": self._hints.get("write_disposition"),
+            "table_format": self._hints.get("table_format"),
+            "file_format": self._hints.get("file_format"),
+            "schema_contract": "{...}" if self._hints.get("schema_contract") else None,
+            "incremental": self.incremental,
+            "validator": self.validator,
+        }
+        if len(self._pipe.steps) > 1:
+            # NOTE both are not valid kwargs for `@dlt.resource`
+            kwargs["n_steps"] = len(self._pipe.steps)
+            kwargs["steps"] = [type(step).__name__ for step in self._pipe.steps]
+        # the name isn't `DltResource` because it's not the main entrypoint
+        # to create a resource
+        if self.is_transformer:
+            return simple_repr("@dlt.transformer", **without_none(kwargs))
+        else:
+            return simple_repr("@dlt.resource", **without_none(kwargs))
+
     def __str__(self) -> str:
-        info = f"DltResource [{self.name}]"
+        info = f"DltResource `{self.name}`"
         if self.section:
-            info += f" in section [{self.section}]"
+            info += f" in section `{self.section}`"
         if self.source_name:
-            info += f" added to source [{self.source_name}]:"
+            info += f" added to source `{self.source_name}`:"
         else:
             info += ":"
 
         if self.is_transformer:
             info += (
                 "\nThis resource is a transformer and takes data items from"
-                f" {self._pipe.parent.name}"
+                f" `{self._pipe.parent.name}`"
             )
         else:
             if self._pipe.is_data_bound:
@@ -737,13 +787,13 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                     head_sig = inspect.signature(self._pipe.gen)  # type: ignore
                     info += (
                         "\nThis resource is parametrized and takes the following arguments"
-                        f" {head_sig}. You must call this resource before loading."
+                        f" `{head_sig}`. You must call this resource before loading."
                     )
                 else:
                     info += (
                         "\nIf you want to see the data items in the resource you must iterate it or"
-                        " convert to list ie. list(resource). Note that, like any iterator, you can"
-                        " iterate the resource only once."
+                        " convert to list ie. `list(resource)`. Note that, like any iterator, you"
+                        " can iterate the resource only once."
                     )
             else:
                 info += "\nThis resource is not bound to the data"

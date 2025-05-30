@@ -102,7 +102,7 @@ def evolve_table(
         table = catalog.load_table(table_id)
     except NoSuchTableError:
         # add table to catalog
-        metadata_path = f"{table_location}/metadata"
+        metadata_path = f"{table_location.rstrip('/')}/metadata"
         if client.fs_client.exists(metadata_path):
             # found metadata; register existing table
             table = register_table(
@@ -166,7 +166,7 @@ def _get_fileio_config(credentials: CredentialsConfiguration) -> Dict[str, Any]:
 def get_last_metadata_file(
     metadata_path: str, fs_client: AbstractFileSystem, config: FilesystemConfiguration
 ) -> str:
-    # TODO: implement faster way to obtain `last_metadata_file` (listing is slow)
+    # TODO: read version-hint.txt first and save it in filesystem
     try:
         metadata_files = [f for f in fs_client.ls(metadata_path) if f.endswith(".json")]
     except FileNotFoundError:

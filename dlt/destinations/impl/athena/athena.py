@@ -201,7 +201,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         if not v:
             return v
         v = self.capabilities.casefold_identifier(v)
-        # bigquery uses hive escaping
+        # athena uses hive escaping
         return escape_hive_identifier(v)
 
     def fully_qualified_ddl_dataset_name(self) -> str:

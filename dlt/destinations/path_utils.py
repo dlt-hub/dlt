@@ -1,4 +1,5 @@
 import re
+import os
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from dlt.common import logger

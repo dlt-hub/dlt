@@ -10,7 +10,7 @@ from dlt.common.utils import uniq_id
 
 from tests.cases import arrow_table_all_data_types, prepare_shuffled_tables
 from tests.pipeline.utils import (
-    assert_data_table_counts,
+    assert_table_counts,
     assert_load_info,
     assert_only_table_columns,
     load_tables_to_dicts,
@@ -63,7 +63,7 @@ def test_load_csv(
     assert_load_info(load_info)
     job = load_info.load_packages[0].jobs["completed_jobs"][0].file_path
     assert job.endswith("csv")
-    assert_data_table_counts(pipeline, {"table": 5432 * 3})
+    assert_table_counts(pipeline, {"table": 5432 * 3})
     load_tables_to_dicts(pipeline, "table")
 
     # read csv with data access
@@ -183,7 +183,7 @@ def test_empty_csv_from_arrow(destination_config: DestinationTestConfiguration) 
     assert len(load_info.load_packages[0].jobs["completed_jobs"]) == 1
     job = load_info.load_packages[0].jobs["completed_jobs"][0].file_path
     assert job.endswith("csv")
-    assert_data_table_counts(pipeline, {"arrow_table": 0})
+    assert_table_counts(pipeline, {"arrow_table": 0})
     with pipeline.sql_client() as client:
         with client.execute_query("SELECT * FROM arrow_table") as cur:
             columns = [col.name for col in cur.description]
