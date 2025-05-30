@@ -66,7 +66,7 @@ def make_pipeline(destination_name: str) -> dlt.Pipeline:
         pipeline_name="sql_database" + uniq_id(),
         destination=destination_name,
         dataset_name="test_sql_pipeline_" + uniq_id(),
-        full_refresh=False,
+        dev_mode=False,
     )
 
 
@@ -142,7 +142,7 @@ def test_sqlalchemy_no_quoted_name(
         pipeline_name="sql_database" + uniq_id(),
         destination="duckdb",
         dataset_name="test_sql_pipeline_" + uniq_id(),
-        full_refresh=False,
+        dev_mode=False,
         import_schema_path=import_schema_path,
         export_schema_path=export_schema_path,
     )

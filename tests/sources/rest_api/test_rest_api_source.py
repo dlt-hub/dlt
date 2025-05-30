@@ -17,7 +17,7 @@ def _make_pipeline(destination_name: str):
         pipeline_name="rest_api",
         destination=destination_name,
         dataset_name="rest_api_data",
-        full_refresh=True,
+        dev_mode=True,
     )
 
 

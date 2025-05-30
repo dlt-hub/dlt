@@ -159,6 +159,7 @@ def test_connection_string_resolved_from_native_representation_env(environment: 
     c = resolve_configuration(ConnectionStringCredentials())
     assert not c.is_partial()
     assert c.is_resolved()
+    assert c.username == "USER"
     assert c.password is None
     assert c.port is None
     assert c.host is None
@@ -168,6 +169,19 @@ def test_connection_string_resolved_from_native_representation_env(environment: 
     c = resolve_configuration(ConnectionStringCredentials())
     assert c.password == "!pwd"
     assert c.host == "aws.12.1"
+
+
+def test_connection_string_resolved_from_explicit() -> None:
+    c = resolve_configuration(
+        ConnectionStringCredentials(), explicit_value="mysql+pymsql://USER@/dlt_data"
+    )
+    assert c.username == "USER"
+
+    explicit_c = ConnectionStringCredentials("mysql+pymsql://USER@/dlt_data")
+    assert explicit_c.username == "USER"
+
+    c = resolve_configuration(ConnectionStringCredentials(), explicit_value=explicit_c)
+    assert c.username == "USER"
 
 
 def test_connection_string_initializer() -> None:

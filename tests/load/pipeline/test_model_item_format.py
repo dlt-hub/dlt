@@ -109,7 +109,7 @@ def test_simple_incremental(destination_config: DestinationTestConfiguration) ->
     )
     dataset = pipeline.dataset()
 
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
 
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
@@ -144,7 +144,7 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
     )
 
     dataset = pipeline.dataset()
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
     # Define a resource that aliases column "a" as "b"
@@ -220,7 +220,7 @@ def test_simple_model_jobs(
     dataset = pipeline.dataset()
 
     # Retrieve the SQL dialect and schema information
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
     # Define a resource for a SQL model that excludes column "b" and "_dlt_id" from the query
@@ -352,7 +352,7 @@ def test_model_from_two_tables(destination_config: DestinationTestConfiguration,
     )
 
     dataset = pipeline.dataset()
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
     merged_cols = dataset.schema.tables["merged_table"]["columns"]
 
     @dlt.resource(table_name="merged_table")
@@ -407,7 +407,7 @@ def test_model_from_two_consecutive_tables(destination_config: DestinationTestCo
     )
 
     dataset = pipeline.dataset()
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
 
     relation_ab = dataset["example_table_ab"]
     relation_ac = dataset["example_table_ac"]
@@ -511,7 +511,7 @@ def test_write_dispositions(
     )
     query = relation.query()
 
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
 
     @dlt.resource(
         write_disposition=write_disposition,
@@ -574,7 +574,7 @@ def test_multiple_statements_per_resource(
 
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
 
     # create a resource that generates sql statements to create 2 new tables
     # we also need to supply all hints so the table can be created,
@@ -695,7 +695,7 @@ def test_copying_table_with_dropped_column(
         **destination_config.run_kwargs,
     )
     dataset = pipeline.dataset()
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
     @dlt.resource(name=target_table_name)
@@ -799,7 +799,7 @@ def test_load_model_with_all_types(
 
     pipeline.run([my_resource()], **destination_config.run_kwargs)
     dataset = pipeline.dataset()
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
     example_table_columns = dataset.schema.tables["data_types"]["columns"]
 
     @dlt.resource()
@@ -851,7 +851,7 @@ def test_data_contract_on_tables(
     dataset = pipeline.dataset()
 
     # Retrieve the SQL dialect and schema information
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
     # Define a resource to create a new copied table
@@ -914,7 +914,7 @@ def test_data_contract_on_columns(
     dataset = pipeline.dataset()
 
     # Retrieve the SQL dialect and schema information
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
     # Define a resource to insert a new column into copied_table
@@ -1003,7 +1003,7 @@ def test_data_contract_on_data_type(
     dataset = pipeline.dataset()
 
     # Retrieve the SQL dialect and schema information
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
     copied_table_columns = dataset.schema.tables["copied_table"]["columns"]
 

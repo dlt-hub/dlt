@@ -1,6 +1,6 @@
 import contextlib
 from copy import copy
-import makefun
+from functools import partial
 import inspect
 from typing import (
     Dict,
@@ -429,8 +429,8 @@ class DltSource(Iterable[TDataItem]):
     @property
     def run(self) -> SupportsPipelineRun:
         """A convenience method that will call `run` run on the currently active `dlt` pipeline. If pipeline instance is not found, one with default settings will be created."""
-        self_run: SupportsPipelineRun = makefun.partial(
-            Container()[PipelineContext].pipeline().run, *(), data=self
+        self_run: SupportsPipelineRun = partial(
+            Container()[PipelineContext].pipeline().run, data=self
         )
         return self_run
 

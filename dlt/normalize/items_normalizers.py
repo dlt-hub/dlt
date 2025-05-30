@@ -84,6 +84,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
         Returns:
             sqlglot.exp.Expression: A SQL expression that generates a UUID for the specified dialect.
         """
+
         # NOTE: redshift and sqlite don't have an in-built uuid function
         if dialect == "redshift":
             row_num = sqlglot.exp.Window(
@@ -118,6 +119,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
 
     def _adjust_outer_select_with_dlt_columns(
         self,
+        sql_dialect: str,
         outer_parsed_select: sqlglot.exp.Select,
         root_table_name: str,
     ) -> Optional[TSchemaUpdate]:
@@ -137,7 +139,6 @@ class ModelItemsNormalizer(ItemsNormalizer):
 
         schema_update: TSchemaUpdate = {}
         schema = self.schema
-        dialect = self.config.destination_capabilities.sqlglot_dialect
 
         existing = {
             select.alias.lower(): idx for idx, select in enumerate(outer_parsed_select.selects)
@@ -184,7 +185,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
                         f"Received row id type: '{row_id_type}'."
                     )
                 dlt_id_expr = sqlglot.exp.Alias(
-                    this=self._uuid_expr_for_dialect(dialect),
+                    this=self._uuid_expr_for_dialect(sql_dialect),
                     alias=sqlglot.exp.to_identifier(NORM_C_DLT_ID),
                 )
                 outer_parsed_select.selects.append(dlt_id_expr)
@@ -286,7 +287,13 @@ class ModelItemsNormalizer(ItemsNormalizer):
 
             norm_casefolded = self._normalize_casefold(name)
             selected_columns.append(norm_casefolded)
-            outer_selects.append(sqlglot.column(name, table=DLT_SUBQUERY_NAME).as_(norm_casefolded))
+
+            column_ref = sqlglot.exp.Dot(
+                this=sqlglot.exp.to_identifier(DLT_SUBQUERY_NAME),
+                expression=sqlglot.exp.to_identifier(name, quoted=True),
+            )
+
+            outer_selects.append(column_ref.as_(norm_casefolded))
 
         needs_reordering = selected_columns != list(columns.keys())
 
@@ -299,12 +306,12 @@ class ModelItemsNormalizer(ItemsNormalizer):
         with self.normalize_storage.extracted_packages.storage.open_file(
             extracted_items_file, "r"
         ) as f:
-            select_dialect, select_statement = read_dialect_and_sql(
+            sql_dialect, select_statement = read_dialect_and_sql(
                 file_obj=f,
                 fallback_dialect=self.config.destination_capabilities.sqlglot_dialect,  # caps are available at this point
             )
 
-        parsed_select = sqlglot.parse_one(select_statement, read=select_dialect)
+        parsed_select = sqlglot.parse_one(select_statement, read=sql_dialect)
 
         # The query is ensured to be a select statement upstream,
         # but we double check here
@@ -319,18 +326,18 @@ class ModelItemsNormalizer(ItemsNormalizer):
         ):
             raise ValueError(
                 "\n\nA `SELECT *` was detected in the model query:\n\n"
-                f"{parsed_select.sql(select_dialect)}\n\n"
+                f"{parsed_select.sql(sql_dialect)}\n\n"
                 "Model queries using a star (`*`) expression cannot be normalized. "
                 "Please rewrite the query to explicitly specify the columns to be selected.\n"
             )
 
         outer_parsed_select, needs_reordering = self._build_outer_select_statement(
-            select_dialect, parsed_select, self.schema.get_table_columns(root_table_name)
+            sql_dialect, parsed_select, self.schema.get_table_columns(root_table_name)
         )
 
         schema_updates = []
         dlt_col_update = self._adjust_outer_select_with_dlt_columns(
-            outer_parsed_select, root_table_name
+            sql_dialect, outer_parsed_select, root_table_name
         )
 
         if dlt_col_update:
@@ -341,12 +348,12 @@ class ModelItemsNormalizer(ItemsNormalizer):
                 outer_parsed_select, self.schema.get_table_columns(root_table_name), root_table_name
             )
 
-        normalized_query = outer_parsed_select.sql(dialect=select_dialect)
+        normalized_query = outer_parsed_select.sql(dialect=sql_dialect)
         self.item_storage.write_data_item(
             self.load_id,
             self.schema.name,
             root_table_name,
-            SqlModel.from_query_string(normalized_query, select_dialect),
+            SqlModel.from_query_string(normalized_query, sql_dialect),
             {},
         )
 

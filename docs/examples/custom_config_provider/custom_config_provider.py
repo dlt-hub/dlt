@@ -60,7 +60,7 @@ def loader(profile_name: str):
     return map_nested_in_place(eval_placeholder, config)
 
 
-@dlt.resource(standalone=True)
+@dlt.resource
 def github(url: str = dlt.config.value, api_key=dlt.secrets.value):
     # just return the injected config and secret
     yield url, api_key

@@ -145,7 +145,6 @@ This resource yields data items for changes in one or more Postgres tables.
 ```py
 @dlt.resource(
     name=lambda args: args["slot_name"] + "_" + args["pub_name"],
-    standalone=True,
 )
 def replication_resource(
     slot_name: str,
