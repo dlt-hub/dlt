@@ -306,7 +306,7 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
         data_tables: bool = True,
         dlt_tables: bool = False,
         table_names: List[str] = None,
-        load_id: str = None
+        load_id: str = None,
     ) -> SupportsReadableRelation:
         """Returns the row counts of the dataset
 
