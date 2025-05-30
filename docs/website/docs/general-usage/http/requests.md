@@ -100,7 +100,7 @@ http_client = Client(
 ```
 ## Handling API Rate Limits
 
-HTTP 429 errors indicate you've hit API rate limits. The dlt requests client retries these automatically and respects Retry-After headers. If rate limits persist, consider additional mitigation strategies.
+HTTP 429 errors indicate you've hit API rate limits. The dlt requests client retries these automatically and respects `Retry-After` headers. If rate limits persist, consider additional mitigation strategies.
 
 - **Check authentication**: Properly authenticated requests often have higher rate limits
 - **Review API documentation**: Look for rate limit guidelines and `Retry-After` header usage

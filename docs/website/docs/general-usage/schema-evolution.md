@@ -232,8 +232,8 @@ def validate_value(value):
         raise TypeError(f"Expected int or str, got {type(value)}")
     return str(value)  # Convert to consistent type
 ```
+Apply to your data:
 ```py
-# Apply to your data
 data = [{"id": 1, "value": validate_value(42)}]
 ```
 Ensures values match expected types, reducing the likelihood of variant columns due to type inconsistencies.
@@ -250,21 +250,21 @@ Limit how deeply nested structures are normalized to manage the level of nesting
 ```py
 # Set max_table_nesting on the source
 @dlt.source(max_table_nesting=2)
-def my_source():
+def my_data():
     return dlt.resource(data, name="my_table")
 
-pipeline.run(my_source())
+...
 ```
 
 #### Flatten complex structures before processing:
 
 Convert nested fields to flat representations to simplify schema inference.
 ```py
-import json
+import json as jsonlib
 
 def flatten_nested_data(data):
     # Preprocess to reduce nesting complexity
-    return {"id": data["id"], "details_json": json.dumps(data["complex_nested_field"])}
+    return {"id": data["id"], "details_json": jsonlib.dumps(data["complex_nested_field"])}
 
 # Use in your pipeline
 flattened_data = [flatten_nested_data(item) for item in original_data]
