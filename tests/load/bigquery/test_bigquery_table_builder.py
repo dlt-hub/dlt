@@ -19,7 +19,7 @@ from dlt.common.schema.exceptions import SchemaIdentifierNormalizationCollision
 from dlt.common.utils import custom_environ
 from dlt.common.utils import uniq_id
 from dlt.destinations import bigquery
-from dlt.destinations.adapters import bigquery_adapter
+from dlt.destinations.adapters import bigquery_adapter, bigquery_partition
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
 from dlt.destinations.impl.bigquery.bigquery_adapter import (
@@ -250,6 +250,47 @@ def test_create_table_with_integer_partition(gcp_client: BigQueryClient) -> None
     sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
     assert "PARTITION BY RANGE_BUCKET(`col1`, GENERATE_ARRAY(-172800000, 691200000, 86400))" in sql
+
+
+def test_create_table_with_custom_range_bucket_partition() -> None:
+    @dlt.resource
+    def partitioned_table():
+        yield {
+            "user_id": 10000,
+            "name": "user 1",
+            "created_at": "2021-01-01T00:00:00Z",
+            "category": "category 1",
+            "score": 100.0,
+        }
+
+    bigquery_adapter(
+        partitioned_table,
+        partition=bigquery_partition.range_bucket(
+            column_name="user_id",
+            start=0,
+            end=1000000,
+            interval=10000,
+        ),
+    )
+
+    pipeline = dlt.pipeline(
+        "bigquery_test",
+        destination="bigquery",
+        dev_mode=True,
+    )
+
+    pipeline.extract(partitioned_table)
+    pipeline.normalize()
+
+    with pipeline.destination_client() as client:
+        sql_partitioned = client._get_table_update_sql(  # type: ignore[attr-defined]
+            "partitioned_table",
+            list(pipeline.default_schema.tables["partitioned_table"]["columns"].values()),
+            False,
+        )[0]
+
+    expected_clause = "PARTITION BY RANGE_BUCKET(`user_id`, GENERATE_ARRAY(0, 1000000, 10000))"
+    assert expected_clause in sql_partitioned
 
 
 @pytest.mark.parametrize(
@@ -525,7 +566,12 @@ def test_adapter_hints_parsing_partitioning_more_than_one_column() -> None:
         "col2": {"data_type": "bigint", "name": "col2"},
     }
 
-    with pytest.raises(ValueError, match="^`partition` must be a single column name as a string.$"):
+    with pytest.raises(
+        ValueError,
+        match=(
+            "^`partition` must be a single column name as a string or a PartitionTransformation.$"
+        ),
+    ):
         bigquery_adapter(some_data, partition=["col1", "col2"])
 
 
