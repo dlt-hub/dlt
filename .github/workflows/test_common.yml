@@ -117,6 +117,31 @@ jobs:
       #     path: .venv
       #     key: venv-${{ matrix.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
+
+
+      # test marimo app, does not work with python 3.13
+      - name: Install dlt with duckdb and studio
+        run: poetry install --no-interaction -E duckdb --with sentry-sdk,pipeline,sources,ibis,marimo
+        if: matrix.python-version != '3.13.x'
+
+      - name: Install playwright
+        run: poetry run playwright install
+        if: matrix.python-version != '3.13.x'
+
+      # Run marimo studio unit tests
+      - name: Run marimo studio unit tests
+        run: |
+          poetry run pytest tests/helpers/studio
+        if: matrix.python-version != '3.13.x'
+
+      # Run marimo e2e tests (does not pass with python 3.9, does not pass on windows (playwright does not work somehow), does not pass on python 3.13 (ibis not available))
+      - name: Run marimo e2e
+        run: |
+          poetry run marimo run --headless dlt/helpers/studio/app.py -- -- --pipelines_dir _storage/.dlt/pipelines/ --with_test_identifiers true & poetry run pytest --browser chromium tests/e2e
+        if: matrix.python-version != '3.13.x' && matrix.python-version != '3.9.x' && matrix.os != 'windows-latest'
+
+
+        
       - name: Install dependencies
         run: poetry install --no-interaction --with sentry-sdk
 
@@ -163,26 +188,6 @@ jobs:
       #     poetry run pytest tests/libs
 
 
-      # test marimo app, does not work with python 3.13
-      - name: Install dlt with duckdb and studio
-        run: poetry install --no-interaction -E duckdb --with sentry-sdk,pipeline,sources,ibis,marimo
-        if: matrix.python-version != '3.13.x'
-
-      - name: Install playwright
-        run: poetry run playwright install
-        if: matrix.python-version != '3.13.x'
-
-      # Run marimo studio unit tests
-      - name: Run marimo studio unit tests
-        run: |
-          poetry run pytest tests/helpers/studio
-        if: matrix.python-version != '3.13.x'
-
-      # Run marimo e2e tests (does not pass with python 3.9, does not pass on windows (playwright does not work somehow), does not pass on python 3.13 (ibis not available))
-      - name: Run marimo e2e
-        run: |
-          poetry run marimo run --headless dlt/helpers/studio/app.py -- -- --pipelines_dir _storage/.dlt/pipelines/ --with_test_identifiers true & poetry run pytest --browser chromium tests/e2e
-        if: matrix.python-version != '3.13.x' && matrix.python-version != '3.9.x' && matrix.os != 'windows-latest'
 
 
   matrix_job_required_check:
