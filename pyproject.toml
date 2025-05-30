@@ -141,7 +141,6 @@ sql_database = ["sqlalchemy"]
 sqlalchemy = ["sqlalchemy", "alembic"]
 pyiceberg = ["pyiceberg", "pyarrow", "sqlalchemy"]
 postgis = ["psycopg2-binary", "psycopg2cffi"]
-studio = ["marimo", "pyarrow"]
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"
@@ -195,8 +194,6 @@ pip = ">=24.0.0"
 # keep duckdb compatible with motherduck
 duckdb = "<1.3"
 pydoclint = "^0.6.5"
-playwright = "^1.52.0"
-pytest-playwright = "^0.7.0"
 
 [tool.poetry.group.sources]
 optional = true
@@ -227,32 +224,46 @@ pandas = [
     {version = "<2.1", markers = "python_version < '3.12'"}
 ]
 
+# dependencies to run and test airflow
 [tool.poetry.group.airflow]
 optional = true
-
 [tool.poetry.group.airflow.dependencies]
 apache-airflow = {version = "^2.8.0", markers = "python_version < '3.12'"}
 
+# dependencies to run and test things that require ibis
 [tool.poetry.group.ibis]
 optional = true
-
 [tool.poetry.group.ibis.dependencies]
 ibis-framework = { version = ">=10.3.0", markers = "python_version >= '3.10'", extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse", "databricks"]}
 
+# dependencies to run and test the streamlit app (streamlit does not work with python 3.9.7)
+[tool.poetry.group.streamlit]
+optional = true
+[tool.poetry.group.streamlit.dependencies]
+streamlit = {version = "^1.40.0", markers = "python_version >= '3.9' and python_version != '3.9.7' and python_version < '3.14'"}
+
+# dependencies to run and test the marimo app 
+[tool.poetry.group.marimo]
+optional = true
+[tool.poetry.group.marimo.dependencies]
+marimo = "^0.13.6"
+playwright = "^1.52.0"
+pytest-playwright = "^0.7.0"
+# TODO: make marimo app independent of pyarrow
+pyarrow = [
+    {version = ">=17.0.0", markers = "python_version < '3.13'"},
+    {version = ">=18.0.0", markers = "python_version >= '3.13'"}
+]
+
 [tool.poetry.group.providers]
 optional = true
-
 [tool.poetry.group.providers.dependencies]
 google-api-python-client = "^2.86.0"
 
 [tool.poetry.group.sentry-sdk]
 optional = true
-
 [tool.poetry.group.sentry-sdk.dependencies]
 sentry-sdk = "^2.0.0"
-
-[tool.poetry.group.docs]
-optional = true
 
 [tool.poetry.group.dbt]
 optional = true
@@ -266,6 +277,8 @@ dbt-athena-community = ">=1.5.0"
 dbt-sqlserver = ">=1.5.0"
 # dbt-databricks = {version = ">=1.7.3", optional = true}
 
+[tool.poetry.group.docs]
+optional = true
 [tool.poetry.group.docs.dependencies]
 SQLAlchemy = ">=1.4.0"
 pymysql = "^1.1.0"

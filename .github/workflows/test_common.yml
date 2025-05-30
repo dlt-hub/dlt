@@ -165,7 +165,7 @@ jobs:
 
       # test marimo app, does not work with python 3.13
       - name: Install dlt with duckdb and studio
-        run: poetry install --no-interaction -E duckdb -E studio --with sentry-sdk,pipeline,sources,ibis
+        run: poetry install --no-interaction -E duckdb --with sentry-sdk,pipeline,sources,ibis,marimo
         if: matrix.python-version != '3.13.x'
 
       - name: Install playwright
