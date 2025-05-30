@@ -44,8 +44,11 @@ def create_sqlglot_schema(
     for table_name, table in schema.tables.items():
         column_mapping = {}
         for column_name, column in table["columns"].items():
+            # skip not materialized columns
+            if not (data_type := column.get("data_type")):
+                continue
             sqlglot_type = to_sqlglot_type(
-                dlt_type=column["data_type"],
+                dlt_type=data_type,
                 nullable=column.get("nullable"),
                 precision=column.get("precision"),
                 scale=column.get("scale"),
