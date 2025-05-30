@@ -14,6 +14,7 @@ from typing import (
     Dict,
     Any,
     TypeVar,
+    Tuple,
 )
 from typing_extensions import Annotated
 import datetime  # noqa: 251
@@ -655,7 +656,11 @@ class SupportsOpenTables(ABC):
 
     @abstractmethod
     def get_open_table_location(self, table_format: TTableFormat, table_name: str) -> str:
-        """Computes location in which table metadata is stored. Does not verify if table exists."""
+        """Computes location in which table is stored which is typically a "folder" with table
+        data and metadata. Does not verify if table exists.
+        Returns:
+            str: fully formed url with table location
+        """
 
     @abstractmethod
     def load_open_table(self, table_format: TTableFormat, table_name: str, **kwargs: Any) -> Any:

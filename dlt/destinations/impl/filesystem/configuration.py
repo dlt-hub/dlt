@@ -23,6 +23,8 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
     extra_placeholders: Optional[TExtraPlaceholders] = None
     max_state_files: int = 100
     """Maximum number of pipeline state files to keep; 0 or negative value disables cleanup."""
+    always_refresh_views: bool = False
+    """Always refresh table scanner views by setting the newest table metadata or globbing table files"""
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:

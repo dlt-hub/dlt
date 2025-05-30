@@ -125,7 +125,7 @@ def test_merge_on_keys_in_schema_nested_hints(
         **destination_config.run_kwargs,
     )
     assert_load_info(info)
-    eth_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
+    eth_2_counts = load_table_counts(p)
     # we have 2 blocks in dataset
     assert eth_2_counts["blocks"] == 2 if destination_config.supports_merge else 3
     # make sure we have same record after merging full dataset again
@@ -137,7 +137,7 @@ def test_merge_on_keys_in_schema_nested_hints(
     # for non merge destinations we just check that the run passes
     if not destination_config.supports_merge:
         return
-    eth_3_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
+    eth_3_counts = load_table_counts(p)
     assert eth_2_counts == eth_3_counts
 
 
@@ -650,7 +650,7 @@ def test_merge_on_ad_hoc_primary_key(
     # note: NodeId will be normalized to "node_id" which exists in the schema
     info = p.run(data(slice(0, 17)), **destination_config.run_kwargs)
     assert_load_info(info)
-    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
+    github_1_counts = load_table_counts(p)
     # 17 issues
     assert github_1_counts["issues"] == 17
     # primary key set on issues
@@ -663,7 +663,7 @@ def test_merge_on_ad_hoc_primary_key(
     # for non merge destinations we just check that the run passes
     if not destination_config.supports_merge:
         return
-    github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
+    github_2_counts = load_table_counts(p)
     # 100 issues total
     assert github_2_counts["issues"] == 100
     # still 100 after the reload
@@ -700,7 +700,7 @@ def test_merge_source_compound_keys_and_changes(
 
     info = p.run(github(), **destination_config.run_kwargs)
     assert_load_info(info)
-    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
+    github_1_counts = load_table_counts(p)
     # 100 issues total
     assert github_1_counts["issues"] == 100
     # check keys created
@@ -722,7 +722,7 @@ def test_merge_source_compound_keys_and_changes(
     assert_load_info(info)
     assert p.default_schema.tables["issues"]["write_disposition"] == "append"
     # the counts of all tables must be double
-    github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
+    github_2_counts = load_table_counts(p)
     assert {k: v * 2 for k, v in github_1_counts.items()} == github_2_counts
 
     # now replace all resources
@@ -731,7 +731,7 @@ def test_merge_source_compound_keys_and_changes(
     assert p.default_schema.tables["issues"]["write_disposition"] == "replace"
     # assert p.default_schema.tables["issues__labels"]["write_disposition"] == "replace"
     # the counts of all tables must be double
-    github_3_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
+    github_3_counts = load_table_counts(p)
     assert github_1_counts == github_3_counts
 
 
@@ -757,7 +757,7 @@ def test_merge_no_child_tables(destination_config: DestinationTestConfiguration)
     assert len(p.default_schema.data_tables()) == 1
     assert "issues" in p.default_schema.tables
     assert_load_info(info)
-    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
+    github_1_counts = load_table_counts(p)
     assert github_1_counts["issues"] == 15
 
     # load all
@@ -765,7 +765,7 @@ def test_merge_no_child_tables(destination_config: DestinationTestConfiguration)
     github_data.max_table_nesting = 0
     info = p.run(github_data, **destination_config.run_kwargs)
     assert_load_info(info)
-    github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
+    github_2_counts = load_table_counts(p)
     # 100 issues total, or 115 if merge is not supported
     assert github_2_counts["issues"] == 100 if destination_config.supports_merge else 115
 
@@ -789,7 +789,7 @@ def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -
     github_data.load_issues.add_filter(skip_first(45))
     info = p.run(github_data, **destination_config.run_kwargs)
     assert_load_info(info)
-    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
+    github_1_counts = load_table_counts(p)
     assert github_1_counts["issues"] == 100 - 45
 
     # take first 10 rows.
@@ -800,7 +800,7 @@ def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -
     github_data.load_issues.add_filter(take_first(10))
     info = p.run(github_data, **destination_config.run_kwargs)
     assert_load_info(info)
-    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
+    github_1_counts = load_table_counts(p)
     # we have 10 rows more, merge falls back to append if no keys present
     assert github_1_counts["issues"] == 100 - 45 + 10
 
@@ -839,7 +839,7 @@ def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration)
     files = p.get_load_package_info(p.list_completed_load_packages()[0]).jobs["completed_jobs"]
     assert all(f.job_file_info.file_format in expected_formats + ["sql"] for f in files)
 
-    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
+    github_1_counts = load_table_counts(p)
     expected_rows = 100
     # if table_format is set we use upsert which does not deduplicate input data
     if not destination_config.supports_merge or (
@@ -868,7 +868,7 @@ def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration)
         expected_formats.append("sql")
     assert all(f.job_file_info.file_format in expected_formats for f in files)
 
-    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
+    github_1_counts = load_table_counts(p)
     assert github_1_counts["issues"] == 100
 
 
@@ -1695,7 +1695,7 @@ def test_merge_arrow(
     )
 
     assert_load_info(load_info)
-    tables = load_tables_to_dicts(pipeline, "arrow_items", "arrow_items")
+    tables = load_tables_to_dicts(pipeline, "arrow_items")
 
     assert_records_as_set(
         tables["arrow_items"],

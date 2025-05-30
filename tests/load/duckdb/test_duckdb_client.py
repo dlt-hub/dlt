@@ -18,7 +18,7 @@ from dlt.destinations import duckdb
 from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckdbCredentials
 from dlt.pipeline.exceptions import PipelineNeverRan, PipelineStepFailed
 
-from tests.pipeline.utils import assert_table
+from tests.pipeline.utils import assert_table_column
 from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
 
 # mark all tests as essential, do not remove
@@ -412,7 +412,7 @@ def test_default_duckdb_dataset_name() -> None:
     # Check if dataset_name does not collide with pipeline_name
     data = ["a", "b", "c"]
     info = dlt.run(data, destination="duckdb", table_name="data")
-    assert_table(cast(dlt.Pipeline, info.pipeline), "data", data, info=info)
+    assert_table_column(cast(dlt.Pipeline, info.pipeline), "data", data, info=info)
 
 
 def delete_quack_db() -> None:

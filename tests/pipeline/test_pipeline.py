@@ -64,14 +64,16 @@ from dlt.pipeline.helpers import retry_load
 
 from dlt.pipeline.pipeline import Pipeline
 from tests.common.utils import TEST_SENTRY_DSN
-from tests.utils import TEST_STORAGE_ROOT, load_table_counts
+from tests.utils import TEST_STORAGE_ROOT
+from tests.pipeline.utils import assert_load_info, load_table_counts
+
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
-    assert_data_table_counts,
+    assert_table_counts,
     assert_load_info,
     airtable_emojis,
     assert_only_table_columns,
-    load_data_table_counts,
+    load_table_counts,
     load_tables_to_dicts,
     many_delayed,
 )
@@ -858,7 +860,7 @@ def test_mark_hints_with_variant() -> None:
         "with_table_hints": 1,
     }
     # check table counts
-    assert_data_table_counts(pipeline, {"table_a": 2, "table_b": 2, "with_table_hints": 1})
+    assert_table_counts(pipeline, {"table_a": 2, "table_b": 2, "with_table_hints": 1})
 
 
 def test_mark_hints_variant_dynamic_name() -> None:
@@ -898,7 +900,7 @@ def test_mark_hints_variant_dynamic_name() -> None:
         "table_c": 1,
     }
     # check table counts
-    assert_data_table_counts(pipeline, {"table_a": 2, "table_b": 2, "table_c": 1})
+    assert_table_counts(pipeline, {"table_a": 2, "table_b": 2, "table_c": 1})
 
 
 def test_restore_state_on_dummy() -> None:
@@ -1802,8 +1804,8 @@ def test_drop_with_new_name() -> None:
     pipeline.run([1, 2, 3], table_name="p1")
     new_pipeline.run([1, 2, 3], table_name="p2")
 
-    assert_data_table_counts(pipeline, {"p1": 3})
-    assert_data_table_counts(new_pipeline, {"p2": 3})
+    assert_table_counts(pipeline, {"p1": 3})
+    assert_table_counts(new_pipeline, {"p2": 3})
 
 
 def test_drop() -> None:
@@ -2000,7 +2002,7 @@ def test_column_name_with_break_path() -> None:
     assert set(table["columns"]) == {"example_custom_field__c", "reg_c", "_dlt_id", "_dlt_load_id"}
 
     # get data
-    assert_data_table_counts(pipeline, {"custom__path": 1})
+    assert_table_counts(pipeline, {"custom__path": 1})
     # get data via dataset with dbapi
     data_ = pipeline.dataset().custom__path[["example_custom_field__c", "reg_c"]].fetchall()
     assert data_ == [("custom", "c")]
@@ -2024,7 +2026,7 @@ def test_column_name_with_break_path_legacy() -> None:
     assert set(table["columns"]) == {"example_custom_field_c", "reg_c", "_dlt_id", "_dlt_load_id"}
 
     # get data
-    assert_data_table_counts(pipeline, {"custom_path": 1})
+    assert_table_counts(pipeline, {"custom_path": 1})
     # get data via dataset with dbapi
     data_ = pipeline.dataset().custom_path[["example_custom_field_c", "reg_c"]].fetchall()
     assert data_ == [("custom", "c")]
@@ -2281,7 +2283,7 @@ def test_parallel_pipelines_threads(workers: int) -> None:
         info = pipeline.load()
 
         # get counts in the thread
-        counts = load_data_table_counts(pipeline)
+        counts = load_table_counts(pipeline)
 
         assert context is context_2
         return info, context, counts
@@ -2339,9 +2341,9 @@ def test_parallel_pipelines_threads(workers: int) -> None:
 
     # make sure we can still access data
     pipeline_1.activate()  # activate pipeline to access inner duckdb
-    assert load_data_table_counts(pipeline_1) == counts_1
+    assert load_table_counts(pipeline_1) == counts_1
     pipeline_2.activate()
-    assert load_data_table_counts(pipeline_2) == counts_2
+    assert load_table_counts(pipeline_2) == counts_2
 
 
 @pytest.mark.parametrize("workers", (1, 4), ids=("1 norm worker", "4 norm workers"))
@@ -2390,9 +2392,9 @@ def test_parallel_pipelines_async(workers: int) -> None:
 
     asyncio.run(_run_async())
     pipeline_1.activate()  # activate pipeline 1 to access inner duckdb
-    assert load_data_table_counts(pipeline_1) == {"async_table": 10}
+    assert load_table_counts(pipeline_1) == {"async_table": 10}
     pipeline_2.activate()  # activate pipeline 2 to access inner duckdb
-    assert load_data_table_counts(pipeline_2) == {"defer_table": 5}
+    assert load_table_counts(pipeline_2) == {"defer_table": 5}
 
 
 def test_resource_while_stop() -> None:
@@ -2645,7 +2647,7 @@ def test_yielding_empty_list_creates_table() -> None:
     load_info = pipeline.load()
     # print(load_info.asstr(verbosity=3))
     assert_load_info(load_info)
-    assert_data_table_counts(pipeline, {"empty": 0})
+    assert_table_counts(pipeline, {"empty": 0})
     # make sure we have expected columns
     assert set(pipeline.default_schema.tables["empty"]["columns"].keys()) == {
         "id",
@@ -2655,7 +2657,7 @@ def test_yielding_empty_list_creates_table() -> None:
 
     # load some data
     pipeline.run([{"id": 1}], table_name="empty")
-    assert_data_table_counts(pipeline, {"empty": 1})
+    assert_table_counts(pipeline, {"empty": 1})
 
     # update schema on existing table
     pipeline.run(
@@ -2663,7 +2665,7 @@ def test_yielding_empty_list_creates_table() -> None:
         table_name="empty",
         columns=[{"name": "user_name", "data_type": "text", "nullable": True}],
     )
-    assert_data_table_counts(pipeline, {"empty": 1})
+    assert_table_counts(pipeline, {"empty": 1})
     assert set(pipeline.default_schema.tables["empty"]["columns"].keys()) == {
         "id",
         "_dlt_load_id",
@@ -2795,7 +2797,7 @@ def test_change_naming_convention_name_collision() -> None:
     # make sure that emojis got in
     assert "🦚Peacock" in pipeline.default_schema.tables
     assert "🔑id" in pipeline.default_schema.tables["🦚Peacock"]["columns"]
-    assert load_data_table_counts(pipeline) == {
+    assert load_table_counts(pipeline) == {
         "📆 Schedule": 3,
         "🦚Peacock": 1,
         "🦚WidePeacock": 1,
@@ -2822,7 +2824,7 @@ def test_change_naming_convention_name_collision() -> None:
     )
     assert_load_info(info)
     # case insensitive normalization
-    assert load_data_table_counts(pipeline) == {
+    assert load_table_counts(pipeline) == {
         "_schedule": 3,
         "_peacock": 1,
         "_widepeacock": 1,
@@ -3034,7 +3036,7 @@ def test_resource_transformer_standalone() -> None:
     assert_load_info(info)
     # this works because we extract transformer and resource above in a single source so dlt optimizes
     # dag and extracts gen_pages only once.
-    assert load_data_table_counts(pipeline) == {"subpages": 100, "pages": 10}
+    assert load_table_counts(pipeline) == {"subpages": 100, "pages": 10}
 
     # for two separate sources we have the following
     page = 1
@@ -3045,7 +3047,7 @@ def test_resource_transformer_standalone() -> None:
     )
     assert_load_info(info, 2)
     # ten subpages because only 1 page is extracted in the second source (see gen_pages exit condition)
-    assert load_data_table_counts(pipeline) == {"subpages": 10, "pages": 10}
+    assert load_table_counts(pipeline) == {"subpages": 10, "pages": 10}
 
 
 def test_resources_same_name_in_single_source() -> None:
@@ -3098,8 +3100,8 @@ def test_static_staging_dataset() -> None:
                 "test_static_staging_dataset_2",
             }
 
-    assert_data_table_counts(pipeline_1, {"digits": 3})
-    assert_data_table_counts(pipeline_2, {"letters": 4})
+    assert_table_counts(pipeline_1, {"digits": 3})
+    assert_table_counts(pipeline_2, {"letters": 4})
 
 
 def test_underscore_tables_and_columns() -> None:

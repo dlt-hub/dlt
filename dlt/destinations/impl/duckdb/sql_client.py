@@ -210,13 +210,17 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             # duckdb raises TypeError on malformed query parameters
             return DatabaseTransientException(duckdb.ProgrammingError(ex))
         elif isinstance(ex, duckdb.IOException):
+            message = str(ex)
             if (
-                "read from delta table" in str(ex) and "No files in log segment" in str(ex)
-            ) or "Path does not exist" in str(ex):
+                "read from delta table" in message and "No files in log segment" in message
+            ) or "Path does not exist" in message:
                 # delta scanner with no delta data and metadata exist in the location
                 return DatabaseUndefinedRelation(ex)
-            if "Could not guess Iceberg table version" in str(ex):
+            if "Could not guess Iceberg table version" in message:
                 # same but iceberg
+                return DatabaseUndefinedRelation(ex)
+            if "No files found" in message:
+                # glob patterns not found
                 return DatabaseUndefinedRelation(ex)
             return DatabaseTransientException(ex)
         elif isinstance(ex, duckdb.InternalException):
