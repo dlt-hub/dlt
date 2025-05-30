@@ -13,6 +13,7 @@ from typing import (
     Iterable,
     Iterator,
     Sequence,
+    List,
 )
 
 from dlt import version
@@ -344,6 +345,10 @@ def get_column_type_from_py_arrow(
         # Dictionary types are essentially categorical encodings. The underlying value_type
         # dictates the "logical" type. We simply delegate to the underlying value_type.
         return get_column_type_from_py_arrow(dtype.value_type, caps)
+    elif pyarrow.types.is_null(dtype):
+        dt: dict[str, Any] = {}  # type: ignore[no-redef]
+        dt["x-normalizer"] = {"seen-null-first": True}  # type: ignore[assignment]
+        return dt  # type: ignore[return-value]
     else:
         raise UnsupportedArrowTypeException(arrow_type=dtype)
 
@@ -370,6 +375,18 @@ def remove_null_columns(item: TAnyArrowItem) -> TAnyArrowItem:
     return remove_columns(
         item, [field.name for field in item.schema if pyarrow.types.is_null(field.type)]
     )
+
+
+def remove_null_columns_from_schema(schema: pyarrow.Schema) -> Tuple[pyarrow.Schema, bool]:
+    """Remove all columns of datatype pyarrow.null() from the schema"""
+    fields: List[pyarrow.field] = []
+    contains_null: bool = False
+    for field in schema:
+        if pyarrow.types.is_null(field.type):
+            contains_null = True
+        else:
+            fields.append(field)
+    return pyarrow.schema(fields), contains_null
 
 
 def remove_columns(item: TAnyArrowItem, columns: Sequence[str]) -> TAnyArrowItem:
@@ -1018,8 +1035,6 @@ def row_tuples_to_arrow(
     # ref: https://github.com/apache/arrow/issues/43146
     # ref: https://github.com/apache/arrow/issues/41667
     arrow_table = pa.Table.from_arrays(arrow_arrays, schema=pa.schema(arrow_fields))
-    # this only removes empty columns that don't have an explicit dlt `data_type`
-    arrow_table = remove_null_columns(arrow_table)
     return arrow_table
 
 

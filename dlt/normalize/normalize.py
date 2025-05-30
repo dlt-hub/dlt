@@ -12,7 +12,7 @@ from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS
 from dlt.common.runners import TRunMetrics, Runnable, NullExecutor
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
-from dlt.common.schema.typing import TStoredSchema
+from dlt.common.schema.typing import TStoredSchema, TTableSchema
 from dlt.common.schema.utils import merge_schema_updates
 from dlt.common.storages import (
     NormalizeStorage,
@@ -159,6 +159,26 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         )
         return result
 
+    def clean_x_normalizer(self, load_id: str, table_name: str, table_schema: TTableSchema) -> None:
+        x_normalizer = table_schema.setdefault("x-normalizer", {})
+        # drop evolve once for all tables that seen data
+        x_normalizer.pop("evolve-columns-once", None)
+        # mark that table have seen data only if there was data
+        if "seen-data" not in x_normalizer:
+            logger.info(
+                f"Table {table_name} has seen data for the first time with load id {load_id}"
+            )
+            x_normalizer["seen-data"] = True
+
+        # Handle column-level x-normalizer
+        # drop seen-null-first flag if data type was set
+        for column in table_schema.get("columns", {}).values():
+            col_x_normalizer = column.setdefault("x-normalizer", {})
+            if col_x_normalizer.get("seen-null-first") and "data_type" in column:
+                col_x_normalizer.pop("seen-null-first", None)
+            if not col_x_normalizer:
+                column.pop("x-normalizer", None)
+
     def spool_files(
         self, load_id: str, schema: Schema, map_f: TMapFuncType, files: Sequence[str]
     ) -> None:
@@ -176,15 +196,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         for table_name in table_metrics:
             table = schema.tables[table_name]
             verify_normalized_table(schema, table, self.config.destination_capabilities)
-            x_normalizer = table.setdefault("x-normalizer", {})
-            # drop evolve once for all tables that seen data
-            x_normalizer.pop("evolve-columns-once", None)
-            # mark that table have seen data only if there was data
-            if "seen-data" not in x_normalizer:
-                logger.info(
-                    f"Table {table_name} has seen data for a first time with load id {load_id}"
-                )
-                x_normalizer["seen-data"] = True
+            self.clean_x_normalizer(load_id, table_name, table)
         # schema is updated, save it to schema volume
         if schema.is_modified:
             logger.info(

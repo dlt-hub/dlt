@@ -172,8 +172,8 @@ def test_merge_record_updates(
 
     # initial load, also use primary key is that must be normalized "ID" -> "id"
     run_1 = [
-        {"ID": 1, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
-        {"ID": 2, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+        {"ID": 1, "foo": 1, "empty_col": None, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+        {"ID": 2, "foo": 1, "empty_col": None, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
     ]
     info = p.run(r(run_1), **destination_config.run_kwargs)
     assert_load_info(info)
@@ -193,8 +193,8 @@ def test_merge_record_updates(
 
     # update record — change at parent level
     run_2 = [
-        {"id": 1, "foo": 2, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
-        {"id": 2, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+        {"id": 1, "foo": 2, "child": [{"bar": 1, "empty_col": None, "grandchild": [{"baz": 1}]}]},
+        {"id": 2, "foo": 1, "child": [{"bar": 1, "empty_col": None, "grandchild": [{"baz": 1}]}]},
     ]
     info = p.run(r(run_2), **destination_config.run_kwargs)
     assert_load_info(info)

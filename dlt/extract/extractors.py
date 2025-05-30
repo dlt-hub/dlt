@@ -340,10 +340,9 @@ class ArrowExtractor(Extractor):
         static_table_name = self._get_static_table_name(resource, meta)
         items = [
             # 3. remove columns and rows in data contract filters
-            # 2. Remove null-type columns from the table(s) as they can't be loaded
-            self._apply_contract_filters(
-                pyarrow.remove_null_columns(tbl), resource, static_table_name
-            )
+            # NOTE: We don't remove null-type columns from the table(s) with pyarrow.remove_null_columns(tbl).
+            # The removal is handled in the normalizer.
+            self._apply_contract_filters(tbl, resource, static_table_name)
             for tbl in (
                 (
                     # 1. Convert pandas frame(s) to arrow Table, remove indexes because we store
