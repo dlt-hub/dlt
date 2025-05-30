@@ -252,6 +252,24 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                 )
         return job
 
+    def _bigquery_partition_clause(self, partition_hint: Optional[Dict[str, str]]) -> str:
+        """Generate partition clause for BigQuery SQL.
+
+        Args:
+            partition_hint (Optional[Dict[str, str]]): Partition hint.
+
+        Returns:
+            str: The partition clause for BigQuery SQL.
+        """
+        if not partition_hint:
+            return ""
+
+        [(column_name, clause)] = partition_hint.items()
+        return (
+            "PARTITION BY"
+            f" {clause.format(column_name=self.sql_client.escape_column_name(column_name))}"
+        )
+
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
@@ -264,6 +282,7 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
 
+        # handle partitioning when user passes a string to the `partition` param in bigquery_adapter
         if partition_list := [
             c for c in new_columns if c.get("partition") or c.get(PARTITION_HINT, False)
         ]:
@@ -288,6 +307,19 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                     f"\nPARTITION BY RANGE_BUCKET({self.sql_client.escape_column_name(c['name'])},"
                     " GENERATE_ARRAY(-172800000, 691200000, 86400))"
                 )
+        # handle partitioning when user passes a PartitionTransformation to the `partition` param in bigquery_adapter
+        partition_hint = table.get(PARTITION_HINT)
+        if isinstance(partition_hint, dict) and len(partition_hint) > 1:
+            col_names = [
+                self.sql_client.escape_column_name(col) for col, v in partition_hint.items()
+            ]
+            raise DestinationSchemaWillNotUpdate(
+                canonical_name, col_names, "Partition requested for more than one column"
+            )
+
+        sql[0] += self._bigquery_partition_clause(
+            partition_hint if isinstance(partition_hint, dict) else None
+        )
 
         # Collect cluster columns from table-level and per-column hints
         cluster_columns_from_table_hint = list(
