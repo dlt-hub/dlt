@@ -107,11 +107,17 @@ def _make_az_url(scheme: str, fs_path: str, bucket_url: str) -> str:
         # az://<container_name>@<storage_account_name>.dfs.core.windows.net/<path>
         # fs_path always starts with container
         split_path = fs_path.split("/", maxsplit=1)
+        # preserve slash at the end
+        if len(split_path) == 2 and split_path[1] == "":
+            split_path[1] = "/"
+        # if just a container name, add empty path
         if len(split_path) == 1:
             split_path.append("")
         container, path = split_path
         netloc = f"{container}@{parsed_bucket_url.hostname}"
-        return urlunparse(parsed_bucket_url._replace(path=path, scheme=scheme, netloc=netloc))
+        # this strips trailing slash
+        uri = urlunparse(parsed_bucket_url._replace(path=path, scheme=scheme, netloc=netloc))
+        return uri
     return f"{scheme}://{fs_path}"
 
 
@@ -121,8 +127,12 @@ def _make_file_url(scheme: str, fs_path: str, bucket_url: str) -> str:
     netloc is never set. UNC paths are represented as file://host/path
     """
     p_ = pathlib.Path(fs_path)
+    # will remove trailing separator
     p_ = p_.expanduser().resolve()
-    return p_.as_uri()
+    uri = p_.as_uri()
+    if fs_path.endswith(os.path.sep):
+        uri += "/"
+    return uri
 
 
 MAKE_URI_DISPATCH = {"az": _make_az_url, "file": _make_file_url, "sftp": _make_sftp_url}
@@ -135,7 +145,8 @@ MAKE_URI_DISPATCH["local"] = MAKE_URI_DISPATCH["file"]
 
 
 def make_fsspec_url(scheme: str, fs_path: str, bucket_url: str) -> str:
-    """Creates url from `fs_path` and `scheme` using bucket_url as an `url` template
+    """Creates url from `fs_path` and `scheme` using bucket_url as an `url` template, if `fs_path`
+    ends with separator (indicating folder), it is preserved
 
     Args:
         scheme (str): scheme of the resulting url
