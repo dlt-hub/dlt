@@ -42,7 +42,10 @@ def test_resolve_merge_strategy() -> None:
     )
 
     # unknown table formats
-    assert resolve_merge_strategy(schema.tables, iceberg_table, filesystem().capabilities()) is None
+    assert (
+        resolve_merge_strategy(schema.tables, iceberg_table, filesystem().capabilities())
+        == "upsert"
+    )
     assert resolve_merge_strategy(schema.tables, delta_table, athena().capabilities()) is None
 
     # not supported strategy

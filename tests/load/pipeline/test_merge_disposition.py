@@ -440,7 +440,10 @@ def test_merge_nested_records_inserted_deleted(
     table_data = load_tables_to_dicts(p, "parent", "parent__child", exclude_system_cols=True)
     if merge_strategy == "upsert":
         # merge keys will not apply and parent will not be deleted
-        if destination_config.table_format == "delta":
+        if (
+            destination_config.table_format in ["delta", "iceberg"]
+            and destination_config.destination_type != "athena"
+        ):
             # delta merges cannot delete from nested tables
             assert table_counts == {
                 "parent": 3,  # id == 3 not deleted (not present in the data)
@@ -817,6 +820,9 @@ def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -
     ids=lambda x: x.name,
 )
 def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration) -> None:
+    import os
+
+    os.environ["LOAD__WORKERS"] = "1"
     p = destination_config.setup_pipeline("github_3", dev_mode=True)
     # do not save state to destination so jobs counting is easier
     p.config.restore_from_destination = False
@@ -825,11 +831,22 @@ def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration)
     github_data.max_table_nesting = 2
     github_data_copy = github()
     github_data_copy.max_table_nesting = 2
-    info = p.run(
-        [github_data, github_data_copy],
-        write_disposition="merge",
-        **destination_config.run_kwargs,
-    )
+    # iceberg filesystem requires input data without duplicates
+    if (
+        destination_config.table_format == "iceberg"
+        and destination_config.destination_type == "filesystem"
+    ):
+        info = p.run(
+            github_data,
+            write_disposition="merge",
+            **destination_config.run_kwargs,
+        )
+    else:
+        info = p.run(
+            [github_data, github_data_copy],
+            write_disposition="merge",
+            **destination_config.run_kwargs,
+        )
     assert_load_info(info)
     # make sure it was parquet or sql transforms
     expected_formats = ["parquet"]
@@ -841,10 +858,9 @@ def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration)
 
     github_1_counts = load_table_counts(p)
     expected_rows = 100
-    # if table_format is set we use upsert which does not deduplicate input data
-    if not destination_config.supports_merge or (
-        destination_config.table_format and destination_config.destination_type != "athena"
-    ):
+    # if table_format is set to delta we use upsert which does not deduplicate input data
+    # otherwise the data is either deduplicated or it's iceberg filesystem for which we didn't pass duplicates at all
+    if destination_config.table_format == "delta":
         expected_rows *= 2
     assert github_1_counts["issues"] == expected_rows
 
