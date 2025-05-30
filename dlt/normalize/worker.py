@@ -142,7 +142,7 @@ def w_normalize_files(
                     logger.warning(
                         f"The configured value `{config_loader_file_format}` "
                         "for `loader_file_format` is not supported for table "
-                        f"`{table_name}` and will be ignored. Dlt "
+                        f"`{table_name}` and will be ignored. dlt "
                         "will use a supported format instead."
                     )
 
