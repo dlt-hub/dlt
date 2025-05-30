@@ -9,7 +9,7 @@ from tests.utils import (
     patch_home_dir,
     autouse_test_storage,
     preserve_environ,
-    # duckdb_pipeline_location,
+    # duckdb_pipeline_location, #  using this will break the e2e tests
     wipe_pipeline,
 )
 
@@ -88,8 +88,6 @@ def test_page_loads(page: Page):
 
     # simple check for  one two three pipeline
     page.get_by_role("link", name="one_two_three").click()
-    
-
 
     # sync page
     _open_section(page, "sync", close_other_sections=False)
