@@ -828,11 +828,22 @@ def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration)
     github_data.max_table_nesting = 2
     github_data_copy = github()
     github_data_copy.max_table_nesting = 2
-    info = p.run(
-        [github_data, github_data_copy],
-        write_disposition="merge",
-        **destination_config.run_kwargs,
-    )
+    # iceberg filesystem requires input data without duplicates
+    if (
+        destination_config.table_format == "iceberg"
+        and destination_config.destination_type == "filesystem"
+    ):
+        info = p.run(
+            github_data,
+            write_disposition="merge",
+            **destination_config.run_kwargs,
+        )
+    else:
+        info = p.run(
+            [github_data, github_data_copy],
+            write_disposition="merge",
+            **destination_config.run_kwargs,
+        )
     assert_load_info(info)
     # make sure it was parquet or sql transforms
     expected_formats = ["parquet"]
@@ -844,10 +855,9 @@ def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration)
 
     github_1_counts = load_table_counts(p)
     expected_rows = 100
-    # if table_format is set we use upsert which does not deduplicate input data
-    if not destination_config.supports_merge or (
-        destination_config.table_format and destination_config.destination_type != "athena"
-    ):
+    # if table_format is set to delta we use upsert which does not deduplicate input data
+    # otherwise the data is either deduplicated or it's iceberg filesystem for which we didn't pass duplicates at all
+    if destination_config.table_format == "delta":
         expected_rows *= 2
     assert github_1_counts["issues"] == expected_rows
 

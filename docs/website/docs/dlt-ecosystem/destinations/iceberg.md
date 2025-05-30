@@ -120,7 +120,11 @@ The [S3-compatible](./filesystem.md#using-s3-compatible-storage) interface for G
 The `az` [scheme](./filesystem.md#supported-schemes) is not supported when using the `iceberg` table format. Please use the `abfss` scheme. This is because `pyiceberg`, which dlt used under the hood, currently does not support `az`.
 
 ## Table format `merge` support
-The [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) merge strategy is supported for `iceberg`. This strategy requires that the input data contains no duplicate rows based on the key columns, and that the target table also does not contain duplicates on those keys.
+The [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) merge strategy is supported for `iceberg`. This strategy requires that the input data contains no duplicate rows based on the key columns, and that the target table also does not contain duplicates on those keys. 
+
+:::warning
+Until _pyiceberg_ > 0.9.1 is released, upsert is executed in chunks of **1000** rows. 
+:::
 
 ```py
 @dlt.resource(

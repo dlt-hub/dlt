@@ -26,12 +26,27 @@ try:
     from pyiceberg.catalog import Catalog as IcebergCatalog
     from pyiceberg.exceptions import NoSuchTableError
     import pyarrow as pa
+    import pyiceberg.io.pyarrow as _pio
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt pyiceberg helpers",
         [f"{version.DLT_PKG_NAME}[pyiceberg]"],
         "Install `pyiceberg` so dlt can create Iceberg tables in the `filesystem` destination.",
     )
+
+
+# TODO: remove with pyiceberg's release after 0.9.1
+_orig_get_kwargs = _pio._get_parquet_writer_kwargs
+
+
+def _patched_get_parquet_writer_kwargs(table_properties):  # type: ignore[no-untyped-def]
+    """Return the original kwargs **plus** store_decimal_as_integer=True."""
+    kwargs = _orig_get_kwargs(table_properties)
+    kwargs.setdefault("store_decimal_as_integer", True)
+    return kwargs
+
+
+_pio._get_parquet_writer_kwargs = _patched_get_parquet_writer_kwargs
 
 
 def ensure_iceberg_compatible_arrow_schema(schema: pa.Schema) -> pa.Schema:
@@ -82,6 +97,7 @@ def merge_iceberg_table(
         else:
             join_cols = get_columns_names_with_prop(schema, "primary_key")
 
+        # TODO: replace the batching method with transaction with pyiceberg's release after 0.9.1
         for rb in data.to_batches(max_chunksize=1_000):
             batch_tbl = pa.Table.from_batches([rb])
             batch_tbl = ensure_iceberg_compatible_arrow_data(batch_tbl)

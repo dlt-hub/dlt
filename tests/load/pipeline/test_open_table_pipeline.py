@@ -375,16 +375,15 @@ def test_table_format_child_tables(
     assert len(rows_dict["nested_table__child"]) == 3
     assert len(rows_dict["nested_table__child__grandchild"]) == 5
 
-    if destination_config.supports_merge:
-        # now drop children and grandchildren, use merge write disposition to create and pass full table chain
-        # also for tables that do not have jobs
-        info = pipeline.run(
-            [{"foo": 3}] * 10000,
-            table_name="nested_table",
-            primary_key="foo",
-            write_disposition="merge",
-        )
-        assert_load_info(info)
+    # now drop children and grandchildren, use merge write disposition to create and pass full table chain
+    # also for tables that do not have jobs
+    info = pipeline.run(
+        [{"foo": i} for i in range(3, 10003)],
+        table_name="nested_table",
+        primary_key="foo",
+        write_disposition="merge",
+    )
+    assert_load_info(info)
 
 
 @pytest.mark.parametrize(
