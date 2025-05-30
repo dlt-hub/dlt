@@ -761,14 +761,14 @@ def drop_pipeline_data(p: dlt.Pipeline) -> None:
         with p.destination_client(schema_name) as client:
             try:
                 client.drop_storage()
-                print("dropped")
+                # print("dropped")
             except Exception as exc:
                 print(exc)
             if isinstance(client, WithStagingDataset):
                 with client.with_staging_dataset():
                     try:
                         client.drop_storage()
-                        print("staging dropped")
+                        # print("staging dropped")
                     except Exception as exc:
                         print(exc)
 

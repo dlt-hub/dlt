@@ -1534,6 +1534,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
         info = p.run(r(), **destination_config.run_kwargs)
 
 
+@pytest.mark.no_load
 def test_merge_strategy_config() -> None:
     # merge strategy invalid
     with pytest.raises(ValueError):
