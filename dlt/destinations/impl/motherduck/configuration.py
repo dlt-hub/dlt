@@ -14,7 +14,7 @@ from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials
 
 MOTHERDUCK_DRIVERNAME = "md"
 MOTHERDUCK_USER_AGENT = f"dlt/{__version__}({sys.platform})"
-MOTHERDUCK_DEFAULT_TOKEN_ENV = "motherduck_token"
+MOTHERDUCK_DEFAULT_TOKEN_ENV = "MOTHERDUCK_TOKEN"
 
 
 @configspec(init=False)

@@ -54,7 +54,7 @@ Motherduck now supports configurable **access tokens**. Please refer to the [doc
 
 You can pass token in a native Motherduck environment variable:
 ```sh
-export motherduck_token='<token>'
+export MOTHERDUCK_TOKEN='<token>'
 ```
 in that case you can skip **password** / **motherduck_token** secret.
 
