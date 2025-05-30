@@ -108,7 +108,6 @@ def pg_resource_chunked(
         table_name=table_name,
         write_disposition=load_type,  # use `replace` for initial load, `merge` for incremental
         primary_key=primary_key,
-        standalone=True,
         parallelized=True,
     )(read_sql_x_chunked)(
         credentials.to_native_representation(),  # Pass the connection string directly

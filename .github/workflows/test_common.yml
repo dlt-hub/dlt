@@ -145,7 +145,7 @@ jobs:
 
       - name: Run extract and pipeline tests
         run: |
-          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources ${{ matrix.pytest_args }}
+          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources tests/transformations ${{ matrix.pytest_args }}
 
       # here we upgrade sql alchemy to 2 an run the sql_database tests again
       - name: Upgrade sql alchemy

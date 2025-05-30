@@ -109,9 +109,19 @@ def test_pipeline_explicit_destination_credentials(
 
     # instance of credentials will be simply passed
     cred = PostgresCredentials("postgresql://user:pass@localhost/dlt_data")
+    # if resolved
+    cred.resolve()
     p = dlt.pipeline(destination=postgres(credentials=cred))
     inner_c = p.destination_client()
     assert inner_c.config.credentials is cred
+
+    # if not resolved then content is identical (but instance is recreated)
+    cred = PostgresCredentials("postgresql://user:pass@localhost/dlt_data")
+    p = dlt.pipeline(destination=postgres(credentials=cred))
+    inner_c = p.destination_client()
+    assert dict(inner_c.config.credentials) == dict(cred)
+    # it seems that equality is by content, skip assert for now
+    # assert inner_c.config.credentials == cred
 
     # with staging
     p = dlt.pipeline(

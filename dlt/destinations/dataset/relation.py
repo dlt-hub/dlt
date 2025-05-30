@@ -1,12 +1,15 @@
 from typing import Any, Generator, Sequence, Type, Union, TYPE_CHECKING
 from contextlib import contextmanager
 
+import sqlglot
+
 from dlt.common.destination.dataset import (
     SupportsReadableRelation,
 )
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import Self
+from dlt.transformations import lineage
 
 from dlt.destinations.dataset.exceptions import (
     ReadableRelationHasQueryException,
@@ -49,11 +52,29 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
         return self._dataset.sql_client_class
 
-    def query(self) -> Any:
+    def query(self, qualified: bool = False) -> Any:
         # NOTE: converted from property to method due to:
         #   if this property raises AttributeError, __getattr__ will get called 🤯
         #   this leads to infinite recursion as __getattr_ calls this property
         #   also it does a heavy computation inside so it should be a method
+        query = self._query()
+
+        if qualified:
+            caps = self._dataset.sql_client.capabilities
+            dialect: str = caps.sqlglot_dialect
+            sqlglot_schema = lineage.create_sqlglot_schema(
+                self._dataset.schema,
+                self._dataset.sql_client,
+                self._dataset.sql_client.capabilities.sqlglot_dialect,
+            )
+            parsed_query = sqlglot.parse_one(query, read=dialect)
+            query = sqlglot.optimizer.qualify.qualify(
+                parsed_query, schema=sqlglot_schema, dialect=dialect
+            ).sql(dialect=dialect)
+
+        return query
+
+    def _query(self) -> Any:
         raise NotImplementedError("No query in ReadableDBAPIRelation")
 
     @contextmanager
@@ -65,14 +86,14 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
             # case 1: client is already opened and managed from outside
             if self.sql_client.native_connection:
                 with self.sql_client.execute_query(self.query()) as cursor:
-                    if columns_schema := self.columns_schema:
+                    if columns_schema := self.compute_columns_schema():
                         cursor.columns_schema = columns_schema
                     yield cursor
             # case 2: client is not opened, we need to manage it
             else:
                 with self.sql_client as client:
                     with client.execute_query(self.query()) as cursor:
-                        if columns_schema := self.columns_schema:
+                        if columns_schema := self.compute_columns_schema():
                             cursor.columns_schema = columns_schema
                         yield cursor
         finally:
@@ -95,6 +116,61 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
                 return getattr(cursor, func_name)(*args, **kwargs)
 
         return _wrap
+
+    def compute_columns_schema(
+        self,
+        infer_sqlglot_schema: bool = True,
+        allow_anonymous_columns: bool = True,
+        allow_partial: bool = True,
+        **kwargs: Any,
+    ) -> TTableSchemaColumns:
+        """Provides the expected columns schema for the query
+
+        Args:
+            infer_sqlglot_schema (bool): If False, raise if any column types are not known
+            allow_anonymous_columns (bool): If False, raise if any columns have auto assigned names
+            allow_partial (bool): If False, will raise if for some reason no columns can be computed
+        """
+
+        # NOTE: if we do not have a schema, we cannot compute the columns schema
+        if self._dataset.schema is None or (
+            hasattr(self, "_table_name")
+            and self._table_name
+            and self._table_name not in self._dataset.schema.tables.keys()
+        ):
+            return {}
+
+        # TODO: sqlalchemy does not work with their internal types, so we go via duckdb
+        caps = self._dataset.sql_client.capabilities
+        dialect: str = caps.sqlglot_dialect
+        query = self.query()
+        if self._dataset._destination.destination_type in [
+            "dlt.destinations.sqlalchemy",
+        ]:
+            query = sqlglot.transpile(query, read=dialect, write="duckdb")[0]
+            dialect = "duckdb"
+
+        # TODO: maybe store the SQLGlot schema on the dataset
+        # TODO: support joins between datasets
+        sqlglot_schema = lineage.create_sqlglot_schema(
+            self._dataset.schema, self._dataset.sql_client, dialect=dialect
+        )
+        return lineage.compute_columns_schema(
+            query,
+            sqlglot_schema,
+            dialect,
+            infer_sqlglot_schema=infer_sqlglot_schema,
+            allow_anonymous_columns=allow_anonymous_columns,
+            allow_partial=allow_partial,
+        )
+
+    @property
+    def columns_schema(self) -> TTableSchemaColumns:
+        return self.compute_columns_schema()
+
+    @columns_schema.setter
+    def columns_schema(self, new_value: TTableSchemaColumns) -> None:
+        raise NotImplementedError("Columns Schema may not be set")
 
 
 class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
@@ -121,8 +197,9 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         self._limit = limit
         self._selected_columns = selected_columns
 
-    def query(self) -> Any:
+    def _query(self) -> Any:
         """build the query"""
+        # TODO reimplement this using SQLGLot instead of passing strings
         if self._provided_query:
             return self._provided_query
 
@@ -152,38 +229,6 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
 
         return f"SELECT {maybe_limit_clause_1} {selector} FROM {table_name} {maybe_limit_clause_2}"
 
-    @property
-    def columns_schema(self) -> TTableSchemaColumns:
-        return self.compute_columns_schema()
-
-    @columns_schema.setter
-    def columns_schema(self, new_value: TTableSchemaColumns) -> None:
-        raise NotImplementedError("columns schema in ReadableDBAPIRelation can only be computed")
-
-    def compute_columns_schema(self) -> TTableSchemaColumns:
-        """provide schema columns for the cursor, may be filtered by selected columns"""
-        dataset_schema = self._dataset.schema
-
-        columns_schema = (
-            dataset_schema.tables.get(self._table_name, {}).get("columns", {})
-            if dataset_schema
-            else {}
-        )
-
-        if not columns_schema:
-            return None
-        if not self._selected_columns:
-            return columns_schema
-
-        filtered_columns: TTableSchemaColumns = {}
-        for sc in self._selected_columns:
-            sc = dataset_schema.naming.normalize_path(sc)
-            if sc not in columns_schema.keys():
-                raise ReadableRelationUnknownColumnException(sc)
-            filtered_columns[sc] = columns_schema[sc]
-
-        return filtered_columns
-
     def __copy__(self) -> Self:
         return self.__class__(
             readable_dataset=self._dataset,
@@ -205,18 +250,21 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
             raise ReadableRelationHasQueryException("select")
         rel = self.__copy__()
         rel._selected_columns = columns
-        # NOTE: the line below will ensure that no unknown columns are selected if
-        # schema is known
         rel.compute_columns_schema()
         return rel
 
-    def __getitem__(self, columns: Union[str, Sequence[str]]) -> Self:
+    def __getitem__(self, columns: Sequence[str]) -> Self:
         if isinstance(columns, str):
-            return self.select(columns)
+            raise TypeError(
+                f"Invalid argument type: {type(columns).__name__}, requires a sequence of column"
+                " names Sequence[str]"
+            )
         elif isinstance(columns, Sequence):
             return self.select(*columns)
-        else:
-            raise TypeError(f"Invalid argument type: {type(columns).__name__}")
+        raise TypeError(
+            f"Invalid argument type: {type(columns).__name__}, requires a sequence of column names"
+            " Sequence[str]"
+        )
 
     def head(self, limit: int = 5) -> Self:
         return self.limit(limit)

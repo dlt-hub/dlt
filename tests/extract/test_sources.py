@@ -8,6 +8,7 @@ import asyncio
 
 import dlt, os
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.data_types.typing import TDataType
 from dlt.common.exceptions import DictValidationException, PipelineStateNotAvailable
@@ -184,13 +185,13 @@ def test_parametrized_transformer() -> None:
     r = dlt.resource(["itemX", "itemY"], name="items")
     t = dlt.transformer(data_from=r)(good_transformer)
     with pytest.raises(TypeError):
-        list(t("p1", 1, 2, 3, 4))
+        list(t("p1", 1, 2, 3, 4))  # type: ignore
 
     # pass arguments that fully bind the item
     r = dlt.resource(["itemX", "itemY"], name="items")
     t = dlt.transformer(data_from=r)(good_transformer)
     with pytest.raises(TypeError):
-        t(item={}, p1="p2", p2=1)
+        t(item={}, p1="p2", p2=1)  # type: ignore
 
     r = dlt.resource(["itemX", "itemY"], name="items")
     t = dlt.transformer(data_from=r)(good_transformer)
@@ -250,13 +251,12 @@ def test_resource_bind_when_in_source() -> None:
 def test_resource_bind_call_forms() -> None:
     @dlt.resource
     def returns_res(_input):
-        # resource returning resource
-        return dlt.resource(_input, name="internal_res")
+        # resource returning
+        return _input
 
     @dlt.resource
     def returns_pipe(_input):
-        # returns pipe
-        return Pipe.from_data("internal_pipe", _input)
+        yield _input
 
     @dlt.resource
     def regular(_input):
@@ -274,19 +274,17 @@ def test_resource_bind_call_forms() -> None:
     assert regular is not b_regular
     assert regular._pipe is not b_regular._pipe
 
-    # pipe is replaced on resource returning resource (new pipe created)
     returns_res.add_filter(lambda x: x == "A")
     assert len(returns_res._pipe) == 2
     b_returns_res = returns_res(["A", "A", "B", "B"])
-    assert len(b_returns_res._pipe) == 1
+    assert len(b_returns_res._pipe) == 2
     assert returns_res is not b_returns_res
     assert returns_res._pipe is not b_returns_res._pipe
 
-    # pipe is replaced on resource returning pipe
     returns_pipe.add_filter(lambda x: x == "A")
     assert len(returns_pipe._pipe) == 2
     b_returns_pipe = returns_pipe("ABCA")
-    assert len(b_returns_pipe._pipe) == 1
+    assert len(b_returns_pipe._pipe) == 2
 
     @dlt.source
     def test_source():
@@ -310,24 +308,21 @@ def test_resource_bind_call_forms() -> None:
     s.regular.bind([["A"], ["A"], ["B", "A"], ["B", "C"]])
     assert list(s.regular) == ["AAA", "AAA", "AAA"]
 
-    # binding resource that returns resource will replace the object content, keeping the object id
     s.returns_res.add_map(lambda i: i * 3)
-    s.returns_res.bind(["X", "Y", "Z"])
-    # got rid of all mapping and filter functions
-    assert len(s.returns_res._pipe) == 1
-    assert list(s.returns_res) == ["X", "Y", "Z"]
+    s.returns_res.bind(["X", "Y", "Z", "A"])
+    # keeps mappings and filters
+    assert len(s.returns_res._pipe) == 3
+    assert list(s.returns_res) == ["AAA"]
 
-    # same for resource returning pipe
     s.returns_pipe.add_map(lambda i: i * 3)
-    s.returns_pipe.bind(["X", "Y", "M"])
-    # got rid of all mapping and filter functions
-    assert len(s.returns_pipe._pipe) == 1
-    assert list(s.returns_pipe) == ["X", "Y", "M"]
+    s.returns_pipe.bind(["X", "Y", "M", "A"])
+    assert len(s.returns_pipe._pipe) == 3
+    assert list(s.returns_pipe) == ["AAA"]
 
     # s.regular is exhausted so set it again
     # add lambda that after filtering for A, will multiply it by 4
     s.resources["regular"] = regular.add_map(lambda i: i * 4)(["A", "Y"])
-    assert list(s) == ["X", "Y", "Z", "X", "Y", "M", "AAAA"]
+    assert list(s) == ["AAA", "AAA", "AAAA"]
 
 
 def test_call_clone_separate_pipe() -> None:
@@ -752,6 +747,7 @@ def res_in_res(table_name, w_d):
     def _gen(s):
         yield from s
 
+    # NOTE: this is illegal now
     return dlt.resource(_gen, name=table_name, write_disposition=w_d)
 
 
@@ -764,9 +760,14 @@ def test_resource_returning_resource() -> None:
     assert s.res_in_res.name == "res_in_res"
     # this will return internal resource
     r_i = s.res_in_res("table", "merge")
-    assert r_i.name == "table"
-    assert r_i.compute_table_schema()["write_disposition"] == "merge"
-    assert list(r_i("ABC")) == ["A", "B", "C"]
+    # we removed resources returning resources so those are just arguments
+    # and not applied to "inner" resource
+    assert r_i.name == "res_in_res"
+    assert r_i.compute_table_schema()["write_disposition"] == "append"
+
+    # type error: r_i was already bound above!
+    with pytest.raises(TypeError):
+        list(r_i("ABC"))
 
 
 def test_source_dynamic_resource_attrs() -> None:
@@ -1092,7 +1093,7 @@ def test_resource_state() -> None:
             "resources": {"test_resource": {"in-source": True}}
         }
         assert s.state == {"resources": {"test_resource": {"in-source": True}}}
-        # the standalone resource will create key which is default schema name
+        # the resource will create key which is default schema name
         assert state.state["sources"][make_schema_with_default_name(p.pipeline_name)] == {
             "resources": {"test_resource": {"direct": True}}
         }
@@ -1273,12 +1274,12 @@ def number_gen_ext(max_r=3):
 
 
 def test_clone_resource_with_rename():
-    assert number_gen_ext.SPEC is not BaseConfiguration
+    assert get_fun_spec(number_gen_ext) is not BaseConfiguration
     gene_r = number_gen_ext.with_name("gene")
     assert number_gen_ext.name == "number_gen_ext"
     assert gene_r.name == "gene"
     assert number_gen_ext.section == gene_r.section
-    assert gene_r.SPEC is number_gen_ext.SPEC
+    assert get_fun_spec(gene_r) is get_fun_spec(number_gen_ext)
     assert gene_r.selected == number_gen_ext.selected is False
 
 

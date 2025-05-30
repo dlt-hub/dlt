@@ -333,7 +333,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         with self._ensure_transaction():
             cur = self._current_connection.execute(query, *args)  # type: ignore[call-overload]
             try:
-                yield SqlaDbApiCursor(cur)  # type: ignore[abstract]
+                yield SqlaDbApiCursor(cur)
             finally:
                 cur.close()
 

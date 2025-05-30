@@ -265,7 +265,7 @@ class ClickHouseSqlClient(
                     except KeyError as e:
                         raise DatabaseTransientException(OperationalError()) from e
 
-            yield ClickHouseDBApiCursorImpl(cursor)  # type: ignore[abstract]
+            yield ClickHouseDBApiCursorImpl(cursor)
 
     def catalog_name(self, escape: bool = True) -> Optional[str]:
         database_name = self.capabilities.casefold_identifier(self.database_name)
@@ -291,6 +291,9 @@ class ClickHouseSqlClient(
                 table_name = self.capabilities.escape_identifier(table_name)
             # we have only two path components
             path[1] = table_name
+        else:
+            # we have only one path component, dataset name is included in the table name
+            path.pop()
         return path
 
     def _get_information_schema_components(self, *tables: str) -> Tuple[str, str, List[str]]:
