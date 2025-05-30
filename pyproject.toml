@@ -250,9 +250,9 @@ marimo = "^0.13.6"
 playwright = "^1.52.0"
 pytest-playwright = "^0.7.0"
 # TODO: make marimo app independent of pyarrow
-pyarrow = [
-    {version = ">=17.0.0", markers = "python_version < '3.13'"},
-    {version = ">=18.0.0", markers = "python_version >= '3.13'"}
+pandas = [
+    {version = ">2.1", markers = "python_version >= '3.12'"},
+    {version = "<2.1", markers = "python_version < '3.12'"}
 ]
 
 [tool.poetry.group.providers]

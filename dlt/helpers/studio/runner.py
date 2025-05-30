@@ -6,12 +6,12 @@ from dlt.common.exceptions import MissingDependencyException
 try:
     import marimo
     import ibis
-    import pyarrow
+    import pandas
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt Studio",
-        ["marimo", "pyarrow", "ibis-framework"],
-        "dlt Studio requires additional dependencies, such as marimo, pyarrow and ibis-framework.",
+        ["marimo", "pandas", "ibis-framework"],
+        "dlt Studio requires additional dependencies, such as marimo, pandas and ibis-framework.",
     )
 
 
