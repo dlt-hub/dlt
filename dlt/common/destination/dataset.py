@@ -39,14 +39,12 @@ class SupportsReadableRelation:
     sql glot query analysis and lineage. dlt hints for columns are kept in some cases. Refere to <docs-page> for more details.
     """
 
-    def query(self, qualified: bool = False) -> Any:
-        """Returns the sql query that represents the relation
-
-        Args:
-            qualified (bool, optional): Whether to return the qualified query. Defaults to False.
+    def query(self) -> Any:
+        """Returns the sql query that represents the relation. The query will be qualified, quoted and escaped
+           according to a SQL dialect that the destination uses.
 
         Returns:
-            Any: The sql query that represents the relation
+            Any: The qualified sql query that represents the relation
         """
         raise NotImplementedError("Query is not supported for this relation")
 

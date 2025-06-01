@@ -4,10 +4,8 @@ from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination import TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase
 from dlt.common.schema import Schema
-from dlt.common.schema.utils import new_table
 from dlt.common.storages.configuration import FilesystemConfiguration
 
-from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
@@ -126,7 +124,7 @@ def create_ibis_backend(
         con = ibis.bigquery.connect(
             credentials=credentials,
             project_id=client.sql_client.project_id,
-            dataset_id=client.sql_client.fully_qualified_dataset_name(escape=False),
+            dataset_id=client.sql_client.fully_qualified_dataset_name(quote=False),
             location=client.sql_client.location,
         )
     elif issubclass(destination.spec, ClickHouseClientConfiguration):
@@ -195,35 +193,19 @@ def create_ibis_backend(
     return con
 
 
-def create_unbound_ibis_table(
-    sql_client: SqlClientBase[Any], schema: Schema, table_name: str
-) -> Expr:
-    """Create an unbound ibis table from a dlt schema. Tables not in schema will be created
-    without columns.
+def create_unbound_ibis_table(schema: Schema, dataset_name: str, table_name: str) -> Table:
+    """Create an unbound ibis table from a dlt schema. No additional identifiers normalization, quoting
+    or escaping is performed.
     """
-    # allow to create empty tables without schema to unify behavior with default relation
-    if table_name not in schema.tables:
-        schema.update_table(new_table(table_name))
     table_schema = schema.tables[table_name]
 
     # Convert dlt table schema columns to ibis schema
     ibis_schema = {
-        sql_client.capabilities.casefold_identifier(col_name): DATA_TYPE_MAP[
-            col_info.get("data_type", "string")
-        ]
+        col_name: DATA_TYPE_MAP[col_info.get("data_type", "string")]
         for col_name, col_info in table_schema.get("columns", {}).items()
     }
 
-    # normalize table name
-    table_path = sql_client.make_qualified_table_name_path(table_name, escape=False)
-
-    catalog = None
-    if len(table_path) == 3:
-        catalog, database, table = table_path
-    else:
-        database, table = table_path
-
     # create unbound ibis table and return in dlt wrapper
-    unbound_table = ibis.table(schema=ibis_schema, name=table, database=database, catalog=catalog)
+    unbound_table = ibis.table(schema=ibis_schema, name=table_name, database=dataset_name)
 
     return unbound_table

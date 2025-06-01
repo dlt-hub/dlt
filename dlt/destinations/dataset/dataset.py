@@ -157,16 +157,25 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
 
     def __call__(self, query: Any) -> ReadableDBAPIRelation:
         # TODO: accept other query types and return a right relation: sqlglot (DBAPI) and ibis (Expr)
+        # TODO: parse query as ibis relation, however ibis will quote that query when compiling to sql
         return ReadableDBAPIRelation(readable_dataset=self, provided_query=query)
 
     def table(self, table_name: str) -> ReadableIbisRelation:
         # we can create an ibis powered relation if ibis is available
         relation: BaseReadableDBAPIRelation
         if self._dataset_type == "ibis":
+            from dlt.common.schema.utils import new_table
             from dlt.helpers.ibis import create_unbound_ibis_table
             from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 
-            unbound_table = create_unbound_ibis_table(self.sql_client, self.schema, table_name)
+            # allow to create empty tables without schema to unify behavior with default relation
+            schema = self.schema
+            if table_name not in schema.tables:
+                schema.update_table(new_table(table_name))
+
+            unbound_table = create_unbound_ibis_table(
+                schema, self.sql_client.dataset_name, table_name
+            )
             relation = ReadableIbisRelation(
                 readable_dataset=self,
                 ibis_object=unbound_table,
@@ -212,8 +221,8 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         queries = []
         for table in selected_tables:
             query = (
-                f"SELECT '{table}' as table_name, COUNT(*) as row_count FROM"
-                f" {self.sql_client.make_qualified_table_name(table)}"
+                f"SELECT '{table}' as table_name, COUNT(1) as row_count FROM"
+                f" {self.sql_client.make_qualified_table_name(table, quote=False, casefold=False)}"
             )
             if load_id:
                 query += f" WHERE {dlt_load_id_col} = '{load_id}'"
