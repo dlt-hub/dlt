@@ -231,7 +231,7 @@ def test_complete_load(naming: str, client: SqlJobClientBase) -> None:
     assert load_rows[0][4] == client.schema.version_hash
     # make sure that hash in loads exists in schema versions table
     versions_table = client.sql_client.make_qualified_table_name(version_table_name)
-    version_hash_column = client.sql_client.quote_column_name(
+    version_hash_column = client.sql_client.escape_column_name(
         client.schema.naming.normalize_identifier("version_hash")
     )
     version_rows = list(
@@ -507,7 +507,7 @@ def test_preserve_sql_column_order(client: SqlJobClientBase) -> None:
             if hasattr(client.sql_client, "escape_ddl_identifier"):
                 col_name = client.sql_client.escape_ddl_identifier(c["name"])
             else:
-                col_name = client.sql_client.quote_column_name(c["name"])
+                col_name = client.sql_client.escape_column_name(c["name"])
             # find column names
             idx = sql_.find(col_name, idx)
             assert idx > 0, f"column {col_name} not found in script"
@@ -557,7 +557,7 @@ def test_data_writer_load(naming: str, client: SqlJobClientBase, file_storage: F
         client, file_storage, query, table_name, file_format=client.destination_config.file_format  # type: ignore[attr-defined]
     )
     f_int_name = client.schema.naming.normalize_identifier("f_int")
-    f_int_name_quoted = client.sql_client.quote_column_name(f_int_name)
+    f_int_name_quoted = client.sql_client.escape_column_name(f_int_name)
     db_row = client.sql_client.execute_sql(
         f"SELECT * FROM {canonical_name} WHERE {f_int_name_quoted} = {rows[1][f_int_name]}"
     )[0]

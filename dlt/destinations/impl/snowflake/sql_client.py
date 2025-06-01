@@ -1,5 +1,5 @@
 from contextlib import contextmanager, suppress
-from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence
+from typing import Any, AnyStr, ClassVar, Generator, Iterator, Optional, Sequence
 
 import snowflake.connector as snowflake_lib
 
@@ -16,7 +16,7 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
-from dlt.destinations.typing import DBApi, DBTransaction, DataFrame
+from dlt.destinations.typing import DBApi, DBTransaction, DataFrame, ArrowTable
 from dlt.destinations.impl.snowflake.configuration import SnowflakeCredentials
 from dlt.common.destination.dataset import DBApiCursor
 
@@ -24,10 +24,23 @@ from dlt.common.destination.dataset import DBApiCursor
 class SnowflakeCursorImpl(DBApiCursorImpl):
     native_cursor: snowflake_lib.cursor.SnowflakeCursor  # type: ignore[assignment]
 
-    def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
-        if chunk_size is None:
-            return self.native_cursor.fetch_pandas_all(**kwargs)
-        return super().df(chunk_size=chunk_size, **kwargs)
+    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
+        # full frame
+        if not chunk_size:
+            yield self.native_cursor.fetch_pandas_all()
+            return
+        # iterate
+        # NOTE: no way to impact chunk size
+        yield from self.native_cursor.fetch_pandas_batches()
+
+    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
+        # TODO: figure out if empty table should be returned (there's a test for that)
+        if not chunk_size:
+            yield self.native_cursor.fetch_arrow_all(force_return_table=False)
+            return
+        # iterate
+        # NOTE: no way to impact chunk size
+        yield from self.native_cursor.fetch_arrow_batches()
 
 
 class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTransaction):
@@ -52,6 +65,8 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
         # we get dlt expected UTC
         if "timezone" not in conn_params:
             conn_params["timezone"] = "UTC"
+        if "arrow_number_to_decimal" not in conn_params:
+            conn_params["arrow_number_to_decimal"] = True
         # set autocommit when opening connection to override account and user level setting
         conn_params["autocommit"] = True
         self._conn = snowflake_lib.connect(

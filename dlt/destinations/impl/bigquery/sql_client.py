@@ -79,7 +79,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
 
         self._default_retry = bigquery.DEFAULT_RETRY.with_deadline(retry_deadline)
         self._default_query = bigquery.QueryJobConfig(
-            default_dataset=self.fully_qualified_dataset_name(escape=False)
+            default_dataset=self.fully_qualified_dataset_name(quote=False)
         )
         self._session_query: bigquery.QueryJobConfig = None
 
@@ -124,12 +124,12 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
                 "BEGIN TRANSACTION;",
                 job_config=bigquery.QueryJobConfig(
                     create_session=True,
-                    default_dataset=self.fully_qualified_dataset_name(escape=False),
+                    default_dataset=self.fully_qualified_dataset_name(quote=False),
                 ),
             )
             self._session_query = bigquery.QueryJobConfig(
                 create_session=False,
-                default_dataset=self.fully_qualified_dataset_name(escape=False),
+                default_dataset=self.fully_qualified_dataset_name(quote=False),
                 connection_properties=[
                     bigquery.query.ConnectionProperty(
                         key="session_id", value=job.session_info.session_id
@@ -168,7 +168,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
     def has_dataset(self) -> bool:
         try:
             self._client.get_dataset(
-                self.fully_qualified_dataset_name(escape=False),
+                self.fully_qualified_dataset_name(quote=False),
                 retry=self._default_retry,
                 timeout=self.http_timeout,
             )
@@ -177,7 +177,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
             return False
 
     def create_dataset(self) -> None:
-        dataset = bigquery.Dataset(self.fully_qualified_dataset_name(escape=False))
+        dataset = bigquery.Dataset(self.fully_qualified_dataset_name(quote=False))
         dataset.location = self.location
         dataset.is_case_insensitive = not self.capabilities.has_case_sensitive_identifiers
         try:
@@ -225,9 +225,12 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
                 # will close all cursors
                 conn.close()
 
-    def catalog_name(self, escape: bool = True) -> Optional[str]:
-        project_id = self.capabilities.casefold_identifier(self.project_id)
-        if escape:
+    def catalog_name(self, quote: bool = True, casefold: bool = True) -> Optional[str]:
+        if casefold:
+            project_id = self.capabilities.casefold_identifier(self.project_id)
+        else:
+            project_id = self.project_id
+        if quote:
             project_id = self.capabilities.escape_identifier(project_id)
         return project_id
 
