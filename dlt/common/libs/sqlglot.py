@@ -471,9 +471,12 @@ def get_metadata(sqlglot_type: sge.DataType) -> TColumnSchema:
 
 def _filter_dlt_hints(hints: TColumnSchema) -> TColumnSchema:
     """Filter the metadata dictionary to only include dlt hints."""
-    DATA_TYPE_HINTS = ("name", "data_type", "nullable", "precision", "scale", "timezone")
-    ALLOWED_HINTS = ("hard_delete", "incremental")
-    CUSTOM_HINT_PREFIX = "x-"
+    DATA_TYPE_HINTS = ("data_type", "nullable", "precision", "scale", "timezone")
+    # allow original name to be propagated, so we can track it if aliases were used
+    ALLOWED_HINTS = ("name", "hard_delete", "incremental")
+    # only propagate specially designated hints
+    # TODO review all x- hints we use and decide which to propagate
+    CUSTOM_HINT_PREFIX = "x-annotation"
 
     final_hints = {}
     for k, v in hints.items():
