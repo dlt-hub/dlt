@@ -1,4 +1,4 @@
-from typing import Any, cast, Tuple, List
+from typing import Any, Iterator, cast, Tuple, List
 import re
 import pytest
 import dlt
@@ -24,7 +24,7 @@ from tests.load.utils import (
     SFTP_BUCKET,
     MEMORY_BUCKET,
 )
-from tests.utils import TEST_STORAGE_ROOT, clean_test_storage
+from tests.utils import TEST_STORAGE_ROOT, _preserve_environ, clean_test_storage
 from dlt.destinations.dataset.exceptions import (
     ReadableRelationUnknownColumnException,
 )
@@ -124,11 +124,16 @@ def autouse_test_storage() -> FileStorage:
 
 
 @pytest.fixture(scope="session")
-def populated_pipeline(request, autouse_test_storage) -> Any:
+def preserve_session_environ() -> Iterator[None]:
+    yield from _preserve_environ()
+
+
+@pytest.fixture(scope="session")
+def populated_pipeline(request, autouse_test_storage, preserve_session_environ) -> Any:
     """fixture that returns a pipeline object populated with the example data"""
 
     destination_config = cast(DestinationTestConfiguration, request.param)
-
+    print("populated_pipeline", destination_config)
     if (
         destination_config.file_format not in ["parquet", "jsonl"]
         and destination_config.destination_type == "filesystem"
@@ -224,15 +229,15 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
     chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
-    casefolder = populated_pipeline.destination.capabilities().casefold_identifier
 
     # full table
     table = table_relationship.arrow()
     assert table.num_rows == total_records
+    assert set(table.column_names) == set(EXPECTED_COLUMNS)
 
     # chunk
     table = table_relationship.arrow(chunk_size=chunk_size)
-    assert set(table.column_names) == set([casefolder(c) for c in EXPECTED_COLUMNS])
+    assert set(table.column_names) == set(EXPECTED_COLUMNS)
     assert table.num_rows == chunk_size
 
     # check frame amount and items counts
@@ -240,9 +245,7 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
     assert [t.num_rows for t in tables] == expected_chunk_counts
 
     # check all items are present
-    ids = reduce(
-        lambda a, b: a + b, [t.column(casefolder(EXPECTED_COLUMNS[0])).to_pylist() for t in tables]
-    )
+    ids = reduce(lambda a, b: a + b, [t.column(EXPECTED_COLUMNS[0]).to_pylist() for t in tables])
     assert set(ids) == set(range(total_records))
 
 
@@ -255,7 +258,6 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_dataframe_access(populated_pipeline: Pipeline) -> None:
-    casefolder = populated_pipeline.destination.capabilities().casefold_identifier
     # access via key
     table_relationship = populated_pipeline.dataset()["items"]
     total_records = _total_records(populated_pipeline.destination.destination_type)
@@ -268,13 +270,15 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
     # full frame
     df = table_relationship.df()
     assert len(df.index) == total_records
+    assert set(df.columns.values) == set(EXPECTED_COLUMNS)
 
+    # TODO: snowflake does not follow a chunk size, make and exception (accept range), same for arrow
     # chunk
     df = table_relationship.df(chunk_size=chunk_size)
     if not skip_df_chunk_size_check:
         assert len(df.index) == chunk_size
 
-    assert set(df.columns.values) == set([casefolder(c) for c in EXPECTED_COLUMNS])
+    assert set(df.columns.values) == set(EXPECTED_COLUMNS)
 
     # iterate all dataframes
     frames = list(table_relationship.iter_df(chunk_size=chunk_size))
@@ -282,7 +286,7 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
         assert [len(df.index) for df in frames] == expected_chunk_counts
 
     # check all items are present
-    ids = reduce(lambda a, b: a + b, [f[casefolder(EXPECTED_COLUMNS[0])].to_list() for f in frames])
+    ids = reduce(lambda a, b: a + b, [f[EXPECTED_COLUMNS[0]].to_list() for f in frames])
     assert set(ids) == set(range(total_records))
 
 
@@ -331,7 +335,6 @@ def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
 )
 def test_hint_preservation(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset(dataset_type="default").items
-    casefolder = populated_pipeline.destination.capabilities().casefold_identifier
     # check that hints are carried over to arrow table
     expected_decimal_precision = 10
     expected_decimal_precision_2 = 12
@@ -340,11 +343,11 @@ def test_hint_preservation(populated_pipeline: Pipeline) -> None:
         expected_decimal_precision = 38
         expected_decimal_precision_2 = 38
     assert (
-        table_relationship.arrow().schema.field(casefolder("decimal")).type.precision
+        table_relationship.arrow().schema.field("decimal").type.precision
         == expected_decimal_precision
     )
     assert (
-        table_relationship.arrow().schema.field(casefolder("other_decimal")).type.precision
+        table_relationship.arrow().schema.field("other_decimal").type.precision
         == expected_decimal_precision_2
     )
 
@@ -459,18 +462,17 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_sql_queries(populated_pipeline: Pipeline) -> None:
+    dataset_name = populated_pipeline.dataset_name
     # simple check that query also works
-    tname = populated_pipeline.sql_client().make_qualified_table_name("items")
-    query_relationship = populated_pipeline.dataset()(f"select * from {tname} where id < 20")
+    query_relationship = populated_pipeline.dataset()("select * from items where id < 20")
 
     # we selected the first 20
     table = query_relationship.arrow()
     assert table.num_rows == 20
 
     # check join query
-    tdname = populated_pipeline.sql_client().make_qualified_table_name("double_items")
     query = (
-        f"SELECT i.id, di.double_id FROM {tname} as i JOIN {tdname} as di ON (i.id = di.id) WHERE"
+        "SELECT i.id, di.double_id FROM items as i JOIN double_items as di ON (i.id = di.id) WHERE"
         " i.id < 20 ORDER BY i.id ASC"
     )
     join_relationship = populated_pipeline.dataset()(query)
@@ -479,6 +481,16 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
     assert list(table[0]) == [0, 0]
     assert list(table[5]) == [5, 10]
     assert list(table[10]) == [10, 20]
+
+    # check query with explicit dataset
+    query = (
+        f"SELECT i.id, di.double_id FROM {dataset_name}.items as i JOIN {dataset_name}.double_items"
+        " as di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
+    )
+
+    join_relationship = populated_pipeline.dataset()(query)
+    table = join_relationship.fetchall()
+    assert len(table) == 20
 
 
 @pytest.mark.no_load
@@ -633,34 +645,35 @@ def test_dataset_client_caching_and_connection_handling(populated_pipeline: Pipe
 )
 def test_column_selection(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset(dataset_type="default").items
-    casefolder = populated_pipeline.destination.capabilities().casefold_identifier
-    columns = [casefolder("_dlt_load_id"), casefolder("other_decimal")]
+    columns = ["_dlt_load_id", "other_decimal"]
     data_frame = table_relationship.select(*columns).head().df()
     assert list(data_frame.columns.values) == columns
     assert len(data_frame.index) == 5
 
-    columns = [casefolder("decimal"), casefolder("other_decimal")]
+    columns = ["decimal", "other_decimal"]
     arrow_table = table_relationship[columns].head().arrow()
     assert arrow_table.column_names == columns
     assert arrow_table.num_rows == 5
 
+    # TODO: fix those for bigquery and snowflake which use native cursor and does not fit into our schema 100#
+    # this is really good test, we should make a strict test for arrow reading for all destinations
     # hints should also be preserved via computed reduced schema
     expected_decimal_precision = 10
     expected_decimal_precision_2 = 12
+    expected_decimal_scale = 3
+    # bigquery and snowflake take arrow tables via native cursor and they mange precision
+    # we should probably cast arrow tables to our schema in cursors
     if populated_pipeline.destination.destination_type == "dlt.destinations.bigquery":
-        # bigquery does not allow precision configuration..
         expected_decimal_precision = 38
         expected_decimal_precision_2 = 38
-    assert (
-        arrow_table.schema.field(casefolder("decimal")).type.precision == expected_decimal_precision
-    )
-    assert (
-        arrow_table.schema.field(casefolder("other_decimal")).type.precision
-        == expected_decimal_precision_2
-    )
+    assert arrow_table.schema.field("decimal").type.scale == expected_decimal_scale
+    assert arrow_table.schema.field("other_decimal").type.scale == expected_decimal_scale
+
+    assert arrow_table.schema.field("decimal").type.precision == expected_decimal_precision
+    assert arrow_table.schema.field("other_decimal").type.precision == expected_decimal_precision_2
 
     with pytest.raises(LineageFailedException):
-        arrow_table = table_relationship.select(casefolder("unknown_column")).head().arrow()
+        arrow_table = table_relationship.select("unknown_column").head().arrow()
 
 
 @pytest.mark.no_load
@@ -793,16 +806,17 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
 
     # selecting two columns
     assert sql_from_expr(items_table.select("id", "decimal")) == (
-        'SELECT "t0"."id", "t0"."decimal" FROM "dataset"."items" AS "t0"',
+        'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal" FROM "dataset"."items" AS "t0"',
         ["id", "decimal"],
     )
 
-    # selecting all columns
+    # selecting all columns (star schema expanded, columns aliased)
+    # TODO: fixe tests
     assert sql_from_expr(items_table) == ('SELECT * FROM "dataset"."items"', ALL_COLUMNS)
 
     # selecting two other columns via item getter
     assert sql_from_expr(items_table["id", "decimal"]) == (
-        'SELECT "t0"."id", "t0"."decimal" FROM "dataset"."items" AS "t0"',
+        'SELECT "t0"."id" AS "id", "t0"."decimal" FROM "dataset"."items" AS "t0"',
         ["id", "decimal"],
     )
 
@@ -810,7 +824,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     new_col = (items_table.id * 2).name("new_col")
     assert sql_from_expr(items_table.select("id", "decimal", new_col)) == (
         (
-            'SELECT "t0"."id", "t0"."decimal", "t0"."id" * 2 AS "new_col" FROM'
+            'SELECT "t0"."id" AS "id", "t0"."decimal", "t0"."id" * 2 AS "new_col" FROM'
             ' "dataset"."items" AS "t0"'
         ),
         ["id", "decimal", "new_col"],
@@ -820,7 +834,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert sql_from_expr(
         items_table.mutate(double_id=items_table.id * 2).select("id", "double_id")
     ) == (
-        'SELECT "t0"."id", "t0"."id" * 2 AS "double_id" FROM "dataset"."items" AS "t0"',
+        'SELECT "t0"."id"  AS "id", "t0"."id" * 2 AS "double_id" FROM "dataset"."items" AS "t0"',
         ["id", "double_id"],
     )
 
@@ -828,7 +842,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert sql_from_expr(
         items_table.mutate(new_col=ibis.literal("static_value")).select("id", "new_col")
     ) == (
-        'SELECT "t0"."id", \'static_value\' AS "new_col" FROM "dataset"."items" AS "t0"',
+        'SELECT "t0"."id" AS "id", \'static_value\' AS "new_col" FROM "dataset"."items" AS "t0"',
         ["id", "new_col"],
     )
 
