@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 
 import sqlglot
 import sqlglot.expressions as sge
@@ -30,47 +30,42 @@ logger = logging.getLogger(__file__)
 
 def create_sqlglot_schema(
     schema: Schema,
-    sql_client: SqlClientBase[Any],
+    dataset_name: str,
     dialect: Optional[DialectType] = "duckdb",
-) -> Any:
+) -> SQLGlotSchema:
     """Create an SQLGlot schema using a dlt Schema and the destination capabilities.
 
-    The SQLGlot schema automatically includes the database and catalog names if available.
+    The SQLGlot schema automatically scopes the tables to the `dataset_name`.
     This can allow cross-dataset transformations on the same physical location.
+    No name translation nor case folding is performing. All identifiers correspond
+    to identifiers in dlt schema.
     """
 
     sqlglot_schema = {}  # MappingSchema(empty_schema, normalize=False)
 
-    for table_name, table in schema.tables.items():
+    for table_name in schema.tables.keys():
         column_mapping = {}
-        for column_name, column in table["columns"].items():
-            # skip not materialized columns
-            if not (data_type := column.get("data_type")):
-                continue
+        # skip not materialized columns
+        for column_name, column in schema.get_table_columns(
+            table_name, include_incomplete=False
+        ).items():
             sqlglot_type = to_sqlglot_type(
-                dlt_type=data_type,
+                dlt_type=column["data_type"],
                 nullable=column.get("nullable"),
                 precision=column.get("precision"),
                 scale=column.get("scale"),
                 timezone=column.get("timezone"),
             )
             sqlglot_type = set_metadata(sqlglot_type, column)
-            column_name = sql_client.capabilities.casefold_identifier(column_name)
+            # column_name = sql_client.capabilities.casefold_identifier(column_name)
             column_mapping[column_name] = sqlglot_type
-
-        table_name = sql_client.make_qualified_table_name_path(table_name, escape=False)[-1]
-        sqlglot_schema[table_name] = column_mapping
+        # skip tables without columns
+        if column_mapping:
+            # table_name = sql_client.make_qualified_table_name_path(table_name, quote=False, casefold=False)[-1]
+            sqlglot_schema[table_name] = column_mapping
 
     # ensure proper nesting with db and catalog
-    dataset_catalog = sql_client.make_qualified_table_name_path(None, escape=False)
-    if len(dataset_catalog) == 2:
-        catalog, database = dataset_catalog
-        nested_schema = {catalog: {database: sqlglot_schema}}
-    else:
-        (database,) = dataset_catalog
-        nested_schema = {database: sqlglot_schema}  # type: ignore
-
-    # NOTE: normalize=False is important as we already have normalized identifiers
+    nested_schema = {dataset_name: sqlglot_schema}
     return ensure_schema(nested_schema, dialect=dialect, normalize=False)
 
 
@@ -82,8 +77,9 @@ def compute_columns_schema(
     infer_sqlglot_schema: bool = True,
     allow_anonymous_columns: bool = True,
     allow_partial: bool = True,
-) -> TTableSchemaColumns:
-    """Compute the expected dlt columns schema for the output of an SQL SELECT query.
+) -> Tuple[TTableSchemaColumns, Optional[sge.Query]]:
+    """Compute the expected dlt columns schema for the output of an SQL SELECT query. No case-folding or
+    quoting is performed on the query.
 
     Args:
         infer_sqlglot_schema (bool): If False, all columns and tables referenced must be derived from the SQLGlot schema.
@@ -93,6 +89,9 @@ def compute_columns_schema(
         allow_partial (bool): If False, raise exceptions if the schema returned is incomplete.
             If True, this function always returns a dictionary, even in cases of
             SQL parsing errors, missing table reference, unresolved `SELECT *`, etc.
+
+    Returns: tuple of dlt columns schema and qualified `sql_query`
+
     """
     try:
         expression: Any = sqlglot.maybe_parse(sql_query, dialect=dialect)
@@ -102,32 +101,28 @@ def compute_columns_schema(
                 "Failed to parse the SQL query. Returning empty table schema because"
                 " `allow_fail=True`"
             )
-            return {}
+            return {}, None
 
         raise LineageFailedException(
             f"Failed to parse the SQL query using dialect `{dialect}`.\nQuery:\n\t{sql_query}",
         ) from e
 
-    if not isinstance(expression, sge.Select):
+    # the only thing we care is a list of selects
+    if not isinstance(expression, sge.Query):
         if allow_partial:
             logger.debug(
-                "Parsed SQL query is not a SELECT statement. Returning empty table schema because"
+                "Parsed SQL query is not a SQL query. Returning empty table schema because"
                 " `allow_fail=True`"
             )
-            return {}
+            return {}, None
 
         raise LineageFailedException(
             "Parsed SQL query is not a SELECT statement. Received SQL expression of type"
             f" {expression.type}.",
         )
 
-    if allow_anonymous_columns is False:
-        for col in expression.selects:
-            if col.output_name == "":
-                raise LineageFailedException(
-                    "Found anonymous column in SELECT statement. Use"
-                    f" `allow_anonymous_columns=True` for permissive handling.\nColumn:\n\t{col}",
-                )
+    # prevent normalization
+    expression.meta["case_sensitive"] = True
 
     # false-y values `schema={}` or `schema=None` are identical to `infer_schema=True`
     try:
@@ -136,14 +131,23 @@ def compute_columns_schema(
             schema=sqlglot_schema,
             dialect=dialect,
             infer_schema=infer_sqlglot_schema,
+            quote_identifiers=False,
+            expand_stars=True,
         )
-        assert isinstance(expression, sge.Select)  # qualify() preserves expression type `Select`
     except OptimizeError as e:
         raise LineageFailedException(
-            "Failed to resolve SQL query against the schema received."
+            f"Failed to resolve SQL query against the schema received: {e}"
         ) from e
 
     expression = annotate_types(expression, schema=sqlglot_schema, dialect=dialect)
+
+    if allow_anonymous_columns is False:
+        for col in expression.selects:
+            if col.output_name == "":
+                raise LineageFailedException(
+                    "Found anonymous column in SELECT statement. Use"
+                    f" `allow_anonymous_columns=True` for permissive handling.\nColumn:\n\t{col}",
+                )
 
     dlt_table_schema: dict[str, TColumnSchema] = {}
     for col in expression.selects:
@@ -164,11 +168,15 @@ def compute_columns_schema(
 
         data_type_hints = from_sqlglot_type(sqlglot_type=col.type)
         additional_hints = get_metadata(sqlglot_type=col.type)
+        # get original name for queries that aliased the source dlt column
+        propagated_name = additional_hints.pop("name", None)
         # NOTE dictionary unpacking order matters; unpacking `data_type_hints` last ensures precedence.
         dlt_table_schema[col.output_name] = {
             "name": col.output_name,
             **additional_hints,
             **data_type_hints,
         }
+        if propagated_name and col.output_name != propagated_name:
+            dlt_table_schema[col.output_name]["x-original-name"] = propagated_name  # type: ignore[typeddict-unknown-key]
 
-    return dlt_table_schema
+    return dlt_table_schema, expression
