@@ -217,8 +217,9 @@ class DestinationTestConfiguration:
 
     def setup(self) -> None:
         """Sets up environment variables for this destination configuration"""
+        env_key_prefix = "DESTINATION__" + (self.destination_name or self.destination_type).upper()
         for k, v in self.factory_kwargs.items():
-            os.environ[f"DESTINATION__{k.upper()}"] = str(v)
+            os.environ[f"{env_key_prefix}__{k.upper()}"] = str(v)
 
         # For the filesystem destinations we disable compression to make analyzing the result easier
         os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = str(
@@ -229,10 +230,10 @@ class DestinationTestConfiguration:
 
         if self.credentials is not None:
             if isinstance(self.credentials, str):
-                os.environ["DESTINATION__CREDENTIALS"] = self.credentials
+                os.environ[f"{env_key_prefix}__CREDENTIALS"] = self.credentials
             else:
                 for key, value in dict(self.credentials).items():
-                    os.environ[f"DESTINATION__CREDENTIALS__{key.upper()}"] = str(value)
+                    os.environ[f"{env_key_prefix}__CREDENTIALS__{key.upper()}"] = str(value)
 
         if self.env_vars is not None:
             for k, v in self.env_vars.items():

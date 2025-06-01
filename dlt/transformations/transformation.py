@@ -10,6 +10,7 @@ from dlt.common.reflection.inspect import isgeneratorfunction
 from dlt.common.typing import TDataItems, TTableHintTemplate
 from dlt.common import logger
 
+from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
 from dlt.extract.hints import SqlModel
 from dlt.extract.incremental import Incremental
 
@@ -140,7 +141,7 @@ def make_transformation_resource(
             # use first dataset to convert query into expression
             select_query = transformation_result
             transformation_result = datasets[0](select_query)
-        if not isinstance(transformation_result, SupportsReadableRelation):
+        if not isinstance(transformation_result, BaseReadableDBAPIRelation):
             raise TransformationInvalidReturnTypeException(
                 resource_name,
                 "Sql Transformation %s returned an invalid type: %s. Please either return a valid"
@@ -148,17 +149,23 @@ def make_transformation_resource(
                 " data (data frames / arrow table), please yield those, not return."
                 % (name, type(transformation_result)),
             )
-
-        select_query = transformation_result.query(qualified=True)
         # compute lineage
         computed_columns: TTableSchemaColumns = {}
         all_columns: TTableSchemaColumns = columns or {}
         # strict lineage!
-        computed_columns = transformation_result.compute_columns_schema(
+        # TODO: make it a public method
+        # TODO: why schema inference and anonymous columns are wrong? we do not want columns without
+        #  data types and only this should be disabled
+        computed_columns, parsed_query, _ = transformation_result._compute_columns_schema(
             infer_sqlglot_schema=False,
             allow_anonymous_columns=False,
             allow_partial=False,
         )
+        # TODO: expose a method to render query
+        select_query = parsed_query.sql(
+            dialect=transformation_result.sql_client.capabilities.sqlglot_dialect
+        )
+        # TODO: why? don't we prevent empty column schemas above?
         all_columns = {**computed_columns, **(columns or {})}
 
         # for sql transformations all column types must be known

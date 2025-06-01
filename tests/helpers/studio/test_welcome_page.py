@@ -4,7 +4,7 @@ from dlt.helpers.studio.app import home
 
 
 def test_welcome_cell():
-    output, defs = home.run(  # type: ignore
+    output, defs = home.run(  # type: ignore[unused-ignore]
         dlt_pipeline_select=mo.ui.multiselect([1, 2, 3]),
         dlt_all_pipelines=[
             {"name": "pipeline1", "link": "link1", "timestamp": 0},

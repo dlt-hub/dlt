@@ -200,8 +200,8 @@ def section_schema(
             ),
         )
 
-        for table in dlt_schema_table_list.value:  # type: ignore[union-attr]
-            _table_name = table["name"]  # type: ignore[index]
+        for table in dlt_schema_table_list.value:  # type: ignore[union-attr,unused-ignore]
+            _table_name = table["name"]  # type: ignore[index,unused-ignore]
             _result.append(mo.md(strings.schema_table_columns_title.format(_table_name)))
             _result.append(
                 mo.ui.table(
@@ -278,7 +278,7 @@ def section_browse_data_table_list(
 
             _sql_query = ""
             if dlt_data_table_list.value:
-                _table_name = dlt_data_table_list.value[0]["name"]  # type: ignore[index]
+                _table_name = dlt_data_table_list.value[0]["name"]  # type: ignore[index,unused-ignore]
                 _sql_query = (
                     dlt_pipeline.dataset()
                     .table(_table_name)
@@ -411,8 +411,8 @@ def section_browse_data_query_history(
         )
         _result.append(dlt_query_history_table)
 
-        for _r in dlt_query_history_table.value:  # type: ignore
-            _query = _r["query"]  # type: ignore
+        for _r in dlt_query_history_table.value:  # type: ignore[unused-ignore]
+            _query = _r["query"]  # type: ignore[unused-ignore]
             _q_result = utils.get_query_result(dlt_pipeline, _query)
             _result.append(mo.md(f"<small>```{_query}```</small>"))
             _result.append(mo.ui.table(_q_result, selection=None))
@@ -504,8 +504,8 @@ def section_trace(
                 )
             )
             _result.append(dlt_trace_steps_table)
-            for item in dlt_trace_steps_table.value:  # type: ignore
-                step_id = item["step"]  # type: ignore
+            for item in dlt_trace_steps_table.value:  # type: ignore[unused-ignore]
+                step_id = item["step"]  # type: ignore[unused-ignore]
                 _result.append(
                     ui.build_title_and_subtitle(
                         strings.trace_step_details_title.format(step_id.capitalize()),
@@ -605,13 +605,13 @@ def section_loads_results(
         and dlt_loads_table is not None
         and dlt_loads_table.value
     ):
-        _load_id = dlt_loads_table.value[0]["load_id"]  # type: ignore
+        _load_id = dlt_loads_table.value[0]["load_id"]  # type: ignore[unused-ignore]
         _result.append(mo.md(strings.loads_details_title.format(_load_id)))
 
         try:
             with mo.status.spinner(title=strings.loads_details_loading_spinner_text):
                 _schema = utils.get_schema_by_version(
-                    dlt_pipeline, dlt_loads_table.value[0]["schema_version_hash"]  # type: ignore
+                    dlt_pipeline, dlt_loads_table.value[0]["schema_version_hash"]  # type: ignore[unused-ignore]
                 )
 
                 # prepare and sort row counts
@@ -842,7 +842,7 @@ def ui_primary_controls(
             show_child_tables=dlt_schema_show_child_tables.value,
         )
         dlt_schema_table_list = mo.ui.table(
-            _table_list,  # type: ignore[arg-type]
+            _table_list,  # type: ignore[arg-type,unused-ignore]
             style_cell=utils.style_cell,
             initial_selection=[0],
             freeze_columns_left=["name"],
@@ -854,7 +854,7 @@ def ui_primary_controls(
     dlt_data_table_list: mo.ui.table = None
     if dlt_section_browse_data_switch.value and dlt_pipeline and dlt_pipeline.default_schema_name:
         dlt_data_table_list = mo.ui.table(
-            utils.create_table_list(  # type: ignore[arg-type]
+            utils.create_table_list(  # type: ignore[arg-type,unused-ignore]
                 dlt_config,
                 dlt_pipeline,
                 show_internals=dlt_schema_show_dlt_tables.value,
