@@ -1,19 +1,20 @@
-from typing import Any, Generator, Sequence, Type, Union, TYPE_CHECKING
+from typing import Any, Dict, Generator, Optional, Sequence, Tuple, Type, Union, TYPE_CHECKING
 from contextlib import contextmanager
 
 import sqlglot
+import sqlglot.expressions as sge
 
 from dlt.common.destination.dataset import (
     SupportsReadableRelation,
 )
-from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
+
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import Self
-from dlt.transformations import lineage
 
+from dlt.transformations import lineage
+from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.dataset.exceptions import (
     ReadableRelationHasQueryException,
-    ReadableRelationUnknownColumnException,
 )
 
 if TYPE_CHECKING:
@@ -32,6 +33,9 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
 
         self._dataset = readable_dataset
         self._opened_sql_client: SqlClientBase[Any] = None
+        self._columns_schema: TTableSchemaColumns = None
+        self._qualified_query: sge.Query = None
+        self._sqlglot_schema: lineage.SQLGlotSchema = None
 
         # wire protocol functions
         self.df = self._wrap_func("df")  # type: ignore
@@ -52,30 +56,82 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
         return self._dataset.sql_client_class
 
-    def query(self, qualified: bool = False) -> Any:
+    def query(self) -> Any:
         # NOTE: converted from property to method due to:
         #   if this property raises AttributeError, __getattr__ will get called 🤯
         #   this leads to infinite recursion as __getattr_ calls this property
         #   also it does a heavy computation inside so it should be a method
-        query = self._query()
-
-        if qualified:
-            caps = self._dataset.sql_client.capabilities
-            dialect: str = caps.sqlglot_dialect
-            sqlglot_schema = lineage.create_sqlglot_schema(
-                self._dataset.schema,
-                self._dataset.sql_client,
-                self._dataset.sql_client.capabilities.sqlglot_dialect,
-            )
-            parsed_query = sqlglot.parse_one(query, read=dialect)
-            query = sqlglot.optimizer.qualify.qualify(
-                parsed_query, schema=sqlglot_schema, dialect=dialect
-            ).sql(dialect=dialect)
-
-        return query
+        return self._normalize_query()
 
     def _query(self) -> Any:
+        """Returns a compliant with dlt schema in the relation.
+        1. identifiers are not case folded
+        2. star top level selects are not expanded
+        3. dlt schema compat aliases are not added to top level selects
+        """
         raise NotImplementedError("No query in ReadableDBAPIRelation")
+
+    def _normalize_query(self) -> str:
+        caps = self._dataset.sql_client.capabilities
+        target_dialect = caps.sqlglot_dialect
+
+        # compute schema so other properties are available
+        _ = self.columns_schema
+        parsed_query = self._qualified_query
+
+        if parsed_query is not None:
+            # do we need to case-fold identifiers?
+            is_casefolding = caps.casefold_identifier is not str
+
+            # preserve "column" names in original selects which are done in dlt schema namespace
+            orig_selects: Dict[int, str] = None
+            if is_casefolding:
+                orig_selects = {}
+                for i, proj in enumerate(parsed_query.selects):
+                    orig_selects[i] = proj.name or proj.args["alias"].name
+
+            # case fold all identifiers and quote
+            for node in parsed_query.walk():
+                if isinstance(node, sge.Table):
+                    # expand named of known tables. this is currently clickhouse things where
+                    # we use dataset.table in queries but render those as dataset___table
+                    if self._sqlglot_schema.column_names(node):
+                        expanded_path = self.sql_client.make_qualified_table_name_path(
+                            node.name, quote=False, casefold=False
+                        )
+                        # set the table name
+                        if node.name != expanded_path[-1]:
+                            node.this.set("this", expanded_path[-1])
+                        # set the dataset/schema name
+                        if node.db != expanded_path[-2]:
+                            node.set("db", sqlglot.to_identifier(expanded_path[-2], quoted=False))
+                        # set the catalog name
+                        if len(expanded_path) == 3:
+                            if node.db != expanded_path[0]:
+                                node.set(
+                                    "catalog", sqlglot.to_identifier(expanded_path[0], quoted=False)
+                                )
+                # quote and case-fold identifiers, TODO: maybe we could be more intelligent, but then we need to unquote ibis
+                if isinstance(node, sge.Identifier):
+                    if is_casefolding:
+                        node.set("this", caps.casefold_identifier(node.this))
+                    node.set("quoted", True)
+
+            # add aliases to output selects to stay compatible with dlt schema after the query
+            if orig_selects:
+                for i, orig in orig_selects.items():
+                    case_folded_orig = caps.casefold_identifier(orig)
+                    if case_folded_orig != orig:
+                        # somehow we need to alias just top select in UNION (tested on Snowflake)
+                        sel_expr = parsed_query.selects[i]
+                        parsed_query.selects[i] = sge.alias_(sel_expr, orig, quoted=True)
+
+            query = parsed_query.sql(dialect=target_dialect)
+        else:
+            # TODO: log failed to obtain schema
+            pass
+
+        return query
 
     @contextmanager
     def cursor(self) -> Generator[SupportsReadableRelation, Any, Any]:
@@ -86,14 +142,14 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
             # case 1: client is already opened and managed from outside
             if self.sql_client.native_connection:
                 with self.sql_client.execute_query(self.query()) as cursor:
-                    if columns_schema := self.compute_columns_schema():
+                    if columns_schema := self.columns_schema:
                         cursor.columns_schema = columns_schema
                     yield cursor
             # case 2: client is not opened, we need to manage it
             else:
                 with self.sql_client as client:
                     with client.execute_query(self.query()) as cursor:
-                        if columns_schema := self.compute_columns_schema():
+                        if columns_schema := self.columns_schema:
                             cursor.columns_schema = columns_schema
                         yield cursor
         finally:
@@ -124,6 +180,17 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         allow_partial: bool = True,
         **kwargs: Any,
     ) -> TTableSchemaColumns:
+        return self._compute_columns_schema(
+            infer_sqlglot_schema, allow_anonymous_columns, allow_partial, **kwargs
+        )[0]
+
+    def _compute_columns_schema(
+        self,
+        infer_sqlglot_schema: bool = False,
+        allow_anonymous_columns: bool = True,
+        allow_partial: bool = False,
+        **kwargs: Any,
+    ) -> Tuple[TTableSchemaColumns, Optional[sge.Query], Optional[lineage.SQLGlotSchema]]:
         """Provides the expected columns schema for the query
 
         Args:
@@ -131,42 +198,45 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
             allow_anonymous_columns (bool): If False, raise if any columns have auto assigned names
             allow_partial (bool): If False, will raise if for some reason no columns can be computed
         """
-
+        # TODO: the docstrings above seem not right!
         # NOTE: if we do not have a schema, we cannot compute the columns schema
         if self._dataset.schema is None or (
             hasattr(self, "_table_name")
             and self._table_name
             and self._table_name not in self._dataset.schema.tables.keys()
         ):
-            return {}
+            return {}, None, None
 
-        # TODO: sqlalchemy does not work with their internal types, so we go via duckdb
+        # get dlt schema compliant query so lineage will work correctly on non case folded identifiers
+        query = self._query()
+
         caps = self._dataset.sql_client.capabilities
         dialect: str = caps.sqlglot_dialect
-        query = self.query()
-        if self._dataset._destination.destination_type in [
-            "dlt.destinations.sqlalchemy",
-        ]:
-            query = sqlglot.transpile(query, read=dialect, write="duckdb")[0]
-            dialect = "duckdb"
 
         # TODO: maybe store the SQLGlot schema on the dataset
-        # TODO: support joins between datasets
+        # TODO: support joins between datasets (accept existing sql schema to add tables to it)
         sqlglot_schema = lineage.create_sqlglot_schema(
-            self._dataset.schema, self._dataset.sql_client, dialect=dialect
+            self._dataset.schema, self._dataset.dataset_name, dialect=dialect
         )
-        return lineage.compute_columns_schema(
-            query,
+        return (
+            *lineage.compute_columns_schema(
+                query,
+                sqlglot_schema,
+                dialect,
+                infer_sqlglot_schema=infer_sqlglot_schema,
+                allow_anonymous_columns=allow_anonymous_columns,
+                allow_partial=allow_partial,
+            ),
             sqlglot_schema,
-            dialect,
-            infer_sqlglot_schema=infer_sqlglot_schema,
-            allow_anonymous_columns=allow_anonymous_columns,
-            allow_partial=allow_partial,
         )
 
     @property
     def columns_schema(self) -> TTableSchemaColumns:
-        return self.compute_columns_schema()
+        if self._columns_schema is None:
+            self._columns_schema, self._qualified_query, self._sqlglot_schema = (
+                self._compute_columns_schema()
+            )
+        return self._columns_schema
 
     @columns_schema.setter
     def columns_schema(self, new_value: TTableSchemaColumns) -> None:
@@ -198,16 +268,15 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         self._selected_columns = selected_columns
 
     def _query(self) -> Any:
-        """build the query"""
         # TODO reimplement this using SQLGLot instead of passing strings
         if self._provided_query:
             return self._provided_query
 
         dataset_schema = self._dataset.schema
 
-        table_name = self.sql_client.make_qualified_table_name(
-            dataset_schema.naming.normalize_path(self._table_name)
-        )
+        table_name = (
+            self._table_name
+        )  # self.sql_client.make_qualified_table_name(self._table_name, quote=False, casefold=False)
 
         maybe_limit_clause_1 = ""
         maybe_limit_clause_2 = ""
@@ -216,16 +285,12 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
                 self._limit
             )
 
-        selector = "*"
-        if self._selected_columns:
-            selector = ",".join(
-                [
-                    self.sql_client.escape_column_name(
-                        dataset_schema.naming.normalize_tables_path(c)
-                    )
-                    for c in self._selected_columns
-                ]
-            )
+        selected_columns = (
+            self._selected_columns
+            if self._selected_columns
+            else dataset_schema.get_table_columns(self._table_name).keys()
+        )
+        selector = ",".join(selected_columns)
 
         return f"SELECT {maybe_limit_clause_1} {selector} FROM {table_name} {maybe_limit_clause_2}"
 
