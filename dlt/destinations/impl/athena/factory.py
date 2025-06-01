@@ -162,6 +162,7 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
         caps.merge_strategies_selector = athena_merge_strategies_selector
         caps.replace_strategies_selector = athena_replace_strategies_selector
+        caps.enforces_nulls_on_alter = False
         caps.sqlglot_dialect = "athena"
 
         return caps
