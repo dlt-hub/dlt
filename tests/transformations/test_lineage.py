@@ -179,9 +179,12 @@ def test_compute_columns_schema(
                 **config,
             )
     else:
-        assert expected_dlt_schema == lineage.compute_columns_schema(
-            sql_query=sql_query,
-            sqlglot_schema=sqlglot_schema,
-            dialect=sqlglot_schema.dialect,
-            **config,
+        assert (
+            expected_dlt_schema
+            == lineage.compute_columns_schema(
+                sql_query=sql_query,
+                sqlglot_schema=sqlglot_schema,
+                dialect=sqlglot_schema.dialect,
+                **config,
+            )[0]
         )
