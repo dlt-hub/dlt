@@ -44,7 +44,11 @@ from dlt.common.schema import Schema
 from dlt.destinations import filesystem, redshift, dummy, duckdb
 import dlt.destinations.dataset
 from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME
-from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted
+from dlt.extract.exceptions import (
+    InvalidResourceDataTypeBasic,
+    ResourceExtractionError,
+    SourceExhausted,
+)
 from dlt.extract.extract import ExtractStorage
 from dlt.extract import DltResource, DltSource
 from dlt.extract.extractors import MaterializedEmptyList
@@ -60,14 +64,16 @@ from dlt.pipeline.helpers import retry_load
 
 from dlt.pipeline.pipeline import Pipeline
 from tests.common.utils import TEST_SENTRY_DSN
-from tests.utils import TEST_STORAGE_ROOT, load_table_counts
+from tests.utils import TEST_STORAGE_ROOT
+from tests.pipeline.utils import assert_load_info, load_table_counts
+
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
-    assert_data_table_counts,
+    assert_table_counts,
     assert_load_info,
     airtable_emojis,
     assert_only_table_columns,
-    load_data_table_counts,
+    load_table_counts,
     load_tables_to_dicts,
     many_delayed,
 )
@@ -311,16 +317,20 @@ def test_run_dev_mode_underscored_dataset() -> None:
 
 
 def test_dataset_pipeline_never_ran() -> None:
-    p = dlt.pipeline(destination="filesystem", dev_mode=True, dataset_name="_main_")
-    with pytest.raises(PipelineNeverRan):
-        p.dataset()
+    p = dlt.pipeline(destination="duckdb", dev_mode=True, dataset_name="_main_")
+    # we get a dataset with an empty schema with the name of the dataset
+    dataset = p.dataset()
+    assert dataset.schema.name == p.dataset_name
+    assert set(dataset.schema.tables.keys()) == {"_dlt_version", "_dlt_loads"}
 
 
 def test_dataset_unknown_schema() -> None:
     p = dlt.pipeline(destination="duckdb", dev_mode=True, dataset_name="mmmmm")
     p.run([1, 2, 3], table_name="digits")
-    with pytest.raises(SchemaNotFoundError):
-        p.dataset(schema="unknown")
+
+    dataset = p.dataset(schema="unknown")
+    assert dataset.schema.name == "unknown"
+    assert set(dataset.schema.tables.keys()) == {"_dlt_version", "_dlt_loads"}
 
 
 def test_pipeline_with_non_alpha_name() -> None:
@@ -764,10 +774,12 @@ def test_pipeline_resources_injected_sections() -> None:
     s_ = with_external()
     pipeline.run(s_)
     ds_ = pipeline.dataset(schema="with_external")
-    assert ds_.source_val["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
-    assert ds_.inner_resource["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
-    assert ds_.init_resource_f_2["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
-    assert ds_.resource_f_2["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
+    assert ds_.source_val[["value"]].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
+    assert ds_.inner_resource[["value"]].fetchall()[0] == (
+        "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
+    )
+    assert ds_.init_resource_f_2[["value"]].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
+    assert ds_.resource_f_2[["value"]].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
     # assert pipeline.dataset(schema="with_external").init_resource_f_2.fetchall()[0][0] == "SOURCES__SECTION_SOURCE__VAL"
     assert "with_external" in pipeline.schemas
 
@@ -777,10 +789,12 @@ def test_pipeline_resources_injected_sections() -> None:
     s_ = with_bound_external()
     pipeline.run(s_)
     ds_ = pipeline.dataset(schema="with_bound_external")
-    assert ds_.source_val["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
-    assert ds_.inner_resource["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
-    assert ds_.init_resource_f_2["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
-    assert ds_.resource_f_2["value"].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
+    assert ds_.source_val[["value"]].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",)
+    assert ds_.inner_resource[["value"]].fetchall()[0] == (
+        "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL",
+    )
+    assert ds_.init_resource_f_2[["value"]].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
+    assert ds_.resource_f_2[["value"]].fetchall()[0] == ("SOURCES__EXTERNAL_RESOURCES__VAL",)
     # assert pipeline.dataset(schema="with_external").init_resource_f_2.fetchall()[0][0] == "SOURCES__SECTION_SOURCE__VAL"
     assert "with_bound_external" in pipeline.schemas
 
@@ -846,7 +860,7 @@ def test_mark_hints_with_variant() -> None:
         "with_table_hints": 1,
     }
     # check table counts
-    assert_data_table_counts(pipeline, {"table_a": 2, "table_b": 2, "with_table_hints": 1})
+    assert_table_counts(pipeline, {"table_a": 2, "table_b": 2, "with_table_hints": 1})
 
 
 def test_mark_hints_variant_dynamic_name() -> None:
@@ -886,7 +900,7 @@ def test_mark_hints_variant_dynamic_name() -> None:
         "table_c": 1,
     }
     # check table counts
-    assert_data_table_counts(pipeline, {"table_a": 2, "table_b": 2, "table_c": 1})
+    assert_table_counts(pipeline, {"table_a": 2, "table_b": 2, "table_c": 1})
 
 
 def test_restore_state_on_dummy() -> None:
@@ -1679,24 +1693,33 @@ def test_apply_hints_infer_hints() -> None:
 
 
 def test_invalid_data_edge_cases() -> None:
-    # pass not evaluated source function
+    # pass lambda directly to run, allowed now because functions can be extracted too
+    pipeline = dlt.pipeline(pipeline_name="invalid", destination=DUMMY_COMPLETE)
+    pipeline.run(lambda: [1, 2, 3], table_name="late_digits")
+    assert pipeline.last_trace.last_normalize_info.row_counts["late_digits"] == 3
+
+    # pass not called source function
     @dlt.source
     def my_source():
         return dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
 
-    pipeline = dlt.pipeline(pipeline_name="invalid", destination=DUMMY_COMPLETE)
-    with pytest.raises(PipelineStepFailed) as pip_ex:
-        pipeline.run(my_source)
-    assert isinstance(pip_ex.value.__context__, PipeGenInvalid)
-    assert "dlt.source" in str(pip_ex.value)
+    # this function will be evaluated like any other. it returns resource which in the pipe
+    # is just an iterator and it will be iterated
+    # TODO: we should probably block that behavior
+    pipeline.run(my_source)
+
+    assert pipeline.last_trace.last_normalize_info.row_counts["my_source"] == 5
 
     def res_return():
         return dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
 
-    with pytest.raises(PipelineStepFailed) as pip_ex:
-        pipeline.run(res_return)
-    assert isinstance(pip_ex.value.__context__, PipeGenInvalid)
-    assert "dlt.resource" in str(pip_ex.value)
+    pipeline.run(res_return)
+    assert pipeline.last_trace.last_normalize_info.row_counts["res_return"] == 5
+
+    # with pytest.raises(PipelineStepFailed) as pip_ex:
+    #     pipeline.run(res_return)
+    # assert isinstance(pip_ex.value.__context__, PipeGenInvalid)
+    # assert "dlt.resource" in str(pip_ex.value)
 
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run({"a": "b"}, table_name="data")
@@ -1707,19 +1730,24 @@ def test_invalid_data_edge_cases() -> None:
     def my_source_yield():
         yield dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
 
-    pipeline = dlt.pipeline(pipeline_name="invalid", destination=DUMMY_COMPLETE)
-    with pytest.raises(PipelineStepFailed) as pip_ex:
-        pipeline.run(my_source_yield)
-    assert isinstance(pip_ex.value.__context__, PipeGenInvalid)
-    assert "dlt.source" in str(pip_ex.value)
+    pipeline.run(my_source_yield)
+    assert pipeline.last_trace.last_normalize_info.row_counts["my_source_yield"] == 5
+
+    # pipeline = dlt.pipeline(pipeline_name="invalid", destination=DUMMY_COMPLETE)
+    # with pytest.raises(PipelineStepFailed) as pip_ex:
+    #     pipeline.run(my_source_yield)
+    # assert isinstance(pip_ex.value.__context__, PipeGenInvalid)
+    # assert "dlt.source" in str(pip_ex.value)
 
     def res_return_yield():
-        return dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
+        yield dlt.resource(itertools.count(start=1), name="infinity").add_limit(5)
+
+    # here extract pipe tries to call yielded resources which is not callable
+    # TODO: better exception, but this is a total messup
 
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(res_return_yield)
-    assert isinstance(pip_ex.value.__context__, PipeGenInvalid)
-    assert "dlt.resource" in str(pip_ex.value)
+    assert isinstance(pip_ex.value.__context__, ResourceExtractionError)
 
 
 def test_resource_rename_same_table():
@@ -1776,8 +1804,8 @@ def test_drop_with_new_name() -> None:
     pipeline.run([1, 2, 3], table_name="p1")
     new_pipeline.run([1, 2, 3], table_name="p2")
 
-    assert_data_table_counts(pipeline, {"p1": 3})
-    assert_data_table_counts(new_pipeline, {"p2": 3})
+    assert_table_counts(pipeline, {"p1": 3})
+    assert_table_counts(new_pipeline, {"p2": 3})
 
 
 def test_drop() -> None:
@@ -1974,7 +2002,7 @@ def test_column_name_with_break_path() -> None:
     assert set(table["columns"]) == {"example_custom_field__c", "reg_c", "_dlt_id", "_dlt_load_id"}
 
     # get data
-    assert_data_table_counts(pipeline, {"custom__path": 1})
+    assert_table_counts(pipeline, {"custom__path": 1})
     # get data via dataset with dbapi
     data_ = pipeline.dataset().custom__path[["example_custom_field__c", "reg_c"]].fetchall()
     assert data_ == [("custom", "c")]
@@ -1998,7 +2026,7 @@ def test_column_name_with_break_path_legacy() -> None:
     assert set(table["columns"]) == {"example_custom_field_c", "reg_c", "_dlt_id", "_dlt_load_id"}
 
     # get data
-    assert_data_table_counts(pipeline, {"custom_path": 1})
+    assert_table_counts(pipeline, {"custom_path": 1})
     # get data via dataset with dbapi
     data_ = pipeline.dataset().custom_path[["example_custom_field_c", "reg_c"]].fetchall()
     assert data_ == [("custom", "c")]
@@ -2255,7 +2283,7 @@ def test_parallel_pipelines_threads(workers: int) -> None:
         info = pipeline.load()
 
         # get counts in the thread
-        counts = load_data_table_counts(pipeline)
+        counts = load_table_counts(pipeline)
 
         assert context is context_2
         return info, context, counts
@@ -2313,9 +2341,9 @@ def test_parallel_pipelines_threads(workers: int) -> None:
 
     # make sure we can still access data
     pipeline_1.activate()  # activate pipeline to access inner duckdb
-    assert load_data_table_counts(pipeline_1) == counts_1
+    assert load_table_counts(pipeline_1) == counts_1
     pipeline_2.activate()
-    assert load_data_table_counts(pipeline_2) == counts_2
+    assert load_table_counts(pipeline_2) == counts_2
 
 
 @pytest.mark.parametrize("workers", (1, 4), ids=("1 norm worker", "4 norm workers"))
@@ -2364,9 +2392,9 @@ def test_parallel_pipelines_async(workers: int) -> None:
 
     asyncio.run(_run_async())
     pipeline_1.activate()  # activate pipeline 1 to access inner duckdb
-    assert load_data_table_counts(pipeline_1) == {"async_table": 10}
+    assert load_table_counts(pipeline_1) == {"async_table": 10}
     pipeline_2.activate()  # activate pipeline 2 to access inner duckdb
-    assert load_data_table_counts(pipeline_2) == {"defer_table": 5}
+    assert load_table_counts(pipeline_2) == {"defer_table": 5}
 
 
 def test_resource_while_stop() -> None:
@@ -2619,7 +2647,7 @@ def test_yielding_empty_list_creates_table() -> None:
     load_info = pipeline.load()
     # print(load_info.asstr(verbosity=3))
     assert_load_info(load_info)
-    assert_data_table_counts(pipeline, {"empty": 0})
+    assert_table_counts(pipeline, {"empty": 0})
     # make sure we have expected columns
     assert set(pipeline.default_schema.tables["empty"]["columns"].keys()) == {
         "id",
@@ -2629,7 +2657,7 @@ def test_yielding_empty_list_creates_table() -> None:
 
     # load some data
     pipeline.run([{"id": 1}], table_name="empty")
-    assert_data_table_counts(pipeline, {"empty": 1})
+    assert_table_counts(pipeline, {"empty": 1})
 
     # update schema on existing table
     pipeline.run(
@@ -2637,7 +2665,7 @@ def test_yielding_empty_list_creates_table() -> None:
         table_name="empty",
         columns=[{"name": "user_name", "data_type": "text", "nullable": True}],
     )
-    assert_data_table_counts(pipeline, {"empty": 1})
+    assert_table_counts(pipeline, {"empty": 1})
     assert set(pipeline.default_schema.tables["empty"]["columns"].keys()) == {
         "id",
         "_dlt_load_id",
@@ -2769,7 +2797,7 @@ def test_change_naming_convention_name_collision() -> None:
     # make sure that emojis got in
     assert "🦚Peacock" in pipeline.default_schema.tables
     assert "🔑id" in pipeline.default_schema.tables["🦚Peacock"]["columns"]
-    assert load_data_table_counts(pipeline) == {
+    assert load_table_counts(pipeline) == {
         "📆 Schedule": 3,
         "🦚Peacock": 1,
         "🦚WidePeacock": 1,
@@ -2796,7 +2824,7 @@ def test_change_naming_convention_name_collision() -> None:
     )
     assert_load_info(info)
     # case insensitive normalization
-    assert load_data_table_counts(pipeline) == {
+    assert load_table_counts(pipeline) == {
         "_schedule": 3,
         "_peacock": 1,
         "_widepeacock": 1,
@@ -3008,7 +3036,7 @@ def test_resource_transformer_standalone() -> None:
     assert_load_info(info)
     # this works because we extract transformer and resource above in a single source so dlt optimizes
     # dag and extracts gen_pages only once.
-    assert load_data_table_counts(pipeline) == {"subpages": 100, "pages": 10}
+    assert load_table_counts(pipeline) == {"subpages": 100, "pages": 10}
 
     # for two separate sources we have the following
     page = 1
@@ -3019,7 +3047,7 @@ def test_resource_transformer_standalone() -> None:
     )
     assert_load_info(info, 2)
     # ten subpages because only 1 page is extracted in the second source (see gen_pages exit condition)
-    assert load_data_table_counts(pipeline) == {"subpages": 10, "pages": 10}
+    assert load_table_counts(pipeline) == {"subpages": 10, "pages": 10}
 
 
 def test_resources_same_name_in_single_source() -> None:
@@ -3072,8 +3100,8 @@ def test_static_staging_dataset() -> None:
                 "test_static_staging_dataset_2",
             }
 
-    assert_data_table_counts(pipeline_1, {"digits": 3})
-    assert_data_table_counts(pipeline_2, {"letters": 4})
+    assert_table_counts(pipeline_1, {"digits": 3})
+    assert_table_counts(pipeline_2, {"letters": 4})
 
 
 def test_underscore_tables_and_columns() -> None:
@@ -3702,3 +3730,28 @@ def test_nested_hints_primary_key() -> None:
     # load again, merge should overwrite rows
     load_info = p.run(customers().add_map(_pushdown_customer_id))
     assert p.dataset().row_counts().fetchall() == row_count
+
+
+def test_pipeline_repr() -> None:
+    sentinel = object()
+    p = dlt.pipeline(pipeline_name="repr_pipeline", destination="duckdb")
+
+    repr_ = p.__repr__()
+    assert isinstance(repr_, str)
+    assert "dlt.pipeline(" in repr_
+
+    # check that properties used by `__repr__` exist
+    assert getattr(p, "pipeline_name", sentinel) is not sentinel
+    assert getattr(p, "_destination", sentinel) is not sentinel
+    # we know `._destination` is set on this Pipeline
+    assert getattr(p._destination, "destination_name", sentinel) is not sentinel
+    assert getattr(p, "_staging", sentinel) is not sentinel
+    # NOTE we also expect `_staging.destination_name` to exist
+    assert getattr(p, "dataset_name", sentinel) is not sentinel
+    assert getattr(p, "default_schema_name", sentinel) is not sentinel
+    assert getattr(p, "schema_names", sentinel) is not sentinel
+    assert getattr(p, "first_run", sentinel) is not sentinel
+    assert getattr(p, "dev_mode", sentinel) is not sentinel
+    assert getattr(p, "is_active", sentinel) is not sentinel
+    assert getattr(p, "pipelines_dir", sentinel) is not sentinel
+    assert getattr(p, "working_dir", sentinel) is not sentinel

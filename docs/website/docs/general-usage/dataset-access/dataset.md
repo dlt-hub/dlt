@@ -129,7 +129,17 @@ Keep in mind that you can use only methods that modify the executed query and no
 
 ## Supported destinations
 
-All SQL and filesystem destinations supported by `dlt` can utilize this data access interface. For filesystem destinations, `dlt` [uses **DuckDB** under the hood](./sql-client.md#the-filesystem-sql-client) to create views from Parquet or JSONL files dynamically. This allows you to query data stored in files using the same interface as you would with SQL databases. If you plan on accessing data in buckets or the filesystem a lot this way, it is advised to load data as Parquet instead of JSONL, as **DuckDB** is able to only load the parts of the data actually needed for the query to work.
+All SQL and filesystem destinations supported by `dlt` can utilize this data access interface.
+
+### Reading data from filesystem
+For filesystem destinations, `dlt` [uses **DuckDB** under the hood](./sql-client.md#the-filesystem-sql-client) to create views on iceberg and delta tables or from Parquet, JSONL and csv files. This allows you to query data stored in files using the same interface as you would with SQL databases. If you plan on accessing data in buckets or the filesystem a lot this way, it is advised to load data into delta or iceberg tables, as **DuckDB** is able to only load the parts of the data actually needed for the query to work.
+
+:::tip
+By default `dlt` will not autorefresh views created on iceberg tables and files when new data is loaded. This prevents wasting resources on
+file globbing and reloading iceberg metadata for every query. You can [change this behavior](sql-client.md#control-data-freshness) with `always_refresh_views` flag.
+
+Note: `delta` tables are by default on autorefresh which is implemented by delta core and seems to be pretty efficient.
+:::
 
 ## Examples
 

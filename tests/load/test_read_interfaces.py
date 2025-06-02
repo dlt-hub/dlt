@@ -30,6 +30,7 @@ from dlt.destinations.dataset.exceptions import (
 )
 from tests.load.utils import drop_pipeline_data
 from dlt.destinations.dataset import dataset as _dataset
+from dlt.transformations.exceptions import LineageFailedException
 
 EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
 
@@ -189,6 +190,28 @@ def test_explicit_dataset_type_selection(populated_pipeline: Pipeline):
 
 
 @pytest.mark.no_load
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_scalar(populated_pipeline: Pipeline) -> None:
+    assert populated_pipeline.dataset().items.count().scalar() == _total_records(
+        populated_pipeline.destination.destination_type
+    )
+
+    # test error if more than one row is returned and we use scalar
+    with pytest.raises(ValueError) as ex:
+        populated_pipeline.dataset().items.scalar()
+    assert "got more than one row" in str(ex.value)
+
+    with pytest.raises(ValueError) as ex:
+        populated_pipeline.dataset().items.limit(1).scalar()
+    assert "got 1 row with 5 columns" in str(ex.value)
+
+
+@pytest.mark.no_load
 @pytest.mark.essential
 @pytest.mark.parametrize(
     "populated_pipeline",
@@ -201,6 +224,7 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
     chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
+    casefolder = populated_pipeline.destination.capabilities().casefold_identifier
 
     # full table
     table = table_relationship.arrow()
@@ -208,7 +232,7 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
 
     # chunk
     table = table_relationship.arrow(chunk_size=chunk_size)
-    assert set(table.column_names) == set(EXPECTED_COLUMNS)
+    assert set(table.column_names) == set([casefolder(c) for c in EXPECTED_COLUMNS])
     assert table.num_rows == chunk_size
 
     # check frame amount and items counts
@@ -216,7 +240,9 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
     assert [t.num_rows for t in tables] == expected_chunk_counts
 
     # check all items are present
-    ids = reduce(lambda a, b: a + b, [t.column(EXPECTED_COLUMNS[0]).to_pylist() for t in tables])
+    ids = reduce(
+        lambda a, b: a + b, [t.column(casefolder(EXPECTED_COLUMNS[0])).to_pylist() for t in tables]
+    )
     assert set(ids) == set(range(total_records))
 
 
@@ -229,6 +255,7 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_dataframe_access(populated_pipeline: Pipeline) -> None:
+    casefolder = populated_pipeline.destination.capabilities().casefold_identifier
     # access via key
     table_relationship = populated_pipeline.dataset()["items"]
     total_records = _total_records(populated_pipeline.destination.destination_type)
@@ -247,7 +274,7 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
     if not skip_df_chunk_size_check:
         assert len(df.index) == chunk_size
 
-    assert set(df.columns.values) == set(EXPECTED_COLUMNS)
+    assert set(df.columns.values) == set([casefolder(c) for c in EXPECTED_COLUMNS])
 
     # iterate all dataframes
     frames = list(table_relationship.iter_df(chunk_size=chunk_size))
@@ -255,7 +282,7 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
         assert [len(df.index) for df in frames] == expected_chunk_counts
 
     # check all items are present
-    ids = reduce(lambda a, b: a + b, [f[EXPECTED_COLUMNS[0]].to_list() for f in frames])
+    ids = reduce(lambda a, b: a + b, [f[casefolder(EXPECTED_COLUMNS[0])].to_list() for f in frames])
     assert set(ids) == set(range(total_records))
 
 
@@ -304,6 +331,7 @@ def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
 )
 def test_hint_preservation(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset(dataset_type="default").items
+    casefolder = populated_pipeline.destination.capabilities().casefold_identifier
     # check that hints are carried over to arrow table
     expected_decimal_precision = 10
     expected_decimal_precision_2 = 12
@@ -312,11 +340,11 @@ def test_hint_preservation(populated_pipeline: Pipeline) -> None:
         expected_decimal_precision = 38
         expected_decimal_precision_2 = 38
     assert (
-        table_relationship.arrow().schema.field("decimal").type.precision
+        table_relationship.arrow().schema.field(casefolder("decimal")).type.precision
         == expected_decimal_precision
     )
     assert (
-        table_relationship.arrow().schema.field("other_decimal").type.precision
+        table_relationship.arrow().schema.field(casefolder("other_decimal")).type.precision
         == expected_decimal_precision_2
     )
 
@@ -605,12 +633,13 @@ def test_dataset_client_caching_and_connection_handling(populated_pipeline: Pipe
 )
 def test_column_selection(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset(dataset_type="default").items
-    columns = ["_dlt_load_id", "other_decimal"]
+    casefolder = populated_pipeline.destination.capabilities().casefold_identifier
+    columns = [casefolder("_dlt_load_id"), casefolder("other_decimal")]
     data_frame = table_relationship.select(*columns).head().df()
-    assert [v.lower() for v in data_frame.columns.values] == columns
+    assert list(data_frame.columns.values) == columns
     assert len(data_frame.index) == 5
 
-    columns = ["decimal", "other_decimal"]
+    columns = [casefolder("decimal"), casefolder("other_decimal")]
     arrow_table = table_relationship[columns].head().arrow()
     assert arrow_table.column_names == columns
     assert arrow_table.num_rows == 5
@@ -622,11 +651,46 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
         # bigquery does not allow precision configuration..
         expected_decimal_precision = 38
         expected_decimal_precision_2 = 38
-    assert arrow_table.schema.field("decimal").type.precision == expected_decimal_precision
-    assert arrow_table.schema.field("other_decimal").type.precision == expected_decimal_precision_2
+    assert (
+        arrow_table.schema.field(casefolder("decimal")).type.precision == expected_decimal_precision
+    )
+    assert (
+        arrow_table.schema.field(casefolder("other_decimal")).type.precision
+        == expected_decimal_precision_2
+    )
 
-    with pytest.raises(ReadableRelationUnknownColumnException):
-        arrow_table = table_relationship.select("unknown_column").head().arrow()
+    with pytest.raises(LineageFailedException):
+        arrow_table = table_relationship.select(casefolder("unknown_column")).head().arrow()
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_column_retrieval(populated_pipeline: Pipeline) -> None:
+    import ibis
+
+    # test non - ibis relation
+    table_relationship = populated_pipeline.dataset(dataset_type="default").items
+
+    # accessing single column this way is not supported
+    with pytest.raises(TypeError):
+        table_relationship["other_decimal"]
+
+    table_relationship = populated_pipeline.dataset(dataset_type="ibis").items
+
+    # test different ways of accessing columns
+    decimal_col_get_attr = table_relationship.other_decimal._ibis_object
+    decimal_col_get_item = table_relationship["other_decimal"]._ibis_object
+
+    # we access the same column with both methods
+    assert isinstance(decimal_col_get_attr, ibis.Column)
+    assert isinstance(decimal_col_get_item, ibis.Column)
+    assert decimal_col_get_attr.get_name() == decimal_col_get_item.get_name()
 
 
 @pytest.mark.no_load
@@ -645,9 +709,10 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
     assert dataset.schema.name == populated_pipeline.default_schema_name
     assert "items" in dataset.schema.tables
 
-    # if setting a different schema, it must be present in pipeline
-    with pytest.raises(SchemaNotFoundError):
-        populated_pipeline.dataset(schema="unknown_schema")
+    # if setting a different schema, default schema with dataset name will be used
+    populated_pipeline.dataset(schema="source")
+    assert dataset.schema.name == "source"
+    assert "items" in dataset.schema.tables
 
     # explicit schema object is OK
     dataset = populated_pipeline.dataset(schema=Schema("unknown_schema"))
@@ -748,7 +813,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
             'SELECT "t0"."id", "t0"."decimal", "t0"."id" * 2 AS "new_col" FROM'
             ' "dataset"."items" AS "t0"'
         ),
-        None,
+        ["id", "decimal", "new_col"],
     )
 
     # mutating table (add a new column computed from existing columns)
@@ -756,13 +821,16 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         items_table.mutate(double_id=items_table.id * 2).select("id", "double_id")
     ) == (
         'SELECT "t0"."id", "t0"."id" * 2 AS "double_id" FROM "dataset"."items" AS "t0"',
-        None,
+        ["id", "double_id"],
     )
 
     # mutating table add new static column
     assert sql_from_expr(
         items_table.mutate(new_col=ibis.literal("static_value")).select("id", "new_col")
-    ) == ('SELECT "t0"."id", \'static_value\' AS "new_col" FROM "dataset"."items" AS "t0"', None)
+    ) == (
+        'SELECT "t0"."id", \'static_value\' AS "new_col" FROM "dataset"."items" AS "t0"',
+        ["id", "new_col"],
+    )
 
     # check filtering (preserves all columns)
     assert sql_from_expr(items_table.filter(items_table.id < 10)) == (
@@ -799,7 +867,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
             ' COUNT(*) AS "CountStar(items)" FROM "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1"'
             ' WHERE "t1"."CountStar(items)" >= 1000'
         ),
-        None,
+        ["id", "sum_id"],
     )
 
     # sorting and ordering
@@ -836,7 +904,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
             'SELECT "t2"."id", "t3"."double_id" FROM "dataset"."items" AS "t2" INNER JOIN'
             ' "dataset"."double_items" AS "t3" ON "t2"."id" = "t3"."id"'
         ),
-        None,
+        ["id", "double_id"],
     )
 
     # subqueries
@@ -857,7 +925,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
             ' "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1" ORDER BY "t1"."decimal_count" DESC'
             " LIMIT 10"
         ),
-        None,
+        ["decimal", "decimal_count"],
     )
 
 

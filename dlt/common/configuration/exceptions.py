@@ -36,7 +36,7 @@ class ConfigurationWrongTypeException(ConfigurationException):
     def __init__(self, _typ: type) -> None:
         super().__init__(
             f"Invalid configuration instance type {_typ}. Configuration instances must derive from"
-            " BaseConfiguration."
+            " BaseConfiguration and must be decorated with @configspec."
         )
 
 
@@ -220,7 +220,8 @@ class InvalidNativeValue(ConfigurationException):
         super().__init__(
             f"{spec.__name__} cannot parse the configuration value provided. The value is of type"
             f" {native_value_type.__name__} and comes from the"
-            f" {embedded_sections} section(s).{inner_msg}"
+            " {embedded_sections} section(s). Value may be a secret and is not shown. "
+            f"Details: {inner_msg}"
         )
 
 

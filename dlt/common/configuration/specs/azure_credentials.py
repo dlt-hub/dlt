@@ -83,8 +83,8 @@ class AzureCredentialsWithoutDefaults(AzureCredentialsBase, WithPyicebergConfig)
         credentials.azure_storage_account_key = file_io.get("adls.account-key")
         credentials.azure_storage_account_name = file_io.get("adls.account-name")
         credentials.azure_storage_sas_token = file_io.get("adls.sas-token")
-        if not credentials.is_partial():
-            credentials.resolve()
+        # if not credentials.is_partial():
+        #     credentials.resolve()
         return credentials
 
     def create_sas_token(self) -> None:
@@ -139,8 +139,8 @@ class AzureServicePrincipalCredentialsWithoutDefaults(AzureCredentialsBase, With
         credentials.azure_client_id = file_io.get("adls.client-id")
         credentials.azure_storage_account_name = file_io.get("adls.account-name")
         credentials.azure_client_secret = file_io.get("adls.client-secret")
-        if not credentials.is_partial():
-            credentials.resolve()
+        # if not credentials.is_partial():
+        #     credentials.resolve()
         return credentials
 
 

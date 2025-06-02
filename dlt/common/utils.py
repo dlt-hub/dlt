@@ -39,7 +39,7 @@ from dlt.common.exceptions import (
     TerminalException,
     DependencyVersionException,
 )
-from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun
+from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun, Generic
 
 
 T = TypeVar("T")
@@ -330,6 +330,20 @@ def dict_remove_nones_in_place(d: Dict[Any, Any]) -> Dict[Any, Any]:
         if d[k] is None:
             del d[k]
     return d
+
+
+def simple_repr(object_name: str, **kwargs: Any) -> str:
+    """Create a simple string representation of an object.
+
+    For example:
+
+        s = simple_repr("Resource", name="my_resource", table_name="my_table")
+        print(s)
+        # "Resource(name='my_resource', table_name='my_table')"
+
+    """
+    args = [f"{k}={v.__repr__()}" for k, v in kwargs.items()]
+    return f"<{object_name}({', '.join(args)})>"
 
 
 @contextmanager
@@ -645,6 +659,26 @@ def make_defunct_class(cls: TObj) -> Type[TObj]:
                 raise RuntimeError("This instance has been dropped and cannot be used anymore.")
 
     return DefunctClass
+
+
+class classlocal(Generic[TAny]):
+    """A descriptor that is *only* visible on the class that defines it.
+
+    Any attempt to read it from a derived class raises AttributeError,
+    so `hasattr(Sub, name)` is *False* unless Sub defines its own copy.
+    """
+
+    def __init__(self, value: TAny, owner: type[Any]) -> None:
+        self._value: TAny = value
+        self._owner: type[Any] = owner
+
+    def __get__(self, obj: Any, cls: type[Any] = None) -> TAny:
+        # `cls` is the *class* through which the attribute lookup happened
+        # access from the defining class
+        if cls is self._owner:
+            return self._value
+        # access from a subclass or from the descriptor itself: hide it
+        raise AttributeError("<class-local>")
 
 
 def is_typeerror_due_to_wrong_call(exc: Exception, func: AnyFun) -> bool:

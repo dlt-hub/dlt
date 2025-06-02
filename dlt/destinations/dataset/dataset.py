@@ -13,10 +13,11 @@ from dlt.common.destination.dataset import (
 from dlt.common.destination.typing import TDatasetType
 from dlt.common.schema import Schema
 from dlt.common.typing import Self
+from dlt.common.schema.typing import C_DLT_LOAD_ID
 
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
-from dlt.destinations.dataset.relation import ReadableDBAPIRelation
+from dlt.destinations.dataset.relation import ReadableDBAPIRelation, BaseReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
 
 if TYPE_CHECKING:
@@ -104,6 +105,13 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
                 )
         return self._table_client
 
+    def is_same_physical_destination(self, other: "ReadableDBAPIDataset") -> bool:
+        """
+        Returns true if the other dataset is on the same physical destination
+        helpful if we want to run sql queries without extracting the data
+        """
+        return str(self.destination_client.config) == str(other.destination_client.config)
+
     def _get_destination_client(self, schema: Schema) -> JobClientBase:
         return get_destination_clients(
             schema, destination=self._destination, destination_dataset_name=self._dataset_name
@@ -149,29 +157,37 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
 
     def __call__(self, query: Any) -> ReadableDBAPIRelation:
         # TODO: accept other query types and return a right relation: sqlglot (DBAPI) and ibis (Expr)
-        return ReadableDBAPIRelation(readable_dataset=self, provided_query=query)  # type: ignore[abstract]
+        return ReadableDBAPIRelation(readable_dataset=self, provided_query=query)
 
     def table(self, table_name: str) -> ReadableIbisRelation:
         # we can create an ibis powered relation if ibis is available
+        relation: BaseReadableDBAPIRelation
         if self._dataset_type == "ibis":
             from dlt.helpers.ibis import create_unbound_ibis_table
             from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 
             unbound_table = create_unbound_ibis_table(self.sql_client, self.schema, table_name)
-            return ReadableIbisRelation(  # type: ignore[abstract]
+            relation = ReadableIbisRelation(
                 readable_dataset=self,
                 ibis_object=unbound_table,
-                columns_schema=self.schema.get_table(table_name)["columns"],
             )
 
-        # fallback to the standard dbapi relation
-        return ReadableDBAPIRelation(  # type: ignore[abstract,return-value]
-            readable_dataset=self,
-            table_name=table_name,
-        )
+        else:
+            # fallback to the standard dbapi relation
+            relation = ReadableDBAPIRelation(
+                readable_dataset=self,
+                table_name=table_name,
+            )
+
+        return relation  # type: ignore[return-value]
 
     def row_counts(
-        self, *, data_tables: bool = True, dlt_tables: bool = False, table_names: List[str] = None
+        self,
+        *,
+        data_tables: bool = True,
+        dlt_tables: bool = False,
+        table_names: List[str] = None,
+        load_id: str = None,
     ) -> SupportsReadableRelation:
         """Returns a dictionary of table names and their row counts, returns counts of all data tables by default"""
         """If table_names is provided, only the tables in the list are returned regardless of the data_tables and dlt_tables flags"""
@@ -183,13 +199,25 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
             if dlt_tables:
                 selected_tables += self.schema.dlt_table_names()
 
+        # filter tables so only ones with dlt_load_id column are included
+        if load_id:
+            dlt_load_id_col = self.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
+            selected_tables = [
+                table
+                for table in selected_tables
+                if dlt_load_id_col in self.schema.tables[table]["columns"].keys()
+            ]
+
         # Build UNION ALL query to get row counts for all selected tables
         queries = []
         for table in selected_tables:
-            queries.append(
+            query = (
                 f"SELECT '{table}' as table_name, COUNT(*) as row_count FROM"
                 f" {self.sql_client.make_qualified_table_name(table)}"
             )
+            if load_id:
+                query += f" WHERE {dlt_load_id_col} = '{load_id}'"
+            queries.append(query)
 
         query = " UNION ALL ".join(queries)
 

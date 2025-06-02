@@ -1,6 +1,7 @@
 import warnings
 from copy import copy
 from typing import (
+    Generator,
     Type,
     Any,
     Dict,
@@ -47,9 +48,10 @@ from dlt.sources.helpers.rest_client.auth import (
     APIKeyAuth,
     OAuth2ClientCredentials,
 )
-from dlt.sources.helpers.rest_client.client import raise_for_status
+from dlt.sources.helpers.rest_client.client import RESTClient, raise_for_status
 
 from dlt.extract.resource import DltResource
+from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
 
 from .typing import (
     EndpointResourceBase,
@@ -978,3 +980,121 @@ def _raise_if_any_not_in(expressions: Set[str], available_contexts: Set[str], me
                 " literal curly braces in your expression, escape them by doubling them: {{ and"
                 " }}"
             )
+
+
+def _set_incremental_params(
+    params: Dict[str, Any],
+    incremental_object: Incremental[Any],
+    incremental_param: IncrementalParam,
+    transform: Optional[Callable[..., Any]],
+) -> Dict[str, Any]:
+    def identity_func(x: Any) -> Any:
+        return x
+
+    if transform is None:
+        transform = identity_func
+    if incremental_param.start:
+        params[incremental_param.start] = transform(incremental_object.last_value)
+    if incremental_param.end:
+        params[incremental_param.end] = transform(incremental_object.end_value)
+    return params
+
+
+def paginate_dependent_resource(
+    items: List[Dict[str, Any]],
+    method: HTTPMethodBasic,
+    path: str,
+    headers: Optional[Dict[str, Any]],
+    params: Dict[str, Any],
+    json: Optional[Dict[str, Any]],
+    paginator: Optional[BasePaginator],
+    data_selector: Optional[jsonpath.TJsonPath],
+    hooks: Optional[Dict[str, Any]],
+    client: RESTClient,
+    resolved_params: List[ResolvedParam],
+    include_from_parent: List[str],
+    incremental_object: Optional[Incremental[Any]],
+    incremental_param: Optional[IncrementalParam],
+    incremental_cursor_transform: Optional[Callable[..., Any]],
+) -> Generator[Any, None, None]:
+    if incremental_object:
+        params = _set_incremental_params(
+            params,
+            incremental_object,
+            incremental_param,
+            incremental_cursor_transform,
+        )
+
+    for item in items:
+        processed_data = process_parent_data_item(
+            path=path,
+            item=item,
+            headers=headers,
+            params=params,
+            request_json=json,
+            resolved_params=resolved_params,
+            include_from_parent=include_from_parent,
+            incremental=incremental_object,
+            incremental_value_convert=incremental_cursor_transform,
+        )
+
+        for child_page in client.paginate(
+            method=method,
+            path=processed_data.path,
+            headers=processed_data.headers,
+            params=processed_data.params,
+            json=processed_data.json,
+            paginator=paginator,
+            data_selector=data_selector,
+            hooks=hooks,
+        ):
+            if processed_data.parent_record:
+                for child_record in child_page:
+                    child_record.update(processed_data.parent_record)
+            yield child_page
+
+
+def paginate_resource(
+    method: HTTPMethodBasic,
+    path: str,
+    headers: Optional[Dict[str, Any]],
+    params: Dict[str, Any],
+    json: Optional[Dict[str, Any]],
+    paginator: Optional[BasePaginator],
+    data_selector: Optional[jsonpath.TJsonPath],
+    hooks: Optional[Dict[str, Any]],
+    client: RESTClient,
+    incremental_object: Optional[Incremental[Any]],
+    incremental_param: Optional[IncrementalParam],
+    incremental_cursor_transform: Optional[Callable[..., Any]],
+) -> Generator[Any, None, None]:
+    format_kwargs = {}
+    if incremental_object:
+        params = _set_incremental_params(
+            params,
+            incremental_object,
+            incremental_param,
+            incremental_cursor_transform,
+        )
+        format_kwargs["incremental"] = incremental_object
+        if incremental_cursor_transform:
+            format_kwargs.update(
+                convert_incremental_values(incremental_object, incremental_cursor_transform)
+            )
+
+    # Always expand placeholders to handle escaped sequences
+    path = expand_placeholders(path, format_kwargs)
+    headers = expand_placeholders(headers, format_kwargs)
+    params = expand_placeholders(params, format_kwargs)
+    json = expand_placeholders(json, format_kwargs, preserve_value_type=True)
+
+    yield from client.paginate(
+        method=method,
+        path=path,
+        headers=headers,
+        params=params,
+        json=json,
+        paginator=paginator,
+        data_selector=data_selector,
+        hooks=hooks,
+    )

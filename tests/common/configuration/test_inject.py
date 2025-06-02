@@ -8,6 +8,7 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.inject import (
     _LAST_DLT_CONFIG,
     _ORIGINAL_ARGS,
+    get_fun_last_config,
     get_fun_spec,
     get_orig_args,
     last_config,
@@ -253,11 +254,13 @@ def test_inject_with_pipeline_section(environment: Any) -> None:
     def f(pipeline_name=dlt.config.value, value=dlt.secrets.value):
         assert value == expected_value
 
-    f("pipe")
-
     # make sure the spec is available for decorated fun
     assert get_fun_spec(f) is not None
     assert hasattr(get_fun_spec(f), "pipeline_name")
+
+    # call & resolve
+    f("pipe")
+    assert get_fun_last_config(f)["value"] == expected_value
 
     # also section is extended
     del environment["PIPE__VALUE"]

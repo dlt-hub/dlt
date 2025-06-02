@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "start": "npm run preprocess-docs && npm run gen-api-ref && concurrently --kill-others \"node tools/preprocess_docs.js --watch\" \"docusaurus start\"",
+    "start": "npm run gen-api-ref && concurrently --kill-others \"node tools/preprocess_docs.js --watch\" \"docusaurus start\"",
     "build": "npm run update-versions && npm run preprocess-docs && npm run gen-api-ref && docusaurus build",
     "build:netlify": "npm run update-versions && npm run preprocess-docs && npm run gen-api-ref-netlify && docusaurus build --out-dir build/docs",
     "swizzle": "docusaurus swizzle",

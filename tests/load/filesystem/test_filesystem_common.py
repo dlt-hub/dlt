@@ -72,6 +72,17 @@ def test_remote_url(bucket_url: str) -> None:
     fs_path = fs_class._strip_protocol(bucket_url)
     # reconstitute url
     assert make_fsspec_url(scheme, fs_path, bucket_url) == bucket_url
+    # make sure bucket_url does not have separator at the end
+    assert not bucket_url.endswith("/")
+    assert not fs_path.endswith("/")
+    # separator must be preserved
+    fs_path += "/"
+    assert make_fsspec_url(scheme, fs_path, bucket_url) == bucket_url + "/"
+    # add path
+    fs_path += "path"
+    assert make_fsspec_url(scheme, fs_path, bucket_url) == bucket_url + "/path"
+    fs_path += "/"
+    assert make_fsspec_url(scheme, fs_path, bucket_url) == bucket_url + "/path/"
 
 
 def test_make_az_url() -> None:
