@@ -41,6 +41,8 @@ def _total_records(destination_type: str) -> int:
         return 80
     elif destination_type == "dlt.destinations.mssql":
         return 1000
+    elif destination_type == "dlt.destinations.snowflake":
+        return 1000
     return 3000
 
 
@@ -338,7 +340,10 @@ def test_hint_preservation(populated_pipeline: Pipeline) -> None:
     # check that hints are carried over to arrow table
     expected_decimal_precision = 10
     expected_decimal_precision_2 = 12
-    if populated_pipeline.destination.destination_type == "dlt.destinations.bigquery":
+    if populated_pipeline.destination.destination_type in [
+        "dlt.destinations.bigquery",
+        "dlt.destinations.snowflake",
+    ]:
         # bigquery does not allow precision configuration..
         expected_decimal_precision = 38
         expected_decimal_precision_2 = 38
@@ -663,9 +668,16 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
     expected_decimal_scale = 3
     # bigquery and snowflake take arrow tables via native cursor and they mange precision
     # we should probably cast arrow tables to our schema in cursors
-    if populated_pipeline.destination.destination_type == "dlt.destinations.bigquery":
+    if populated_pipeline.destination.destination_type in [
+        "dlt.destinations.bigquery",
+        "dlt.destinations.snowflake",
+    ]:
         expected_decimal_precision = 38
         expected_decimal_precision_2 = 38
+
+    if populated_pipeline.destination.destination_type == "dlt.destinations.bigquery":
+        expected_decimal_scale = 9
+
     assert arrow_table.schema.field("decimal").type.scale == expected_decimal_scale
     assert arrow_table.schema.field("other_decimal").type.scale == expected_decimal_scale
 
@@ -812,11 +824,18 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
 
     # selecting all columns (star schema expanded, columns aliased)
     # TODO: fixe tests
-    assert sql_from_expr(items_table) == ('SELECT * FROM "dataset"."items"', ALL_COLUMNS)
+    assert sql_from_expr(items_table) == (
+        (
+            'SELECT "items"."id" AS "id", "items"."decimal" AS "decimal", "items"."other_decimal"'
+            ' AS "other_decimal", "items"."_dlt_load_id" AS "_dlt_load_id", "items"."_dlt_id" AS'
+            ' "_dlt_id" FROM "dataset"."items" AS "items"'
+        ),
+        ALL_COLUMNS,
+    )
 
     # selecting two other columns via item getter
     assert sql_from_expr(items_table["id", "decimal"]) == (
-        'SELECT "t0"."id" AS "id", "t0"."decimal" FROM "dataset"."items" AS "t0"',
+        'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal" FROM "dataset"."items" AS "t0"',
         ["id", "decimal"],
     )
 
@@ -824,7 +843,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     new_col = (items_table.id * 2).name("new_col")
     assert sql_from_expr(items_table.select("id", "decimal", new_col)) == (
         (
-            'SELECT "t0"."id" AS "id", "t0"."decimal", "t0"."id" * 2 AS "new_col" FROM'
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."id" * 2 AS "new_col" FROM'
             ' "dataset"."items" AS "t0"'
         ),
         ["id", "decimal", "new_col"],
@@ -834,7 +853,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert sql_from_expr(
         items_table.mutate(double_id=items_table.id * 2).select("id", "double_id")
     ) == (
-        'SELECT "t0"."id"  AS "id", "t0"."id" * 2 AS "double_id" FROM "dataset"."items" AS "t0"',
+        'SELECT "t0"."id" AS "id", "t0"."id" * 2 AS "double_id" FROM "dataset"."items" AS "t0"',
         ["id", "double_id"],
     )
 
@@ -848,25 +867,37 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
 
     # check filtering (preserves all columns)
     assert sql_from_expr(items_table.filter(items_table.id < 10)) == (
-        'SELECT * FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10',
+        (
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10'
+        ),
         ALL_COLUMNS,
     )
 
     # filtering and selecting a single column
     assert sql_from_expr(items_table.filter(items_table.id < 10).select("id")) == (
-        'SELECT "t0"."id" FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10',
+        'SELECT "t0"."id" AS "id" FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10',
         ["id"],
     )
 
     # check filter "and" condition
     assert sql_from_expr(items_table.filter(items_table.id < 10).filter(items_table.id > 5)) == (
-        'SELECT * FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10 AND "t0"."id" > 5',
+        (
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10 AND "t0"."id" > 5'
+        ),
         ALL_COLUMNS,
     )
 
     # check filter "or" condition
     assert sql_from_expr(items_table.filter((items_table.id < 10) | (items_table.id > 5))) == (
-        'SELECT * FROM "dataset"."items" AS "t0" WHERE ( "t0"."id" < 10 ) OR ( "t0"."id" > 5 )',
+        (
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" WHERE ("t0"."id" < 10) OR ("t0"."id" > 5)'
+        ),
         ALL_COLUMNS,
     )
 
@@ -877,9 +908,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         .aggregate(sum_id=items_table.id.sum())
     ) == (
         (
-            'SELECT "t1"."id", "t1"."sum_id" FROM ( SELECT "t0"."id", SUM("t0"."id") AS "sum_id",'
-            ' COUNT(*) AS "CountStar(items)" FROM "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1"'
-            ' WHERE "t1"."CountStar(items)" >= 1000'
+            'SELECT "t1"."id" AS "id", "t1"."sum_id" AS "sum_id" FROM (SELECT "t0"."id" AS "id",'
+            ' SUM("t0"."id") AS "sum_id", COUNT(*) AS "CountStar(items)" FROM "dataset"."items" AS'
+            ' "t0" GROUP BY "t0"."id") AS "t1" WHERE "t1"."CountStar(items)" >= 1000'
         ),
         ["id", "sum_id"],
     )
@@ -887,8 +918,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # sorting and ordering
     assert sql_from_expr(items_table.order_by("id", "decimal").limit(10)) == (
         (
-            'SELECT * FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC, "t0"."decimal" ASC'
-            " LIMIT 10"
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC, "t0"."decimal" ASC LIMIT 10'
         ),
         ALL_COLUMNS,
     )
@@ -896,15 +928,20 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # sort desc and asc
     assert sql_from_expr(items_table.order_by(ibis.desc("id"), ibis.asc("decimal")).limit(10)) == (
         (
-            'SELECT * FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" DESC, "t0"."decimal" ASC'
-            " LIMIT 10"
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" DESC, "t0"."decimal" ASC LIMIT 10'
         ),
         ALL_COLUMNS,
     )
 
     # offset and limit
     assert sql_from_expr(items_table.order_by("id").limit(10, offset=5)) == (
-        'SELECT * FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC LIMIT 10 OFFSET 5',
+        (
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC LIMIT 10 OFFSET 5'
+        ),
         ALL_COLUMNS,
     )
 
@@ -915,8 +952,8 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         ]
     ) == (
         (
-            'SELECT "t2"."id", "t3"."double_id" FROM "dataset"."items" AS "t2" INNER JOIN'
-            ' "dataset"."double_items" AS "t3" ON "t2"."id" = "t3"."id"'
+            'SELECT "t2"."id" AS "id", "t3"."double_id" AS "double_id" FROM "dataset"."items" AS'
+            ' "t2" INNER JOIN "dataset"."double_items" AS "t3" ON "t2"."id" = "t3"."id"'
         ),
         ["id", "double_id"],
     )
@@ -926,8 +963,10 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         items_table.filter(items_table.decimal.isin(double_items_table.di_decimal))
     ) == (
         (
-            'SELECT * FROM "dataset"."items" AS "t0" WHERE "t0"."decimal" IN ( SELECT'
-            ' "t1"."di_decimal" FROM "dataset"."double_items" AS "t1" )'
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" WHERE "t0"."decimal" IN (SELECT "t1"."di_decimal" AS'
+            ' "di_decimal" FROM "dataset"."double_items" AS "t1")'
         ),
         ALL_COLUMNS,
     )
@@ -935,9 +974,10 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # topk
     assert sql_from_expr(items_table.decimal.topk(10)) == (
         (
-            'SELECT * FROM ( SELECT "t0"."decimal", COUNT(*) AS "decimal_count" FROM'
-            ' "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1" ORDER BY "t1"."decimal_count" DESC'
-            " LIMIT 10"
+            'SELECT "t1"."decimal" AS "decimal", "t1"."decimal_count" AS "decimal_count" FROM'
+            ' (SELECT "t0"."decimal" AS "decimal", COUNT(*) AS "decimal_count" FROM'
+            ' "dataset"."items" AS "t0" GROUP BY "t0"."decimal") AS "t1" ORDER BY'
+            ' "t1"."decimal_count" DESC LIMIT 10'
         ),
         ["decimal", "decimal_count"],
     )

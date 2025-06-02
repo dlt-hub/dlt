@@ -62,9 +62,10 @@ def test_run_jaffle_package(
     assert all(r.status == "pass" for r in tests)
 
     # get and display dataframe with customers
-    customers = select_data(pipeline, "SELECT * FROM customers")
+    qual_name = pipeline.sql_client().make_qualified_table_name
+    customers = select_data(pipeline, f"SELECT * FROM {qual_name('customers')}")
     assert len(customers) == 100
-    orders = select_data(pipeline, "SELECT * FROM orders")
+    orders = select_data(pipeline, f"SELECT * FROM {qual_name('orders')}")
     assert len(orders) == 99
 
 
