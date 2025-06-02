@@ -64,9 +64,6 @@ def create_sqlglot_schema(
             # table_name = sql_client.make_qualified_table_name_path(table_name, quote=False, casefold=False)[-1]
             sqlglot_schema[table_name] = column_mapping
 
-    # NOTE: is this the correct way? We need the shortened datasetname in the schema, as this will be in the query..
-    dataset_name = schema.naming.normalize_identifier(dataset_name)
-
     # ensure proper nesting with db and catalog
     nested_schema = {dataset_name: sqlglot_schema}
     return ensure_schema(nested_schema, dialect=dialect, normalize=False)

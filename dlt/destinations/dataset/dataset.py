@@ -173,9 +173,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
             if table_name not in schema.tables:
                 schema.update_table(new_table(table_name))
 
-            unbound_table = create_unbound_ibis_table(
-                schema, self.sql_client.dataset_name, table_name
-            )
+            unbound_table = create_unbound_ibis_table(schema, self.dataset_name, table_name)
             relation = ReadableIbisRelation(
                 readable_dataset=self,
                 ibis_object=unbound_table,
