@@ -411,8 +411,8 @@ def section_browse_data_query_history(
         )
         _result.append(dlt_query_history_table)
 
-        for _r in dlt_query_history_table.value:  # type: ignore[unused-ignore]
-            _query = _r["query"]  # type: ignore[unused-ignore]
+        for _r in dlt_query_history_table.value:  # type: ignore[unused-ignore,union-attr]
+            _query = _r["query"]  # type: ignore[unused-ignore,index]
             _q_result = utils.get_query_result(dlt_pipeline, _query)
             _result.append(mo.md(f"<small>```{_query}```</small>"))
             _result.append(mo.ui.table(_q_result, selection=None))
@@ -504,8 +504,8 @@ def section_trace(
                 )
             )
             _result.append(dlt_trace_steps_table)
-            for item in dlt_trace_steps_table.value:  # type: ignore[unused-ignore]
-                step_id = item["step"]  # type: ignore[unused-ignore]
+            for item in dlt_trace_steps_table.value:  # type: ignore[unused-ignore,union-attr]
+                step_id = item["step"]  # type: ignore[unused-ignore,index]
                 _result.append(
                     ui.build_title_and_subtitle(
                         strings.trace_step_details_title.format(step_id.capitalize()),
@@ -605,13 +605,13 @@ def section_loads_results(
         and dlt_loads_table is not None
         and dlt_loads_table.value
     ):
-        _load_id = dlt_loads_table.value[0]["load_id"]  # type: ignore[unused-ignore]
+        _load_id = dlt_loads_table.value[0]["load_id"]  # type: ignore[unused-ignore,index]
         _result.append(mo.md(strings.loads_details_title.format(_load_id)))
 
         try:
             with mo.status.spinner(title=strings.loads_details_loading_spinner_text):
                 _schema = utils.get_schema_by_version(
-                    dlt_pipeline, dlt_loads_table.value[0]["schema_version_hash"]  # type: ignore[unused-ignore]
+                    dlt_pipeline, dlt_loads_table.value[0]["schema_version_hash"]  # type: ignore[unused-ignore,index]
                 )
 
                 # prepare and sort row counts
