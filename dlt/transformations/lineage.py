@@ -66,6 +66,7 @@ def create_sqlglot_schema(
 
     # ensure proper nesting with db and catalog
     nested_schema = {dataset_name: sqlglot_schema}
+
     return ensure_schema(nested_schema, dialect=dialect, normalize=False)
 
 
