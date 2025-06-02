@@ -34,8 +34,7 @@ from dlt.destinations.impl.databricks.databricks_adapter import (
     COLUMN_COMMENT_HINT,
     COLUMN_TAGS_HINT,
 )
-from dlt.common.schema import TColumnSchema, Schema
-from dlt.common.schema.typing import TColumnHint, TColumnType
+from dlt.common.schema import TColumnSchema, Schema, TTableSchema, TColumnHint, TColumnType
 from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 from dlt.common.utils import uniq_id
 from dlt.common import logger
@@ -319,8 +318,8 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         column_def_sql = super()._get_column_def_sql(column, table)
 
         if column.get(COLUMN_COMMENT_HINT) or column.get("description"):
-            column_def_sql = f"{column_def_sql} COMMENT '{column.get(COLUMN_COMMENT_HINT) or column.get("description")}'"
-        
+            comment = column.get(COLUMN_COMMENT_HINT) or column.get("description")
+            column_def_sql = f"{column_def_sql} COMMENT '{comment}'"
         return column_def_sql
 
     def create_load_job(
@@ -354,18 +353,17 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         new_columns: Sequence[TColumnSchema],
         generate_alter: bool,
     ) -> List[str]:
-        
         constraints_sql = ""
 
         partial: TTableSchema = {
             "name": table_name,
             "columns": {c["name"]: c for c in new_columns},
         }
-        
+
         if self.config.create_indexes:
             # Adding primary key constraint
             pk_columns = get_columns_names_with_prop(partial, "primary_key")
-        
+
             if pk_columns:
                 logger.info(f"Creating PRIMARY KEY constraint for table {table_name}")
                 if generate_alter:
@@ -382,7 +380,7 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             # Adding primary key constraint
             table = self.prepare_load_table(table_name)
             references = table.get("references")
-        
+
             if generate_alter:
                 logger.info(
                     f"Table options for {table_name} are not applied on ALTER TABLE. Make sure that you"
@@ -404,7 +402,7 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             pk_columns = get_columns_names_with_prop(partial, "primary_key")
 
             return constraints_sql
-        
+
         return ""
 
     def _get_table_update_sql(
@@ -425,7 +423,8 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             sql.append(f"ALTER TABLE {table_name} CLUSTER BY (" + ",".join(cluster_list) + ")")
 
         if table.get(TABLE_COMMENT_HINT) or table.get("description"):
-            sql.append(f"COMMENT ON TABLE {table_name} IS '{table.get(TABLE_COMMENT_HINT) or table.get("description")}'")
+            comment = table.get(TABLE_COMMENT_HINT) or table.get("description")
+            sql.append(f"COMMENT ON TABLE {table_name} IS '{comment}'")
 
         if table.get(TABLE_TAGS_HINT):
             for tag in table.get(TABLE_TAGS_HINT):

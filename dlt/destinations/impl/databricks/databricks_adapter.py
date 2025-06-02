@@ -48,7 +48,7 @@ def databricks_adapter(
 
     Examples:
         >>> data = [{"name": "Marcel", "description": "Raccoon Engineer", "date_hired": 1700784000}]
-        >>> databricks_adapter(data, cluster="date_hired", table_comment="Employee Data", 
+        >>> databricks_adapter(data, cluster="date_hired", table_comment="Employee Data",
         ...     table_tags=["production", {"environment": "prod"}, "employees"])
     """
     resource = get_resource_for_adapter(data)
@@ -102,7 +102,7 @@ def databricks_adapter(
                 continue
             else:
                 raise ValueError("Each tag must be either a string or a dictionary with a single key-value pair.")
-        
+
         additional_table_hints[TABLE_TAGS_HINT] = table_tags
 
     resource.apply_hints(columns=additional_column_hints, additional_table_hints=additional_table_hints)
