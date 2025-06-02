@@ -341,7 +341,9 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         )
 
         if cluster_columns_final:
-            cluster_list = [self.sql_client.escape_column_name(col) for col in cluster_columns_final]
+            cluster_list = [
+                self.sql_client.escape_column_name(col) for col in cluster_columns_final
+            ]
             sql[0] += "\nCLUSTER BY " + ", ".join(cluster_list)
 
         # Table options.

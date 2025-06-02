@@ -386,7 +386,9 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         for statement in statements:
             self.execute_sql(statement)
 
-    def escape_column_name(self, column_name: str, quote: bool = True, casefold: bool = True) -> str:
+    def escape_column_name(
+        self, column_name: str, quote: bool = True, casefold: bool = True
+    ) -> str:
         if self.dialect.requires_name_normalize and casefold:  # type: ignore[attr-defined]
             column_name = str(self.dialect.normalize_name(column_name))  # type: ignore[func-returns-value]
         if quote:

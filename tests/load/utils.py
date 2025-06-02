@@ -217,7 +217,9 @@ class DestinationTestConfiguration:
 
     def setup(self) -> None:
         """Sets up environment variables for this destination configuration"""
-        env_key_prefix = "DESTINATION" # "DESTINATION__" + (self.destination_name or self.destination_type).upper()
+        env_key_prefix = (  # "DESTINATION__" + (self.destination_name or self.destination_type).upper()
+            "DESTINATION"
+        )
         for k, v in self.factory_kwargs.items():
             os.environ[f"{env_key_prefix}__{k.upper()}"] = str(v)
 

@@ -253,7 +253,9 @@ SELECT 1
             staging_table_name,
         )
 
-    def escape_column_name(self, column_name: str, quote: bool = True, casefold: bool = True) -> str:
+    def escape_column_name(
+        self, column_name: str, quote: bool = True, casefold: bool = True
+    ) -> str:
         if casefold:
             column_name = self.capabilities.casefold_identifier(column_name)
         if quote:

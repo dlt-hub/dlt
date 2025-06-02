@@ -46,5 +46,7 @@ def test_simple_lineage(
     # check that ppi column hint was preserved for name col
     assert dest_p.dataset().schema.tables["enriched_purchases"]["columns"]["name"]["x-annotation-pii"] is True  # type: ignore
     assert (
-        dest_p.dataset().schema.tables["enriched_purchases"]["columns"]["id"].get("x-annotation-pii", False)
+        dest_p.dataset()
+        .schema.tables["enriched_purchases"]["columns"]["id"]
+        .get("x-annotation-pii", False)
     ) is False
