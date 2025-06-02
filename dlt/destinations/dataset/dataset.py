@@ -222,7 +222,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         for table in selected_tables:
             query = (
                 f"SELECT '{table}' as table_name, COUNT(1) as row_count FROM"
-                f" {self.sql_client.make_qualified_table_name(table, quote=False, casefold=False)}"
+                f" {self.sql_client.make_qualified_table_name(table, quote=True, casefold=False)}"
             )
             if load_id:
                 query += f" WHERE {dlt_load_id_col} = '{load_id}'"
