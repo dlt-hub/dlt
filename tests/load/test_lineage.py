@@ -20,7 +20,7 @@ def example_schema(autouse_test_storage) -> Schema:
                 "name": {  #  type: ignore[typeddict-unknown-key]
                     "data_type": "text",
                     "name": "name",
-                    "x-pii": True,
+                    "x-annotation-pii": True,
                     "x-annotation-pii": True,  # not propagated
                 },
                 "email": {"data_type": "text", "name": "email", "nullable": True},
