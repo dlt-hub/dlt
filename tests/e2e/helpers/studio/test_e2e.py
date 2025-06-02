@@ -2,6 +2,7 @@ from typing import Any, Literal
 
 import dlt
 import pytest
+import time
 
 from playwright.sync_api import Page, expect
 
@@ -20,8 +21,8 @@ from dlt.sources._single_file_templates.fruitshop_pipeline import (
 from dlt.helpers.studio import strings as app_strings
 
 
-@pytest.fixture(autouse=True)
-def setup_pipelines() -> Any:
+@pytest.fixture()
+def setup_all_pipelines() -> Any:
     # simple pipeline
     po = dlt.pipeline(pipeline_name="one_two_three", destination="duckdb")
     po.run([1, 2, 3], table_name="one_two_three")
@@ -37,6 +38,14 @@ def setup_pipelines() -> Any:
     pnd = dlt.pipeline(pipeline_name="no_destination_pipeline")
     pnd.extract(fruitshop_source())
 
+
+@pytest.fixture()
+def setup_fruit_pipeline() -> Any:
+    pf = dlt.pipeline(pipeline_name="fruit_pipeline", destination="duckdb")
+    pf.run(fruitshop_source())
+    
+    
+    
 
 #
 # helpers
@@ -64,6 +73,7 @@ def _open_section(
     section: Literal["sync", "overview", "schema", "data", "state", "trace", "loads", "ibis"],
     close_other_sections: bool = True,
 ) -> None:
+    """Opens a section and closes all other sections if requested"""
     if close_other_sections:
         for s in known_sections:
             if s != section:
@@ -71,7 +81,33 @@ def _open_section(
     page.get_by_role("switch", name=section).check()
 
 
-def test_page_loads(page: Page):
+def test_schema_browser(page: Page, setup_fruit_pipeline):
+    """Checks that the schema browser works"""
+    _go_home(page)
+    page.get_by_role("link", name="fruit_pipeline").click()
+    
+    # got to schema section
+    _open_section(page, "schema")
+    
+    # we are not displaying dlt tables, but all data tables are there
+    expect(page.get_by_text("_dlt_loads")).to_have_count(0)
+    expect(page.get_by_text("customers")).not_to_have_count(0) 
+    expect(page.get_by_text("inventory")).not_to_have_count(0) 
+    expect(page.get_by_text("purchases")).not_to_have_count(0) 
+    
+    # show internal dlt tables
+    
+    # we can expand the tables
+    page.get_by_role("switch", name=app_strings.ui_show_dlt_tables).check()
+    expect(page.get_by_text("_dlt_loads")).not_to_have_count(0)
+    
+    time.sleep(1)
+    
+
+
+
+def test_all_pipelines(page: Page, setup_all_pipelines):
+    """Does a basic check of a couple of pipelines, some with failing syncs or destination connectivity"""
     _go_home(page)
 
     # check title
@@ -127,7 +163,7 @@ def test_page_loads(page: Page):
     expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
-        page.get_by_text('"pipeline_name": "one_two_three"').nth(0)
+        page.get_by_text('job_metrics').nth(0)
     ).to_be_visible()  # this is part of the trace yaml
 
     # loads page
@@ -139,6 +175,7 @@ def test_page_loads(page: Page):
     # ibis page
     _open_section(page, "ibis")
     expect(page.get_by_text(app_strings.ibis_backend_connected_text)).to_be_visible()
+    
 
     #
     # Fruit pipeline
@@ -173,7 +210,7 @@ def test_page_loads(page: Page):
     expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
-        page.get_by_text('"pipeline_name": "fruit_pipeline"').nth(0)
+        page.get_by_text('job_metrics').nth(0)
     ).to_be_visible()  # this is part of the trace yaml
 
     # loads page
@@ -250,7 +287,7 @@ def test_page_loads(page: Page):
     expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
-        page.get_by_text('"pipeline_name": "no_destination_pipeline"').nth(0)
+        page.get_by_text('job_metrics').nth(0)
     ).to_be_visible()  # this is part of the trace yaml
 
     _open_section(page, "ibis")

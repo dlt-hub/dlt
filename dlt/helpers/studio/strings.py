@@ -103,7 +103,7 @@ schema_raw_yaml_title = "Raw Schema as YAML"
 schema_show_raw_yaml_text = "Show raw schema as YAML"
 
 # Schema UI controls
-ui_show_dlt_tables = "Show `_dlt` tables"
+ui_show_dlt_tables = "Show _dlt tables"
 ui_show_child_tables = "Show child tables"
 ui_show_row_counts = "Show row counts"
 ui_show_dlt_columns = "Show `_dlt` columns"
@@ -163,7 +163,7 @@ trace_subtitle = (
     "An overview of the last load trace from the most recent successful run of the selected"
     " pipeline, if available."
 )
-trace_show_raw_trace_text = "Show"
+trace_show_raw_trace_text = "Show raw trace"
 trace_no_trace_text = """
 No local trace available for this pipeline. This probably means that your pipeline has never been run on this computer.
 """
