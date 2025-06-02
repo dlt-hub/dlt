@@ -146,7 +146,7 @@ def compute_columns_schema(
 
     if allow_anonymous_columns is False:
         for col in expression.selects:
-            if col.name == "":
+            if col.output_name == "":
                 raise LineageFailedException(
                     "Found anonymous column in SELECT statement. Use"
                     f" `allow_anonymous_columns=True` for permissive handling.\nColumn:\n\t{col}",
