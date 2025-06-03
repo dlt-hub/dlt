@@ -95,9 +95,10 @@ class synapse(Destination[SynapseClientConfiguration, "SynapseClient"]):
         # 10.000 records is a "safe" amount that always seems to work.
         caps.max_rows_per_insert = 10000
 
-        # datetimeoffset can store 7 digits for fractional seconds
+        # NOTE: datetimeoffset can store 7 digits for fractional seconds, maybe you could use it with parquet in ns
+        #   precision. you can pass synapse(timestamp_precision=7) to override
         # https://learn.microsoft.com/en-us/sql/t-sql/data-types/datetimeoffset-transact-sql?view=sql-server-ver16
-        caps.timestamp_precision = 7
+        caps.timestamp_precision = 6
 
         caps.supported_merge_strategies = ["delete-insert", "scd2"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
