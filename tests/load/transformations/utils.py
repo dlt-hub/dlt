@@ -79,7 +79,12 @@ def setup_transformation_pipelines(
 
     # setup incoming data and transformed data pipelines
     fruit_p = destination_config.setup_pipeline(
-        "fruit_pipeline", dataset_name="source", use_single_dataset=False, dev_mode=True
+        "fruit_pipeline",
+        dataset_name="source",
+        use_single_dataset=False,
+        dev_mode=True,
+        # for filesystem destination we load to a duckdb on python transformations
+        destination="duckdb" if destination_config.destination_type == "filesystem" else None,
     )
     dest_p = destination_config.setup_pipeline(
         "fruit_pipeline",

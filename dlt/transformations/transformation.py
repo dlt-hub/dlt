@@ -156,15 +156,13 @@ def make_transformation_resource(
         # TODO: make it a public method
         # TODO: why schema inference and anonymous columns are wrong? we do not want columns without
         #  data types and only this should be disabled
-        computed_columns, parsed_query, _ = transformation_result._compute_columns_schema(
+        computed_columns, _, _ = transformation_result._compute_columns_schema(
             infer_sqlglot_schema=False,
             allow_anonymous_columns=False,
             allow_partial=False,
         )
         # TODO: expose a method to render query
-        select_query = parsed_query.sql(
-            dialect=transformation_result.sql_client.capabilities.sqlglot_dialect
-        )
+        select_query = transformation_result.query()
         # TODO: why? don't we prevent empty column schemas above?
         all_columns = {**computed_columns, **(columns or {})}
 
@@ -182,7 +180,6 @@ def make_transformation_resource(
                     + "Please run with strict lineage or provide data_type hints "
                     + f"for following columns: {unknown_column_types}",
                 )
-
             yield dlt.mark.with_hints(
                 SqlModel(select_query, dialect=datasets[0].sql_client.capabilities.sqlglot_dialect),
                 hints=make_hints(columns=all_columns),

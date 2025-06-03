@@ -497,7 +497,11 @@ def table_exists(p: dlt.Pipeline, table_name: str, schema_name: str = None) -> b
 
 # NOTE: replace with direct dataset access in the code?
 def select_data(
-    p: dlt.Pipeline, sql: str, schema_name: str = None, dataset_name: str = None
+    p: dlt.Pipeline,
+    sql: str,
+    schema_name: str = None,
+    dataset_name: str = None,
+    normalize_query: bool = True,
 ) -> List[Sequence[Any]]:
     """Execute *sql* against the pipeline's dataset and return all rows.
 
@@ -508,6 +512,7 @@ def select_data(
         dataset_name (str, optional): Temporary override for the dataset name –
             useful when the test needs to query a different dataset created by
             the same pipeline.
+        normalize_query (bool, optional): Whether to run the query as is or perform query normalization and lineage. Experimental.
 
     Returns:
         List[Sequence[Any]]: All rows returned by the query.
@@ -516,7 +521,7 @@ def select_data(
     # a hack to change the dataset name for the purposes of this test
     if dataset_name:
         dataset._dataset_name = dataset_name
-    return list(dataset(sql).fetchall())
+    return list(dataset(sql, normalize_query=normalize_query).fetchall())
 
 
 def assert_table_column(
@@ -574,7 +579,7 @@ def assert_query_column(
         info (LoadInfo, optional): When provided, the second query column must
             contain only IDs that belong to *info*.
     """
-    rows = select_data(p, sql, schema_name)
+    rows = select_data(p, sql, schema_name, normalize_query=False)
     assert len(rows) == len(table_data)
 
     # check load id

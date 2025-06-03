@@ -52,6 +52,8 @@ def _chunk_size(destination_type: str) -> int:
         return 50
     elif destination_type == "dlt.destinations.mssql":
         return 700
+    elif destination_type == "dlt.destinations.snowflake":
+        return 700
     return 2048
 
 

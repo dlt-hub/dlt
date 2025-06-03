@@ -28,6 +28,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         self,
         *,
         readable_dataset: "ReadableDBAPIDataset",
+        normalize_query: bool = True,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
 
@@ -36,6 +37,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         self._columns_schema: TTableSchemaColumns = None
         self._qualified_query: sge.Query = None
         self._sqlglot_schema: lineage.SQLGlotSchema = None
+        self._should_normalize_query: bool = normalize_query
 
         # wire protocol functions
         self.df = self._wrap_func("df")  # type: ignore
@@ -61,6 +63,8 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         #   if this property raises AttributeError, __getattr__ will get called 🤯
         #   this leads to infinite recursion as __getattr_ calls this property
         #   also it does a heavy computation inside so it should be a method
+        if not self._should_normalize_query:
+            return self._query()
         return self._normalize_query()
 
     def _query(self) -> Any:
@@ -139,17 +143,25 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         try:
             self._opened_sql_client = self.sql_client
 
+            try:
+                columns_schema = self.columns_schema
+            except lineage.LineageFailedException:
+                if self._should_normalize_query:
+                    raise
+                else:
+                    columns_schema = None
+
             # case 1: client is already opened and managed from outside
             if self.sql_client.native_connection:
                 with self.sql_client.execute_query(self.query()) as cursor:
-                    if columns_schema := self.columns_schema:
+                    if columns_schema:
                         cursor.columns_schema = columns_schema
                     yield cursor
             # case 2: client is not opened, we need to manage it
             else:
                 with self.sql_client as client:
                     with client.execute_query(self.query()) as cursor:
-                        if columns_schema := self.columns_schema:
+                        if columns_schema:
                             cursor.columns_schema = columns_schema
                         yield cursor
         finally:
@@ -252,6 +264,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         table_name: str = None,
         limit: int = None,
         selected_columns: Sequence[str] = None,
+        normalize_query: bool = False,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
 
@@ -260,7 +273,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
             provided_query
         ), "Please provide either an sql query OR a table_name"
 
-        super().__init__(readable_dataset=readable_dataset)
+        super().__init__(readable_dataset=readable_dataset, normalize_query=normalize_query)
 
         self._provided_query = provided_query
         self._table_name = table_name
