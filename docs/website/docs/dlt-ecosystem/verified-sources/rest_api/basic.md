@@ -288,6 +288,7 @@ This is a list of resource configurations that define the API endpoints to be lo
 
 A resource configuration is used to define a [dlt resource](../../../general-usage/resource.md) for the data to be loaded from an API endpoint. When defining the resource you may specify:
 - dlt resource parameters, for for example:
+    - `name`: The name of the resource. This is also used as the table name in the destination unless overridden by the `table_name` parameter.
     - `write_disposition`: The write disposition for the resource.
     - `primary_key`: The primary key for the resource.
     - `table_name`: Override the table name for this resource.
