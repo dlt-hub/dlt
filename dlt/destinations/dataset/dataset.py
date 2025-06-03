@@ -48,7 +48,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
 
         # derived / cached properties
         self._schema: Schema = None
-        self._sqlglot_schema: SQLGlotSchema = None
+        # self._sqlglot_schema: SQLGlotSchema = None
         self._sql_client: SqlClientBase[Any] = None
         self._opened_sql_client: SqlClientBase[Any] = None
         self._table_client: SupportsOpenTables = None
@@ -84,12 +84,10 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
 
     @property
     def sqlglot_schema(self) -> SQLGlotSchema:
-        if not self._sqlglot_schema:
-            dialect: str = self.sql_client.capabilities.sqlglot_dialect
-            self._sqlglot_schema = lineage.create_sqlglot_schema(
-                self.schema, self.dataset_name, dialect=dialect
-            )
-        return self._sqlglot_schema
+        # NOTE: no cache for now, it is probably more expensive to compute the current schema hash
+        # to see wether this is stale than to compute a new sqlglot schema
+        dialect: str = self.sql_client.capabilities.sqlglot_dialect
+        return lineage.create_sqlglot_schema(self.schema, self.dataset_name, dialect=dialect)
 
     @property
     def dataset_name(self) -> str:
