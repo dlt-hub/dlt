@@ -44,7 +44,7 @@ has-poetry:
 	poetry --version
 
 dev: has-poetry
-	poetry install --all-extras --with docs,providers,pipeline,sources,sentry-sdk,ibis
+	uv sync --all-extras --group docs --group providers --group pipeline --group sources --group sentry-sdk --group ibis
 
 
 dev-airflow: has-poetry
