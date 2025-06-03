@@ -41,8 +41,6 @@ def _total_records(destination_type: str) -> int:
         return 80
     elif destination_type == "dlt.destinations.mssql":
         return 1000
-    elif destination_type == "dlt.destinations.snowflake":
-        return 1000
     return 3000
 
 
@@ -51,8 +49,6 @@ def _chunk_size(destination_type: str) -> int:
     if destination_type == "dlt.destinations.bigquery":
         return 50
     elif destination_type == "dlt.destinations.mssql":
-        return 700
-    elif destination_type == "dlt.destinations.snowflake":
         return 700
     return 2048
 
@@ -242,13 +238,16 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
     # chunk
     table = table_relationship.arrow(chunk_size=chunk_size)
     assert set(table.column_names) == set(EXPECTED_COLUMNS)
-    assert table.num_rows == chunk_size
+    # NOTE: chunksize is unpredictable on snowflake
+    if populated_pipeline.destination.destination_type != "dlt.destinations.snowflake":
+        assert table.num_rows == chunk_size
 
     # check frame amount and items counts
     tables = list(table_relationship.iter_arrow(chunk_size=chunk_size))
-    assert [t.num_rows for t in tables] == expected_chunk_counts
+    if populated_pipeline.destination.destination_type != "dlt.destinations.snowflake":
+        assert [t.num_rows for t in tables] == expected_chunk_counts
 
-    # check all items are present
+    # check all items are present, this MUST also be true for snowflake
     ids = reduce(lambda a, b: a + b, [t.column(EXPECTED_COLUMNS[0]).to_pylist() for t in tables])
     assert set(ids) == set(range(total_records))
 

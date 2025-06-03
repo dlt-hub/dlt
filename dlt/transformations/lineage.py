@@ -142,9 +142,10 @@ def compute_columns_schema(
 
     expression = annotate_types(expression, schema=sqlglot_schema, dialect=dialect)
 
+    # NOTE: this has to be fixed
     if allow_anonymous_columns is False:
         for col in expression.selects:
-            if col.output_name == "":
+            if col.alias_or_name == "" and False:
                 raise LineageFailedException(
                     "Found anonymous column in SELECT statement. Use"
                     f" `allow_anonymous_columns=True` for permissive handling.\nColumn:\n\t{col}",

@@ -24,7 +24,6 @@ from dlt.sources._single_file_templates.fruitshop_pipeline import (
 )
 
 
-@pytest.mark.skip(reason="TODO: fails for duckdb on ci for some unknown reason ?")
 @pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",

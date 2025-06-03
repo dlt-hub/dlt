@@ -1440,8 +1440,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     assert load_table_counts(p, table_name + "__val")[table_name + "__val"] == 3
 
     # compare observed records with expected records, now for child table
-    value_quoted = p.sql_client().escape_column_name("value")
-    observed = [row[0] for row in select_data(p, f"SELECT {value_quoted} FROM {table_name}__val")]
+    observed = [row[0] for row in select_data(p, f"SELECT value FROM {table_name}__val")]
     assert sorted(observed) == [7, 8, 9]  # type: ignore[type-var]
 
     table_name = "test_dedup_sort_hint_with_hard_delete"
