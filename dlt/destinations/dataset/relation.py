@@ -69,6 +69,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         #   also it does a heavy computation inside so it should be a method
         if not self._should_normalize_query:
             return self._query()
+
         return self.normalized_query.sql(
             dialect=self._dataset.sql_client.capabilities.sqlglot_dialect
         )
@@ -88,6 +89,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
             self._opened_sql_client = self.sql_client
 
             # we allow computing the schema to fail if query normalization is disabled
+            # this is useful for raw sql query access, testing and debugging
             try:
                 columns_schema = self.columns_schema
             except lineage.LineageFailedException:

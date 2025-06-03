@@ -235,13 +235,12 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
                 for table in selected_tables
                 if dlt_load_id_col in self.schema.tables[table]["columns"].keys()
             ]
-
         # Build UNION ALL query to get row counts for all selected tables
         queries = []
         for table in selected_tables:
             query = (
                 f"SELECT '{table}' as table_name, COUNT(1) as row_count FROM"
-                f" {self.sql_client.make_qualified_table_name(table, quote=True, casefold=False)}"
+                f" {self.sql_client.capabilities.escape_identifier(table)}"
             )
             if load_id:
                 query += f" WHERE {dlt_load_id_col} = '{load_id}'"

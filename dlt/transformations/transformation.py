@@ -161,8 +161,9 @@ def make_transformation_resource(
             allow_anonymous_columns=False,
             allow_partial=False,
         )
-        # TODO: expose a method to render query
-        select_query = transformation_result.query()
+        select_dialect = datasets[0].sql_client.capabilities.sqlglot_dialect
+        select_query = transformation_result.normalized_query.sql(dialect=select_dialect)
+
         # TODO: why? don't we prevent empty column schemas above?
         all_columns = {**computed_columns, **(columns or {})}
 
@@ -181,7 +182,7 @@ def make_transformation_resource(
                     + f"for following columns: {unknown_column_types}",
                 )
             yield dlt.mark.with_hints(
-                SqlModel(select_query, dialect=datasets[0].sql_client.capabilities.sqlglot_dialect),
+                SqlModel(select_query, dialect=select_dialect),
                 hints=make_hints(columns=all_columns),
             )
         else:
