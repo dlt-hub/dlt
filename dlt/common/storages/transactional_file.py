@@ -62,7 +62,7 @@ class TransactionalFile:
         parsed_path = Path(path)
         if not parsed_path.is_absolute():
             raise ValueError(
-                f"{path} is not absolute. Please pass only absolute paths to TransactionalFile"
+                f"`TransactionalFile` requires an absolute path. Received path: `{path}`"
             )
         self.path = path
         if proto == "file":
@@ -114,8 +114,7 @@ class TransactionalFile:
             output.append(name)
         if not output:
             raise RuntimeError(
-                f"When syncing locks for path {self.path} and lock {self.lock_path} no lock file"
-                " was found"
+                f"Lock syncing failed. No lock file found for path `{self.path}` and lock `{self.lock_path}`"
             )
         return output
 

@@ -154,7 +154,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 last_value_func = max
             else:
                 raise ValueError(
-                    f"Unknown last_value_func '{last_value_func}' passed as string. Provide a"
+                    f"Unknown `last_value_func={last_value_func}` passed as string. Provide a"
                     " callable to use a custom function."
                 )
         self.last_value_func = last_value_func
@@ -169,7 +169,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self.allow_external_schedulers = allow_external_schedulers
         if on_cursor_value_missing not in ["raise", "include", "exclude"]:
             raise ValueError(
-                f"Unexpected argument for on_cursor_value_missing. Got {on_cursor_value_missing}"
+                f"Invalid value `on_cursor_value_missing={on_cursor_value_missing}`. "
+                "Valid values: ['raise', 'include', 'exclude']"
             )
         self.on_cursor_value_missing = on_cursor_value_missing
 
@@ -263,8 +264,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         compile_path(self.cursor_path)
         if self.end_value is not None and self.initial_value is None:
             raise ConfigurationValueError(
-                "Incremental 'end_value' was specified without 'initial_value'. 'initial_value' is"
-                " required when using 'end_value'."
+                "Incremental `end_value` was specified without `initial_value`."
+                "`initial_value` is required when using `end_value`."
             )
         self._cursor_datetime_check(self.initial_value, "initial_value")
         self._cursor_datetime_check(self.initial_value, "end_value")
@@ -276,17 +277,15 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             if self.last_value_func in (min, max):
                 adject = "higher" if self.last_value_func is max else "lower"
                 msg = (
-                    f"Incremental 'initial_value' ({self.initial_value}) is {adject} than"
-                    f" 'end_value` ({self.end_value}). 'end_value' must be {adject} than"
-                    " 'initial_value'"
+                    f"Incremental `initial_value={self.initial_value}` is {adject} than"
+                    f" `end_value={self.end_value}`. 'end_value' must be {adject} than"
+                    " `initial_value`."
                 )
             else:
                 msg = (
-                    f"Incremental 'initial_value' ({self.initial_value}) is greater than"
-                    f" 'end_value' ({self.end_value}) as determined by the custom"
-                    " 'last_value_func'. The result of"
-                    f" '{self.last_value_func.__name__}([end_value, initial_value])' must equal"
-                    " 'end_value'"
+                    f"Incremental `initial_value={self.initial_value}` is greater than"
+                    f" `end_value={self.end_value}` as determined by the custom `last_value_func`."
+                    f" The result of '{self.last_value_func.__name__}(`[end_value, initial_value]`)' must equal `end_value`"
                 )
             raise ConfigurationValueError(msg)
 
@@ -296,8 +295,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 raise ValueError("Trying to resolve EMPTY Incremental")
             if native_value is self.EMPTY:
                 raise ValueError(
-                    "Do not use EMPTY Incremental as default or explicit values. Pass None to reset"
-                    " an incremental."
+                    "Do not use `EMPTY` Incremental as default or explicit values. "
+                    "Pass `None` to reset an incremental."
                 )
             merged = self.merge(native_value)
             self.cursor_path = merged.cursor_path
@@ -695,8 +694,8 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
                 explicit_value = bound_args.arguments[p.name]
                 if explicit_value is Incremental.EMPTY or p.default is Incremental.EMPTY:
                     raise ValueError(
-                        "Do not use EMPTY Incremental as default or explicit values. Pass None to"
-                        " reset an incremental."
+                        "Do not use `EMPTY` Incremental as default or explicit values. "
+                        "Pass `None` to reset an incremental."
                     )
                 elif isinstance(explicit_value, Incremental):
                     # Explicit Incremental instance is merged with default
@@ -717,8 +716,8 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
                     bound_args.arguments[p.name] = None  # Remove partial spec
                     return func(*bound_args.args, **bound_args.kwargs)
                 raise ValueError(
-                    f"{p.name} Incremental argument has no default. Please wrap its typing in"
-                    " Optional[] to allow no incremental"
+                    f"`{p.name}` incremental argument has no default. Please wrap its typing in"
+                    " `Optional[]` to allow no incremental"
                 )
             # pass Generic information from annotation to new_incremental
             if (

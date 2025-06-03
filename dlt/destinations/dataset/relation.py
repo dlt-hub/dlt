@@ -282,13 +282,14 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
     def __getitem__(self, columns: Sequence[str]) -> Self:
         if isinstance(columns, str):
             raise TypeError(
-                f"Invalid argument type: {type(columns).__name__}, requires a sequence of column"
+                "Expecte"
+                f"Invalid argument type: `{type(columns).__name__}`, requires a sequence of column"
                 " names Sequence[str]"
             )
         elif isinstance(columns, Sequence):
             return self.select(*columns)
         raise TypeError(
-            f"Invalid argument type: {type(columns).__name__}, requires a sequence of column names"
+            f"Invalid argument type: `{type(columns).__name__}`, requires a sequence of column names"
             " Sequence[str]"
         )
 

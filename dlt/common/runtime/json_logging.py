@@ -74,7 +74,7 @@ def init(custom_formatter: Type[logging.Formatter] = None) -> None:
     if custom_formatter:
         if not issubclass(custom_formatter, logging.Formatter):
             raise ValueError(
-                "custom_formatter is not subclass of logging.Formatter", custom_formatter
+                "`custom_formatter` is not subclass of logging.Formatter", custom_formatter
             )
 
     _default_formatter = custom_formatter if custom_formatter else JSONLogFormatter

@@ -430,7 +430,7 @@ class PipelineTasksGroup(TaskGroup):
                 if not isinstance(data, DltSource):
                     raise ValueError("Can only decompose dlt sources")
                 if pipeline.dev_mode:
-                    raise ValueError("Cannot decompose pipelines with dev_mode set")
+                    raise ValueError("Cannot decompose pipelines with `dev_mode=True`")
                 # serialize tasks
                 tasks = []
                 pt = None
@@ -446,7 +446,7 @@ class PipelineTasksGroup(TaskGroup):
                     raise ValueError("Can only decompose dlt sources")
 
                 if pipeline.dev_mode:
-                    raise ValueError("Cannot decompose pipelines with dev_mode set")
+                    raise ValueError("Cannot decompose pipelines with `dev_mode=True`")
 
                 tasks = []
                 sources = data.decompose("scc")
@@ -482,7 +482,7 @@ class PipelineTasksGroup(TaskGroup):
                     raise ValueError("Can only decompose dlt sources")
 
                 if pipeline.dev_mode:
-                    raise ValueError("Cannot decompose pipelines with dev_mode set")
+                    raise ValueError("Cannot decompose pipelines with `dev_mode=True`")
 
                 # parallel tasks
                 tasks = []
@@ -513,8 +513,7 @@ class PipelineTasksGroup(TaskGroup):
                 return [start, end]
             else:
                 raise ValueError(
-                    "decompose value must be one of ['none', 'serialize', 'parallel',"
-                    " 'parallel-isolated']"
+                    "`decompose` must be one of ['none', 'serialize', 'parallel', 'parallel-isolated']"
                 )
 
 

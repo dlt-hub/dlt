@@ -59,8 +59,8 @@ class DatabricksCredentials(CredentialsConfiguration):
             if not self.access_token:
                 raise ConfigurationValueError(
                     "Authentication failed: No valid authentication method detected. "
-                    "Provide either 'client_id' and 'client_secret' for OAuth authentication, "
-                    "or 'access_token' for token-based authentication."
+                    "Provide either `client_id` and `client_secret` for OAuth authentication, "
+                    "or `access_token` for token-based authentication."
                 )
 
         if not self.server_hostname or not self.http_path:
@@ -86,7 +86,7 @@ class DatabricksCredentials(CredentialsConfiguration):
         for param in ("catalog", "server_hostname", "http_path"):
             if not getattr(self, param):
                 raise ConfigurationValueError(
-                    f"Configuration error: Missing required parameter '{param}'. "
+                    f"Configuration error: Missing required parameter `{param}`. "
                     "Please provide it in the configuration."
                 )
 

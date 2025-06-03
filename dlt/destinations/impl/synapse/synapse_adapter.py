@@ -45,8 +45,8 @@ def synapse_adapter(data: Any, table_index_type: TTableIndexType = None) -> DltR
         if table_index_type not in TABLE_INDEX_TYPES:
             allowed_types = ", ".join(TABLE_INDEX_TYPES)
             raise ValueError(
-                f"Table index type {table_index_type} is invalid. Allowed table index"
-                f" types are: {allowed_types}."
+                f"Table index type `{table_index_type}` is invalid. Allowed table index"
+                f" types are: `{allowed_types}`."
             )
         additional_table_hints[TABLE_INDEX_TYPE_HINT] = table_index_type
     resource.apply_hints(additional_table_hints=additional_table_hints)

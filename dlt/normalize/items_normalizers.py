@@ -316,7 +316,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
         # The query is ensured to be a select statement upstream,
         # but we double check here
         if not isinstance(parsed_select, sqlglot.exp.Select):
-            raise ValueError("Only SELECT statements should be used as SqlModel queries.")
+            raise ValueError("Only SELECT statements should be used as `SqlModel` queries.")
 
         # Star selects are not allowed
         if any(

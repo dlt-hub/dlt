@@ -66,7 +66,7 @@ class BigQueryTypeMapper(TypeMapperImpl):
             and not should_autodetect_schema(table)
         ):
             raise TerminalValueError(
-                "Enable autodetect_schema in config or via BigQuery adapter", column["data_type"]
+                "Enable `autodetect_schema` in config or via BigQuery adapter", column["data_type"]
             )
 
     def to_db_decimal_type(self, column: TColumnSchema) -> str:

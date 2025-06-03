@@ -362,14 +362,13 @@ class GoogleDriveFileSystem(AbstractFileSystem):
                 possible_children.append(child["id"])
 
         if len(possible_children) == 0:
-            raise FileNotFoundError(f"Directory {dir_file_id} has no child named {file_name}")
+            raise FileNotFoundError(f"Directory `{dir_file_id}` has no child named `{file_name}`")
         if len(possible_children) == 1:
             return possible_children[0]
         else:
             raise KeyError(
-                f"Directory {dir_file_id} has more than one "
-                f"child named {file_name}. Unable to resolve path "
-                "to file_id."
+                f"Directory `{dir_file_id}` has more than one "
+                f"child named `{file_name}`. Unable to resolve path to `file_id`."
             )
 
     def _open(self, path: str, mode: Optional[str] = "rb", **kwargs: Any) -> "GoogleDriveFile":

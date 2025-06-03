@@ -287,8 +287,7 @@ def with_config(
 
     if not callable(func):
         raise ValueError(
-            "First parameter to the with_config must be callable ie. by using it as function"
-            " decorator"
+            "First parameter of `with_config` must be callable i.e., by using it as a decorator `@with_config`"
         )
 
     # We're called as @with_config without parens.

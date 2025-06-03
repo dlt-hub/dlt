@@ -23,8 +23,6 @@ class ConfigurationValueError(ConfigurationException, ValueError):
 class ContainerException(DltException):
     """base exception for all exceptions related to injectable container"""
 
-    pass
-
 
 class ConfigProviderException(ConfigurationException):
     def __init__(self, provider_name: str, *args: Any) -> None:
@@ -35,7 +33,7 @@ class ConfigProviderException(ConfigurationException):
 class ConfigurationWrongTypeException(ConfigurationException):
     def __init__(self, _typ: type) -> None:
         super().__init__(
-            f"Invalid configuration instance type {_typ}. Configuration instances must derive from"
+            f"Invalid configuration instance type `{_typ}`. Configuration instances must derive from"
             " BaseConfiguration and must be decorated with @configspec."
         )
 
@@ -51,13 +49,13 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
 
     def __str__(self) -> str:
         msg = (
-            f"Following fields are missing: {str(self.fields)} in configuration with spec"
+            f"Missing fields in configuration: {str(self.fields)}"
             f" {self.spec_name}\n"
         )
         for f, field_traces in self.traces.items():
-            msg += f'\tfor field "{f}" config providers and keys were tried in following order:\n'
+            msg += f"\tfor field `{f}` the following (config providers, keys) were tried in order:\n"
             for tr in field_traces:
-                msg += f"\t\tIn {tr.provider} key {tr.key} was not found.\n"
+                msg += f"\t\t({tr.provider}, {tr.key})\n"
 
         from dlt.common.configuration.container import Container
         from dlt.common.configuration.specs import PluggableRunContext
@@ -68,15 +66,10 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
         for provider in providers.providers:
             if provider.locations:
                 locations = "\n".join([f"\t- {os.path.abspath(loc)}" for loc in provider.locations])
-                msg += (
-                    f"Provider {provider.name} used following locations to load"
-                    f" values:\n{locations}\n"
-                )
+                msg += f"Provider `{provider.name}` loaded values from locations:\n{locations}\n"
+
             if provider.is_empty:
-                msg += (
-                    f"WARNING: provider {provider.name} is empty. Locations (ie. files) may not"
-                    " exist or may be empty.\n"
-                )
+                msg += f"WARNING: provider `{provider.name}` is empty. Locations (i.e., files) are missing or empty.\n"
 
         # check if entry point is run with path. this is common problem so warn the user
         main_path = main_module_file_path()
@@ -102,8 +95,7 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
                         " found\n"
                     )
         msg += (
-            "Please refer to https://dlthub.com/docs/general-usage/credentials/ for more"
-            " information\n"
+            "Learn more: https://dlthub.com/docs/general-usage/credentials/\n"
         )
         return msg
 
@@ -127,7 +119,7 @@ class UnmatchedConfigHintResolversException(ConfigurationException):
             f">>>    {name}: Any" for name in field_names
         )
         msg = (
-            f"The config spec {spec_name} has dynamic type resolvers for fields: {field_names} but"
+            f"The config spec `{spec_name}` has dynamic type resolvers for fields: `{field_names}` but"
             " these fields are not defined in the spec.\nWhen using @resolve_type() decorator, Add"
             f" the fields with 'Any' or another common type hint, example:\n\n{example}"
         )
@@ -139,7 +131,7 @@ class FinalConfigFieldException(ConfigurationException):
 
     def __init__(self, spec_name: str, field: str) -> None:
         super().__init__(
-            f"Field {field} in spec {spec_name} is final but is being changed by a config provider"
+            f"Field `{field}` in spec `{spec_name}` is final but is being changed by a config provider"
         )
 
 
@@ -151,7 +143,7 @@ class ConfigValueCannotBeCoercedException(ConfigurationValueError):
         self.field_value = field_value
         self.hint = hint
         super().__init__(
-            "Configured value for field %s cannot be coerced into type %s" % (field_name, str(hint))
+            f"Can't coerce value for config field `{field_name}` into type {str(hint)}"
         )
 
 
@@ -169,7 +161,7 @@ class ConfigFileNotFoundException(ConfigurationException):
     """thrown when configuration file cannot be found in config folder"""
 
     def __init__(self, path: str) -> None:
-        super().__init__(f"Missing config file in {path}")
+        super().__init__(f"Missing config file in `{path}`")
 
 
 class ConfigFieldMissingTypeHintException(ConfigurationException):

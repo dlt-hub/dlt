@@ -63,7 +63,7 @@ def weaviate_adapter(
             vectorize = [vectorize]
         if not isinstance(vectorize, list):
             raise ValueError(
-                "vectorize must be a list of column names or a single column name as a string"
+                "`vectorize` must be a list of column names or a single column name as a string"
             )
         # create weaviate-specific vectorize hints
         for column_name in vectorize:
@@ -77,8 +77,8 @@ def weaviate_adapter(
             if method not in TOKENIZATION_METHODS:
                 allowed_methods = ", ".join(TOKENIZATION_METHODS)
                 raise ValueError(
-                    f"Tokenization type {method} for column {column_name} is invalid. Allowed"
-                    f" methods are: {allowed_methods}"
+                    f"Tokenization type `{method}` for column `{column_name}` is invalid. Allowed"
+                    f" methods are: `{allowed_methods}`"
                 )
             if column_name in column_hints:
                 column_hints[column_name][TOKENIZATION_HINT] = method  # type: ignore

@@ -93,7 +93,7 @@ class ImportTrace(NamedTuple):
 def callable_typechecker(o: TAny) -> TAny:
     if callable(o):
         return o  # type: ignore[no-any-return]
-    raise TypeError(f"Expected attr to be callable but got type {type(o)}")
+    raise TypeError(f"Expected attr to be callable but got type `{type(o)}`")
 
 
 def object_from_ref(
@@ -112,7 +112,7 @@ def object_from_ref(
 
     """
     if "." not in ref:
-        raise ValueError("ref format is module.attr and must contain at leas one dot")
+        raise ValueError("`ref` format is `module.attr` and must contain at least one `.`")
     module_path, attr_name = ref.rsplit(".", 1)
     try:
         spec = importlib.util.find_spec(module_path)

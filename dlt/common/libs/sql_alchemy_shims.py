@@ -118,12 +118,12 @@ class URL(NamedTuple):
         try:
             return int(port)
         except TypeError:
-            raise TypeError("Port argument must be an integer or None")
+            raise TypeError("`port` must be of type `int` or `None`")
 
     @classmethod
     def _assert_str(cls, v: str, paramname: str) -> str:
         if not isinstance(v, str):
-            raise TypeError("%s must be a string" % paramname)
+            raise TypeError(f"{paramname} must be of type `str`")
         return v
 
     @classmethod
@@ -164,11 +164,11 @@ class URL(NamedTuple):
             elif isinstance(val, collections_abc.Sequence):
                 return tuple(_assert_value(elem) for elem in val)
             else:
-                raise TypeError("Query dictionary values must be strings or sequences of strings")
+                raise TypeError("Query dictionary values must be of type `str` or `Sequence[str]`")
 
         def _assert_str(v: str) -> str:
             if not isinstance(v, str):
-                raise TypeError("Query dictionary keys must be strings")
+                raise TypeError("Query dictionary keys must be of type `str`")
             return v
 
         dict_items: Iterable[Tuple[str, Union[Sequence[str], str]]]
@@ -380,7 +380,7 @@ def make_url(name_or_url: Union[str, URL]) -> URL:
     if isinstance(name_or_url, str):
         return _parse_url(name_or_url)
     elif not isinstance(name_or_url, URL):
-        raise ValueError(f"Expected string or URL object, got {name_or_url!r}")
+        raise ValueError(f"Expected string or URL object, got `{name_or_url!r}`")
     else:
         return name_or_url
 
@@ -440,4 +440,4 @@ def _parse_url(name: str) -> URL:
         return URL.create(name, **components)  # type: ignore
 
     else:
-        raise ValueError("Could not parse SQLAlchemy URL from string '%s'" % name)
+        raise ValueError(f"Could not parse SQLAlchemy URL from string '{name}'")

@@ -57,7 +57,7 @@ class WithLocalFiles(DestinationClientConfiguration):
             if self.pipeline_working_dir:
                 return os.path.join(self.pipeline_working_dir, default_location)
             raise RuntimeError(
-                "Attempting to use special location :pipeline: outside of pipeline context."
+                "Attempting to use special location `:pipeline:` outside of pipeline context."
             )
         else:
             # if explicit path is absolute, use it
