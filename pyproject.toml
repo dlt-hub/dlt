@@ -56,7 +56,6 @@ dependencies = [
     "sqlglot>=23.0.0",
     "pywin32>=306 ; sys_platform == 'win32'",
     "rich-argparse>=1.6.0,<2",
-    "marimo>=0.13.6,<0.14",
 ]
 
 [project.optional-dependencies]
@@ -271,19 +270,6 @@ docs = [
 ]
 
 [tool.uv]
-default-groups = [
-    "dev",
-    "sources",
-    "pipeline",
-    "airflow",
-    "ibis",
-    "streamlit",
-    "marimo",
-    "providers",
-    "sentry-sdk",
-    "dbt",
-    "docs",
-]
 
 [tool.uv.sources]
 flake8-encodings = { git = "https://github.com/dlt-hub/flake8-encodings.git", branch = "disable_jedi_support" }
