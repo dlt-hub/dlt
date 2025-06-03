@@ -180,19 +180,20 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         )
 
     def table(self, table_name: str) -> ReadableIbisRelation:
+        # dataset only provides access to tables known in dlt schema, direct query may cirumvent this
+        if table_name not in self.schema.tables.keys():
+            raise ValueError(
+                f"Table {table_name} not found in schema {self.schema.name} of dataset"
+                f" {self.dataset_name}. Avaible tables are: {self.schema.tables.keys()}"
+            )
+
         # we can create an ibis powered relation if ibis is available
         relation: BaseReadableDBAPIRelation
         if self._dataset_type == "ibis":
-            from dlt.common.schema.utils import new_table
             from dlt.helpers.ibis import create_unbound_ibis_table
             from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 
-            # allow to create empty tables without schema to unify behavior with default relation
-            schema = self.schema
-            if table_name not in schema.tables:
-                schema.update_table(new_table(table_name))
-
-            unbound_table = create_unbound_ibis_table(schema, self.dataset_name, table_name)
+            unbound_table = create_unbound_ibis_table(self.schema, self.dataset_name, table_name)
             relation = ReadableIbisRelation(
                 readable_dataset=self,
                 ibis_object=unbound_table,

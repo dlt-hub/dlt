@@ -83,8 +83,6 @@ def setup_transformation_pipelines(
         dataset_name="source",
         use_single_dataset=False,
         dev_mode=True,
-        # for filesystem destination we load to a duckdb on python transformations
-        destination="duckdb" if destination_config.destination_type == "filesystem" else None,
     )
     dest_p = destination_config.setup_pipeline(
         "fruit_pipeline",

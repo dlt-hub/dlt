@@ -698,6 +698,19 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
+def test_unknown_table_access(populated_pipeline: Pipeline) -> None:
+    with pytest.raises(ValueError, match="Table unknown_table not found in schema"):
+        populated_pipeline.dataset().unknown_table
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
 def test_column_retrieval(populated_pipeline: Pipeline) -> None:
     import ibis
 
