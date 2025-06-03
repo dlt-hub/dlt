@@ -505,8 +505,9 @@ def test_load_none_trace() -> None:
 
 
 def test_trace_telemetry(temporary_telemetry: RuntimeConfiguration) -> None:
-    with patch("dlt.common.runtime.sentry.before_send", _mock_sentry_before_send), patch(
-        "dlt.common.runtime.anon_tracker.before_send", _mock_anon_tracker_before_send
+    with (
+        patch("dlt.common.runtime.sentry.before_send", _mock_sentry_before_send),
+        patch("dlt.common.runtime.anon_tracker.before_send", _mock_anon_tracker_before_send),
     ):
         ANON_TRACKER_SENT_ITEMS.clear()
         SENTRY_SENT_ITEMS.clear()

@@ -51,7 +51,7 @@ class FSClientBase(ABC):
         errors: Any = None,
         newline: Any = None,
         compression: str = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> str:
         """reads given file into string, tries gzip and pure text"""
         if compression is None:

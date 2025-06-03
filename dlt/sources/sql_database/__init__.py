@@ -280,7 +280,7 @@ def sql_table(
         name=str(table),
         write_disposition=write_disposition,
         merge_key=merge_key,
-        **hints
+        **hints,
     )(
         engine,
         table_obj if table_obj is not None else table,  # Pass table name if reflection deferred
