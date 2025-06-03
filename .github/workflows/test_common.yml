@@ -145,23 +145,23 @@ jobs:
       # test marimo app, does not work with python 3.13
       - name: Install dlt with duckdb and studio
         run: uv sync -E duckdb --group sentry-sdk --group pipeline --group sources --group ibis --group marimo
-        if: matrix.python-version != '3.13.x'
+        if: matrix.python-version != '3.13'
 
       - name: Install playwright
         run: uv run playwright install
-        if: matrix.python-version != '3.13.x'
+        if: matrix.python-version != '3.13'
 
       # Run marimo studio unit tests
       - name: Run marimo studio unit tests
         run: |
           uv run pytest tests/helpers/studio
-        if: matrix.python-version != '3.13.x'
+        if: matrix.python-version != '3.13'
 
       # Run marimo e2e tests (does not pass with python 3.9, does not pass on windows (playwright does not work somehow), does not pass on python 3.13 (ibis not available))
       - name: Run marimo e2e
         run: |
           uv run marimo run --headless dlt/helpers/studio/app.py -- -- --pipelines_dir _storage/.dlt/pipelines/ --with_test_identifiers true & uv run pytest --browser chromium tests/e2e
-        if: matrix.python-version != '3.13.x' && matrix.python-version != '3.9.x' && matrix.os != 'windows-latest'
+        if: matrix.python-version != '3.13' && matrix.python-version != '3.9' && matrix.os != 'windows-latest'
 
 
 
