@@ -37,39 +37,39 @@ jobs:
 
           # macos tests
           - os: macos-latest
-            python-version: "3.11.x"
+            python-version: "3.11"
             shell: bash
             pytest_args: ""
 
           # linux tests
           - os: ubuntu-latest
-            python-version: "3.9.x"
+            python-version: "3.9"
             shell: bash
             pytest_args: ""
           - os: ubuntu-latest
-            python-version: "3.10.x"
+            python-version: "3.10"
             shell: bash
             pytest_args: ""
           - os: ubuntu-latest
-            python-version: "3.11.x"
+            python-version: "3.11"
             shell: bash
             pytest_args: ""
           - os: ubuntu-latest
-            python-version: "3.12.x"
+            python-version: "3.12"
             shell: bash
             pytest_args: ""
           - os: ubuntu-latest
-            python-version: "3.13.x"
+            python-version: "3.13"
             shell: bash
             pytest_args: "" 
           
           # windows tests
           - os: windows-latest
-            python-version: "3.11.x"
+            python-version: "3.11"
             shell: cmd
             pytest_args: '-m "not forked"'
           - os: windows-latest
-            python-version: "3.13.x"
+            python-version: "3.13"
             shell: cmd
             pytest_args: '-m "not forked"'
 
@@ -91,13 +91,8 @@ jobs:
           copy tzdata %USERPROFILE%\Downloads\tzdata
           curl https://raw.githubusercontent.com/unicode-org/cldr/master/common/supplemental/windowsZones.xml --output %USERPROFILE%\Downloads\tzdata\windowsZones.xml
         if: runner.os == 'Windows'
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
 
