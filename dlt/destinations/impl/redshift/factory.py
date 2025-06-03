@@ -97,7 +97,7 @@ class RedshiftTypeMapper(TypeMapperImpl):
         elif precision <= 64:
             return "bigint"
         raise TerminalValueError(
-            f"bigint with {precision} bits precision cannot be mapped into postgres integer type"
+            f"bigint with {precision=:} can't be mapped to Redshift integer type"
         )
 
     def from_destination_type(

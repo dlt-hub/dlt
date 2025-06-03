@@ -72,7 +72,7 @@ class PostgresTypeMapper(TypeMapperImpl):
         elif precision <= 64:
             return "bigint"
         raise TerminalValueError(
-            f"bigint with {precision} bits precision cannot be mapped into postgres integer type"
+            f"bigint with {precision=:} can't be mapped to PostgreSQL integer type"
         )
 
     def to_db_datetime_type(
@@ -96,8 +96,8 @@ class PostgresTypeMapper(TypeMapperImpl):
                 timestamp += f" ({precision})"
             else:
                 raise TerminalValueError(
-                    f"Postgres does not support precision '{precision}' for '{column_name}' in"
-                    f" table '{table_name}'"
+                    f"Postgres doesn't support {precision=:} for timestamp column `{column_name}` in"
+                    f" table `{table_name}`"
                 )
 
         # append timezone part

@@ -53,14 +53,12 @@ class SnowflakeCredentials(ConnectionStringCredentials):
                 self.private_key = Path(self.private_key_path).read_text("ascii")
             except Exception:
                 raise ValueError(
-                    "Make sure that private key in dlt recognized format is at"
-                    f" {self.private_key_path}. Note that binary formats are not supported"
+                    "Make sure that `private_key` in dlt recognized format is at"
+                    f" `{self.private_key_path}`. Note that binary formats are not supported"
                 )
         if not self.password and not self.private_key and not self.authenticator:
             raise ConfigurationValueError(
-                "Please specify password or private_key or authenticator fields."
-                " SnowflakeCredentials supports password, private key and authenticator based (ie."
-                " oauth2) authentication and one of those must be specified."
+                "`SnowflakeCredentials` requires one of the following to be specified: `password`, `private_key`, `authenticator`."
             )
 
     def get_query(self) -> Dict[str, Any]:

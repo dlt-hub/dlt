@@ -156,7 +156,7 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
         applied_update = super().update_stored_schema(only_tables, expected_update)
         if self.config.fail_schema_update:
             raise DestinationTransientException(
-                "Raise on schema update due to fail_schema_update config flag"
+                "Raise on schema update due to `fail_schema_update` config flag"
             )
         return applied_update
 

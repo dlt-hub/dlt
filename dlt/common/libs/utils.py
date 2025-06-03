@@ -32,8 +32,8 @@ def load_open_tables(
                 if len(available_schemas) > 1:
                     available_schemas_info = f" Available schemas are {available_schemas}"
                 raise ValueError(
-                    f"Schema {client.schema.name} does not contain {table_format} tables with these"
-                    f" names: {', '.join(invalid_tables)}.{available_schemas_info}"
+                    f"Schema `{client.schema.name}` does not contain `{table_format}` tables with names: "
+                    f"{', '.join(invalid_tables)}.{available_schemas_info}"
                 )
             schema_open_tables = [t for t in schema_open_tables if t in tables]
 

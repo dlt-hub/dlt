@@ -53,8 +53,8 @@ def clickhouse_adapter(data: Any, table_engine_type: TTableEngineType = None) ->
         if table_engine_type not in TABLE_ENGINE_TYPES:
             allowed_types = ", ".join(TABLE_ENGINE_TYPES)
             raise ValueError(
-                f"Table engine type {table_engine_type} is invalid. Allowed table engine types are:"
-                f" {allowed_types}."
+                f"Table engine type `{table_engine_type}` is invalid. Allowed table engine types are:"
+                f" `{allowed_types}`."
             )
         additional_table_hints[TABLE_ENGINE_TYPE_HINT] = table_engine_type
     resource.apply_hints(additional_table_hints=additional_table_hints)

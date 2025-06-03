@@ -258,7 +258,7 @@ def create_resources(
         include_from_parent: List[str] = endpoint_resource.get("include_from_parent", [])
         if not resolved_params and include_from_parent:
             raise ValueError(
-                f"Resource {resource_name} has include_from_parent but is not "
+                f"Resource `{resource_name}` has `include_from_parent` but is not "
                 "dependent on another resource"
             )
         _validate_param_type(request_params)
@@ -411,5 +411,5 @@ def _validate_param_type(
     for _, value in request_params.items():
         if isinstance(value, dict) and value.get("type") not in PARAM_TYPES:
             raise ValueError(
-                f"Invalid param type: {value.get('type')}. Available options: {PARAM_TYPES}"
+                f"Invalid param type: `{value.get('type')}`. Available options: `{PARAM_TYPES}`"
             )

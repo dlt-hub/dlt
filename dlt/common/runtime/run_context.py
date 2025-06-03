@@ -103,13 +103,13 @@ class RunContext(SupportsRunContext):
         run_dir = os.path.abspath(run_dir)
         base_dir = os.path.basename(run_dir)
         if not base_dir:
-            raise ImportError(f"run dir {run_dir} looks like filesystem root")
+            raise ImportError(f"`run_dir={run_dir}` looks like filesystem root")
         m_ = importlib.import_module(base_dir)
         if m_.__file__ and m_.__file__.startswith(run_dir):
             return m_
         else:
             raise ImportError(
-                f"run dir {run_dir} does not belong to module {m_.__file__} which seems unrelated."
+                f"`run_dir={run_dir}` doesn't belong to module `{m_.__file__}` which seems unrelated."
             )
 
 

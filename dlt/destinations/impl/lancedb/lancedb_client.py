@@ -217,7 +217,7 @@ def write_records(
                 ).when_matched_update_all().when_not_matched_insert_all().execute(records)
         else:
             raise DestinationTerminalException(
-                f"Unsupported write disposition {write_disposition} for LanceDB Destination - batch"
+                f"Unsupported {write_disposition=:} for LanceDB Destination - batch"
                 " failed AND WILL **NOT** BE RETRIED."
             )
     except ArrowInvalid as e:
@@ -390,7 +390,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                     if len(merge_key) > 1:
                         raise DestinationTerminalException(
                             "You cannot specify multiple merge keys with LanceDB orphan remove"
-                            f" enabled: {merge_key}"
+                            f" enabled: `{merge_key}`"
                         )
         return loaded_tables
 

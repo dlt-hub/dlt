@@ -148,7 +148,7 @@ class Pipe(SupportsPipe):
 
     def fork(self, child_pipe: "Pipe", child_step: int = -1, copy_on_fork: bool = False) -> "Pipe":
         if len(self._steps) == 0:
-            raise CreatePipeException(self.name, f"Cannot fork to empty pipe {child_pipe}")
+            raise CreatePipeException(self.name, f"Cannot fork to empty pipe `{child_pipe}`")
         fork_step = self.tail
         if not isinstance(fork_step, ForkPipe):
             fork_step = ForkPipe(child_pipe, child_step, copy_on_fork)
@@ -206,7 +206,7 @@ class Pipe(SupportsPipe):
         if index == self._gen_idx:
             raise CreatePipeException(
                 self.name,
-                f"Step at index {index} holds a data generator for this pipe and cannot be removed",
+                f"Step at index `{index}` holds a data generator for this pipe and cannot be removed",
             )
         self._steps.pop(index)
         if index < self._gen_idx:
@@ -358,7 +358,7 @@ class Pipe(SupportsPipe):
         if not isinstance(step, (Iterable, Iterator, AsyncIterator)) and not callable(step):
             raise CreatePipeException(
                 self.name,
-                "A head of a resource pipe must be Iterable, Iterator, AsyncIterator or a Callable",
+                "A head of a resource pipe must be: [Iterable, Iterator, AsyncIterator, Callable]",
             )
 
     def _wrap_transform_step_meta(self, step_no: int, step: TPipeStep) -> TPipeStep:

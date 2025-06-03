@@ -431,7 +431,7 @@ def rename_columns(item: TAnyArrowItem, new_column_names: Sequence[str]) -> TAny
         ]
         return pyarrow.RecordBatch.from_arrays(item.columns, schema=pyarrow.schema(new_fields))
     else:
-        raise TypeError(f"Unsupported data item type {type(item)}")
+        raise TypeError(f"Unsupported data item type: `{type(item)}`")
 
 
 def should_normalize_arrow_schema(
@@ -805,7 +805,7 @@ def concat_batches_and_tables_in_order(
                 batches = []
             tables.append(item)
         else:
-            raise ValueError(f"Unsupported type {type(item)}")
+            raise ValueError(f"Unsupported type: `{type(item)}`")
     if batches:
         tables.append(pyarrow.Table.from_batches(batches))
     # "none" option ensures 0 copy concat
@@ -973,7 +973,7 @@ def convert_numpy_to_arrow(
                     raise PyToArrowConversionException(
                         data_type=dlt_data_type,
                         inferred_arrow_type=inferred_arrow_type,
-                        details="dlt failed to encode values to a Arrow compatible type.",
+                        details="dlt failed to encode values to an Arrow-compatible type.",
                     ) from e
 
             arrow_array = pa.array(encoded_values)

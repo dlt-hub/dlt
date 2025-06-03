@@ -174,15 +174,14 @@ class RangePaginator(BasePaginator):
 
     def _handle_missing_total(self, response_json: Dict[str, Any]) -> None:
         raise ValueError(
-            f"Total {self.error_message_items} is not found in the response in"
-            f" {self.__class__.__name__}. Expected a response with a '{self.total_path}' key, got"
-            f" {response_json}"
+            f"Total `{self.error_message_items}` not found in the response in `{self.__class__.__name__}`."
+            f"Expected a response with a '{self.total_path}' key, got `{response_json}`."
         )
 
     def _handle_invalid_total(self, total: Any) -> None:
         raise ValueError(
-            f"'{self.total_path}' is not an integer in the response in {self.__class__.__name__}."
-            f" Expected an integer, got {total}"
+            f"'{self.total_path}' is not an `int` in the response in `{self.__class__.__name__}`."
+            f" Expected an integer, got `{total}`"
         )
 
     def update_request(self, request: Request) -> None:

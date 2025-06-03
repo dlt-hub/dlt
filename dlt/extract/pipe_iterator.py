@@ -213,9 +213,8 @@ class PipeIterator(Iterator[PipeItem]):
                 if isinstance(item, (Iterator, Awaitable, AsyncIterator)) or callable(item):
                     raise PipeItemProcessingError(
                         pipe_item.pipe.name,
-                        f"Pipe item at step {pipe_item.step} was not fully evaluated and is of type"
-                        f" {type(pipe_item.item).__name__}. This is internal error or you are"
-                        " yielding something weird from resources ie. functions or awaitables.",
+                        f"Pipe item of type `{type(pipe_item.item).__name__}` was not fully evaluated at step `{pipe_item.step}`. "
+                        "This is an internal error or you're yielding unexpected object from resources (e.g., fucntions, awaitables)."
                     )
                 # mypy not able to figure out that item was resolved
                 return pipe_item  # type: ignore

@@ -40,7 +40,7 @@ def decode_private_key(private_key: str, password: Optional[str] = None) -> byte
         except Exception as der_exc:
             raise ValueError(
                 "Could not decode private key for key pair authentication. Following formats were"
-                f" attempted:\n1. base64 encoded DER or PEM (error: {der_exc})\n2. plain-text PEM"
+                f" attempted:\n1. base64 encoded DER or PEM (error: `{der_exc}`)\n2. plain-text PEM"
                 " (error: BEGIN and END markers not found)\nIf you are using connection string and"
                 " are passing DER/PEM or password in query string, make sure you url-encode them."
             )
@@ -63,8 +63,8 @@ def decode_private_key(private_key: str, password: Optional[str] = None) -> byte
         except Exception as pem_exc:
             raise ValueError(
                 "Could not decode private key for key pair authentication. Following formats were"
-                f" attempted:\n1. base64 encoded DER (error: {der_exc})\n2. plain-text or base64"
-                f" encoded PEM (error: {pem_exc})\nIf you are using connection string and are"
+                f" attempted:\n1. base64 encoded DER (error: `{der_exc}`)\n2. plain-text or base64"
+                f" encoded PEM (error: `{pem_exc}`)\nIf you are using connection string and are"
                 " passing DER/PEM or password in query string, make sure you url-encode them."
             )
 

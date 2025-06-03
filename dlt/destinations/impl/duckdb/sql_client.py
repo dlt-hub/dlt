@@ -307,7 +307,7 @@ class WithTableScanners(DuckDbSqlClient):
     def drop_secret(self, secret_name: str) -> None:
         if not secret_name.startswith(self.dataset_name):
             raise ValueError(
-                f"Secret name must start with dataset name {self.dataset_name}, got {secret_name}"
+                f"Secret name must start with dataset name `{self.dataset_name}`, got `{secret_name}`."
             )
 
         self._conn.sql(f"DROP SECRET {secret_name}")
@@ -418,7 +418,7 @@ class WithTableScanners(DuckDbSqlClient):
         elif self.persist_secrets:
             raise ValueError(
                 "Cannot create persistent secret for filesystem protocol"
-                f" {protocol}. If you are trying to use persistent secrets"
+                f" `{protocol}`. If you are trying to use persistent secrets"
                 " with gs/gcs, please use the s3 compatibility layer."
             )
         else:
@@ -524,7 +524,7 @@ class WithTableScanners(DuckDbSqlClient):
     def _setup_iceberg(conn: duckdb.DuckDBPyConnection) -> None:
         if semver.Version.parse(duckdb.__version__) <= semver.Version.parse("1.1.2"):
             raise NotImplementedError(
-                f"Iceberg scanner for duckdb {duckdb.__version__} does not implement recent"
+                f"Iceberg scanner for duckdb `{duckdb.__version__}` does not implement recent"
                 " snapshot discovery. Please install duckdb >= 1.1.3"
             )
         # needed to make persistent secrets work in new connection

@@ -113,12 +113,12 @@ def wrap_grpc_error(f: TFun) -> TFun:
             # TODO: actually put the job in failed/retry state and prepare exception message with full info on failing item
             if "invalid" in message and "property" in message and "on class" in message:
                 raise DestinationTerminalException(
-                    f"Grpc (batch, query) failed {errors} AND WILL **NOT** BE RETRIED"
+                    f"Grpc (batch, query) failed `{errors}` AND WILL **NOT** BE RETRIED"
                 )
             if "conflict for property" in message:
                 raise PropertyNameConflict(message)
             raise DestinationTransientException(
-                f"Grpc (batch, query) failed {errors} AND WILL BE RETRIED"
+                f"Grpc (batch, query) failed `{errors}` AND WILL BE RETRIED"
             )
         except Exception:
             raise DestinationTransientException("Batch failed AND WILL BE RETRIED")
@@ -596,7 +596,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         full_class_name = self.make_qualified_class_name(table_name)
         records = response["data"]["Get"][full_class_name]
         if records is None:
-            raise DestinationTransientException(f"Could not obtain records for {full_class_name}")
+            raise DestinationTransientException(f"Could not obtain records for `{full_class_name}`")
         return cast(List[Dict[str, Any]], records)
 
     def make_weaviate_class_schema(self, table_name: str) -> Dict[str, Any]:

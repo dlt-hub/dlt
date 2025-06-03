@@ -112,7 +112,7 @@ class AthenaTypeMapper(TypeMapperImpl):
         elif precision <= 64:
             return "bigint"
         raise TerminalValueError(
-            f"bigint with {precision} bits precision cannot be mapped into athena integer type"
+            f"bigint with `precision={precision}` can't be mapped to athena integer type"
         )
 
     def from_destination_type(

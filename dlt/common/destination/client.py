@@ -264,7 +264,7 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
 
     def _make_dataset_name(self, schema_name: str) -> str:
         if not schema_name:
-            raise ValueError("schema_name is None or empty")
+            raise ValueError("`schema_name` is `None` or empty")
 
         # if default schema is None then suffix is not added
         if self.default_schema_name is not None and schema_name != self.default_schema_name:

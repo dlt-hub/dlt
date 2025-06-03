@@ -69,7 +69,7 @@ def run_pool(
     # validate the run function
     if not isinstance(run_f, Runnable) and not callable(run_f):
         raise ValueError(
-            run_f, "Pool runner entry point must be a function f(pool: TPool) or Runnable"
+            run_f, "Pool runner entry point must be a function `f(pool: TPool)` or `Runnable`"
         )
 
     # start pool

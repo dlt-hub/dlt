@@ -91,7 +91,7 @@ class SignalReceivedException(KeyboardInterrupt, TerminalException):
 
     def __init__(self, signal_code: int) -> None:
         self.signal_code = signal_code
-        super().__init__(f"Signal {signal_code} received")
+        super().__init__(f"Received signal code: `{signal_code}`")
 
 
 class DictValidationException(DltException):
