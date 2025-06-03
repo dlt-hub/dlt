@@ -68,7 +68,8 @@ gcp = [
 bigquery = [
     "grpcio>=1.50.0",
     "google-cloud-bigquery>=2.26.0",
-    "pyarrow",
+    "pyarrow>=17.0.0 ; python_version < '3.13'",
+    "pyarrow>=18.0.0 ; python_version >= '3.13'",
     "gcsfs>=2022.4.0",
     "db-dtypes>=1.2.0",
 ]
@@ -80,8 +81,13 @@ redshift = [
     "psycopg2-binary>=2.9.1",
     "psycopg2cffi>=2.9.0 ; platform_python_implementation == 'PyPy'",
 ]
-parquet = ["pyarrow"]
-duckdb = ["duckdb>=0.9"]
+parquet = [
+    "pyarrow>=17.0.0 ; python_version < '3.13'",
+    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+]
+duckdb = [
+    "duckdb>=0.9"
+    ]
 filesystem = [
     "s3fs>=2022.4.0",
     "botocore>=1.28",
@@ -90,13 +96,20 @@ s3 = [
     "s3fs>=2022.4.0",
     "botocore>=1.28",
 ]
-gs = ["gcsfs>=2022.4.0"]
-az = ["adlfs>=2024.7.0"]
-sftp = ["paramiko>=3.3.0"]
+gs = [
+    "gcsfs>=2022.4.0"
+]
+az = [
+    "adlfs>=2024.7.0"
+]
+sftp = [
+    "paramiko>=3.3.0"
+]
 snowflake = ["snowflake-connector-python>=3.5.0"]
 motherduck = [
     "duckdb>=0.9",
-    "pyarrow",
+    "pyarrow>=17.0.0 ; python_version < '3.13'",
+    "pyarrow>=18.0.0 ; python_version >= '3.13'",
 ]
 cli = [
     "pipdeptree>=2.9.0,<2.10",
@@ -105,39 +118,53 @@ cli = [
 ]
 athena = [
     "pyathena>=2.9.6",
-    "pyarrow",
+    "pyarrow>=17.0.0 ; python_version < '3.13'",
+    "pyarrow>=18.0.0 ; python_version >= '3.13'",
     "s3fs>=2022.4.0",
     "botocore>=1.28",
 ]
-weaviate = ["weaviate-client>=3.22"]
-mssql = ["pyodbc>=4.0.39"]
+weaviate = [
+    "weaviate-client>=3.22"
+]
+mssql = [
+    "pyodbc>=4.0.39"
+]
 synapse = [
     "pyodbc>=4.0.39",
     "adlfs>=2024.7.0",
-    "pyarrow",
+    "pyarrow>=17.0.0 ; python_version < '3.13'",
+    "pyarrow>=18.0.0 ; python_version >= '3.13'",
 ]
-qdrant = ["qdrant-client[fastembed]>=1.8"]
+qdrant = [
+    "qdrant-client[fastembed]>=1.8"
+]
 databricks = [
     "databricks-sql-connector",
     "databricks-sdk>=0.38.0",
 ]
 clickhouse = [
-    "clickhouse-driver>=0.2.7",
+   "clickhouse-driver>=0.2.7",
     "clickhouse-connect>=0.7.7",
     "s3fs>=2022.4.0",
     "gcsfs>=2022.4.0",
     "adlfs>=2024.7.0",
-    "pyarrow",
+    "pyarrow>=17.0.0 ; python_version < '3.13'",
+    "pyarrow>=18.0.0 ; python_version >= '3.13'",
 ]
-dremio = ["pyarrow"]
+dremio = [
+    "pyarrow>=17.0.0 ; python_version < '3.13'",
+    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+]
 lancedb = [
     "lancedb>=0.8.2 ; python_version < '3.13'",
-    "pyarrow",
+    "pyarrow>=17.0.0 ; python_version < '3.13'",
+    "pyarrow>=18.0.0 ; python_version >= '3.13'",
     "tantivy>= 0.22.0",
 ]
 deltalake = [
     "deltalake>=0.25.1",
-    "pyarrow",
+    "pyarrow>=17.0.0 ; python_version < '3.13'",
+    "pyarrow>=18.0.0 ; python_version >= '3.13'",
 ]
 sql_database = ["sqlalchemy>=1.4"]
 sqlalchemy = [
@@ -146,7 +173,8 @@ sqlalchemy = [
 ]
 pyiceberg = [
     "pyiceberg>=0.9.0",
-    "pyarrow",
+    "pyarrow>=17.0.0 ; python_version < '3.13'",
+    "pyarrow>=18.0.0 ; python_version >= '3.13'",
     "sqlalchemy>=1.4",
 ]
 postgis = [
@@ -238,6 +266,7 @@ marimo = [
     "pytest-playwright>=0.7.0,<0.8",
     "pandas>2.1 ; python_version >= '3.12'",
     "pandas<2.1 ; python_version < '3.12'",
+    "ibis-framework[duckdb, postgres, bigquery, snowflake, mssql, clickhouse, databricks]>=10.3.0 ; python_version >= '3.10'"
 ]
 providers = ["google-api-python-client>=2.86.0,<3"]
 sentry-sdk = ["sentry-sdk>=2.0.0,<3"]
