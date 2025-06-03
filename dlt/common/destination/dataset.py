@@ -15,6 +15,8 @@ from typing import (
 
 from abc import ABC, abstractmethod
 
+from sqlglot.schema import Schema as SQLGlotSchema
+
 from dlt.common.typing import Self, Generic, TypeVar
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.schema import Schema
@@ -41,7 +43,7 @@ class SupportsReadableRelation:
 
     def query(self) -> Any:
         """Returns the sql query that represents the relation. The query will be qualified, quoted and escaped
-           according to a SQL dialect that the destination uses.
+           according to a SQL dialect that the destination uses, unless query normalization is disabled by the user.
 
         Returns:
             Any: The qualified sql query that represents the relation
@@ -251,6 +253,14 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
 
         Returns:
             Schema: The schema of the dataset
+        """
+
+    @property
+    def sqlglot_schema(self) -> SQLGlotSchema:
+        """Returns the computed and cached sqlglot schema of the dataset
+
+        Returns:
+            SQLGlotSchema: The sqlglot schema of the dataset
         """
 
     @property

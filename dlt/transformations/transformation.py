@@ -156,7 +156,7 @@ def make_transformation_resource(
         # TODO: make it a public method
         # TODO: why schema inference and anonymous columns are wrong? we do not want columns without
         #  data types and only this should be disabled
-        computed_columns, _, _ = transformation_result._compute_columns_schema(
+        computed_columns, _ = transformation_result._compute_columns_schema(
             infer_sqlglot_schema=False,
             allow_anonymous_columns=False,
             allow_partial=False,

@@ -32,12 +32,15 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
 
+        # provided properties
         self._dataset = readable_dataset
+        self._should_normalize_query: bool = normalize_query
+
+        # derived / cached properties
         self._opened_sql_client: SqlClientBase[Any] = None
         self._columns_schema: TTableSchemaColumns = None
         self._qualified_query: sge.Query = None
-        self._sqlglot_schema: lineage.SQLGlotSchema = None
-        self._should_normalize_query: bool = normalize_query
+        self._normalized_query: sge.Query = None
 
         # wire protocol functions
         self.df = self._wrap_func("df")  # type: ignore
@@ -99,7 +102,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
                 if isinstance(node, sge.Table):
                     # expand named of known tables. this is currently clickhouse things where
                     # we use dataset.table in queries but render those as dataset___table
-                    if self._sqlglot_schema.column_names(node):
+                    if self._dataset.sqlglot_schema.column_names(node):
                         expanded_path = self.sql_client.make_qualified_table_name_path(
                             node.name, quote=False, casefold=False
                         )
@@ -143,6 +146,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         try:
             self._opened_sql_client = self.sql_client
 
+            # we allow computing the schema to fail if query normalization is disabled
             try:
                 columns_schema = self.columns_schema
             except lineage.LineageFailedException:
@@ -202,7 +206,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         allow_anonymous_columns: bool = True,
         allow_partial: bool = False,
         **kwargs: Any,
-    ) -> Tuple[TTableSchemaColumns, Optional[sge.Query], Optional[lineage.SQLGlotSchema]]:
+    ) -> Tuple[TTableSchemaColumns, Optional[sge.Query]]:
         """Provides the expected columns schema for the query
 
         Args:
@@ -217,37 +221,25 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
             and self._table_name
             and self._table_name not in self._dataset.schema.tables.keys()
         ):
-            return {}, None, None
+            return {}, None
 
         # get dlt schema compliant query so lineage will work correctly on non case folded identifiers
         query = self._query()
+        dialect: str = self._dataset.sql_client.capabilities.sqlglot_dialect
 
-        caps = self._dataset.sql_client.capabilities
-        dialect: str = caps.sqlglot_dialect
-
-        # TODO: maybe store the SQLGlot schema on the dataset
-        # TODO: support joins between datasets (accept existing sql schema to add tables to it)
-        sqlglot_schema = lineage.create_sqlglot_schema(
-            self._dataset.schema, self._dataset.dataset_name, dialect=dialect
-        )
-        return (
-            *lineage.compute_columns_schema(
-                query,
-                sqlglot_schema,
-                dialect,
-                infer_sqlglot_schema=infer_sqlglot_schema,
-                allow_anonymous_columns=allow_anonymous_columns,
-                allow_partial=allow_partial,
-            ),
-            sqlglot_schema,
+        return lineage.compute_columns_schema(
+            query,
+            self._dataset.sqlglot_schema,
+            dialect,
+            infer_sqlglot_schema=infer_sqlglot_schema,
+            allow_anonymous_columns=allow_anonymous_columns,
+            allow_partial=allow_partial,
         )
 
     @property
     def columns_schema(self) -> TTableSchemaColumns:
         if self._columns_schema is None:
-            self._columns_schema, self._qualified_query, self._sqlglot_schema = (
-                self._compute_columns_schema()
-            )
+            self._columns_schema, self._qualified_query = self._compute_columns_schema()
         return self._columns_schema
 
     @columns_schema.setter
@@ -264,7 +256,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         table_name: str = None,
         limit: int = None,
         selected_columns: Sequence[str] = None,
-        normalize_query: bool = False,
+        normalize_query: bool = True,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
 

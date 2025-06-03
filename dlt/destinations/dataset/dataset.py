@@ -1,5 +1,8 @@
-from types import TracebackType, MethodType
+from types import TracebackType
 from typing import Any, Type, Union, TYPE_CHECKING, List
+
+
+from sqlglot.schema import Schema as SQLGlotSchema
 
 from dlt.common.destination.exceptions import OpenTableClientNotAvailable
 from dlt.common.json import json
@@ -14,11 +17,13 @@ from dlt.common.destination.typing import TDatasetType
 from dlt.common.schema import Schema
 from dlt.common.typing import Self
 from dlt.common.schema.typing import C_DLT_LOAD_ID
-
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation, BaseReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
+
+from dlt.transformations import lineage
+
 
 if TYPE_CHECKING:
     from dlt.helpers.ibis import BaseBackend as IbisBackend
@@ -36,13 +41,18 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         schema: Union[Schema, str, None] = None,
         dataset_type: TDatasetType = "auto",
     ) -> None:
+        # provided properties
         self._destination = Destination.from_reference(destination)
         self._provided_schema = schema
         self._dataset_name = dataset_name
+
+        # derived / cached properties
         self._schema: Schema = None
+        self._sqlglot_schema: SQLGlotSchema = None
         self._sql_client: SqlClientBase[Any] = None
         self._opened_sql_client: SqlClientBase[Any] = None
         self._table_client: SupportsOpenTables = None
+
         # resolve dataset type
         if dataset_type in ("auto", "ibis"):
             try:
@@ -71,6 +81,15 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         if not self._schema:
             self._ensure_schema()
         return self._schema
+
+    @property
+    def sqlglot_schema(self) -> SQLGlotSchema:
+        if not self._sqlglot_schema:
+            dialect: str = self.sql_client.capabilities.sqlglot_dialect
+            self._sqlglot_schema = lineage.create_sqlglot_schema(
+                self.schema, self.dataset_name, dialect=dialect
+            )
+        return self._sqlglot_schema
 
     @property
     def dataset_name(self) -> str:
