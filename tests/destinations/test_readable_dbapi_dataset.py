@@ -80,6 +80,13 @@ def test_copy_and_chaining(dataset_type: TDatasetType) -> None:
         dataset_type=dataset_type,
     )
 
+    dataset.schema.tables["items"] = {
+        "columns": {
+            "one": {"data_type": "text", "name": "one"},
+            "two": {"data_type": "json", "name": "two"},
+        }
+    }
+
     # create relation and set some stuff on it
     relation = dataset.items
     relation = relation.limit(34)
@@ -108,22 +115,19 @@ def test_computed_schema_columns(dataset_type: TDatasetType) -> None:
         "pipeline_dataset",
         dataset_type=dataset_type,
     )
-    relation = dataset.items
 
-    # no schema present
-    assert relation.columns_schema == {}
+    with pytest.raises(ValueError):
+        dataset.items
 
-    # we can select any columns because it can't be verified
-    relation["one", "two"]
-
-    # now add columns
-    relation = dataset.items
     dataset.schema.tables["items"] = {
         "columns": {
             "one": {"data_type": "text", "name": "one"},
             "two": {"data_type": "json", "name": "two"},
         }
     }
+
+    # now add columns
+    relation = dataset.items
 
     # computed columns are same as above
     assert relation.columns_schema == {
