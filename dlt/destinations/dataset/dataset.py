@@ -25,6 +25,8 @@ if TYPE_CHECKING:
 else:
     IbisBackend = Any
 
+import sqlglot
+
 
 class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
     """Access to dataframes and arrow tables in the destination dataset via dbapi"""
@@ -199,29 +201,48 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
             if dlt_tables:
                 selected_tables += self.schema.dlt_table_names()
 
-        # filter tables so only ones with dlt_load_id column are included
-        if load_id:
-            dlt_load_id_col = self.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
-            selected_tables = [
-                table
-                for table in selected_tables
-                if dlt_load_id_col in self.schema.tables[table]["columns"].keys()
+        table_identifiers = selected_tables
+        dataset_name = self.dataset_name
+        catalog_name = self.sql_client.catalog_name(escape=False)
+
+        if self.destination_client.config.destination_type == "clickhouse":
+            dataset_table_separator = self.destination_client.config.dataset_table_separator  # type: ignore[attr-defined]
+            table_identifiers = [
+                dataset_table_separator.join([dataset_name, table]) for table in selected_tables
             ]
+            dataset_name = catalog_name
+            catalog_name = None
 
-        # Build UNION ALL query to get row counts for all selected tables
-        queries = []
-        for table in selected_tables:
-            query = (
-                f"SELECT '{table}' as table_name, COUNT(*) as row_count FROM"
-                f" {self.sql_client.make_qualified_table_name(table)}"
+        union_all_expr = None
+
+        for i, table_name in enumerate(selected_tables):
+            table_expr = sqlglot.exp.Table(
+                this=sqlglot.exp.to_identifier(table_identifiers[i], quoted=True),
+                db=sqlglot.exp.to_identifier(dataset_name, quoted=True),
+                catalog=sqlglot.exp.to_identifier(catalog_name, quoted=True),
             )
-            if load_id:
-                query += f" WHERE {dlt_load_id_col} = '{load_id}'"
-            queries.append(query)
 
-        query = " UNION ALL ".join(queries)
+            select_expr = sqlglot.exp.Select(
+                expressions=[
+                    sqlglot.exp.Alias(
+                        this=sqlglot.exp.Literal.string(table_name),
+                        alias=sqlglot.exp.to_identifier("table_name"),
+                    ),
+                    sqlglot.exp.Alias(
+                        this=sqlglot.exp.Count(this=sqlglot.exp.Star()),
+                        alias=sqlglot.exp.to_identifier("row_count"),
+                    ),
+                ]
+            ).from_(table_expr)
 
-        # Execute query and build result dict
+            if union_all_expr is None:
+                union_all_expr = select_expr
+            else:
+                union_all_expr = union_all_expr.union(select_expr, distinct=False)
+
+        dialect = self.destination_client.capabilities.sqlglot_dialect
+        query = union_all_expr.sql(dialect=dialect)
+
         return self(query)
 
     def __getitem__(self, table_name: str) -> ReadableIbisRelation:

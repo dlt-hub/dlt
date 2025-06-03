@@ -21,6 +21,8 @@ if TYPE_CHECKING:
 else:
     ReadableDBAPIDataset = Any
 
+import sqlglot
+
 
 class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     def __init__(
@@ -205,29 +207,47 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
 
         dataset_schema = self._dataset.schema
 
-        table_name = self.sql_client.make_qualified_table_name(
-            dataset_schema.naming.normalize_path(self._table_name)
+        table_name = dataset_schema.naming.normalize_tables_path(self._table_name)
+        dataset_name = self._dataset.dataset_name
+        catalog_name = self.sql_client.catalog_name(escape=False)
+
+        destination_config = self._dataset._get_destination_client(dataset_schema).config
+        if destination_config.destination_type == "clickhouse":
+            dataset_table_separator = destination_config.dataset_table_separator  # type: ignore[attr-defined]
+            table_name = dataset_table_separator.join([dataset_name, table_name])
+            dataset_name = catalog_name
+            catalog_name = None
+
+        table_expr = sqlglot.exp.Table(
+            this=sqlglot.exp.to_identifier(table_name, quoted=True),
+            db=sqlglot.exp.to_identifier(dataset_name, quoted=True),
+            catalog=sqlglot.exp.to_identifier(catalog_name, quoted=True),
         )
 
-        maybe_limit_clause_1 = ""
-        maybe_limit_clause_2 = ""
-        if self._limit:
-            maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(
-                self._limit
-            )
-
-        selector = "*"
+        selected_columns = ["*"]
         if self._selected_columns:
-            selector = ",".join(
-                [
-                    self.sql_client.escape_column_name(
-                        dataset_schema.naming.normalize_tables_path(c)
-                    )
-                    for c in self._selected_columns
-                ]
-            )
+            selected_columns = [
+                dataset_schema.naming.normalize_tables_path(c) for c in self._selected_columns
+            ]
 
-        return f"SELECT {maybe_limit_clause_1} {selector} FROM {table_name} {maybe_limit_clause_2}"
+        columns_expr = [
+            (
+                sqlglot.exp.Star()
+                if col == "*"
+                else sqlglot.exp.Column(this=sqlglot.exp.to_identifier(col, quoted=True))
+            )
+            for col in selected_columns
+        ]
+
+        select_expr = sqlglot.exp.Select(expressions=columns_expr).from_(table_expr)
+
+        if self._limit:
+            select_expr = select_expr.limit(self._limit)
+
+        dialect = self.sql_client.capabilities.sqlglot_dialect
+        query = select_expr.sql(dialect=dialect)
+
+        return query
 
     def __copy__(self) -> Self:
         return self.__class__(
