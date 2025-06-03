@@ -286,15 +286,23 @@ This is a list of resource configurations that define the API endpoints to be lo
 
 ### Resource configuration
 
-A resource configuration is used to define a [dlt resource](../../../general-usage/resource.md) for the data to be loaded from an API endpoint. It contains the following key fields:
+A resource configuration is used to define a [dlt resource](../../../general-usage/resource.md) for the data to be loaded from an API endpoint. When defining the resource you may specify:
+- dlt resource parameters, for for example:
+    - `write_disposition`: The write disposition for the resource.
+    - `primary_key`: The primary key for the resource.
+    - `table_name`: Override the table name for this resource.
+    - `max_table_nesting`: Sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
+    - `selected`: A flag to indicate if the resource is selected for loading. This could be useful when you want to load data only from child resources and not from the parent resource.
 
-- `endpoint`: The endpoint configuration for the resource. It can be a string or a dict representing the endpoint settings. See the [endpoint configuration](#endpoint-configuration) section for more details.
-- `write_disposition`: The write disposition for the resource.
-- `primary_key`: The primary key for the resource.
-- `include_from_parent`: A list of fields from the parent resource to be included in the resource output. See the [resource relationships](#include-fields-from-the-parent-resource) section for more details.
-- `processing_steps`: A list of [processing steps](#processing-steps-filter-and-transform-data) to filter and transform your data.
-- `selected`: A flag to indicate if the resource is selected for loading. This could be useful when you want to load data only from child resources and not from the parent resource.
-- `auth`: An optional `AuthConfig` instance. If passed, is used over the one defined in the [client](#client) definition. Example:
+    see [dlt resource API reference](../../../api_reference/dlt/extract/decorators#resource) for more details.
+
+- `rest_api` specific parameters, such as:
+    - `endpoint`: The endpoint configuration for the resource. It can be a string or a dict representing the endpoint settings. See the [endpoint configuration](#endpoint-configuration) section for more details.
+    - `include_from_parent`: A list of fields from the parent resource to be included in the resource output. See the [resource relationships](#include-fields-from-the-parent-resource) section for more details.
+    - `processing_steps`: A list of [processing steps](#processing-steps-filter-and-transform-data) to filter and transform your data.
+    - `auth`: An optional `AuthConfig` instance. If passed, is used over the one defined in the [client](#client) definition.
+
+Example:
 ```py
 from dlt.sources.helpers.rest_client.auth import HttpBasicAuth
 
@@ -309,6 +317,8 @@ config = {
         "resource-using-bearer-auth",
         {
             "name": "my-resource-with-special-auth",
+            "write_disposition": "merge",
+            "table_name": "my_custom_table",
             "endpoint": {
                 # ...
                 "auth": HttpBasicAuth("user", dlt.secrets["your_basic_auth_password"])
@@ -320,8 +330,6 @@ config = {
 }
 ```
 This would use `Bearer` auth as defined in the `client` for `resource-using-bearer-auth` and `Http Basic` auth for `my-resource-with-special-auth`.
-
-You can also pass additional resource parameters that will be used to configure the dlt resource. See [dlt resource API reference](../../../api_reference/dlt/extract/decorators#resource) for more details.
 
 ### Endpoint configuration
 
