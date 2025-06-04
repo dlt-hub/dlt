@@ -47,8 +47,8 @@ class IncrementalCursorInvalidCoercion(PipeException):
         self.item = item
         msg = (
             f"Could not coerce `{cursor_value_type}` with value `{cursor_value}` and type"
-            f" `{type(cursor_value)}` to actual data item `{item}` at path `{cursor_path}` with type"
-            f" `{item_type}`: {details}. You need to use different data type for"
+            f" `{type(cursor_value)}` to actual data item `{item}` at path `{cursor_path}` with"
+            f" type `{item_type}`: {details}. You need to use different data type for"
             f" `{cursor_value_type}` or cast your data ie. by using `.add_map()` on this resource."
         )
         super().__init__(pipe_name, msg)

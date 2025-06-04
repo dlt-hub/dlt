@@ -221,7 +221,7 @@ def apply_schema_contract_to_model(
     """
     if data_mode == "evolve":
         # create a lenient model that accepts any data
-        model = create_model(model.__name__ + "Any", **{n: (Any, None) for n in model.model_fields})  # type: ignore[call-overload, attr-defined]
+        model = create_model(model.__name__ + "Any", **{n: (Any, None) for n in model.model_fields})  # type: ignore
     elif data_mode == "discard_value":
         raise NotImplementedError(
             "`data_mode='discard_value'`. Cannot discard defined fields with validation errors"

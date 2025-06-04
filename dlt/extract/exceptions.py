@@ -77,8 +77,8 @@ class ResourceExtractionError(PipeException):
         )
         super().__init__(
             pipe_name,
-            f"extraction of resource `{pipe_name}` in `{kind}` `{self.func_name}` caused an exception:"
-            f" {msg}",
+            f"extraction of resource `{pipe_name}` in `{kind}` `{self.func_name}` caused an"
+            f" exception: {msg}",
         )
 
 
@@ -149,7 +149,8 @@ class InvalidParallelResourceDataType(InvalidResourceDataType):
             resource_name,
             item,
             _typ,
-            f"Parallel resource data must be a generator or a generator function. Resource `{resource_name}` received data type `{_typ.__name__}`",
+            "Parallel resource data must be a generator or a generator function. Resource"
+            f" `{resource_name}` received data type `{_typ.__name__}`",
         )
 
 
@@ -159,9 +160,9 @@ class InvalidResourceDataTypeBasic(InvalidResourceDataType):
             resource_name,
             item,
             _typ,
-            f"Resources cannot be strings or dictionaries but type `{_typ.__name__}` was provided. Please"
-            " pass your data in a list or as a function yielding items. If you want to process"
-            " just one data item, enclose it in a list.",
+            f"Resources cannot be strings or dictionaries but type `{_typ.__name__}` was provided."
+            " Please pass your data in a list or as a function yielding items. If you want to"
+            " process just one data item, enclose it in a list.",
         )
 
 
@@ -245,8 +246,8 @@ class InvalidParentResourceDataType(InvalidResourceDataType):
             resource_name,
             item,
             _typ,
-            f"A parent resource of `{resource_name}` is of type `{_typ.__name__}`. Did you forget to"
-            " use `@dlt.resource` decorator or `resource` function?",
+            f"A parent resource of `{resource_name}` is of type `{_typ.__name__}`. Did you forget"
+            " to use `@dlt.resource` decorator or `resource` function?",
         )
 
 
@@ -262,7 +263,9 @@ class InvalidParentResourceIsAFunction(DltResourceException):
 
 class DeletingResourcesNotSupported(DltResourceException):
     def __init__(self, source_name: str, resource_name: str) -> None:
-        super().__init__(resource_name, f"Resource cannot be removed the the source `{source_name}`")
+        super().__init__(
+            resource_name, f"Resource cannot be removed the the source `{source_name}`"
+        )
 
 
 class ParametrizedResourceUnbound(DltResourceException):
@@ -272,8 +275,8 @@ class ParametrizedResourceUnbound(DltResourceException):
         self.func_name = func_name
         self.sig = sig
         msg = (
-            f"The `{kind}` `{resource_name}` is parametrized and expects following arguments: {sig}."
-            f" Did you forget to bind the {func_name} function? For example from"
+            f"The `{kind}` `{resource_name}` is parametrized and expects following arguments:"
+            f" {sig}. Did you forget to bind the {func_name} function? For example from"
             f" `source.{resource_name}.bind(...)`"
         )
         if error:
@@ -296,8 +299,10 @@ class DataItemRequiredForDynamicTableHints(DltResourceException):
     def __init__(self, resource_name: str) -> None:
         super().__init__(
             resource_name,
-            f"An instance of resource's data required to generate table schema in resource `{resource_name}`. "
-            "One of table hints for that resource (typically table name) is a function and hint is computed separately for each instance of data extracted from that resource."
+            "An instance of resource's data required to generate table schema in resource"
+            f" `{resource_name}`. One of table hints for that resource (typically table name) is a"
+            " function and hint is computed separately for each instance of data extracted from"
+            " that resource.",
         )
 
 
@@ -314,8 +319,8 @@ class SourceExhausted(DltSourceException):
     def __init__(self, source_name: str) -> None:
         self.source_name = source_name
         super().__init__(
-            f"Source `{source_name}` is exhausted or has active iterator. You can iterate or pass the"
-            " source to dlt pipeline only once."
+            f"Source `{source_name}` is exhausted or has active iterator. You can iterate or pass"
+            " the source to dlt pipeline only once."
         )
 
 
@@ -351,8 +356,8 @@ class SourceIsAClassTypeError(DltSourceException):
         self.typ = _typ
         super().__init__(
             f"First parameter to the source `{source_name}` is a class `{_typ.__name__}`. Do not"
-            " decorate classes with `@dlt.source`. Instead implement `.__call__()` in your class and pass"
-            " instance of such class to `dlt.source()` directly"
+            " decorate classes with `@dlt.source`. Instead implement `.__call__()` in your class"
+            " and pass instance of such class to `dlt.source()` directly"
         )
 
 
@@ -414,9 +419,9 @@ class IncrementalUnboundError(DltResourceException):
     def __init__(self, cursor_path: str) -> None:
         super().__init__(
             "",
-            f"The incremental definition with `{cursor_path=:}` is used without being bound"
-            " to the resource. This most often happens when you create dynamic resource from a"
-            " generator function that uses incremental. See"
+            f"The incremental definition with `{cursor_path=:}` is used without being bound to the"
+            " resource. This most often happens when you create dynamic resource from a generator"
+            " function that uses incremental. See"
             " https://dlthub.com/docs/general-usage/incremental-loading#incremental-loading-with-last-value"
             " for an example.",
         )

@@ -43,8 +43,8 @@ class UnsupportedProcessStartMethodException(DltException):
     def __init__(self, method: str) -> None:
         self.method = method
         super().__init__(
-            f"Process pool supports only fork start method, `{method}` not supported. Switch the pool"
-            " type to threading"
+            f"Process pool supports only fork start method, `{method}` not supported. Switch the"
+            " pool type to threading"
         )
 
 
@@ -216,8 +216,8 @@ class PipelineStateNotAvailable(PipelineException):
                 " active right now."
             )
         msg += (
-            " Call `dlt.pipeline(...)` before you call the `@dlt.source` or  `@dlt.resource` decorated"
-            " function."
+            " Call `dlt.pipeline(...)` before you call the `@dlt.source` or  `@dlt.resource`"
+            " decorated function."
         )
         self.source_state_key = source_state_key
         super().__init__(None, msg)

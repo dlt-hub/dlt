@@ -38,7 +38,8 @@ class WrongStorageVersionException(StorageException):
         self.initial_version = initial_version
         self.target_version = target_version
         super().__init__(
-            f"Expected storage `{storage_path}` with `{target_version=:}` but found `{initial_version=:}`"
+            f"Expected storage `{storage_path}` with `{target_version=:}` but found"
+            f" `{initial_version=:}`"
         )
 
 
@@ -68,8 +69,8 @@ class JobFileFormatUnsupported(LoadStorageException, TerminalValueError):
         self.expected_file_formats = supported_formats
         self.wrong_job = wrong_job
         super().__init__(
-            f"Job `{wrong_job}` for load id `{load_id}` requires job file format that is not one of:"
-            f" {supported_formats}"
+            f"Job `{wrong_job}` for load id `{load_id}` requires job file format that is not one"
+            f" of: {supported_formats}"
         )
 
 
@@ -83,8 +84,7 @@ class LoadPackageAlreadyCompleted(LoadStorageException):
     def __init__(self, load_id: str) -> None:
         self.load_id = load_id
         super().__init__(
-            f"Package with `{load_id=:}` is already completed, but another complete was"
-            " requested"
+            f"Package with `{load_id=:}` is already completed, but another complete was requested"
         )
 
 
@@ -103,9 +103,9 @@ class SchemaStorageException(StorageException):
 class InStorageSchemaModified(SchemaStorageException):
     def __init__(self, schema_name: str, storage_path: str) -> None:
         msg = (
-            f"Schema `{schema_name}` in `{storage_path}` was externally modified. This is not allowed"
-            " as that would prevent correct version tracking. Use import/export capabilities of"
-            " dlt to provide external changes."
+            f"Schema `{schema_name}` in `{storage_path}` was externally modified. This is not"
+            " allowed as that would prevent correct version tracking. Use import/export"
+            " capabilities of dlt to provide external changes."
         )
         super().__init__(msg)
 
@@ -127,8 +127,8 @@ class SchemaNotFoundError(SchemaStorageException, FileNotFoundError, KeyError):
 class UnexpectedSchemaName(SchemaStorageException, ValueError):
     def __init__(self, schema_name: str, storage_path: str, stored_name: str) -> None:
         super().__init__(
-            f"A schema file name `{schema_name}` in `{storage_path}` does not correspond to the name"
-            f" of schema in the file `{stored_name}`"
+            f"A schema file name `{schema_name}` in `{storage_path}` does not correspond to the"
+            f" name of schema in the file `{stored_name}`"
         )
 
 

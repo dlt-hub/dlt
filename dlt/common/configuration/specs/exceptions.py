@@ -35,9 +35,9 @@ class InvalidConnectionString(NativeValueError):
 class InvalidGoogleNativeCredentialsType(NativeValueError):
     def __init__(self, spec: Type[Any], native_value: Any):
         msg = (
-            f"Credentials `{spec.__name__}` accept a string with serialized credentials json file or"
-            " an instance of `Credentials` object from Google.* namespace. The value passed is of"
-            f" type `{type(native_value)}`"
+            f"Credentials `{spec.__name__}` accept a string with serialized credentials json file"
+            " or an instance of `Credentials` object from Google.* namespace. The value passed is"
+            f" of type `{type(native_value)}`"
         )
         super().__init__(spec, native_value, msg)
 
