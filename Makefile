@@ -44,7 +44,7 @@ has-poetry:
 	poetry --version
 
 dev: has-poetry
-	uv sync --all-extras --group docs --group providers --group pipeline --group sources --group sentry-sdk --group ibis
+	uv sync --all-extras --group docs --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group marimo
 
 
 dev-airflow: has-poetry
@@ -53,6 +53,9 @@ dev-airflow: has-poetry
 lint:
 	uv run python ./tools/check-lockfile.py
 	uv run mypy --config-file mypy.ini dlt tests
+	# NOTE: we need to make sure docstring_parser_fork is the only version of docstring_parser installed
+	uv pip uninstall docstring_parser
+	uv pip install docstring_parser_fork --reinstall
 	# NOTE: we exclude all D lint errors (docstrings)
 	uv run flake8 --extend-ignore=D --max-line-length=200 dlt
 	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
