@@ -1,8 +1,10 @@
 """script to clean datasets from destinations used by our ci"""
 
 from typing import Any
-import dlt
 import argparse
+import os
+
+import dlt
 from dlt.cli import echo as fmt
 from dlt.destinations.sql_client import SqlClientBase
 
@@ -59,6 +61,7 @@ def drop_dataset_command(destination: str, dataset_name: str) -> str:
 
 
 if __name__ == "__main__":
+    os.environ["BUCKET_URL"] = "SOME_BUCKET"
     # parse input args
     parser = argparse.ArgumentParser(description="Clean datasets from destinations used by our ci")
     parser.add_argument(
