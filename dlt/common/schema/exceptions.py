@@ -61,7 +61,7 @@ class CannotCoerceColumnException(SchemaException):
         super().__init__(
             schema_name,
             f"Cannot coerce type `{from_type}` to `{to_type}` for value `{coerced_value}` "
-            f"in table `{table_name}` column `{column_name}`"
+            f"in table `{table_name}` column `{column_name}`",
         )
 
 
@@ -74,7 +74,7 @@ class TablePropertiesConflictException(SchemaException):
         super().__init__(
             schema_name,
             f"Cannot merge partial tables into table `{table_name}` due to property `{prop_name}`"
-            f' with different values: `{val1} != {val2}`',
+            f" with different values: `{val1} != {val2}`",
         )
 
 
@@ -95,7 +95,8 @@ class CannotCoerceNullException(SchemaException):
     def __init__(self, schema_name: str, table_name: str, column_name: str) -> None:
         super().__init__(
             schema_name,
-            f"Cannot coerce NULL in table `{table_name}` column `{column_name}` which is not nullable",
+            f"Cannot coerce NULL in table `{table_name}` column `{column_name}` which is not"
+            " nullable",
         )
 
 
@@ -141,8 +142,8 @@ class SchemaEngineNoUpgradePathException(SchemaException):
         self.to_engine = to_engine
         super().__init__(
             schema_name,
-            f"No engine upgrade path in schema `{schema_name}` from engine `{init_engine}` to `{to_engine}`,"
-            f" stopped at `{from_engine}`. You possibly tried to run an older dlt"
+            f"No engine upgrade path in schema `{schema_name}` from engine `{init_engine}` to"
+            f" `{to_engine}`, stopped at `{from_engine}`. You possibly tried to run an older dlt"
             " version against a destination you have previously loaded data to with a newer dlt"
             " version.",
         )
@@ -223,8 +224,8 @@ class TableIdentifiersFrozen(SchemaException):
         )
         msg += (
             " You may disable this behavior by setting"
-            " `schema.allow_identifier_change_on_table_with_data` to True or removing `x-normalizer`"
-            " hints from particular tables. "
+            " `schema.allow_identifier_change_on_table_with_data` to True or removing"
+            " `x-normalizer` hints from particular tables. "
         )
         msg += f" Details: {details}"
         super().__init__(schema_name, msg)

@@ -121,10 +121,10 @@ class UnmatchedConfigHintResolversException(ConfigurationException):
         msg = (
             f"The config spec `{spec_name}` has dynamic type resolvers for fields: `{field_names}`"
             " but these fields are not defined in the spec.\nWhen using @resolve_type() decorator,"
+            f" Add the fields with 'Any' or another common type hint, example:\n\n{example}The"
+            f" config spec `{spec_name}` has dynamic type resolvers for fields: `{field_names}` but"
+            " these fields are not defined in the spec.\nWhen using `@resolve_type()` decorator,"
             f" Add the fields with 'Any' or another common type hint, example:\n\n{example}"
-            f"The config spec `{spec_name}` has dynamic type resolvers for fields: `{field_names}` but"
-            " these fields are not defined in the spec.\nWhen using `@resolve_type()` decorator, Add"
-            f" the fields with 'Any' or another common type hint, example:\n\n{example}"
         )
         super().__init__(msg)
 
@@ -134,7 +134,8 @@ class FinalConfigFieldException(ConfigurationException):
 
     def __init__(self, spec_name: str, field: str) -> None:
         super().__init__(
-            f"Field `{field}` in spec `{spec_name}` is final but is being changed by a config provider"
+            f"Field `{field}` in spec `{spec_name}` is final but is being changed by a config"
+            " provider"
         )
 
 
@@ -194,8 +195,8 @@ class ValueNotSecretException(ConfigurationException):
         self.provider_name = provider_name
         self.key = key
         super().__init__(
-            f"Provider `{provider_name}` cannot hold secret values but key `{key}` with secret value is"
-            " present"
+            f"Provider `{provider_name}` cannot hold secret values but key `{key}` with secret"
+            " value is present"
         )
 
 
@@ -213,9 +214,9 @@ class InvalidNativeValue(ConfigurationException):
         self.inner_exception = inner_exception
         inner_msg = f" {self.inner_exception}" if inner_exception is not ValueError else ""
         super().__init__(
-            f"`{spec.__name__}` cannot parse the configuration value provided. The value is of type "
-            f"`{native_value_type.__name__}` and comes from the sections `{embedded_sections}` "
-            f"Value may be a secret and is not shown. Details: {inner_msg}"
+            f"`{spec.__name__}` cannot parse the configuration value provided. The value is of type"
+            f" `{native_value_type.__name__}` and comes from the sections `{embedded_sections}`"
+            f" Value may be a secret and is not shown. Details: {inner_msg}"
         )
 
 

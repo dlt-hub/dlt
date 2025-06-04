@@ -97,9 +97,9 @@ class DestinationIncompatibleLoaderFileFormatException(DestinationTerminalExcept
                 )
         else:
             msg = (
-                f"Unsupported `{file_format=:}` for `{destination=:}`"
-                f"Supported formats: {supported_formats_str}. If {destination} supports loading data via"
-                " staging bucket, more formats may be available."
+                f"Unsupported `{file_format=:}` for `{destination=:}`Supported formats:"
+                f" {supported_formats_str}. If {destination} supports loading data via staging"
+                " bucket, more formats may be available."
             )
         super().__init__(msg)
 
@@ -168,12 +168,12 @@ class DestinationSchemaTampered(DestinationTerminalException):
         self.version_hash = version_hash
         self.stored_version_hash = stored_version_hash
         super().__init__(
-            f"Schema `{schema_name}` content was changed - by a loader or by destination code - from"
-            " the moment it was retrieved by load package. Such schema cannot reliably be updated"
-            " nor saved. If you are using destination client directly, without storing"
+            f"Schema `{schema_name}` content was changed - by a loader or by destination code -"
+            " from the moment it was retrieved by load package. Such schema cannot reliably be"
+            " updated nor saved. If you are using destination client directly, without storing"
             " schema in load package, you should first save it into schema storage. You can also"
-            " use schema._bump_version() in test code to remove modified flag."
-            f"Version hash: `{version_hash=:}` != {stored_version_hash=:}"
+            " use schema._bump_version() in test code to remove modified flag.Version hash:"
+            f" `{version_hash=:}` != {stored_version_hash=:}"
         )
 
 
@@ -189,7 +189,8 @@ class DestinationInvalidFileFormat(DestinationTerminalException):
         self.file_format = file_format
         self.message = message
         super().__init__(
-            f"Destination `{destination_type}` cannot process file `{file_name=:}` with {file_format=:}: {message}"
+            f"Destination `{destination_type}` cannot process file `{file_name=:}` with"
+            f" {file_format=:}: {message}"
         )
 
 
@@ -200,8 +201,8 @@ class OpenTableFormatNotSupported(DestinationTerminalException):
         self.detected_table_format = detected_table_format
         if detected_table_format:
             msg = (
-                f"Table `{table_name}` is stored as format `{detected_table_format}` while `{table_format=:}` was"
-                " requested"
+                f"Table `{table_name}` is stored as format `{detected_table_format}` while"
+                f" `{table_format=:}` was requested"
             )
         else:
             msg = f"Table `{table_name}` is not stored in any known open table format."
@@ -212,9 +213,7 @@ class OpenTableCatalogNotSupported(DestinationTerminalException):
     def __init__(self, table_format: str, destination_type: str):
         self.table_format = table_format
         self.destination_type = destination_type
-        super().__init__(
-            f"Catalog not supported for `{table_format=:}` in `{destination_type=:}`"
-        )
+        super().__init__(f"Catalog not supported for `{table_format=:}` in `{destination_type=:}`")
 
 
 class SqlClientNotAvailable(DestinationTerminalException):

@@ -37,7 +37,8 @@ class DestinationCapabilitiesRequired(DataWriterException, ValueError):
     def __init__(self, file_format: TLoaderFileFormat):
         self.file_format = file_format
         super().__init__(
-            f"Writer for `{file_format=:}` requires destination capabilities which were not provided."
+            f"Writer for `{file_format=:}` requires destination capabilities which were not"
+            " provided."
         )
 
 
@@ -59,7 +60,8 @@ class FileSpecNotFound(KeyError, DataWriterNotFound):
         self.file_format = file_format
         self.data_item_format = data_item_format
         super().__init__(
-            f"Can't find a file writer for spec with `{file_format=:}` and `{data_item_format=:}` where the full spec is `{spec}`"
+            f"Can't find a file writer for spec with `{file_format=:}` and `{data_item_format=:}`"
+            f" where the full spec is `{spec}`"
         )
 
 
@@ -84,5 +86,6 @@ class InvalidDataItem(DataWriterException):
         self.file_format = file_format
         self.data_item_format = data_item_format
         super().__init__(
-            f"A data item of type {data_item_format=:} cannot be written as `{file_format}: {details}`"
+            f"A data item of type {data_item_format=:} cannot be written as `{file_format}:"
+            f" {details}`"
         )

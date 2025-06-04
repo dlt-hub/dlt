@@ -71,9 +71,7 @@ class LoadJobNotExistsException(DestinationTerminalException):
 
 class LoadJobTerminalException(DestinationTerminalException):
     def __init__(self, file_path: str, message: str) -> None:
-        super().__init__(
-            f"Job with `{file_path=:}` encountered unrecoverable problem: {message}"
-        )
+        super().__init__(f"Job with `{file_path=:}` encountered unrecoverable problem: {message}")
 
 
 class LoadJobInvalidStateTransitionException(DestinationTerminalException):
@@ -86,8 +84,8 @@ class LoadJobInvalidStateTransitionException(DestinationTerminalException):
 class LoadJobFileTooBig(DestinationTerminalException):
     def __init__(self, file_name: str, max_size: int) -> None:
         super().__init__(
-            f"File `{file_name}` exceeds `{max_size=:}` and cannot be loaded. Split the file and try"
-            " again."
+            f"File `{file_name}` exceeds `{max_size=:}` and cannot be loaded. Split the file and"
+            " try again."
         )
 
 
@@ -101,7 +99,7 @@ class MergeDispositionException(DestinationTerminalException):
         self.reason = reason
         msg = (
             f"Merge sql job for `{dataset_name=:}` with `{staging_dataset_name=:}`"
-            f"COULD NOT BE GENERATED. Merge will not be performed. "
+            "COULD NOT BE GENERATED. Merge will not be performed. "
         )
         msg += (
             f"Data for the following tables `{tables}` is loaded to staging dataset. You may need"
