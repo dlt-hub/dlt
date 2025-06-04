@@ -62,10 +62,10 @@ def getting_started_snippet(pipeline: dlt.Pipeline) -> None:
 def accessing_tables_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_START accessing_tables
     # Using attribute access
-    items_relation = dataset.items
+    customers_relation = dataset.customers
 
     # Using item access
-    items_relation = dataset["items"]
+    customers_relation = dataset["customers"]
     # @@@DLT_SNIPPET_END accessing_tables
 
 

@@ -29,7 +29,7 @@ def test_simple_lineage(
     # get pipelines and populate fruit pipeline
     fruit_p, dest_p = setup_transformation_pipelines(destination_config)
     s = fruitshop_source()
-    s.customers.apply_hints(columns={"name": {"x-pii": True}})  # type: ignore
+    s.customers.apply_hints(columns={"name": {"x-annotation-pii": True}})  # type: ignore
     fruit_p.run(s)
 
     @dlt.transformation(write_disposition="append")
@@ -44,7 +44,9 @@ def test_simple_lineage(
     assert load_table_counts(dest_p, "enriched_purchases") == {"enriched_purchases": 3}
 
     # check that ppi column hint was preserved for name col
-    assert dest_p.dataset().schema.tables["enriched_purchases"]["columns"]["name"]["x-pii"] is True  # type: ignore
+    assert dest_p.dataset().schema.tables["enriched_purchases"]["columns"]["name"]["x-annotation-pii"] is True  # type: ignore
     assert (
-        dest_p.dataset().schema.tables["enriched_purchases"]["columns"]["id"].get("x-pii", False)
+        dest_p.dataset()
+        .schema.tables["enriched_purchases"]["columns"]["id"]
+        .get("x-annotation-pii", False)
     ) is False

@@ -55,7 +55,6 @@ class EpisodeSchema(LanceModel):
 @dataclass(frozen=True)
 class Shows:
     monday_morning_data_chat: str = "3Km3lBNzJpc1nOTJUtbtMh"
-    latest_space_podcast: str = "2p7zZVwVF6Yk0Zsb4QmT7t"
     superdatascience_podcast: str = "1n8P7ZSgfVLVJ3GegxPat1"
     lex_fridman: str = "2MAi0BvDc6GTFvKFPXnkCL"
 

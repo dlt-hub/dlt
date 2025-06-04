@@ -129,13 +129,7 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
     # they do not mind adding NOT NULL columns to tables with existing data (id NOT NULL is supported at all)
     # doing this will result in somewhat useless behavior
     destination_allows_adding_root_key = (
-        destination_config.destination_type
-        in [
-            "dremio",
-            "clickhouse",
-            "athena",
-        ]
-        or destination_config.destination_name == "sqlalchemy_mysql"
+        not pipeline.destination_client().capabilities.enforces_nulls_on_alter
     )
 
     if destination_allows_adding_root_key and not with_root_key:

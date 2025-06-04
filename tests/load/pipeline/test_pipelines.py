@@ -516,17 +516,14 @@ def test_source_max_nesting(destination_config: DestinationTestConfiguration) ->
     def nested_data():
         return dlt.resource([{"idx": 1, "cn": nested_part}], name="nested_cn")
 
-    info = dlt.run(
+    dlt.run(
         nested_data(),
         destination=destination_config.destination_factory(),
         staging=destination_config.staging,
         dataset_name="ds_" + uniq_id(),
         **destination_config.run_kwargs,
     )
-    print(info)
-    with dlt.pipeline().sql_client() as client:
-        nested_cn_table = client.make_qualified_table_name("nested_cn")
-    rows = select_data(dlt.pipeline(), f"SELECT cn FROM {nested_cn_table}")
+    rows = select_data(dlt.pipeline(), "SELECT cn FROM nested_cn")
     assert len(rows) == 1
     cn_val = rows[0][0]
     if isinstance(cn_val, str):

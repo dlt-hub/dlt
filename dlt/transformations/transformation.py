@@ -10,6 +10,7 @@ from dlt.common.reflection.inspect import isgeneratorfunction
 from dlt.common.typing import TDataItems, TTableHintTemplate
 from dlt.common import logger
 
+from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
 from dlt.extract.hints import SqlModel
 from dlt.extract.incremental import Incremental
 
@@ -140,7 +141,7 @@ def make_transformation_resource(
             # use first dataset to convert query into expression
             select_query = transformation_result
             transformation_result = datasets[0](select_query)
-        if not isinstance(transformation_result, SupportsReadableRelation):
+        if not isinstance(transformation_result, BaseReadableDBAPIRelation):
             raise TransformationInvalidReturnTypeException(
                 resource_name,
                 "Sql Transformation %s returned an invalid type: %s. Please either return a valid"
@@ -148,17 +149,22 @@ def make_transformation_resource(
                 " data (data frames / arrow table), please yield those, not return."
                 % (name, type(transformation_result)),
             )
-
-        select_query = transformation_result.query(qualified=True)
         # compute lineage
         computed_columns: TTableSchemaColumns = {}
         all_columns: TTableSchemaColumns = columns or {}
         # strict lineage!
-        computed_columns = transformation_result.compute_columns_schema(
+        # TODO: make it a public method
+        # TODO: why schema inference and anonymous columns are wrong? we do not want columns without
+        #  data types and only this should be disabled
+        computed_columns, _ = transformation_result._compute_columns_schema(
             infer_sqlglot_schema=False,
             allow_anonymous_columns=False,
             allow_partial=False,
         )
+        select_dialect = datasets[0].sql_client.capabilities.sqlglot_dialect
+        select_query = transformation_result.normalized_query.sql(dialect=select_dialect)
+
+        # TODO: why? don't we prevent empty column schemas above?
         all_columns = {**computed_columns, **(columns or {})}
 
         # for sql transformations all column types must be known
@@ -175,9 +181,8 @@ def make_transformation_resource(
                     + "Please run with strict lineage or provide data_type hints "
                     + f"for following columns: {unknown_column_types}",
                 )
-
             yield dlt.mark.with_hints(
-                SqlModel(select_query, dialect=datasets[0].sql_client.capabilities.sqlglot_dialect),
+                SqlModel(select_query, dialect=select_dialect),
                 hints=make_hints(columns=all_columns),
             )
         else:

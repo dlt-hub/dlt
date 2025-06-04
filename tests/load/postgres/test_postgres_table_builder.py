@@ -181,7 +181,7 @@ def test_create_table_case_sensitive(cs_client: PostgresClient) -> None:
     )[0]
     sqlfluff.parse(sql, dialect="postgres")
     # everything capitalized
-    assert cs_client.sql_client.fully_qualified_dataset_name(escape=False)[0] == "T"  # Test
+    assert cs_client.sql_client.fully_qualified_dataset_name(quote=False)[0] == "T"  # Test
     # every line starts with "Col"
     for line in sql.split("\n")[1:]:
         assert line.startswith('"Col')
@@ -339,7 +339,7 @@ WHERE f_table_name in
        'geodata_default_csv_wkt', 'geodata_3857_csv_wkt', 'geodata_2163_csv_wkt', 'geodata_default_csv_wkb_hex',
        'geodata_3857_csv_wkb_hex', 'geodata_2163_csv_wkb_hex'
           )
-  AND f_table_schema = '{c.fully_qualified_dataset_name(escape=False)}'""") as cur:
+  AND f_table_schema = '{c.fully_qualified_dataset_name(quote=False)}'""") as cur:
             records = cur.fetchall()
             assert records
             assert {record[0] for record in records} == {"geom"}

@@ -68,6 +68,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         # for delta and iceberg this is copy from staging, use replace strategy selector
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
         caps.replace_strategies_selector = filesystem_replace_strategies_selector
+        caps.enforces_nulls_on_alter = False
         caps.sqlglot_dialect = "duckdb"
         caps.supports_nested_types = True
 

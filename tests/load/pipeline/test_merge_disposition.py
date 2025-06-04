@@ -1038,8 +1038,7 @@ def test_deduplicate_single_load(destination_config: DestinationTestConfiguratio
     counts = load_table_counts(p, "duplicates", "duplicates__child")
     assert counts["duplicates"] == 1 if destination_config.supports_merge else 2
     assert counts["duplicates__child"] == 3 if destination_config.supports_merge else 6
-    qual_name = p.sql_client().make_qualified_table_name("duplicates")
-    select_data(p, f"SELECT * FROM {qual_name}")[0]
+    select_data(p, "SELECT * FROM duplicates")[0]
 
     @dlt.resource(write_disposition="merge", primary_key=("id", "subkey"))
     def duplicates_no_child():
@@ -1198,10 +1197,9 @@ def test_hard_delete_hint(
 
     # compare observed records with expected records
     if key_type != "no_key":
-        qual_name = p.sql_client().make_qualified_table_name(table_name)
         observed = [
             {"id": row[0], "val": row[1], "deleted": row[2]}
-            for row in select_data(p, f"SELECT id, val, deleted FROM {qual_name}")
+            for row in select_data(p, f"SELECT id, val, deleted FROM {table_name}")
         ]
         expected = [{"id": 2, "val": "baz", "deleted": None}]
         assert sorted(observed, key=lambda d: d["id"]) == expected
@@ -1345,10 +1343,9 @@ def test_hard_delete_hint_config(
     assert load_table_counts(p, table_name)[table_name] == 1
 
     # compare observed records with expected records
-    qual_name = p.sql_client().make_qualified_table_name(table_name)
     observed = [
         {"id": row[0], "val": row[1], "deleted_timestamp": row[2]}
-        for row in select_data(p, f"SELECT id, val, deleted_timestamp FROM {qual_name}")
+        for row in select_data(p, f"SELECT id, val, deleted_timestamp FROM {table_name}")
     ]
     expected = [{"id": 2, "val": "bar", "deleted_timestamp": None}]
     assert sorted(observed, key=lambda d: d["id"]) == expected
@@ -1401,10 +1398,9 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
 
     # compare observed records with expected records
     # record with highest value in sort column is inserted (because "desc")
-    qual_name = p.sql_client().make_qualified_table_name(table_name)
     observed = [
         {"id": row[0], "val": row[1], "sequence": row[2]}
-        for row in select_data(p, f"SELECT id, val, sequence FROM {qual_name}")
+        for row in select_data(p, f"SELECT id, val, sequence FROM {table_name}")
     ]
     expected = [{"id": 1, "val": "baz", "sequence": 3}]
     assert sorted(observed, key=lambda d: d["id"]) == expected
@@ -1418,10 +1414,9 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
 
     # compare observed records with expected records
     # record with highest lowest in sort column is inserted (because "asc")
-    qual_name = p.sql_client().make_qualified_table_name(table_name)
     observed = [
         {"id": row[0], "val": row[1], "sequence": row[2]}
-        for row in select_data(p, f"SELECT id, val, sequence FROM {qual_name}")
+        for row in select_data(p, f"SELECT id, val, sequence FROM {table_name}")
     ]
     expected = [{"id": 1, "val": "foo", "sequence": 1}]
     assert sorted(observed, key=lambda d: d["id"]) == expected
@@ -1445,9 +1440,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     assert load_table_counts(p, table_name + "__val")[table_name + "__val"] == 3
 
     # compare observed records with expected records, now for child table
-    qual_name = p.sql_client().make_qualified_table_name(table_name + "__val")
-    value_quoted = p.sql_client().escape_column_name("value")
-    observed = [row[0] for row in select_data(p, f"SELECT {value_quoted} FROM {qual_name}")]
+    observed = [row[0] for row in select_data(p, f"SELECT value FROM {table_name}__val")]
     assert sorted(observed) == [7, 8, 9]  # type: ignore[type-var]
 
     table_name = "test_dedup_sort_hint_with_hard_delete"
@@ -1482,10 +1475,9 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     assert load_table_counts(p, table_name)[table_name] == 1
 
     # compare observed records with expected records
-    qual_name = p.sql_client().make_qualified_table_name(table_name)
     observed = [
         {"id": row[0], "val": row[1], "sequence": row[2]}
-        for row in select_data(p, f"SELECT id, val, sequence FROM {qual_name}")
+        for row in select_data(p, f"SELECT id, val, sequence FROM {table_name}")
     ]
     expected = [{"id": 1, "val": "baz", "sequence": 3}]
     assert sorted(observed, key=lambda d: d["id"]) == expected

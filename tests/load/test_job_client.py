@@ -1084,11 +1084,7 @@ def test_many_schemas_single_dataset(
         )
         client.schema._bump_version()
         # open tables on filesystem update schema on write and this write will fail
-        if destination_config.destination_type in ("clickhouse", "filesystem") or (
-            # mysql allows adding not-null columns (they have an implicit default)
-            destination_config.destination_type == "sqlalchemy"
-            and client.sql_client.dialect_name == "mysql"
-        ):
+        if not client.capabilities.enforces_nulls_on_alter:
             client.update_stored_schema()
         else:
             with pytest.raises(DestinationException) as py_ex:

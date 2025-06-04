@@ -44,7 +44,7 @@ has-poetry:
 	poetry --version
 
 dev: has-poetry
-	poetry install --all-extras --with docs,providers,pipeline,sources,sentry-sdk,ibis
+	poetry install --all-extras --with docs,providers,pipeline,sources,sentry-sdk,ibis,marimo
 
 
 dev-airflow: has-poetry
@@ -143,6 +143,7 @@ start-test-containers:
 	docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
 	docker compose -f "tests/load/filesystem_sftp/docker-compose.yml" up -d
 	docker compose -f "tests/load/sqlalchemy/docker-compose.yml" up -d
+	docker compose -f "tests/load/clickhouse/clickhouse-compose.yml" up -d
 
 update-cli-docs:
 	poetry run dlt --debug render-docs docs/website/docs/reference/command-line-interface.md
