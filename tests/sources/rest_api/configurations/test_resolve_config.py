@@ -209,7 +209,7 @@ def test_process_parent_data_item() -> None:
             resolved_params=resolved_params,
             include_from_parent=None,
         )
-    assert "Resource expects a field 'obj_id'" in str(val_ex.value)
+    assert "Resource expects a field `obj_id`" in str(val_ex.value)
 
     # Included path not found
     with pytest.raises(ValueError) as val_ex:
@@ -221,8 +221,8 @@ def test_process_parent_data_item() -> None:
             include_from_parent=["obj_id", "node"],
         )
     assert (
-        "Resource expects a field 'obj_id' to be present in the incoming data from resource"
-        " issues in order to bind it to"
+        "Resource expects a field `obj_id` to be present in the incoming data from resource"
+        " `issues` in order to bind it to"
         in str(val_ex.value)
     )
 
@@ -253,7 +253,7 @@ def test_process_parent_data_item() -> None:
             resolved_params=multi_resolve_params,
             include_from_parent=None,
         )
-    assert "Resource expects a field 'issue'" in str(val_ex.value)
+    assert "Resource expects a field `issue`" in str(val_ex.value)
 
 
 def test_two_resources_can_depend_on_one_parent_resource() -> None:
@@ -429,7 +429,7 @@ def test_one_resource_cannot_bind_two_parents(
         rest_api_resources(config)
 
     error_msg = str(exc_info.value)
-    assert "Multiple parent resources for user_details:" in error_msg
+    assert "Multiple parent resources for `user_details`" in error_msg
     assert resolved_param1 in error_msg, f"{resolved_param1} not found in {error_msg}"
     assert resolved_param2 in error_msg, f"{resolved_param2} not found in {error_msg}"
 

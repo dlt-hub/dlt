@@ -672,9 +672,9 @@ def test_raises_error_for_unused_resolve_params(mock_api_server):
         )
 
     assert (
-        "Resource post_details defines resolve params ['post_id'] that are not bound in path posts."
-        " To reference parent resource in query params use resources.<parent_resource>.<field>"
-        " syntax."
+        "Resource `post_details` defines resolve params `['post_id']` that are not bound in path"
+        " `posts`. To reference parent resource in query params use syntax"
+        " 'resources.<parent_resource>.<field>'"
         in str(exc_info.value)
     )
 
@@ -724,8 +724,8 @@ def test_raises_error_for_incorrect_interpolation(mock_api_server, config, locat
         rest_api_source(config)
 
     assert (
-        f"Expression 'unknown.posts.id' defined in {location} is not valid. Valid expressions must"
-        " start with one of: resources"
+        f"Expression `unknown.posts.id` defined in `{location}` is not valid. Valid expressions"
+        " must start with one of: ['resources']"
         in str(exc_info.value)
     )
 

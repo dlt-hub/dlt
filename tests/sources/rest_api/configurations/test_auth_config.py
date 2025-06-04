@@ -161,8 +161,8 @@ def test_error_message_invalid_auth_type() -> None:
         create_auth("non_existing_method")  # type: ignore
     assert (
         str(e.value)
-        == "Invalid authentication: non_existing_method."
-        " Available options: bearer, api_key, http_basic, oauth2_client_credentials."
+        == "Received invalid value `auth_type=non_existing_method`. "
+        "Valid values are: ['bearer', 'api_key', 'http_basic', 'oauth2_client_credentials']"
     )
 
 

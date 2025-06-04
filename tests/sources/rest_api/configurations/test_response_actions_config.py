@@ -1,10 +1,10 @@
 import pytest
 from typing import List
 
+from dlt.common.exceptions import TypeErrorWithKnownTypes
 from dlt.sources.rest_api import (
     rest_api_source,
 )
-
 from dlt.sources.rest_api.config_setup import (
     create_response_hooks,
     _handle_response_action,
@@ -43,13 +43,13 @@ def test_response_action_raises_type_error(mocker):
     response = mocker.Mock()
     response.status_code = 200
 
-    with pytest.raises(ValueError) as e_1:
+    with pytest.raises(TypeErrorWithKnownTypes) as e_1:
         _handle_response_action(response, {"status_code": 200, "action": C()})  # type: ignore[typeddict-item]
-    assert e_1.match("does not conform to expected type")
+    assert e_1.match("Received invalid value `action['action']=*` of type `C`. Valid types are:")
 
-    with pytest.raises(ValueError) as e_2:
+    with pytest.raises(TypeErrorWithKnownTypes) as e_2:
         _handle_response_action(response, {"status_code": 200, "action": 123})  # type: ignore[typeddict-item]
-    assert e_2.match("does not conform to expected type")
+    assert e_2.match("Received invalid value `action['action']=*` of type `C`. Valid types are:")
 
     assert ("ignore", None) == _handle_response_action(
         response, {"status_code": 200, "action": "ignore"}

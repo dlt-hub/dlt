@@ -285,8 +285,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 msg = (
                     f"Incremental `initial_value={self.initial_value}` is greater than"
                     f" `end_value={self.end_value}` as determined by the custom `last_value_func`."
-                    f" The result of '{self.last_value_func.__name__}(`[end_value,"
-                    " initial_value]`)' must equal `end_value`"
+                    f" The result of `{self.last_value_func.__name__}([end_value,"
+                    " initial_value])` must equal `end_value`"
                 )
             raise ConfigurationValueError(msg)
 

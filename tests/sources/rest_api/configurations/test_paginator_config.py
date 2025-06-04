@@ -150,6 +150,5 @@ def test_error_message_invalid_paginator() -> None:
         create_paginator("non_existing_method")  # type: ignore
     assert (
         str(e.value)
-        == "Invalid paginator: non_existing_method. Available options: json_link, json_response,"
-        " header_link, auto, single_page, cursor, offset, page_number."
+        == "Received invalid value `paginator_name=non_existing_method`. Valid values are:"
     )

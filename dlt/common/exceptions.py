@@ -141,7 +141,7 @@ class DictValidationException(DltException):
         super().__init__(msg)
 
     def __str__(self) -> str:
-        return f"In path {self.path}: " + self.msg
+        return f"Path `{self.path}`: " + self.msg
 
 
 class ArgumentsOverloadException(DltException):

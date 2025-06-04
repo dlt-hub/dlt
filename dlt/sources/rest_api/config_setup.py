@@ -234,7 +234,7 @@ def setup_incremental_object(
             if param_config.get("end_value") or param_config.get("end_param"):
                 raise ValueError(
                     "Only `start_param` and `initial_value` are allowed in the configuration of"
-                    f" param: {param_name} "
+                    f" param: `{param_name}`. "
                     "To set `end_value` too use the incremental configuration at the resource"
                     " level. "
                     "See https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/basic#incremental-loading"
@@ -499,8 +499,8 @@ def _bind_path_params(resource: EndpointResource) -> None:
     if len(resolve_params) > 0:
         raise ValueError(
             f"Resource `{resource['name']}` defines resolve params `{resolve_params}` that are not"
-            f" bound in path `{path}`. To reference parent resource in query params use"
-            " resources.<parent_resource>.<field> syntax."
+            f" bound in path `{path}`. To reference parent resource in query params use syntax"
+            " 'resources.<parent_resource>.<field>'"
         )
 
     resource["endpoint"]["path"] = "".join(new_path_segments)
@@ -796,9 +796,9 @@ def collect_resolved_values(
             field_path = resolved_param.resolve_config["field"]
             raise ValueError(
                 f"Resource expects a field `{field_path}` to be present in the incoming data from"
-                f" resource `{parent_resource_name}` in order to bind it to path param"
+                f" resource `{parent_resource_name}` in order to bind it to path param:"
                 f" `{resolved_param.param_name}`. Available parent fields are:"
-                f" [{', '.join(item.keys())}]"
+                f" {list(item.keys())}"
             )
 
         params_values[resolved_param.param_name] = field_values[0]
@@ -893,7 +893,7 @@ def build_parent_record(
             raise ValueError(
                 f"Resource expects a field `{parent_key}` to be present in the incoming data "
                 f"from resource `{parent_resource_name}` in order to include it in child records"
-                f" under `{child_key}`. Available parent fields are: [{', '.join(item.keys())}]"
+                f" under `{child_key}`. Available parent fields are: {list(item.keys())}"
             )
         parent_record[child_key] = item[parent_key]
     return parent_record
@@ -976,7 +976,7 @@ def _raise_if_any_not_in(expressions: Set[str], available_contexts: Set[str], me
         if not any(expression.startswith(prefix + ".") for prefix in available_contexts):
             raise ValueError(
                 f"Expression `{expression}` defined in `{message}` is not valid. Valid expressions"
-                f" must start with one of: [{', '.join(available_contexts)}]. If you need to use"
+                f" must start with one of: `{available_contexts}`. If you need to use"
                 " literal curly braces in your expression, escape them by doubling them: {{ and"
                 " }}"
             )

@@ -134,7 +134,7 @@ def test_dbt_run_exception_pickle() -> None:
     assert obj.command == "test"
     assert obj.run_results == "A"
     assert obj.dbt_results == "B"
-    assert str(obj) == "DBT command test could not be executed"
+    assert str(obj) == "DBT command `test` could not be executed"
 
 
 def test_runner_setup(client: PostgresClient, test_storage: FileStorage) -> None:
