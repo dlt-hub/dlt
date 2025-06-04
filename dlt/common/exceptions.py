@@ -1,4 +1,4 @@
-from typing import Any, AnyStr, Dict, List, Sequence, Optional, Type
+from typing import Any, AnyStr, Collection, Dict, List, Sequence, Optional, Type
 from dlt.common.typing import TypedDict
 
 
@@ -66,6 +66,34 @@ class VenvNotFound(DltException):
     def __init__(self, interpreter: str) -> None:
         self.interpreter = interpreter
         super().__init__(f"Venv with interpreter {interpreter} not found in path")
+
+
+class ValueErrorWithKnownValues(ValueError):
+    """Raise after receiving an invalid value and a set of valid values is known."""
+
+    def __init__(self, key: str, value_received: Any, valid_values: Collection[Any]) -> None:
+        self.key = key
+        self.value_received = value_received
+        self.valid_values = valid_values
+        self.msg = (
+            f"Received invalid value `{self.key}={self.value_received}`. "
+            f"Valid values are: {self.valid_values}"
+        )
+        super().__init__(self.msg)
+
+
+class TypeErrorWithKnownTypes(TypeError):
+    """Raise after receiving an invalid value and a set of valid types is known."""
+
+    def __init__(self, key: str, value_received: Any, valid_types: Collection[Any]) -> None:
+        self.key = key
+        self.value_received = value_received
+        self.valid_types = valid_types
+        self.msg = (
+            f"Received invalid value `{self.key}={self.value_received}` of type"
+            f" {type(self.value_received).__name__}. Valid types are: {self.valid_types}"
+        )
+        super().__init__(self.msg)
 
 
 class TerminalException(BaseException):
@@ -163,6 +191,7 @@ class DependencyVersionException(DltException):
         return msg
 
 
+# NOTE MSSQL/Synapse is the only code using this
 class SystemConfigurationException(DltException):
     pass
 

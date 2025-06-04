@@ -122,7 +122,8 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
             else:
                 raise DatabaseTransientException(
                     Exception(
-                        f"Bigquery Job needs to be retried, reason reported from bigquery `{reason}`"
+                        "Bigquery Job needs to be retried, reason reported from bigquery"
+                        f" `{reason}`"
                     )
                 )
 
@@ -223,8 +224,9 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
             if insert_api == "streaming":
                 if table["write_disposition"] != "append":
                     raise DestinationTerminalException(
-                        "BigQuery streaming insert can only be used with `write_disposition='append'`."
-                        f"Resource received `write_disposition={table['write_disposition']}`"
+                        "BigQuery streaming insert can only be used with"
+                        " `write_disposition='append'`.Resource received"
+                        f" `write_disposition={table['write_disposition']}`"
                     )
                 if file_path.endswith(".jsonl"):
                     job_cls = DestinationJsonlLoadJob

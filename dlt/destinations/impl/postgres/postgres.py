@@ -113,13 +113,14 @@ class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
                         "postgres",
                         "csv",
                         self._file_path,
-                        f"First row `{split_first_row}` has more columns than header `{split_headers}` in"
-                        f" table `{table_name}`",
+                        f"First row `{split_first_row}` has more columns than header"
+                        f" `{split_headers}` in table `{table_name}`",
                     )
                 if len(split_first_row) < len(split_headers):
                     logger.warning(
-                        f"First row {split_first_row} has less columns than header `{split_headers}` in"
-                        f" table `{table_name}`. We will not load data to superfluous columns."
+                        f"First row {split_first_row} has less columns than header"
+                        f" `{split_headers}` in table `{table_name}`. We will not load data to"
+                        " superfluous columns."
                     )
                     split_headers = split_headers[: len(split_first_row)]
                 # stream the first row again

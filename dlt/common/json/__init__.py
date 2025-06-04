@@ -13,6 +13,7 @@ except ImportError:
     PydanticBaseModel = None  # type: ignore[misc]
 
 from dlt.common import known_env
+from dlt.common.exceptions import TypeErrorWithKnownTypes
 from dlt.common.pendulum import pendulum
 from dlt.common.arithmetics import Decimal
 from dlt.common.wei import Wei
@@ -99,7 +100,8 @@ def _datetime_decoder(obj: str) -> pendulum.DateTime:
     # tz=None sets no timezone if if it not specified on string
     dt = pendulum.parse(obj, tz=None)
     if not isinstance(dt, pendulum.DateTime):
-        raise ValueError(f"Expected `pendulum.DateTime`, got `{type(dt)}`")
+        raise TypeErrorWithKnownTypes("obj", dt, ["pendulum.DateTime"])
+
     return dt
 
 

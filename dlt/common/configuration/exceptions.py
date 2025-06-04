@@ -33,8 +33,8 @@ class ConfigProviderException(ConfigurationException):
 class ConfigurationWrongTypeException(ConfigurationException):
     def __init__(self, _typ: type) -> None:
         super().__init__(
-            f"Invalid configuration instance type `{_typ}`. Configuration instances must derive from"
-            " BaseConfiguration and must be decorated with @configspec."
+            f"Invalid configuration instance type `{_typ}`. Configuration instances must derive"
+            " from BaseConfiguration and must be decorated with @configspec."
         )
 
 
@@ -48,12 +48,11 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
         super().__init__(spec_name)
 
     def __str__(self) -> str:
-        msg = (
-            f"Missing fields in configuration: {str(self.fields)}"
-            f" {self.spec_name}\n"
-        )
+        msg = f"Missing fields in configuration: {str(self.fields)} {self.spec_name}\n"
         for f, field_traces in self.traces.items():
-            msg += f"\tfor field `{f}` the following (config providers, keys) were tried in order:\n"
+            msg += (
+                f"\tfor field `{f}` the following (config providers, keys) were tried in order:\n"
+            )
             for tr in field_traces:
                 msg += f"\t\t({tr.provider}, {tr.key})\n"
 
@@ -69,7 +68,10 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
                 msg += f"Provider `{provider.name}` loaded values from locations:\n{locations}\n"
 
             if provider.is_empty:
-                msg += f"WARNING: provider `{provider.name}` is empty. Locations (i.e., files) are missing or empty.\n"
+                msg += (
+                    f"WARNING: provider `{provider.name}` is empty. Locations (i.e., files) are"
+                    " missing or empty.\n"
+                )
 
         # check if entry point is run with path. this is common problem so warn the user
         main_path = main_module_file_path()
@@ -94,9 +96,7 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
                         " but run your script from some other folder, secrets/configs will not be"
                         " found\n"
                     )
-        msg += (
-            "Learn more: https://dlthub.com/docs/general-usage/credentials/\n"
-        )
+        msg += "Learn more: https://dlthub.com/docs/general-usage/credentials/\n"
         return msg
 
     def attrs(self) -> Dict[str, Any]:
@@ -119,9 +119,9 @@ class UnmatchedConfigHintResolversException(ConfigurationException):
             f">>>    {name}: Any" for name in field_names
         )
         msg = (
-            f"The config spec `{spec_name}` has dynamic type resolvers for fields: `{field_names}` but"
-            " these fields are not defined in the spec.\nWhen using @resolve_type() decorator, Add"
-            f" the fields with 'Any' or another common type hint, example:\n\n{example}"
+            f"The config spec `{spec_name}` has dynamic type resolvers for fields: `{field_names}`"
+            " but these fields are not defined in the spec.\nWhen using @resolve_type() decorator,"
+            f" Add the fields with 'Any' or another common type hint, example:\n\n{example}"
         )
         super().__init__(msg)
 
@@ -131,7 +131,8 @@ class FinalConfigFieldException(ConfigurationException):
 
     def __init__(self, spec_name: str, field: str) -> None:
         super().__init__(
-            f"Field `{field}` in spec `{spec_name}` is final but is being changed by a config provider"
+            f"Field `{field}` in spec `{spec_name}` is final but is being changed by a config"
+            " provider"
         )
 
 

@@ -254,7 +254,8 @@ def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
     if t is TSimpleRegex:
         if not isinstance(pv, str):
             raise DictValidationException(
-                f"field `{pk}` value `{pv}` has invalid type `{type(pv).__name__}` while `str` is expected",
+                f"field `{pk}` value `{pv}` has invalid type `{type(pv).__name__}` while `str` is"
+                " expected",
                 path,
                 t,
                 pk,

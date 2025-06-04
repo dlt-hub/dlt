@@ -23,6 +23,7 @@ import dlt
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.configuration import inject_section, known_sections
 from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.configuration.container import Container
@@ -434,7 +435,10 @@ class Pipeline(SupportsPipeline):
     ) -> ExtractInfo:
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
         if loader_file_format and loader_file_format not in LOADER_FILE_FORMATS:
-            raise ValueError(f"`loader_file_format={loader_file_format}` is unknown.")
+            raise ValueErrorWithKnownValues(
+                "loader_file_format", loader_file_format, LOADER_FILE_FORMATS
+            )
+
         with self._maybe_destination_capabilities() as caps:
             if caps:
                 self._verify_destination_capabilities(caps, loader_file_format)

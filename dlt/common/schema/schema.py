@@ -339,7 +339,8 @@ class Schema:
                         existing_table,
                         schema_contract,
                         data_item,
-                        f"Can't add table column `{column_name}` to table `{table_name}` because `columns` are frozen.",
+                        f"Can't add table column `{column_name}` to table `{table_name}` because"
+                        " `columns` are frozen.",
                     )
                 # filter column with name below
                 filters.append(("columns", column_name, column_mode))
@@ -358,8 +359,8 @@ class Schema:
                         existing_table,
                         schema_contract,
                         data_item,
-                        f"Can't add create variant column `{column_name} for table `{table_name}` because `data_types` are frozen.",
-`
+                        f"Can't add create variant column `{column_name} for table `{table_name}`"
+                        " because `data_types` are frozen.",
                     )
                 # filter column with name below
                 filters.append(("columns", column_name, data_mode))
@@ -537,9 +538,9 @@ class Schema:
         if len(existing_columns) != len(casefold_existing):
             raise SchemaCorruptedException(
                 self.name,
-                f"A set of existing columns passed to `get_new_table_columns` table `{table_name} `has"
-                " colliding names when case insensitive comparison is used. Original names:"
-                f" {list(existing_columns.keys())}. Case-folded names:"
+                "A set of existing columns passed to `get_new_table_columns` table"
+                f" `{table_name} `has colliding names when case insensitive comparison is used."
+                f" Original names: {list(existing_columns.keys())}. Case-folded names:"
                 f" {list(casefold_existing.keys())}",
             )
         diff_c: List[TColumnSchema] = []

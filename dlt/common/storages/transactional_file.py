@@ -114,7 +114,8 @@ class TransactionalFile:
             output.append(name)
         if not output:
             raise RuntimeError(
-                f"Lock syncing failed. No lock file found for path `{self.path}` and lock `{self.lock_path}`"
+                f"Lock syncing failed. No lock file found for path `{self.path}` and lock"
+                f" `{self.lock_path}`"
             )
         return output
 

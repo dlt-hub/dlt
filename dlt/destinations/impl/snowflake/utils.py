@@ -110,7 +110,8 @@ def gen_copy_sql(
         else:
             raise LoadJobTerminalException(
                 file_url,
-                f"Cannot load from S3 path `{file_url}` without either credentials or a stage name.",
+                f"Cannot load from S3 path `{file_url}` without either credentials or a stage"
+                " name.",
             )
 
     elif parsed_file_url.scheme in AZURE_BLOB_STORAGE_PROTOCOLS:

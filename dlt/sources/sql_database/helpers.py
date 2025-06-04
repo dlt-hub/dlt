@@ -80,14 +80,16 @@ class TableLoader:
 
             if column_name is None:
                 raise ValueError(
-                    f"Cursor path '{incremental.cursor_path}' must be a simple column name (e.g. 'created_at')"
+                    f"Cursor path `{incremental.cursor_path}` must be a simple column name (e.g."
+                    " `created_at`)"
                 )
 
             try:
                 self.cursor_column = table.c[column_name]
             except KeyError as e:
                 raise KeyError(
-                    f"Cursor column '{incremental.cursor_path}' does not exist in table '{table.name}'"
+                    f"Cursor column `{incremental.cursor_path} `does not exist in table"
+                    f" `{table.name}`"
                 ) from e
             self.last_value = incremental.last_value
             self.end_value = incremental.end_value

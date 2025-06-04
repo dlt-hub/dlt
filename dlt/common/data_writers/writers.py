@@ -35,6 +35,7 @@ from dlt.common.destination import (
     TLoaderFileFormat,
     LOADER_FILE_FORMATS,
 )
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.schema.utils import is_nullable_column
@@ -470,9 +471,10 @@ class CsvWriter(DataWriter):
                             raise InvalidDataItem(
                                 "csv",
                                 "object",
-                                f"'{key}' contains bytes that cannot be decoded with encoding `{self.bytes_encoding}`. "
-                                "Remove binary columns or replace their content with a hex representation: "
-                                "\\x... while keeping data type as binary.",
+                                f"'{key}' contains bytes that cannot be decoded with encoding"
+                                f" `{self.bytes_encoding}`. Remove binary columns or replace their"
+                                " content with a hex representation: \\x... while keeping data"
+                                " type as binary.",
                             )
 
         self.writer.writerows(items)
@@ -754,9 +756,10 @@ def resolve_best_writer_spec(
     # check if preferred format has native item_format writer
     if preferred_format:
         if preferred_format not in possible_file_formats:
-            raise ValueError(
-                f"Preferred format `{preferred_format}` not possible in `{possible_file_formats}`"
+            raise ValueErrorWithKnownValues(
+                "preferred_format", preferred_format, possible_file_formats
             )
+
         try:
             return DataWriter.class_factory(
                 preferred_format, item_format, native_writers

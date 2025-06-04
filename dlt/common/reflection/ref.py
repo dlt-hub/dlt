@@ -4,7 +4,7 @@ from importlib import import_module
 from types import ModuleType, SimpleNamespace
 from typing import Any, Callable, Literal, NamedTuple, Tuple, Mapping, List, Sequence
 
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.exceptions import MissingDependencyException, TypeErrorWithKnownTypes
 from dlt.common.typing import TAny
 
 
@@ -93,7 +93,7 @@ class ImportTrace(NamedTuple):
 def callable_typechecker(o: TAny) -> TAny:
     if callable(o):
         return o  # type: ignore[no-any-return]
-    raise TypeError(f"Expected attr to be callable but got type `{type(o)}`")
+    raise TypeErrorWithKnownTypes("attr", o, ["Callable"])
 
 
 def object_from_ref(

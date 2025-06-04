@@ -482,9 +482,7 @@ class DltSource(Iterable[TDataItem]):
         try:
             return self._resources[resource_name]
         except KeyError:
-            raise AttributeError(
-                f"Resource `{resource_name}` not found in source `{self.name}`"
-            )
+            raise AttributeError(f"Resource `{resource_name}` not found in source `{self.name}`")
 
     def __setattr__(self, name: str, value: Any) -> None:
         if isinstance(value, DltResource):

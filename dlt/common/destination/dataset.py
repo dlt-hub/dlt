@@ -57,7 +57,9 @@ class SupportsReadableRelation:
         allow_partial: bool = True,
     ) -> TTableSchemaColumns:
         """Return the expected dlt schema of the execution result of self.query()"""
-        raise NotImplementedError("`compute_columns_schema()` method is not supported for this relation")
+        raise NotImplementedError(
+            "`compute_columns_schema()` method is not supported for this relation"
+        )
 
     def df(self, chunk_size: int = None) -> Optional[DataFrame]:
         """Fetches the results as arrow table. Uses the native pandas implementation of the destination client cursor if available.

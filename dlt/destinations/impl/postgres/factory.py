@@ -96,8 +96,8 @@ class PostgresTypeMapper(TypeMapperImpl):
                 timestamp += f" ({precision})"
             else:
                 raise TerminalValueError(
-                    f"Postgres doesn't support {precision=:} for timestamp column `{column_name}` in"
-                    f" table `{table_name}`"
+                    f"Postgres doesn't support {precision=:} for timestamp column `{column_name}`"
+                    f" in table `{table_name}`"
                 )
 
         # append timezone part

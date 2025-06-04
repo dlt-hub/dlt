@@ -1,6 +1,7 @@
 from typing import Any, Literal, Set, Final, Dict
 
 from dlt.common.typing import get_args
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.extract import DltResource, resource as make_resource
 from dlt.extract.items import TTableHintTemplate
 from dlt.extract.hints import TResourceHints
@@ -43,11 +44,8 @@ def synapse_adapter(data: Any, table_index_type: TTableIndexType = None) -> DltR
     additional_table_hints: Dict[str, TTableHintTemplate[Any]] = {}
     if table_index_type is not None:
         if table_index_type not in TABLE_INDEX_TYPES:
-            allowed_types = ", ".join(TABLE_INDEX_TYPES)
-            raise ValueError(
-                f"Table index type `{table_index_type}` is invalid. Allowed table index"
-                f" types are: `{allowed_types}`."
-            )
+            raise ValueErrorWithKnownValues("table_index_type", table_index_type, TABLE_INDEX_TYPES)
+
         additional_table_hints[TABLE_INDEX_TYPE_HINT] = table_index_type
     resource.apply_hints(additional_table_hints=additional_table_hints)
     return resource

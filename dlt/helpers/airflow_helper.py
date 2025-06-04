@@ -12,7 +12,7 @@ from tenacity import (
 )
 
 from dlt.common.known_env import DLT_DATA_DIR, DLT_PROJECT_DIR, DLT_LOCAL_DIR
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
 
 try:
     from airflow.configuration import conf
@@ -512,8 +512,8 @@ class PipelineTasksGroup(TaskGroup):
                 start >> end
                 return [start, end]
             else:
-                raise ValueError(
-                    "`decompose` must be one of ['none', 'serialize', 'parallel', 'parallel-isolated']"
+                raise ValueErrorWithKnownValues(
+                    "decompose", decompose, ["none", "serialize", "parallel", "parallel-isolated"]
                 )
 
 
