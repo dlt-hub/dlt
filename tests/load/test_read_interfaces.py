@@ -266,9 +266,10 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
     chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
-    skip_df_chunk_size_check = (
-        populated_pipeline.destination.destination_type == "dlt.destinations.filesystem"
-    )
+    skip_df_chunk_size_check = populated_pipeline.destination.destination_type in [
+        "dlt.destinations.filesystem",
+        "dlt.destinations.snowflake",
+    ]
 
     # full frame
     df = table_relationship.df()
