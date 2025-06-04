@@ -68,11 +68,11 @@ def validate_dict(
     # check missing props
     missing = set(required_props.keys()).difference(props.keys())
     if len(missing):
-        raise DictValidationException(f"Missing required fields: `{missing}`", path)
+        raise DictValidationException(f"missing required fields `{missing}`", path)
     # check unknown props
     unexpected = set(props.keys()).difference(allowed_props.keys())
     if len(unexpected):
-        raise DictValidationException(f"Received unexpected fields: `{unexpected}`", path)
+        raise DictValidationException(f"received unexpected fields `{unexpected}`", path)
 
     def verify_prop(pk: str, pv: Any, t: Any) -> None:
         # covers none in optional and union types
@@ -99,7 +99,7 @@ def validate_dict(
                 if len(failed_validations) == len(union_types):
                     type_names = [get_type_name(ut) for ut in union_types]
                     msg = (
-                        f"field '{pk}' expects the following types: {', '.join(type_names)}."
+                        f"field '{pk}' expects the following types: {type_names}."
                         f" Provided value {pv} with type '{type(pv).__name__}' is invalid with the"
                         " following errors:\n"
                     )
@@ -121,12 +121,12 @@ def validate_dict(
             a_l = get_literal_args(t)
             if pv not in a_l:
                 raise DictValidationException(
-                    f"field '{pk}' with value `{pv}` is not one of: {a_l}", path, t, pk, pv
+                    f"field `{pk}={pv}` is not one of: {a_l}", path, t, pk, pv
                 )
         elif t in [int, bool, str, float]:
             if not isinstance(pv, t):
                 raise DictValidationException(
-                    f"field '{pk}' with value `{pv}` has invalid type '{type(pv).__name__}' while"
+                    f"field `{pk}={pv}` has invalid type '{type(pv).__name__}' while"
                     f" '{t.__name__}' is expected",
                     path,
                     t,

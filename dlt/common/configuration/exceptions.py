@@ -147,7 +147,7 @@ class ConfigValueCannotBeCoercedException(ConfigurationValueError):
         self.field_value = field_value
         self.hint = hint
         super().__init__(
-            f"Configured value for field {field_name} cannot be coerced into type {str(hint)}"
+            f"Configured value for field `{field_name}` cannot be coerced into type `{str(hint)}`"
         )
 
 

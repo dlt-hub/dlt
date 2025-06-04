@@ -88,7 +88,7 @@ class TableLoader:
                 self.cursor_column = table.c[column_name]
             except KeyError as e:
                 raise KeyError(
-                    f"Cursor column `{incremental.cursor_path} `does not exist in table"
+                    f"Cursor column `{incremental.cursor_path}` does not exist in table"
                     f" `{table.name}`"
                 ) from e
             self.last_value = incremental.last_value
