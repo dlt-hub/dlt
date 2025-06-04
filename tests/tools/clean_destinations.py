@@ -14,12 +14,14 @@ from dlt.destinations.exceptions import (
     DatabaseTransientException,
 )
 
+SKIP_DATASETS = ["pyicebergdemodb"]
+
 
 # all destinations that can be cleaned by this script
-ALL_DESTINATIONS = ["athena", "bigquery", "redshift", "postgres", "snowflake"]
+ALL_DESTINATIONS = ["bigquery", "redshift", "postgres", "snowflake", "athena"]
 
 # limit the number of datasets to clean per run
-LIMIT = 10000
+LIMIT = 100000
 
 
 def get_datasets_command(pipeline: dlt.Pipeline, destination: str) -> tuple[str, int]:
@@ -96,6 +98,9 @@ if __name__ == "__main__":
         with pipeline.sql_client() as client:
             count = 0
             for dataset in datasets[:LIMIT]:
+                if dataset in SKIP_DATASETS:
+                    fmt.echo(f"Skipping dataset {dataset}")
+                    continue
                 count += 1
                 fmt.echo(f"Cleaning dataset {count} of {total}: {dataset}, ")
                 command = drop_dataset_command(destination, dataset)
