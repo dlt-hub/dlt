@@ -38,6 +38,7 @@ from dlt.common.exceptions import (
     ExceptionTrace,
     TerminalException,
     DependencyVersionException,
+    ValueErrorWithKnownValues,
 )
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun, Generic
 
@@ -117,7 +118,9 @@ def str2bool(v: str) -> bool:
     elif v.lower() in ("no", "false", "f", "n", "0"):
         return False
     else:
-        raise ValueError("Boolean value expected.")
+        raise ValueErrorWithKnownValues(
+            "v", v, [True, "yes", "true", "t", "y", 1, False, "no", "false", "f", "n", "0"]
+        )
 
 
 # def flatten_list_of_dicts(dicts: Sequence[StrAny]) -> StrAny:

@@ -21,6 +21,7 @@ from requests import Response
 
 from dlt.common import logger
 from dlt.common.configuration import resolve_configuration
+from dlt.common.exceptions import TypeErrorWithKnownTypes, ValueErrorWithKnownValues
 from dlt.common.schema.utils import merge_columns
 from dlt.common.utils import update_dict_nested, exclude_keys
 from dlt.common.typing import add_value_to_literal
@@ -126,9 +127,8 @@ def get_paginator_class(paginator_name: str) -> Type[BasePaginator]:
     try:
         return PAGINATOR_MAP[paginator_name]
     except KeyError:
-        available_options = ", ".join(PAGINATOR_MAP.keys())
-        raise ValueError(
-            f"Invalid paginator: `{paginator_name}`. Available options: `{available_options}`."
+        raise ValueErrorWithKnownValues(
+            "paginator_name", paginator_name, list(PAGINATOR_MAP.keys())
         )
 
 
@@ -177,10 +177,7 @@ def get_auth_class(auth_type: str) -> Type[AuthConfigBase]:
     try:
         return AUTH_MAP[auth_type]
     except KeyError:
-        available_options = ", ".join(AUTH_MAP.keys())
-        raise ValueError(
-            f"Invalid authentication: `{auth_type}`. Available options: `{available_options}`."
-        )
+        raise ValueErrorWithKnownValues("auth_type", auth_type, list(AUTH_MAP.keys()))
 
 
 def create_auth(auth_config: Optional[AuthConfig]) -> Optional[AuthConfigBase]:
@@ -227,7 +224,8 @@ def setup_incremental_object(
         if isinstance(param_config, Incremental):
             if param_config.end_value is not None:
                 raise ValueError(
-                    f"Only `initial_value` is allowed in the configuration of param: `{param_name}`. "
+                    "Only `initial_value` is allowed in the configuration of param:"
+                    f" `{param_name}`. "
                     "To set end_value too use the incremental configuration at the resource level. "
                     "See https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/basic#incremental-loading"
                 )
@@ -235,8 +233,10 @@ def setup_incremental_object(
         if isinstance(param_config, dict) and param_config.get("type") == "incremental":
             if param_config.get("end_value") or param_config.get("end_param"):
                 raise ValueError(
-                    f"Only start_param and initial_value are allowed in the configuration of param: {param_name} " 
-                    "To set end_value too use the incremental configuration at the resource level. "
+                    "Only `start_param` and `initial_value` are allowed in the configuration of"
+                    f" param: {param_name} "
+                    "To set `end_value` too use the incremental configuration at the resource"
+                    " level. "
                     "See https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/basic#incremental-loading"
                 )
             convert = parse_convert_or_deprecated_transform(param_config)
@@ -339,7 +339,10 @@ def build_resource_dependency_graph(
         named_resources = {rp.resolve_config["resource"] for rp in resolved_params}
 
         if len(named_resources) > 1:
-            raise ValueError(f"Multiple parent resources for resource `{resource_name}` with params `{resolved_params}`")
+            raise ValueError(
+                f"Multiple parent resources for resource `{resource_name}` with params"
+                f" `{resolved_params}`"
+            )
         elif len(named_resources) == 1:
             # validate the first parameter (note the resource is the same for all params)
             first_param = resolved_params[0]
@@ -574,9 +577,8 @@ def _handle_response_action(
         ):
             custom_hooks = response_action
         else:
-            raise ValueError(
-                f"Action `{response_action}` does not conform to expected type. "
-                f"Expected: [str, Callable, List[Callable]]. Found: `{type(response_action)}`"
+            raise TypeErrorWithKnownTypes(
+                "action['action']", response_action, ["str", "Callable", "List[Callable]"]
             )
 
     if status_code is not None and content_substr is not None:
@@ -793,9 +795,10 @@ def collect_resolved_values(
         if not field_values:
             field_path = resolved_param.resolve_config["field"]
             raise ValueError(
-                f"Resource expects a field `{field_path}` to be present in the incoming data "
-                f"from resource `{parent_resource_name}` in order to bind it to path param "
-                f"`{resolved_param.param_name}`. Available parent fields are: [{', '.join(item.keys())}]"
+                f"Resource expects a field `{field_path}` to be present in the incoming data from"
+                f" resource `{parent_resource_name}` in order to bind it to path param"
+                f" `{resolved_param.param_name}`. Available parent fields are:"
+                f" [{', '.join(item.keys())}]"
             )
 
         params_values[resolved_param.param_name] = field_values[0]
@@ -888,7 +891,7 @@ def build_parent_record(
         child_key = make_parent_key_name(parent_resource_name, parent_key)
         if parent_key not in item:
             raise ValueError(
-                f"Resource expects a field '{parent_key}' to be present in the incoming data "
+                f"Resource expects a field `{parent_key}` to be present in the incoming data "
                 f"from resource `{parent_resource_name}` in order to include it in child records"
                 f" under `{child_key}`. Available parent fields are: [{', '.join(item.keys())}]"
             )
@@ -972,7 +975,7 @@ def _raise_if_any_not_in(expressions: Set[str], available_contexts: Set[str], me
     for expression in expressions:
         if not any(expression.startswith(prefix + ".") for prefix in available_contexts):
             raise ValueError(
-                f"Expression '{expression}' defined in `{message}` is not valid. Valid expressions"
+                f"Expression `{expression}` defined in `{message}` is not valid. Valid expressions"
                 f" must start with one of: [{', '.join(available_contexts)}]. If you need to use"
                 " literal curly braces in your expression, escape them by doubling them: {{ and"
                 " }}"

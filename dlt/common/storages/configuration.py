@@ -236,8 +236,8 @@ class FilesystemConfiguration(BaseConfiguration):
         if not url.path and not url.netloc:
             raise ConfigurationValueError(
                 "File `path` and `netloc` are missing. Field `bucket_url` of"
-                " `FilesystemClientConfiguration` must contain valid url with a path or host:password"
-                " component."
+                " `FilesystemClientConfiguration` must contain valid url with a path or"
+                " host:password component."
             )
         self.normalize_bucket_url()
 

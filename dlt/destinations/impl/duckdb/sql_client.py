@@ -307,7 +307,8 @@ class WithTableScanners(DuckDbSqlClient):
     def drop_secret(self, secret_name: str) -> None:
         if not secret_name.startswith(self.dataset_name):
             raise ValueError(
-                f"Secret name must start with dataset name `{self.dataset_name}`, got `{secret_name}`."
+                f"Secret name must start with dataset name `{self.dataset_name}`, got"
+                f" `{secret_name}`."
             )
 
         self._conn.sql(f"DROP SECRET {secret_name}")

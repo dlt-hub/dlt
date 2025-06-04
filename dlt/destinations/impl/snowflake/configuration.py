@@ -58,7 +58,8 @@ class SnowflakeCredentials(ConnectionStringCredentials):
                 )
         if not self.password and not self.private_key and not self.authenticator:
             raise ConfigurationValueError(
-                "`SnowflakeCredentials` requires one of the following to be specified: `password`, `private_key`, `authenticator`."
+                "`SnowflakeCredentials` requires one of the following to be specified: `password`,"
+                " `private_key`, `authenticator`."
             )
 
     def get_query(self) -> Dict[str, Any]:

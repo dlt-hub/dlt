@@ -6,7 +6,7 @@ import inspect
 from functools import wraps
 
 from dlt.common import logger
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
 from dlt.common.pendulum import pendulum
 from dlt.common.jsonpath import compile_path, extract_simple_field_name
 from dlt.common.typing import (
@@ -154,7 +154,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 last_value_func = max
             else:
                 raise ValueError(
-                    f"Unknown `last_value_func={last_value_func}` passed as string. Provide a"
+                    f"Unknown `{last_value_func=:}` passed as string. Provide a"
                     " callable to use a custom function."
                 )
         self.last_value_func = last_value_func
@@ -168,10 +168,10 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self.row_order = row_order
         self.allow_external_schedulers = allow_external_schedulers
         if on_cursor_value_missing not in ["raise", "include", "exclude"]:
-            raise ValueError(
-                f"Invalid value `on_cursor_value_missing={on_cursor_value_missing}`. "
-                "Valid values: ['raise', 'include', 'exclude']"
+            raise ValueErrorWithKnownValues(
+                "on_cursor_value_missing", on_cursor_value_missing, ["raise", "include", "exclude"]
             )
+
         self.on_cursor_value_missing = on_cursor_value_missing
 
         self._cached_state: IncrementalColumnState = None
@@ -285,7 +285,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 msg = (
                     f"Incremental `initial_value={self.initial_value}` is greater than"
                     f" `end_value={self.end_value}` as determined by the custom `last_value_func`."
-                    f" The result of '{self.last_value_func.__name__}(`[end_value, initial_value]`)' must equal `end_value`"
+                    f" The result of '{self.last_value_func.__name__}(`[end_value,"
+                    " initial_value]`)' must equal `end_value`"
                 )
             raise ConfigurationValueError(msg)
 

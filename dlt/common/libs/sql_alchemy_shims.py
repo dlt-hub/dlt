@@ -28,6 +28,7 @@ from urllib.parse import (
     quote,
     unquote,
 )
+from dlt.common.exceptions import TypeErrorWithKnownTypes
 
 _KT = TypeVar("_KT", bound=Any)
 _VT = TypeVar("_VT", bound=Any)
@@ -118,12 +119,12 @@ class URL(NamedTuple):
         try:
             return int(port)
         except TypeError:
-            raise TypeError("`port` must be of type `int` or `None`")
+            raise TypeErrorWithKnownTypes("port", port, ["int", None])
 
     @classmethod
     def _assert_str(cls, v: str, paramname: str) -> str:
         if not isinstance(v, str):
-            raise TypeError(f"{paramname} must be of type `str`")
+            raise TypeErrorWithKnownTypes("paramname", paramname, ["str"])
         return v
 
     @classmethod
@@ -164,11 +165,11 @@ class URL(NamedTuple):
             elif isinstance(val, collections_abc.Sequence):
                 return tuple(_assert_value(elem) for elem in val)
             else:
-                raise TypeError("Query dictionary values must be of type `str` or `Sequence[str]`")
+                raise TypeErrorWithKnownTypes("value", val, ["str", "Sequence[str]"])
 
         def _assert_str(v: str) -> str:
             if not isinstance(v, str):
-                raise TypeError("Query dictionary keys must be of type `str`")
+                raise TypeErrorWithKnownTypes("key", v, ["str"])
             return v
 
         dict_items: Iterable[Tuple[str, Union[Sequence[str], str]]]

@@ -29,7 +29,7 @@ from dlt.common.schema.typing import (
     MERGE_STRATEGIES,
     TTableReferenceParam,
 )
-
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.typing import TTableNames, TypedDict, Unpack
 from dlt.common.schema.utils import (
     DEFAULT_WRITE_DISPOSITION,
@@ -591,8 +591,8 @@ class DltResourceHints:
             # incremental cannot be specified in variant
             if hints_template.get("incremental"):
                 raise InconsistentTableTemplate(
-                    f"You can specify `incremental` only for the resource `{self.name}` hints, not in"
-                    f" table `{table_name}` variant-"
+                    f"You can specify `incremental` only for the resource `{self.name}` hints, not"
+                    f" in table `{table_name}` variant-"
                 )
             if hints_template.get("validator"):
                 logger.warning(
@@ -776,7 +776,8 @@ class DltResourceHints:
             callable(v) for k, v in template.items() if k not in ["table_name", *NATURAL_CALLABLES]
         ) and not callable(table_name):
             raise InconsistentTableTemplate(
-                f"Table name `{table_name}` must be a function if any other table hint is a function"
+                f"Table name `{table_name}` must be a function if any other table hint is a"
+                " function"
             )
 
     @staticmethod
@@ -785,9 +786,8 @@ class DltResourceHints:
         if isinstance(wd, dict) and wd["disposition"] == "merge":
             wd = cast(TMergeDispositionDict, wd)
             if "strategy" in wd and wd["strategy"] not in MERGE_STRATEGIES:
-                raise ValueError(
-                    f'`{wd["strategy"]}` is not a valid merge strategy. '
-                    f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}."""
+                raise ValueErrorWithKnownValues(
+                    "write_disposition['strategy']", wd["strategy"], MERGE_STRATEGIES
                 )
 
             if wd.get("strategy") == "scd2":
@@ -803,7 +803,7 @@ class DltResourceHints:
                             ensure_pendulum_datetime(wd[ts])  # type: ignore[literal-required]
                         except Exception:
                             raise ValueError(
-                                f'could not parse `{ts}` value `{wd[ts]}`'  # type: ignore[literal-required]
+                                f"could not parse `{ts}` value `{wd[ts]}`"  # type: ignore[literal-required]
                             )
 
     @staticmethod

@@ -85,8 +85,8 @@ class SnowflakeTypeMapper(TypeMapperImpl):
                 column_name = column["name"]
                 table_name = table["name"]
                 raise TerminalValueError(
-                    f"Snowflake does not support `{precision=:}` for timestamp column `{column_name}` in"
-                    f" table `{table_name}`"
+                    f"Snowflake does not support `{precision=:}` for timestamp column"
+                    f" `{column_name}` in table `{table_name}`"
                 )
 
         return timestamp

@@ -5,6 +5,7 @@ import duckdb
 from dlt.common import logger
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.schema.utils import is_nullable_column
 from dlt.common.storages.configuration import FileSystemCredentials
 
@@ -32,10 +33,10 @@ class FilesystemSqlClient(WithTableScanners):
         persist_secrets: bool = False,
     ) -> None:
         if remote_client.config.protocol not in SUPPORTED_PROTOCOLS:
-            raise NotImplementedError(
-                f"Protocol `{remote_client.config.protocol}` currently not supported for"
-                f" FilesystemSqlClient. Supported protocols are `{SUPPORTED_PROTOCOLS}`."
+            raise ValueErrorWithKnownValues(
+                "protocol", remote_client.config.protocol, SUPPORTED_PROTOCOLS
             )
+
         super().__init__(remote_client, dataset_name, cache_db, persist_secrets=persist_secrets)
         self.remote_client: FilesystemClient = remote_client
         self.is_abfss = self.remote_client.config.protocol == "abfss"
@@ -79,9 +80,7 @@ class FilesystemSqlClient(WithTableScanners):
                 # authentication for local filesystem not needed
                 pass
             else:
-                raise ValueError(
-                    f"Cannot create secret or register filesystem for protocol `{protocol}`"
-                )
+                raise ValueError(f"Cannot create secret or register filesystem for `{protocol=:}`")
 
         return True
 

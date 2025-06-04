@@ -206,7 +206,8 @@ class Pipe(SupportsPipe):
         if index == self._gen_idx:
             raise CreatePipeException(
                 self.name,
-                f"Step at index `{index}` holds a data generator for this pipe and cannot be removed",
+                f"Step at index `{index}` holds a data generator for this pipe and cannot be"
+                " removed",
             )
         self._steps.pop(index)
         if index < self._gen_idx:

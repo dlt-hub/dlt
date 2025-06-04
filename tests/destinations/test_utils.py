@@ -1,6 +1,7 @@
 import dlt
 import pytest
 
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 
@@ -39,5 +40,5 @@ def test_get_resource_for_adapter() -> None:
     def other_source():
         return [some_resource, other_resource]
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueErrorWithKnownValues):
         get_resource_for_adapter(other_source())

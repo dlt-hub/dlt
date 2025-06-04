@@ -73,7 +73,8 @@ def make_transformation_resource(
     if spec:
         if not issubclass(spec, TransformationConfiguration):
             raise TransformationException(
-                resource_name, "Please derive transformation spec from `TransformationConfiguration`"
+                resource_name,
+                "Please derive transformation spec from `TransformationConfiguration`",
             )
 
     @wraps(func)
