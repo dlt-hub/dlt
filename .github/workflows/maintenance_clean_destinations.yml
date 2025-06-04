@@ -1,0 +1,68 @@
+
+name: dest | athena
+
+# TODO: change to scheduled workflow
+on:
+  pull_request:
+    branches:
+      - master
+      - devel
+    types:
+      - opened
+      - synchronize
+      - labeled
+  workflow_dispatch:
+
+
+env:
+  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
+
+jobs:
+
+  run_loader:
+    name: maintenance | clean destinations
+    defaults:
+      run:
+        shell: bash
+    runs-on: "ubuntu-latest"
+
+    steps:
+
+      - name: Check out
+        uses: actions/checkout@master
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10.x"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1.3.2
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+          version: 1.8.5
+
+      - name: Install all dependencies
+        run: make dev
+
+      - name: create secrets.toml
+        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
+
+      - name: Clean redshift
+        run:  cd tests && tools/clean_destinations.py --destination redshift
+
+      - name: Clean snowflake
+        run:  cd tests && tools/clean_destinations.py --destination snowflake
+
+      - name: Clean bigquery
+        run:  cd tests && tools/clean_destinations.py --destination bigquery
+
+      - name: Clean postgres
+        run:  cd tests && tools/clean_destinations.py --destination postgres
+
+      - name: Clean athena
+        run:  cd tests && tools/clean_destinations.py --destination athena
