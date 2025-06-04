@@ -2,7 +2,7 @@
 name: tools | dbt runner
 
 on:
-  pull_request_target:
+  pull_request:
     branches:
       - master
       - devel
@@ -51,42 +51,27 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.10.x"
-
-      - name: Install Poetry without dbt
-        uses: snok/install-poetry@v1.3.2
-        with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-          installer-parallel: true
-          version: 1.8.5
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v3
-        with:
-          # path: ${{ steps.pip-cache.outputs.dir }}
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-dbt-runner
+          python-version: 3.10
+          activate-environment: true
+          enable-cache: true
 
       - name: Install dependencies
         # install dlt with postgres support
-        run: poetry install --no-interaction -E postgres -E postgis --with sentry-sdk,dbt
+        run: uv sync --extra postgres --extra postgis --group sentry-sdk --group dbt
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - run: |
-          poetry run pytest tests/helpers/dbt_tests -k '(not venv)'
+          pytest tests/helpers/dbt_tests -k '(not venv)'
         name: Run dbt tests
 
       - name: Remove dbt-core
-        # install dlt with postgres support
-        run: poetry run pip uninstall dbt-core -y
+        run: uv pip uninstall dbt-core -y
 
       - run: |
-          poetry run pytest tests/helpers/dbt_tests --ignore=tests/helpers/dbt_tests/local -k '(not local)'
+          pytest tests/helpers/dbt_tests --ignore=tests/helpers/dbt_tests/local -k '(not local)'
         name: Run dbt runner with venv - Linux/MAC

@@ -80,7 +80,7 @@ class BaseDocProvider(ConfigProvider):
         key: str,
         value: Any,
         pipeline_name: Optional[str],
-        *sections: str
+        *sections: str,
     ) -> None:
         if pipeline_name:
             sections = (pipeline_name,) + sections
@@ -109,7 +109,7 @@ class BaseDocProvider(ConfigProvider):
         key: Optional[str],
         value_or_fragment: str,
         pipeline_name: str,
-        *sections: str
+        *sections: str,
     ) -> Any:
         """Tries to interpret `value_or_fragment` as a fragment of toml, yaml or json string and replace/merge into config doc.
 

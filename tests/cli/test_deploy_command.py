@@ -44,7 +44,7 @@ def test_deploy_command_no_repo(
                 "debug_pipeline.py",
                 deployment_method,
                 deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                **deployment_args
+                **deployment_args,
             )
 
         # test wrapper
@@ -53,7 +53,7 @@ def test_deploy_command_no_repo(
                 "debug_pipeline.py",
                 deployment_method,
                 deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                **deployment_args
+                **deployment_args,
             )
         assert ex._excinfo[1].error_code == -4
 
@@ -79,7 +79,7 @@ def test_deploy_command(
                     "debug_pipeline.py",
                     deployment_method,
                     deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                    **deployment_args
+                    **deployment_args,
                 )
             assert "Your current repository has no origin set" in py_ex.value.args[0]
             with pytest.raises(CliCommandInnerException):
@@ -87,7 +87,7 @@ def test_deploy_command(
                     "debug_pipeline.py",
                     deployment_method,
                     deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                    **deployment_args
+                    **deployment_args,
                 )
 
             # we have a repo that was never run
@@ -97,14 +97,14 @@ def test_deploy_command(
                     "debug_pipeline.py",
                     deployment_method,
                     deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                    **deployment_args
+                    **deployment_args,
                 )
             with pytest.raises(CliCommandException) as ex:
                 _dlt.deploy_command_wrapper(
                     "debug_pipeline.py",
                     deployment_method,
                     deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                    **deployment_args
+                    **deployment_args,
                 )
             assert ex._excinfo[1].error_code == -3
 
@@ -121,7 +121,7 @@ def test_deploy_command(
                     "debug_pipeline.py",
                     deployment_method,
                     deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                    **deployment_args
+                    **deployment_args,
                 )
             assert "The last pipeline run ended with error" in py_ex2.value.args[0]
             with pytest.raises(CliCommandException) as ex:
@@ -129,7 +129,7 @@ def test_deploy_command(
                     "debug_pipeline.py",
                     deployment_method,
                     deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                    **deployment_args
+                    **deployment_args,
                 )
             assert ex._excinfo[1].error_code == -3
 
@@ -152,7 +152,7 @@ def test_deploy_command(
                                 "debug_pipeline.py",
                                 deployment_method,
                                 deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                                **deployment_args
+                                **deployment_args,
                             )
                             _out = buf.getvalue()
                         print(_out)
@@ -173,7 +173,7 @@ def test_deploy_command(
                     "no_pipeline.py",
                     deployment_method,
                     deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                    **deployment_args
+                    **deployment_args,
                 )
             with echo.always_choose(False, always_choose_value=True):
                 with pytest.raises(CliCommandException) as ex:
@@ -181,6 +181,6 @@ def test_deploy_command(
                         "no_pipeline.py",
                         deployment_method,
                         deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                        **deployment_args
+                        **deployment_args,
                     )
                 assert ex._excinfo[1].error_code == -5

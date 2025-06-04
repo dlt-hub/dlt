@@ -54,19 +54,12 @@ jobs:
       - name: Check out
         uses: actions/checkout@master
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install Poetry
-        # https://github.com/snok/install-poetry#running-on-windows
-        uses: snok/install-poetry@v1.3.2
-        with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-          installer-parallel: true
-          version: 1.8.5
+          python-version: 3.10
+          activate-environment: true
+          enable-cache: true
 
       # NOTE: needed for mssql source tests in plus
       - name: Install ODBC driver for SQL Server
@@ -74,28 +67,18 @@ jobs:
           sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18
         if: matrix.os == 'ubuntu-latest'
 
-      # NOTE: do not cache. we want to have a clean state each run and we upgrade depdendencies later
-      # - name: Load cached venv
-      #   id: cached-poetry-dependencies
-      #   uses: actions/cache@v3
-      #   with:
-      #     # path: ${{ steps.pip-cache.outputs.dir }}
-      #     path: .venv
-      #     key: venv-${{ matrix.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-
       - name: Install all dependencies
         run: make dev
 
-
       - name: Install dlt-plus nightly devel build without cache
-        run: poetry run pip install --upgrade --force-reinstall --no-cache-dir ${{ matrix.plus_dep }}
+        run: uv pip install --upgrade --force-reinstall --no-cache-dir ${{ matrix.plus_dep }}
 
       - name: Run tests
-        run: poetry run pytest tests/plus
+        run: pytest tests/plus
         if: matrix.os == 'ubuntu-latest'
 
       - name: Run tests on mac on win without mssql driver
-        run: poetry run pytest tests/plus -m "not mssql"
+        run: pytest tests/plus -m "not mssql"
         if: matrix.os == 'macos-latest' || matrix.os == 'windows-latest'
 
   matrix_job_required_check:

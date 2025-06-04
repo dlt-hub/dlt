@@ -62,41 +62,28 @@ jobs:
       - name: Check out
         uses: actions/checkout@master
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.10.x"
-
-      - name: Install Poetry
-        uses: snok/install-poetry@v1.3.2
-        with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-          installer-parallel: true
-          version: 1.8.5
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v3
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-local-sources
+          python-version: 3.10
+          activate-environment: true
+          enable-cache: true
 
       # TODO: which deps should we enable?
       - name: Install dependencies
-        run: poetry install --no-interaction -E postgres -E postgis -E duckdb -E parquet -E filesystem -E cli -E sql_database --with sentry-sdk,pipeline,sources
+        run: uv sync --extra postgres --extra postgis --extra duckdb --extra parquet --extra filesystem --extra cli --extra sql_database --group sentry-sdk,pipeline,sources
 
       # run sources tests in load against configured destinations
-      - run: poetry run pytest tests/load/sources
+      - run: pytest tests/load/sources
         name: Run tests Linux
         env:
           DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader:loader@localhost:5432/dlt_data
 
       # here we upgrade sql alchemy to 2 an run the sql_database tests again
       - name: Upgrade sql alchemy
-        run: poetry run pip install sqlalchemy==2.0.32
+        run: uv pip install sqlalchemy==2.0.32
 
-      - run: poetry run pytest tests/load/sources/sql_database
+      - run: pytest tests/load/sources/sql_database
         name: Run tests Linux
         env:
           DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader:loader@localhost:5432/dlt_data

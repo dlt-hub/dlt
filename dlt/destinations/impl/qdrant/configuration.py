@@ -116,7 +116,7 @@ class QdrantClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguratio
             location=self.qd_location,
             path=self.qd_path,
             api_key=self.credentials.api_key,
-            **options
+            **options,
         )
         client.set_model(model)
         return client

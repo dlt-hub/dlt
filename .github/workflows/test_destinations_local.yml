@@ -75,31 +75,18 @@ jobs:
       - name: Start weaviate
         run:  docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.10.x"
-
-      - name: Install Poetry
-        uses: snok/install-poetry@v1.3.2
-        with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-          installer-parallel: true
-          version: 1.8.5
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v3
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-local-destinations
+          python-version: 3.10
+          activate-environment: true
+          enable-cache: true
 
       - name: Install dependencies
-        run: poetry install --no-interaction -E postgres -E postgis -E duckdb -E parquet -E filesystem -E cli -E weaviate -E qdrant -E sftp --with sentry-sdk --with pipeline -E deltalake -E pyiceberg --with ibis
+        run: uv sync --extra postgres --extra postgis --extra duckdb --extra parquet --extra filesystem --extra cli --extra weaviate --extra qdrant --extra sftp --group sentry-sdk --group pipeline --extra deltalake --extra pyiceberg --group ibis
 
       - name: Upgrade sqlalchemy
-        run: poetry run pip install sqlalchemy==2.0.18  # minimum version required by `pyiceberg`
+        run: uv pip install sqlalchemy==2.0.18  # minimum version required by `pyiceberg`
 
       - name: Start SFTP server
         run: docker compose -f "tests/load/filesystem_sftp/docker-compose.yml" up -d
@@ -114,8 +101,8 @@ jobs:
       - name: Run tests Linux
         run: |
           eval "$(ssh-agent -s)"
-          poetry run pytest tests/load --ignore tests/load/sources
-          poetry run pytest tests/cli
+          pytest tests/load --ignore tests/load/sources
+          pytest tests/cli
         env:
           DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader:loader@localhost:5432/dlt_data
           DESTINATION__QDRANT__CREDENTIALS__location: http://localhost:6333
