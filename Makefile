@@ -1,7 +1,7 @@
-.PHONY: install-poetry build-library-prerelease has-poetry dev lint test test-common reset-test-storage recreate-compiled-deps build-library-prerelease publish-library
+.PHONY: install-uv build-library-prerelease has-uv dev lint test test-common reset-test-storage recreate-compiled-deps build-library-prerelease publish-library
 
 PYV=$(shell python3 -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
-.SILENT:has-poetry
+.SILENT:has-uv
 
 # read version from package
 # AUTV=$(shell cd dlt && python3 -c "from __version__ import __version__;print(__version__)")
@@ -15,8 +15,8 @@ PYV=$(shell python3 -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_i
 
 help:
 	@echo "make"
-	@echo "		install-poetry"
-	@echo "			installs newest poetry version"
+	@echo "		install-uv"
+	@echo "			installs newest uv version"
 	@echo "		dev"
 	@echo "			prepares development env"
 	@echo "		lint"
@@ -34,21 +34,21 @@ help:
 	@echo "		publish-library"
 	@echo "			builds library and then publishes it to pypi"
 
-install-poetry:
+install-uv:
 ifneq ($(VIRTUAL_ENV),)
 	$(error you cannot be under virtual environment $(VIRTUAL_ENV))
 endif
-	curl -sSL https://install.python-poetry.org | python3 -
+	curl -LsSf https://astral.sh/uv/install.sh | sh
 
-has-poetry:
-	poetry --version
+has-uv:
+	uv --version
 
-dev: has-poetry
+dev: has-uv
 	uv sync --all-extras --group docs --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group marimo
 
 
-dev-airflow: has-poetry
-	poetry install --all-extras --with docs,providers,pipeline,sources,sentry-sdk,ibis,airflow
+dev-airflow: has-uv
+	uv sync --all-extras --group docs --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
 	
 lint:
 	uv run python ./tools/check-lockfile.py
@@ -120,21 +120,20 @@ reset-test-storage:
 	python3 tests/tools/create_storages.py
 
 build-library: dev
-	poetry version
-	poetry build
+	uv version
+	uv build
 
 publish-library: build-library
-	poetry publish
+	uv publish
 
 test-build-images: build-library
-	# NOTE: poetry export does not work with our many different deps, we install a subset and freeze
-	# poetry export -f requirements.txt --output _gen_requirements.txt --without-hashes --extras gcp --extras redshift
-	poetry install --no-interaction -E gcp -E redshift -E duckdb
-	uv run pip freeze > _gen_requirements.txt
+	# NOTE: uv export does not work with our many different deps, we install a subset and freeze
+	uv sync -E gcp -E redshift -E duckdb
+	uv pip freeze > _gen_requirements.txt
 	# filter out libs that need native compilation
 	grep `cat compiled_packages.txt` _gen_requirements.txt > compiled_requirements.txt
-	docker build -f deploy/dlt/Dockerfile.airflow --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
-	docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
+	docker build -f deploy/dlt/Dockerfile.airflow --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell uv version)" .
+	docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell uv version)" .
 
 preprocess-docs:
 	# run docs preprocessing to run a few checks and ensure examples can be parsed
