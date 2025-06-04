@@ -55,9 +55,11 @@ def import_pipeline_script(
     module_path: str, script_relative_path: str, ignore_missing_imports: bool = False
 ) -> ModuleType:
     # patch entry points to pipeline, sources and resources to prevent pipeline from running
-    with patch.object(Pipeline, "__init__", patch__init__), patch.object(
-        DltSource, "__init__", patch__init__
-    ), patch.object(ManagedPipeIterator, "__init__", patch__init__):
+    with (
+        patch.object(Pipeline, "__init__", patch__init__),
+        patch.object(DltSource, "__init__", patch__init__),
+        patch.object(ManagedPipeIterator, "__init__", patch__init__),
+    ):
         return import_script_module(
             module_path, script_relative_path, ignore_missing_imports=ignore_missing_imports
         )

@@ -1,6 +1,6 @@
 import contextlib
 from typing import List
-import pkg_resources
+from packaging.requirements import Requirement
 import semver
 
 from dlt.common.runners import Venv
@@ -50,7 +50,7 @@ def _create_dbt_deps(
     for idx, package in enumerate(all_packages):
         package = "dbt-" + DBT_DESTINATION_MAP.get(package, package)
         # verify package
-        pkg_resources.Requirement.parse(package)
+        Requirement(package)
         all_packages[idx] = package
 
     dlt_requirement = get_installed_requirement_string(allow_earlier=True)

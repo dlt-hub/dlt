@@ -1,7 +1,7 @@
 name: dest | lancedb
 
 on:
-  pull_request_target:
+  pull_request:
     branches:
       - master
       - devel
@@ -53,41 +53,28 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.11.x"
-
-      - name: Install Poetry
-        uses: snok/install-poetry@v1.3.2
-        with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-          installer-parallel: true
-          version: 1.8.5
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v3
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-gcp
+          python-version: 3.10
+          activate-environment: true
+          enable-cache: true
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - name: Install dependencies
-        run: poetry install --no-interaction -E lancedb -E parquet --with sentry-sdk --with pipeline
+        run: uv sync --extra lancedb --extra parquet --group sentry-sdk --group pipeline
 
       - name: Install embedding provider dependencies
-        run: poetry run pip install openai
+        run: uv pip install openai
 
       - run: |
-          poetry run pytest tests/load --ignore tests/load/sources -m "essential"
+          pytest tests/load --ignore tests/load/sources -m "essential"
         name: Run essential tests Linux
         if: ${{ ! (contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule')}}
 
       - run: |
-          poetry run pytest tests/load --ignore tests/load/sources
+          pytest tests/load --ignore tests/load/sources
         name: Run all tests Linux
         if: ${{ contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule'}}

@@ -429,15 +429,15 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         load_id = self.extract_storage.create_load_package(
             source.schema, reuse_exiting_package=True
         )
-        with Container().injectable_context(
-            SourceSchemaInjectableContext(source.schema)
-        ), Container().injectable_context(
-            SourceInjectableContext(source)
-        ), Container().injectable_context(
-            LoadPackageStateInjectableContext(
-                load_id=load_id, storage=self.extract_storage.new_packages
-            )
-        ) as load_package:
+        with (
+            Container().injectable_context(SourceSchemaInjectableContext(source.schema)),
+            Container().injectable_context(SourceInjectableContext(source)),
+            Container().injectable_context(
+                LoadPackageStateInjectableContext(
+                    load_id=load_id, storage=self.extract_storage.new_packages
+                )
+            ) as load_package,
+        ):
             # inject the config section with the current source name
             with inject_section(
                 ConfigSectionContext(

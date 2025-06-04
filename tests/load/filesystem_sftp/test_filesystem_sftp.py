@@ -26,9 +26,10 @@ def get_key_path(user: str = "foo") -> str:
 
 def files_are_equal(file1_path, file2_path):
     try:
-        with open(file1_path, "r", encoding="utf-8") as f1, open(
-            file2_path, "r", encoding="utf-8"
-        ) as f2:
+        with (
+            open(file1_path, "r", encoding="utf-8") as f1,
+            open(file2_path, "r", encoding="utf-8") as f2,
+        ):
             return f1.read() == f2.read()
     except FileNotFoundError:
         return False

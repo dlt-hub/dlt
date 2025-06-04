@@ -2,7 +2,7 @@
 name: test | dremio
 
 on:
-  pull_request_target:
+  pull_request:
     branches:
       - master
       - devel
@@ -56,31 +56,18 @@ jobs:
       - name: Start dremio
         run: docker compose -f "tests/load/dremio/docker-compose.yml" up -d
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.10.x"
-
-      - name: Install Poetry
-        uses: snok/install-poetry@v1.3.2
-        with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-          installer-parallel: true
-          version: 1.8.5
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v3
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-gcp
+          python-version: 3.10
+          activate-environment: true
+          enable-cache: true
 
       - name: Install dependencies
-        run: poetry install --no-interaction -E s3 -E gs -E az -E parquet --with sentry-sdk --with pipeline --with ibis
+        run: uv sync --extra s3 --extra gs --extra az --extra parquet --group sentry-sdk --group pipeline --group ibis
 
       - run: |
-          poetry run pytest tests/load --ignore tests/load/sources
+          pytest tests/load --ignore tests/load/sources
         name: Run Dremio tests
         env:
           DESTINATION__DREMIO__CREDENTIALS: grpc://dremio:dremio123@localhost:32010/nas

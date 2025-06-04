@@ -26,18 +26,12 @@ jobs:
       - name: Check out
         uses: actions/checkout@master
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.10.x"
-
-      - name: Install Poetry
-        uses: snok/install-poetry@v1.3.2
-        with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-          installer-parallel: true
-          version: 1.8.5
+          python-version: 3.10
+          activate-environment: true
+          enable-cache: true
 
       - name: Build images
         run: make test-build-images

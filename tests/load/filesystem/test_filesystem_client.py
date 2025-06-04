@@ -144,14 +144,17 @@ def test_successful_load(write_disposition: str, layout: str, with_gdrive_bucket
     dataset_name = "test_" + uniq_id()
     timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
-    with mock.patch(
-        "dlt.current.load_package",
-        return_value=mocked_timestamp,
-    ), perform_load(
-        dataset_name,
-        NORMALIZED_FILES,
-        write_disposition=write_disposition,
-    ) as load_info:
+    with (
+        mock.patch(
+            "dlt.current.load_package",
+            return_value=mocked_timestamp,
+        ),
+        perform_load(
+            dataset_name,
+            NORMALIZED_FILES,
+            write_disposition=write_disposition,
+        ) as load_info,
+    ):
         client, jobs, _, load_id = load_info
         layout = client.config.layout
         dataset_path = posixpath.join(client.bucket_path, client.config.dataset_name)
@@ -192,14 +195,17 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
     # state is typed now
     timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
-    with mock.patch(
-        "dlt.current.load_package",
-        return_value=mocked_timestamp,
-    ), perform_load(
-        dataset_name,
-        NORMALIZED_FILES,
-        write_disposition="replace",
-    ) as load_info:
+    with (
+        mock.patch(
+            "dlt.current.load_package",
+            return_value=mocked_timestamp,
+        ),
+        perform_load(
+            dataset_name,
+            NORMALIZED_FILES,
+            write_disposition="replace",
+        ) as load_info,
+    ):
         client, _, root_path, load_id1 = load_info
         layout = client.config.layout
         # this path will be kept after replace
@@ -268,14 +274,17 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
     # also we would like to have reliable timestamp for this test so we patch it
     timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
-    with mock.patch(
-        "dlt.current.load_package",
-        return_value=mocked_timestamp,
-    ), perform_load(
-        dataset_name,
-        NORMALIZED_FILES,
-        write_disposition="append",
-    ) as load_info:
+    with (
+        mock.patch(
+            "dlt.current.load_package",
+            return_value=mocked_timestamp,
+        ),
+        perform_load(
+            dataset_name,
+            NORMALIZED_FILES,
+            write_disposition="append",
+        ) as load_info,
+    ):
         client, jobs1, root_path, load_id1 = load_info
         with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="append") as load_info:
             client, jobs2, root_path, load_id2 = load_info
