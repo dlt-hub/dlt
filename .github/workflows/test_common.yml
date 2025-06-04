@@ -81,6 +81,7 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@master
+  
       - name: Install tzdata on windows
         run: |
           cd %USERPROFILE%
@@ -91,39 +92,40 @@ jobs:
           copy tzdata %USERPROFILE%\Downloads\tzdata
           curl https://raw.githubusercontent.com/unicode-org/cldr/master/common/supplemental/windowsZones.xml --output %USERPROFILE%\Downloads\tzdata\windowsZones.xml
         if: runner.os == 'Windows'
+
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
           activate-environment: true
+
       - name: Install dependencies
         run: uv sync --group sentry-sdk
 
       - name: Run common tests with minimum dependencies
         run: |
           pytest tests/common tests/normalize tests/reflection tests/plugins tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py ${{ matrix.pytest_args }}
-        
 
       - name: Install duckdb dependencies
         run: uv sync -E duckdb --group sentry-sdk
 
       - name: Run pipeline smoke tests with minimum deps
         run: |
-          uv run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py ${{ matrix.pytest_args }}
+          pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py ${{ matrix.pytest_args }}
 
       - name: Install pyarrow
         run: uv sync -E duckdb -E cli -E parquet --group sentry-sdk
 
       - name: Run pipeline tests with pyarrow but no pandas installed
         run: |
-          uv run pytest tests/pipeline/test_pipeline_extra.py -k arrow ${{ matrix.pytest_args }}
+          pytest tests/pipeline/test_pipeline_extra.py -k arrow ${{ matrix.pytest_args }}
 
       - name: Install pipeline and sources dependencies
         run: uv sync -E duckdb -E cli -E parquet -E deltalake -E sql_database --group sentry-sdk --group pipeline --group sources
 
       - name: Run extract and pipeline tests
         run: |
-          uv run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources tests/transformations ${{ matrix.pytest_args }}
+          pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources tests/transformations ${{ matrix.pytest_args }}
 
       # here we upgrade sql alchemy to 2 an run the sql_database tests again
       - name: Upgrade sql alchemy
@@ -131,15 +133,14 @@ jobs:
 
       - name: Run extract and pipeline tests 
         run: |
-          uv run pytest tests/sources/sql_database
+          pytest tests/sources/sql_database
         
-
       # - name: Install Pydantic 1.0
       #   run: pip install "pydantic<2"
 
       # - name: Run extract and pipeline tests
       #   run: |
-      #     uv run pytest tests/libs
+      #     pytest tests/libs
 
 
       # test marimo app, does not work with python 3.13
@@ -148,19 +149,19 @@ jobs:
         if: matrix.python-version != '3.13'
 
       - name: Install playwright
-        run: uv run playwright install
+        run: playwright install
         if: matrix.python-version != '3.13'
 
       # Run marimo studio unit tests
       - name: Run marimo studio unit tests
         run: |
-          uv run pytest tests/helpers/studio
+          pytest tests/helpers/studio
         if: matrix.python-version != '3.13'
 
       # Run marimo e2e tests (does not pass with python 3.9, does not pass on windows (playwright does not work somehow), does not pass on python 3.13 (ibis not available))
       - name: Run marimo e2e
         run: |
-          uv run marimo run --headless dlt/helpers/studio/app.py -- -- --pipelines_dir _storage/.dlt/pipelines/ --with_test_identifiers true & uv run pytest --browser chromium tests/e2e
+          uv run marimo run --headless dlt/helpers/studio/app.py -- -- --pipelines_dir _storage/.dlt/pipelines/ --with_test_identifiers true & pytest --browser chromium tests/e2e
         if: matrix.python-version != '3.13' && matrix.python-version != '3.9' && matrix.os != 'windows-latest'
 
 
