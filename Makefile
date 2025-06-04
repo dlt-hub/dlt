@@ -128,7 +128,7 @@ publish-library: build-library
 
 test-build-images: build-library
 	# NOTE: uv export does not work with our many different deps, we install a subset and freeze
-	uv sync -E gcp -E redshift -E duckdb
+	uv sync --extra gcp --extra redshift --extra duckdb
 	uv pip freeze > _gen_requirements.txt
 	# filter out libs that need native compilation
 	grep `cat compiled_packages.txt` _gen_requirements.txt > compiled_requirements.txt

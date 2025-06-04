@@ -64,7 +64,7 @@ jobs:
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - name: Install dependencies
-        run: uv sync -E lancedb -E parquet --group sentry-sdk --group pipeline
+        run: uv sync --extra lancedb --extra parquet --group sentry-sdk --group pipeline
 
       - name: Install embedding provider dependencies
         run: uv pip install openai

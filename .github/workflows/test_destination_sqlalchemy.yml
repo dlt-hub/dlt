@@ -74,7 +74,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync -E parquet -E filesystem -E sqlalchemy -E cli --group sentry-sdk --group pipeline --group ibis && uv pip install pymysql && uv pip install "sqlalchemy==${{ matrix.sqlalchemy }}"
+        run: uv sync --extra parquet --extra filesystem --extra sqlalchemy --extra cli --group sentry-sdk --group pipeline --group ibis && uv pip install pymysql && uv pip install "sqlalchemy==${{ matrix.sqlalchemy }}"
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml

@@ -75,7 +75,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync -E redshift -E postgis -E postgres -E gs -E s3 -E az -E parquet -E duckdb -E cli -E filesystem --group sentry-sdk --group pipeline --group ibis
+        run: uv sync --extra redshift --extra postgis --extra postgres --extra gs --extra s3 --extra az --extra parquet --extra duckdb --extra cli --extra filesystem --group sentry-sdk --group pipeline --group ibis
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml

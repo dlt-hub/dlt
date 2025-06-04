@@ -63,7 +63,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync -E motherduck -E s3 -E gs -E az -E parquet --group sentry-sdk --group pipeline --group ibis
+        run: uv sync --extra motherduck --extra s3 --extra gs --extra az --extra parquet --group sentry-sdk --group pipeline --group ibis
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml

@@ -65,7 +65,7 @@ jobs:
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - name: Install dependencies
-        run: uv sync -E qdrant -E parquet --group sentry-sdk --group pipeline
+        run: uv sync --extra qdrant --extra parquet --group sentry-sdk --group pipeline
 
       - run: |
           pytest tests/load --ignore tests/load/sources -m "essential"

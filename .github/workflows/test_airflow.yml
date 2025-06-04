@@ -34,7 +34,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync -E duckdb -E parquet --group airflow --group pipeline  --group sentry-sdk
+        run: uv sync --extra duckdb --extra parquet --group airflow --group pipeline  --group sentry-sdk
 
       - run: |
           pytest tests/helpers/airflow_tests

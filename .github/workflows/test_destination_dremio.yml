@@ -64,7 +64,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync -E s3 -E gs -E az -E parquet --group sentry-sdk --group pipeline --group ibis
+        run: uv sync --extra s3 --extra gs --extra az --extra parquet --group sentry-sdk --group pipeline --group ibis
 
       - run: |
           pytest tests/load --ignore tests/load/sources

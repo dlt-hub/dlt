@@ -75,7 +75,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync -E gs -E s3 -E az -E parquet -E duckdb -E filesystem --group sentry-sdk --group pipeline -E deltalake -E pyiceberg --group ibis
+        run: uv sync --extra gs --extra s3 --extra az --extra parquet --extra duckdb --extra filesystem --group sentry-sdk --group pipeline --extra deltalake --extra pyiceberg --group ibis
 
       - name: Upgrade sqlalchemy
         run: uv pip install sqlalchemy==2.0.18  # minimum version required by `pyiceberg`

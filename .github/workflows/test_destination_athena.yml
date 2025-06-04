@@ -63,7 +63,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync -E athena --group sentry-sdk --group pipeline --group ibis
+        run: uv sync --extra athena --group sentry-sdk --group pipeline --group ibis
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
