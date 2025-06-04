@@ -122,6 +122,9 @@ class UnmatchedConfigHintResolversException(ConfigurationException):
             f"The config spec `{spec_name}` has dynamic type resolvers for fields: `{field_names}`"
             " but these fields are not defined in the spec.\nWhen using @resolve_type() decorator,"
             f" Add the fields with 'Any' or another common type hint, example:\n\n{example}"
+            f"The config spec `{spec_name}` has dynamic type resolvers for fields: `{field_names}` but"
+            " these fields are not defined in the spec.\nWhen using `@resolve_type()` decorator, Add"
+            f" the fields with 'Any' or another common type hint, example:\n\n{example}"
         )
         super().__init__(msg)
 
@@ -131,8 +134,7 @@ class FinalConfigFieldException(ConfigurationException):
 
     def __init__(self, spec_name: str, field: str) -> None:
         super().__init__(
-            f"Field `{field}` in spec `{spec_name}` is final but is being changed by a config"
-            " provider"
+            f"Field `{field}` in spec `{spec_name}` is final but is being changed by a config provider"
         )
 
 
@@ -144,7 +146,7 @@ class ConfigValueCannotBeCoercedException(ConfigurationValueError):
         self.field_value = field_value
         self.hint = hint
         super().__init__(
-            f"Can't coerce value for config field `{field_name}` into type {str(hint)}"
+            f"Configured value for field {field_name} cannot be coerced into type {str(hint)}"
         )
 
 
@@ -172,7 +174,7 @@ class ConfigFieldMissingTypeHintException(ConfigurationException):
         self.field_name = field_name
         self.typ_ = spec
         super().__init__(
-            f"Field {field_name} on configspec {spec} does not provide required type hint"
+            f"Field `{field_name}` on configspec `{spec}` does not provide required type hint"
         )
 
 
@@ -183,7 +185,7 @@ class ConfigFieldTypeHintNotSupported(ConfigurationException):
         self.field_name = field_name
         self.typ_ = spec
         super().__init__(
-            f"Field {field_name} on configspec {spec} has hint with unsupported type {typ_}"
+            f"Field `{field_name}` on configspec `{spec}` has hint with unsupported type `{typ_}`"
         )
 
 
@@ -192,7 +194,7 @@ class ValueNotSecretException(ConfigurationException):
         self.provider_name = provider_name
         self.key = key
         super().__init__(
-            f"Provider {provider_name} cannot hold secret values but key {key} with secret value is"
+            f"Provider `{provider_name}` cannot hold secret values but key `{key}` with secret value is"
             " present"
         )
 
@@ -211,10 +213,9 @@ class InvalidNativeValue(ConfigurationException):
         self.inner_exception = inner_exception
         inner_msg = f" {self.inner_exception}" if inner_exception is not ValueError else ""
         super().__init__(
-            f"{spec.__name__} cannot parse the configuration value provided. The value is of type"
-            f" {native_value_type.__name__} and comes from the"
-            " {embedded_sections} section(s). Value may be a secret and is not shown. "
-            f"Details: {inner_msg}"
+            f"`{spec.__name__}` cannot parse the configuration value provided. The value is of type "
+            f"`{native_value_type.__name__}` and comes from the sections `{embedded_sections}` "
+            f"Value may be a secret and is not shown. Details: {inner_msg}"
         )
 
 
@@ -224,20 +225,20 @@ class ContainerInjectableContextMangled(ContainerException):
         self.existing_config = existing_config
         self.expected_config = expected_config
         super().__init__(
-            f"When restoring context {spec.__name__}, instance {expected_config} was expected,"
-            f" instead instance {existing_config} was found."
+            f"When restoring context `{spec.__name__}`, instance `{expected_config}` was expected,"
+            f" instead instance `{existing_config}` was found."
         )
 
 
 class ContextDefaultCannotBeCreated(ContainerException, KeyError):
     def __init__(self, spec: Type[Any]) -> None:
         self.spec = spec
-        super().__init__(f"Container cannot create the default value of context {spec.__name__}.")
+        super().__init__(f"Container cannot create the default value of context `{spec.__name__}`.")
 
 
 class DuplicateConfigProviderException(ConfigProviderException):
     def __init__(self, provider_name: str) -> None:
         super().__init__(
             provider_name,
-            f"Provider with name {provider_name} already present in ConfigProvidersContext",
+            f"Provider with name `{provider_name}` already present in `ConfigProvidersContext`",
         )

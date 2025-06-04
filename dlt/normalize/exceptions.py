@@ -16,5 +16,5 @@ class NormalizeJobFailed(NormalizeException):
         self.failed_message = failed_message
         self.writer_metrics = writer_metrics
         super().__init__(
-            f"Job for {job_id} failed terminally in load {load_id} with message {failed_message}."
+            f"Job for `{job_id=:}` failed terminally in load with `{load_id=:}` with message: {failed_message}."
         )

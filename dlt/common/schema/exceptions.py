@@ -15,7 +15,7 @@ class SchemaException(DltException):
     def __init__(self, schema_name: str, msg: str) -> None:
         self.schema_name = schema_name
         if schema_name:
-            msg = f"In schema: {schema_name}: " + msg
+            msg = f"In schema `{schema_name}`: " + msg
         super().__init__(msg)
 
 
@@ -26,7 +26,7 @@ class InvalidSchemaName(ValueError, SchemaException):
         self.name = schema_name
         super().__init__(
             schema_name,
-            f"{schema_name} is an invalid schema/source name. The source or schema name must be a"
+            f"`{schema_name}` is an invalid schema/source name. The source or schema name must be a"
             " valid Python identifier ie. a snake case function name and have maximum"
             f" {self.MAXIMUM_SCHEMA_NAME_LENGTH} characters. Ideally should contain only small"
             " letters, numbers and underscores.",
@@ -60,8 +60,8 @@ class CannotCoerceColumnException(SchemaException):
         self.coerced_value = coerced_value
         super().__init__(
             schema_name,
-            f"Cannot coerce type in table {table_name} column {column_name} existing type"
-            f" {from_type} coerced type {to_type} value: {coerced_value}",
+            f"Cannot coerce type `{from_type}` to `{to_type}` for value `{coerced_value}` "
+            f"in table `{table_name}` column `{column_name}`"
         )
 
 
@@ -74,7 +74,7 @@ class TablePropertiesConflictException(SchemaException):
         super().__init__(
             schema_name,
             f"Cannot merge partial tables into table `{table_name}` due to property `{prop_name}`"
-            f' with different values: "{val1}" != "{val2}"',
+            f' with different values: `{val1} != {val2}`',
         )
 
 
@@ -86,8 +86,8 @@ class ParentTableNotFoundException(SchemaException):
         self.parent_table_name = parent_table_name
         super().__init__(
             schema_name,
-            f"Parent table {parent_table_name} for {table_name} was not found in the"
-            f" schema.{explanation}",
+            f"Parent table `{parent_table_name}` for `{table_name}` was not found in "
+            f" `schema.{explanation}`",
         )
 
 
@@ -95,7 +95,7 @@ class CannotCoerceNullException(SchemaException):
     def __init__(self, schema_name: str, table_name: str, column_name: str) -> None:
         super().__init__(
             schema_name,
-            f"Cannot coerce NULL in table {table_name} column {column_name} which is not nullable",
+            f"Cannot coerce NULL in table `{table_name}` column `{column_name}` which is not nullable",
         )
 
 
@@ -115,12 +115,12 @@ class SchemaIdentifierNormalizationCollision(SchemaCorruptedException):
         collision_msg: str,
     ) -> None:
         if identifier_type == "column":
-            table_info = f"in table {table_name} "
+            table_info = f" in table `{table_name}`"
         else:
             table_info = ""
         msg = (
-            f"A {identifier_type} name {identifier_name} {table_info}collides with"
-            f" {conflict_identifier_name} after normalization with {naming_name} naming"
+            f"A `{identifier_type}` name `{identifier_name}`{table_info} collides with"
+            f" `{conflict_identifier_name}` after normalization with `{naming_name}` naming"
             " convention. "
             + collision_msg
         )
@@ -141,8 +141,8 @@ class SchemaEngineNoUpgradePathException(SchemaException):
         self.to_engine = to_engine
         super().__init__(
             schema_name,
-            f"No engine upgrade path in schema {schema_name} from {init_engine} to {to_engine},"
-            f" stopped at {from_engine}. You possibly tried to run an older dlt"
+            f"No engine upgrade path in schema `{schema_name}` from engine `{init_engine}` to `{to_engine}`,"
+            f" stopped at `{from_engine}`. You possibly tried to run an older dlt"
             " version against a destination you have previously loaded data to with a newer dlt"
             " version.",
         )
@@ -167,14 +167,14 @@ class DataValidationError(SchemaException):
         """
         msg = ""
         if schema_name:
-            msg = f"Schema: {schema_name} "
-        msg += f"Table: {table_name} "
+            msg = f"Schema: `{schema_name}` "
+        msg += f"Table: `{table_name}` "
         if column_name:
-            msg += f"Column: {column_name}"
+            msg += f"Column: `{column_name}`"
         msg = (
             "In "
             + msg
-            + f" . Contract on {schema_entity} with mode {contract_mode} is violated. "
+            + f" . Contract on `{schema_entity}` with `{contract_mode=:}` is violated. "
             + (extended_info or "")
         )
         super().__init__(schema_name, msg)
@@ -194,7 +194,7 @@ class DataValidationError(SchemaException):
 class TableNotFound(KeyError, SchemaException):
     def __init__(self, schema_name: str, table_name: str) -> None:
         self.table_name = table_name
-        super().__init__(schema_name, f"Table not found: {table_name}")
+        super().__init__(schema_name, f"Table not found: `{table_name}`")
 
 
 class TableIdentifiersFrozen(SchemaException):
@@ -210,8 +210,8 @@ class TableIdentifiersFrozen(SchemaException):
         self.to_naming = to_naming
         self.from_naming = from_naming
         msg = (
-            f"Attempt to normalize identifiers for a table {table_name} from naming"
-            f" {from_naming.name()} to {to_naming.name()} changed one or more identifiers. "
+            f"Attempt to normalize identifiers for a table `{table_name}` from naming"
+            f" `{from_naming.name()}` to `{to_naming.name()}` changed one or more identifiers. "
         )
         msg += (
             " This table already received data and tables were created at the destination. By"
@@ -223,7 +223,7 @@ class TableIdentifiersFrozen(SchemaException):
         )
         msg += (
             " You may disable this behavior by setting"
-            " schema.allow_identifier_change_on_table_with_data to True or removing `x-normalizer`"
+            " `schema.allow_identifier_change_on_table_with_data` to True or removing `x-normalizer`"
             " hints from particular tables. "
         )
         msg += f" Details: {details}"
@@ -247,15 +247,15 @@ class UnboundColumnException(SchemaException):
             key_type = "primary key"
 
         msg = (
-            f"The column {column['name']} in table {table_name} did not receive any data during"
+            f"The column `{column['name']}` in table `{table_name}` did not receive any data during"
             " this load. "
         )
         if key_type or not nullable:
             msg += f"It is marked as non-nullable{' '+key_type} and it must have values. "
 
         msg += (
-            "This can happen if you specify the column manually, for example using the 'merge_key',"
-            " 'primary_key' or 'columns' argument but it does not exist in the data."
+            "This can happen if you specify the column manually, for example using the `merge_key`,"
+            " `primary_key` or `columns` argument but it does not exist in the data."
         )
         super().__init__(schema_name, msg)
 
