@@ -312,6 +312,8 @@ def test_from_sqlglot_timestamp_with_precision(
         ({"data_type": "decimal", "precision": 10, "scale": 2}, sge.DataType.Type.DECIMAL),
         ({"data_type": "bigint", "precision": 17}, sge.DataType.Type.INT),
         ({"data_type": "timestamp", "precision": 0}, sge.DataType.Type.TIMESTAMP),
+        ({"data_type": "text", "precision": 100}, sge.DataType.Type.TEXT),
+        ({"data_type": "binary", "precision": 98}, sge.DataType.Type.VARBINARY),
         (
             {"data_type": "timestamp", "precision": 5, "timezone": True},
             sge.DataType.Type.TIMESTAMPTZ,
