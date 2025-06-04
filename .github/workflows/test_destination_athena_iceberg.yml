@@ -2,7 +2,7 @@
 name: dest | athena iceberg
 
 on:
-  pull_request_target:
+  pull_request:
     branches:
       - master
       - devel
@@ -54,11 +54,6 @@ jobs:
         uses: actions/checkout@master
         with:
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.10.x"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
