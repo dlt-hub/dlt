@@ -56,7 +56,74 @@ class BigQueryDateTruncPartition:
 
 
 # BigQuery-specific union of supported partition specs
+
 BigQueryPartitionSpec = Union[BigQueryRangeBucketPartition, BigQueryDateTruncPartition]
+
+# --- BigQuery Partition Renderer ---
+import sqlglot
+from sqlglot import exp
+
+T = TypeVar("T")
+
+class PartitionRenderer(Protocol[T]):
+    @staticmethod
+    def render_sql(partitions: List[T]) -> str: ...
+
+class BigQueryPartitionRenderer(PartitionRenderer[BigQueryPartitionSpec]):
+    """BigQuery partition expression generator and renderer using sqlglot."""
+
+    _DISPATCH = {
+        BigQueryRangeBucketPartition: (
+            lambda partition: BigQueryPartitionRenderer._render_range_bucket_expr(partition)
+        ),
+        BigQueryDateTruncPartition: (
+            lambda partition: BigQueryPartitionRenderer._render_date_trunc_expr(partition)
+        ),
+    }
+
+    @staticmethod
+    def render_sql(partitions: List[BigQueryPartitionSpec]) -> str:
+        """
+        Returns the full PARTITION BY clause for BigQuery, e.g.:
+        PARTITION BY RANGE_BUCKET(...) or PARTITION BY DATE_TRUNC(...)
+        """
+        if len(partitions) != 1:
+            raise ValueError("BigQuery only supports partitioning by a single column.")
+        partition = partitions[0]
+        handler = BigQueryPartitionRenderer._DISPATCH.get(type(partition))
+        if not handler:
+            raise NotImplementedError(f"Unknown partition type: {type(partition)}")
+        expr_sql = handler(partition)
+        return f"PARTITION BY {expr_sql}"
+
+    @staticmethod
+    def _render_range_bucket_expr(partition: BigQueryRangeBucketPartition) -> str:
+        expr = exp.Anonymous(
+            this="RANGE_BUCKET",
+            expressions=[
+                exp.to_identifier(partition.column_name),
+                exp.Anonymous(
+                    this="GENERATE_ARRAY",
+                    expressions=[
+                        exp.Literal.number(partition.start),
+                        exp.Literal.number(partition.end),
+                        exp.Literal.number(partition.interval),
+                    ],
+                ),
+            ],
+        )
+        return expr.sql(dialect="bigquery")
+
+    @staticmethod
+    def _render_date_trunc_expr(partition: BigQueryDateTruncPartition) -> str:
+        expr = exp.Anonymous(
+            this="DATE_TRUNC",
+            expressions=[
+                exp.to_identifier(partition.column_name),
+                exp.Literal.string(partition.granularity),
+            ],
+        )
+        return expr.sql(dialect="bigquery")
 
 
 class PartitionTransformation:
