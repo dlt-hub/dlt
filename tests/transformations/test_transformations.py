@@ -54,6 +54,43 @@ def test_simple_query_transformations(destination_config: DestinationTestConfigu
     transformation_configs(only_duckdb=True),
     ids=lambda x: x.name,
 )
+def test_transformations_with_supplied_hints(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    fruit_p, dest_p = setup_transformation_pipelines(destination_config)
+
+    s = fruitshop_source()
+    s.inventory.apply_hints(columns={"price": {"precision": 10, "scale": 2}})
+    fruit_p.run(s)
+
+    assert fruit_p.default_schema.tables["inventory"]["columns"]["price"]["precision"] == 10
+    assert fruit_p.default_schema.tables["inventory"]["columns"]["price"]["scale"] == 2
+
+    # we can now transform this table twice, one with changed hints and once with the original hints
+    @dlt.transformation()
+    def inventory_original(dataset: SupportsReadableDataset[Any]) -> Any:
+        return dataset["inventory"]
+
+    @dlt.transformation(columns={"price": {"precision": 20, "scale": 2}})
+    def inventory_more_precise(dataset: SupportsReadableDataset[Any]) -> Any:
+        return dataset["inventory"]
+
+    dest_p.run([inventory_original(fruit_p.dataset()), inventory_more_precise(fruit_p.dataset())])
+
+    assert dest_p.default_schema.tables["inventory_original"]["columns"]["price"]["precision"] == 10
+    assert dest_p.default_schema.tables["inventory_original"]["columns"]["price"]["scale"] == 2
+    assert (
+        dest_p.default_schema.tables["inventory_more_precise"]["columns"]["price"]["precision"]
+        == 20
+    )
+    assert dest_p.default_schema.tables["inventory_more_precise"]["columns"]["price"]["scale"] == 2
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    transformation_configs(only_duckdb=True),
+    ids=lambda x: x.name,
+)
 def test_extract_without_source_name_or_pipeline(
     destination_config: DestinationTestConfiguration,
 ) -> None:

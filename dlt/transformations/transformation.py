@@ -162,15 +162,17 @@ def make_transformation_resource(
         select_dialect = datasets[0].sql_client.capabilities.sqlglot_dialect
         select_query = transformation_result.query()
 
+        all_columns = {**computed_columns, **(columns or {})}
+
         if not should_materialize:
             yield dlt.mark.with_hints(
                 SqlModel(select_query, dialect=select_dialect),
-                hints=make_hints(columns=computed_columns),
+                hints=make_hints(columns=all_columns),
             )
         else:
             # NOTE: dataset will not execute query over unknown tables or columns
             for chunk in datasets[0](select_query).iter_arrow(chunk_size=config.buffer_max_items):
-                yield dlt.mark.with_hints(chunk, hints=make_hints(columns=computed_columns))
+                yield dlt.mark.with_hints(chunk, hints=make_hints(columns=all_columns))
 
     return dlt.resource(  # type: ignore[return-value]
         name=name,

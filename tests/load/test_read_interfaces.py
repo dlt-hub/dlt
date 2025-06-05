@@ -476,7 +476,7 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
     assert list(table[5]) == [5, 10]
     assert list(table[10]) == [10, 20]
 
-    # check query with explicit dataset
+    # check query with explicit dataset, query is in "schema" identifier space
     query = (
         f"SELECT i.id, di.double_id FROM {dataset_name}.items as i JOIN {dataset_name}.double_items"
         " as di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
@@ -485,6 +485,41 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
     join_relationship = populated_pipeline.dataset()(query)
     table = join_relationship.fetchall()
     assert len(table) == 20
+
+    # check statement that is not a select query
+    query = f"CREATE TABLE {dataset_name}.test (id bigint)"
+    with pytest.raises(LineageFailedException) as exc:
+        populated_pipeline.dataset()(query).df()
+    assert "is not a SELECT statement." in str(exc.value)
+
+    # we also get an error in raw query mode
+    with pytest.raises(ValueError) as exc2:
+        populated_pipeline.dataset()(query, execute_raw_query=True).df()
+    assert "Must be an SQL SELECT statement" in str(exc2.value)
+
+    # test various query stages
+    # raw query has no aliases
+    assert (
+        join_relationship._query().sql("duckdb").replace(dataset_name, "dataset_name")
+        == "SELECT i.id, di.double_id FROM dataset_name.items AS i JOIN dataset_name.double_items"
+        " AS di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC NULLS FIRST"
+    )
+
+    # qualified query has aliases
+    assert (
+        join_relationship._qualified_query.sql("duckdb").replace(dataset_name, "dataset_name")
+        == "SELECT i.id AS id, di.double_id AS double_id FROM dataset_name.items AS i JOIN"
+        " dataset_name.double_items AS di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
+        " NULLS FIRST"
+    )
+
+    # normalized has quoted indentifiers
+    assert (
+        join_relationship._normalized_query.sql("duckdb").replace(dataset_name, "dataset_name")
+        == 'SELECT "i"."id" AS "id", "di"."double_id" AS "double_id" FROM "dataset_name"."items" AS'
+        ' "i" JOIN "dataset_name"."double_items" AS "di" ON ("i"."id" = "di"."id") WHERE'
+        ' "i"."id" < 20 ORDER BY "i"."id" ASC NULLS FIRST'
+    )
 
 
 @pytest.mark.no_load
