@@ -1,4 +1,5 @@
 import pytest
+import sqlglot
 
 from dlt import Schema
 from dlt.common.schema.typing import TColumnSchema
@@ -66,7 +67,9 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
 
     # test star select
     sql_query = "SELECT * FROM customers"
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, dialect)[0] == {
+    assert lineage.compute_columns_schema(sqlglot.parse_one(sql_query), sqlglot_schema, dialect)[
+        0
+    ] == {
         "id": {"name": "id", "data_type": "bigint"},
         "name": {"name": "name", "data_type": "text", "x-annotation-pii": True},
         "email": {"name": "email", "data_type": "text", "nullable": True},
@@ -74,7 +77,9 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
 
     # test select with fully qualified table and column names
     sql_query = "SELECT id, d1.customers.name, d1.customers.email FROM d1.customers"
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, dialect)[0] == {
+    assert lineage.compute_columns_schema(sqlglot.parse_one(sql_query), sqlglot_schema, dialect)[
+        0
+    ] == {
         "id": {"name": "id", "data_type": "bigint"},
         "name": {"name": "name", "data_type": "text", "x-annotation-pii": True},
         "email": {"name": "email", "data_type": "text", "nullable": True},
@@ -82,7 +87,9 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
 
     # test select with casting and avg
     sql_query = "SELECT AVG(id) as mean_id, name, email, CAST(LEN(name) as DOUBLE) FROM customers"
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, dialect)[0] == {
+    assert lineage.compute_columns_schema(sqlglot.parse_one(sql_query), sqlglot_schema, dialect)[
+        0
+    ] == {
         "mean_id": {"name": "mean_id", "data_type": "double"},
         "name": {"name": "name", "data_type": "text", "x-annotation-pii": True},
         "email": {"name": "email", "data_type": "text", "nullable": True},
@@ -91,7 +98,9 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
 
     # test concat
     sql_query = "SELECT CONCAT(name, email) as concat FROM customers"
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, dialect)[0] == {
+    assert lineage.compute_columns_schema(sqlglot.parse_one(sql_query), sqlglot_schema, dialect)[
+        0
+    ] == {
         "concat": {"name": "concat", "data_type": "text"},
     }
 
@@ -100,7 +109,9 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
         "SELECT customers.name, orders.amount FROM customers JOIN orders ON customers.id ="
         " orders.customer_id"
     )
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, "duckdb")[0] == {
+    assert lineage.compute_columns_schema(sqlglot.parse_one(sql_query), sqlglot_schema, "duckdb")[
+        0
+    ] == {
         "name": {"name": "name", "data_type": "text", "x-annotation-pii": True},
         "amount": {"name": "amount", "data_type": "double"},
     }
@@ -111,7 +122,9 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
         orders GROUP BY 1 ) AS "t1" ORDER BY t1.count DESC
         LIMIT 10
     """
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, "duckdb")[0] == {
+    assert lineage.compute_columns_schema(sqlglot.parse_one(sql_query), sqlglot_schema, "duckdb")[
+        0
+    ] == {
         "count": {"name": "count", "data_type": "bigint"},
         "amount": {"name": "amount", "data_type": "double"},
     }
@@ -119,7 +132,7 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
     # test select unknown column
     sql_query = "SELECT unknown_column FROM customers"
     with pytest.raises(LineageFailedException) as exc:
-        lineage.compute_columns_schema(sql_query, sqlglot_schema, "duckdb")
+        lineage.compute_columns_schema(sqlglot.parse_one(sql_query), sqlglot_schema, "duckdb")
     assert "Failed to resolve SQL query against the schema received" in str(exc.value)
 
     # test window function with over and join
@@ -129,7 +142,9 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
         FROM orders o
         JOIN customers c ON o.customer_id = c.id
     """
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, "duckdb")[0] == {
+    assert lineage.compute_columns_schema(sqlglot.parse_one(sql_query), sqlglot_schema, "duckdb")[
+        0
+    ] == {
         "name": {"name": "name", "data_type": "text", "x-annotation-pii": True},
         "total_amount": {"name": "total_amount"},  # , "data_type": "double"},
     }
@@ -143,7 +158,9 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
         )
         SELECT customer_id, total_amount FROM customer_orders
     """
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, "duckdb")[0] == {
+    assert lineage.compute_columns_schema(sqlglot.parse_one(sql_query), sqlglot_schema, "duckdb")[
+        0
+    ] == {
         "customer_id": {"name": "customer_id", "data_type": "bigint"},
         "total_amount": {"name": "total_amount", "data_type": "double"},
     }

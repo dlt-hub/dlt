@@ -150,46 +150,27 @@ def make_transformation_resource(
                 " data (data frames / arrow table), please yield those, not return."
                 % (name, type(transformation_result)),
             )
-        # compute lineage
-        computed_columns: TTableSchemaColumns = {}
-        all_columns: TTableSchemaColumns = columns or {}
         # strict lineage!
         # TODO: make it a public method
         # TODO: why schema inference and anonymous columns are wrong? we do not want columns without
         #  data types and only this should be disabled
         computed_columns, _ = transformation_result._compute_columns_schema(
-            infer_sqlglot_schema=False,
-            allow_anonymous_columns=False,
-            allow_partial=False,
+            infer_sqlglot_schema=True,
+            allow_anonymous_columns=True,
+            allow_partial=True,
         )
         select_dialect = datasets[0].sql_client.capabilities.sqlglot_dialect
-        select_query = transformation_result.normalized_query.sql(dialect=select_dialect)
+        select_query = transformation_result.query()
 
-        # TODO: why? don't we prevent empty column schemas above?
-        all_columns = {**computed_columns, **(columns or {})}
-
-        # for sql transformations all column types must be known
         if not should_materialize:
-            # search all columns and see if there are some unknown ones
-            unknown_column_types = [
-                name for name, c in all_columns.items() if c.get("data_type") is None
-            ]
-
-            if unknown_column_types:
-                raise UnknownColumnTypesException(
-                    resource_name,
-                    "For sql transformations all data_types of columns must be known. "
-                    + "Please run with strict lineage or provide data_type hints "
-                    + f"for following columns: {unknown_column_types}",
-                )
             yield dlt.mark.with_hints(
                 SqlModel(select_query, dialect=select_dialect),
-                hints=make_hints(columns=all_columns),
+                hints=make_hints(columns=computed_columns),
             )
         else:
             # NOTE: dataset will not execute query over unknown tables or columns
             for chunk in datasets[0](select_query).iter_arrow(chunk_size=config.buffer_max_items):
-                yield dlt.mark.with_hints(chunk, hints=make_hints(columns=all_columns))
+                yield dlt.mark.with_hints(chunk, hints=make_hints(columns=computed_columns))
 
     return dlt.resource(  # type: ignore[return-value]
         name=name,

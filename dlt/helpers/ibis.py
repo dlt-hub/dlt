@@ -22,6 +22,7 @@ try:
     import ibis
     import sqlglot
     from ibis import BaseBackend, Expr, Table
+    from ibis.backends.sql.compilers.duckdb import compiler as duckdb_compiler
 except ModuleNotFoundError:
     raise MissingDependencyException("dlt ibis helpers", ["ibis-framework"])
 
