@@ -34,14 +34,23 @@ from tests.cases import arrow_table_all_data_types
 pytestmark = pytest.mark.essential
 
 
+# NOTE: this test runs on parquet + postgres needs adbc dependency group
+destination_cases = destinations_configs(
+    default_sql_configs=True,
+    default_staging_configs=True,
+    all_staging_configs=True,
+    table_format_filesystem_configs=True,
+)
+# if postgres got selected, add postgres config with native parquet support via adbc
+if "postgres" in [case.destination_type for case in destination_cases]:
+    destination_cases.append(
+        DestinationTestConfiguration(destination_type="postgres", file_format="parquet")
+    )
+
+
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-        default_staging_configs=True,
-        all_staging_configs=True,
-        table_format_filesystem_configs=True,
-    ),
+    destination_cases,
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("item_type", ["pandas", "arrow-table", "arrow-batch"])
@@ -53,6 +62,7 @@ def test_load_arrow_item(
     # os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = "True"
+
     include_time = destination_config.destination_type not in (
         "athena",
         "redshift",
@@ -66,7 +76,6 @@ def test_load_arrow_item(
     )
 
     include_decimal = True
-
     if (
         destination_config.destination_type == "databricks"
         and destination_config.file_format == "jsonl"
@@ -95,9 +104,10 @@ def test_load_arrow_item(
 
     # use csv for postgres to get native arrow processing
     destination_config.file_format = (
-        destination_config.file_format
-        if destination_config.destination_type != "postgres"
-        else "csv"
+        "csv"
+        if destination_config.destination_type == "postgres"
+        and destination_config.file_format == "insert_values"
+        else destination_config.file_format
     )
 
     load_info = pipeline.run(some_data(), **destination_config.run_kwargs)
@@ -185,12 +195,7 @@ def test_load_arrow_item(
 @pytest.mark.no_load  # Skips drop_pipeline fixture since we don't do any loading
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-        default_staging_configs=True,
-        all_staging_configs=True,
-        default_vector_configs=True,
-    ),
+    destination_cases,
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("item_type", ["arrow-table", "pandas", "arrow-batch"])
@@ -246,12 +251,7 @@ def test_parquet_column_names_are_normalized(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-        default_staging_configs=True,
-        all_staging_configs=True,
-        default_vector_configs=True,
-    ),
+    destination_cases,
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("item_type", ["arrow-table", "pandas", "arrow-batch"])
