@@ -8,6 +8,8 @@ from subprocess import CalledProcessError
 import dlt
 from dlt.common.runners.venv import Venv
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.cli.exceptions import CliCommandInnerException
 
 from dlt.cli import echo, init_command, pipeline_command
 
@@ -130,6 +132,7 @@ def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) 
             )
 
         _out = buf.getvalue()
+        assert "Unless hardcoded, credentials are loaded from environment variables" in _out
         assert "Selected resource(s): ['players_games']" in _out
 
         # Command was executed
