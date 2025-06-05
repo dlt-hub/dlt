@@ -12,10 +12,10 @@ def _add_properties(properties: sqlglot.expressions.Properties, new_properties: 
     return properties
 
 
-def _add_global(node: exp.Expression) -> exp.Expression:
-    if isinstance(node, exp.Join) and not node.args.get("global"):
-        node.set("global", True)
-    return node
+# def _add_global(node: exp.Expression) -> exp.Expression:
+#     if isinstance(node, exp.Join) and not node.args.get("global"):
+#         node.set("global", True)
+#     return node
 
 
 def _has_expression(properties: sqlglot.expressions.Properties, expression_type: sqlglot.expressions.Expression) -> bool:

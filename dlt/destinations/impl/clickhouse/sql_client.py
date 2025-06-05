@@ -27,7 +27,7 @@ from typing import (
 from pendulum import DateTime
 import sqlglot
 from sqlglot import exp
-from .sqlglot_helpers import _add_properties, _add_global, _has_expression
+from .sqlglot_helpers import _add_properties, _has_expression
 
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -302,7 +302,7 @@ class ClickHouseSqlClient(
 
     def extract_alter_table_name(self, query: str) -> Optional[str]:
         if self.contains_string(query, "ALTER TABLE"):
-            pattern = r'(?i)\bALTER TABLE\s+`?[\w]+`?\.`?([\w]+)`?'
+            pattern = r'(?i)\bALTER TABLE\s+([`"]?[\w]+[`"]?\.[`"]?[\w]+[`"]?)'
             group_num = 1
         else:
             # If no known command is found, return None
@@ -361,7 +361,7 @@ class ClickHouseSqlClient(
                     # DROP and TRUNCATE do not have joins and are not fully supported by sqlglot for clickhouse
                     stmt = sqlglot.parse_one(qry, dialect='clickhouse')
                     # if there are joins in the query we need to add global
-                    stmt = stmt.transform(_add_global)
+                    # stmt = stmt.transform(_add_global)
                     # because of the special case for the DELETE FROM we cannot
                     # convert sqlglot ast after the if statement so we convert it here
                     # to adjust joins in a single place
@@ -401,19 +401,31 @@ class ClickHouseSqlClient(
                         table.args["db"] = exp.Identifier(this=base_db, quoted=True)
                         table.args["this"] = exp.Identifier(this=table.name + self.config.base_table_name_postfix, quoted=True)
                         qry = stmt.sql(dialect="clickhouse")
-                    elif self.contains_string(qry, "UPDATE"):  
+                    elif self.contains_string(qry, "UPDATE"):
                         # hadnling ALTER TABLE table_name UPDATE
                         # We need to update the base table not the distributed one, it's not supported by ClickHouse
                         # And sqlglot doesn't support this statement, as in, it doesn't parse the table name
                         # We use sqlglot to parse the table name and then use replace to adjust the query
+                        logger.debug(f"**** ALTER TABLE UPDATE query:\n{qry}")
                         table_name = self.extract_alter_table_name(qry)
                         if table_name:
                             # we need to update the base table
                             table = exp.to_table(sql_path=table_name,dialect="clickhouse")
-                            qry.replace(table.db, base_db).replace(table.name, table.name + self.config.base_table_name_postfix)
+                            qry = qry.replace(table.db, base_db, 1).replace(table.name, table.name + self.config.base_table_name_postfix, 1)
+                            qry = qry + " SETTINGS allow_nondeterministic_mutations = 1"
+                            logger.debug(f"**** ALTER TABLE UPDATE query after replace:\n{qry}")
 
 
                     qry = self.add_on_cluster(qry, cluster)
+
+                # we want to ensure that any IN or JOIN works with the distributed table
+                # even if GLOBAL was not explicitly specified
+                if self.contains_string(qry, "JOIN ") or self.contains_string(qry, "IN "):
+                    # if
+                    if self.contains_string(qry, "SETTINGS"):
+                        qry = qry + ", distributed_product_mode = 'global'"
+                    else:
+                        qry = qry + "\nSETTINGS distributed_product_mode = 'global'"
 
                 # unfortunately sqlglot is converting rand() to randCanonical() for clikchouse
                 # rand() returns an integer value and randCanonical() returns a float
@@ -421,7 +433,7 @@ class ClickHouseSqlClient(
                 if self.contains_string(qry, "Distributed") and self.contains_string(qry, "randCanonical()"):
                     qry = qry.replace("randCanonical()", "rand()")
                 mod_queries.append(qry)
-            query = ";".join(mod_queries)
+            query = ";\n".join(mod_queries)
             logger.debug(f"**** queries after joining:\n{query}")
         return query
 
@@ -449,7 +461,17 @@ class ClickHouseSqlClient(
 
         db_args = self._sanitise_dbargs(db_args)
 
+
         with self._conn.cursor() as cursor:
+            if self.config.distributed_tables is True:
+                # With distributed_product_mode setting we ensure that all joins and IN clauses work with the distributed table
+                # even if GLOBAL was not explicitly specified
+                # Also, UPDATEs and DELETEs will work with the distributed table due to allow_nondeterministic_mutations=1.
+                # This is easier than modifying each query
+                cursor.set_settings(settings={
+                    "distributed_product_mode": "global",
+                    "allow_nondeterministic_mutations": 1
+                })
             for query_line in query.split(";"):
                 if query_line := query_line.strip():
                     try:
