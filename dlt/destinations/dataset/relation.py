@@ -72,8 +72,8 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
 
         if not isinstance(query, sge.Query):
             raise ValueError(
-                f"Query `{query}` received for `{self.__class__.__name__}` must be a"
-                " an sql SELECT statement."
+                f"Query `{query}` received for `{self.__class__.__name__}`. "
+                "Must be an SQL SELECT statement."
             )
 
         return query.sql(dialect=self._dataset.sql_client.capabilities.sqlglot_dialect)
