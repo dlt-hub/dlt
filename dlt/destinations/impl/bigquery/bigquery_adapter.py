@@ -29,35 +29,120 @@ PARTITION_EXPIRATION_DAYS_HINT: Literal["x-bigquery-partition-expiration-days"] 
 CLUSTER_COLUMNS_HINT: Literal["x-bigquery-cluster-columns"] = "x-bigquery-cluster-columns"
 
 
+
+
 # --- Partition Spec Classes (DB-dependent) ---
+from dataclasses import dataclass
+
+
 @dataclass(frozen=True)
 class BigQueryRangeBucketPartition:
+    """
+    RANGE_BUCKET(<int64_column>, GENERATE_ARRAY(<start>, <end>[, <interval>]))
+    Partition by an integer column with the specified range, where:
+    - start is the start of range partitioning, inclusive.
+    - end is the end of range partitioning, exclusive.
+    - interval is the width of each range within the partition. Defaults to 1.
+    """
     column_name: str
     start: int
     end: int
     interval: int = 1
-
     def __post_init__(self):
         if self.interval <= 0:
             raise ValueError("interval must be a positive integer")
         if self.start >= self.end:
             raise ValueError("start must be less than end (exclusive)")
 
-
 @dataclass(frozen=True)
 class BigQueryDateTruncPartition:
+    """
+    DATE_TRUNC(<date_column>, { MONTH | YEAR })
+    Partition by a DATE column with the specified partitioning type.
+    """
     column_name: str
     granularity: Literal["MONTH", "YEAR"]
-
     def __post_init__(self):
         allowed = ("MONTH", "YEAR")
         if self.granularity not in allowed:
             raise ValueError(f"granularity must be one of {allowed}, got {self.granularity!r}")
 
+@dataclass(frozen=True)
+class BigQueryIngestionTimePartition:
+    """
+    _PARTITIONDATE or DATE(_PARTITIONTIME)
+    Partition by ingestion time with daily partitions.
+    This syntax cannot be used with the AS query_statement clause.
+    """
+    # _PARTITIONDATE or DATE(_PARTITIONTIME)
+    pass
+
+@dataclass(frozen=True)
+class BigQueryDateColumnPartition:
+    """
+    <date_column>
+    Partition by a DATE column with daily partitions.
+    """
+    column_name: str
+
+@dataclass(frozen=True)
+class BigQueryTimestampOrDateTimePartition:
+    """
+    DATE({ <timestamp_column> | <datetime_column> })
+    Partition by a TIMESTAMP or DATETIME column with daily partitions.
+    """
+    column_name: str
+
+@dataclass(frozen=True)
+class BigQueryDatetimeTruncPartition:
+    """
+    DATETIME_TRUNC(<datetime_column>, { DAY | HOUR | MONTH | YEAR })
+    Partition by a DATETIME column with the specified partitioning type.
+    """
+    column_name: str
+    granularity: Literal["DAY", "HOUR", "MONTH", "YEAR"]
+    def __post_init__(self):
+        allowed = ("DAY", "HOUR", "MONTH", "YEAR")
+        if self.granularity not in allowed:
+            raise ValueError(f"granularity must be one of {allowed}, got {self.granularity!r}")
+
+@dataclass(frozen=True)
+class BigQueryTimestampTruncPartition:
+    """
+    TIMESTAMP_TRUNC(<timestamp_column>, { DAY | HOUR | MONTH | YEAR })
+    Partition by a TIMESTAMP column with the specified partitioning type.
+    """
+    column_name: str
+    granularity: Literal["DAY", "HOUR", "MONTH", "YEAR"]
+    def __post_init__(self):
+        allowed = ("DAY", "HOUR", "MONTH", "YEAR")
+        if self.granularity not in allowed:
+            raise ValueError(f"granularity must be one of {allowed}, got {self.granularity!r}")
+
+@dataclass(frozen=True)
+class BigQueryTimestampTruncIngestionPartition:
+    """
+    TIMESTAMP_TRUNC(_PARTITIONTIME, { DAY | HOUR | MONTH | YEAR })
+    Partition by ingestion time with the specified partitioning type.
+    This syntax cannot be used with the AS query_statement clause.
+    """
+    granularity: Literal["DAY", "HOUR", "MONTH", "YEAR"]
+    def __post_init__(self):
+        allowed = ("DAY", "HOUR", "MONTH", "YEAR")
+        if self.granularity not in allowed:
+            raise ValueError(f"granularity must be one of {allowed}, got {self.granularity!r}")
 
 # BigQuery-specific union of supported partition specs
-
-BigQueryPartitionSpec = Union[BigQueryRangeBucketPartition, BigQueryDateTruncPartition]
+BigQueryPartitionSpec = (
+    BigQueryRangeBucketPartition
+    | BigQueryDateTruncPartition
+    | BigQueryIngestionTimePartition
+    | BigQueryDateColumnPartition
+    | BigQueryTimestampOrDateTimePartition
+    | BigQueryDatetimeTruncPartition
+    | BigQueryTimestampTruncPartition
+    | BigQueryTimestampTruncIngestionPartition
+)
 
 # --- BigQuery Partition Renderer ---
 import sqlglot

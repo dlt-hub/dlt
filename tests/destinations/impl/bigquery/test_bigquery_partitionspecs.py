@@ -29,3 +29,50 @@ class TestDateTruncPartition:
     def test_invalid_granularity(self):
         with pytest.raises(ValueError, match="granularity must be one of"):
             BigQueryDateTruncPartition("created_at", "DAY")
+
+class TestDatetimeTruncPartition:
+    @pytest.mark.parametrize(
+        "granularity",
+        ["DAY", "HOUR", "MONTH", "YEAR"]
+    )
+    def test_valid(self, granularity):
+        from dlt.destinations.impl.bigquery.bigquery_adapter import BigQueryDatetimeTruncPartition
+        part = BigQueryDatetimeTruncPartition("dt_col", granularity)
+        assert part.column_name == "dt_col"
+        assert part.granularity == granularity
+
+    def test_invalid_granularity(self):
+        from dlt.destinations.impl.bigquery.bigquery_adapter import BigQueryDatetimeTruncPartition
+        with pytest.raises(ValueError, match="granularity must be one of"):
+            BigQueryDatetimeTruncPartition("dt_col", "MINUTE")
+
+class TestTimestampTruncPartition:
+    @pytest.mark.parametrize(
+        "granularity",
+        ["DAY", "HOUR", "MONTH", "YEAR"]
+    )
+    def test_valid(self, granularity):
+        from dlt.destinations.impl.bigquery.bigquery_adapter import BigQueryTimestampTruncPartition
+        part = BigQueryTimestampTruncPartition("ts_col", granularity)
+        assert part.column_name == "ts_col"
+        assert part.granularity == granularity
+
+    def test_invalid_granularity(self):
+        from dlt.destinations.impl.bigquery.bigquery_adapter import BigQueryTimestampTruncPartition
+        with pytest.raises(ValueError, match="granularity must be one of"):
+            BigQueryTimestampTruncPartition("ts_col", "SECOND")
+
+class TestTimestampTruncIngestionPartition:
+    @pytest.mark.parametrize(
+        "granularity",
+        ["DAY", "HOUR", "MONTH", "YEAR"]
+    )
+    def test_valid(self, granularity):
+        from dlt.destinations.impl.bigquery.bigquery_adapter import BigQueryTimestampTruncIngestionPartition
+        part = BigQueryTimestampTruncIngestionPartition(granularity)
+        assert part.granularity == granularity
+
+    def test_invalid_granularity(self):
+        from dlt.destinations.impl.bigquery.bigquery_adapter import BigQueryTimestampTruncIngestionPartition
+        with pytest.raises(ValueError, match="granularity must be one of"):
+            BigQueryTimestampTruncIngestionPartition("SECOND")
