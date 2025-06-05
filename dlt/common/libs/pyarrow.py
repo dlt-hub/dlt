@@ -835,7 +835,7 @@ def transpose_rows_to_columns(
         logger.info(
             "Pandas not installed, reverting to numpy.asarray to create a table which is slower"
         )
-        pivoted_rows = np.asarray(rows, dtype="object", order="k").T
+        pivoted_rows = np.asarray(rows, dtype="object", order="K").T
     return {
         column_name: data.ravel()
         for column_name, data in zip(column_names, np.vsplit(pivoted_rows, len(pivoted_rows)))
