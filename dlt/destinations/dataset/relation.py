@@ -1,4 +1,4 @@
-from typing import Any, Dict, Generator, Optional, Sequence, Tuple, Type, Union, TYPE_CHECKING
+from typing import Any, cast, Generator, Optional, Sequence, Tuple, Type, Union, TYPE_CHECKING
 from contextlib import contextmanager
 
 import sqlglot
@@ -40,8 +40,8 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         # derived / cached properties
         self._opened_sql_client: SqlClientBase[Any] = None
         self._columns_schema: TTableSchemaColumns = None
-        self._qualified_query: sge.Query = None
-        self._normalized_query: sge.Query = None
+        self.__qualified_query: sge.Query = None
+        self.__normalized_query: sge.Query = None
 
         # wire protocol functions
         self.df = self._wrap_func("df")  # type: ignore
@@ -62,19 +62,23 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
         return self._dataset.sql_client_class
 
-    def query(self) -> Any:
-        # NOTE: converted from property to method due to:
-        #   if this property raises AttributeError, __getattr__ will get called 🤯
-        #   this leads to infinite recursion as __getattr_ calls this property
-        #   also it does a heavy computation inside so it should be a method
+    def query(self) -> str:
+        """Returns an executable sql query string in the correct sql dialect for this relation"""
+
         if self._execute_raw_query:
-            return self._query()
+            query = self._query()
+        else:
+            query = self._normalized_query
 
-        return self.normalized_query.sql(
-            dialect=self._dataset.sql_client.capabilities.sqlglot_dialect
-        )
+        if not isinstance(query, sge.Query):
+            raise ValueError(
+                f"Query `{query}` received for `{self.__class__.__name__}` must be a"
+                " an sql SELECT statement."
+            )
 
-    def _query(self) -> Any:
+        return query.sql(dialect=self._dataset.sql_client.capabilities.sqlglot_dialect)
+
+    def _query(self) -> sge.Query:
         """Returns a compliant with dlt schema in the relation.
         1. identifiers are not case folded
         2. star top level selects are not expanded
@@ -162,13 +166,10 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         ):
             return {}, None
 
-        dialect: str = self._dataset.sql_client.capabilities.sqlglot_dialect
-
         return lineage.compute_columns_schema(
             # use dlt schema compliant query so lineage will work correctly on non case folded identifiers
             self._query(),
             self._dataset.sqlglot_schema,
-            dialect,
             infer_sqlglot_schema=infer_sqlglot_schema,
             allow_anonymous_columns=allow_anonymous_columns,
             allow_partial=allow_partial,
@@ -177,7 +178,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     @property
     def columns_schema(self) -> TTableSchemaColumns:
         if self._columns_schema is None:
-            self._columns_schema, self._qualified_query = self._compute_columns_schema()
+            self._columns_schema, self.__qualified_query = self._compute_columns_schema()
         return self._columns_schema
 
     @columns_schema.setter
@@ -185,18 +186,19 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         raise NotImplementedError("Columns Schema may not be set")
 
     @property
-    def qualified_query(self) -> sge.Query:
-        if self._qualified_query is None:
-            self._columns_schema, self._qualified_query = self._compute_columns_schema()
-        return self._qualified_query
+    def _qualified_query(self) -> sge.Query:
+        if self.__qualified_query is None:
+            self._columns_schema, self.__qualified_query = self._compute_columns_schema()
+        return self.__qualified_query
 
     @property
-    def normalized_query(self) -> sge.Query:
-        if self._normalized_query is None:
-            self._normalized_query = normalize_query(
-                self._dataset.sqlglot_schema, self.qualified_query, self._dataset.sql_client
+    def _normalized_query(self) -> sge.Query:
+        """Computes and returns the normalized query"""
+        if self.__normalized_query is None:
+            self.__normalized_query = normalize_query(
+                self._dataset.sqlglot_schema, self._qualified_query, self._dataset.sql_client
             )
-        return self._normalized_query
+        return self.__normalized_query
 
 
 class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
@@ -224,10 +226,10 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         self._limit = limit
         self._selected_columns = selected_columns
 
-    def _query(self) -> Any:
+    def _query(self) -> sge.Query:
         # TODO reimplement this using SQLGLot instead of passing strings
         if self._provided_query:
-            return self._provided_query
+            return cast(sge.Query, sqlglot.parse_one(self._provided_query))
 
         dataset_schema = self._dataset.schema
 
@@ -249,7 +251,12 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         )
         selector = ",".join(selected_columns)
 
-        return f"SELECT {maybe_limit_clause_1} {selector} FROM {table_name} {maybe_limit_clause_2}"
+        return cast(
+            sge.Query,
+            sqlglot.parse_one(
+                f"SELECT {maybe_limit_clause_1} {selector} FROM {table_name} {maybe_limit_clause_2}"
+            ),
+        )
 
     def __copy__(self) -> Self:
         return self.__class__(
