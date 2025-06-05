@@ -11,7 +11,9 @@ from typing import (
     Callable,
     Iterable,
     Type,
+    Union,
     cast,
+    TYPE_CHECKING,
 )
 from copy import deepcopy
 import re
@@ -19,7 +21,9 @@ import re
 from contextlib import contextmanager
 from pendulum.datetime import DateTime, Date
 from datetime import datetime  # noqa: I251
+from threading import Lock
 
+import boto3
 import pyathena
 from pyathena import connect
 from pyathena.connection import Connection
@@ -66,8 +70,25 @@ from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs, Finalize
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
 from dlt.destinations import path_utils
 from dlt.destinations.impl.athena.athena_adapter import PARTITION_HINT
+from dlt.destinations.impl.athena.configuration import LakeformationConfig
 from dlt.destinations.utils import get_deterministic_temp_table_name
 
+if TYPE_CHECKING:
+    from mypy_boto3_lakeformation import LakeFormationClient
+    from mypy_boto3_lakeformation.type_defs import (
+        AddLFTagsToResourceResponseTypeDef,
+        GetResourceLFTagsResponseTypeDef,
+        RemoveLFTagsFromResourceResponseTypeDef,
+        ResourceTypeDef
+    )
+else:
+    LakeFormationClient = Any
+    AddLFTagsToResourceResponseTypeDef = Any
+    GetResourceLFTagsResponseTypeDef = Any
+    RemoveLFTagsFromResourceResponseTypeDef = Any
+    ResourceTypeDef = Any
+
+boto3_client_lock = Lock()
 
 # add a formatter for pendulum to be used by pyathen dbapi
 def _format_pendulum_datetime(formatter: Formatter, escaper: Callable[[str], str], val: Any) -> Any:
@@ -165,6 +186,69 @@ class AthenaMergeJob(SqlMergeFollowupJob):
     @classmethod
     def requires_temp_table_for_delete(cls) -> bool:
         return True
+
+
+class LfTagsManager:
+    """Class used to manage lakeformation tags on glue/athena database.
+
+    Heavily inspired by dbt-athena implementation:
+    https://github.com/dbt-labs/dbt-athena/blob/main/dbt-athena/src/dbt/adapters/athena/lakeformation.py
+    """
+
+    def __init__(
+        self,
+        lf_client: LakeFormationClient,
+        lf_config: LakeformationConfig,
+        dataset: str,
+        table: Optional[str] = None,
+    ):
+        self.lf_client = lf_client
+        self.database = dataset
+        self.table = table
+        self.enabled = lf_config.enabled
+        self.lf_tags = lf_config.tags
+
+    def process_lf_tags_database(self) -> None:
+        """Add or remove lf tags from athena database."""
+        database_resource: ResourceTypeDef = {"Database": {"Name": self.database}}
+        if self.enabled and self.lf_tags:
+            add_response = self.lf_client.add_lf_tags_to_resource(
+                Resource={"Database": {"Name": self.database}},
+                LFTags=[{"TagKey": k, "TagValues": [v]} for k, v in self.lf_tags.items()],
+            )
+            self._parse_and_log_lf_response(add_response, None, self.lf_tags)
+        elif not self.enabled:
+            get_response: GetResourceLFTagsResponseTypeDef = self.lf_client.get_resource_lf_tags(
+                Resource=database_resource
+            )
+            if "LFTagOnDatabase" not in get_response:
+                return
+            tags = get_response["LFTagOnDatabase"]
+            self.lf_client.remove_lf_tags_from_resource(Resource=database_resource, LFTags=tags)
+
+        else:
+            logger.debug("Lakeformation is enabled but no tags are set")
+
+    def _parse_and_log_lf_response(
+        self,
+        response: Union[
+            AddLFTagsToResourceResponseTypeDef, RemoveLFTagsFromResourceResponseTypeDef
+        ],
+        columns: Optional[List[str]] = None,
+        lf_tags: Optional[Dict[str, str]] = None,
+        verb: str = "add",
+    ) -> None:
+        table_appendix = f".{self.table}" if self.table else ""
+        columns_appendix = f" for columns {columns}" if columns else ""
+        resource_msg = self.database + table_appendix + columns_appendix
+        if failures := response.get("Failures", []):
+            base_msg = f"Failed to {verb} LF tags: {lf_tags} to " + resource_msg
+            for failure in failures:
+                tag = failure.get("LFTag", {}).get("TagKey")
+                error = failure.get("Error", {}).get("ErrorMessage")
+                logger.error(f"Failed to {verb} {tag} for " + resource_msg + f" - {error}")
+            raise RuntimeError(base_msg)
+        logger.debug(f"Success: {verb} LF tags {lf_tags} to " + resource_msg)
 
 
 class AthenaSQLClient(SqlClientBase[Connection]):
@@ -379,6 +463,24 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         table_properties.update(mandatory_properties)
         return ", ".join([f"'{k}'='{v}'" for k, v in table_properties.items()])
 
+    def manage_lf_tags(self) -> None:
+        """Manage Lakeformation tags on the glue database."""
+        lf_config = self.config.lakeformation_config
+
+        with boto3_client_lock:
+            lf_client = boto3.client("lakeformation")
+        manager = LfTagsManager(
+            lf_client,
+            lf_config=lf_config,
+            dataset=self.sql_client.dataset_name,
+            table=None,
+        )
+        try:
+            manager.process_lf_tags_database()
+        except Exception as e:
+            logger.error(f"Failed to manage lakeformation tags: {e}")
+            raise e
+
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
@@ -435,6 +537,11 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
                         STORED AS PARQUET
                         LOCATION '{location}';""")
         return sql
+
+    def complete_load(self, load_id: str) -> None:
+        super().complete_load(load_id)
+        if self.config.lakeformation_config is not None:
+            self.manage_lf_tags()
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
