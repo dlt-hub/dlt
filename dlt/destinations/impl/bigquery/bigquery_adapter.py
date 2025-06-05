@@ -1,4 +1,7 @@
-from typing import Any, Optional, Literal, Dict, Union, Sequence
+
+from typing import Any, Optional, Literal, Dict, Union, Sequence, TypeVar, Protocol, List
+
+from dataclasses import dataclass
 
 from dateutil import parser
 
@@ -24,6 +27,36 @@ PARTITION_EXPIRATION_DAYS_HINT: Literal["x-bigquery-partition-expiration-days"] 
     "x-bigquery-partition-expiration-days"
 )
 CLUSTER_COLUMNS_HINT: Literal["x-bigquery-cluster-columns"] = "x-bigquery-cluster-columns"
+
+
+# --- Partition Spec Classes (DB-dependent) ---
+@dataclass(frozen=True)
+class BigQueryRangeBucketPartition:
+    column_name: str
+    start: int
+    end: int
+    interval: int = 1
+
+    def __post_init__(self):
+        if self.interval <= 0:
+            raise ValueError("interval must be a positive integer")
+        if self.start >= self.end:
+            raise ValueError("start must be less than end (exclusive)")
+
+
+@dataclass(frozen=True)
+class BigQueryDateTruncPartition:
+    column_name: str
+    granularity: Literal["MONTH", "YEAR"]
+
+    def __post_init__(self):
+        allowed = ("MONTH", "YEAR")
+        if self.granularity not in allowed:
+            raise ValueError(f"granularity must be one of {allowed}, got {self.granularity!r}")
+
+
+# BigQuery-specific union of supported partition specs
+BigQueryPartitionSpec = Union[BigQueryRangeBucketPartition, BigQueryDateTruncPartition]
 
 
 class PartitionTransformation:
