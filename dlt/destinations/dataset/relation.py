@@ -12,6 +12,7 @@ from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import Self
 from dlt.common.exceptions import TypeErrorWithKnownTypes
 
+from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.transformations import lineage
 
 from dlt.destinations.dataset.exceptions import (
