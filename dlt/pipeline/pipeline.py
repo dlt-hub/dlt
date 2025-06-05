@@ -489,6 +489,7 @@ class Pipeline(SupportsPipeline):
                 )
                 # commit load packages with state
                 extract_step.commit_packages()
+                self._update_last_run_context()
                 return self._get_step_info(extract_step)
         except Exception as exc:
             # emit step info
@@ -537,6 +538,7 @@ class Pipeline(SupportsPipeline):
             try:
                 with signals.delayed_signals():
                     runner.run_pool(normalize_step.config, normalize_step)
+                self._update_last_run_context()
                 return self._get_step_info(normalize_step)
             except Exception as n_ex:
                 step_info = self._get_step_info(normalize_step)
@@ -595,6 +597,7 @@ class Pipeline(SupportsPipeline):
             info: LoadInfo = self._get_step_info(load_step)
 
             self.first_run = False
+            self._update_last_run_context()
             return info
         except Exception as l_ex:
             step_info = self._get_step_info(load_step)
@@ -745,6 +748,7 @@ class Pipeline(SupportsPipeline):
         destination: TDestinationReferenceArg = None,
         staging: TDestinationReferenceArg = None,
         dataset_name: str = None,
+        update_last_run_context: bool = True,
     ) -> None:
         """Synchronizes pipeline state with the `destination`'s state kept in `dataset_name`
 
@@ -757,6 +761,8 @@ class Pipeline(SupportsPipeline):
         Note: this method is executed by the `run` method before any operation on data. Use `restore_from_destination` configuration option to disable that behavior.
 
         """
+        if update_last_run_context:
+            self._update_last_run_context()
         return self._sync_destination(
             destination=destination, staging=staging, dataset_name=dataset_name
         )
@@ -1052,6 +1058,21 @@ class Pipeline(SupportsPipeline):
         except ContextDefaultCannotBeCreated:
             state = self._get_state()
         return state["_local"][key]  # type: ignore
+
+    def _update_last_run_context(self) -> None:
+        """
+        Persist the directory context in local state.
+        Safe-no-op if the pipeline is not active or if run_context cannot be resolved.
+        """
+        try:
+            ctx = dlt.current.run_context()
+        except Exception:
+            return
+
+        self.set_local_state_val(
+            "last_run_context",
+            {"settings_dir": ctx.settings_dir, "local_dir": os.path.abspath(ctx.local_dir)},
+        )
 
     @with_config_section(sections=(), merge_func=ConfigSectionContext.prefer_existing)
     def sql_client(self, schema_name: str = None) -> SqlClientBase[Any]:

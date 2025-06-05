@@ -73,29 +73,34 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
                     " missing or empty.\n"
                 )
 
-        # check if entry point is run with path. this is common problem so warn the user
         main_path = main_module_file_path()
-        if main_path and main_path.endswith(".py"):
+
+        # check if entry point is run with path or from cli command. This is common problem so warn the user
+        if main_path and (main_path.endswith(".py") or main_path.endswith("dlt")):
             from dlt.common.runtime import run_context
+            import dlt
+
+            last_ctx = dlt.current.pipeline().get_local_state_val("last_run_context")
+            last_ctx_local_dir = last_ctx.get("local_dir")
 
             # check if settings are relative
-            settings = run_context.active().settings_dir
+            settings = last_ctx.get("settings_dir")
+
             # settings are relative so check makes sense
             if not os.path.isabs(settings):
-                main_dir = os.path.dirname(main_path)
-                abs_main_dir = os.path.abspath(main_dir)
-                if abs_main_dir != os.getcwd():
+                if last_ctx_local_dir != os.getcwd():
                     # directory was specified
                     msg += (
                         f"WARNING: dlt looks for {settings} folder in your current working"
                         " directory and your cwd (%s) is different from directory of your pipeline"
-                        " script (%s).\n" % (os.getcwd(), abs_main_dir)
+                        " script (%s).\n" % (os.getcwd(), last_ctx_local_dir)
                     )
                     msg += (
                         "If you keep your secret files in the same folder as your pipeline script"
                         " but run your script from some other folder, secrets/configs will not be"
                         " found\n"
                     )
+
         msg += "Learn more: https://dlthub.com/docs/general-usage/credentials/\n"
         return msg
 
