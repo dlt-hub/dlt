@@ -201,7 +201,7 @@ def create_unbound_ibis_table(schema: Schema, dataset_name: str, table_name: str
 
     # Convert dlt table schema columns to ibis schema
     ibis_schema = {
-        col_name: DATA_TYPE_MAP[col_info.get("data_type", "string")]
+        col_name: DATA_TYPE_MAP[col_info.get("data_type", "text")]
         for col_name, col_info in table_schema.get("columns", {}).items()
     }
 
