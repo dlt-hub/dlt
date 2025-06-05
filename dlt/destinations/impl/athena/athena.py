@@ -212,9 +212,13 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         return f"{self.fully_qualified_ddl_dataset_name()}.{table_name}"
 
     def create_dataset(self) -> None:
-        db_location_clause = f" LOCATION '{self.config.db_location}'" if self.config.db_location else ""
+        db_location_clause = (
+            f" LOCATION '{self.config.db_location}'" if self.config.db_location else ""
+        )
         # HIVE escaping for DDL
-        self.execute_sql(f"CREATE DATABASE {self.fully_qualified_ddl_dataset_name()}{db_location_clause};")
+        self.execute_sql(
+            f"CREATE DATABASE {self.fully_qualified_ddl_dataset_name()}{db_location_clause};"
+        )
 
     def drop_dataset(self) -> None:
         self.execute_sql(f"DROP DATABASE {self.fully_qualified_ddl_dataset_name()} CASCADE;")
