@@ -59,14 +59,15 @@ def test_motherduck_configuration() -> None:
     assert config.password == "tok"
 
 
-def test_motherduck_connect_default_token() -> None:
+@pytest.mark.parametrize("token_key", ["motherduck_token", "MOTHERDUCK_TOKEN"])
+def test_motherduck_connect_default_token(token_key: str) -> None:
     import dlt
 
     credentials = dlt.secrets.get(
         "destination.motherduck.credentials", expected_type=MotherDuckCredentials
     )
     assert credentials.password
-    os.environ["motherduck_token"] = credentials.password
+    os.environ[token_key] = credentials.password
 
     credentials = MotherDuckCredentials()
     assert credentials._has_default_token() is True
