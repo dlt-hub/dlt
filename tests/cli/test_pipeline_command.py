@@ -8,6 +8,8 @@ from subprocess import CalledProcessError
 import dlt
 from dlt.common.runners.venv import Venv
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.cli.exceptions import CliCommandInnerException
 
 from dlt.cli import echo, init_command, pipeline_command
 
