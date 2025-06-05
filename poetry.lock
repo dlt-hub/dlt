@@ -12,6 +12,71 @@ files = [
 ]
 
 [[package]]
+name = "adbc-driver-manager"
+version = "1.6.0"
+description = "A generic entrypoint for ADBC drivers."
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "adbc_driver_manager-1.6.0-cp310-cp310-macosx_10_15_x86_64.whl", hash = "sha256:d4b84cb733494bbcc7246a795c8be84fdb36dad472ec95c0fbc5c24f5df493c0"},
+    {file = "adbc_driver_manager-1.6.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:fcd5b89de4ff1c5ba313d789ac3905541bd8a897e42ca6684ca19a3f47ae53f3"},
+    {file = "adbc_driver_manager-1.6.0-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:6f5c66c3824512faa63b70b1bc94d74aa1a573c3c49ab3c7b0226ba5655268e4"},
+    {file = "adbc_driver_manager-1.6.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:359dafe2ccc0f0de3f10faa0e462cb2518b9ffb495f103f7ec2b437dcff600fc"},
+    {file = "adbc_driver_manager-1.6.0-cp310-cp310-win_amd64.whl", hash = "sha256:b6f05c0e53d556bd5ff9fa90cc4c37733bde8a7ed0ce7359cd2836ff3c3242a6"},
+    {file = "adbc_driver_manager-1.6.0-cp311-cp311-macosx_10_15_x86_64.whl", hash = "sha256:09f760c7ed2ec0cb2087800b16132ed433d628e6131bbf416eea2dca89294f09"},
+    {file = "adbc_driver_manager-1.6.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:0386d29c8fae0bb78f2bf50939b37b22449fdd14ea6ea4e99c491fc85257c242"},
+    {file = "adbc_driver_manager-1.6.0-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:7c37acc9b1e1430e4a0c5435eb2d5f4302443306835ad3dafd927aa134a98127"},
+    {file = "adbc_driver_manager-1.6.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d3ade5a5d1b94ab21a0e7f61f043aa4d04ace14e8dcf70c5abd1b5a623eaa18b"},
+    {file = "adbc_driver_manager-1.6.0-cp311-cp311-win_amd64.whl", hash = "sha256:fc99d4dabf4441be574cb8224ea367ec1e144894f9c6076b031db45c3244f72a"},
+    {file = "adbc_driver_manager-1.6.0-cp312-cp312-macosx_10_15_x86_64.whl", hash = "sha256:e572ed22d1615034e7e90499af74ed21d624cc54c1d5ec8aa3e0ec4ca4a654f7"},
+    {file = "adbc_driver_manager-1.6.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:1a251977656f574d3881b5964b0611c62f252214de255f6d88a494965f15eba2"},
+    {file = "adbc_driver_manager-1.6.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:f3e6dd7b657029d9ef5d4fb5bc7b976be90b552c44442cd39e89eb410663db44"},
+    {file = "adbc_driver_manager-1.6.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:64306174f149c3ceeb081997aa46682424a000b00eb8c2e9e8df022ccdf6f1ec"},
+    {file = "adbc_driver_manager-1.6.0-cp312-cp312-win_amd64.whl", hash = "sha256:31f1857413a2f9572aba8a0236af36cc3da46a1720ea8747c62948b626010b98"},
+    {file = "adbc_driver_manager-1.6.0-cp313-cp313-macosx_10_15_x86_64.whl", hash = "sha256:f75a65f5fb4aeac33b8b08c054335ae5a7bc5de848d7b036398bff876119cc27"},
+    {file = "adbc_driver_manager-1.6.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:0a9e2be3fca404e3b78b6fafb1e61d5a08565a7815debc53d049cc5fbe0c955d"},
+    {file = "adbc_driver_manager-1.6.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:83dfde4c8d2f130be23048800117a8f3166b797d1442d74135ce7611ab26e812"},
+    {file = "adbc_driver_manager-1.6.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:41972465fa4db46bf151cc37000d0bd29c87c2eabbc81f502f0b6932c235f213"},
+    {file = "adbc_driver_manager-1.6.0-cp313-cp313-win_amd64.whl", hash = "sha256:0e8ffb182fafe1e6ae12964a833700daacc55f7abfdc2ada8b5214b18108d87b"},
+    {file = "adbc_driver_manager-1.6.0-cp39-cp39-macosx_10_15_x86_64.whl", hash = "sha256:ef82b3e7661420887c04f7cef04d76a465445b8d2c20bcd2d7da6aa1a23aa7ce"},
+    {file = "adbc_driver_manager-1.6.0-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:fc49efbdee89e98535b7692bebe79f9760b90482207812af84550878c0bf1059"},
+    {file = "adbc_driver_manager-1.6.0-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:e0cd224e5a29af7c63a3a8d6502c0438a05820f4cda48be6d274fe39a1236bae"},
+    {file = "adbc_driver_manager-1.6.0-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:bab52976384586fa6ad991a9d1aff0a04871e72f300112ee80f240772498675a"},
+    {file = "adbc_driver_manager-1.6.0-cp39-cp39-win_amd64.whl", hash = "sha256:bb28324c0276df20477a527e291b37ed611a9fad5968ab252295002179ae9a6d"},
+    {file = "adbc_driver_manager-1.6.0.tar.gz", hash = "sha256:618659313a5c712f7938ab35e8f8bae1b80e9ed0c7a8582b2ec9174a88a442ba"},
+]
+
+[package.dependencies]
+typing-extensions = "*"
+
+[package.extras]
+dbapi = ["pandas", "pyarrow (>=14.0.1)"]
+test = ["duckdb", "pandas", "pyarrow (>=14.0.1)", "pytest"]
+
+[[package]]
+name = "adbc-driver-postgresql"
+version = "1.6.0"
+description = "A libpq-based ADBC driver for working with PostgreSQL."
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "adbc_driver_postgresql-1.6.0-py3-none-macosx_10_15_x86_64.whl", hash = "sha256:a82803bcc7a73967bd08f2e70334b87706ef6dc7895606f7d5d7357df18789de"},
+    {file = "adbc_driver_postgresql-1.6.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:8d72dcf359b98c173e316e9e3761011bea7a67cb41a2d678b66c6834ccad809d"},
+    {file = "adbc_driver_postgresql-1.6.0-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a49a88d1d55c347c26e1de1199896b91f7bf581b6efd398e6c7241fa70a3fd20"},
+    {file = "adbc_driver_postgresql-1.6.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:c3d09a688fb95bbe5431b488431145d77b3e20f8adbc413b1c2530b6623a9a2a"},
+    {file = "adbc_driver_postgresql-1.6.0-py3-none-win_amd64.whl", hash = "sha256:23823cc70f8194c61e04b879c6ad6bae4871e1527b727b897cbc3039b6e4b892"},
+    {file = "adbc_driver_postgresql-1.6.0.tar.gz", hash = "sha256:531b34ee2eb7c17ad5b3a791f05742d5e7c24725671fc8348be2ff48c0bdaf29"},
+]
+
+[package.dependencies]
+adbc-driver-manager = "*"
+importlib-resources = ">=1.3"
+
+[package.extras]
+dbapi = ["pandas", "pyarrow (>=14.0.1)"]
+test = ["pandas", "polars", "pyarrow (>=14.0.1)", "pytest"]
+
+[[package]]
 name = "adlfs"
 version = "2024.12.0"
 description = "Access Azure Datalake Gen1 with fsspec and dask"
@@ -2083,27 +2148,27 @@ files = [
 
 [[package]]
 name = "connectorx"
-version = "0.4.0"
+version = "0.4.1"
 description = ""
 optional = false
 python-versions = ">=3.10"
 files = [
-    {file = "connectorx-0.4.0-cp310-cp310-macosx_10_12_x86_64.whl", hash = "sha256:447bd065feb69b63e51a8a056b1de3ccb98a48108b52987dba1b67555f01a8d8"},
-    {file = "connectorx-0.4.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:342d233ca0008ec7cfef2ab91da566f15a1326ac2f51c87c6dd9f77dc9a6549e"},
-    {file = "connectorx-0.4.0-cp310-cp310-manylinux_2_28_x86_64.whl", hash = "sha256:72103766090f81ed7f8aeba9183d7eb2f24b65de9678d74a61c16f85f89e8b81"},
-    {file = "connectorx-0.4.0-cp310-none-win_amd64.whl", hash = "sha256:63a5a4961ed43e5f33eebaa9ee0ea0bb4e3f7d0f710d48e2b51ede3bd1e2af44"},
-    {file = "connectorx-0.4.0-cp311-cp311-macosx_10_12_x86_64.whl", hash = "sha256:fb3653c4ff1de8ada871c2ab883ed04dc2b7bb84704fcf08e6a23cf67deb931f"},
-    {file = "connectorx-0.4.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:224da692923f3e2f6ae5677dfd0f00ac0374e3989832ee4de029112b09da2281"},
-    {file = "connectorx-0.4.0-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:d9b6d1832c071201cacb810b06c7311cb605f99dead0ee47935d38086f1c9d4b"},
-    {file = "connectorx-0.4.0-cp311-none-win_amd64.whl", hash = "sha256:31b2c02f56360c6c4034d23c107772df98c8ab6102f71242bcb9a8a0fec06512"},
-    {file = "connectorx-0.4.0-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:5c6bb6cc468ff77b18b71ee44b5ea7e3c72de3a08a4740040fed3361a6086659"},
-    {file = "connectorx-0.4.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:42d9ae283541aca860f7082186ecb0525ff933b714e676dfe0e517e7943a9799"},
-    {file = "connectorx-0.4.0-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:c3ebe1e95e4c82d69804d0165be4d4f80ff4bb1beac04d6946aa73ed04819440"},
-    {file = "connectorx-0.4.0-cp312-none-win_amd64.whl", hash = "sha256:d4c156df650860002f61155e2eff23d9c822c2e9f14e16d04e21dd1033b09cdc"},
-    {file = "connectorx-0.4.0-cp313-cp313-macosx_10_12_x86_64.whl", hash = "sha256:b74266abb86c7d570579004d909d8b4ce5d18dab29e07c63015ea75ed0178adb"},
-    {file = "connectorx-0.4.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:dd80488823a174d0c73e4575b10f0c0eb86bc82cbd72e28fd2b611733308699d"},
-    {file = "connectorx-0.4.0-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:33a64fdd0b3efd32f54cce664f1022d448db5878e919e7a2f186f2af19eaa572"},
-    {file = "connectorx-0.4.0-cp313-none-win_amd64.whl", hash = "sha256:635727407b0a14ff30cd02519e631766b2df55c94da2d57c7599e5a9a4ce2f4f"},
+    {file = "connectorx-0.4.1-cp310-cp310-macosx_10_7_x86_64.whl", hash = "sha256:9c0be0a6d75d2973c85c659e47449a76023ead772882e696e39b4876aa35a162"},
+    {file = "connectorx-0.4.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:df400dff622a4622fd54696870d14b301682bccba4f44740f3445a6e206d5405"},
+    {file = "connectorx-0.4.1-cp310-cp310-manylinux_2_28_x86_64.whl", hash = "sha256:03df70a1002c1535f54f90a513cf11e05fb2f137dbd054b630fd67a1e46f27ac"},
+    {file = "connectorx-0.4.1-cp310-none-win_amd64.whl", hash = "sha256:50e86baff363632fbfcc92f01e97c01b8ea2cd49f476d80ffc32348367ef2caf"},
+    {file = "connectorx-0.4.1-cp311-cp311-macosx_10_7_x86_64.whl", hash = "sha256:e11f6a41f7895a2b31aa769163b8884488f1ab6e4cf51c2624ca3713ae41e11e"},
+    {file = "connectorx-0.4.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:29cf23da07ac777335cce5552f8566e590e0aa431523795baffbe0060c36cfb0"},
+    {file = "connectorx-0.4.1-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:80c0d4df06d0abd2cc8e037ab5a9160dcb808ef79df1b959b14b3f1708a4dc61"},
+    {file = "connectorx-0.4.1-cp311-none-win_amd64.whl", hash = "sha256:8cd569b14fe84010989460fe5f46f1c65572dac898bed8c35c24106c4ce286bc"},
+    {file = "connectorx-0.4.1-cp312-cp312-macosx_10_7_x86_64.whl", hash = "sha256:b23b108e2e7a361a058bd83b88cc677a9ef047ad1e9e7ff61a6771f4e6d9536a"},
+    {file = "connectorx-0.4.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:0bae0c076ce781ec06f9a7e18f0a4f575c754b9100238cc574e8edd221e10ec2"},
+    {file = "connectorx-0.4.1-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:4159f6578a8b539bbbc3a4efd508b9ae38dad5e037f3349d3b5cbebfa7fa8e66"},
+    {file = "connectorx-0.4.1-cp312-none-win_amd64.whl", hash = "sha256:fd64156b8f6e14cc77f8e4ffe49b77fc4adea1414268433f032b5c91dc5f9e2f"},
+    {file = "connectorx-0.4.1-cp313-cp313-macosx_10_7_x86_64.whl", hash = "sha256:331ae0f1cd8259d4fa93982f785d7f7e8c462a4c75af1a251584f4d6df630975"},
+    {file = "connectorx-0.4.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:36686535aa0511fdd0d957d6d234169bb4101801f9d5da4a9b75de3507189c60"},
+    {file = "connectorx-0.4.1-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:907424f6ac194c20c9408ab94ffac72acefcdc93316dd69ad04d51316a027552"},
+    {file = "connectorx-0.4.1-cp313-none-win_amd64.whl", hash = "sha256:c09aa21bc339dfdeaf8f3d09b17ab10c71be2d32f2eb52e59f3c1647009b4d33"},
 ]
 
 [[package]]
@@ -7887,7 +7952,6 @@ files = [
     {file = "psycopg2_binary-2.9.10-cp313-cp313-musllinux_1_2_i686.whl", hash = "sha256:bb89f0a835bcfc1d42ccd5f41f04870c1b936d8507c6df12b7737febc40f0909"},
     {file = "psycopg2_binary-2.9.10-cp313-cp313-musllinux_1_2_ppc64le.whl", hash = "sha256:f0c2d907a1e102526dd2986df638343388b94c33860ff3bbe1384130828714b1"},
     {file = "psycopg2_binary-2.9.10-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:f8157bed2f51db683f31306aa497311b560f2265998122abe1dce6428bd86567"},
-    {file = "psycopg2_binary-2.9.10-cp313-cp313-win_amd64.whl", hash = "sha256:27422aa5f11fbcd9b18da48373eb67081243662f9b46e6fd07c3eb46e4535142"},
     {file = "psycopg2_binary-2.9.10-cp38-cp38-macosx_12_0_x86_64.whl", hash = "sha256:eb09aa7f9cecb45027683bb55aebaaf45a0df8bf6de68801a6afdc7947bb09d4"},
     {file = "psycopg2_binary-2.9.10-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:b73d6d7f0ccdad7bc43e6d34273f70d587ef62f824d7261c4ae9b8b1b6af90e8"},
     {file = "psycopg2_binary-2.9.10-cp38-cp38-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:ce5ab4bf46a211a8e924d307c1b1fcda82368586a19d0a24f8ae166f5c784864"},
@@ -11888,4 +11952,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9.2, <3.14, !=3.9.7"
-content-hash = "3ddf7fef3a7f660e6c39f5b1c92db4bfc18e8a94d9f3026a9002ccabb5a870bc"
+content-hash = "0b629314fb85071863d066f6aaaaba3fb2a60f99f4db8eabc93fcf7a12dec711"
