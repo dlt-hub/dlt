@@ -72,7 +72,7 @@ def test_incremental_golden_path(autouse_test_storage) -> None:
     @dlt.transformation
     def incremental_t(
         dataset: dlt.Dataset,
-        load_id = dlt.sources.incremental("_dlt_load_id", initial_value="", on_cursor_value_missing="include"),
+        load_id = dlt.sources.incremental("_dlt_load_id"),
     ):
         customers = dataset.table("customers")
         incremental_purchases = dataset.table("purchases", incremental=load_id)
