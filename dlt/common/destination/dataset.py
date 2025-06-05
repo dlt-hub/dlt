@@ -272,12 +272,12 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
             str: The name of the dataset
         """
 
-    def __call__(self, query: Any, normalize_query: bool = True) -> SupportsReadableRelation:
+    def __call__(self, query: Any, execute_raw_query: bool = False) -> SupportsReadableRelation:
         """Returns a readable relation for a given sql query
 
         Args:
             query (Any): The sql query to base the relation on
-            normalize_query (bool, optional): Whether to run the query as is or perform query normalization and lineage. Experimental.
+            execute_raw_query (bool, optional): Whether to run the query as is (raw)or perform query normalization and lineage. Experimental.
 
         Returns:
             SupportsReadableRelation: The readable relation for the query

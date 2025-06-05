@@ -30,13 +30,13 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         self,
         *,
         readable_dataset: "ReadableDBAPIDataset",
-        normalize_query: bool = True,
+        execute_raw_query: bool = False,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
 
         # provided properties
         self._dataset = readable_dataset
-        self._should_normalize_query: bool = normalize_query
+        self._execute_raw_query: bool = execute_raw_query
 
         # derived / cached properties
         self._opened_sql_client: SqlClientBase[Any] = None
@@ -68,7 +68,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         #   if this property raises AttributeError, __getattr__ will get called 🤯
         #   this leads to infinite recursion as __getattr_ calls this property
         #   also it does a heavy computation inside so it should be a method
-        if not self._should_normalize_query:
+        if self._execute_raw_query:
             return self._query()
 
         return self.normalized_query.sql(
@@ -89,15 +89,11 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         try:
             self._opened_sql_client = self.sql_client
 
-            # we allow computing the schema to fail if query normalization is disabled
-            # this is useful for raw sql query access, testing and debugging
-            try:
+            # we only compute the columns schema if we are not executing the raw query
+            if self._execute_raw_query:
+                columns_schema = None
+            else:
                 columns_schema = self.columns_schema
-            except lineage.LineageFailedException:
-                if self._should_normalize_query:
-                    raise
-                else:
-                    columns_schema = None
 
             # case 1: client is already opened and managed from outside
             if self.sql_client.native_connection:
@@ -226,7 +222,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         table_name: str = None,
         limit: int = None,
         selected_columns: Sequence[str] = None,
-        normalize_query: bool = True,
+        execute_raw_query: bool = False,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
 
@@ -235,7 +231,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
             provided_query
         ), "Please provide either an sql query OR a table_name"
 
-        super().__init__(readable_dataset=readable_dataset, normalize_query=normalize_query)
+        super().__init__(readable_dataset=readable_dataset, execute_raw_query=execute_raw_query)
 
         self._provided_query = provided_query
         self._table_name = table_name

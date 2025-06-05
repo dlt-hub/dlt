@@ -176,11 +176,11 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         if not self._schema:
             self._schema = Schema(self._dataset_name)
 
-    def __call__(self, query: Any, normalize_query: bool = True) -> ReadableDBAPIRelation:
+    def __call__(self, query: Any, execute_raw_query: bool = False) -> ReadableDBAPIRelation:
         # TODO: accept other query types and return a right relation: sqlglot (DBAPI) and ibis (Expr)
         # TODO: parse query as ibis relation, however ibis will quote that query when compiling to sql
         return ReadableDBAPIRelation(
-            readable_dataset=self, provided_query=query, normalize_query=normalize_query
+            readable_dataset=self, provided_query=query, execute_raw_query=execute_raw_query
         )
 
     def table(self, table_name: str) -> ReadableIbisRelation:
