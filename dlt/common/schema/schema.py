@@ -239,18 +239,19 @@ class Schema:
             # skip None values, we should infer the types later
             if v is None:
                 # just check if column is nullable if it exists
-                self._coerce_null_value(table_columns, table_name, col_name)
+                new_col_def = self._coerce_null_value(table_columns, table_name, col_name)
+                new_col_name = col_name
             else:
                 new_col_name, new_col_def, new_v = self._coerce_non_null_value(
                     table_columns, table_name, col_name, v
                 )
                 new_row[new_col_name] = new_v
-                if new_col_def:
-                    if not updated_table_partial:
-                        # create partial table with only the new columns
-                        updated_table_partial = copy(table)
-                        updated_table_partial["columns"] = {}
-                    updated_table_partial["columns"][new_col_name] = new_col_def
+            if new_col_def:
+                if not updated_table_partial:
+                    # create partial table with only the new columns
+                    updated_table_partial = copy(table)
+                    updated_table_partial["columns"] = {}
+                updated_table_partial["columns"][new_col_name] = new_col_def
 
         return new_row, updated_table_partial
 
@@ -787,13 +788,28 @@ class Schema:
             self._settings["schema_contract"] = settings
 
     def _infer_column(
-        self, k: str, v: Any, data_type: TDataType = None, is_variant: bool = False
+        self,
+        k: str,
+        v: Any,
+        data_type: TDataType = None,
+        is_variant: bool = False,
+        table_name: str = None,
     ) -> TColumnSchema:
-        column_schema = TColumnSchema(
-            name=k,
-            data_type=data_type or self._infer_column_type(v, k),
-            nullable=not self._infer_hint("not_null", k),
-        )
+        # return unbounded table
+        if v is None and data_type is None:
+            if self._infer_hint("not_null", k):
+                raise CannotCoerceNullException(self.name, table_name, k)
+            column_schema = TColumnSchema(
+                name=k,
+                nullable=True,
+            )
+            column_schema["x-normalizer"] = {"seen-null-first": True}
+        else:
+            column_schema = TColumnSchema(
+                name=k,
+                data_type=data_type or self._infer_column_type(v, k),
+                nullable=not self._infer_hint("not_null", k),
+            )
         # check other preferred hints that are available
         for hint in self._compiled_hints:
             # already processed
@@ -811,12 +827,18 @@ class Schema:
 
     def _coerce_null_value(
         self, table_columns: TTableSchemaColumns, table_name: str, col_name: str
-    ) -> None:
-        """Raises when column is explicitly not nullable"""
-        if col_name in table_columns:
-            existing_column = table_columns[col_name]
+    ) -> Optional[TColumnSchema]:
+        """Raises when column is explicitly not nullable or creates unbounded column"""
+        existing_column = table_columns.get(col_name)
+        if existing_column and utils.is_complete_column(existing_column):
             if not utils.is_nullable_column(existing_column):
                 raise CannotCoerceNullException(self.name, table_name, col_name)
+            return None
+        else:
+            inferred_unbounded_col = self._infer_column(
+                k=col_name, v=None, data_type=None, table_name=table_name
+            )
+            return inferred_unbounded_col
 
     def _coerce_non_null_value(
         self,

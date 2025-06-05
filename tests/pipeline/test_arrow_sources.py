@@ -100,7 +100,10 @@ def test_extract_and_normalize(item_type: TPythonTableFormat, is_list: bool):
 
     # Check schema detection
     schema_columns = schema.tables["some_data"]["columns"]
-    assert set(df_tbl.columns) == set(schema_columns)
+    # null column is present, with x-normalizer seen-null-first, without data type
+    assert set(schema_columns) - set(df_tbl.columns) == {"null"}
+    assert schema_columns["null"]["x-normalizer"]["seen-null-first"] is True
+    assert "data_type" not in schema_columns["null"]
     assert schema_columns["date"]["data_type"] == "date"
     assert schema_columns["int"]["data_type"] == "bigint"
     assert schema_columns["float"]["data_type"] == "double"
@@ -204,7 +207,11 @@ def test_extract_normalize_file_rotation(item_type: TPythonTableFormat) -> None:
     pipeline.extract(data_frames())
     # ten parquet files
     assert len(pipeline.list_extracted_resources()) == 10
-    info = pipeline.normalize(workers=3)
+
+    os.environ["NORMALIZE__DATA_WRITER__FILE_MAX_ITEMS"] = str(len(rows))
+    os.environ["NORMALIZE__DATA_WRITER__BUFFER_MAX_ITEMS"] = str(len(rows))
+
+    info = pipeline.normalize(workers=1)
     # with 10 * num rows
     assert info.row_counts["data_frames"] == 10 * len(rows)
     load_id = pipeline.list_normalized_load_packages()[0]

@@ -173,6 +173,10 @@ def autouse_test_storage() -> FileStorage:
 
 @pytest.fixture(scope="function", autouse=True)
 def preserve_environ() -> Iterator[None]:
+    yield from _preserve_environ()
+
+
+def _preserve_environ() -> Iterator[None]:
     saved_environ = environ.copy()
     # delta-rs sets those keys without updating environ and there's no
     # method to refresh environ
@@ -185,6 +189,7 @@ def preserve_environ() -> Iterator[None]:
             "AWS_SESSION_TOKEN",
         ]
     }
+    # print("PRE ENV", saved_environ)
     try:
         yield
     finally:
@@ -195,6 +200,7 @@ def preserve_environ() -> Iterator[None]:
                 environ[key_] = value_ or ""
             else:
                 del environ[key_]
+        # print("POST ENV", environ)
 
 
 @pytest.fixture(autouse=True)

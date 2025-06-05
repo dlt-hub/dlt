@@ -328,7 +328,8 @@ def test_drops_pipeline_changes_bound() -> None:
     p = p.drop()
     p.sync_destination()
     with pytest.raises(DatabaseUndefinedRelation):
-        p.dataset().p_table.fetchall()
+        with p.sql_client() as conn:
+            conn.execute_sql("SELECT * FROM p_table")
 
 
 def test_duckdb_database_delete() -> None:

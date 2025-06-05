@@ -89,6 +89,7 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
                 caps.max_identifier_length = 64
                 caps.max_column_identifier_length = 64
                 caps.format_datetime_literal = _format_mysql_datetime_literal
+                caps.enforces_nulls_on_alter = False
                 caps.sqlglot_dialect = "mysql"
 
             elif backend_name in [

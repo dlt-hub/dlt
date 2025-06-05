@@ -415,7 +415,7 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
             try:
                 schema_table: TTableSchemaColumns = {}
                 table = self.sql_client.native_connection.get_table(
-                    self.sql_client.make_qualified_table_name(table_name, escape=False),
+                    self.sql_client.make_qualified_table_name(table_name, quote=False),
                     retry=self.sql_client._default_retry,
                     timeout=self.config.http_timeout,
                 )
@@ -496,7 +496,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
         if bucket_path:
             return self.sql_client.native_connection.load_table_from_uri(
                 bucket_path,
-                self.sql_client.make_qualified_table_name(table_name, escape=False),
+                self.sql_client.make_qualified_table_name(table_name, quote=False),
                 job_id=job_id,
                 job_config=job_config,
                 timeout=self.config.file_upload_timeout,
@@ -505,7 +505,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
         with open(file_path, "rb") as f:
             return self.sql_client.native_connection.load_table_from_file(
                 f,
-                self.sql_client.make_qualified_table_name(table_name, escape=False),
+                self.sql_client.make_qualified_table_name(table_name, quote=False),
                 job_id=job_id,
                 job_config=job_config,
                 timeout=self.config.file_upload_timeout,
@@ -586,7 +586,7 @@ def _streaming_load(
 
     sql_client = job_client.sql_client
 
-    full_name = sql_client.make_qualified_table_name(table["name"], escape=False)
+    full_name = sql_client.make_qualified_table_name(table["name"], quote=False)
 
     bq_client = sql_client._client
     bq_client.insert_rows_json(

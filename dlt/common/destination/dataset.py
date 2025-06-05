@@ -15,6 +15,8 @@ from typing import (
 
 from abc import ABC, abstractmethod
 
+from sqlglot.schema import Schema as SQLGlotSchema
+
 from dlt.common.typing import Self, Generic, TypeVar
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.schema import Schema
@@ -39,14 +41,12 @@ class SupportsReadableRelation:
     sql glot query analysis and lineage. dlt hints for columns are kept in some cases. Refere to <docs-page> for more details.
     """
 
-    def query(self, qualified: bool = False) -> Any:
-        """Returns the sql query that represents the relation
-
-        Args:
-            qualified (bool, optional): Whether to return the qualified query. Defaults to False.
+    def query(self) -> Any:
+        """Returns the sql query that represents the relation. The query will be qualified, quoted and escaped
+           according to a SQL dialect that the destination uses, unless query normalization is disabled by the user.
 
         Returns:
-            Any: The sql query that represents the relation
+            Any: The qualified sql query that represents the relation
         """
         raise NotImplementedError("Query is not supported for this relation")
 
@@ -256,6 +256,14 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
         """
 
     @property
+    def sqlglot_schema(self) -> SQLGlotSchema:
+        """Returns the computed and cached sqlglot schema of the dataset
+
+        Returns:
+            SQLGlotSchema: The sqlglot schema of the dataset
+        """
+
+    @property
     def dataset_name(self) -> str:
         """Returns the name of the dataset
 
@@ -263,11 +271,12 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
             str: The name of the dataset
         """
 
-    def __call__(self, query: Any) -> SupportsReadableRelation:
+    def __call__(self, query: Any, normalize_query: bool = True) -> SupportsReadableRelation:
         """Returns a readable relation for a given sql query
 
         Args:
             query (Any): The sql query to base the relation on
+            normalize_query (bool, optional): Whether to run the query as is or perform query normalization and lineage. Experimental.
 
         Returns:
             SupportsReadableRelation: The readable relation for the query
