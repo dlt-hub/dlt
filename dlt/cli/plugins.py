@@ -726,9 +726,10 @@ def plug_cli_schema() -> Type[SupportsCliCommand]:
     return SchemaCommand
 
 
-@plugins.hookimpl(specname="plug_cli")
-def plug_cli_studio() -> Type[SupportsCliCommand]:
-    return StudioCommand
+# TODO: define actual command and re-enable
+# @plugins.hookimpl(specname="plug_cli")
+# def plug_cli_studio() -> Type[SupportsCliCommand]:
+#     return StudioCommand
 
 
 @plugins.hookimpl(specname="plug_cli")
