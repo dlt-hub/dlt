@@ -75,7 +75,7 @@ class PostgresParquetCopyJob(RunnableLoadJob, HasFollowupJobs):
                 _iter_batches(self._file_path),
                 mode="append",
                 db_schema_name=self._job_client.sql_client.fully_qualified_dataset_name(
-                    escape=False
+                    quote=False
                 ),
             )
             logger.info(f"{rows} rows copied from {self._file_name} to {self.load_table_name}")
@@ -127,14 +127,14 @@ class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
 
             # normalized and quoted headers
             split_headers = [
-                sql_client.escape_column_name(h.strip('"'), escape=True) for h in split_headers
+                sql_client.escape_column_name(h.strip('"'), quote=True) for h in split_headers
             ]
             split_null_headers = []
             split_columns = []
             # detect columns with NULL to use in FORCE NULL
             # detect headers that are not in columns
             for col in self._job_client.schema.get_table_columns(table_name).values():
-                norm_col = sql_client.escape_column_name(col["name"], escape=True)
+                norm_col = sql_client.escape_column_name(col["name"], quote=True)
                 split_columns.append(norm_col)
                 if norm_col in split_headers and is_nullable_column(col):
                     split_null_headers.append(norm_col)

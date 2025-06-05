@@ -75,7 +75,10 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
 
     def _has_default_token(self) -> bool:
         # TODO: implement default connection interface
-        return MOTHERDUCK_DEFAULT_TOKEN_ENV in os.environ
+        return (
+            MOTHERDUCK_DEFAULT_TOKEN_ENV in os.environ
+            or MOTHERDUCK_DEFAULT_TOKEN_ENV.upper() in os.environ
+        )
 
     def _get_conn_config(self) -> Dict[str, Any]:
         # If it was explicitly set to None/null then we

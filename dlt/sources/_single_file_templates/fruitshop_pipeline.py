@@ -27,7 +27,7 @@ def customers():
 
 
 # we add a custom hint to the name column to indicate that it contains PII (personally identifiable information)
-customers.apply_hints(columns={"name": {"x-pii": True}})  # type: ignore
+customers.apply_hints(columns={"name": {"x-annotation-pii": True}})  # type: ignore
 
 
 @dlt.resource(primary_key="id")

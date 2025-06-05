@@ -545,7 +545,10 @@ class ArrowItemsNormalizer(ItemsNormalizer):
     REWRITE_ROW_GROUPS = 1
 
     def _write_with_dlt_columns(
-        self, extracted_items_file: str, root_table_name: str, add_dlt_id: bool
+        self,
+        extracted_items_file: str,
+        root_table_name: str,
+        add_dlt_id: bool,
     ) -> List[TSchemaUpdate]:
         new_columns: List[Any] = []
         schema = self.schema
@@ -648,7 +651,7 @@ class ArrowItemsNormalizer(ItemsNormalizer):
                         e.table_name = root_table_name
                         raise
 
-                    if data_type["data_type"] in ("timestamp", "time"):
+                    if "data_type" in data_type and data_type["data_type"] in ("timestamp", "time"):
                         prec = data_type["precision"]
                     # limit with destination precision
                     if prec > max_precision:
@@ -671,6 +674,7 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         ) as f:
             num_rows, arrow_schema = get_parquet_metadata(f)
             file_metrics = DataWriterMetrics(extracted_items_file, num_rows, f.tell(), 0, 0)
+
         # when parquet files is saved, timestamps will be truncated and coerced. take the updated values
         # and apply them to dlt schema
         base_schema_update = self._fix_schema_precisions(root_table_name, arrow_schema)

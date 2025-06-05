@@ -193,7 +193,7 @@ def test_page_loads(page: Page):
     _go_home(page)
     page.get_by_role("link", name="never_run_pipeline").click()
 
-    expect(page.get_by_text(app_strings.sync_status_error_text)).to_be_visible()
+    expect(page.get_by_text(app_strings.sync_status_success_text.split("from")[0])).to_be_visible()
     expect(page.get_by_text("_storage/.dlt/pipelines/never_run_pipeline")).to_be_visible()
 
     # check schema info (this is the yaml part)

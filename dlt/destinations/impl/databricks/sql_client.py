@@ -143,9 +143,12 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
             curr.execute(query, db_args)
             yield DatabricksCursorImpl(curr)  # type: ignore[arg-type, abstract, unused-ignore]
 
-    def catalog_name(self, escape: bool = True) -> Optional[str]:
-        catalog = self.capabilities.casefold_identifier(self.credentials.catalog)
-        if escape:
+    def catalog_name(self, quote: bool = True, casefold: bool = True) -> Optional[str]:
+        if casefold:
+            catalog = self.capabilities.casefold_identifier(self.credentials.catalog)
+        else:
+            catalog = self.credentials.catalog
+        if quote:
             catalog = self.capabilities.escape_identifier(catalog)
         return catalog
 

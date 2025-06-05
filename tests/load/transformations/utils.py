@@ -48,6 +48,7 @@ def transformation_configs(only_duckdb: bool = False):
         table_format_filesystem_configs=True,
         exclude=[
             "athena",  # NOTE: athena iceberg will probably work, we need to implement the model files for it
+            # TODO: can we enable it and just disable specific tests
             "sqlalchemy_sqlite-no-staging",  # NOTE: sqlalchemy has no uuid support
             (  # NOTE: duckdb parquet does not need to be tested explicitely if we have the regular
                 "duckdb-parquet-no-staging"
@@ -78,7 +79,10 @@ def setup_transformation_pipelines(
 
     # setup incoming data and transformed data pipelines
     fruit_p = destination_config.setup_pipeline(
-        "fruit_pipeline", dataset_name="source", use_single_dataset=False, dev_mode=True
+        "fruit_pipeline",
+        dataset_name="source",
+        use_single_dataset=False,
+        dev_mode=True,
     )
     dest_p = destination_config.setup_pipeline(
         "fruit_pipeline",

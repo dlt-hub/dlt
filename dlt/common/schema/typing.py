@@ -147,7 +147,17 @@ class TColumnType(TypedDict, total=False):
     timezone: Optional[bool]
 
 
-class TColumnSchemaBase(TColumnType, total=False):
+# Part of Column containing processing hints added by the normalize stage
+TColumnProcessingHints = TypedDict(
+    "TColumnProcessingHints",
+    {
+        "x-normalizer": Optional[Dict[str, Any]],
+    },
+    total=False,
+)
+
+
+class TColumnSchemaBase(TColumnType, TColumnProcessingHints, total=False):
     """TypedDict that defines basic properties of a column: name, data type and nullable"""
 
     name: Optional[str]

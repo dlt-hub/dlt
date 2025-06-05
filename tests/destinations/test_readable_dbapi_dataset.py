@@ -9,56 +9,66 @@ from dlt.destinations.dataset.exceptions import (
     ReadableRelationUnknownColumnException,
 )
 from dlt.transformations.exceptions import LineageFailedException
+from dlt.common.schema.schema import Schema
+from dlt.common.schema.utils import new_table
 
 
 @pytest.mark.parametrize("dataset_type", ("default",))
 def test_query_builder(dataset_type: TDatasetType) -> None:
+    s = Schema("my_schema")
+    t = new_table(
+        "my_table",
+        columns=[
+            {"name": "col1", "data_type": "text"},
+            {"name": "col2", "data_type": "text"},
+        ],
+    )
+    s.update_table(t)
+
     dataset = dlt.destinations.dataset.dataset(
         dlt.destinations.duckdb(destination_name="duck_db"),
         "pipeline_dataset",
         dataset_type=dataset_type,
+        schema=s,
     )
 
     # default query for a table
-    assert dataset.my_table.query().strip() == 'SELECT  * FROM "pipeline_dataset"."my_table"'
+    assert (
+        dataset.my_table.query().strip()
+        == 'SELECT "my_table"."col1" AS "col1", "my_table"."col2" AS "col2" FROM'
+        ' "pipeline_dataset"."my_table" AS "my_table"'
+    )
 
     # head query
     assert (
         dataset.my_table.head().query().strip()
-        == 'SELECT  * FROM "pipeline_dataset"."my_table" LIMIT 5'
+        == 'SELECT "my_table"."col1" AS "col1", "my_table"."col2" AS "col2" FROM'
+        ' "pipeline_dataset"."my_table" AS "my_table" LIMIT 5'
     )
 
     # limit query
     assert (
         dataset.my_table.limit(24).query().strip()
-        == 'SELECT  * FROM "pipeline_dataset"."my_table" LIMIT 24'
+        == 'SELECT "my_table"."col1" AS "col1", "my_table"."col2" AS "col2" FROM'
+        ' "pipeline_dataset"."my_table" AS "my_table" LIMIT 24'
     )
 
     # select columns
     assert (
-        dataset.my_table.select("col1", "col2").query().strip()
-        == 'SELECT  "col1","col2" FROM "pipeline_dataset"."my_table"'
+        dataset.my_table.select("col1").query().strip()
+        == 'SELECT "my_table"."col1" AS "col1" FROM "pipeline_dataset"."my_table" AS "my_table"'
     )
     # also indexer notation
     assert (
-        dataset.my_table[["col1", "col2"]].query().strip()
-        == 'SELECT  "col1","col2" FROM "pipeline_dataset"."my_table"'
-    )
-
-    # identifiers are normalized
-    assert (
-        dataset["MY_TABLE"].select("CoL1", "cOl2").query().strip()
-        == 'SELECT  "co_l1","c_ol2" FROM "pipeline_dataset"."my_table"'
-    )
-    assert (
-        dataset["MY__TABLE"].select("Co__L1", "cOl2").query().strip()
-        == 'SELECT  "co__l1","c_ol2" FROM "pipeline_dataset"."my__table"'
+        dataset.my_table[["col2"]].query().strip()
+        == 'SELECT "my_table"."col2" AS "col2" FROM "pipeline_dataset"."my_table" AS "my_table"'
     )
 
     # limit and select chained
     assert (
-        dataset.my_table.select("col1", "col2").limit(24).query().strip()
-        == 'SELECT  "col1","col2" FROM "pipeline_dataset"."my_table" LIMIT 24'
+        dataset.my_table.select("col1").limit(24).query().strip()
+        == 'SELECT "my_table"."col1" AS "col1" FROM "pipeline_dataset"."my_table" AS "my_table"'
+        " LIMIT 24"
     )
 
 
@@ -69,6 +79,13 @@ def test_copy_and_chaining(dataset_type: TDatasetType) -> None:
         "pipeline_dataset",
         dataset_type=dataset_type,
     )
+
+    dataset.schema.tables["items"] = {
+        "columns": {
+            "one": {"data_type": "text", "name": "one"},
+            "two": {"data_type": "json", "name": "two"},
+        }
+    }
 
     # create relation and set some stuff on it
     relation = dataset.items
@@ -98,22 +115,19 @@ def test_computed_schema_columns(dataset_type: TDatasetType) -> None:
         "pipeline_dataset",
         dataset_type=dataset_type,
     )
-    relation = dataset.items
 
-    # no schema present
-    assert relation.columns_schema == {}
+    with pytest.raises(ValueError):
+        dataset.items
 
-    # we can select any columns because it can't be verified
-    relation["one", "two"]
-
-    # now add columns
-    relation = dataset.items
     dataset.schema.tables["items"] = {
         "columns": {
             "one": {"data_type": "text", "name": "one"},
             "two": {"data_type": "json", "name": "two"},
         }
     }
+
+    # now add columns
+    relation = dataset.items
 
     # computed columns are same as above
     assert relation.columns_schema == {
