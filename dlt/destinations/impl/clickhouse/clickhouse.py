@@ -1,4 +1,7 @@
 import os
+import sqlglot
+from sqlglot import exp
+from .sqlglot_helpers import _add_properties
 from copy import deepcopy
 from textwrap import dedent
 from typing import Any, Optional, List, Sequence, cast
@@ -58,6 +61,7 @@ from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.utils import get_deterministic_temp_table_name, is_compression_disabled
 
+from dlt.common import logger
 
 class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
@@ -270,6 +274,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             ),
         )
 
+
     def _get_table_update_sql(
         self,
         table_name: str,
@@ -277,33 +282,113 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         generate_alter: bool,
     ) -> List[str]:
         table = self.prepare_load_table(table_name)
-        sql = SqlJobClientBase._get_table_update_sql(self, table_name, new_columns, generate_alter)
 
-        if generate_alter:
+        cluster = self.config.cluster
+        distributed_tables = self.config.distributed_tables
+        if not (cluster and distributed_tables is True):
+            sql = SqlJobClientBase._get_table_update_sql(self, table_name, new_columns, generate_alter)
+
+            if generate_alter:
+                return sql
+
+            # Default to 'MergeTree' if the user didn't explicitly set a table engine hint.
+            # Clickhouse Cloud will automatically pick `SharedMergeTree` for this option,
+            # so it will work on both local and cloud instances of CH.
+            table_type = cast(
+                TTableEngineType,
+                table.get(
+                    cast(str, TABLE_ENGINE_TYPE_HINT),
+                    self.config.table_engine_type,
+                ),
+            )
+            sql[0] = f"{sql[0]}\nENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)}"
+
+            if primary_key_list := [
+                self.sql_client.escape_column_name(c["name"])
+                for c in new_columns
+                if c.get("primary_key")
+            ]:
+                sql[0] += "\nPRIMARY KEY (" + ", ".join(primary_key_list) + ")"
+            else:
+                sql[0] += "\nPRIMARY KEY tuple()"
             return sql
-
-        # Default to 'MergeTree' if the user didn't explicitly set a table engine hint.
-        # Clickhouse Cloud will automatically pick `SharedMergeTree` for this option,
-        # so it will work on both local and cloud instances of CH.
-        table_type = cast(
-            TTableEngineType,
-            table.get(
-                cast(str, TABLE_ENGINE_TYPE_HINT),
-                self.config.table_engine_type,
-            ),
-        )
-        sql[0] = f"{sql[0]}\nENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)}"
-
-        if primary_key_list := [
-            self.sql_client.escape_column_name(c["name"])
-            for c in new_columns
-            if c.get("primary_key")
-        ]:
-            sql[0] += "\nPRIMARY KEY (" + ", ".join(primary_key_list) + ")"
+        
         else:
-            sql[0] += "\nPRIMARY KEY tuple()"
+            ####### BASE TABLE CREATION #######
+            config_database = self.config.credentials.database
+            base_table_database = self.config.base_table_database_prefix + config_database
+            full_table_name = self.sql_client.make_qualified_table_name_path(table_name=table_name, escape=False)
+            base_table_name = full_table_name[1] + self.config.base_table_name_postfix
+
+            sql = SqlJobClientBase._get_table_update_sql(self, table_name, new_columns, generate_alter)
+
+            sql[0] = sql[0].replace(config_database, base_table_database).replace(full_table_name[1], base_table_name)
+
+            stmt = sqlglot.parse_one(sql[0], dialect='clickhouse')
+            if "properties" in stmt.args:
+                # ALTER TABLE statement doesn't have properties this will be handled in the sql_client execute_query function
+                # Create the ON CLUSTER clause
+                oncluster = exp.OnCluster(this=exp.var(cluster))
+                try:
+                    stmt.args["properties"] = _add_properties(properties=stmt.args["properties"], new_properties=[oncluster])
+                except Exception as e:
+                    logger.error(f"Error adding OnCluster to statement:\n{sql[0]}")
+                    raise
+
+            if not generate_alter:
+                # Default to 'MergeTree' if the user didn't explicitly set a table engine hint.
+                # Clickhouse Cloud will automatically pick `SharedMergeTree` for this option,
+                # so it will work on both local and cloud instances of CH.
+                table_type = cast(
+                    TTableEngineType,
+                    table.get(
+                        cast(str, TABLE_ENGINE_TYPE_HINT),
+                        self.config.table_engine_type,
+                    ),
+                )
+                engine = exp.EngineProperty(this=exp.var(TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)))
+
+                if primary_key_list := [
+                    self.sql_client.escape_column_name(c["name"])
+                    for c in new_columns
+                    if c.get("primary_key")
+                ]:
+                    pk = [exp.Ordered(this=exp.Column(this=exp.to_identifier(col, quoted=False)), nulls_first=False) for col in primary_key_list]
+                    primary_key = exp.PrimaryKey(expressions=pk)
+                else:
+                    primary_key = exp.PrimaryKey(expressions=[(exp.Ordered(this="tuple()", nulls_first=False))])
+
+                # the order of engine and primary key is important!!!
+                stmt.args["properties"] = _add_properties(properties=stmt.args["properties"], new_properties=[engine, primary_key])
+
+            sql[0] = stmt.sql(dialect="clickhouse", pretty=True)
+            logger.debug(f"SQL for base table creation:\n{sql[0]}")
+
+            ####### DISTRIBUTED TABLE CREATION #######
+
+            sql1 = SqlJobClientBase._get_table_update_sql(self, table_name, new_columns, generate_alter)
+
+            stmt1 = sqlglot.parse_one(sql1[0], dialect='clickhouse')
+            if 'properties' in stmt.args:
+                # ALTER TABLE statement doesn't have properties this will be handled in the sql_client execute_query function
+                # Add the ON CLUSTER clause
+                logger.debug("**** Add on cluster clause ****")
+                try:
+                    stmt1.args["properties"] = _add_properties(properties=stmt1.args["properties"], new_properties=[oncluster])
+                except Exception as e:
+                    logger.error(f"Error adding OnCluster to statement:\n{sql1[0]}")
+                    raise
+
+            if not generate_alter:
+                engine = exp.EngineProperty(this=exp.var(f"Distributed('{cluster}', '{base_table_database}', '{base_table_name}', rand())"))
+                stmt1.args["properties"] = _add_properties(properties=stmt1.args["properties"], new_properties=[engine])
+                # distributed table does not have primary key
+            sql1[0] = stmt1.sql(dialect="clickhouse", pretty=True)
+
+            sql.append(sql1[0])
 
         return sql
+
 
     def _gen_not_null(self, v: bool) -> str:
         # ClickHouse fields are not nullable by default.
