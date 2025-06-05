@@ -2,6 +2,8 @@ from typing import TYPE_CHECKING, Any, Union, Sequence
 from functools import partial
 import sqlglot
 
+import dlt
+from dlt._dataset import ops
 from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
 
 
