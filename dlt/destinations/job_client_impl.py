@@ -181,18 +181,18 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
                 parts = list(table.parts)
                 if target_catalog:
                     if len(parts) == 3:
-                        table.set("catalog", sqlglot.exp.to_identifier(target_catalog))
-                        table.set("db", sqlglot.exp.to_identifier(parts[1].name))
-                        table.set("this", sqlglot.exp.to_identifier(parts[2].name))
+                        table.set("catalog", sqlglot.to_identifier(target_catalog))
+                        table.set("db", sqlglot.to_identifier(parts[1].name))
+                        table.set("this", sqlglot.to_identifier(parts[2].name))
                     elif len(parts) == 2:
-                        table.set("catalog", sqlglot.exp.to_identifier(target_catalog))
-                        table.set("db", sqlglot.exp.to_identifier(parts[0].name))
-                        table.set("this", sqlglot.exp.to_identifier(parts[1].name))
+                        table.set("catalog", sqlglot.to_identifier(target_catalog))
+                        table.set("db", sqlglot.to_identifier(parts[0].name))
+                        table.set("this", sqlglot.to_identifier(parts[1].name))
                 else:
                     if len(parts) == 3:
                         table.set("catalog", None)
-                        table.set("db", sqlglot.exp.to_identifier(parts[1].name))
-                        table.set("this", sqlglot.exp.to_identifier(parts[2].name))
+                        table.set("db", sqlglot.to_identifier(parts[1].name))
+                        table.set("this", sqlglot.to_identifier(parts[2].name))
 
         # Ensure there's a top-level SELECT, otherwise it doesn't make sense
         top_level_select = parsed_select.find(sqlglot.exp.Select)
@@ -207,7 +207,7 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         columns = []
         for _, expr in enumerate(top_level_select.expressions):
             alias_name = expr.alias
-            columns.append(sqlglot.exp.to_identifier(alias_name))
+            columns.append(sqlglot.to_identifier(alias_name, quoted=True))
 
         # Build final INSERT
         query = sqlglot.expressions.insert(

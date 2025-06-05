@@ -506,7 +506,7 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
     assert (
         join_relationship._query().sql("duckdb").replace(dataset_name, "dataset_name")
         == "SELECT i.id, di.double_id FROM dataset_name.items AS i JOIN dataset_name.double_items"
-        " AS di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC NULLS FIRST"
+        " AS di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
     )
 
     # qualified query has aliases
@@ -514,7 +514,6 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
         join_relationship._qualified_query.sql("duckdb").replace(dataset_name, "dataset_name")
         == "SELECT i.id AS id, di.double_id AS double_id FROM dataset_name.items AS i JOIN"
         " dataset_name.double_items AS di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
-        " NULLS FIRST"
     )
 
     # normalized has quoted indentifiers
@@ -522,7 +521,7 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
         join_relationship._normalized_query.sql("duckdb").replace(dataset_name, "dataset_name")
         == 'SELECT "i"."id" AS "id", "di"."double_id" AS "double_id" FROM "dataset_name"."items" AS'
         ' "i" JOIN "dataset_name"."double_items" AS "di" ON ("i"."id" = "di"."id") WHERE'
-        ' "i"."id" < 20 ORDER BY "i"."id" ASC NULLS FIRST'
+        ' "i"."id" < 20 ORDER BY "i"."id" ASC'
     )
 
 

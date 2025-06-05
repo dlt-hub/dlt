@@ -36,7 +36,7 @@ class NormalizeConfiguration(PoolRunnerConfiguration):
     )
 
     model_normalizer: ItemsNormalizerConfiguration = ItemsNormalizerConfiguration(
-        add_dlt_id=False, add_dlt_load_id=True
+        add_dlt_id=True, add_dlt_load_id=True
     )
 
     def on_resolved(self) -> None:
