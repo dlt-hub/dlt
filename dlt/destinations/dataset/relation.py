@@ -222,7 +222,8 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         self,
         *,
         readable_dataset: "ReadableDBAPIDataset",
-        provided_query: Any = None,
+        provided_query: str = None,
+        provided_query_dialect: str = None,
         table_name: str = None,
         limit: int = None,
         selected_columns: Sequence[str] = None,
@@ -238,14 +239,23 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         super().__init__(readable_dataset=readable_dataset, execute_raw_query=execute_raw_query)
 
         self._provided_query = provided_query
+        self._provided_query_dialect = provided_query_dialect
         self._table_name = table_name
         self._limit = limit
         self._selected_columns = selected_columns
 
     def _query(self) -> sge.Query:
+        destination_dialect = self._dataset.sql_client.capabilities.sqlglot_dialect
+
         # TODO reimplement this using SQLGLot instead of passing strings
         if self._provided_query:
-            return cast(sge.Query, sqlglot.parse_one(self._provided_query))
+            return cast(
+                sge.Query,
+                sqlglot.parse_one(
+                    self._provided_query,
+                    dialect=self._provided_query_dialect or destination_dialect,
+                ),
+            )
 
         dataset_schema = self._dataset.schema
 
@@ -270,7 +280,8 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         return cast(
             sge.Query,
             sqlglot.parse_one(
-                f"SELECT {maybe_limit_clause_1} {selector} FROM {table_name} {maybe_limit_clause_2}"
+                f"SELECT {maybe_limit_clause_1} {selector} FROM"
+                f" {table_name} {maybe_limit_clause_2}",
             ),
         )
 
@@ -278,6 +289,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         return self.__class__(
             readable_dataset=self._dataset,
             provided_query=self._provided_query,
+            provided_query_dialect=self._provided_query_dialect,
             table_name=self._table_name,
             limit=self._limit,
             selected_columns=self._selected_columns,

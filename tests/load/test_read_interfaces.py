@@ -497,6 +497,10 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
         populated_pipeline.dataset()(query, execute_raw_query=True).df()
     assert "Must be an SQL SELECT statement" in str(exc2.value)
 
+    # we only test the following for duckdb
+    if populated_pipeline.destination.destination_type != "dlt.destinations.duckdb":
+        return
+
     # test various query stages
     # raw query has no aliases
     assert (

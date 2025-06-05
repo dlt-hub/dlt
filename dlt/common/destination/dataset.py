@@ -272,11 +272,14 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
             str: The name of the dataset
         """
 
-    def __call__(self, query: Any, execute_raw_query: bool = False) -> SupportsReadableRelation:
+    def __call__(
+        self, query: str, query_dialect: str = None, execute_raw_query: bool = False
+    ) -> SupportsReadableRelation:
         """Returns a readable relation for a given sql query
 
         Args:
-            query (Any): The sql query to base the relation on
+            query (str): The sql query to base the relation on
+            query_dialect (str, optional): The dialect of the query. Defaults to the dataset's destination dialect. You can use this to write queries in a different dialect than the destination.
             execute_raw_query (bool, optional): Whether to run the query as is (raw)or perform query normalization and lineage. Experimental.
 
         Returns:
