@@ -201,7 +201,10 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         """Computes and returns the normalized query"""
         if self.__normalized_query is None:
             self.__normalized_query = normalize_query(
-                self._dataset.sqlglot_schema, self._qualified_query, self._dataset.sql_client
+                self._dataset.sqlglot_schema,
+                self._qualified_query,
+                self._dataset.sql_client,
+                self._dataset.schema.naming,
             )
         return self.__normalized_query
 
@@ -263,13 +266,6 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
             self._table_name
         )  # self.sql_client.make_qualified_table_name(self._table_name, quote=False, casefold=False)
 
-        maybe_limit_clause_1 = ""
-        maybe_limit_clause_2 = ""
-        if self._limit:
-            maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(
-                self._limit
-            )
-
         selected_columns = (
             self._selected_columns
             if self._selected_columns
@@ -277,11 +273,14 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         )
         selector = ",".join(selected_columns)
 
+        maybe_limit_clause = ""
+        if self._limit:
+            maybe_limit_clause = f"LIMIT {self._limit}"
+
         return cast(
             sge.Query,
             sqlglot.parse_one(
-                f"SELECT {maybe_limit_clause_1} {selector} FROM"
-                f" {table_name} {maybe_limit_clause_2}",
+                f"SELECT {selector} FROM {table_name} {maybe_limit_clause}", dialect="duckdb"
             ),
         )
 

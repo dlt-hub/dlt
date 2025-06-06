@@ -57,14 +57,6 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
     dialect = caps.sqlglot_dialect
     sqlglot_schema = lineage.create_sqlglot_schema(example_schema, "d1", dialect)
 
-    def _set_nullable(col: TColumnSchema) -> TColumnSchema:
-        # if not caps.enforces_nulls:
-        if destination.destination_type.endswith("clickhouse"):
-            # looks like a bug in clickhouse dialect? clickhouse does not enforce nulls so setting it to false
-            # does not make sense
-            col.setdefault("nullable", False)
-        return col
-
     # test star select
     sql_query = "SELECT * FROM customers"
     assert lineage.compute_columns_schema(sqlglot.parse_one(sql_query), sqlglot_schema, dialect)[
@@ -93,7 +85,7 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
         "mean_id": {"name": "mean_id", "data_type": "double"},
         "name": {"name": "name", "data_type": "text", "x-annotation-pii": True},
         "email": {"name": "email", "data_type": "text", "nullable": True},
-        "_col_3": _set_nullable({"name": "_col_3", "data_type": "double"}),  # anonymous columns
+        "_col_3": {"name": "_col_3", "data_type": "double"},  # anonymous columns
     }
 
     # test concat
