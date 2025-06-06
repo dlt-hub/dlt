@@ -6,10 +6,17 @@ on:
 
 jobs:
 
+  # checks wether anything outside docs has changed, if not, most of the tests can be skipped
   get_docs_changes:
     name: docs changes
     uses: ./.github/workflows/get_docs_changes.yml
 
+  # if the PR is from a fork, we need to authorize the secrets access and remote destinations run with a lable
+  authorize_secrets_access:
+    # run when label is assigned OR when we are not a fork
+    if: ${{ github.event.label.name == 'ci from fork' || (github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'opened' || github.event.action == 'synchronize'))}}
+    runs-on: ubuntu-latest
+  
   lint:
     name: lint
     needs: get_docs_changes
@@ -20,6 +27,18 @@ jobs:
     needs: lint
     uses: ./.github/workflows/test_common.yml
 
+  #
+  # Destination tests
+  #
+
   test_local_destinations:
     needs: test_common
     uses: ./.github/workflows/test_destinations_local.yml
+
+  test_destinations:
+    needs: [test_common, authorize_secrets_access]
+    uses: ./.github/workflows/test_destinations.yml
+
+  #
+  # Other tools
+  #
