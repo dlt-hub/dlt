@@ -7975,20 +7975,6 @@ files = [
 ]
 
 [[package]]
-name = "psycopg2cffi"
-version = "2.9.0"
-description = ".. image:: https://travis-ci.org/chtd/psycopg2cffi.svg?branch=master"
-optional = true
-python-versions = "*"
-files = [
-    {file = "psycopg2cffi-2.9.0.tar.gz", hash = "sha256:7e272edcd837de3a1d12b62185eb85c45a19feda9e62fa1b120c54f9e8d35c52"},
-]
-
-[package.dependencies]
-cffi = ">=1.0"
-six = "*"
-
-[[package]]
 name = "py"
 version = "1.11.0"
 description = "library with cross-python path, ini-parsing, io, code, log facilities"
@@ -11936,11 +11922,11 @@ lancedb = ["lancedb", "pyarrow", "pyarrow", "tantivy"]
 motherduck = ["duckdb", "pyarrow", "pyarrow"]
 mssql = ["pyodbc"]
 parquet = ["pyarrow", "pyarrow"]
-postgis = ["psycopg2-binary", "psycopg2cffi"]
-postgres = ["psycopg2-binary", "psycopg2cffi"]
+postgis = ["psycopg2-binary"]
+postgres = ["psycopg2-binary"]
 pyiceberg = ["pyarrow", "pyarrow", "pyiceberg", "sqlalchemy"]
 qdrant = ["qdrant-client"]
-redshift = ["psycopg2-binary", "psycopg2cffi"]
+redshift = ["psycopg2-binary"]
 s3 = ["botocore", "s3fs"]
 sftp = ["paramiko"]
 snowflake = ["snowflake-connector-python"]
@@ -11952,4 +11938,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9.2, <3.14, !=3.9.7"
-content-hash = "0b629314fb85071863d066f6aaaaba3fb2a60f99f4db8eabc93fcf7a12dec711"
+content-hash = "47cfcceb6986dd3b984c57590f8bd3350fc48ad5e310ea4838dcec445c55bac7"

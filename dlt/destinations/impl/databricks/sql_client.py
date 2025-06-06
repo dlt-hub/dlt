@@ -161,6 +161,9 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
                 return DatabaseUndefinedRelation(ex)
             elif "PARSE_SYNTAX_ERROR" in str(ex):
                 return DatabaseTransientException(ex)
+            elif "The protocol version of the Delta table has been changed" in str(ex):
+                # concurrent write to tables - repeat
+                raise DatabaseTransientException(ex)
             return DatabaseTerminalException(ex)
         elif isinstance(ex, databricks_lib.OperationalError):
             return DatabaseTransientException(ex)
