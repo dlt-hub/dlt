@@ -97,7 +97,7 @@ jobs:
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - run: |
-          poetry run pytest tests/load --ignore tests/load/sources -m "essential"
+          poetry run pytest tests/load --ignore  -m "smoke"
         name: Run essential tests Linux
         if: ${{ ! (contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule')}}
 

@@ -83,7 +83,7 @@ jobs:
         run: poetry install --no-interaction -E qdrant -E parquet --with sentry-sdk --with pipeline
 
       - run: |
-          poetry run pytest tests/load --ignore tests/load/sources -m "essential"
+          poetry run pytest tests/load --ignore tests/load/sources -m "smoke"
         name: Run essential tests Linux
         if: ${{ ! (contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule')}}
 
