@@ -16,10 +16,10 @@ jobs:
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     uses: ./.github/workflows/lint.yml
 
-  test:
+  test_common:
     needs: lint
     uses: ./.github/workflows/test_common.yml
 
   test_local_destinations:
-    needs: lint
+    needs: test_common
     uses: ./.github/workflows/test_destinations_local.yml
