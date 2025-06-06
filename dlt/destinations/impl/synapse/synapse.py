@@ -205,7 +205,7 @@ class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
             # enabling AUTO_CREATE_TABLE prevents a MalformedInputException.
             auto_create_table = "ON"
         else:
-            raise ValueError(f"Unsupported file type {ext} for Synapse.")
+            raise ValueError(f"Unsupported file type `{ext}` for Synapse.")
 
         staging_credentials = self._staging_credentials
         assert staging_credentials is not None

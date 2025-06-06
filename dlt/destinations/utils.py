@@ -42,9 +42,9 @@ def get_resource_for_adapter(data: Any) -> DltResource:
             return list(data.selected_resources.values())[0]
         else:
             raise ValueError(
-                "You are trying to use an adapter on a DltSource with multiple resources. You can"
-                " only use adapters on pure data, directly on a DltResouce or a DltSource"
-                " containing a single DltResource."
+                "You are trying to use an adapter on a `DltSource` with multiple resources. You can"
+                " only use adapters on: pure data, a `DltResouce` or a `DltSource` with a single"
+                " `DltResource`."
             )
 
     resource_name = None

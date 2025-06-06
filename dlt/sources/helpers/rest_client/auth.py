@@ -58,7 +58,8 @@ class BearerTokenAuth(AuthConfigBase):
             raise NativeValueError(
                 type(self),
                 value,
-                f"BearerTokenAuth token must be a string, got {type(value)}",
+                "`token` argument of `BearerTokenAuth` must be a `str`. Got value of type"
+                f" `{type(value)}`",
             )
 
     def __call__(self, request: PreparedRequest) -> PreparedRequest:
@@ -81,7 +82,8 @@ class APIKeyAuth(AuthConfigBase):
             raise NativeValueError(
                 type(self),
                 value,
-                f"APIKeyAuth api_key must be a string, got {type(value)}",
+                "`api_key` argument of `APIKeyAuth` must be a `str`. Got value of type"
+                f" `{type(value)}`",
             )
 
     def __call__(self, request: PreparedRequest) -> PreparedRequest:
@@ -110,8 +112,8 @@ class HttpBasicAuth(AuthConfigBase):
         raise NativeValueError(
             type(self),
             value,
-            "HttpBasicAuth username and password must be a tuple of two strings, got"
-            f" {type(value)}",
+            "`username` and `password` arguments of `HttpBasicAuth` must be a `str` values. "
+            f"Got values of type `{type(value)}`",
         )
 
     def __call__(self, request: PreparedRequest) -> PreparedRequest:
@@ -133,7 +135,8 @@ class OAuth2AuthBase(AuthConfigBase):
             raise NativeValueError(
                 type(self),
                 value,
-                f"OAuth2AuthBase access_token must be a string, got {type(value)}",
+                "`access_token` argument of `OAuth2AuthBase` must be a `str`. Got value of type"
+                f" `{type(value)}`",
             )
 
     def __call__(self, request: PreparedRequest) -> PreparedRequest:

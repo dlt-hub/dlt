@@ -42,7 +42,7 @@ def qdrant_adapter(
             embed = [embed]
         if not isinstance(embed, list):
             raise ValueError(
-                "embed must be a list of column names or a single column name as a string"
+                "`embed` must be a list of column names or a single column name as a string"
             )
 
         column_hints = {}
@@ -53,7 +53,7 @@ def qdrant_adapter(
             }
 
     if not column_hints:
-        raise ValueError("A value for 'embed' must be specified.")
+        raise ValueError("A value for `embed` must be specified.")
     else:
         resource.apply_hints(columns=column_hints)
 

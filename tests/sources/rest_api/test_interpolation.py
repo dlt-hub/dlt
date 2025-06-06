@@ -562,5 +562,5 @@ def test_expressions_raise_error_for_invalid_format():
 
     assert (
         str(exc_info.value)
-        == "Invalid definition of resources.name. Expected format: 'resources.<resource>.<field>'"
+        == "Invalid definition of `resources.name`. Expected format: 'resources.<resource>.<field>'"
     )

@@ -427,7 +427,7 @@ def source(
     """
     if name and schema:
         raise ArgumentsOverloadException(
-            "'name' has no effect when `schema` argument is present", source.__name__
+            "`name` has no effect when `schema` argument is present", source.__name__
         )
 
     source_wrapper = (

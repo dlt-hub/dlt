@@ -9,13 +9,11 @@ from typing import cast
 
 
 import dlt
-
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.extract.incremental import Incremental
-
 from dlt.sources.rest_api import (
     _validate_param_type,
 )
-
 from dlt.sources.rest_api.config_setup import (
     IncrementalParam,
     setup_incremental_object,
@@ -52,10 +50,10 @@ def test_invalid_incremental_type_is_not_accepted() -> None:
             "initial_value": "2024-01-01T00:00:00Z",
         },
     }
-    with pytest.raises(ValueError) as e:
+    with pytest.raises(ValueErrorWithKnownValues) as e:
         _validate_param_type(request_params)
 
-    assert e.match("Invalid param type: no_incremental.")
+    assert e.match("Received invalid value `since['type']=no_incremental`.")
 
 
 def test_one_resource_cannot_have_many_incrementals() -> None:
@@ -75,8 +73,8 @@ def test_one_resource_cannot_have_many_incrementals() -> None:
     with pytest.raises(ValueError) as e:
         setup_incremental_object(request_params)
     error_message = re.escape(
-        "Only a single incremental parameter is allower per endpoint. Found: ['first_incremental',"
-        " 'second_incremental']"
+        "Only a single incremental parameter is allower per endpoint. Found parameters:"
+        " `['first_incremental', 'second_incremental']`"
     )
     assert e.match(error_message)
 
@@ -94,8 +92,8 @@ def test_one_resource_cannot_have_many_incrementals_2(incremental_with_init) -> 
     with pytest.raises(ValueError) as e:
         setup_incremental_object(request_params)
     error_message = re.escape(
-        "Only a single incremental parameter is allower per endpoint. Found: ['first_incremental',"
-        " 'second_incremental']"
+        "Only a single incremental parameter is allower per endpoint. Found parameters:"
+        " `['first_incremental', 'second_incremental']`"
     )
     assert e.match(error_message)
 
@@ -171,7 +169,7 @@ def test_does_not_construct_incremental_from_request_param_with_unsupported_incr
         setup_incremental_object(param_config)
 
     assert e.match(
-        "Only start_param and initial_value are allowed in the configuration of param: since."
+        "Only `start_param` and `initial_value` are allowed in the configuration of param: `since`."
     )
 
     param_config_2 = {
