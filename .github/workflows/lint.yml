@@ -10,9 +10,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  get_docs_changes:
-    name: docs changes
-    uses: ./.github/workflows/get_docs_changes.yml
 
   run_lint:
     name: lint
