@@ -16,8 +16,6 @@ jobs:
 
   run_lint:
     name: lint
-    needs: get_docs_changes
-    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: true
       matrix:

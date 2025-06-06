@@ -1,0 +1,25 @@
+name: Master Workflow
+
+on:
+  pull_request:
+    branches: [ master, devel ]
+
+jobs:
+
+  get_docs_changes:
+    name: docs changes
+    uses: ./.github/workflows/get_docs_changes.yml
+
+  lint:
+    name: lint
+    needs: get_docs_changes
+    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
+    uses: ./.github/workflows/lint.yml
+
+  test:
+    needs: lint
+    uses: ./.github/workflows/test_common.yml
+
+  test_local_destinations:
+    needs: lint
+    uses: ./.github/workflows/test_destinations_local.yml
