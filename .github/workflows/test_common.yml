@@ -2,7 +2,7 @@ name: common | common
 
 on:
   workflow_run:
-    workflows: ["lint.yml"]
+    workflows: ["lint | code & tests"]
     types: [completed]
 
 concurrency:
@@ -116,7 +116,7 @@ jobs:
 
       - name: Run one test
         run: |
-          poetry run tests/common/test_arithmetics.py::test_default_numeric_quantize
+          poetry run pytest tests/common/test_arithmetics.py::test_default_numeric_quantize
     
       # - name: Run common tests with minimum dependencies
       #   run: |
