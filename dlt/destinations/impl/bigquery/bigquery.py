@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, cast, Union
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union, cast
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
@@ -11,48 +11,52 @@ from google.cloud.bigquery.retry import _RETRYABLE_REASONS
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext, PreparedTableSchema
 from dlt.common.destination.client import (
-    HasFollowupJobs,
     FollowupJobRequest,
+    HasFollowupJobs,
+    LoadJob,
     RunnableLoadJob,
     SupportsStagingDestination,
-    LoadJob,
 )
 from dlt.common.json import json
 from dlt.common.runtime.signals import sleep
-from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
+from dlt.common.schema import Schema, TColumnSchema, TTableSchemaColumns
 from dlt.common.schema.typing import TColumnType
-from dlt.common.schema.utils import get_inherited_table_hint, get_columns_names_with_prop
+from dlt.common.schema.utils import get_columns_names_with_prop, get_inherited_table_hint
 from dlt.common.storages.load_package import destination_state
 from dlt.common.typing import DictStrAny
 from dlt.destinations.exceptions import (
+    DatabaseTerminalException,
     DatabaseTransientException,
     DatabaseUndefinedRelation,
     DestinationSchemaWillNotUpdate,
     DestinationTerminalException,
-    DatabaseTerminalException,
     LoadJobTerminalException,
 )
 from dlt.destinations.impl.bigquery.bigquery_adapter import (
     AUTODETECT_SCHEMA_HINT,
     CLUSTER_COLUMNS_HINT,
-    PARTITION_HINT,
-    PARTITION_EXPIRATION_DAYS_HINT,
     CLUSTER_HINT,
-    TABLE_DESCRIPTION_HINT,
-    ROUND_HALF_EVEN_HINT,
+    PARTITION_EXPIRATION_DAYS_HINT,
+    PARTITION_HINT,
     ROUND_HALF_AWAY_FROM_ZERO_HINT,
+    ROUND_HALF_EVEN_HINT,
+    TABLE_DESCRIPTION_HINT,
     TABLE_EXPIRATION_HINT,
+    BigQueryPartitionRenderer,
     should_autodetect_schema,
 )
 from dlt.destinations.impl.bigquery.bigquery_partition_specs import BigQueryPartitionSpec
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
+from dlt.destinations.impl.bigquery.sql_client import BQ_TERMINAL_REASONS, BigQuerySqlClient
 from dlt.destinations.impl.bigquery.warnings import per_column_cluster_hint_deprecated
-from dlt.destinations.impl.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
-from dlt.destinations.job_impl import DestinationJsonlLoadJob, DestinationParquetLoadJob
-from dlt.destinations.job_impl import ReferenceFollowupJobRequest
-from dlt.destinations.sql_jobs import SqlMergeFollowupJob
+from dlt.destinations.job_impl import (
+    DestinationJsonlLoadJob,
+    DestinationParquetLoadJob,
+    ReferenceFollowupJobRequest,
+)
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 
 
 class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -253,7 +257,9 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                 )
         return job
 
-    def _bigquery_partition_clause(self, partition_hint: Union[None, BigQueryPartitionSpec, Dict[str, Any]]) -> str:
+    def _bigquery_partition_clause(
+        self, partition_hint: Union[None, BigQueryPartitionSpec, Dict[str, Any]]
+    ) -> str:
         """Generate partition clause for BigQuery SQL.
 
         Args:
@@ -265,8 +271,6 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         if not partition_hint:
             return ""
 
-        # If the hint is a BigQueryPartitionSpec, render it
-        from dlt.destinations.impl.bigquery.bigquery_adapter import BigQueryPartitionRenderer
         if isinstance(partition_hint, BigQueryPartitionSpec.__args__):
             return BigQueryPartitionRenderer.render_sql([partition_hint])
 

@@ -2,27 +2,26 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Literal, Optional, Protocol, Sequence, TypeVar, Union
 
 from dateutil import parser
+from sqlglot import exp
 
 from dlt.common.destination import PreparedTableSchema
 from dlt.common.pendulum import timezone
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import TColumnNames
+from dlt.destinations.impl.bigquery.bigquery_partition_specs import (
+    BigQueryDateColumnPartition,
+    BigQueryDatetimeTruncPartition,
+    BigQueryDateTruncPartition,
+    BigQueryIngestionTimePartition,
+    BigQueryPartitionSpec,
+    BigQueryRangeBucketPartition,
+    BigQueryTimestampOrDateTimePartition,
+    BigQueryTimestampTruncIngestionPartition,
+    BigQueryTimestampTruncPartition,
+)
 from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 from dlt.extract.items import TTableHintTemplate
-from dlt.destinations.impl.bigquery.bigquery_partition_specs import (
-    BigQueryPartitionSpec,
-    BigQueryRangeBucketPartition,
-    BigQueryDateTruncPartition,
-    BigQueryIngestionTimePartition,
-    BigQueryDateColumnPartition,
-    BigQueryTimestampOrDateTimePartition,
-    BigQueryDatetimeTruncPartition,
-    BigQueryTimestampTruncPartition,
-    BigQueryTimestampTruncIngestionPartition,
-    
-)
-from sqlglot import exp
 
 PARTITION_HINT: Literal["x-bigquery-partition"] = "x-bigquery-partition"
 CLUSTER_HINT: Literal["x-bigquery-cluster"] = "x-bigquery-cluster"
@@ -63,7 +62,9 @@ class BigQueryPartitionRenderer(PartitionRenderer[BigQueryPartitionSpec]):
             lambda partition: BigQueryPartitionRenderer._render_date_column_expr(partition)
         ),
         BigQueryTimestampOrDateTimePartition: (
-            lambda partition: BigQueryPartitionRenderer._render_timestamp_or_datetime_expr(partition)
+            lambda partition: BigQueryPartitionRenderer._render_timestamp_or_datetime_expr(
+                partition
+            )
         ),
         BigQueryDatetimeTruncPartition: (
             lambda partition: BigQueryPartitionRenderer._render_datetime_trunc_expr(partition)
@@ -72,7 +73,9 @@ class BigQueryPartitionRenderer(PartitionRenderer[BigQueryPartitionSpec]):
             lambda partition: BigQueryPartitionRenderer._render_timestamp_trunc_expr(partition)
         ),
         BigQueryTimestampTruncIngestionPartition: (
-            lambda partition: BigQueryPartitionRenderer._render_timestamp_trunc_ingestion_expr(partition)
+            lambda partition: BigQueryPartitionRenderer._render_timestamp_trunc_ingestion_expr(
+                partition
+            )
         ),
     }
 
@@ -92,15 +95,17 @@ class BigQueryPartitionRenderer(PartitionRenderer[BigQueryPartitionSpec]):
         return f"PARTITION BY {expr_sql}"
 
     @staticmethod
-    def _render_ingestion_time_expr(partition: 'BigQueryIngestionTimePartition') -> str:
+    def _render_ingestion_time_expr(partition: "BigQueryIngestionTimePartition") -> str:
         return "_PARTITIONDATE"
 
     @staticmethod
-    def _render_date_column_expr(partition: 'BigQueryDateColumnPartition') -> str:
+    def _render_date_column_expr(partition: "BigQueryDateColumnPartition") -> str:
         return partition.column_name
 
     @staticmethod
-    def _render_timestamp_or_datetime_expr(partition: 'BigQueryTimestampOrDateTimePartition') -> str:
+    def _render_timestamp_or_datetime_expr(
+        partition: "BigQueryTimestampOrDateTimePartition",
+    ) -> str:
         expr = exp.Anonymous(
             this="DATE",
             expressions=[exp.to_identifier(partition.column_name)],
@@ -108,7 +113,7 @@ class BigQueryPartitionRenderer(PartitionRenderer[BigQueryPartitionSpec]):
         return expr.sql(dialect="bigquery")
 
     @staticmethod
-    def _render_datetime_trunc_expr(partition: 'BigQueryDatetimeTruncPartition') -> str:
+    def _render_datetime_trunc_expr(partition: "BigQueryDatetimeTruncPartition") -> str:
         expr = exp.Anonymous(
             this="DATETIME_TRUNC",
             expressions=[
@@ -119,7 +124,7 @@ class BigQueryPartitionRenderer(PartitionRenderer[BigQueryPartitionSpec]):
         return expr.sql(dialect="bigquery")
 
     @staticmethod
-    def _render_timestamp_trunc_expr(partition: 'BigQueryTimestampTruncPartition') -> str:
+    def _render_timestamp_trunc_expr(partition: "BigQueryTimestampTruncPartition") -> str:
         expr = exp.Anonymous(
             this="TIMESTAMP_TRUNC",
             expressions=[
@@ -130,7 +135,9 @@ class BigQueryPartitionRenderer(PartitionRenderer[BigQueryPartitionSpec]):
         return expr.sql(dialect="bigquery")
 
     @staticmethod
-    def _render_timestamp_trunc_ingestion_expr(partition: 'BigQueryTimestampTruncIngestionPartition') -> str:
+    def _render_timestamp_trunc_ingestion_expr(
+        partition: "BigQueryTimestampTruncIngestionPartition",
+    ) -> str:
         expr = exp.Anonymous(
             this="TIMESTAMP_TRUNC",
             expressions=[
@@ -278,7 +285,6 @@ def bigquery_adapter(
         for column in resource.columns.values():  # type: ignore[union-attr]
             column.pop(PARTITION_HINT, None)  # type: ignore[typeddict-item]
 
-        
         if isinstance(partition, BigQueryPartitionSpec.__args__):
             # Store the spec object directly as the table hint
             additional_table_hints[PARTITION_HINT] = partition
@@ -290,7 +296,8 @@ def bigquery_adapter(
             additional_table_hints[PARTITION_HINT] = partition_hint
         else:
             raise ValueError(
-                "`partition` must be a single column name as a string, PartitionTransformation, or BigQueryPartitionSpec."
+                "`partition` must be a single column name as a string, PartitionTransformation, or"
+                " BigQueryPartitionSpec."
             )
 
     if cluster:
