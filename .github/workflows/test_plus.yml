@@ -5,10 +5,7 @@ name: plus | plus
 #
 
 on:
-  pull_request:
-    branches:
-      - master
-      - devel
+  workflow_call:
   workflow_dispatch:
 
 concurrency:

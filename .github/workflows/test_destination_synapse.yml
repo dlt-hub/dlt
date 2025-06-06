@@ -1,16 +1,7 @@
 name: dest | synapse
 
 on:
-  pull_request:
-    branches:
-      - master
-      - devel
-  pull_request_target:
-    branches:
-      - master
-      - devel
-    types:
-      - labeled
+  workflow_call:
   workflow_dispatch:
 
 concurrency:

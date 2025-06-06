@@ -1,10 +1,7 @@
 name: tools | airflow
 
 on:
-  pull_request:
-    branches:
-      - master
-      - devel
+  workflow_call:
   workflow_dispatch:
 
 concurrency:

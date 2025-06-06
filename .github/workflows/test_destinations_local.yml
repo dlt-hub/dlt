@@ -4,10 +4,7 @@
 name: dest | postgres, duckdb, fs, weaviate, qdrant
 
 on:
-  pull_request:
-    branches:
-      - master
-      - devel
+  workflow_call:
   workflow_dispatch:
 
 concurrency:

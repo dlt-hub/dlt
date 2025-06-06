@@ -3,10 +3,7 @@
 name: src | rest_api, sql_database, filesystem
 
 on:
-  pull_request:
-    branches:
-      - master
-      - devel
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
