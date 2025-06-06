@@ -1,6 +1,5 @@
-from typing import Any, Optional, Literal, Dict, Union, Sequence, TypeVar, Protocol, List
-
 from dataclasses import dataclass
+from typing import Any, Dict, List, Literal, Optional, Protocol, Sequence, TypeVar, Union
 
 from dateutil import parser
 
@@ -11,7 +10,6 @@ from dlt.common.typing import TColumnNames
 from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 from dlt.extract.items import TTableHintTemplate
-
 
 PARTITION_HINT: Literal["x-bigquery-partition"] = "x-bigquery-partition"
 CLUSTER_HINT: Literal["x-bigquery-cluster"] = "x-bigquery-cluster"
@@ -47,7 +45,7 @@ class BigQueryRangeBucketPartition:
     end: int
     interval: int = 1
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.interval <= 0:
             raise ValueError("interval must be a positive integer")
         if self.start >= self.end:
@@ -64,7 +62,7 @@ class BigQueryDateTruncPartition:
     column_name: str
     granularity: Literal["MONTH", "YEAR"]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         allowed = ("MONTH", "YEAR")
         if self.granularity not in allowed:
             raise ValueError(f"granularity must be one of {allowed}, got {self.granularity!r}")
@@ -112,7 +110,7 @@ class BigQueryDatetimeTruncPartition:
     column_name: str
     granularity: Literal["DAY", "HOUR", "MONTH", "YEAR"]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         allowed = ("DAY", "HOUR", "MONTH", "YEAR")
         if self.granularity not in allowed:
             raise ValueError(f"granularity must be one of {allowed}, got {self.granularity!r}")
@@ -128,7 +126,7 @@ class BigQueryTimestampTruncPartition:
     column_name: str
     granularity: Literal["DAY", "HOUR", "MONTH", "YEAR"]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         allowed = ("DAY", "HOUR", "MONTH", "YEAR")
         if self.granularity not in allowed:
             raise ValueError(f"granularity must be one of {allowed}, got {self.granularity!r}")
@@ -144,23 +142,24 @@ class BigQueryTimestampTruncIngestionPartition:
 
     granularity: Literal["DAY", "HOUR", "MONTH", "YEAR"]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         allowed = ("DAY", "HOUR", "MONTH", "YEAR")
         if self.granularity not in allowed:
             raise ValueError(f"granularity must be one of {allowed}, got {self.granularity!r}")
 
 
 # BigQuery-specific union of supported partition specs
-BigQueryPartitionSpec = (
-    BigQueryRangeBucketPartition
-    | BigQueryDateTruncPartition
-    | BigQueryIngestionTimePartition
-    | BigQueryDateColumnPartition
-    | BigQueryTimestampOrDateTimePartition
-    | BigQueryDatetimeTruncPartition
-    | BigQueryTimestampTruncPartition
-    | BigQueryTimestampTruncIngestionPartition
-)
+
+BigQueryPartitionSpec = Union[
+    BigQueryRangeBucketPartition,
+    BigQueryDateTruncPartition,
+    BigQueryIngestionTimePartition,
+    BigQueryDateColumnPartition,
+    BigQueryTimestampOrDateTimePartition,
+    BigQueryDatetimeTruncPartition,
+    BigQueryTimestampTruncPartition,
+    BigQueryTimestampTruncIngestionPartition,
+]
 
 # --- BigQuery Partition Renderer ---
 import sqlglot
