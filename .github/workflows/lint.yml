@@ -58,6 +58,13 @@ jobs:
           path: .venv
           key: venv-${{ matrix.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
+      - name: Check filesizes
+        uses: ppremk/lfs-warning@v3.2
+        with:
+          filesizelimit: 50000
+          exclusionPatterns: |
+            **/*.py
+
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --all-extras --with airflow,providers,pipeline,sentry-sdk,dbt,marimo,streamlit
