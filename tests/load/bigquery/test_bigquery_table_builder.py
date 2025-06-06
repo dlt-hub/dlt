@@ -27,6 +27,7 @@ from dlt.destinations.impl.bigquery.bigquery_adapter import (
     CLUSTER_HINT,
 )
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
+from dlt.destinations.impl.bigquery.bigquery_partition_specs import BigQueryRangeBucketPartition
 from dlt.extract import DltResource
 from tests.load.utils import (
     destinations_configs,
@@ -292,6 +293,45 @@ def test_create_table_with_custom_range_bucket_partition() -> None:
     expected_clause = "PARTITION BY RANGE_BUCKET(`user_id`, GENERATE_ARRAY(0, 1000000, 10000))"
     assert expected_clause in sql_partitioned
 
+def test_create_table_with_custom_range_bucket_partition_using_partition_spec() -> None:
+    @dlt.resource
+    def partitioned_table():
+        yield {
+            "user_id": 10000,
+            "name": "user 1",
+            "created_at": "2021-01-01T00:00:00Z",
+            "category": "category 1",
+            "score": 100.0,
+        }
+
+    partition_spec = BigQueryRangeBucketPartition(column_name="user_id", start=0, end=1000000, interval=10000)
+
+    bigquery_adapter(
+        partitioned_table,
+        partition = partition_spec
+    )
+
+    pipeline = dlt.pipeline(
+        "bigquery_test_partition_with_partition_spec",
+        destination="bigquery",
+        dev_mode=True,
+    )
+
+
+    pipeline.extract(partitioned_table)
+    pipeline.normalize()
+
+    with pipeline.destination_client() as client:
+        sql_partitioned = client._get_table_update_sql(  # type: ignore[attr-defined]
+            "partitioned_table",
+            list(pipeline.default_schema.tables["partitioned_table"]["columns"].values()),
+            False,
+        )[0]
+
+    expected_clause = "PARTITION BY RANGE_BUCKET(`user_id`, GENERATE_ARRAY(0, 1000000, 10000))"
+    assert expected_clause in sql_partitioned
+    
+    
 
 @pytest.mark.parametrize(
     "destination_config",
