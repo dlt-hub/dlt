@@ -1,4 +1,4 @@
-name: Master Workflow
+name: master
 
 on:
   pull_request:
