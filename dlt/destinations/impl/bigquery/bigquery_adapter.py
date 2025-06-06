@@ -183,6 +183,24 @@ class BigQueryPartitionRenderer(PartitionRenderer[BigQueryPartitionSpec]):
         BigQueryDateTruncPartition: (
             lambda partition: BigQueryPartitionRenderer._render_date_trunc_expr(partition)
         ),
+        BigQueryIngestionTimePartition: (
+            lambda partition: BigQueryPartitionRenderer._render_ingestion_time_expr(partition)
+        ),
+        BigQueryDateColumnPartition: (
+            lambda partition: BigQueryPartitionRenderer._render_date_column_expr(partition)
+        ),
+        BigQueryTimestampOrDateTimePartition: (
+            lambda partition: BigQueryPartitionRenderer._render_timestamp_or_datetime_expr(partition)
+        ),
+        BigQueryDatetimeTruncPartition: (
+            lambda partition: BigQueryPartitionRenderer._render_datetime_trunc_expr(partition)
+        ),
+        BigQueryTimestampTruncPartition: (
+            lambda partition: BigQueryPartitionRenderer._render_timestamp_trunc_expr(partition)
+        ),
+        BigQueryTimestampTruncIngestionPartition: (
+            lambda partition: BigQueryPartitionRenderer._render_timestamp_trunc_ingestion_expr(partition)
+        ),
     }
 
     @staticmethod
@@ -199,6 +217,55 @@ class BigQueryPartitionRenderer(PartitionRenderer[BigQueryPartitionSpec]):
             raise NotImplementedError(f"Unknown partition type: {type(partition)}")
         expr_sql = handler(partition)
         return f"PARTITION BY {expr_sql}"
+
+    @staticmethod
+    def _render_ingestion_time_expr(partition: 'BigQueryIngestionTimePartition') -> str:
+        return "_PARTITIONDATE"
+
+    @staticmethod
+    def _render_date_column_expr(partition: 'BigQueryDateColumnPartition') -> str:
+        return partition.column_name
+
+    @staticmethod
+    def _render_timestamp_or_datetime_expr(partition: 'BigQueryTimestampOrDateTimePartition') -> str:
+        expr = exp.Anonymous(
+            this="DATE",
+            expressions=[exp.to_identifier(partition.column_name)],
+        )
+        return expr.sql(dialect="bigquery")
+
+    @staticmethod
+    def _render_datetime_trunc_expr(partition: 'BigQueryDatetimeTruncPartition') -> str:
+        expr = exp.Anonymous(
+            this="DATETIME_TRUNC",
+            expressions=[
+                exp.to_identifier(partition.column_name),
+                exp.Literal.string(partition.granularity),
+            ],
+        )
+        return expr.sql(dialect="bigquery")
+
+    @staticmethod
+    def _render_timestamp_trunc_expr(partition: 'BigQueryTimestampTruncPartition') -> str:
+        expr = exp.Anonymous(
+            this="TIMESTAMP_TRUNC",
+            expressions=[
+                exp.to_identifier(partition.column_name),
+                exp.Literal.string(partition.granularity),
+            ],
+        )
+        return expr.sql(dialect="bigquery")
+
+    @staticmethod
+    def _render_timestamp_trunc_ingestion_expr(partition: 'BigQueryTimestampTruncIngestionPartition') -> str:
+        expr = exp.Anonymous(
+            this="TIMESTAMP_TRUNC",
+            expressions=[
+                exp.to_identifier("_PARTITIONTIME"),
+                exp.Literal.string(partition.granularity),
+            ],
+        )
+        return expr.sql(dialect="bigquery")
 
     @staticmethod
     def _render_range_bucket_expr(partition: BigQueryRangeBucketPartition) -> str:
