@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, cast
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, cast, Union
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
@@ -44,6 +44,7 @@ from dlt.destinations.impl.bigquery.bigquery_adapter import (
     TABLE_EXPIRATION_HINT,
     should_autodetect_schema,
 )
+from dlt.destinations.impl.bigquery.bigquery_partition_specs import BigQueryPartitionSpec
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.impl.bigquery.warnings import per_column_cluster_hint_deprecated
 from dlt.destinations.impl.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
@@ -252,11 +253,11 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                 )
         return job
 
-    def _bigquery_partition_clause(self, partition_hint: Optional[Dict[str, str]]) -> str:
+    def _bigquery_partition_clause(self, partition_hint: Union[None, BigQueryPartitionSpec, Dict[str, Any]]) -> str:
         """Generate partition clause for BigQuery SQL.
 
         Args:
-            partition_hint (Optional[Dict[str, str]]): Partition hint.
+            partition_hint: Partition hint (can be a dict, a BigQueryPartitionSpec, or None).
 
         Returns:
             str: The partition clause for BigQuery SQL.
@@ -264,11 +265,23 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         if not partition_hint:
             return ""
 
-        [(column_name, clause)] = partition_hint.items()
-        return (
-            "PARTITION BY"
-            f" {clause.format(column_name=self.sql_client.escape_column_name(column_name))}"
-        )
+        # If the hint is a BigQueryPartitionSpec, render it
+        from dlt.destinations.impl.bigquery.bigquery_adapter import BigQueryPartitionRenderer
+        if isinstance(partition_hint, BigQueryPartitionSpec.__args__):
+            return BigQueryPartitionRenderer.render_sql([partition_hint])
+
+        # If it's a dict, check if the value is a BigQueryPartitionSpec
+        if isinstance(partition_hint, dict):
+            [(column_name, clause)] = partition_hint.items()
+            if isinstance(clause, BigQueryPartitionSpec.__args__):
+                return BigQueryPartitionRenderer.render_sql([clause])
+            # fallback: legacy string/template logic
+            return (
+                "PARTITION BY"
+                f" {clause.format(column_name=self.sql_client.escape_column_name(column_name))}"
+            )
+
+        return ""
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool

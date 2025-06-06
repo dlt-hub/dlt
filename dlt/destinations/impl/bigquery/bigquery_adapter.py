@@ -10,6 +10,17 @@ from dlt.common.typing import TColumnNames
 from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 from dlt.extract.items import TTableHintTemplate
+from dlt.destinations.impl.bigquery.bigquery_partition_specs import (
+    BigQueryPartitionSpec,
+    BigQueryRangeBucketPartition,
+    BigQueryDateTruncPartition,
+    BigQueryIngestionTimePartition,
+    BigQueryDateColumnPartition,
+    BigQueryTimestampOrDateTimePartition,
+    BigQueryDatetimeTruncPartition,
+    BigQueryTimestampTruncPartition,
+    BigQueryTimestampTruncIngestionPartition,
+)
 
 PARTITION_HINT: Literal["x-bigquery-partition"] = "x-bigquery-partition"
 CLUSTER_HINT: Literal["x-bigquery-cluster"] = "x-bigquery-cluster"
@@ -401,22 +412,24 @@ def bigquery_adapter(
     column_hints: TTableSchemaColumns = {}
 
     if partition:
-        if not (isinstance(partition, str) or isinstance(partition, PartitionTransformation)):
-            raise ValueError(
-                "`partition` must be a single column name as a string or a PartitionTransformation."
-            )
-
         # Can only have one partition column.
         for column in resource.columns.values():  # type: ignore[union-attr]
             column.pop(PARTITION_HINT, None)  # type: ignore[typeddict-item]
 
-        if isinstance(partition, str):
+        
+        if isinstance(partition, BigQueryPartitionSpec.__args__):
+            # Store the spec object directly as the table hint
+            additional_table_hints[PARTITION_HINT] = partition
+        elif isinstance(partition, str):
             column_hints[partition] = {"name": partition, PARTITION_HINT: True}  # type: ignore[typeddict-unknown-key]
-
-        if isinstance(partition, PartitionTransformation):
+        elif isinstance(partition, PartitionTransformation):
             partition_hint: Dict[str, str] = {}
             partition_hint[partition.column_name] = partition.template
             additional_table_hints[PARTITION_HINT] = partition_hint
+        else:
+            raise ValueError(
+                "`partition` must be a single column name as a string, PartitionTransformation, or BigQueryPartitionSpec."
+            )
 
     if cluster:
         if isinstance(cluster, str):
