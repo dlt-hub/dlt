@@ -11,8 +11,6 @@ on:
       - master
       - devel
     types:
-      - opened
-      - synchronize
       - labeled
   workflow_dispatch:
 
