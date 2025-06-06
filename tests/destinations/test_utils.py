@@ -1,7 +1,6 @@
 import dlt
 import pytest
 
-from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 
