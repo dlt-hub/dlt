@@ -17,7 +17,7 @@ from dlt.sources.rest_api import (
     rest_api_source,
 )
 from tests.sources.rest_api.conftest import DEFAULT_PAGE_SIZE, DEFAULT_TOTAL_PAGES
-from tests.utils import assert_load_info, assert_query_data, load_table_counts
+from tests.pipeline.utils import assert_load_info, load_table_counts, assert_query_column
 
 
 @pytest.mark.parametrize(
@@ -170,7 +170,7 @@ def test_load_mock_api(mock_api_server, config):
         pipeline_name="rest_api_mock",
         destination="duckdb",
         dataset_name="rest_api_mock",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     mock_source = rest_api_source(config)
@@ -178,8 +178,7 @@ def test_load_mock_api(mock_api_server, config):
     load_info = pipeline.run(mock_source)
     print(load_info)
     assert_load_info(load_info)
-    table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
-    table_counts = load_table_counts(pipeline, *table_names)
+    table_counts = load_table_counts(pipeline)
 
     assert table_counts.keys() == {"posts", "post_comments", "post_details"}
 
@@ -194,19 +193,19 @@ def test_load_mock_api(mock_api_server, config):
 
     print(pipeline.default_schema.to_pretty_yaml())
 
-    assert_query_data(
+    assert_query_column(
         pipeline,
         f"SELECT title FROM {posts_table} ORDER BY id limit 25",
         [f"Post {i}" for i in range(25)],
     )
 
-    assert_query_data(
+    assert_query_column(
         pipeline,
         f"SELECT body FROM {posts_details_table} ORDER BY id limit 25",
         [f"Post body {i}" for i in range(25)],
     )
 
-    assert_query_data(
+    assert_query_column(
         pipeline,
         f"SELECT body FROM {post_comments_table} ORDER BY post_id, id limit 5",
         [f"Comment {i} for post 0" for i in range(5)],
@@ -849,7 +848,7 @@ def test_interpolate_parent_values_in_path_and_json_body(mock_api_server):
         pipeline_name="rest_api_mock",
         destination="duckdb",
         dataset_name="rest_api_mock",
-        full_refresh=True,
+        dev_mode=True,
     )
     mock_source = rest_api_source(
         {
@@ -880,8 +879,7 @@ def test_interpolate_parent_values_in_path_and_json_body(mock_api_server):
     load_info = pipeline.run(mock_source)
     print(load_info)
     assert_load_info(load_info)
-    table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
-    table_counts = load_table_counts(pipeline, *table_names)
+    table_counts = load_table_counts(pipeline)
     assert table_counts.keys() == {"posts", "post_details"}
     assert table_counts["posts"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
     assert table_counts["post_details"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
@@ -889,22 +887,22 @@ def test_interpolate_parent_values_in_path_and_json_body(mock_api_server):
         posts_table = client.make_qualified_table_name("posts")
         posts_details_table = client.make_qualified_table_name("post_details")
     print(pipeline.default_schema.to_pretty_yaml())
-    assert_query_data(
+    assert_query_column(
         pipeline,
         f"SELECT title FROM {posts_table} ORDER BY id limit 25",
         [f"Post {i}" for i in range(25)],
     )
-    assert_query_data(
+    assert_query_column(
         pipeline,
         f"SELECT body FROM {posts_details_table} ORDER BY id limit 25",
         [f"Post body {i}" for i in range(25)],
     )
-    assert_query_data(
+    assert_query_column(
         pipeline,
         f"SELECT title FROM {posts_details_table} ORDER BY id limit 25",
         [f"Post {i}" for i in range(25)],
     )
-    assert_query_data(
+    assert_query_column(
         pipeline,
         f"SELECT more FROM {posts_details_table} ORDER BY id limit 25",
         [f"More is equale to id: {i}" for i in range(25)],
@@ -916,7 +914,7 @@ def test_unauthorized_access_to_protected_endpoint(mock_api_server):
         pipeline_name="rest_api_mock",
         destination="duckdb",
         dataset_name="rest_api_mock",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     mock_source = rest_api_source(
@@ -1031,15 +1029,14 @@ def test_load_mock_api_typeddict_config(mock_api_server, config):
         pipeline_name="rest_api_mock",
         destination="duckdb",
         dataset_name="rest_api_mock",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     mock_source = rest_api_source(config)
 
     load_info = pipeline.run(mock_source)
     assert_load_info(load_info)
-    table_names = [t["name"] for t in pipeline.default_schema.data_tables()]
-    table_counts = load_table_counts(pipeline, *table_names)
+    table_counts = load_table_counts(pipeline)
 
     assert table_counts.keys() == {"posts", "post_comments"}
 

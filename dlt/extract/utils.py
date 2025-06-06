@@ -1,6 +1,6 @@
 import inspect
-import makefun
 from typing import (
+    Callable,
     Optional,
     Tuple,
     Union,
@@ -19,21 +19,24 @@ from functools import wraps
 from dlt.common.data_writers import TDataItemFormat
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.pipeline import reset_resource_state
-from dlt.common.schema import Schema
+from dlt.common.reflection.inspect import isgeneratorfunction
 from dlt.common.schema.typing import TAnySchemaColumns, TTableSchemaColumns
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.typing import (
+    Self,
     AnyFun,
     DictStrAny,
     TDataItem,
     TDataItems,
     TAnyFunOrGenerator,
     TColumnNames,
+    NoneType,
 )
 from dlt.common.utils import get_callable_name
 
 from dlt.extract.exceptions import (
-    InvalidResourceDataTypeFunctionNotAGenerator,
+    InvalidResourceDataTypeIsNone,
+    InvalidResourceReturnsResource,
     InvalidStepFunctionArguments,
 )
 from dlt.extract.items import (
@@ -275,7 +278,7 @@ def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
                 raise
 
     if callable(f):
-        if inspect.isgeneratorfunction(inspect.unwrap(f)):
+        if isgeneratorfunction(f):
             return wraps(f)(_gen_wrapper)  # type: ignore[return-value]
         else:
 
@@ -287,6 +290,13 @@ def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
 
             return wraps(f)(_fun_wrapper)  # type: ignore[return-value]
     return _gen_wrapper()  # type: ignore[return-value]
+
+
+def _transformer_compat(item: TDataItems, meta: Any = None) -> Any:
+    pass
+
+
+_transformer_compat_sig = inspect.signature(_transformer_compat)
 
 
 def wrap_compat_transformer(
@@ -305,28 +315,36 @@ def wrap_compat_transformer(
         return f(item, *args, **kwargs)
 
     # this partial wraps transformer and sets a signature that is compatible with pipe transform calls
-    return makefun.wraps(f, new_sig=inspect.signature(_tx_partial))(_tx_partial)  # type: ignore
+    _wrapper = wraps(f)(_tx_partial)
+    setattr(_wrapper, "__signature__", _transformer_compat_sig)
+    return _wrapper
+
+
+def _resource_compat() -> Any:
+    pass
+
+
+_resource_compat_sig = inspect.signature(_resource_compat)
 
 
 def wrap_resource_gen(
     name: str, f: AnyFun, sig: inspect.Signature, *args: Any, **kwargs: Any
 ) -> AnyFun:
-    """Wraps a generator or generator function so it is evaluated on extraction"""
+    """Wraps a generator or generator function so it is evaluated on extraction and binds argument passed to call"""
 
-    if (
-        inspect.isgeneratorfunction(inspect.unwrap(f))
-        or inspect.isgenerator(f)
-        or inspect.isasyncgenfunction(inspect.unwrap(f))
-    ):
+    def _partial() -> Any:
+        # print(f"_PARTIAL: {args} {kwargs}")
+        rv = f(*args, **kwargs)
+        if rv is None:
+            raise InvalidResourceDataTypeIsNone(name, rv, NoneType)
+        # is it Pipe or resource
+        if hasattr(rv, "_gen_idx") or hasattr(rv, "_pipe"):
+            raise InvalidResourceReturnsResource(name, f, type(f))
+        return rv
 
-        def _partial() -> Any:
-            # print(f"_PARTIAL: {args} {kwargs}")
-            return f(*args, **kwargs)
-
-        # this partial preserves the original signature and just defers the call to pipe
-        return makefun.wraps(f, new_sig=inspect.signature(_partial))(_partial)  # type: ignore
-    else:
-        raise InvalidResourceDataTypeFunctionNotAGenerator(name, f, type(f))
+    _wrapper = wraps(f)(_partial)
+    setattr(_wrapper, "__signature__", _resource_compat_sig)
+    return _wrapper
 
 
 def make_schema_with_default_name(pipeline_name: str) -> str:
@@ -336,3 +354,21 @@ def make_schema_with_default_name(pipeline_name: str) -> str:
     else:
         schema_name = pipeline_name
     return normalize_schema_name(schema_name)
+
+
+class dynstr(str):
+    """Dynamic string which will generate final value when called"""
+
+    __slots__ = "dyn"
+
+    def __new__(cls, placeholder: str, dyn: Callable[..., str]) -> Self:
+        # Create a new str instance
+        instance = super().__new__(cls, placeholder)
+        return instance
+
+    def __init__(self, placeholder: str, dyn: Callable[..., str]):
+        super().__init__()
+        self.dyn = dyn
+
+    def __call__(self, param: Any) -> str:
+        return self.dyn(param)

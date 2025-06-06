@@ -73,7 +73,7 @@ from dlt.sources.filesystem import filesystem
 BUCKET_URL = "s3://my_bucket/data"
 
 # Define a standalone transformer to read data from an Excel file.
-@dlt.transformer(standalone=True)
+@dlt.transformer
 def read_excel(
     items: Iterator[FileItemDict], sheet_name: str
 ) -> Iterator[TDataItems]:
@@ -112,7 +112,7 @@ from dlt.sources.filesystem import filesystem
 BUCKET_URL = "s3://my_bucket/data"
 
 # Define a standalone transformer to read data from an XML file.
-@dlt.transformer(standalone=True)
+@dlt.transformer
 def read_xml(items: Iterator[FileItemDict]) -> Iterator[TDataItems]:
     # Import the required xmltodict library.
     import xmltodict

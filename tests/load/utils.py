@@ -25,6 +25,7 @@ import dlt
 from dlt.common import json, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
@@ -56,6 +57,7 @@ from dlt.common.utils import uniq_id
 
 from dlt.destinations.exceptions import CantExtractTablePrefix
 from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
+from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
@@ -215,8 +217,11 @@ class DestinationTestConfiguration:
 
     def setup(self) -> None:
         """Sets up environment variables for this destination configuration"""
+        env_key_prefix = (  # "DESTINATION__" + (self.destination_name or self.destination_type).upper()
+            "DESTINATION"
+        )
         for k, v in self.factory_kwargs.items():
-            os.environ[f"DESTINATION__{k.upper()}"] = str(v)
+            os.environ[f"{env_key_prefix}__{k.upper()}"] = str(v)
 
         # For the filesystem destinations we disable compression to make analyzing the result easier
         os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = str(
@@ -227,10 +232,10 @@ class DestinationTestConfiguration:
 
         if self.credentials is not None:
             if isinstance(self.credentials, str):
-                os.environ["DESTINATION__CREDENTIALS"] = self.credentials
+                os.environ[f"{env_key_prefix}__CREDENTIALS"] = self.credentials
             else:
                 for key, value in dict(self.credentials).items():
-                    os.environ[f"DESTINATION__CREDENTIALS__{key.upper()}"] = str(value)
+                    os.environ[f"{env_key_prefix}__CREDENTIALS__{key.upper()}"] = str(value)
 
         if self.env_vars is not None:
             for k, v in self.env_vars.items():
@@ -577,14 +582,6 @@ def destinations_configs(
             DestinationTestConfiguration(
                 destination_type="filesystem",
                 bucket_url=FILE_BUCKET,
-                file_format="insert_values",
-                supports_merge=False,
-            )
-        ]
-        destination_configs += [
-            DestinationTestConfiguration(
-                destination_type="filesystem",
-                bucket_url=FILE_BUCKET,
                 file_format="parquet",
                 supports_merge=False,
             )
@@ -606,7 +603,7 @@ def destinations_configs(
                     bucket_url=bucket,
                     extra_info=bucket,
                     supports_merge=False,
-                    file_format="parquet",
+                    file_format="jsonl",  # keep jsonl as default, test utils are setup for this
                 )
             ]
 
@@ -654,7 +651,7 @@ def destinations_configs(
                     bucket_url=bucket,
                     extra_info=bucket,
                     table_format="iceberg",
-                    supports_merge=False,
+                    supports_merge=True,
                     file_format="parquet",
                     destination_name="fsgcpoauth" if bucket == GCS_BUCKET else None,
                 )
@@ -700,6 +697,7 @@ def destinations_configs(
             for conf in destination_configs
             if not (conf.destination_type in exclude or conf.destination_name in exclude)
         ]
+        destination_configs = [conf for conf in destination_configs if conf.name not in exclude]
     if bucket_exclude:
         destination_configs = [
             conf
@@ -760,14 +758,14 @@ def drop_pipeline_data(p: dlt.Pipeline) -> None:
         with p.destination_client(schema_name) as client:
             try:
                 client.drop_storage()
-                print("dropped")
+                # print("dropped")
             except Exception as exc:
                 print(exc)
             if isinstance(client, WithStagingDataset):
                 with client.with_staging_dataset():
                     try:
                         client.drop_storage()
-                        print("staging dropped")
+                        # print("staging dropped")
                     except Exception as exc:
                         print(exc)
 
@@ -1129,3 +1127,9 @@ def count_job_types(p: dlt.Pipeline) -> Dict[str, Dict[str, Any]]:
         )
 
     return tables
+
+
+def set_always_refresh_views(config: BaseConfiguration) -> None:
+    # set filesystem views to autorefresh
+    if isinstance(config, FilesystemDestinationClientConfiguration):
+        config["always_refresh_views"] = True

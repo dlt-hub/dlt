@@ -351,7 +351,13 @@ def test_execute_df(client: SqlJobClientBase) -> None:
         # be compatible with duckdb vector size
         iterator = curr.iter_df(chunk_size)
         df_1 = next(iterator)
-        df_2 = next(iterator)
+        try:
+            df_2 = next(iterator)
+        except StopIteration:
+            df_2 = None
+            # NOTE: snowflake chunks are unpredictable in size, so allow stop after two iterations
+            if client.config.destination_type != "snowflake":
+                raise
         try:
             df_3 = next(iterator)
         except StopIteration:
@@ -361,8 +367,11 @@ def test_execute_df(client: SqlJobClientBase) -> None:
             if df is not None:
                 df.columns = [dfcol.lower() for dfcol in df.columns]
 
-    assert list(df_1["col"]) == list(range(0, chunk_size))
-    assert list(df_2["col"]) == list(range(chunk_size, total_records))
+    if client.config.destination_type != "snowflake":
+        assert list(df_1["col"]) == list(range(0, chunk_size))
+        assert list(df_2["col"]) == list(range(chunk_size, total_records))
+    else:
+        assert list(df_1["col"]) == list(range(0, total_records))
     assert df_3 is None
 
 

@@ -156,9 +156,7 @@ def sql_database(
         )
 
 
-@decorators.resource(
-    name=lambda args: args["table"], standalone=True, spec=SqlTableResourceConfiguration
-)
+@decorators.resource(name=lambda args: args["table"], spec=SqlTableResourceConfiguration)
 def sql_table(
     credentials: Union[ConnectionStringCredentials, Engine, str] = dlt.secrets.value,
     table: str = dlt.config.value,

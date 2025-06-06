@@ -19,6 +19,7 @@ from dlt.cli.command_wrappers import (
     telemetry_status_command_wrapper,
     deploy_command_wrapper,
     ai_setup_command_wrapper,
+    studio_command_wrapper,
 )
 from dlt.cli.ai_command import SUPPORTED_IDES
 from dlt.cli.docs_command import render_argparse_markdown
@@ -461,6 +462,26 @@ The `dlt schema` command will load, validate and print out a dlt schema: `dlt sc
         schema_command_wrapper(args.file, args.format, args.remove_defaults)
 
 
+class StudioCommand(SupportsCliCommand):
+    command = "studio"
+    help_string = "Starts the dlt studio marimo app"
+    description = """
+The `dlt studio` command starts the dlt studio app. You can use the studio:
+
+* to list and inspect local pipelines
+* browse the full pipeline schema and all hints
+* browse the data in the destination
+* inspect the pipeline state
+
+    """
+
+    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        self.parser = parser
+
+    def execute(self, args: argparse.Namespace) -> None:
+        studio_command_wrapper()
+
+
 class TelemetryCommand(SupportsCliCommand):
     command = "telemetry"
     help_string = "Shows telemetry status"
@@ -703,6 +724,12 @@ def plug_cli_pipeline() -> Type[SupportsCliCommand]:
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_schema() -> Type[SupportsCliCommand]:
     return SchemaCommand
+
+
+# TODO: define actual command and re-enable
+# @plugins.hookimpl(specname="plug_cli")
+# def plug_cli_studio() -> Type[SupportsCliCommand]:
+#     return StudioCommand
 
 
 @plugins.hookimpl(specname="plug_cli")

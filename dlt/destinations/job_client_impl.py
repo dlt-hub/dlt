@@ -168,7 +168,7 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         """
         sql_client = self._job_client.sql_client
         target_table = sql_client.make_qualified_table_name(self._load_table["name"])
-        target_catalog = sql_client.catalog_name(escape=False)
+        target_catalog = sql_client.catalog_name(quote=False)
         destination_dialect = self._job_client.capabilities.sqlglot_dialect
 
         # Parse SELECT
