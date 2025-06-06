@@ -27,6 +27,7 @@ from dlt.common.metrics import LoadJobMetrics
 from dlt.common.schema.exceptions import TableNotFound
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
+    C_DLT_LOADS_TABLE_LOAD_ID,
     TTableFormat,
     TTableSchemaColumns,
     DLT_NAME_PREFIX,
@@ -637,7 +638,7 @@ class FilesystemClient(
         # write entry to load "table"
         # TODO: this is also duplicate across all destinations. DRY this.
         load_data = {
-            "load_id": load_id,
+            C_DLT_LOADS_TABLE_LOAD_ID: load_id,
             "schema_name": self.schema.name,
             "status": 0,
             "inserted_at": pendulum.now().isoformat(),

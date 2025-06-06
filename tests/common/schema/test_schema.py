@@ -18,6 +18,7 @@ from dlt.common.schema.exceptions import (
     ParentTableNotFoundException,
 )
 from dlt.common.schema.typing import (
+    C_DLT_LOADS_TABLE_LOAD_ID,
     LOADS_TABLE_NAME,
     VERSION_TABLE_NAME,
     TColumnName,
@@ -776,7 +777,7 @@ def assert_new_schema_props(schema: Schema) -> None:
     assert "_dlt_version" in tables
     assert "version" in tables["_dlt_version"]["columns"]
     assert "_dlt_loads" in tables
-    assert "load_id" in tables["_dlt_loads"]["columns"]
+    assert C_DLT_LOADS_TABLE_LOAD_ID in tables["_dlt_loads"]["columns"]
 
 
 def test_group_tables_by_resource(schema: Schema) -> None:
