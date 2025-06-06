@@ -40,6 +40,7 @@ jobs:
   test_destinations:
     needs: [test_common, authorize_secrets_access]
     uses: ./.github/workflows/test_destinations.yml
+    secrets: inherit
 
   #
   # Other tools
