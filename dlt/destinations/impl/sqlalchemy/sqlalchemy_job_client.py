@@ -17,7 +17,12 @@ from dlt.common.destination.client import (
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset, SqlLoadJob
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema import Schema, TTableSchema, TColumnSchema, TSchemaTables
-from dlt.common.schema.typing import C_DLT_LOAD_ID, C_DLT_LOADS_TABLE_LOAD_ID, TColumnType, TTableSchemaColumns
+from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
+    C_DLT_LOADS_TABLE_LOAD_ID,
+    TColumnType,
+    TTableSchemaColumns,
+)
 from dlt.common.schema.utils import (
     pipeline_state_table,
     normalize_table_identifiers,

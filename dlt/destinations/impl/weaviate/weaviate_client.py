@@ -30,7 +30,12 @@ from dlt.common.pendulum import pendulum
 from dlt.common.typing import StrAny, TFun
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.schema import Schema, TSchemaTables, TTableSchemaColumns
-from dlt.common.schema.typing import C_DLT_LOAD_ID, C_DLT_LOADS_TABLE_LOAD_ID, TColumnSchema, TColumnType
+from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
+    C_DLT_LOADS_TABLE_LOAD_ID,
+    TColumnSchema,
+    TColumnType,
+)
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     loads_table,
