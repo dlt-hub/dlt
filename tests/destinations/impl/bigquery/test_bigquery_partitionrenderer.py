@@ -14,7 +14,7 @@ from dlt.destinations.impl.bigquery.bigquery_adapter import (
 
 
 def test_render_ingestion_time_partition():
-    part = BigQueryIngestionTimePartition()
+    part = BigQueryIngestionTimePartition("_PARTITIONDATE")
     sql = BigQueryPartitionRenderer.render_sql([part])
     assert sql == "PARTITION BY _PARTITIONDATE"
 
@@ -47,7 +47,7 @@ def test_render_timestamp_trunc_partition(granularity):
 
 @pytest.mark.parametrize("granularity", ["DAY", "HOUR", "MONTH", "YEAR"])
 def test_render_timestamp_trunc_ingestion_partition(granularity):
-    part = BigQueryTimestampTruncIngestionPartition(granularity)
+    part = BigQueryTimestampTruncIngestionPartition("_PARTITIONTIME", granularity)
     sql = BigQueryPartitionRenderer.render_sql([part])
     assert sql == f"PARTITION BY TIMESTAMP_TRUNC(_PARTITIONTIME, '{granularity}')"
 

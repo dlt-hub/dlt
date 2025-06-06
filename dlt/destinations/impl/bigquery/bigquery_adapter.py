@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Dict, List, Literal, Optional, Protocol, Sequence, TypeVar, Union
+from typing import Any, Dict, List, Literal, Optional, Protocol, Sequence, TypeVar, Union, get_args
 
 from dateutil import parser
 from sqlglot import exp
@@ -285,7 +285,7 @@ def bigquery_adapter(
         for column in resource.columns.values():  # type: ignore[union-attr]
             column.pop(PARTITION_HINT, None)  # type: ignore[typeddict-item]
 
-        if isinstance(partition, BigQueryPartitionSpec.__args__):
+        if isinstance(partition, get_args(BigQueryPartitionSpec)):
             # Store the spec object directly as the table hint
             additional_table_hints[PARTITION_HINT] = partition
         elif isinstance(partition, str):

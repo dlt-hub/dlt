@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union, cast
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union, cast, get_args
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
@@ -271,13 +271,13 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         if not partition_hint:
             return ""
 
-        if isinstance(partition_hint, BigQueryPartitionSpec.__args__):
+        if isinstance(partition_hint, get_args(BigQueryPartitionSpec)):
             return BigQueryPartitionRenderer.render_sql([partition_hint])
 
         # If it's a dict, check if the value is a BigQueryPartitionSpec
         if isinstance(partition_hint, dict):
             [(column_name, clause)] = partition_hint.items()
-            if isinstance(clause, BigQueryPartitionSpec.__args__):
+            if isinstance(clause, get_args(BigQueryPartitionSpec)):
                 return BigQueryPartitionRenderer.render_sql([clause])
             # fallback: legacy string/template logic
             return (
