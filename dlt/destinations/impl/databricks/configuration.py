@@ -143,6 +143,9 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
     keep_staged_files: Optional[bool] = True
     """Tells if to keep the files in internal (volume) stage"""
 
+    """Whether PRIMARY KEY or FOREIGN KEY constrains should be created"""
+    create_indexes: bool = False
+
     def __str__(self) -> str:
         """Return displayable destination location"""
         if self.credentials:
