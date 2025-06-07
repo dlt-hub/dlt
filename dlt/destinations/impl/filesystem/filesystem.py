@@ -4,7 +4,6 @@ import base64
 from contextlib import contextmanager
 from types import TracebackType
 from typing import (
-    ContextManager,
     List,
     Type,
     Iterable,
@@ -20,7 +19,6 @@ from typing import (
 )
 from fsspec import AbstractFileSystem
 
-import dlt
 from dlt.common import logger, time, json, pendulum
 from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace_strategy
 from dlt.common.metrics import LoadJobMetrics

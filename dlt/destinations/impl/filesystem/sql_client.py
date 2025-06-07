@@ -40,6 +40,8 @@ class FilesystemSqlClient(WithTableScanners):
         self.remote_client: FilesystemClient = remote_client
         self.is_abfss = self.remote_client.config.protocol == "abfss"
         self.iceberg_initialized = False
+        if self.is_abfss:
+            self._global_config["azure_transport_option_type"] = "curl"
 
     def can_create_view(self, table_schema: PreparedTableSchema) -> bool:
         if table_schema.get("table_format") in ("delta", "iceberg"):
@@ -92,14 +94,12 @@ class FilesystemSqlClient(WithTableScanners):
         if first_connection:
             # TODO: we need to frontload the httpfs extension for abfss for some reason
             if self.is_abfss:
-                self._conn.sql("INSTALL https; LOAD httpfs;")
+                self._conn.sql("INSTALL httpfs; LOAD httpfs;")
 
             # create single authentication for the whole client
             self.create_secret(
                 self.remote_client.config.bucket_url, self.remote_client.config.credentials
             )
-
-        self._conn.sql("SET azure_transport_option_type = 'curl';")
         return self._conn
 
     def should_replace_view(self, view_name: str, table_schema: PreparedTableSchema) -> bool:

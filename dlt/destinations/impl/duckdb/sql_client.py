@@ -89,25 +89,23 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         super().__init__(None, dataset_name, staging_dataset_name, capabilities)
         self._conn: duckdb.DuckDBPyConnection = None
         self.credentials = credentials
-
-    @raise_open_connection_error
-    def open_connection(self) -> duckdb.DuckDBPyConnection:
-        self._conn = self.credentials.borrow_conn(read_only=self.credentials.read_only)
-        # TODO: apply config settings from credentials
-        self._conn.execute("PRAGMA enable_checkpoint_on_shutdown;")
-        config = {
-            "search_path": self.fully_qualified_dataset_name(),
+        # set additional connection options so derived class can change it
+        # TODO: move that to methods that can be overridden, include local_config
+        self._pragmas = ["enable_checkpoint_on_shutdown"]
+        self._global_config = {
             "TimeZone": "UTC",
             "checkpoint_threshold": "1gb",
         }
-        if config:
-            for k, v in config.items():
-                try:
-                    # TODO: serialize str and ints, dbapi args do not work here
-                    # TODO: enable various extensions ie. parquet
-                    self._conn.execute(f"SET {k} = '{v}'")
-                except (duckdb.CatalogException, duckdb.BinderException):
-                    pass
+
+    @raise_open_connection_error
+    def open_connection(self) -> duckdb.DuckDBPyConnection:
+        self._conn = self.credentials.borrow_conn(
+            pragmas=self._pragmas,
+            global_config=self._global_config,
+            local_config={
+                "search_path": self.fully_qualified_dataset_name(),
+            },
+        )
         return self._conn
 
     def close_connection(self) -> None:
@@ -189,10 +187,10 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
 
         if catalog == self.dataset_name:
             logger.warning(
-                "The current catalog (database name) '%s' is identical to the dataset name '%s'."
-                " This may lead to confusion in the DuckDB binder. Consider using distinct names."
-                " Most typically you use the same name for your pipeline and dataset or the same"
-                " name for your destination and the dataset.",
+                "The current catalog (typically database file name) '%s' is identical to the"
+                " dataset name '%s'. This may lead to confusion in the DuckDB binder. Consider"
+                " using distinct names. Most typically you use the same name for your pipeline and"
+                " dataset or the same name for your destination and the dataset.",
                 catalog,
                 self.dataset_name,
             )
@@ -438,14 +436,6 @@ class WithTableScanners(DuckDbSqlClient):
                 self.create_dataset()
             self._conn.sql(f"USE {self.fully_qualified_dataset_name()}")
 
-        # this is a hack to re-enable iceberg settings that get lost when
-        # duckdb connection is closed. each clone needs settings to happen again
-        # self._conn is opened and closed in the relation.cursor()
-        try:
-            self._conn.execute("SET unsafe_enable_version_guessing=true;")
-        except Exception:
-            pass
-
         return self._conn
 
     @abstractmethod
@@ -535,9 +525,6 @@ class WithTableScanners(DuckDbSqlClient):
         # https://github.com/duckdb/duckdb_iceberg/issues/71
         if semver.Version.parse(duckdb.__version__) < semver.Version.parse("1.2.0"):
             conn.execute("INSTALL Iceberg FROM core_nightly; LOAD iceberg;")
-
-        # allow unsafe version resolution
-        conn.execute("SET unsafe_enable_version_guessing=true;")
 
     def __del__(self) -> None:
         if self.memory_db:
