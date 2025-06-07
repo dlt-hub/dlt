@@ -42,7 +42,6 @@ from tests.load.utils import (
     TABLE_UPDATE_COLUMNS_SCHEMA,
     assert_all_data_types_row,
     delete_dataset,
-    drop_active_pipeline_data,
     destinations_configs,
     DestinationTestConfiguration,
 )
@@ -137,7 +136,7 @@ def test_default_pipeline_names(
     assert len(state_package.jobs["new_jobs"]) == 1
     assert state_package.schema_name == p.default_schema_name
     p.normalize()
-    info = p.load(dataset_name="d" + uniq_id())
+    info = p.load(dataset_name="default_names_ds_" + uniq_id())
     print(p.dataset_name)
     assert info.pipeline is p
     # two packages in two different schemas were loaded

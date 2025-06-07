@@ -293,7 +293,7 @@ def test_read_interfaces_filesystem(
 
     pipeline = destination_config.setup_pipeline(
         "read_pipeline",
-        dataset_name="read_test",
+        dataset_name="test_read_interfaces_filesystem",
         dev_mode=True,
     )
 
@@ -305,7 +305,10 @@ def test_read_interfaces_filesystem(
             GCS_BUCKET.replace("gs://", "s3://"), destination_name="filesystem_s3_gcs_comp"
         )
         pipeline = destination_config.setup_pipeline(
-            "read_pipeline", dataset_name="read_test", dev_mode=True, destination=gcp_bucket
+            "read_pipeline",
+            dataset_name="test_read_interfaces_filesystem_gcs",
+            dev_mode=True,
+            destination=gcp_bucket,
         )
         _run_dataset_checks(pipeline, destination_config, secret_directory=secret_directory)
 
@@ -327,7 +330,7 @@ def test_auto_refresh_views(
 ) -> None:
     pipeline = destination_config.setup_pipeline(
         "read_pipeline",
-        dataset_name="read_test",
+        dataset_name="test_auto_refresh_views",
         dev_mode=True,
     )
     # set autorefresh
@@ -373,7 +376,7 @@ def test_table_formats(
 
     pipeline = destination_config.setup_pipeline(
         "read_pipeline",
-        dataset_name="read_test",
+        dataset_name="test_table_formats",
         dev_mode=True,
     )
 
@@ -412,7 +415,7 @@ def test_evolving_filesystem(
 
     pipeline = destination_config.setup_pipeline(
         "read_pipeline",
-        dataset_name="read_test",
+        dataset_name="test_evolving_filesystem",
         dev_mode=True,
     )
 

@@ -12,20 +12,12 @@ from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
 )
 
-from tests.load.utils import (
-    drop_active_pipeline_data,
-)
+
 from tests.utils import TEST_STORAGE_ROOT
 
 
 # Mark all tests as essential, do not remove.
 pytestmark = pytest.mark.essential
-
-
-@pytest.fixture(autouse=True)
-def drop_lancedb_data() -> Iterator[None]:
-    yield
-    drop_active_pipeline_data()
 
 
 def test_lancedb_configuration() -> None:
