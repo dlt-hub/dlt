@@ -9,14 +9,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  get_docs_changes:
-    name: docs changes
-    uses: ./.github/workflows/get_docs_changes.yml
-
   run_airflow:
     name: tools | airflow tests
-    needs: get_docs_changes
-    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     runs-on: ubuntu-latest
 
     steps:

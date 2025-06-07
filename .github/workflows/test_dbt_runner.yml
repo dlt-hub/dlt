@@ -16,22 +16,8 @@ env:
   RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
 
 jobs:
-  authorize:
-    # run when label is assigned OR when we are not a fork
-    if: ${{ github.event.label.name == 'ci from fork' || (github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'opened' || github.event.action == 'synchronize'))}}
-    runs-on: ubuntu-latest
-    steps:
-      - run: true
-
-  get_docs_changes:
-    name: docs changes
-    needs: authorize
-    uses: ./.github/workflows/get_docs_changes.yml
-
   run_dbt:
     name: tools | dbt runner tests
-    needs: get_docs_changes
-    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     defaults:
       run:
         shell: bash

@@ -20,14 +20,8 @@ env:
   ALL_FILESYSTEM_DRIVERS: "[\"file\"]"
 
 jobs:
-  get_docs_changes:
-    name: docs changes
-    uses: ./.github/workflows/get_docs_changes.yml
-
   run_loader:
     name: src | rest_api, sql_database, filesystem
-    needs: get_docs_changes
-    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: false
     defaults:
