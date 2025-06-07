@@ -17,7 +17,7 @@ env:
   RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
 
 jobs:
-  run_common:
+  run_plus:
     name: test
     strategy:
       fail-fast: false
@@ -90,8 +90,8 @@ jobs:
         if: matrix.os == 'macos-latest' || matrix.os == 'windows-latest'
 
   matrix_job_required_check:
-    name: common | common tests
-    needs: run_common
+    name: plus | plus tests
+    needs: run_plus
     runs-on: ubuntu-latest
     if: always()
     steps:
