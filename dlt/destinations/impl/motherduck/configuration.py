@@ -1,6 +1,7 @@
 import os
 import dataclasses
 import sys
+from urllib.parse import urlencode
 from typing import Any, ClassVar, Dict, Final, List, Optional
 
 from dlt.version import __version__
@@ -17,7 +18,7 @@ MOTHERDUCK_USER_AGENT = f"dlt/{__version__}({sys.platform})"
 MOTHERDUCK_DEFAULT_TOKEN_ENV = "motherduck_token"
 
 
-@configspec(init=False)
+@configspec
 class MotherDuckCredentials(DuckDbBaseCredentials):
     drivername: Final[str] = dataclasses.field(  # type: ignore
         default="md", init=False, repr=False, compare=False
@@ -25,17 +26,19 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
     username: str = "motherduck"
     password: TSecretStrValue = None
     database: str = "my_db"
-    custom_user_agent: Optional[str] = MOTHERDUCK_USER_AGENT
-
-    read_only: bool = False  # open database read/write
+    custom_user_agent: str = MOTHERDUCK_USER_AGENT
 
     __config_gen_annotations__: ClassVar[List[str]] = ["password", "database"]
 
     def _conn_str(self) -> str:
+        # TODO: fix dbt profile.yml to receive full conn str
         _str = f"{MOTHERDUCK_DRIVERNAME}:{self.database}"
+
+        q_ = dict(self.query or {})
         if self.password:
-            _str += f"?motherduck_token={self.password}"
-        return _str
+            q_["motherduck_token"] = self.password
+
+        return _str + "?" + urlencode(q_)
 
     def _token_to_password(self) -> None:
         if self.query:
@@ -45,11 +48,16 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
             if "motherduck_token" in self.query:
                 self.password = self.query.pop("motherduck_token")
 
-    def borrow_conn(self, read_only: bool) -> Any:
+    def borrow_conn(
+        self,
+        global_config: Dict[str, Any] = None,
+        local_config: Dict[str, Any] = None,
+        pragmas: List[str] = None,
+    ) -> Any:
         from duckdb import HTTPException, InvalidInputException
 
         try:
-            return super().borrow_conn(read_only)
+            return super().borrow_conn(global_config, local_config, pragmas)
         except (InvalidInputException, HTTPException) as ext_ex:
             if "Failed to download extension" in str(ext_ex) and "motherduck" in str(ext_ex):
                 from importlib.metadata import version as pkg_version
@@ -73,24 +81,18 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
         if not self.is_partial() or self._has_default_token():
             self.resolve()
 
+    def on_resolved(self) -> None:
+        """Adds custom agent to global config"""
+        if self.global_config is None:
+            self.global_config = {}
+        self.global_config["custom_user_agent"] = self.custom_user_agent
+
     def _has_default_token(self) -> bool:
         # TODO: implement default connection interface
         return (
             MOTHERDUCK_DEFAULT_TOKEN_ENV in os.environ
             or MOTHERDUCK_DEFAULT_TOKEN_ENV.upper() in os.environ
         )
-
-    def _get_conn_config(self) -> Dict[str, Any]:
-        # If it was explicitly set to None/null then we
-        # need to use the default value
-        if self.custom_user_agent is None:
-            self.custom_user_agent = MOTHERDUCK_USER_AGENT
-
-        config = {}
-        if self.custom_user_agent and self.custom_user_agent != "":
-            config["custom_user_agent"] = self.custom_user_agent
-
-        return config
 
 
 @configspec

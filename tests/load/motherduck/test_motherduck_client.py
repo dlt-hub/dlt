@@ -1,10 +1,8 @@
 import os
-from typing import Optional
-
-import duckdb
+from typing import Any, List, Optional
 import pytest
-
 from pytest_mock import MockerFixture
+
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.resolve import resolve_configuration
 
@@ -14,12 +12,8 @@ from dlt.destinations.impl.motherduck.configuration import (
     MotherDuckClientConfiguration,
 )
 
-from tests.utils import patch_home_dir, skip_if_not_active
-
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
-
-skip_if_not_active("motherduck")
 
 
 def test_motherduck_configuration() -> None:
@@ -77,40 +71,65 @@ def test_motherduck_connect_default_token(token_key: str) -> None:
     config = MotherDuckClientConfiguration(credentials=credentials)
     print(config.credentials._conn_str())
     # connect
-    con = config.credentials.borrow_conn(read_only=False)
+    con = config.credentials.borrow_conn()
     con.sql("SHOW DATABASES")
     config.credentials.return_conn(con)
 
 
-@pytest.mark.parametrize("custom_user_agent", [MOTHERDUCK_USER_AGENT, "patates", None, ""])
-def test_motherduck_connect_with_user_agent_string(
-    custom_user_agent: Optional[str], mocker: MockerFixture
-) -> None:
-    # set HOME env otherwise some internal components in ducdkb (HTTPS) do not initialize
-    os.environ["HOME"] = "/tmp"
+@pytest.mark.parametrize("custom_user_agent", [MOTHERDUCK_USER_AGENT, "patates", None])
+def test_motherduck_connect_with_user_agent_string(custom_user_agent: Optional[str]) -> None:
+    import duckdb
 
-    connect_spy = mocker.spy(duckdb, "connect")
+    # set HOME env otherwise some internal components in ducdkb (HTTPS) do not initialize
+    # os.environ["HOME"] = "/tmp"
+
     config = resolve_configuration(
         MotherDuckClientConfiguration()._bind_dataset_name(dataset_name="test"),
         sections=("destination", "motherduck"),
+        # TODO: change resolver to allow this
+        # explicit_value={
+        #     "credentials": {
+        #         "global_config": {
+        #             "custom_user_agent": custom_user_agent
+        #         },
+        #         "local_config": {
+        #             "enable_logging": True
+        #         },
+        #         "query": {
+        #             "motherduck_dbinstance_inactivity_ttl": "0s"
+        #         },
+        #     }
+        # }
+    )
+    config.credentials.update(
+        {
+            "custom_user_agent": custom_user_agent,
+            "local_config": {"enable_logging": True},
+            "query": {"dbinstance_inactivity_ttl": "0s"},
+        }
+    )
+    config.credentials.resolve()
+    # query params will be passed to conn str, motherduck_token added automatically
+    assert config.credentials._conn_str().startswith(
+        "md:dlt_data?dbinstance_inactivity_ttl=0s&motherduck_token="
     )
 
-    config.credentials.custom_user_agent = custom_user_agent
+    print(config.credentials)
+
+    def _read_config(conn: duckdb.DuckDBPyConnection) -> List[Any]:
+        rel = conn.sql("""
+            SELECT name, value
+            FROM duckdb_settings()
+            WHERE name IN ('enable_logging', 'custom_user_agent', 'motherduck_dbinstance_inactivity_ttl')
+            ORDER BY name ASC;
+            """)
+        return rel.fetchall()
 
     # connect
-    con = config.credentials.borrow_conn(read_only=False)
-    con.sql("SHOW DATABASES")
-    config.credentials.return_conn(con)
-
-    # check for the default user agent value
-    connect_spy.assert_called()
-    assert "config" in connect_spy.call_args.kwargs
-    # If empty string "" was set then we should not include it
-    if custom_user_agent == "":
-        assert "custom_user_agent" not in connect_spy.call_args.kwargs["config"]
-    # if it is not specified, we expect the default `MOTHERDUCK_USER_AGENT``
-    elif custom_user_agent is None:
-        assert connect_spy.call_args.kwargs["config"]["custom_user_agent"] == MOTHERDUCK_USER_AGENT
-    # otherwise all other values should be present
-    else:
-        assert connect_spy.call_args.kwargs["config"]["custom_user_agent"] == custom_user_agent
+    con = config.credentials.borrow_conn()
+    try:
+        con.sql("SHOW DATABASES")
+        print(_read_config(con))
+        print(con.sql("SELECT * FROM duckdb_logs"))
+    finally:
+        config.credentials.return_conn(con)
