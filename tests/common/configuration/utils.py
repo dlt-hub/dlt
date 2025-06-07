@@ -1,3 +1,4 @@
+import os
 import pytest
 from os import environ
 import datetime  # noqa: I251
@@ -117,7 +118,8 @@ def env_provider() -> Iterator[ConfigProvider]:
 
 @pytest.fixture
 def toml_providers() -> Iterator[ConfigProvidersContainer]:
-    yield from _reset_providers("./tests/common/cases/configuration/.dlt")
+    """Injects tomls providers reading from ./tests/common/cases/configuration/.dlt"""
+    yield from _reset_providers(os.path.abspath("./tests/common/cases/configuration/.dlt"))
 
 
 class MockProvider(ConfigProvider):

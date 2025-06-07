@@ -55,7 +55,7 @@ google_secrets.GoogleSecretsProvider = CachedGoogleSecretsProvider  # type: igno
 def pytest_configure(config):
     # patch the configurations to use test storage by default, we modify the types (classes) fields
     # the dataclass implementation will use those patched values when creating instances (the values present
-    # in the declaration are not frozen allowing patching)
+    # in the declaration are not frozen allowing patching). this is needed by common storage tests
 
     from dlt.common.configuration.specs import runtime_configuration
     from dlt.common.storages import configuration as storage_configuration
@@ -68,11 +68,11 @@ def pytest_configure(config):
     runtime_configuration.RuntimeConfiguration.dlthub_telemetry_endpoint = (
         "https://telemetry-tracker.services4758.workers.dev"
     )
+
     delattr(runtime_configuration.RuntimeConfiguration, "__init__")
     runtime_configuration.RuntimeConfiguration = dataclasses.dataclass(  # type: ignore[misc]
         runtime_configuration.RuntimeConfiguration, init=True, repr=False
     )  # type: ignore
-    # push telemetry to CI
 
     storage_configuration.LoadStorageConfiguration.load_volume_path = os.path.join(
         test_storage_root, "load"
