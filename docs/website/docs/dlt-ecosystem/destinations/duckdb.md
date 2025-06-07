@@ -237,6 +237,8 @@ Unique indexes may be created during loading if the following config value is se
 create_indexes=true
 ```
 
+Query part of the connection string is passed as GLOBAL Configuration to [`connect`](https://duckdb.org/docs/stable/configuration/overview.html#global-configuration-options) method:
+
 ### dbt support
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-duckdb](https://github.com/jwills/dbt-duckdb), which is a community-supported package. The `duckdb` database is shared with `dbt`. In rare cases, you may see information that the binary database format does not match the database format expected by `dbt-duckdb`. You can avoid this by updating the `duckdb` package in your `dlt` project with `pip install -U`.
 

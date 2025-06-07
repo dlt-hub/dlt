@@ -18,7 +18,7 @@ MOTHERDUCK_USER_AGENT = f"dlt/{__version__}({sys.platform})"
 MOTHERDUCK_DEFAULT_TOKEN_ENV = "motherduck_token"
 
 
-@configspec
+@configspec(init=False)
 class MotherDuckCredentials(DuckDbBaseCredentials):
     drivername: Final[str] = dataclasses.field(  # type: ignore
         default="md", init=False, repr=False, compare=False
