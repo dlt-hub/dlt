@@ -13,24 +13,19 @@ from functools import reduce
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableFormat
-from dlt.common.storages.exceptions import SchemaNotFoundError
-from dlt.common.storages.file_storage import FileStorage
+
 from dlt.extract.source import DltSource
+from dlt.destinations.dataset import dataset as _dataset
+from dlt.transformations.exceptions import LineageFailedException
+
 from tests.load.utils import (
-    FILE_BUCKET,
     destinations_configs,
     DestinationTestConfiguration,
-    GCS_BUCKET,
     SFTP_BUCKET,
     MEMORY_BUCKET,
 )
-from tests.utils import TEST_STORAGE_ROOT, _preserve_environ, clean_test_storage
-from dlt.destinations.dataset.exceptions import (
-    ReadableRelationUnknownColumnException,
-)
+from tests.utils import preserve_module_environ, autouse_module_test_storage, patch_module_home_dir
 from tests.load.utils import drop_pipeline_data
-from dlt.destinations.dataset import dataset as _dataset
-from dlt.transformations.exceptions import LineageFailedException
 
 EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
 
@@ -117,23 +112,13 @@ def create_test_source(destination_type: str, table_format: TTableFormat) -> Dlt
     return source()
 
 
-# this also disables autouse_test_storage on function level which destroys some tests here
-@pytest.fixture(scope="session")
-def autouse_test_storage() -> FileStorage:
-    return clean_test_storage()
-
-
-@pytest.fixture(scope="session")
-def preserve_session_environ() -> Iterator[None]:
-    yield from _preserve_environ()
-
-
-@pytest.fixture(scope="session")
-def populated_pipeline(request, autouse_test_storage, preserve_session_environ) -> Any:
+@pytest.fixture(scope="module")
+def populated_pipeline(
+    request, autouse_module_test_storage, preserve_module_environ, patch_module_home_dir
+) -> Any:
     """fixture that returns a pipeline object populated with the example data"""
 
     destination_config = cast(DestinationTestConfiguration, request.param)
-    print("populated_pipeline", destination_config)
     if (
         destination_config.file_format not in ["parquet", "jsonl"]
         and destination_config.destination_type == "filesystem"
