@@ -12,7 +12,7 @@ jobs:
     uses: ./.github/workflows/get_docs_changes.yml
 
   # if the PR is from a fork, we need to authorize the secrets access and remote destinations run with a lable
-  authorize_secrets_access:
+  authorize_run_from_fork:
     # run when label is assigned OR when we are not a fork
     if: ${{ github.event.label.name == 'ci from fork' || (github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'opened' || github.event.action == 'synchronize'))}}
     runs-on: ubuntu-latest
@@ -30,18 +30,54 @@ jobs:
     uses: ./.github/workflows/test_common.yml
 
   #
-  # Destination tests
+  # Destination and Sources local tests, do not provide secrets
+  # Other tests that do not require remote connections
   #
 
+  # TODO: maybe make matrix out of this for more local destination tests, such as dremio and clickhouse
   test_local_destinations:
     needs: test_common
     uses: ./.github/workflows/test_destinations_local.yml
 
-  test_destinations:
-    needs: [test_common, authorize_secrets_access]
-    uses: ./.github/workflows/test_destinations.yml
-    secrets: inherit
+  test_local_sources:
+    needs: test_common
+    uses: ./.github/workflows/test_sources_local.yml
+
+  test_plus:
+    needs: test_common
+    uses: ./.github/workflows/test_plus.yml
+
+  test_airflow:
+    needs: test_common
+    uses: ./.github/workflows/test_airflow.yml
+
+  test_build_images:
+    needs: test_common
+    uses: ./.github/workflows/test_build_images.yml
 
   #
-  # Other tools
+  # Remote destination tests and docs snippets, needs secrets, 
+  # so we depend on authorize and forward secrets
   #
+  test_destinations:
+    needs: [test_common, authorize_run_from_fork]
+    uses: ./.github/workflows/test_destinations.yml
+    secrets: inherit
+  test_docs_snippets:
+    needs: [test_common, authorize_run_from_fork]
+    uses: ./.github/workflows/test_doc_snippets.yml
+    secrets: inherit
+
+  # TODO: add matrix for remote destination tests
+
+
+  #
+  # Other tools and tests that require secrets
+  #
+  test_dbt_runner:
+    needs: [test_common, authorize_run_from_fork]
+    uses: ./.github/workflows/test_dbt_runner.yml
+    secrets: inherit
+
+
+
