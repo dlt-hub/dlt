@@ -1,19 +1,11 @@
 name: dest | lancedb
 
 on:
-  pull_request_target:
-    branches:
-      - master
-      - devel
-    types:
-      - opened
-      - synchronize
-      - labeled
+  workflow_call:
+
   workflow_dispatch:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+
 
 env:
   DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
@@ -83,7 +75,7 @@ jobs:
         run: poetry run pip install openai
 
       - run: |
-          poetry run pytest tests/load --ignore tests/load/sources -m "essential"
+          poetry run pytest tests/load --ignore tests/load/sources -m "smoke"
         name: Run essential tests Linux
         if: ${{ ! (contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule')}}
 

@@ -2,19 +2,10 @@
 name: dest | mssql
 
 on:
-  pull_request_target:
-    branches:
-      - master
-      - devel
-    types:
-      - opened
-      - synchronize
-      - labeled
+  workflow_call:
   workflow_dispatch:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+
 
 env:
 

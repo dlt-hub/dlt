@@ -4,15 +4,10 @@
 name: dest | sqlalchemy mysql and sqlite
 
 on:
-  pull_request:
-    branches:
-      - master
-      - devel
+  workflow_call:
   workflow_dispatch:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+
 
 env:
   # NOTE: this workflow can't use github secrets!
