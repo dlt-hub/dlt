@@ -405,33 +405,50 @@ def test_pipeline_context_deferred_activation() -> None:
 
 def test_pipeline_context() -> None:
     ctx = Container()[PipelineContext]
-    assert ctx.is_active() is False
-    # create pipeline
-    p = dlt.pipeline()
-    assert ctx.is_active() is True
-    assert ctx.pipeline() is p
-    assert p.is_active is True
-    # has no destination context
-    assert DestinationCapabilitiesContext not in Container()
+    ctx.enable_activation_history = True
+    try:
+        assert ctx.is_active() is False
+        assert len(ctx.activation_history()) == 0
+        # create pipeline
+        p = dlt.pipeline()
+        assert ctx.is_active() is True
+        assert ctx.pipeline() is p
+        assert p.is_active is True
+        # has no destination context
+        assert DestinationCapabilitiesContext not in Container()
+        assert ctx.activation_history()[0] is p
+        ctx.clear_activation_history()
 
-    # create another pipeline
-    p2 = dlt.pipeline(pipeline_name="another pipeline", destination="duckdb")
-    assert ctx.pipeline() is p2
-    assert p.is_active is False
-    assert p2.is_active is True
+        # create another pipeline
+        p2 = dlt.pipeline(pipeline_name="another pipeline", destination="duckdb")
+        assert ctx.pipeline() is p2
+        assert p.is_active is False
+        assert p2.is_active is True
+        assert ctx.activation_history() == [p2]
 
-    p3 = dlt.pipeline(pipeline_name="more pipelines", destination="dummy")
-    assert ctx.pipeline() is p3
-    assert p3.is_active is True
-    assert p2.is_active is False
-    # no default naming convention
-    assert Container()[DestinationCapabilitiesContext].naming_convention is None
+        p3 = dlt.pipeline(pipeline_name="more pipelines", destination="dummy")
+        assert ctx.pipeline() is p3
+        assert p3.is_active is True
+        assert p2.is_active is False
+        # no default naming convention
+        assert Container()[DestinationCapabilitiesContext].naming_convention is None
+        assert ctx.activation_history() == [p2, p3]
 
-    # restore previous
-    p2 = dlt.attach("another pipeline")
-    assert ctx.pipeline() is p2
-    assert p3.is_active is False
-    assert p2.is_active is True
+        # restore previous
+        p2_a = dlt.attach("another pipeline")
+        assert ctx.pipeline() is p2_a
+        assert p3.is_active is False
+        assert p2.is_active is False
+        assert p2_a.is_active is True
+        assert ctx.activation_history() == [p2, p3, p2_a]
+
+        # activate p2
+        p2.activate()
+        # already was on the list
+        assert ctx.activation_history() == [p2, p3, p2_a]
+    finally:
+        ctx.clear_activation_history()
+        ctx.enable_activation_history = False
 
 
 def test_import_unknown_destination() -> None:

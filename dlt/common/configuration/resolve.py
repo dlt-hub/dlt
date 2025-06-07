@@ -58,6 +58,7 @@ def resolve_configuration(
     # allows, for example, to store connection string or service.json in their native form in single env variable or under single vault key
     # this happens only when explicit value for the configuration was not provided
     # TODO: we can move it into _resolve_configuration and also remove similar code in _resolve_config_field
+    # TODO: also allow when explicit_value is dict so we can parse initial value and merge with it
     if config.__section__ and explicit_value is None:
         initial_hint = TSecretValue if isinstance(config, CredentialsConfiguration) else AnyType
         initial_value, traces = _resolve_single_value(
@@ -367,6 +368,7 @@ def _resolve_config_field(
                 embedded_config = inner_hint()
             # only config with sections may look for initial values
             # TODO: all this code can be moved into _resolve_configuration
+            # TODO: also allow when explicit_value is dict so we can parse initial value and merge with it
             if embedded_config.__section__ and explicit_value is None:
                 # config section becomes the key if the key does not start with, otherwise it keeps its original value
                 initial_key, initial_embedded = _apply_embedded_sections_to_config_sections(
