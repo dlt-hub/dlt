@@ -546,9 +546,6 @@ databricks_adapter(
 
 )
 
-# Apply table level options.
-databricks_adapter(event_data, table_description="Dummy event data.")
-
 # Load data in "streaming insert" mode (only available with
 # write_disposition="append").
 databricks_adapter(event_data, insert_api="streaming")

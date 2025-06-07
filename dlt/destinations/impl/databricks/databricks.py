@@ -19,7 +19,6 @@ from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
 )
 from dlt.common.schema.utils import get_columns_names_with_prop
-from dlt.common.exceptions import TerminalValueError
 from dlt.common.storages.configuration import ensure_canonical_az_url
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.storages.fsspec_filesystem import (
@@ -34,7 +33,8 @@ from dlt.destinations.impl.databricks.databricks_adapter import (
     COLUMN_COMMENT_HINT,
     COLUMN_TAGS_HINT,
 )
-from dlt.common.schema import TColumnSchema, Schema, TTableSchema, TColumnHint, TColumnType
+from dlt.common.schema import TColumnSchema, Schema, TTableSchema, TColumnHint
+from dlt.common.schema.typing import TColumnType
 from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 from dlt.common.utils import uniq_id
 from dlt.common import logger
