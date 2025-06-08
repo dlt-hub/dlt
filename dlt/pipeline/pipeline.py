@@ -1130,10 +1130,11 @@ class Pipeline(SupportsPipeline):
     def _on_set_destination(self, new_value: AnyDestination) -> None:
         if issubclass(new_value.spec, WithLocalFiles):
             config = WithLocalFiles()
-            config._bind_local_files(self)
+            config._bind_pipeline(self)
             # bind config fields with pipeline context so local files are created at deterministic location
             for field in WithLocalFiles.__annotations__:
-                new_value.config_params[field] = config[field]
+                if config[field] is not None:
+                    new_value.config_params[field] = config[field]
 
     def _get_schema_or_create(self, schema_name: str = None) -> Schema:
         if schema_name:

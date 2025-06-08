@@ -20,6 +20,7 @@ from dlt.common.storages.configuration import ensure_canonical_az_url, make_fssp
 from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH, glob_files
 from dlt.common.utils import custom_environ, uniq_id
 from dlt.destinations import filesystem
+from dlt.destinations.configuration import FilesystemConfigurationWithLocalFiles
 from dlt.destinations.impl.filesystem.configuration import (
     FilesystemDestinationClientConfiguration,
 )
@@ -35,8 +36,8 @@ from tests.load.filesystem.utils import self_signed_cert
 pytestmark = pytest.mark.essential
 
 
-@with_config(spec=FilesystemConfiguration, sections=("destination", "filesystem"))
-def get_config(config: FilesystemConfiguration = None) -> FilesystemConfiguration:
+@with_config(spec=FilesystemConfigurationWithLocalFiles, sections=("destination", "filesystem"))
+def get_config(config: FilesystemConfigurationWithLocalFiles = None) -> FilesystemConfiguration:
     return config
 
 
@@ -142,7 +143,7 @@ def test_filesystem_instance(with_gdrive_buckets_env: str) -> None:
     file_dir = posixpath.join(url, f"filesystem_common_dir_{uniq_id()}")
     file_url = posixpath.join(file_dir, filename)
     try:
-        filesystem.mkdir(file_dir, create_parents=False)
+        filesystem.mkdir(file_dir, create_parents=True)
         filesystem.pipe(file_url, b"test bytes")
         check_file_exists(file_dir, file_url)
         filesystem.pipe(file_url, b"test bytes2")
@@ -367,7 +368,7 @@ def glob_test_setup(
             filesystem.mkdirs(mem_path)
             filesystem.upload(TEST_SAMPLE_FILES, mem_path, recursive=True)
     if config.protocol == "file":
-        file_path = os.path.join("_storage", "standard_source")
+        file_path = os.path.join("_storage", "data", "standard_source")
         if not filesystem.isdir(file_path):
             filesystem.mkdirs(file_path)
             filesystem.upload(TEST_SAMPLE_FILES, file_path, recursive=True)

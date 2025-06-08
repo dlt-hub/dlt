@@ -1,13 +1,18 @@
 from dataclasses import dataclass
 import os
-from typing import Optional
+from typing import Optional, Type, Union
 from typing_extensions import Self
 
 import dlt
-import dlt.common
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.typing import Annotated
-from dlt.common.configuration.specs.base_configuration import NotResolved, configspec
+from dlt.common.configuration.specs.base_configuration import (
+    BaseConfiguration,
+    CredentialsConfiguration,
+    NotResolved,
+    configspec,
+    resolve_type,
+)
 from dlt.common.destination.client import DestinationClientConfiguration
 from dlt.common.pipeline import SupportsPipeline
 
@@ -16,15 +21,17 @@ LEGACY_DB_PATH_LOCAL_STATE_KEY = "duckdb_database"
 
 
 @dataclass
-class WithLocalFiles(DestinationClientConfiguration):
+class WithLocalFiles(BaseConfiguration):
+    destination_name: Optional[str] = None
     local_dir: Annotated[str, NotResolved()] = None
+
     # needed by duckdb
     # TODO: deprecate this in 2.0
     pipeline_name: Annotated[Optional[str], NotResolved()] = None
     pipeline_working_dir: Annotated[Optional[str], NotResolved()] = None
     legacy_db_path: Annotated[Optional[str], NotResolved()] = None
 
-    def _bind_local_files(self, pipeline: SupportsPipeline = None) -> Self:
+    def _bind_pipeline(self, pipeline: SupportsPipeline = None) -> Self:
         # get context for local files from pipeline
         if pipeline:
             self.pipeline_working_dir = pipeline.working_dir
@@ -43,19 +50,26 @@ class WithLocalFiles(DestinationClientConfiguration):
                 self.resolve()
 
     def make_location(self, configured_location: str, default_location_pat: str) -> str:
-        # do not set any paths for external database
+        # do not set any paths for external database / instance
         if configured_location == ":external:":
             return configured_location
-        # use destination name to create duckdb name
-        if self.destination_name:
-            default_location = default_location_pat % self.destination_name
-        else:
-            default_location = default_location_pat % (self.pipeline_name or "")
+
+        def _default_location() -> str:
+            # if not self.pipeline_name and not self.destination_name:
+            #     raise RuntimeError(
+            #         "Cannot calculate default location name because it was not explicitly passed ",
+            #         "name of pipeline nor of destination are not available"
+            #     )
+            # use destination name to create default location name
+            if self.destination_name:
+                return default_location_pat % self.destination_name
+            else:
+                return default_location_pat % (self.pipeline_name or "")
 
         if configured_location == ":pipeline:":
             # try the pipeline context
             if self.pipeline_working_dir:
-                return os.path.join(self.pipeline_working_dir, default_location)
+                return os.path.join(self.pipeline_working_dir, _default_location())
             raise RuntimeError(
                 "Attempting to use special location :pipeline: outside of pipeline context."
             )
@@ -79,11 +93,11 @@ class WithLocalFiles(DestinationClientConfiguration):
             if self.legacy_db_path:
                 return self.legacy_db_path
             # use tmp path as root, not cwd
-            return os.path.join(self.local_dir, configured_location or default_location)
+            return os.path.join(self.local_dir, configured_location or _default_location())
 
 
 @configspec
-class FilesystemConfigurationWithLocalFiles(FilesystemConfiguration, WithLocalFiles):  # type: ignore[misc]
+class FilesystemConfigurationWithLocalFiles(FilesystemConfiguration, WithLocalFiles):
     def normalize_bucket_url(self) -> None:
         # here we deal with normalized file:// local paths
         if self.is_local_filesystem:
@@ -101,3 +115,7 @@ class FilesystemConfigurationWithLocalFiles(FilesystemConfiguration, WithLocalFi
                     self.bucket_url = relocated_path
         # modified local path before it is normalized
         super().normalize_bucket_url()
+
+    @resolve_type("credentials")
+    def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
+        return super().resolve_credentials_type()

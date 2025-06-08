@@ -26,7 +26,7 @@ from tests.load.sources.filesystem.cases import GLOB_RESULTS, TESTS_BUCKET_URLS
 @pytest.fixture(autouse=True)
 def glob_test_setup() -> None:
     file_fs, _ = fsspec_filesystem("file")
-    file_path = os.path.join(TEST_STORAGE_ROOT, "standard_source")
+    file_path = os.path.join(TEST_STORAGE_ROOT, "data", "standard_source")
     if not file_fs.isdir(file_path):
         file_fs.mkdirs(file_path)
         file_fs.upload(TEST_SAMPLE_FILES, file_path, recursive=True)
