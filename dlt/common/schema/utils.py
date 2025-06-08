@@ -19,6 +19,7 @@ from dlt.common.validation import TCustomValidator, validate_dict_ignoring_xkeys
 from dlt.common.schema import detections
 from dlt.common.schema.typing import (
     C_DLT_ID,
+    C_DLT_LOADS_TABLE_LOAD_ID,
     SCHEMA_ENGINE_VERSION,
     LOADS_TABLE_NAME,
     SIMPLE_REGEX_PREFIX,
@@ -961,7 +962,7 @@ def loads_table() -> TTableSchema:
     table = new_table(
         LOADS_TABLE_NAME,
         columns=[
-            {"name": "load_id", "data_type": "text", "nullable": False},
+            {"name": C_DLT_LOADS_TABLE_LOAD_ID, "data_type": "text", "nullable": False},
             {"name": "schema_name", "data_type": "text", "nullable": True},
             {"name": "status", "data_type": "bigint", "nullable": False},
             {"name": "inserted_at", "data_type": "timestamp", "nullable": False},
