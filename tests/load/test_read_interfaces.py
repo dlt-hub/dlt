@@ -334,6 +334,8 @@ def test_hint_preservation(populated_pipeline: Pipeline) -> None:
         # bigquery does not allow precision configuration..
         expected_decimal_precision = 38
         expected_decimal_precision_2 = 38
+
+    # NOTE: pyarrow 19 exposes decimal64 type and duckdb 1.3 is using it for low precision decimals
     assert (
         table_relationship.arrow().schema.field("decimal").type.precision
         == expected_decimal_precision
