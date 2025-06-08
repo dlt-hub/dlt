@@ -1,8 +1,10 @@
 import abc
 from typing import Any, Sequence, Tuple, Type, Optional
 
-from dlt.common.configuration.exceptions import ConfigurationException
 from dlt.common.utils import simple_repr, without_none
+
+EXPLICIT_VALUES_PROVIDER_NAME = "ExplicitValues"
+"""A name of virtual provider that represent explicit values found during config resolution"""
 
 
 class ConfigProvider(abc.ABC):

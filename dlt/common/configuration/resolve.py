@@ -4,7 +4,10 @@ import os
 from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, Type, TypeVar
 
 from dlt.common import logger
-from dlt.common.configuration.providers.provider import ConfigProvider
+from dlt.common.configuration.providers.provider import (
+    ConfigProvider,
+    EXPLICIT_VALUES_PROVIDER_NAME,
+)
 from dlt.common.configuration.const import TYPE_EXAMPLES
 from dlt.common.typing import (
     AnyType,
@@ -242,7 +245,9 @@ def _resolve_config_fields(
             # do not resolve not resolvable, but allow for explicit values to be passed
             if not explicit_none:
                 current_value = default_value if explicit_value is None else explicit_value
-            traces = [LookupTrace("ExplicitValues", None, key, current_value)]
+            traces = [
+                LookupTrace(EXPLICIT_VALUES_PROVIDER_NAME, embedded_sections, key, current_value)
+            ]
             _set_field()
             continue
 
@@ -307,7 +312,7 @@ def _resolve_config_fields(
                     )
         else:
             # set the trace for explicit none
-            traces = [LookupTrace("ExplicitValues", None, key, None)]
+            traces = [LookupTrace(EXPLICIT_VALUES_PROVIDER_NAME, embedded_sections, key, None)]
 
         _set_field()
 
@@ -338,7 +343,11 @@ def _resolve_config_field(
     inner_hint = extract_inner_hint(hint, preserve_literal=True)
     if explicit_value is not None:
         value = explicit_value
-        traces: List[LookupTrace] = []
+        # TODO: consider logging explicit values, currently initial values taken from configuration
+        #  are passed as explicit values so that needs to be fixed first
+        traces: List[LookupTrace] = [
+            LookupTrace(EXPLICIT_VALUES_PROVIDER_NAME, embedded_sections, key, value)
+        ]
     else:
         # resolve key value via active providers passing the original hint ie. to preserve TSecretValue
         # NOTE: if inner_hint is an embedded config, it won't be resolved and value is None

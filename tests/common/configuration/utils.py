@@ -96,8 +96,13 @@ def environment() -> Any:
 
 
 @pytest.fixture(autouse=True)
-def reset_resolved_traces() -> None:
-    get_resolved_traces().clear()
+def reset_resolved_traces() -> Iterator[None]:
+    log = get_resolved_traces()
+    try:
+        log.clear()
+        yield
+    finally:
+        pass
 
 
 @pytest.fixture(scope="function")
