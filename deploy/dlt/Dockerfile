@@ -24,11 +24,11 @@ RUN apk update &&\
     pip install --upgrade setuptools wheel pip &&\
     rm -r /usr/lib/python*/ensurepip
 
-# install arrow 17.0.0, usually we would need apache-arrow-dev=17.0.0 but it is not available in alpine 3.20
+# install arrow 20.0.0, usually we would need apache-arrow-dev=20.0.0 but it is not available in alpine 3.20
 # adapt this version to the arrow version you need
 RUN git clone --no-checkout https://github.com/apache/arrow.git /arrow \
     && cd /arrow \
-    && git checkout tags/apache-arrow-17.0.0 \
+    && git checkout tags/apache-arrow-20.0.0 \
     && cd cpp \
     && mkdir build \
     && cd build \
@@ -56,4 +56,4 @@ WORKDIR /
 RUN rm -r /tmp/pydlt
 # make sure dlt can be actually imported
 # TODO: pendulum breaks alpine
-# RUN python -c 'import dlt'
+RUN python -c 'import dlt;import duckdb;import pyarrow;'
