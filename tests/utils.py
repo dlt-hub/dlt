@@ -48,6 +48,7 @@ ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or [
 # destination constants
 IMPLEMENTED_DESTINATIONS = {
     "athena",
+    "cratedb",
     "duckdb",
     "bigquery",
     "redshift",
