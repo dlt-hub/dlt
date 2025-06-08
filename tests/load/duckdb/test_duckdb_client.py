@@ -5,7 +5,6 @@ from typing import Any, Iterator, List, cast
 import dlt
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
-from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.destination import Destination
 from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.utils import set_working_dir, uniq_id
@@ -29,18 +28,14 @@ pytestmark = pytest.mark.essential
 
 
 @pytest.fixture(autouse=True)
-def delete_default_duckdb_credentials(
+def run_in_storage(
     autouse_test_storage, toml_providers: ConfigProvidersContainer
 ) -> Iterator[None]:
-    # remove the default duckdb config
-    # os.environ.pop("DESTINATION__DUCKDB__CREDENTIALS", None)
-    # os.environ.clear()
     with set_working_dir("_storage"):
         yield
 
 
 def test_duckdb_open_conn_default() -> None:
-    get_resolved_traces().clear()
     c = resolve_configuration(
         DuckDbClientConfiguration()._bind_dataset_name(dataset_name="test_dataset")
     )
@@ -226,6 +221,25 @@ def test_sql_client_config() -> None:
             "SELECT count(1) FROM duckdb_logs where message LIKE '%spatial%';"
         ).fetchall()
         assert cnt[0][0] == 1
+
+
+def test_destination_credentials_with_config() -> None:
+    import duckdb
+    from dlt.destinations.impl.duckdb.configuration import DuckDbCredentials
+
+    # install spatial
+    duckdb.sql("INSTALL spatial;")
+
+    os.environ["DESTINATION__DUCKDB__CREDENTIALS__PRAGMAS"] = '["enable_logging"]'
+
+    dest_ = dlt.destinations.duckdb(
+        DuckDbCredentials("duck.db", extensions=["spatial"], local_config={"errors_as_json": True})
+    )
+    pipeline = dlt.pipeline("test_destination_credentials_with_config", destination=dest_)
+    c: DuckDbSqlClient
+    with pipeline.sql_client() as c:  # type: ignore[assignment]
+        # logging enabled
+        assert c.native_connection.sql("SELECT count(1) FROM duckdb_logs").fetchall()[0][0] > 0
 
 
 @pytest.mark.no_load
