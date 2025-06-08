@@ -1,0 +1,8 @@
+services:
+   cratedb:
+    image: crate:latest
+    container_name: dlt_cratedb
+    restart: unless-stopped
+    ports:
+      - 4200:4200
+      - 5432:5432

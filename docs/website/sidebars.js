@@ -243,6 +243,7 @@ const sidebars = {
         'dlt-ecosystem/destinations/mssql',
         'dlt-ecosystem/destinations/synapse',
         'dlt-ecosystem/destinations/clickhouse',
+        'dlt-ecosystem/destinations/cratedb',
         'dlt-ecosystem/destinations/filesystem',
         'dlt-ecosystem/destinations/delta-iceberg',
         'dlt-ecosystem/destinations/iceberg',
