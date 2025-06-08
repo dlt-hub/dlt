@@ -49,8 +49,18 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
 
         # obtain a lock because duck releases the GIL and we have refcount concurrency
         with self._conn_lock:
+            # calculate global config
+            global_config = {**(self.global_config or {}), **(global_config or {})}
+            # extract configs that must be passed to connect
+            connect_config = {}
+            for key in list(global_config.keys()):
+                if key in ("custom_user_agent",):
+                    connect_config[key] = global_config.pop(key)
+
             if not hasattr(self, "_conn"):
-                self._conn = duckdb.connect(database=self._conn_str(), read_only=self.read_only)
+                self._conn = duckdb.connect(
+                    database=self._conn_str(), read_only=self.read_only, config=connect_config
+                )
                 self._conn_owner = True
                 self._conn_borrows = 0
 
@@ -60,8 +70,6 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
                     for extension in self.extensions:
                         self._conn.sql(f"LOAD {extension};")
 
-                # calculate global config
-                global_config = {**(self.global_config or {}), **(global_config or {})}
                 self._apply_config(self._conn, "GLOBAL", global_config)
 
                 # apply local config to original connection
@@ -140,10 +148,17 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
 
         for k, v in config.items():
             try:
-                conn.execute(f"SET {scope} {k} = ?;", parameters=(v,))
-                # print(f"SET {scope} {k} = ?;", v)
-            except (duckdb.CatalogException, duckdb.BinderException):
+                try:
+                    conn.execute(f"SET {scope} {k} = ?", (v,))
+                except duckdb.BinderException:
+                    # binders do not work on duckdb
+                    if isinstance(v, str):
+                        v = f"'{v}'"
+                    conn.execute(f"SET {scope} {k} = {v}")
+
+            except duckdb.CatalogException:
                 # allow search_path to fail if path does not exist
+                # TODO: raise in other cases because it seems this CatalogException is used for many things
                 pass
 
     def _conn_str(self) -> str:
@@ -226,7 +241,7 @@ class DuckDbClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagingC
         destination_name: str = None,
         environment: str = None,
     ) -> None:
-        super().__init__(
+        super(DestinationClientDwhWithStagingConfiguration, self).__init__(
             credentials=credentials,  # type: ignore[arg-type]
             destination_name=destination_name,
             environment=environment,

@@ -164,7 +164,7 @@ class FilesystemSqlClient(WithTableScanners):
                 compression = ""
 
             from_statement = (
-                f"iceberg_scan('{last_metadata_file}', {compression} skip_schema_inference=false)"
+                f"iceberg_scan('{last_metadata_file}'{compression}, skip_schema_inference=false)"
             )
         else:
             # get file format and list of table files

@@ -104,8 +104,9 @@ def test_motherduck_connect_with_user_agent_string(custom_user_agent: Optional[s
     config.credentials.update(
         {
             "custom_user_agent": custom_user_agent,
-            "local_config": {"enable_logging": True},
+            # "local_config": {"enable_logging": True},
             "query": {"dbinstance_inactivity_ttl": "0s"},
+            "global_config": {"enable_logging": True},
         }
     )
     config.credentials.resolve()
