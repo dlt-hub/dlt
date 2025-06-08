@@ -641,7 +641,7 @@ def destinations_configs(
                     destination_name="filesystem_s3_gcs_comp" if bucket == GCS_BUCKET else None,
                 )
             ]
-            if bucket == AZ_BUCKET:
+            if bucket in [AZ_BUCKET, ABFS_BUCKET]:
                 # `pyiceberg` does not support `az` scheme
                 continue
             destination_configs += [
