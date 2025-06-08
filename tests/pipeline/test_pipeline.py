@@ -94,8 +94,10 @@ def test_default_pipeline() -> None:
     assert p.dataset_name is None
     assert p.destination is None
     assert p.default_schema_name is None
-    # init_cwd is cwd
-    assert p.get_local_state_val("initial_cwd") == os.path.abspath(os.curdir)
+    # init_cwd is local_dir
+    assert p.get_local_state_val("initial_cwd") == os.path.abspath(
+        dlt.current.run_context().local_dir
+    )
 
     # this is the same pipeline
     p2 = dlt.pipeline()
@@ -1946,15 +1948,12 @@ def test_remove_autodetect() -> None:
     )
     pipeline.load()
 
-    pipeline = pipeline.drop()
-
     source = autodetect()
     assert "timestamp" in source.schema.settings["detections"]
     source.schema.remove_type_detection("timestamp")
     assert "timestamp" not in source.schema.settings["detections"]
 
-    pipeline = dlt.pipeline(destination="duckdb")
-    pipeline.run(source)
+    pipeline.run(source, refresh="drop_sources")
     assert "timestamp" not in pipeline.default_schema.settings["detections"]
 
     assert pipeline.default_schema.get_table("numbers")["columns"]["value"]["data_type"] == "bigint"
@@ -2696,7 +2695,7 @@ def test_yielding_empty_list_creates_table() -> None:
             assert rows[0] == (1, None)
 
 
-local_paths = [os.path.abspath("_storage"), "_storage"]
+local_paths = [os.path.abspath("_storage"), "."]
 if os.name == "nt":
     local_paths += [
         # UNC extended path
@@ -2754,7 +2753,7 @@ def test_local_filesystem_destination(local_path: str) -> None:
     # all path formats we use must lead to "_storage" relative to tests
     assert (
         pathlib.Path(fs_client.dataset_path).resolve()
-        == pathlib.Path(local_path).joinpath(dataset_name).resolve()
+        == pathlib.Path("_storage").joinpath(dataset_name).resolve()
     )
     # same for client
     assert len(fs_client.list_table_files("numbers")) == 1
@@ -3098,7 +3097,7 @@ def test_resources_same_name_in_single_source() -> None:
 def test_static_staging_dataset() -> None:
     # share database and staging dataset
     duckdb_ = dlt.destinations.duckdb(
-        "_storage/test_static_staging_dataset.db", staging_dataset_name_layout="_dlt_staging"
+        "test_static_staging_dataset.db", staging_dataset_name_layout="_dlt_staging"
     )
 
     pipeline_1 = dlt.pipeline("test_static_staging_dataset_1", destination=duckdb_, dev_mode=True)
@@ -3427,7 +3426,7 @@ def test_many_pipelines_single_dataset() -> None:
     p = dlt.pipeline(
         pipeline_name="source_1_pipeline", destination="duckdb", dataset_name="shared_dataset"
     )
-    p.run(source_1(), credentials="duckdb:///_storage/test_quack.duckdb")
+    p.run(source_1(), credentials="duckdb:///test_quack.duckdb")
     counts = load_table_counts(p, *p.default_schema.tables.keys())
     assert counts.items() >= {"gen1": 1, "_dlt_pipeline_state": 1, "_dlt_loads": 1}.items()
     p._wipe_working_folder()
@@ -3436,7 +3435,7 @@ def test_many_pipelines_single_dataset() -> None:
     p = dlt.pipeline(
         pipeline_name="source_2_pipeline", destination="duckdb", dataset_name="shared_dataset"
     )
-    p.run(source_2(), credentials="duckdb:///_storage/test_quack.duckdb")
+    p.run(source_2(), credentials="duckdb:///test_quack.duckdb")
     # table_names = [t["name"] for t in p.default_schema.data_tables()]
     counts = load_table_counts(p, *p.default_schema.tables.keys())
     # gen1: one record comes from source_1, 1 record from source_2
@@ -3448,7 +3447,7 @@ def test_many_pipelines_single_dataset() -> None:
     # restore from destination, check state
     p = dlt.pipeline(
         pipeline_name="source_1_pipeline",
-        destination=dlt.destinations.duckdb(credentials="duckdb:///_storage/test_quack.duckdb"),
+        destination=dlt.destinations.duckdb(credentials="duckdb:///test_quack.duckdb"),
         dataset_name="shared_dataset",
     )
     p.sync_destination()
@@ -3464,7 +3463,7 @@ def test_many_pipelines_single_dataset() -> None:
 
     p = dlt.pipeline(
         pipeline_name="source_2_pipeline",
-        destination=dlt.destinations.duckdb(credentials="duckdb:///_storage/test_quack.duckdb"),
+        destination=dlt.destinations.duckdb(credentials="duckdb:///test_quack.duckdb"),
         dataset_name="shared_dataset",
     )
     p.sync_destination()

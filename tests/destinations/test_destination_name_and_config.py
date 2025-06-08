@@ -12,7 +12,7 @@ from tests.utils import TEST_STORAGE_ROOT
 
 
 def test_default_name_to_type() -> None:
-    duck = duckdb(credentials=os.path.join(TEST_STORAGE_ROOT, "quack.duckdb"))
+    duck = duckdb(credentials="quack.duckdb")
     p = dlt.pipeline(pipeline_name="quack_pipeline", destination=duck)
     load_info = p.run([1, 2, 3], table_name="table", dataset_name="dataset")
 
@@ -25,7 +25,7 @@ def test_default_name_to_type() -> None:
 
 def test_set_name_and_environment() -> None:
     duck = duckdb(
-        credentials=os.path.join(TEST_STORAGE_ROOT, "quack.duckdb"),
+        credentials="quack.duckdb",
         destination_name="duck1",
         environment="production",
     )
@@ -143,7 +143,7 @@ def test_config_respects_dataset_name(environment: DictStrStr) -> None:
     environment["QUACK_PIPELINE_PRODUCTION__DATASET_NAME"] = "production_dataset"
 
     # default will pick from global destination settings
-    duck = duckdb(credentials=os.path.join(TEST_STORAGE_ROOT, "quack.duckdb"))
+    duck = duckdb(credentials="quack.duckdb")
     p = dlt.pipeline(pipeline_name="quack_pipeline_devel", destination=duck)
     load_info = p.run([1, 2, 3], table_name="table")
     with p.destination_client() as client:
@@ -152,9 +152,7 @@ def test_config_respects_dataset_name(environment: DictStrStr) -> None:
     assert load_info.environment == "devel"
 
     # duck1 will be staging
-    duck = duckdb(
-        credentials=os.path.join(TEST_STORAGE_ROOT, "quack.duckdb"), destination_name="duck1"
-    )
+    duck = duckdb(credentials="quack.duckdb", destination_name="duck1")
     p = dlt.pipeline(pipeline_name="quack_pipeline_staging", destination=duck)
     load_info = p.run([1, 2, 3], table_name="table")
     with p.destination_client() as client:
@@ -163,9 +161,7 @@ def test_config_respects_dataset_name(environment: DictStrStr) -> None:
     assert load_info.environment == "staging"
 
     # duck2 will be production
-    duck = duckdb(
-        credentials=os.path.join(TEST_STORAGE_ROOT, "quack.duckdb"), destination_name="duck2"
-    )
+    duck = duckdb(credentials="quack.duckdb", destination_name="duck2")
     p = dlt.pipeline(pipeline_name="quack_pipeline_production", destination=duck)
     load_info = p.run([1, 2, 3], table_name="table")
     with p.destination_client() as client:

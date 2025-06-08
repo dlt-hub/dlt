@@ -113,11 +113,6 @@ def refresh_source(first_run: bool = True, drop_sources: bool = False):
 def test_refresh_drop_sources(
     destination_config: DestinationTestConfiguration, in_source: bool, with_wipe: bool
 ):
-    # do not place duckdb in the working dir, because we may wipe it
-    os.environ["DESTINATION__DUCKDB__CREDENTIALS"] = os.path.join(
-        TEST_STORAGE_ROOT, "refresh_source_db.duckdb"
-    )
-
     pipeline = destination_config.setup_pipeline("refresh_source")
 
     data: Any = refresh_source(first_run=True, drop_sources=True)
@@ -233,10 +228,6 @@ def test_existing_schema_hash(destination_config: DestinationTestConfiguration):
 def test_refresh_drop_resources(
     destination_config: DestinationTestConfiguration, in_source: bool, with_wipe: bool
 ):
-    # do not place duckdb in the working dir, because we may wipe it
-    os.environ["DESTINATION__DUCKDB__CREDENTIALS"] = os.path.join(
-        TEST_STORAGE_ROOT, "refresh_source_db.duckdb"
-    )
     # First run pipeline with load to destination so tables are created
     pipeline = destination_config.setup_pipeline("refresh_source")
 
