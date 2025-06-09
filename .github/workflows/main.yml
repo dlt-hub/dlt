@@ -55,9 +55,9 @@ jobs:
     needs: test_common
     uses: ./.github/workflows/test_tools_airflow.yml
 
-  test_build_images:
+  test_tools_build_images:
     needs: test_common
-    uses: ./.github/workflows/test_build_images.yml
+    uses: ./.github/workflows/test_tools_build_images.yml
 
   #
   # Remote destination tests and docs snippets, needs secrets, 
