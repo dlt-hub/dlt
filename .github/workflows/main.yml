@@ -4,6 +4,10 @@ on:
   pull_request:
     branches: [ master, devel ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
 
   # checks wether anything outside docs has changed, if not, most of the tests can be skipped
@@ -47,9 +51,9 @@ jobs:
     needs: test_common
     uses: ./.github/workflows/test_plus.yml
 
-  test_airflow:
+  test_tools_airflow:
     needs: test_common
-    uses: ./.github/workflows/test_airflow.yml
+    uses: ./.github/workflows/test_tools_airflow.yml
 
   test_build_images:
     needs: test_common
@@ -63,10 +67,12 @@ jobs:
     needs: [test_common, authorize_run_from_fork]
     uses: ./.github/workflows/test_destinations.yml
     secrets: inherit
+
   test_docs_snippets:
     needs: [test_common, authorize_run_from_fork]
-    uses: ./.github/workflows/test_doc_snippets.yml
+    uses: ./.github/workflows/test_docs_snippets.yml
     secrets: inherit
+
   test_destinations_remote:
     # TODO: only run after tests common
     needs: [authorize_run_from_fork] #, test_common]
@@ -75,14 +81,19 @@ jobs:
     with:
       run_full_test_suite: ${{ contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule'}}
 
-
   #
   # Other tools and tests that require secrets
   #
-  test_dbt_runner:
+  test_tools_dbt_runner:
     needs: [test_common, authorize_run_from_fork]
-    uses: ./.github/workflows/test_dbt_runner.yml
+    uses: ./.github/workflows/test_tools_dbt_runner.yml
     secrets: inherit
+  
+  # dbt cloud tests currently are disabled
+  # test_tools_dbt_cloud:
+  #   needs: [test_common, authorize_run_from_fork]
+  #   uses: ./.github/workflows/test_tools_dbt_cloud.yml
+  #   secrets: inherit
 
 
 
