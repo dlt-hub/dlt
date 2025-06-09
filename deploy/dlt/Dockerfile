@@ -24,11 +24,11 @@ RUN apk update &&\
     pip install --upgrade setuptools wheel pip &&\
     rm -r /usr/lib/python*/ensurepip
 
-# install arrow 20.0.0, usually we would need apache-arrow-dev=20.0.0 but it is not available in alpine 3.20
+# install arrow 18.0.0, usually we would need apache-arrow-dev=20.0.0 but it is not available in alpine 3.20
 # adapt this version to the arrow version you need
 RUN git clone --no-checkout https://github.com/apache/arrow.git /arrow \
     && cd /arrow \
-    && git checkout tags/apache-arrow-20.0.0 \
+    && git checkout tags/apache-arrow-18.0.0 \
     && cd cpp \
     && mkdir build \
     && cd build \

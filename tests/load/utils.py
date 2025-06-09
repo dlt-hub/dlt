@@ -641,7 +641,7 @@ def destinations_configs(
                     destination_name="filesystem_s3_gcs_comp" if bucket == GCS_BUCKET else None,
                 )
             ]
-            if bucket in [AZ_BUCKET, ABFS_BUCKET]:
+            if bucket in [AZ_BUCKET]:
                 # `pyiceberg` does not support `az` scheme
                 continue
             destination_configs += [
@@ -783,7 +783,6 @@ def drop_pipeline_data(p: dlt.Pipeline) -> None:
     if p.destination:
         if p.config.use_single_dataset:
             # drop just the dataset for default schema
-            # if p.default_schema_name:
             _drop_dataset(p.default_schema_name)
         else:
             # for each schema, drop the dataset
