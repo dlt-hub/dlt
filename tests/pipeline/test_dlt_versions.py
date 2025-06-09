@@ -10,6 +10,7 @@ import dlt
 from dlt.common import json, pendulum
 from dlt.common.known_env import DLT_DATA_DIR
 from dlt.common.json import custom_pua_decode
+from dlt.common.normalizers.json.helpers import get_propagation_mapping
 from dlt.common.runners import Venv
 from dlt.common.storages.exceptions import StorageMigrationError
 from dlt.common.utils import custom_environ, set_working_dir
@@ -116,6 +117,12 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                         github_schema["tables"]["issues"]["columns"]["assignee"]["data_type"]
                         == "complex"
                     )
+                    # make sure that root key propagation is enabled
+                    root_prop_config = github_schema["normalizers"]["json"]["config"][
+                        "propagation"
+                    ]["root"]
+                    assert root_prop_config["_dlt_id"] == "_dlt_root_id"
+
                     # check loads table without attaching to pipeline
                     duckdb_cfg = resolve_configuration(
                         DuckDbClientConfiguration()._bind_dataset_name(dataset_name=GITHUB_DATASET),
@@ -173,6 +180,10 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                     github_schema["tables"]["issues"]["columns"]["assignee"]["data_type"] == "json"
                 )
                 assert "schema_version_hash" in github_schema["tables"][LOADS_TABLE_NAME]["columns"]
+                # root propagation dropped from normalizer config
+                norm_config = github_schema["normalizers"]["json"]["config"]
+                assert norm_config["root_key_propagation"] is True
+                assert "root" not in norm_config["propagation"]
                 # print(github_schema["tables"][PIPELINE_STATE_TABLE_NAME])
                 # load state
                 state_dict = json.loads(
@@ -492,6 +503,16 @@ def test_scd2_pipeline_update(test_storage: FileStorage) -> None:
 
                 assert len(issues_retired) == 1
                 assert issues_retired[0][0] == 6272
+                # root propagation is still there
+                normalizer_config = (
+                    pipeline.default_schema.data_item_normalizer.get_normalizer_config(
+                        pipeline.default_schema
+                    )
+                )
+                propagation = get_propagation_mapping(
+                    normalizer_config["propagation"], "issues", is_root=True
+                )
+                assert propagation == {"_dlt_id": "_dlt_root_id"}
                 # print(pipeline.default_schema.to_pretty_yaml())
 
 

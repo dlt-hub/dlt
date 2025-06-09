@@ -2,11 +2,12 @@ from typing import List
 
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TTableSchema, TSchemaUpdate
+from dlt.common.schema.typing import TPartialTableSchema, TTableSchema, TSchemaUpdate
 from dlt.common.schema.utils import (
     ensure_compatible_tables,
     find_incomplete_columns,
     get_first_column_name_with_prop,
+    has_table_seen_data,
     is_nested_table,
 )
 from dlt.common.schema.exceptions import UnboundColumnException
@@ -24,8 +25,36 @@ def validate_and_update_schema(schema: Schema, schema_updates: List[TSchemaUpdat
                     ensure_compatible_tables(schema.name, existing_table, partial_table)
 
             for partial_table in table_updates:
+                verify_partial_table(schema, partial_table)
+
+            for partial_table in table_updates:
                 # merge columns where we expect identifiers to be normalized
                 schema.update_table(partial_table, normalize_identifiers=False)
+
+
+def verify_partial_table(schema: Schema, partial_table: TPartialTableSchema) -> None:
+    """Verifies partial tables before they are merged with existing tables in schema
+
+    1. warns if root_key is added to existing table that has seen data (this will most likely fail)
+    """
+    table_name = partial_table["name"]  # names are already normalized
+    if existing_table := schema.tables.get(table_name):
+        if has_table_seen_data(existing_table):
+            # we are adding to a table materialized in the destination
+            root_key_col = get_first_column_name_with_prop(partial_table, "root_key")
+            if root_key_col:
+                logger.warning(
+                    f"You are adding a root_key in column {root_key_col} to an already existing"
+                    f" table {table_name}. "
+                    "This will most likely fail due to NOT NULL constraint. Typically this happens"
+                    " when you switch "
+                    "write disposition from append/replace to merge - in that case dlt will create"
+                    " required linking "
+                    "information automatically. You can fix your table, drop it or disable root key"
+                    " propagation. "
+                    "See details here:"
+                    " https://dlthub.com/docs/general-usage/merge-loading#switch-from-appendreplace-to-merge"
+                )
 
 
 def verify_normalized_table(

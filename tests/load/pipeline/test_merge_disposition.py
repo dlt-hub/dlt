@@ -9,7 +9,6 @@ import dlt
 
 from dlt.common import json, pendulum
 from dlt.common.configuration.container import Container
-from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.pipeline import StateInjectableContext
 from dlt.common.schema.utils import has_table_seen_data
 from dlt.common.schema.exceptions import (

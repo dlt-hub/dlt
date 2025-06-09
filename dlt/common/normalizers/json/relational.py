@@ -25,9 +25,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import (
     column_name_validator,
-    is_nested_table,
-    get_nested_tables,
-    has_column_with_prop,
+    get_root_table,
     get_first_column_name_with_prop,
 )
 from dlt.common.utils import update_dict_nested
@@ -45,6 +43,7 @@ from dlt.common.normalizers.json.helpers import (
     get_nested_row_hash,
     get_propagation_mapping,
     get_row_hash,
+    requires_root_key,
 )
 from dlt.common.validation import validate_dict
 
@@ -335,23 +334,23 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         Called by Schema when new table is added to schema or table is updated with partial table.
         Table name should be normalized.
         """
-        table = self.schema.tables.get(table_name)
+        # find root table
+        root_table = get_root_table(self.schema.tables, table_name)
+        root_table_name = root_table["name"]
         # add root key prop when merge disposition is used or any of nested tables needs row_key
-        if not is_nested_table(table) and (
-            table.get("write_disposition") == "merge"
-            or any(
-                has_column_with_prop(t, "root_key", include_incomplete=True)
-                for t in get_nested_tables(self.schema.tables, table_name)
-            )
+        if requires_root_key(
+            self.schema, root_table, self.normalizer_config.get("root_key_propagation")
         ):
             # get row id column from table, assume that we propagate it into c_dlt_root_id always
-            c_dlt_id = get_first_column_name_with_prop(table, "row_key", include_incomplete=True)
+            c_dlt_id = get_first_column_name_with_prop(
+                root_table, "row_key", include_incomplete=True
+            )
             self.update_normalizer_config(
                 self.schema,
                 {
                     "propagation": {
                         "tables": {
-                            table_name: {
+                            root_table_name: {
                                 TColumnName(c_dlt_id or self.c_dlt_id): TColumnName(
                                     self.c_dlt_root_id
                                 )

@@ -124,7 +124,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
         self.name: str = None
         self.section: str = None
         self.max_table_nesting: int = None
-        self.root_key: bool = False
+        self.root_key: bool = None
         self.schema: Schema = None
         self.schema_contract: TSchemaContract = None
         self.spec: Type[BaseConfiguration] = None
@@ -362,7 +362,7 @@ def source(
     name: str = None,
     section: str = None,
     max_table_nesting: int = None,
-    root_key: bool = False,
+    root_key: bool = None,
     schema: Schema = None,
     schema_contract: TSchemaContract = None,
     spec: Type[BaseConfiguration] = None,
