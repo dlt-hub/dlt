@@ -10,7 +10,7 @@ from dlt.common.schema.utils import (
     has_table_seen_data,
     is_nested_table,
 )
-from dlt.common.schema.exceptions import UnboundColumnException
+from dlt.common.schema.exceptions import UnboundColumnException, UnboundColumnWithoutTypeException
 from dlt.common import logger
 
 
@@ -70,7 +70,13 @@ def verify_normalized_table(
     for column, nullable in find_incomplete_columns(table):
         exc = UnboundColumnException(schema.name, table["name"], column)
         if nullable:
-            logger.warning(str(exc))
+            # warn if null column
+            seen_null_first = column.get("x-normalizer", {}).get("seen-null-first")
+            if seen_null_first is True:
+                null_exc = UnboundColumnWithoutTypeException(schema.name, table["name"], column)
+                logger.warning(str(null_exc))
+            else:
+                logger.warning(str(exc))
         else:
             raise exc
 

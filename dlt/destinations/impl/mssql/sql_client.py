@@ -160,7 +160,7 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
             # https://github.com/mkleehammer/pyodbc/wiki/Features-beyond-the-DB-API#passing-parameters
             curr.execute(query, *args)
             # NOTE: firsts recordset is wrapped in a cursor
-            yield DBApiCursorImpl(curr)  # type: ignore[abstract]
+            yield DBApiCursorImpl(curr)
         finally:
             # clear all pending result sets
             while curr.nextset():

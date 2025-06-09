@@ -30,7 +30,7 @@ def filesystem_merge_strategies_selector(
     *,
     table_schema: TTableSchema,
 ) -> Sequence[TLoaderMergeStrategy]:
-    if table_schema.get("table_format") == "delta":
+    if table_schema.get("table_format") in ["delta", "iceberg"]:
         return supported_merge_strategies
     else:
         return []
@@ -68,6 +68,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         # for delta and iceberg this is copy from staging, use replace strategy selector
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
         caps.replace_strategies_selector = filesystem_replace_strategies_selector
+        caps.enforces_nulls_on_alter = False
         caps.sqlglot_dialect = "duckdb"
         caps.supports_nested_types = True
 
@@ -86,6 +87,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         layout: str = DEFAULT_FILE_LAYOUT,
         extra_placeholders: Optional[TExtraPlaceholders] = None,
         current_datetime: Optional[TCurrentDateTime] = None,
+        always_refresh_views: bool = None,
         destination_name: str = None,
         environment: str = None,
         **kwargs: Any,
@@ -113,6 +115,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
                 are mapped to string values or to callables evaluated at runtime.
             current_datetime (Optional[TCurrentDateTime]): Current datetime used by date/time related placeholders. If not provided, load package creation timestamp
                 will be used.
+            always_refresh_views (bool, optional): Always refresh sql_client views by setting the newest table metadata or globbing table files
             destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
             environment (str, optional): Environment of the destination
             **kwargs (Any): Additional arguments passed to the destination config
@@ -123,6 +126,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             layout=layout,
             extra_placeholders=extra_placeholders,
             current_datetime=current_datetime,
+            always_refresh_views=always_refresh_views,
             destination_name=destination_name,
             environment=environment,
             **kwargs,

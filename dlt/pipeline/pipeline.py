@@ -93,7 +93,7 @@ from dlt.common.pipeline import (
     TRefreshMode,
 )
 from dlt.common.schema import Schema
-from dlt.common.utils import is_interactive
+from dlt.common.utils import is_interactive, simple_repr, without_none
 from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
@@ -515,6 +515,7 @@ class Pipeline(SupportsPipeline):
             _normalize_storage_config=self._normalize_storage_config(),
             _load_storage_config=self._load_storage_config(),
         )
+
         # run with destination context
         with self._maybe_destination_capabilities() as caps:
             self._verify_destination_capabilities(caps, None)
@@ -637,7 +638,7 @@ class Pipeline(SupportsPipeline):
             destination (TDestinationReferenceArg, optional): A name of the destination to which dlt will load the data, or a destination module imported from `dlt.destination`.
                 If not provided, the value passed to `dlt.pipeline` will be used.
 
-            staging (TDestinationReferenceArg, optional): A name of the stagingdestination to which dlt will load the data temporarily before it is loaded to the destination, can also
+            staging (TDestinationReferenceArg, optional): A name of the staging destination to which dlt will load the data temporarily before it is loaded to the destination, can also
                 be a module imported from `dlt.destination`.
 
             dataset_name (str, optional): A name of the dataset to which the data will be loaded. A dataset is a logical group of tables ie. `schema` in relational databases or folder grouping many files.
@@ -939,6 +940,23 @@ class Pipeline(SupportsPipeline):
         if self._last_trace:
             return self._last_trace
         return load_trace(self.working_dir)
+
+    def __repr__(self) -> str:
+        kwargs = {
+            "pipeline_name": self.pipeline_name,
+            "destination": self._destination.destination_name if self._destination else None,
+            "staging": self._staging.destination_name if self._staging else None,
+            "dataset_name": self.dataset_name,
+            "default_schema_name": self.default_schema_name,
+            "schema_names": self.schema_names if self.schema_names else None,
+            "first_run": self.first_run if self.first_run else None,
+            "dev_mode": self.dev_mode if self.dev_mode else None,
+            # we check for `not is_active` which is the less common case
+            "is_active": self.is_active if not self.is_active else None,
+            "pipelines_dir": self.pipelines_dir,
+            "working_dir": self.working_dir,
+        }
+        return simple_repr("dlt.pipeline", **without_none(kwargs))
 
     @deprecated(
         "Please use list_extracted_load_packages instead. Flat extracted storage format got dropped"
@@ -1311,6 +1329,7 @@ class Pipeline(SupportsPipeline):
                 "Please provide `destination` argument to `pipeline`, `run` or `load` method"
                 " directly or via .dlt config.toml file or environment variable.",
             )
+
         # check if default schema is present
         if (
             self.default_schema_name is not None
@@ -1319,6 +1338,7 @@ class Pipeline(SupportsPipeline):
             naming = self.default_schema.naming
         else:
             naming = None
+
         return self._destination.capabilities(naming=naming)
 
     def _get_staging_capabilities(self) -> Optional[DestinationCapabilitiesContext]:
@@ -1785,18 +1805,33 @@ class Pipeline(SupportsPipeline):
         Returns:
             Any: A dataset object that supports querying the destination data.
         """
+
+        if not self._destination:
+            raise PipelineConfigMissing(
+                self.pipeline_name,
+                "destination",
+                "dataset",
+                "Please provide `destination` argument to `pipeline` method"
+                " directly or via .dlt config.toml file or environment variable.",
+            )
+
         if isinstance(schema, Schema):
             logger.info(
                 f"Make sure that tables declared in explicit schema {schema.name} are present on"
                 f" dataset {self.dataset_name}"
             )
-        elif not self.default_schema_name:
-            raise PipelineNeverRan(self.pipeline_name, self.pipelines_dir)
-        elif schema is None:
-            schema = self.default_schema
         elif isinstance(schema, str):
-            # schema with given name must be present
-            schema = self.schemas[schema]
+            if schema not in self.schemas:
+                logger.info(
+                    f"Schema {schema} not found in the pipeline, deferring to destination, this"
+                    " will load a schema of this name from the destination or use an empty schema"
+                    " with this name."
+                )
+            else:
+                schema = self.schemas[schema]
+
+        elif self.default_schema_name:
+            schema = self.default_schema
 
         return dataset(
             self._destination,

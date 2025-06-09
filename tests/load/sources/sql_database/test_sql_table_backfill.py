@@ -6,7 +6,7 @@ from dlt.sources.sql_database import sql_table
 from dlt.sources.sql_database.helpers import TableBackend
 
 from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
-from tests.pipeline.utils import load_data_table_counts
+from tests.pipeline.utils import load_table_counts
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow"])
@@ -69,7 +69,7 @@ def test_load_sql_table_resource_incremental_end_value(
     assert "sources" not in pipeline.state
     # The total should match the number of rows in the chat_message table
     assert (
-        load_data_table_counts(pipeline)["chat_message"]
+        load_table_counts(pipeline)["chat_message"]
         == sql_source_db.table_infos["chat_message"]["row_count"] - 1
     )
 
@@ -145,7 +145,7 @@ def test_load_sql_table_split_loading(
 
     # The total should match the number of rows in the chat_message table
     assert (
-        load_data_table_counts(pipeline)["chat_message"]
+        load_table_counts(pipeline)["chat_message"]
         == sql_source_db.table_infos["chat_message"]["row_count"]
     )
 

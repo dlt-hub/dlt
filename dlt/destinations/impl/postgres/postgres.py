@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Sequence, List, Any
+from typing import Dict, Iterator, Optional, Sequence, List, Any
 
 from dlt.common import logger
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
@@ -51,6 +51,37 @@ class PostgresStagingReplaceJob(SqlStagingReplaceFollowupJob):
         return sql
 
 
+class PostgresParquetCopyJob(RunnableLoadJob, HasFollowupJobs):
+    def __init__(self, file_path: str) -> None:
+        super().__init__(file_path)
+        self._job_client: PostgresClient = None
+
+    def run(self) -> None:
+        self._config = self._job_client.config
+
+        from dlt.common.libs.pyarrow import pq_stream_with_new_columns
+        from dlt.common.libs.pyarrow import pyarrow
+        import adbc_driver_postgresql.dbapi as adbapi
+
+        def _iter_batches(file_path: str) -> Iterator[pyarrow.RecordBatch]:
+            for table in pq_stream_with_new_columns(file_path, ()):
+                yield from table.to_batches()
+
+        with adbapi.connect(
+            self._config.credentials.to_native_representation()
+        ) as conn, conn.cursor() as cur:
+            rows = cur.adbc_ingest(
+                self.load_table_name,
+                _iter_batches(self._file_path),
+                mode="append",
+                db_schema_name=self._job_client.sql_client.fully_qualified_dataset_name(
+                    quote=False
+                ),
+            )
+            logger.info(f"{rows} rows copied from {self._file_name} to {self.load_table_name}")
+            conn.commit()
+
+
 class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(self, file_path: str) -> None:
         super().__init__(file_path)
@@ -96,14 +127,14 @@ class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
 
             # normalized and quoted headers
             split_headers = [
-                sql_client.escape_column_name(h.strip('"'), escape=True) for h in split_headers
+                sql_client.escape_column_name(h.strip('"'), quote=True) for h in split_headers
             ]
             split_null_headers = []
             split_columns = []
             # detect columns with NULL to use in FORCE NULL
             # detect headers that are not in columns
             for col in self._job_client.schema.get_table_columns(table_name).values():
-                norm_col = sql_client.escape_column_name(col["name"], escape=True)
+                norm_col = sql_client.escape_column_name(col["name"], quote=True)
                 split_columns.append(norm_col)
                 if norm_col in split_headers and is_nullable_column(col):
                     split_null_headers.append(norm_col)
@@ -156,8 +187,11 @@ class PostgresClient(InsertValuesJobClient):
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         job = super().create_load_job(table, file_path, load_id, restore)
-        if not job and file_path.endswith("csv"):
-            job = PostgresCsvCopyJob(file_path)
+        if not job:
+            if file_path.endswith("csv"):
+                job = PostgresCsvCopyJob(file_path)
+            elif file_path.endswith("parquet"):
+                job = PostgresParquetCopyJob(file_path)
         return job
 
     def _create_replace_followup_jobs(

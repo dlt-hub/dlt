@@ -227,14 +227,14 @@ You can add arguments to your resource functions like to any other. Below we par
 
 ```py
 @dlt.resource(name='table_name', write_disposition='replace')
-def generate_rows(nr):
+def generate_var_rows(nr):
     for i in range(nr):
         yield {'id': i, 'example_string': 'abc'}
 
-for row in generate_rows(10):
+for row in generate_var_rows(10):
     print(row)
 
-for row in generate_rows(20):
+for row in generate_var_rows(20):
     print(row)
 ```
 
@@ -292,9 +292,9 @@ print(list([1,2] | pokemon()))
 :::
 
 ### Declare a standalone resource
-A standalone resource is defined on a function that is top-level in a module (not an inner function) that accepts config and secrets values. Additionally, if the `standalone` flag is specified, the decorated function signature and docstring will be preserved. `dlt.resource` will just wrap the decorated function, and the user must call the wrapper to get the actual resource. Below we declare a `filesystem` resource that must be called before use.
+A standalone resource is defined on a function that is top-level in a module (not an inner function) that accepts config and secrets values. Here `dlt.resource` just wraps the decorated function, and the user must call the wrapper to get the actual resource. Below we declare a `filesystem` resource that must be called before use.
 ```py
-@dlt.resource(standalone=True)
+@dlt.resource
 def fs_resource(bucket_url=dlt.config.value):
   """List and yield files in `bucket_url`."""
   ...
@@ -303,9 +303,9 @@ def fs_resource(bucket_url=dlt.config.value):
 pipeline.run(fs_resource("s3://my-bucket/reports"), table_name="reports")
 ```
 
-Standalone may have a dynamic name that depends on the arguments passed to the decorated function. For example:
+Resource may have a dynamic name that depends on the arguments passed to the decorated function. For example:
 ```py
-@dlt.resource(standalone=True, name=lambda args: args["stream_name"])
+@dlt.resource(name=lambda args: args["stream_name"])
 def kinesis(stream_name: str):
     ...
 
@@ -619,7 +619,7 @@ You can sniff the schema from the data, i.e., using DuckDB to infer the table sc
 There are cases when your resources are generic (i.e., bucket filesystem) and you want to load several instances of it (i.e., files from different folders) into separate tables. In the example below, we use the `filesystem` source to load csvs from two different folders into separate tables:
 
 ```py
-@dlt.resource(standalone=True)
+@dlt.resource
 def fs_resource(bucket_url):
   # list and yield files in bucket_url
   ...
@@ -648,7 +648,7 @@ You can pass individual resources or a list of resources to the `dlt.pipeline` o
 
 ```py
 @dlt.resource(name='table_name', write_disposition='replace')
-def generate_rows(nr):
+def generate_var_rows(nr):
     for i in range(nr):
         yield {'id': i, 'example_string': 'abc'}
 
@@ -658,9 +658,9 @@ pipeline = dlt.pipeline(
     dataset_name="rows_data"
 )
 # load an individual resource
-pipeline.run(generate_rows(10))
+pipeline.run(generate_var_rows(10))
 # load a list of resources
-pipeline.run([generate_rows(10), generate_rows(20)])
+pipeline.run([generate_var_rows(10), generate_var_rows(20)])
 ```
 
 ### Pick loader file format for a particular resource
@@ -669,7 +669,7 @@ You can request a particular loader file format to be used for a resource.
 
 ```py
 @dlt.resource(file_format="parquet")
-def generate_rows(nr):
+def generate_var_rows(nr):
     for i in range(nr):
         yield {'id': i, 'example_string': 'abc'}
 ```

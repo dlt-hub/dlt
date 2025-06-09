@@ -42,7 +42,7 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.transform import take_first
 
 from tests.extract.utils import AssertItems, data_item_to_list
-from tests.pipeline.utils import assert_query_data
+from tests.pipeline.utils import assert_query_column
 from tests.utils import (
     ALL_TEST_DATA_ITEM_FORMATS,
     TestDataItemFormat,
@@ -753,8 +753,8 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_1(
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.run(some_data(), destination="duckdb")
 
-    assert_query_data(p, "select count(id) from some_data", [3])
-    assert_query_data(p, "select count(created_at) from some_data", [2])
+    assert_query_column(p, "select count(id) from some_data", [3])
+    assert_query_column(p, "select count(created_at) from some_data", [2])
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
@@ -794,8 +794,8 @@ def test_cursor_path_none_does_not_include_overlapping_records(
     p.run(some_data(1), destination="duckdb")
     p.run(some_data(2), destination="duckdb")
 
-    assert_query_data(p, "select id from some_data order by id", [1, 2, 3, 5, 6])
-    assert_query_data(
+    assert_query_column(p, "select id from some_data order by id", [1, 2, 3, 5, 6])
+    assert_query_column(
         p, "select created_at from some_data order by created_at", [1, 2, 3, None, None]
     )
 
@@ -825,8 +825,8 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_2(
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.run(some_data(), destination="duckdb")
 
-    assert_query_data(p, "select count(id) from some_data", [3])
-    assert_query_data(p, "select count(created_at) from some_data", [2])
+    assert_query_column(p, "select count(id) from some_data", [3])
+    assert_query_column(p, "select count(created_at) from some_data", [2])
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
@@ -853,8 +853,8 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_3(
 
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.run(some_data(), destination="duckdb")
-    assert_query_data(p, "select count(id) from some_data", [3])
-    assert_query_data(p, "select count(created_at) from some_data", [2])
+    assert_query_column(p, "select count(id) from some_data", [3])
+    assert_query_column(p, "select count(created_at) from some_data", [2])
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
@@ -880,8 +880,8 @@ def test_cursor_path_none_includes_records_without_cursor_path(
 
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.run(some_data(), destination="duckdb")
-    assert_query_data(p, "select count(id) from some_data", [2])
-    assert_query_data(p, "select count(created_at) from some_data", [1])
+    assert_query_column(p, "select count(id) from some_data", [2])
+    assert_query_column(p, "select count(created_at) from some_data", [1])
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
@@ -908,7 +908,7 @@ def test_cursor_path_none_excludes_records_and_updates_incremental_cursor(
 
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.run(some_data(), destination="duckdb")
-    assert_query_data(p, "select count(id) from some_data", [2])
+    assert_query_column(p, "select count(id) from some_data", [2])
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
@@ -1049,8 +1049,8 @@ def test_cursor_path_not_nullable_arrow(
     p.run(some_data(1), destination="duckdb")
     p.run(some_data(2), destination="duckdb")
 
-    assert_query_data(p, "select id from some_data order by id", [1, 2, 3, 5, 6])
-    assert_query_data(p, "select created_at from some_data order by id", [1, 1, 2, 2, 3])
+    assert_query_column(p, "select id from some_data order by id", [1, 2, 3, 5, 6])
+    assert_query_column(p, "select created_at from some_data order by id", [1, 1, 2, 2, 3])
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
@@ -1114,7 +1114,7 @@ def test_cursor_path_none_nested_can_include_on_none_1() -> None:
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.run(some_data(), destination="duckdb")
 
-    assert_query_data(p, "select count(*) from some_data__data__items", [2])
+    assert_query_column(p, "select count(*) from some_data__data__items", [2])
 
 
 def test_cursor_path_none_nested_can_include_on_none_2() -> None:
@@ -1143,7 +1143,7 @@ def test_cursor_path_none_nested_can_include_on_none_2() -> None:
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.run(some_data(), destination="duckdb")
 
-    assert_query_data(p, "select count(*) from some_data__data__items", [2])
+    assert_query_column(p, "select count(*) from some_data__data__items", [2])
 
 
 def test_cursor_path_none_nested_includes_rows_without_cursor_path() -> None:
@@ -1172,7 +1172,7 @@ def test_cursor_path_none_nested_includes_rows_without_cursor_path() -> None:
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.run(some_data(), destination="duckdb")
 
-    assert_query_data(p, "select count(*) from some_data__data__items", [2])
+    assert_query_column(p, "select count(*) from some_data__data__items", [2])
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
@@ -1253,7 +1253,7 @@ def test_json_path_cursor() -> None:
 
 
 def test_remove_incremental_with_explicit_none() -> None:
-    @dlt.resource(standalone=True)
+    @dlt.resource
     def some_data(
         last_timestamp: Optional[dlt.sources.incremental[float]] = dlt.sources.incremental(
             "id", initial_value=9
@@ -1284,7 +1284,7 @@ def test_remove_incremental_with_incremental_empty() -> None:
     with pytest.raises(ValueError):
         list(some_data_optional(last_timestamp=dlt.sources.incremental.EMPTY))
 
-    @dlt.resource(standalone=True)
+    @dlt.resource
     def some_data(
         last_timestamp: dlt.sources.incremental[float] = dlt.sources.incremental("item.timestamp"),
     ):
@@ -1292,7 +1292,7 @@ def test_remove_incremental_with_incremental_empty() -> None:
         yield 1
 
     # we'll get the value error
-    with pytest.raises(InvalidNativeValue):
+    with pytest.raises(ValueError):
         list(some_data(last_timestamp=dlt.sources.incremental.EMPTY))
 
 
@@ -1509,7 +1509,7 @@ def test_replace_resets_state(item_type: TestDataItemFormat) -> None:
 
     # now we add child that has parent_r as parent but we add another instance of standalone_some_data explicitly
     # so we have a resource with the same name as child parent but the pipe instance is different
-    s = DltSource(Schema("comp"), "section", [standalone_some_data(now), child])
+    s = DltSource(Schema("comp"), "section", [standalone_some_data("object", now), child])
     assert extracted[child.name].write_disposition == "replace"
     # now parent exists separately and has its own write disposition - because we search by name to identify matching resource
     assert extracted[child._pipe.parent.name].write_disposition == "append"
@@ -1677,7 +1677,7 @@ def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
 
 
 def test_incremental_wrapper_on_clone_standalone_incremental() -> None:
-    @dlt.resource(standalone=True)
+    @dlt.resource
     def standalone_incremental(created_at: Optional[dlt.sources.incremental[int]] = None):
         yield [{"created_at": 1}, {"created_at": 2}, {"created_at": 3}]
 
@@ -1711,7 +1711,7 @@ def test_incremental_wrapper_on_clone_standalone_incremental() -> None:
 
 
 def test_incremental_wrapper_on_clone_standalone_no_incremental() -> None:
-    @dlt.resource(standalone=True)
+    @dlt.resource
     def standalone():
         yield [{"created_at": 1}, {"created_at": 2}, {"created_at": 3}]
 
@@ -1759,7 +1759,7 @@ def test_incremental_wrapper_on_clone_incremental() -> None:
     r_4 = regular_incremental(
         dlt.sources.incremental[int]("created_at", initial_value=1, last_value_func=min)
     )
-    r_4_clone = r_4._clone("r_4_clone")
+    r_4_clone = r_4._clone(new_name="r_4_clone")
     # evaluate
     assert len(list(r_3)) == 1
     assert len(list(r_4)) == 1
@@ -1818,7 +1818,7 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
     start_dt = datetime.now()
     pendulum_start_dt = pendulum.instance(start_dt)  # With timezone
 
-    @dlt.resource(standalone=True, primary_key="hour")
+    @dlt.resource(primary_key="hour")
     def some_data(
         updated_at: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
             "updated_at", initial_value=pendulum_start_dt
@@ -2481,7 +2481,9 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
 
-    r = test_type_3(dlt.sources.incremental[float]("updated_at", allow_external_schedulers=True))
+    r = test_type_3(
+        dlt.sources.incremental[float]("updated_at", allow_external_schedulers=True)  # type: ignore[arg-type]
+    )
     list(r)
     assert r.incremental.incremental.get_incremental_value_type() is float
 
@@ -2493,21 +2495,28 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
 
-    r = test_type_4(dlt.sources.incremental[str]("updated_at", allow_external_schedulers=True))
+    in_ = dlt.sources.incremental[str]("updated_at", allow_external_schedulers=False)
+    r = test_type_4(in_)
     list(r)
+    assert r.incremental.incremental.allow_external_schedulers is False
     assert r.incremental.incremental.get_incremental_value_type() is str
 
     # no generic type information
-    @dlt.resource
+    @dlt.resource(spec=BaseConfiguration)
     def test_type_5(
-        updated_at=dlt.sources.incremental("updated_at", allow_external_schedulers=True)
+        updated_at=dlt.sources.incremental[int](  # noqa: B008
+            "updated_at", allow_external_schedulers=True
+        )
     ):
+        assert updated_at.allow_external_schedulers is False
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
 
     r = test_type_5(dlt.sources.incremental("updated_at"))
     list(r)
-    assert r.incremental.incremental.get_incremental_value_type() is Any
+    assert r.incremental.incremental.allow_external_schedulers is False
+    # any will be ignored when merging explicit instance with default
+    assert r.incremental.incremental.get_incremental_value_type() is int
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
@@ -2718,9 +2727,6 @@ def test_incremental_lag_int(lag: float, last_value_func) -> None:
 
     @dlt.resource(name=name, primary_key="id", write_disposition="append")
     def events_resource(_=dlt.sources.incremental("id", lag=lag, last_value_func=last_value_func)):
-        nonlocal is_second_run
-        nonlocal is_third_run
-
         initial_entries = [
             {"id": 100, "event": "100"},
             {"id": 200, "event": "200"},

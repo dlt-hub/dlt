@@ -586,7 +586,7 @@ The `upsert` merge strategy is currently supported for these destinations:
 - `mssql`
 - `postgres`
 - `snowflake`
-- `filesystem` with `delta` table format (see limitations [here](../dlt-ecosystem/destinations/delta-iceberg#known-limitations))
+- `filesystem` with `delta` table format (see limitations [here](../dlt-ecosystem/destinations/delta-iceberg#known-limitations)) and `iceberg` table format
 :::
 
 The `upsert` merge strategy does primary-key based *upserts*:

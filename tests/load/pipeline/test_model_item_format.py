@@ -109,7 +109,7 @@ def test_simple_incremental(destination_config: DestinationTestConfiguration) ->
     )
     dataset = pipeline.dataset()
 
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
 
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
@@ -144,7 +144,7 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
     )
 
     dataset = pipeline.dataset()
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
     # Define a resource that aliases column "a" as "b"
@@ -188,11 +188,9 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
         "_dlt_load_id",
     }
 
-    casefolder = pipeline.sql_client().capabilities.casefold_identifier
-
     # The sum of "b" should match the sum of the original "a"
     result_df = dataset["copied_table_with_a_as_b"].df()
-    assert result_df[casefolder("b")].sum() == sum(i for i in range(10))
+    assert result_df["b"].sum() == sum(i for i in range(10))
 
 
 @pytest.mark.essential
@@ -220,7 +218,7 @@ def test_simple_model_jobs(
     dataset = pipeline.dataset()
 
     # Retrieve the SQL dialect and schema information
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
     # Define a resource for a SQL model that excludes column "b" and "_dlt_id" from the query
@@ -288,25 +286,23 @@ def test_simple_model_jobs(
         "_dlt_load_id",
     }
 
-    casefolder = pipeline.sql_client().capabilities.casefold_identifier
-
     # Validate results in the "model_with_no_b" table,
     # making sure column b is empty
     # and _dlt_id was created anew
     model_with_no_b_df = dataset["model_with_no_b"].df()
-    assert set([0, 1, 2, 3, 4]) == set(model_with_no_b_df[casefolder("a")].to_list())
-    assert [] == model_with_no_b_df[casefolder("b")].dropna().to_list()
+    assert set([0, 1, 2, 3, 4]) == set(model_with_no_b_df["a"].to_list())
+    assert [] == model_with_no_b_df["b"].dropna().to_list()
 
     # Validate the column order in the table created with a query with reversed column order,
     # ensuring _dlt_load_id was added and created anew
     model_reversed_select_df = dataset["model_reversed_select"].df()
-    expected_columns = [casefolder(key) for key in ["a", "b", "_dlt_id", "_dlt_load_id"]]
+    expected_columns = ["a", "b", "_dlt_id", "_dlt_load_id"]
     actual_columns = list(model_reversed_select_df.columns)
     assert (
         actual_columns == expected_columns
     ), f"Column mismatch: {actual_columns} != {expected_columns}"
-    assert len(set(model_reversed_select_df[casefolder("_dlt_load_id")])) == 1
-    assert set(model_reversed_select_df[casefolder("_dlt_load_id")]).pop() == load_info.loads_ids[0]
+    assert len(set(model_reversed_select_df["_dlt_load_id"])) == 1
+    assert set(model_reversed_select_df["_dlt_load_id"]).pop() == load_info.loads_ids[0]
 
     # Validate that each table has exactly one model job
     if destination_config.destination_type == "athena":
@@ -352,7 +348,7 @@ def test_model_from_two_tables(destination_config: DestinationTestConfiguration,
     )
 
     dataset = pipeline.dataset()
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
     merged_cols = dataset.schema.tables["merged_table"]["columns"]
 
     @dlt.resource(table_name="merged_table")
@@ -407,7 +403,7 @@ def test_model_from_two_consecutive_tables(destination_config: DestinationTestCo
     )
 
     dataset = pipeline.dataset()
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
 
     relation_ab = dataset["example_table_ab"]
     relation_ac = dataset["example_table_ac"]
@@ -511,7 +507,7 @@ def test_write_dispositions(
     )
     query = relation.query()
 
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
 
     @dlt.resource(
         write_disposition=write_disposition,
@@ -530,9 +526,7 @@ def test_write_dispositions(
         table_format=destination_config.run_kwargs["table_format"],
     )
 
-    casefolder = pipeline.sql_client().capabilities.casefold_identifier
-
-    result_items = dataset["example_table_1"].df()[casefolder("a")].tolist()
+    result_items = dataset["example_table_1"].df()["a"].tolist()
     result_items.sort()
 
     if write_disposition == "merge":
@@ -574,7 +568,7 @@ def test_multiple_statements_per_resource(
 
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
 
     # create a resource that generates sql statements to create 2 new tables
     # we also need to supply all hints so the table can be created,
@@ -695,7 +689,7 @@ def test_copying_table_with_dropped_column(
         **destination_config.run_kwargs,
     )
     dataset = pipeline.dataset()
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
     @dlt.resource(name=target_table_name)
@@ -748,8 +742,7 @@ def test_copying_table_with_dropped_column(
 
     # Validate load id or dlt id
     load_id = load_info.loads_ids[0]
-    casefolder = pipeline.sql_client().capabilities.casefold_identifier
-    result_items = dataset[target_table_name].df()[casefolder(drop_column)].to_list()
+    result_items = dataset[target_table_name].df()[drop_column].to_list()
 
     if drop_column == "_dlt_load_id":
         assert all(
@@ -799,7 +792,7 @@ def test_load_model_with_all_types(
 
     pipeline.run([my_resource()], **destination_config.run_kwargs)
     dataset = pipeline.dataset()
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
     example_table_columns = dataset.schema.tables["data_types"]["columns"]
 
     @dlt.resource()
@@ -851,7 +844,7 @@ def test_data_contract_on_tables(
     dataset = pipeline.dataset()
 
     # Retrieve the SQL dialect and schema information
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
     # Define a resource to create a new copied table
@@ -914,7 +907,7 @@ def test_data_contract_on_columns(
     dataset = pipeline.dataset()
 
     # Retrieve the SQL dialect and schema information
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
     # Define a resource to insert a new column into copied_table
@@ -1003,7 +996,7 @@ def test_data_contract_on_data_type(
     dataset = pipeline.dataset()
 
     # Retrieve the SQL dialect and schema information
-    select_dialect = pipeline.destination.capabilities().sqlglot_dialect
+    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
     example_table_columns = dataset.schema.tables["example_table"]["columns"]
     copied_table_columns = dataset.schema.tables["copied_table"]["columns"]
 

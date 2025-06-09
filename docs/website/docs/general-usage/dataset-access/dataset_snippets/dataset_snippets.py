@@ -62,10 +62,10 @@ def getting_started_snippet(pipeline: dlt.Pipeline) -> None:
 def accessing_tables_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_START accessing_tables
     # Using attribute access
-    items_relation = dataset.items
+    customers_relation = dataset.customers
 
     # Using item access
-    items_relation = dataset["items"]
+    customers_relation = dataset["customers"]
     # @@@DLT_SNIPPET_END accessing_tables
 
 
@@ -116,6 +116,18 @@ def row_counts_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END row_counts
 
 
+def context_manager_snippet(dataset: ReadableDBAPIDataset) -> None:
+    # @@@DLT_SNIPPET_START context_manager
+
+    # the dataset context manager will keep the connection open
+    # and close it after the with block is exited
+    with dataset as dataset_:
+        print(dataset.customers.limit(50).arrow())
+        print(dataset.purchases.arrow())
+
+    # @@@DLT_SNIPPET_END context_manager
+
+
 def limiting_records_snippet(dataset: ReadableDBAPIDataset) -> None:
     customers_relation = dataset.customers
     # @@@DLT_SNIPPET_START limiting_records
@@ -138,7 +150,7 @@ def select_columns_snippet(dataset: ReadableDBAPIDataset) -> None:
     items_list = customers_relation[["id", "name"]].fetchall()
 
     # Only get one column
-    items_list = customers_relation["name"].fetchall()
+    items_list = customers_relation[["name"]].fetchall()
     # @@@DLT_SNIPPET_END select_columns
 
 

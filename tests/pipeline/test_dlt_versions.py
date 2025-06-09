@@ -87,7 +87,7 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                     tempfile.mkdtemp(), ["dlt[duckdb]==0.3.0", "json-logging==1.4.1rc0"]
                 ) as venv:
                     # NOTE: we force a newer duckdb into the 0.3.0 dlt version to get compatible duckdb storage
-                    venv._install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
+                    venv.install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
                     # load 20 issues
                     print(
                         venv.run_script(
@@ -279,7 +279,7 @@ def assert_github_pipeline_end_state(
     pipeline: dlt.Pipeline, orig_schema: TStoredSchema, schema_updates: int
 ) -> dlt.Pipeline:
     # get tables counts
-    table_counts = load_table_counts(pipeline, *pipeline.default_schema.data_table_names())
+    table_counts = load_table_counts(pipeline)
     assert table_counts == {"issues": 100, "issues__assignees": 31, "issues__labels": 34}
     dlt_counts = load_table_counts(pipeline, *pipeline.default_schema.dlt_table_names())
     assert dlt_counts == {"_dlt_version": schema_updates, "_dlt_loads": 2, "_dlt_pipeline_state": 2}
@@ -320,7 +320,7 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
                 with Venv.create(
                     tempfile.mkdtemp(), ["dlt[duckdb]==0.3.0", "json-logging==1.4.1rc0"]
                 ) as venv:
-                    venv._install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
+                    venv.install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
                     # extract and normalize on old version but DO NOT LOAD
                     print(
                         venv.run_script(
@@ -397,7 +397,7 @@ def test_normalize_package_with_dlt_update(test_storage: FileStorage) -> None:
                 with Venv.create(
                     tempfile.mkdtemp(), ["dlt[duckdb]==0.3.0", "json-logging==1.4.1rc0"]
                 ) as venv:
-                    venv._install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
+                    venv.install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
                     # extract only
                     print(
                         venv.run_script(
@@ -434,7 +434,7 @@ def test_scd2_pipeline_update(test_storage: FileStorage) -> None:
                 venv_dir = tempfile.mkdtemp()
                 # venv_dir == "tmp/dlt0410"
                 with Venv.create(venv_dir, ["dlt[duckdb]==0.4.10"]) as venv:
-                    venv._install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
+                    venv.install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
 
                     print(venv.run_script("../tests/pipeline/cases/github_pipeline/github_scd2.py"))
                     # get data from original db
@@ -535,7 +535,7 @@ def test_normalize_path_separator_legacy_behavior(test_storage: FileStorage) -> 
                 with Venv.create(
                     venv_dir, ["dlt[duckdb]==0.3.0", "json-logging==1.4.1rc0"]
                 ) as venv:
-                    venv._install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
+                    venv.install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
                     try:
                         print(
                             venv.run_script("../tests/pipeline/cases/github_pipeline/github_rev.py")
@@ -569,6 +569,3 @@ def test_normalize_path_separator_legacy_behavior(test_storage: FileStorage) -> 
                     "_dlt_id",
                     "_dlt_load_id",
                 }
-                # datasets must be the same
-                data_ = pipeline.dataset().issues_2.select("issue_id", "id").fetchall()
-                print(data_)

@@ -1,9 +1,10 @@
-from inspect import Signature, isgenerator, isgeneratorfunction, unwrap
+from inspect import Signature, isgenerator
 from typing import Any, Sequence, Set, Type
 
 from dlt.common.exceptions import DltException
 from dlt.common.reflection.exceptions import ReferenceImportError
 from dlt.common.reflection.ref import ImportTrace
+from dlt.common.reflection.inspect import isgeneratorfunction
 from dlt.common.utils import get_callable_name
 
 
@@ -108,7 +109,7 @@ class UnclosablePipe(PipeException):
         if gen_name := getattr(gen, "__name__", None):
             type_name = f"{type_name} ({gen_name})"
         msg = f"Pipe with gen of type {type_name} cannot be closed."
-        if callable(gen) and isgeneratorfunction(unwrap(gen)):
+        if callable(gen) and isgeneratorfunction(gen):
             msg += " Closing of partially evaluated transformers is not yet supported."
         super().__init__(pipe_name, msg)
 
@@ -120,20 +121,6 @@ class ResourceNameMissing(DltResourceException):
             """Resource name is missing. If you create a resource directly from data ie. from a list you must pass the name explicitly in `name` argument.
         Please note that for resources created from functions or generators, the name is the function name by default.""",
         )
-
-
-class DynamicNameNotStandaloneResource(DltResourceException):
-    def __init__(self, resource_name: str) -> None:
-        super().__init__(
-            resource_name,
-            "You must set the resource as standalone to be able to dynamically set its name based"
-            " on call arguments",
-        )
-
-
-# class DependentResourceIsNotCallable(DltResourceException):
-#     def __init__(self, resource_name: str) -> None:
-#         super().__init__(resource_name, f"Attempted to call the dependent resource {resource_name}. Do not call the dependent resources. They will be called only when iterated.")
 
 
 class ResourceNotFoundError(DltResourceException, KeyError):
@@ -179,17 +166,6 @@ class InvalidResourceDataTypeBasic(InvalidResourceDataType):
         )
 
 
-class InvalidResourceDataTypeFunctionNotAGenerator(InvalidResourceDataType):
-    def __init__(self, resource_name: str, item: Any, _typ: Type[Any]) -> None:
-        super().__init__(
-            resource_name,
-            item,
-            _typ,
-            "Please make sure that function decorated with @dlt.resource uses 'yield' to return the"
-            " data.",
-        )
-
-
 class InvalidResourceDataTypeMultiplePipes(InvalidResourceDataType):
     def __init__(self, resource_name: str, item: Any, _typ: Type[Any]) -> None:
         super().__init__(
@@ -229,19 +205,6 @@ class InvalidTransformerGeneratorFunction(DltResourceException):
         super().__init__(resource_name, msg)
 
 
-class ResourceInnerCallableConfigWrapDisallowed(DltResourceException):
-    def __init__(self, resource_name: str, section: str) -> None:
-        self.section = section
-        msg = (
-            f"Resource {resource_name} in section {section} is defined over an inner function and"
-            " requests config/secrets in its arguments. Requesting secret and config values via"
-            " 'dlt.secrets.values' or 'dlt.config.value' is disallowed for resources that are"
-            " inner functions. Use the dlt.source to get the required configuration and pass them"
-            " explicitly to your source."
-        )
-        super().__init__(resource_name, msg)
-
-
 class InvalidResourceDataTypeIsNone(InvalidResourceDataType):
     def __init__(self, resource_name: str, item: Any, _typ: Type[Any]) -> None:
         super().__init__(
@@ -250,6 +213,19 @@ class InvalidResourceDataTypeIsNone(InvalidResourceDataType):
             _typ,
             "Resource data missing. Did you forget the return statement in @dlt.resource decorated"
             " function?",
+        )
+
+
+class InvalidResourceReturnsResource(InvalidResourceDataType):
+    def __init__(self, resource_name: str, item: Any, _typ: Type[Any]) -> None:
+        super().__init__(
+            resource_name,
+            item,
+            _typ,
+            "Resource returned another resource but the signature of the resource function is "
+            "missing a correct type annotation (DltResource or derived class). Please annotate "
+            f"function {item} correctly."
+            "",
         )
 
 

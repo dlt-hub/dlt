@@ -20,12 +20,13 @@ from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import (
+    FilesystemClient,
     FilesystemDestinationClientConfiguration,
     INIT_FILE_NAME,
 )
 
 from dlt.destinations.path_utils import create_path, prepare_datetime_params
-from tests.load.filesystem.utils import perform_load
+from tests.load.filesystem.utils import perform_load, setup_loader
 from tests.utils import TEST_STORAGE_ROOT, clean_test_storage, init_test_logging
 from tests.load.utils import TEST_FILE_LAYOUTS
 
@@ -104,6 +105,31 @@ def test_filesystem_follows_local_dir(location: str) -> None:
     lake_rel_dir = os.path.join(local_dir, "lake")
     assert client.bucket_path.endswith(lake_rel_dir)
     assert client.bucket_path == os.path.abspath(lake_rel_dir)
+
+
+@pytest.mark.parametrize(
+    "layout", ("{table_name}/{load_id}.{file_id}.{ext}", "{table_name}.{load_id}.{file_id}.{ext}")
+)
+def test_trailing_separators(layout: str, with_gdrive_buckets_env: str) -> None:
+    os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
+    load = setup_loader("_data")
+    client: FilesystemClient = load.get_destination_client(Schema("empty"))  # type: ignore[assignment]
+    # assert separators
+    assert client.dataset_path.endswith("_data/")
+    assert client.get_table_dir("_dlt_versions").endswith("_dlt_versions/")
+    assert client.get_table_dir("_dlt_versions", remote=True).endswith("_dlt_versions/")
+    is_folder = layout.startswith("{table_name}/")
+    if is_folder:
+        assert client.get_table_dir("letters").endswith("_data/letters/")
+        assert client.get_table_dir("letters", remote=True).endswith("_data/letters/")
+    else:
+        # strip prefix
+        assert client.get_table_dir("letters").endswith("_data/")
+        assert client.get_table_dir("letters", remote=True).endswith("_data/")
+    if is_folder:
+        assert client.get_table_prefix("letters").endswith("_data/letters/")
+    else:
+        assert client.get_table_prefix("letters").endswith("_data/letters.")
 
 
 @pytest.mark.parametrize("write_disposition", ("replace", "append", "merge"))

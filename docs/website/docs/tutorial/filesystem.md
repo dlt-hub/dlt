@@ -347,7 +347,7 @@ from dlt.common.typing import TDataItems
 from dlt.sources.filesystem import filesystem
 
 # Define a standalone transformer to read data from a JSON file.
-@dlt.transformer(standalone=True)
+@dlt.transformer
 def read_json(items: Iterator[FileItemDict]) -> Iterator[TDataItems]:
     for file_obj in items:
         with file_obj.open() as f:

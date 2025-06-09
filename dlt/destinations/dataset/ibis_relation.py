@@ -2,8 +2,6 @@ from typing import TYPE_CHECKING, Any, Union, Sequence
 from functools import partial
 import sqlglot
 
-from dlt.common.schema.typing import TTableSchemaColumns
-
 from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
 
 
@@ -29,45 +27,35 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         *,
         readable_dataset: "ReadableDBAPIDataset",
         ibis_object: IbisEpr = None,
-        columns_schema: TTableSchemaColumns = None,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
         super().__init__(readable_dataset=readable_dataset)
         self._ibis_object = ibis_object
-        self._columns_schema = columns_schema
 
-    def query(self) -> Any:
-        """build the query"""
+    def _query(self) -> Any:
         from dlt.helpers.ibis import ibis
 
-        target_dialect = self._dataset._destination.capabilities().sqlglot_dialect
+        ibis_expr = self._ibis_object
+        caps = self._dataset.sql_client.capabilities
+        target_dialect = caps.sqlglot_dialect
 
         # render sql directly if possible
+        # NOTE: ibis is optimized for reading a real schema from db and pushing back optimized sql
+        #  - it quotes all identifiers, there's no option to get unqoted query
+        #  - it converts full lists of column names back into star
+        #  - it optimizes the query inside, adds meaningless aliases to all tables etc.
         if target_dialect not in TRANSPILE_VIA_DEFAULT:
             if target_dialect == "tsql":
                 # NOTE: Ibis uses the product name "mssql" as the dialect instead of the official "tsql".
-                return ibis.to_sql(self._ibis_object, dialect="mssql")
+                return ibis.to_sql(ibis_expr, dialect="mssql")
             else:
-                return ibis.to_sql(self._ibis_object, dialect=target_dialect)
+                return ibis.to_sql(ibis_expr, dialect=target_dialect)
 
         # here we need to transpile to ibis default and transpile back to target with sqlglot
         # NOTE: ibis defaults to the duckdb dialect, if a dialect is not passed
-        sql = ibis.to_sql(self._ibis_object)
+        sql = ibis.to_sql(ibis_expr)
         sql = sqlglot.transpile(sql, write=target_dialect)[0]
         return sql
-
-    @property
-    def columns_schema(self) -> TTableSchemaColumns:
-        return self.compute_columns_schema()
-
-    @columns_schema.setter
-    def columns_schema(self, new_value: TTableSchemaColumns) -> None:
-        raise NotImplementedError("columns schema in ReadableDBAPIRelation can only be computed")
-
-    def compute_columns_schema(self) -> TTableSchemaColumns:
-        """provide schema columns for the cursor, may be filtered by selected columns"""
-        # TODO: provide column lineage tracing with sqlglot lineage
-        return self._columns_schema
 
     def _proxy_expression_method(self, method_name: str, *args: Any, **kwargs: Any) -> Any:
         """Proxy method calls to the underlying ibis expression, allowing to wrap the resulting expression in a new relation"""
@@ -84,41 +72,16 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
             for k, v in kwargs.items()
         }
 
-        # casefold string params, we assume these are column names
-        args = tuple(
-            self.sql_client.capabilities.casefold_identifier(arg) if isinstance(arg, str) else arg
-            for arg in args
-        )
-        kwargs = {
-            k: self.sql_client.capabilities.casefold_identifier(v) if isinstance(v, str) else v
-            for k, v in kwargs.items()
-        }
-
         # Call it with provided args
         result = method(*args, **kwargs)
 
-        # calculate columns schema for the result, some operations we know will not change the schema
-        # and select will just reduce the amount of column
-        columns_schema = None
-        if method_name == "select":
-            columns_schema = self._get_filtered_columns_schema(args)
-        elif method_name in ["filter", "limit", "order_by", "head"]:
-            columns_schema = self._columns_schema
-
         # If result is an ibis expression, wrap it in a new relation else return raw result
-        return self.__class__(
-            readable_dataset=self._dataset, ibis_object=result, columns_schema=columns_schema
-        )
+        return self.__class__(readable_dataset=self._dataset, ibis_object=result)
 
     def __getattr__(self, name: str) -> Any:
         """Wrap all callable attributes of the expression"""
 
         attr = getattr(self._ibis_object, name, None)
-
-        # try casefolded name for ibis columns access
-        if attr is None:
-            name = self._dataset._sql_client.capabilities.casefold_identifier(name)
-            attr = getattr(self._ibis_object, name, None)
 
         if attr is None:
             raise AttributeError(
@@ -126,31 +89,23 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
             )
 
         if not callable(attr):
-            # NOTE: we don't need to forward columns schema for non-callable attributes, these are usually columns
+            # NOTE: This case usually is a column
             return self.__class__(readable_dataset=self._dataset, ibis_object=attr)
 
         return partial(self._proxy_expression_method, name)
 
     def __getitem__(self, columns: Union[str, Sequence[str]]) -> "ReadableIbisRelation":
-        # casefold column-names
-        columns = [columns] if isinstance(columns, str) else columns
-        columns = [self.sql_client.capabilities.casefold_identifier(col) for col in columns]
+        if not isinstance(columns, (str, Sequence)):
+            raise TypeError(
+                f"Invalid argument type: {type(columns).__name__}, requires a sequence of column"
+                " names Sequence[str] or a single column name str"
+            )
+
         expr = self._ibis_object[columns]
         return self.__class__(
             readable_dataset=self._dataset,
             ibis_object=expr,
-            columns_schema=self._get_filtered_columns_schema(columns),
         )
-
-    def _get_filtered_columns_schema(self, columns: Sequence[str]) -> TTableSchemaColumns:
-        if not self._columns_schema:
-            return None
-        try:
-            return {col: self._columns_schema[col] for col in columns}
-        except KeyError:
-            # NOTE: select statements can contain new columns not present in the original schema
-            # here we just break the column schema inheritance chain
-            return None
 
     # forward ibis methods defined on interface
     def limit(self, limit: int, **kwargs: Any) -> "ReadableIbisRelation":

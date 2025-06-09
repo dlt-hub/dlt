@@ -10,7 +10,12 @@ from typing import (
     Tuple,
     AnyStr,
     overload,
+    runtime_checkable,
 )
+
+from abc import ABC, abstractmethod
+
+from sqlglot.schema import Schema as SQLGlotSchema
 
 from dlt.common.typing import Self, Generic, TypeVar
 from dlt.common.exceptions import MissingDependencyException
@@ -28,7 +33,7 @@ else:
     IbisBackend = Any
 
 
-class SupportsReadableRelation(Protocol):
+class SupportsReadableRelation:
     """A readable relation retrieved from a destination that supports it"""
 
     columns_schema: TTableSchemaColumns
@@ -37,11 +42,22 @@ class SupportsReadableRelation(Protocol):
     """
 
     def query(self) -> Any:
-        """Returns the sql query that represents the relation
+        """Returns the sql query that represents the relation. The query will be qualified, quoted and escaped
+           according to a SQL dialect that the destination uses, unless query normalization is disabled by the user.
 
         Returns:
-            Any: The sql query that represents the relation
+            Any: The qualified sql query that represents the relation
         """
+        raise NotImplementedError("Query is not supported for this relation")
+
+    def compute_columns_schema(
+        self,
+        infer_sqlglot_schema: bool = True,
+        allow_anonymous_columns: bool = True,
+        allow_partial: bool = True,
+    ) -> TTableSchemaColumns:
+        """Return the expected dlt schema of the execution result of self.query()"""
+        raise NotImplementedError("Compute columns schema is not supported for this relation")
 
     def df(self, chunk_size: int = None) -> Optional[DataFrame]:
         """Fetches the results as arrow table. Uses the native pandas implementation of the destination client cursor if available.
@@ -52,6 +68,7 @@ class SupportsReadableRelation(Protocol):
         Returns:
             Optional[DataFrame]: A data frame with query results.
         """
+        raise NotImplementedError("Fetching as dataframe is not supported for this relation")
 
     def arrow(self, chunk_size: int = None) -> Optional[ArrowTable]:
         """Fetches the results as arrow table. Uses the native arrow implementation of the destination client cursor if available.
@@ -62,6 +79,7 @@ class SupportsReadableRelation(Protocol):
         Returns:
             Optional[ArrowTable]: An arrow table with query results.
         """
+        raise NotImplementedError("Fetching as arrow table is not supported for this relation")
 
     def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
         """Iterates over data frames of 'chunk_size' items. Uses the native pandas implementation of the destination client cursor if available.
@@ -72,6 +90,7 @@ class SupportsReadableRelation(Protocol):
         Returns:
             Generator[DataFrame, None, None]: A generator of data frames with query results.
         """
+        raise NotImplementedError("Iterating over data frames is not supported for this relation")
 
     def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
         """Iterates over arrow tables of 'chunk_size' items. Uses the native arrow implementation of the destination client cursor if available.
@@ -82,13 +101,15 @@ class SupportsReadableRelation(Protocol):
         Returns:
             Generator[ArrowTable, None, None]: A generator of arrow tables with query results.
         """
+        raise NotImplementedError("Iterating over arrow tables is not supported for this relation")
 
     def fetchall(self) -> List[Tuple[Any, ...]]:
         """Fetches all items as a list of python tuples. Uses the native dbapi fetchall implementation of the destination client cursor.
 
         Returns:
-            List[Tuple[Any, ...]]: A list of python tuples with query results.
+            List[Tuple[Any, ...]]: A list of python tuples w
         """
+        raise NotImplementedError("Fetching all items is not supported for this relation")
 
     def fetchmany(self, chunk_size: int) -> List[Tuple[Any, ...]]:
         """Fetches the first 'chunk_size' items as a list of python tuples. Uses the native dbapi fetchmany implementation of the destination client cursor.
@@ -99,6 +120,7 @@ class SupportsReadableRelation(Protocol):
         Returns:
             List[Tuple[Any, ...]]: A list of python tuples with query results.
         """
+        raise NotImplementedError("Fetching many items is not supported for this relation")
 
     def iter_fetch(self, chunk_size: int) -> Generator[List[Tuple[Any, ...]], Any, Any]:
         """Iterates in lists of Python tuples in 'chunk_size' chunks. Uses the native dbapi fetchmany implementation of the destination client cursor.
@@ -109,6 +131,7 @@ class SupportsReadableRelation(Protocol):
         Returns:
             Generator[List[Tuple[Any, ...]], Any, Any]: A generator of lists of python tuples with query results.
         """
+        raise NotImplementedError("Iterating over fetch results is not supported for this relation")
 
     def fetchone(self) -> Optional[Tuple[Any, ...]]:
         """Fetches the first item as a python tuple. Uses the native dbapi fetchone implementation of the destination client cursor.
@@ -116,6 +139,23 @@ class SupportsReadableRelation(Protocol):
         Returns:
             Optional[Tuple[Any, ...]]: A python tuple with the first item of the query results.
         """
+        raise NotImplementedError("Fetching one item is not supported for this relation")
+
+    def scalar(self) -> Any:
+        """fetch first value of first column on first row as python primitive"""
+        row = self.fetchmany(2)
+        if not row:
+            return None
+        if len(row) != 1:
+            raise ValueError(
+                "Expected scalar result (single row, single column), got more than one row"
+            )
+        if len(row[0]) != 1:
+            raise ValueError(
+                "Expected scalar result (single row, single column), got 1 row with"
+                f" {len(row[0])} columns"
+            )
+        return row[0][0]
 
     # modifying access parameters
     def limit(self, limit: int, **kwargs: Any) -> Self:
@@ -128,6 +168,7 @@ class SupportsReadableRelation(Protocol):
         Returns:
             Self: The relation with the limit applied.
         """
+        raise NotImplementedError("Limiting the relation is not supported for this relation")
 
     def head(self, limit: int = 5) -> Self:
         """By default returns a relation with the first 5 rows selected.
@@ -138,6 +179,7 @@ class SupportsReadableRelation(Protocol):
         Returns:
             Self: The relation with the limit applied.
         """
+        raise NotImplementedError("Head is not supported for this relation")
 
     def select(self, *columns: str) -> Self:
         """Returns a new relation with the given columns selected.
@@ -148,6 +190,7 @@ class SupportsReadableRelation(Protocol):
         Returns:
             Self: The relation with the columns selected.
         """
+        raise NotImplementedError("Selecting columns is not supported for this relation")
 
     @overload
     def __getitem__(self, column: str) -> Self: ...
@@ -164,6 +207,7 @@ class SupportsReadableRelation(Protocol):
         Returns:
             Self: The relation with the columns selected.
         """
+        raise NotImplementedError("Getting an item is not supported for this relation")
 
     def __getattr__(self, attr: str) -> Any:
         """get an attribute of the relation
@@ -174,6 +218,7 @@ class SupportsReadableRelation(Protocol):
         Returns:
             Any: The attribute of the relation
         """
+        raise NotImplementedError("Getting an attribute is not supported for this relation")
 
     def __copy__(self) -> Self:
         """create a copy of the relation object
@@ -181,6 +226,7 @@ class SupportsReadableRelation(Protocol):
         Returns:
             Self: The copy of the relation object
         """
+        raise NotImplementedError("Copying the relation is not supported for this relation")
 
 
 class DBApiCursor(SupportsReadableRelation):
@@ -210,6 +256,14 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
         """
 
     @property
+    def sqlglot_schema(self) -> SQLGlotSchema:
+        """Returns the computed and cached sqlglot schema of the dataset
+
+        Returns:
+            SQLGlotSchema: The sqlglot schema of the dataset
+        """
+
+    @property
     def dataset_name(self) -> str:
         """Returns the name of the dataset
 
@@ -217,11 +271,12 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
             str: The name of the dataset
         """
 
-    def __call__(self, query: Any) -> SupportsReadableRelation:
+    def __call__(self, query: Any, normalize_query: bool = True) -> SupportsReadableRelation:
         """Returns a readable relation for a given sql query
 
         Args:
             query (Any): The sql query to base the relation on
+            normalize_query (bool, optional): Whether to run the query as is or perform query normalization and lineage. Experimental.
 
         Returns:
             SupportsReadableRelation: The readable relation for the query
@@ -255,7 +310,12 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
         """
 
     def row_counts(
-        self, *, data_tables: bool = True, dlt_tables: bool = False, table_names: List[str] = None
+        self,
+        *,
+        data_tables: bool = True,
+        dlt_tables: bool = False,
+        table_names: List[str] = None,
+        load_id: str = None,
     ) -> SupportsReadableRelation:
         """Returns the row counts of the dataset
 
@@ -263,7 +323,7 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
             data_tables (bool, optional): Whether to include data tables. Defaults to True.
             dlt_tables (bool, optional): Whether to include dlt tables. Defaults to False.
             table_names (List[str], optional): The names of the tables to include. Defaults to None. Will override data_tables and dlt_tables if set
-
+            load_id (str, optional): If set, only count rows associated with a given load id. Will exclude tables that do not have a load id.
         Returns:
             SupportsReadableRelation: The row counts of the dataset as ReadableRelation
         """

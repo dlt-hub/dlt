@@ -69,7 +69,7 @@ def readers(  # noqa DOC
     )
 
 
-@decorators.resource(primary_key="file_url", spec=FilesystemConfigurationResource, standalone=True)
+@decorators.resource(primary_key="file_url", spec=FilesystemConfigurationResource)
 def filesystem(  # noqa DOC
     bucket_url: str = dlt.secrets.value,
     credentials: Union[FileSystemCredentials, AbstractFileSystem] = dlt.secrets.value,
@@ -133,7 +133,7 @@ def filesystem(  # noqa DOC
         yield files_chunk
 
 
-read_csv = decorators.transformer(standalone=True)(_read_csv)
-read_jsonl = decorators.transformer(standalone=True)(_read_jsonl)
-read_parquet = decorators.transformer(standalone=True)(_read_parquet)
-read_csv_duckdb = decorators.transformer(standalone=True)(_read_csv_duckdb)
+read_csv = decorators.transformer()(_read_csv)
+read_jsonl = decorators.transformer()(_read_jsonl)
+read_parquet = decorators.transformer()(_read_parquet)
+read_csv_duckdb = decorators.transformer()(_read_csv_duckdb)

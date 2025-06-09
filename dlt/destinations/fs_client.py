@@ -14,11 +14,15 @@ class FSClientBase(ABC):
     @property
     @abstractmethod
     def dataset_path(self) -> str:
+        """A path within a bucket to tables in a dataset, ending with separator"""
         pass
 
     @abstractmethod
     def get_table_dir(self, table_name: str) -> str:
-        """returns directory for given table"""
+        """Returns a directory containing table files, ending with separator.
+        Native filesystem paths are used for local filesystems.
+        Note that many tables can share the same table dir.
+        """
         pass
 
     @abstractmethod
@@ -28,7 +32,7 @@ class FSClientBase(ABC):
 
     @abstractmethod
     def list_table_files(self, table_name: str) -> List[str]:
-        """returns all filepaths for a given table"""
+        """Returns all filepaths for a given table. Native filesystem paths are used for local filesystems."""
         pass
 
     @abstractmethod
