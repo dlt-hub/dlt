@@ -30,28 +30,28 @@ jobs:
             - name: bigquery
               destinations: "[\"bigquery\"]"
               filesystem_drivers: "[\"memory\"]"
-              extras: "bigquery,parquet"
+              extras: "bigquery parquet"
               additional_install_commands: ""
 
             # Motherduck
             - name: motherduck
               destinations: "[\"motherduck\"]"
               filesystem_drivers: "[\"memory\"]"
-              extras: "motherduck,s3,gs,az,parquet"
+              extras: "motherduck s3 gs az parquet"
               additional_install_commands: ""
 
             # Qdrant 
             - name: qdrant
               destinations: "[\"qdrant\"]"
               filesystem_drivers: "[\"memory\"]"
-              extras: "qdrant,parquet"
+              extras: "qdrant parquet"
               additional_install_commands: ""
 
             # Snowflake
             - name: snowflake
               destinations: "[\"snowflake\"]"
               filesystem_drivers: "[\"memory\"]"
-              extras: "snowflake,s3,gs,az,parquet"
+              extras: "snowflake s3 gs az parquet"
               additional_install_commands: ""
 
     env:
