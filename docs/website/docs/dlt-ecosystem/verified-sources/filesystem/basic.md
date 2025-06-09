@@ -27,10 +27,10 @@ from dlt.sources.filesystem import filesystem, read_parquet
 
 filesystem_resource = filesystem(
   bucket_url="file://Users/admin/Documents/parquet_files",
-  file_glob="**/*.parquet"
+  file_glob="**/*.parquet",
+  incremental=dlt.sources.incremental("modification_date")
 )
 filesystem_pipe = filesystem_resource | read_parquet()
-filesystem_pipe.apply_hints(incremental=dlt.sources.incremental("modification_date"))
 
 # We load the data into the table_name table
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
@@ -379,9 +379,11 @@ import dlt
 from dlt.sources.filesystem import filesystem, read_csv
 
 # This configuration will only consider new CSV files
-new_files = filesystem(bucket_url="s3://bucket_name", file_glob="directory/*.csv")
-# Add incremental on modification time
-new_files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
+new_files = filesystem(
+  bucket_url="s3://bucket_name",
+  file_glob="directory/*.csv",
+  incremental=dlt.sources.incremental("modification_date")
+)
 
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 load_info = pipeline.run((new_files | read_csv()).with_name("csv_files"))
@@ -415,8 +417,10 @@ import dlt
 from dlt.sources.filesystem import filesystem, read_csv
 
 # This configuration will only consider modified CSV files
-new_files = filesystem(bucket_url="s3://bucket_name", file_glob="directory/*.csv")
-new_files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
+new_files = filesystem(
+  bucket_url="s3://bucket_name",
+  file_glob="directory/*.csv", incremental=dlt.sources.incremental("modification_date")
+)
 
 # And in each modified file, we filter out only updated records
 filesystem_pipe = (new_files | read_csv())
@@ -426,7 +430,29 @@ load_info = pipeline.run(filesystem_pipe)
 print(load_info)
 ```
 
-### 6. Filter files
+### 6. Split large incremental loads
+If you have many files to process or they are large you may choose to split pipeline runs into smaller chunks (where single file is the smallest). There are
+two methods to do that:
+
+Partitioning works as follows:
+1. Obtain a list of files ie. by just listing your resource `files = list(filesystem(...))`
+2. Order your list by modification date and split it into equal chunks.
+3. For each chunk find min and max modification date and
+use [incremental with `end_value`](../../../general-usage/incremental/cursor.md#using-end_value-for-backfill) for backfill. 
+4. You can load each partition in a loop or in parallel (ie. in separate process).
+
+Set count or time limit and run pipeline in a loop. **Note that you must set row_order on incremental to not miss a file**:
+```py
+# return files in order of modification_date
+incremental_ = dlt.sources.incremental("modification_date", row_order="asc")
+# each page contains only one file
+fs_ = filesystem(bucket_url=bucket_url, file_glob="csv/*", incremental=incremental_, files_per_page=1)
+# process one file in each run, you could also use max_time to process files ie. for an hour
+while pipeline.run(fs_.with_name("files").add_limit(1)).has_data:
+  print(pipeline.last_trace.last_load_info)
+```
+
+### 7. Filter files
 
 If you need to filter out files based on their metadata, you can easily do this using the `add_filter` method.
 Within your filtering function, you'll have access to [any field](advanced#fileitem-fields) of the `FileItem` representation.

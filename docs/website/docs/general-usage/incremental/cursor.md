@@ -158,6 +158,10 @@ when using `min()` "higher" and "lower" are inverted.
 If you use `row_order`, **make sure that the data source returns ordered records** (ascending / descending) on the cursor field,
 e.g., if an API returns results both higher and lower
 than the given `end_value` in no particular order, data reading stops and you'll miss the data items that were out of order.
+The following commonly used sources apply row order to returned rows:
+1. [sql_database](../../dlt-ecosystem/verified-sources/sql_database/)
+2. [filesystem](../../dlt-ecosystem/verified-sources/filesystem/)
+3. [mongodb](../../dlt-ecosystem/verified-sources/mongodb.md)
 :::
 
 Row order is most useful when:
@@ -227,7 +231,7 @@ def tickets(
 
 ## Deduplicate overlapping ranges with primary key
 
-`Incremental` **does not** deduplicate datasets like the **merge** write disposition does. However, it ensures that when another portion of data is extracted, records that were previously loaded won't be included again. `dlt` assumes that you load a range of data, where the lower bound is inclusive (i.e., greater than or equal). This ensures that you never lose any data but will also re-acquire some rows. For example, if you have a database table with a cursor field on `updated_at` which has a day resolution, then there's a high chance that after you extract data on a given day, more records will still be added. When you extract on the next day, you should reacquire data from the last day to ensure all records are present; however, this will create overlap with data from the previous extract.
+`Incremental` **does not** deduplicate datasets like the **merge** write disposition does. However, it ensures that when another portion of data is extracted, records that were previously loaded **at the end of range** won't be included again. `dlt` assumes that you load a range of data, where the lower bound is inclusive by default (i.e., greater than or equal). This ensures that you never lose any data but will also re-acquire some rows. For example, if you have a database table with a cursor field on `updated_at` which has a day resolution, then there's a high chance that after you extract data on a given day, more records will still be added. When you extract on the next day, you should reacquire data from the last day to ensure all records are present; however, this will create overlap with data from the previous extract.
 
 By default, a content hash (a hash of the JSON representation of a row) will be used to deduplicate. This may be slow, so `dlt.sources.incremental` will inherit the primary key that is set on the resource. You can optionally set a `primary_key` that is used exclusively to deduplicate and which does not become a table hint. The same setting lets you disable the deduplication altogether when an empty tuple is passed. Below, we pass `primary_key` directly to `incremental` to disable deduplication. That overrides the `delta` primary_key set in the resource:
 
@@ -239,10 +243,11 @@ def some_data(last_timestamp=dlt.sources.incremental("item.ts", primary_key=()))
         yield {"delta": i, "item": {"ts": pendulum.now().timestamp()}}
 ```
 
-This deduplication process is always enabled when `range_start` is set to `"closed"` (default).
+This deduplication process is enabled when `range_start` is set to `"closed"` (default).
 When you pass `range_start="open"` no deduplication is done as it is not needed as rows with the previous cursor value are excluded. This can be a useful optimization to avoid the performance overhead of deduplication if the cursor field is guaranteed to be unique.
+Deduplication is also disabled when [lag](lag.md) is used or when `end_value` is specified as in this case, state is disabled and no hashes from previous runs will be present.
 
-## Using `dlt.sources.incremental` with dynamically created resources
+## Use `dlt.sources.incremental` with dynamically created resources
 
 When resources are [created dynamically](../source.md#create-resources-dynamically), it is possible to use the `dlt.sources.incremental` definition as well.
 

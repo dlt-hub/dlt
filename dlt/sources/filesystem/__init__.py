@@ -78,6 +78,7 @@ def filesystem(  # noqa DOC
     extract_content: bool = False,
     kwargs: Optional[Dict[str, Any]] = None,
     client_kwargs: Optional[Dict[str, Any]] = None,
+    incremental: Optional[dlt.sources.incremental[Any]] = None,
 ) -> Iterator[List[FileItem]]:
     """This resource lists files in `bucket_url` using `file_glob` pattern. The files are yielded as FileItem which also
     provide methods to open and read file data. It should be combined with transformers that further process (ie. load files)
@@ -103,7 +104,22 @@ def filesystem(  # noqa DOC
         )[0]
 
     files_chunk: List[FileItem] = []
-    for file_model in glob_files(fs_client, bucket_url, file_glob):
+
+    iter_ = glob_files(fs_client, bucket_url, file_glob)
+
+    # if incremental is set with row order, use it to order the results
+    # NOTE: fsspec glob for buckets reads all files before running iterator
+    #  so below we do not have real batching anyway
+    if incremental and incremental.row_order:
+        iter_ = iter(
+            sorted(
+                list(glob_files(fs_client, bucket_url, file_glob)),
+                key=lambda f_: f_[incremental.cursor_path],  # type: ignore[literal-required]
+                reverse=incremental.row_order == "desc",
+            )
+        )
+
+    for file_model in iter_:
         file_dict = FileItemDict(file_model, fs_client)
         if extract_content:
             file_dict["file_content"] = file_dict.read_bytes()

@@ -144,17 +144,18 @@ will create `sql_database` folder with the source code that you can import and u
    :::
 
 ## Incremental loading
+Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing ID) to load only new or updated data. In essence, arguments that you pass
+to [dlt.sources.incremental](../../../general-usage/incremental/) are used by `dlt` to generate SQL query that will select the rows that you need. 
 
-Efficient data management often requires loading only new or updated data from your SQL databases, rather than reprocessing the entire dataset. This is where incremental loading comes into play.
-
-Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing ID) to load only data newer than a specified initial value, enhancing efficiency by reducing processing time and resource use. Read [here](../../../walkthroughs/sql-incremental-configuration) for more details on incremental loading with `dlt`.
+Read [step by step guide on how to use incremental with sql_database](../../../walkthroughs/sql-incremental-configuration).
 
 ### How to configure
 1. **Choose a cursor column**: Identify a column in your SQL table that can serve as a reliable indicator of new or updated rows. Common choices include timestamp columns or auto-incrementing IDs.
-1. **Set an initial value**: Choose a starting value for the cursor to begin loading data. This could be a specific timestamp or ID from which you wish to start loading data.
-1. **Deduplication**: When using incremental loading, the system automatically handles the deduplication of rows based on the primary key (if available) or row hash for tables without a primary key.
-1. **Set end_value for backfill**: Set `end_value` if you want to backfill data from a certain range.
-1. **Order returned rows**: Set `row_order` to `asc` or `desc` to order returned rows.
+2. **Set an initial value(optional)**: Choose an initial value for the cursor to begin loading data. This could be a specific timestamp or ID from which you wish to start loading. After first run it will be replaced with the maximum cursor value from the selected rows.
+3. **Set the comparison direction in the query**. By default greater than or equal op (**>=**) is used to compare initial/previous value with row column value. You can change it with `last_value_func` argument (**max**/**min**).
+4. **Set if the comparison is inclusive or exclusive**. By default the range is closed (equal values are included). [Look here for explanation and examples](advanced.md#inclusive-and-exclusive-filtering). Note that for closed ranges `dlt` will use [internal deduplication](../../../general-usage/incremental/cursor.md#deduplicate-overlapping-ranges-with-primary-key) which adds some processing cost.
+4. **Configure backfill options(optional)**. You can use `end_value` with `range_end` to read data from specified range. You can also control **order returned rows**
+to split long incremental loading into many chunks by time and row count. [Look here for details and examples]
 
 :::info Special characters in the cursor column name
 If your cursor column name contains special characters (e.g., `$`) you need to escape it when passing it to the `incremental` function. For example, if your cursor column is `example_$column`, you should pass it as `"'example_$column'"` or `'"example_$column"'` to the `incremental` function: `incremental("'example_$column'", initial_value=...)`.
@@ -186,6 +187,9 @@ If your cursor column name contains special characters (e.g., `$`) you need to e
   ```
 
   Behind the scene, the loader generates a SQL query filtering rows with `last_modified` values greater or equal to the incremental value. In the first run, this is the initial value (midnight (00:00:00) January 1, 2024).
+  ```sql
+  SELECT * FROM family WHERE last_modified >= '2024-01-01T00:00:00Z'
+  ```
   In subsequent runs, it is the latest value of `last_modified` that `dlt` stores in [state](../../../general-usage/state).
 
 2. **Incremental loading with the source `sql_database`**.
@@ -197,13 +201,20 @@ If your cursor column name contains special characters (e.g., `$`) you need to e
   from dlt.sources.sql_database import sql_database
 
   source = sql_database().with_resources("family")
-  # Using the "last_modified" field as an incremental field using initial value of midnight January 1, 2024
-  source.family.apply_hints(incremental=dlt.sources.incremental("updated", initial_value=pendulum.DateTime(2022, 1, 1, 0, 0, 0)))
+  # Using the "last_modified" field as an incremental field using initial value of midnight January 1, 2024 and exclusive comparison
+  source.family.apply_hints(
+    incremental=dlt.sources.incremental("updated", initial_value=pendulum.DateTime(2022, 1, 1, 0, 0, 0), range_start="open")
+    )
 
   # Running the pipeline
   pipeline = dlt.pipeline(destination="duckdb")
   load_info = pipeline.run(source, write_disposition="merge")
   print(load_info)
+  ```
+Which generates the following query:
+  ```sql
+  -- mind the exclusive comparison with > due to range being open
+  SELECT * FROM family WHERE last_modified > '2024-01-01T00:00:00Z'
   ```
 
   :::info

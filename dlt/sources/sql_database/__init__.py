@@ -93,7 +93,7 @@ def sql_database(
         resolve_foreign_keys (bool): Translate foreign keys in the same schema to `references` table hints.
             May incur additional database calls as all referenced tables are reflected.
 
-        engine_adapter_callback (Optional[Callable[[Engine], Engine]]): Callback to configure, modify and Engine instance that will be used to open a connection ie. to
+        engine_adapter_callback (Optional[Callable[[Engine], Engine]]): Callback to configure, modify an Engine instance that will be used to open a connection ie. to
             set transaction isolation level.
 
     Yields:
@@ -226,7 +226,7 @@ def sql_table(
         resolve_foreign_keys (bool): Translate foreign keys in the same schema to `references` table hints.
             May incur additional database calls as all referenced tables are reflected.
 
-        engine_adapter_callback (Callable[[Engine], Engine]): Callback to configure, modify and Engine instance that will be used to open a connection ie. to
+        engine_adapter_callback (Callable[[Engine], Engine]): Callback to configure, modify an Engine instance that will be used to open a connection ie. to
             set transaction isolation level.
 
         write_disposition (TWriteDispositionConfig): write disposition of the table resource, defaults to `append`.
