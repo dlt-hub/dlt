@@ -63,11 +63,6 @@ jobs:
   # Remote destination tests and docs snippets, needs secrets, 
   # so we depend on authorize and forward secrets
   #
-  test_destinations:
-    needs: [test_common, authorize_run_from_fork]
-    uses: ./.github/workflows/test_destinations.yml
-    secrets: inherit
-
   test_docs_snippets:
     needs: [test_common, authorize_run_from_fork]
     uses: ./.github/workflows/test_docs_snippets.yml

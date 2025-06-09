@@ -56,8 +56,9 @@ jobs:
 
             # Filesystem
             - name: filesystem
-              destinations: "[\"filesystem\"]"
-              filesystem_drivers: "[\"memory\"]"
+              destinations: "[\"filesystem\", \"dummy\"]"
+              # note that all buckets are enabled for testing
+              filesystem_drivers: "[\"memory\", \"file\", \"r2\", \"s3\", \"gs\", \"az\", \"abfss\", \"gdrive\"]" # excludes sftp
               extras: "gs s3 az parquet duckdb filesystem deltalake pyiceberg"
               post_install_commands: "poetry run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
 
@@ -87,6 +88,15 @@ jobs:
               extras: "synapse parquet"
               pre_install_commands: "sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
 
+            # Postgres and Redshift (used to be test_destinations.yml)
+            - name: postgres and redshift
+              # TODO: check wether duckdb and all filesystem drivers need to be here, if so, explain why
+              destinations: "[\"redshift\", \"postgres\", \"duckdb\", \"dummy\"]"
+              filesystem_drivers: "[\"memory\", \"file\", \"r2\", \"s3\", \"gs\", \"az\", \"abfss\", \"gdrive\"]" # excludes sftp
+              # TODO: check wether filesystem and cli is needed here?
+              extras: "postgres redshift postgis s3 gs az parquet duckdb cli filesystem"
+              with: ",adbc"
+
             # Qdrant (NOTE: should be disabled?)
             - name: qdrant
               destinations: "[\"qdrant\"]"
@@ -103,6 +113,12 @@ jobs:
         ACTIVE_DESTINATIONS: ${{ matrix.destinations }}
         ALL_FILESYSTEM_DRIVERS: ${{ matrix.filesystem_drivers }}
         EXCLUDED_DESTINATION_CONFIGURATIONS: ${{ matrix.excluded_destination_configurations || '[]' }}
+
+        # For s3 compatibility tests, used by "postgres and redshift"
+        TESTS__R2_AWS_ACCESS_KEY_ID: a4950a5003b26f5a71ac97ef3848ff4c
+        TESTS__R2_AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+        TESTS__R2_ENDPOINT_URL: https://9830548e4e4b582989be0811f2a0a97f.r2.cloudflarestorage.com
+        TESTS__R2_REGION_NAME: us-east-1
 
     defaults:
       run:
@@ -134,7 +150,7 @@ jobs:
         if: ${{ matrix.pre_install_commands }}
 
       - name: Install dependencies
-        run: poetry install --no-interaction --with sentry-sdk,pipeline,ibis,providers --extras "${{ matrix.extras }}"
+        run: poetry install --no-interaction --with sentry-sdk,pipeline,ibis,providers${{ matrix.with }} --extras "${{ matrix.extras }}"
 
       - name: Run post install commands
         run: ${{ matrix.post_install_commands }}
