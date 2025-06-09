@@ -236,12 +236,6 @@ def _preserve_environ() -> Iterator[None]:
                 del environ[key_]
 
 
-@pytest.fixture(autouse=True)
-def duckdb_pipeline_location(preserve_environ) -> Iterator[None]:
-    with custom_environ({"DESTINATION__DUCKDB__CREDENTIALS": ":pipeline:"}):
-        yield
-
-
 class MockableRunContext(RunContext):
     @property
     def name(self) -> str:

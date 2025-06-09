@@ -137,7 +137,8 @@ def test_table_format_core(
     assert remote_url.endswith(("data_types", "_dlt_pipeline_state", ""))
     bucket_url = destination_config.bucket_url
     if FilesystemConfiguration.is_local_path(bucket_url):
-        bucket_url = FilesystemConfiguration.make_file_url(bucket_url)
+        # TODO: add local_dir via FilesystemConfiguration.make_file_url
+        bucket_url = FilesystemConfiguration.make_file_url(os.path.join("_storage", bucket_url))
     assert remote_url.startswith(bucket_url)
 
     # another run should append rows to the table

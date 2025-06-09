@@ -98,6 +98,10 @@ class WithLocalFiles(BaseConfiguration):
 
 @configspec
 class FilesystemConfigurationWithLocalFiles(FilesystemConfiguration, WithLocalFiles):
+    """FilesystemConfiguration that adjust relative local filesystem bucket_url to
+    be relative to `local_dir`.
+    """
+
     def normalize_bucket_url(self) -> None:
         # here we deal with normalized file:// local paths
         if self.is_local_filesystem:

@@ -57,6 +57,7 @@ def test_postgres_encoded_binary(
 
 
 # do not remove - it allows us to filter tests by destination
+@pytest.mark.no_load
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, subset=["postgres"]),

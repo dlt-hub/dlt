@@ -121,12 +121,13 @@ def test_fsspec_as_credentials(
     item: FileItemDict = None
     for item in gs_resource:
         _assert_cached(item.fsspec)
+        file_url = item["file_url"]
         break
     assert item
 
     # get authenticated client
     fs_client = fsspec_from_resource(gs_resource)
-    print(fs_client.ls(bucket_url))
+    print(fs_client.ls(file_url))
     _assert_cached(fs_client)
 
     # use to create resource instead of credentials

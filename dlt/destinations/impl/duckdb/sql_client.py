@@ -210,7 +210,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         elif isinstance(ex, duckdb.IOException):
             message = str(ex)
             if (
-                "read from delta table" in message and "No files in log segment" in message
+                "delta" in message and "No files in log segment" in message
             ) or "Path does not exist" in message:
                 # delta scanner with no delta data and metadata exist in the location
                 return DatabaseUndefinedRelation(ex)
