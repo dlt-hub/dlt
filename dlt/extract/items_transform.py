@@ -11,8 +11,8 @@ from typing import (
     Optional,
     Union,
 )
-from concurrent.futures import Future
 
+from dlt.common.data_writers.writers import count_rows_in_items
 from dlt.common.typing import (
     TAny,
     TDataItem,
@@ -146,9 +146,12 @@ class ValidateItem(ItemTransform[TDataItem]):
 class LimitItem(ItemTransform[TDataItem]):
     placement_affinity: ClassVar[float] = 1.1  # stick to end right behind incremental
 
-    def __init__(self, max_items: Optional[int], max_time: Optional[float]) -> None:
+    def __init__(
+        self, max_items: Optional[int], max_time: Optional[float], count_rows: bool
+    ) -> None:
         self.max_items = max_items if max_items is not None else -1
         self.max_time = max_time
+        self.count_rows = count_rows
 
     def bind(self, pipe: SupportsPipe) -> "LimitItem":
         # we also wrap iterators to make them stoppable
@@ -163,11 +166,13 @@ class LimitItem(ItemTransform[TDataItem]):
         return self
 
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
-        self.count += 1
+        row_count = count_rows_in_items(item)
+        if row_count > 0:
+            self.count += row_count if self.count_rows else 1
 
         # detect when the limit is reached, max time or yield count
         if (
-            (self.count == self.max_items)
+            (self.count >= self.max_items)
             or (self.max_time and time.time() - self.start_time > self.max_time)
             or self.max_items == 0
         ):

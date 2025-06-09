@@ -355,19 +355,23 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self: TDltResourceImpl,
         max_items: Optional[int] = None,
         max_time: Optional[float] = None,
+        count_rows: Optional[bool] = False,
     ) -> TDltResourceImpl:  # noqa: A003
-        """Adds a limit `max_items` to the resource pipe.
+        """Limit the number of items that will be processed by the resource: by count and by time. By default, dlt counts
+        number of "yields/batches/pages" not the number of rows inside.
 
-         This mutates the encapsulated generator to stop after `max_items` items are yielded. This is useful for testing and debugging.
+        For incremental resources that return rows in deterministic order, you can use this function to process large load
+        in batches.
 
          Notes:
              1. Transformers won't be limited. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
-             2. Each yielded item may contain several records. `add_limit` only limits the "number of yields", not the total number of records.
-             3. Async resources with a limit added may occasionally produce one item more than the limit on some runs. This behavior is not deterministic.
+             2. Each yielded item may contain several rows. By default `add_limit` only limits the "number of yields", not the total number of rows.
 
         Args:
-             max_items (int): The maximum number of items to yield, set to None for no limit
+             max_items (int): The maximum number of items (not rows!) to yield, set to None for no limit
              max_time (float): The maximum number of seconds for this generator to run after it was opened, set to None for no limit
+             count_rows (bool): Default: false.
+                Count rows instead of pages. Note that if resource yields pages of rows, last page will not be trimmed and more rows that expected will be received.
          Returns:
              "DltResource": returns self
         """
@@ -380,7 +384,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         else:
             # remove existing limit if any
             self._pipe.remove_by_type(LimitItem)
-            self.add_step(LimitItem(max_items=max_items, max_time=max_time))
+            self.add_step(LimitItem(max_items=max_items, max_time=max_time, count_rows=count_rows))
 
         return self
 

@@ -55,7 +55,7 @@ def test_basic_source() -> None:
     assert s.name == "test"
     assert s.section == "section"
     assert s.max_table_nesting is None
-    assert s.root_key is False
+    assert s.root_key is None
     assert s.schema_contract is None
     assert s.exhausted is False
     assert s.schema is schema
@@ -907,19 +907,15 @@ def test_various_limit_setups() -> None:
     assert list(r) == [1, 2, 3, 4]
 
 
-def test_limit_source() -> None:
-    def mul_c(item):
-        yield from "A" * (item + 2)
-
-    @dlt.source
-    def infinite_source():
-        for idx in range(3):
-            r = dlt.resource(itertools.count(), name=f"infinity_{idx}").add_limit(10)
-            yield r
-            yield r | dlt.transformer(name=f"mul_c_{idx}")(mul_c)
-
-    # transformer is not limited to 2 elements, infinite resource is, we have 3 resources
-    assert list(infinite_source().add_limit(2)) == ["A", "A", 0, "A", "A", "A", 1] * 3
+def test_limit_empty_items() -> None:
+    r = (
+        dlt.resource([[1], [2, 3, 4, 5], [6]], name="test")
+        .add_filter(lambda i: i != 1)
+        .add_limit(1)
+    )
+    # we filter [1] so it becomes [] and we do not count empty list
+    # into limit so we get
+    assert list(r) == [2, 3, 4, 5]
 
 
 def test_limit_max_time() -> None:
@@ -944,6 +940,53 @@ def test_limit_max_time() -> None:
     allowed_results = [list(range(i)) for i in [12, 11, 10, 9, 8, 7, 6, 5, 4]]
     assert sync_list in allowed_results
     assert async_list in allowed_results
+
+
+def test_limit_count_by_rows() -> None:
+    # no batching - processing row by row
+    r = dlt.resource([1, 2, 3, 4, 5], name="test")
+    assert list(r._clone().add_limit(3, count_rows=True)) == [1, 2, 3]
+
+    # counts batches
+    r = dlt.resource([[1, 2, 3], [4, 5], [6, 7]], name="test")
+    assert list(r._clone().add_limit(3, count_rows=False)) == [1, 2, 3, 4, 5, 6, 7]
+    # counts rows
+    assert list(r._clone().add_limit(3, count_rows=True)) == [1, 2, 3]
+
+    # last batch will not be cut so we get it in full
+    assert list(r._clone().add_limit(4, count_rows=True)) == [1, 2, 3, 4, 5]
+
+    # list in batches are single rows
+    r = dlt.resource([[1, [2, 3]], [4, [5]]], name="test")
+    assert list(r._clone().add_limit(2, count_rows=True)) == [1, [2, 3]]
+
+
+def test_limit_source() -> None:
+    def mul_c(item):
+        yield from "A" * (item + 2)
+
+    @dlt.source
+    def infinite_source():
+        for idx in range(3):
+            r = dlt.resource(itertools.count(), name=f"infinity_{idx}").add_limit(10)
+            yield r
+            yield r | dlt.transformer(name=f"mul_c_{idx}")(mul_c)
+
+    # transformer is not limited to 2 elements, infinite resource is, we have 3 resources
+    assert list(infinite_source().add_limit(2)) == ["A", "A", 0, "A", "A", "A", 1] * 3
+
+
+def test_limit_source_count_items() -> None:
+    def mul_c():
+        while True:
+            yield ["A", "B"]
+
+    @dlt.source
+    def infinite_source():
+        return dlt.resource(mul_c)
+
+    # transformer is not limited to 2 elements, infinite resource is, we have 3 resources
+    assert list(infinite_source().add_limit(3, count_rows=True)) == ["A", "B", "A", "B"]
 
 
 def test_limit_yield_cleanup() -> None:
