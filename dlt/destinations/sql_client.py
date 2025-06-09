@@ -183,16 +183,17 @@ SELECT 1
         they are executed together in as few database calls as possible.
         """
         ret = []
-        if self.capabilities.supports_multiple_statements:
-            for sql_fragment in concat_strings_with_limit(
-                list(statements), "\n", self.capabilities.max_query_length // 2
-            ):
-                ret.append(self.execute_sql(sql_fragment, *args, **kwargs))
-        else:
-            for statement in statements:
-                result = self.execute_sql(statement, *args, **kwargs)
-                if result is not None:
-                    ret.append(result)
+        if statements:
+            if self.capabilities.supports_multiple_statements:
+                for sql_fragment in concat_strings_with_limit(
+                    list(statements), "\n", self.capabilities.max_query_length // 2
+                ):
+                    ret.append(self.execute_sql(sql_fragment, *args, **kwargs))
+            else:
+                for statement in statements:
+                    result = self.execute_sql(statement, *args, **kwargs)
+                    if result is not None:
+                        ret.append(result)
         return ret
 
     def catalog_name(self, escape: bool = True) -> Optional[str]:

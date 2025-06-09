@@ -488,16 +488,34 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
         Raises `MergeDispositionException` if no such column exists.
         """
-        return cls._get_prop_col_or_raise(
-            table,
-            "root_key",
-            MergeDispositionException(
-                sql_client.fully_qualified_dataset_name(),
-                sql_client.fully_qualified_dataset_name(staging=True),
-                [t["name"] for t in table_chain],
-                f"No `root_key` column (e.g. `_dlt_root_id`) in table `{table['name']}`.",
-            ),
-        )
+        try:
+            return cls._get_prop_col_or_raise(
+                table,
+                "root_key",
+                MergeDispositionException(
+                    sql_client.fully_qualified_dataset_name(),
+                    sql_client.fully_qualified_dataset_name(staging=True),
+                    [t["name"] for t in table_chain],
+                    f"No `root_key` column (e.g. `_dlt_root_id`) in table `{table['name']}`.",
+                ),
+            )
+        except MergeDispositionException as merge_ex:
+            # fallback to _dlt_parent_id is available if this is second nesting level
+            if table["parent"] == table_chain[0]["name"]:
+                return cls._get_prop_col_or_raise(
+                    table,
+                    "parent_key",
+                    MergeDispositionException(
+                        merge_ex.dataset_name,
+                        merge_ex.staging_dataset_name,
+                        merge_ex.tables,
+                        merge_ex.reason
+                        + "No `parent_key` column (e.g. `_dlt_parent_id`) in table"
+                        f" `{table['name']}`.",
+                    ),
+                )
+            else:
+                raise
 
     @classmethod
     def _get_prop_col_or_raise(

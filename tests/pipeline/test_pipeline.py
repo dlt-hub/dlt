@@ -35,7 +35,7 @@ from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.exceptions import TableIdentifiersFrozen
 from dlt.common.schema.typing import TColumnSchema
-from dlt.common.schema.utils import new_column, new_table
+from dlt.common.schema.utils import get_first_column_name_with_prop, new_column, new_table
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
@@ -3702,3 +3702,51 @@ def test_nested_hints_primary_key() -> None:
     # load again, merge should overwrite rows
     load_info = p.run(customers().add_map(_pushdown_customer_id))
     assert p.dataset().row_counts().fetchall() == row_count
+
+
+def test_merge_without_root_key() -> None:
+    @dlt.source(root_key=False)
+    def double_nested():
+        @dlt.resource(
+            primary_key="id",
+            write_disposition="merge",
+        )
+        def customers():
+            """Load customer data from a simple python list."""
+            yield [
+                {
+                    "id": 1,
+                    "name": "simon",
+                    "city": "berlin",
+                    "purchases": [{"id": 1, "name": "apple", "price": Decimal("1.50")}],
+                },
+                {
+                    "id": 2,
+                    "name": "violet",
+                    "city": "london",
+                    "purchases": [{"id": 1, "name": "banana", "price": Decimal("1.70")}],
+                },
+                {
+                    "id": 3,
+                    "name": "tammo",
+                    "city": "new york",
+                    "purchases": [{"id": 1, "name": "pear", "price": Decimal("2.50")}],
+                },
+            ]
+
+        return customers
+
+    p = dlt.pipeline(
+        pipeline_name="test_nested_hints_primary_key", destination="duckdb", dataset_name="local"
+    )
+    s_ = double_nested()
+    # load twice. merge should work as usual
+    p.run(s_)
+    p.run(s_)
+    # no root key
+    assert (
+        get_first_column_name_with_prop(p.default_schema.tables["customers__purchases"], "root_key")
+        is None
+    )
+    # no data duplication (merge worked)
+    assert_data_table_counts(p, {"customers__purchases": 3, "customers": 3})
