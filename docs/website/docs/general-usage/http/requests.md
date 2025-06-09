@@ -63,6 +63,18 @@ request_timeout = 120  # Timeout in seconds
 request_max_retry_delay = 30  # Cap exponential delay to 30 seconds
 ```
 
+:::note
+Default session retires as follows:
+
+```toml
+[runtime]
+request_timeout=60
+request_max_attempts = 5
+request_backoff_factor = 1
+request_max_retry_delay = 300
+```
+:::
+
 For more control, you can create your own instance of `dlt.sources.requests.Client` and use that instead of the global client.
 
 This lets you customize which status codes and exceptions to retry on:
@@ -99,3 +111,6 @@ http_client = Client(
 )
 ```
 
+:::tip
+`requests.Client` is thread safe. We recommend to share sessions across threads for better performance.
+:::

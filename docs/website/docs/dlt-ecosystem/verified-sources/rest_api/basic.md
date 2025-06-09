@@ -239,6 +239,7 @@ The `client` configuration is used to connect to the API's endpoints. It include
 - `headers` (dict, optional): Additional headers that are sent with each request.
 - `auth` (optional): Authentication configuration. This can be a simple token, an `AuthConfigBase` object, or a more complex authentication method.
 - `paginator` (optional): Configuration for the default pagination used for resources that support pagination. Refer to the [pagination](#pagination) section for more details.
+- `session` (optional): Custom `requests` session to setup custom [timeouts and retry strategies.](advanced.md#setup-timeouts-and-retry-strategies)
 
 #### `resource_defaults` (optional)
 
