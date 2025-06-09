@@ -76,12 +76,58 @@ def test_motherduck_connect_default_token(token_key: str) -> None:
     config.credentials.return_conn(con)
 
 
+def test_credentials_wrong_config() -> None:
+    import duckdb
+
+    c = resolve_configuration(
+        MotherDuckClientConfiguration()._bind_dataset_name(dataset_name="test_dataset"),
+        sections=("destination", "motherduck"),
+    )
+    with pytest.raises(duckdb.CatalogException):
+        c.credentials.borrow_conn(global_config={"wrong_conf": 0})
+    # connection closed
+    assert not hasattr(c.credentials, "_conn")
+    assert c.credentials._conn_borrows == 0
+
+    with pytest.raises(duckdb.CatalogException):
+        c.credentials.borrow_conn(local_config={"wrong_conf": 0})
+    # connection closed
+    assert not hasattr(c.credentials, "_conn")
+    assert c.credentials._conn_borrows == 0
+
+    with pytest.raises(duckdb.CatalogException):
+        c.credentials.borrow_conn(pragmas=["unkn_pragma"])
+    # connection closed
+    assert not hasattr(c.credentials, "_conn")
+    assert c.credentials._conn_borrows == 0
+
+    # open and borrow conn
+    conn = c.credentials.borrow_conn()
+    assert c.credentials._conn_borrows == 1
+    try:
+        with pytest.raises(duckdb.CatalogException):
+            c.credentials.borrow_conn(pragmas=["unkn_pragma"])
+        assert hasattr(c.credentials, "_conn")
+        # refcount not increased
+        assert c.credentials._conn_borrows == 1
+    finally:
+        conn.close()
+
+    # check extensions fail
+    os.environ["CREDENTIALS__EXTENSIONS"] = '["unk_extension"]'
+    c = resolve_configuration(
+        MotherDuckClientConfiguration()._bind_dataset_name(dataset_name="test_dataset"),
+        sections=("destination", "motherduck"),
+    )
+    with pytest.raises(duckdb.IOException):
+        c.credentials.borrow_conn()
+    assert not hasattr(c.credentials, "_conn")
+    assert c.credentials._conn_borrows == 0
+
+
 @pytest.mark.parametrize("custom_user_agent", [MOTHERDUCK_USER_AGENT, "patates", None])
 def test_motherduck_connect_with_user_agent_string(custom_user_agent: Optional[str]) -> None:
     import duckdb
-
-    # set HOME env otherwise some internal components in ducdkb (HTTPS) do not initialize
-    # os.environ["HOME"] = "/tmp"
 
     config = resolve_configuration(
         MotherDuckClientConfiguration()._bind_dataset_name(dataset_name="test"),
@@ -106,7 +152,7 @@ def test_motherduck_connect_with_user_agent_string(custom_user_agent: Optional[s
             "custom_user_agent": custom_user_agent,
             # "local_config": {"enable_logging": True},
             "query": {"dbinstance_inactivity_ttl": "0s"},
-            "global_config": {"enable_logging": True},
+            "local_config": {"enable_profiling": "json"},
         }
     )
     config.credentials.resolve()
@@ -115,13 +161,11 @@ def test_motherduck_connect_with_user_agent_string(custom_user_agent: Optional[s
         "md:dlt_data?dbinstance_inactivity_ttl=0s&motherduck_token="
     )
 
-    print(config.credentials)
-
     def _read_config(conn: duckdb.DuckDBPyConnection) -> List[Any]:
         rel = conn.sql("""
             SELECT name, value
             FROM duckdb_settings()
-            WHERE name IN ('enable_logging', 'custom_user_agent', 'motherduck_dbinstance_inactivity_ttl')
+            WHERE name IN ('enable_profiling', 'custom_user_agent', 'motherduck_dbinstance_inactivity_ttl')
             ORDER BY name ASC;
             """)
         return rel.fetchall()
@@ -129,8 +173,10 @@ def test_motherduck_connect_with_user_agent_string(custom_user_agent: Optional[s
     # connect
     con = config.credentials.borrow_conn()
     try:
-        con.sql("SHOW DATABASES")
-        print(_read_config(con))
-        print(con.sql("SELECT * FROM duckdb_logs"))
+        assert _read_config(con) == [
+            ("custom_user_agent", custom_user_agent),
+            ("enable_profiling", "json"),
+            ("motherduck_dbinstance_inactivity_ttl", "0s"),
+        ]
     finally:
         config.credentials.return_conn(con)
