@@ -67,8 +67,11 @@ jobs:
     needs: [test_common, authorize_run_from_fork]
     uses: ./.github/workflows/test_doc_snippets.yml
     secrets: inherit
-
-  # TODO: add matrix for remote destination tests
+  test_destinations_remote:
+    # TODO: only run after tests common
+    needs: [authorize_run_from_fork] #, test_common]
+    uses: ./.github/workflows/test_destinations_remote.yml
+    secrets: inherit
 
 
   #
