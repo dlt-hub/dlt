@@ -29,6 +29,12 @@ pip install -r requirements.txt
 python3 chess_pipeline.py
 ```
 
+## Supported version
+`dlt` supports `duckdb` versions starting from **0.9**. Below are a few notes on problems with particular versions observed
+in our tests:
+* `iceberg_scan` does not work on `duckdb` > 1.2.1 and azure blob storage (certain functions are not implemented)
+* we observed crashes (segfault) on certain tests using azure blob storage on `duckdb` version 1.3
+
 ## Write disposition
 All write dispositions are supported.
 
