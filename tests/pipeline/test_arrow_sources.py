@@ -6,6 +6,7 @@ import pyarrow as pa
 
 import dlt
 from dlt.common import json, Decimal
+from dlt.common.data_writers.writers import count_rows_in_items
 from dlt.common.utils import uniq_id
 from dlt.common.libs.pyarrow import (
     NameNormalizationCollision,
@@ -685,3 +686,41 @@ def test_replace_or_keep_existing_dlt_load_id(has_dlt_column: bool, add_dlt_load
 
         # Assert the other columns remain unchanged, just in case
         assert normalized_table["column1"].to_pylist() == [f"value_{i}" for i in range(num_rows)]
+
+
+@pytest.mark.parametrize(
+    "item_factory, expected_rows",
+    [
+        pytest.param(lambda: 42, 1, id="single_scalar"),
+        pytest.param(lambda: [1, 2, 3], 3, id="list_of_scalars"),
+        pytest.param(lambda: pd.DataFrame({"a": range(4)}), 4, id="single_dataframe"),
+        pytest.param(
+            lambda: [pd.DataFrame({"a": [1]}), pd.DataFrame({"a": [2, 3]})],
+            3,
+            id="list_of_dataframes",
+        ),
+        pytest.param(
+            lambda: pa.table({"a": [1, 2, 3]}),
+            3,
+            id="single_arrow_table",
+        ),
+        pytest.param(
+            lambda: [
+                pa.table({"a": [1]}),
+                pa.table({"a": [1, 2, 3]}),
+            ],
+            4,
+            id="list_of_arrow_tables",
+        ),
+        # edge cases
+        pytest.param(lambda: [], 0, id="empty_list"),
+        pytest.param(
+            lambda: [1, pd.DataFrame({"a": [0, 1]})],
+            2,  # falls back to len(list) because first item has no .shape
+            id="mixed_first_scalar",
+        ),
+    ],
+)
+def test_count_rows_in_items(item_factory, expected_rows):
+    item = item_factory()  # fresh object(s) each time
+    assert count_rows_in_items(item) == expected_rows

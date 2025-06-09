@@ -36,8 +36,7 @@ from dlt.common.destination import (
 )
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.typing import TTableSchemaColumns
-from dlt.common.schema.utils import is_nullable_column
-from dlt.common.typing import StrAny, TDataItem
+from dlt.common.typing import StrAny, TDataItem, TDataItems
 
 import sqlglot
 
@@ -813,3 +812,24 @@ def create_import_spec(
 
     spec = DataWriter.class_factory(item_file_format, "object", ALL_WRITERS).writer_spec()
     return spec._replace(data_item_format="file")
+
+
+def count_rows_in_items(item: TDataItems) -> int:
+    """Count total number of rows of `items` which may be
+    * single item
+    * list of single items
+    * list of tables like data frames or
+    """
+
+    if isinstance(item, list):
+        # if item supports "shape" it will be used to count items
+        if len(item) > 0 and hasattr(item[0], "shape"):
+            return sum(len(tbl) for tbl in item)
+        else:
+            return len(item)
+    else:
+        # update row count, if item supports "num_rows" it will be used to count items
+        if hasattr(item, "shape"):
+            return len(item)
+        else:
+            return 1
