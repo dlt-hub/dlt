@@ -217,7 +217,7 @@ def write_records(
                 ).when_matched_update_all().when_not_matched_insert_all().execute(records)
         else:
             raise DestinationTerminalException(
-                f"Unsupported {write_disposition=:} for LanceDB Destination - batch"
+                f"Unsupported `{write_disposition=:}` for LanceDB Destination - batch"
                 " failed AND WILL **NOT** BE RETRIED."
             )
     except ArrowInvalid as e:

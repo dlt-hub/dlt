@@ -65,7 +65,9 @@ class MsSqlTypeMapper(TypeMapperImpl):
             return "int"
         elif precision <= 64:
             return "bigint"
-        raise TerminalValueError(f"bigint with {precision=:} can't be mapped to MSSQL integer type")
+        raise TerminalValueError(
+            f"bigint with `{precision=:}` can't be mapped to MSSQL integer type"
+        )
 
     def from_destination_type(
         self, db_type: str, precision: Optional[int], scale: Optional[int]

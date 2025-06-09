@@ -155,7 +155,7 @@ class ImportFileWriter(DataWriter):
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         raise NotImplementedError(
-            "`ImportFileWriter` cannot write any files. You have bug in your code."
+            "`ImportFileWriter` cannot write any files. You have a bug in your code."
         )
 
     @classmethod

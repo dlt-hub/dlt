@@ -38,7 +38,7 @@ class DestinationConnectionError(DestinationTransientException):
         self.dataset_name = dataset_name
         self.inner_exc = inner_exc
         super().__init__(
-            f"Connection with `{client_type}` to `{dataset_name=:}` failed. Please check if"
+            f"Connection with `{client_type=:}` to `{dataset_name=:}` failed. Please check if"
             " you configured the credentials at all and provided the right credentials values. You"
             " can be also denied access or your internet connection may be down. The actual reason"
             f" given is: {reason}"
@@ -50,7 +50,7 @@ class LoadClientNotConnected(DestinationTransientException):
         self.client_type = client_type
         self.dataset_name = dataset_name
         super().__init__(
-            f"Connection with `{client_type}` to `{dataset_name=:}` is closed. Open the"
+            f"Connection with `{client_type=:}` to `{dataset_name=:}` is closed. Open the"
             " connection with `client.open_connection` or with the `with client:` context manager"
         )
 

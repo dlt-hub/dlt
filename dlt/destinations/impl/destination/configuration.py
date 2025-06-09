@@ -36,5 +36,5 @@ class CustomDestinationClientConfiguration(DestinationClientConfiguration):
         ):
             raise ConfigurationValueError(
                 f"A valid callable was not provided to `{self.__class__.__name__}`. Did you"
-                " decorate a function @dlt.destination correctly?"
+                " properly decorate the function with `@dlt.destination`?"
             )

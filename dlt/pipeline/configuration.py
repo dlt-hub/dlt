@@ -60,4 +60,4 @@ class PipelineConfiguration(BaseConfiguration):
 def ensure_correct_pipeline_kwargs(f: AnyFun, **kwargs: Any) -> None:
     for arg_name in kwargs:
         if not hasattr(PipelineConfiguration, arg_name) and not arg_name.startswith("_dlt"):
-            raise TypeError(f"`{f.__name__}` got an unexpected keyword argument '{arg_name}'")
+            raise TypeError(f"`{f.__name__}` got an unexpected keyword argument `{arg_name}`")

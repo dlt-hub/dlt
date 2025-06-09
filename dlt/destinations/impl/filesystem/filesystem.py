@@ -882,7 +882,7 @@ class FilesystemClient(
             return DeltaTable(table_location, storage_options=storage_options)
         else:
             raise NotImplementedError(
-                f"Can't load tables using {table_format=:} using `filesystem` destination."
+                f"Can't load tables using `{table_format=:}` with `filesystem` destination."
             )
 
     def get_open_table_catalog(self, table_format: TTableFormat, catalog_name: str = None) -> Any:

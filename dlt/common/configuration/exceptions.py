@@ -121,9 +121,6 @@ class UnmatchedConfigHintResolversException(ConfigurationException):
         msg = (
             f"The config spec `{spec_name}` has dynamic type resolvers for fields: `{field_names}`"
             " but these fields are not defined in the spec.\nWhen using @resolve_type() decorator,"
-            f" Add the fields with 'Any' or another common type hint, example:\n\n{example}The"
-            f" config spec `{spec_name}` has dynamic type resolvers for fields: `{field_names}` but"
-            " these fields are not defined in the spec.\nWhen using `@resolve_type()` decorator,"
             f" Add the fields with 'Any' or another common type hint, example:\n\n{example}"
         )
         super().__init__(msg)

@@ -99,9 +99,9 @@ def validate_dict(
                 if len(failed_validations) == len(union_types):
                     type_names = [get_type_name(ut) for ut in union_types]
                     msg = (
-                        f"field '{pk}' expects the following types: {type_names}."
-                        f" Provided value {pv} with type '{type(pv).__name__}' is invalid with the"
-                        " following errors:\n"
+                        f"field `{pk}` expects the following types: `{type_names}`. Provided value"
+                        f" `{pv}` with type `{type(pv).__name__}` is invalid with the following"
+                        " errors:\n"
                     )
                     # order failed_validations by path depth so the most "fitting" goes first
                     failed_validations = sorted(
@@ -126,8 +126,8 @@ def validate_dict(
         elif t in [int, bool, str, float]:
             if not isinstance(pv, t):
                 raise DictValidationException(
-                    f"field `{pk}={pv}` has invalid type '{type(pv).__name__}' while"
-                    f" '{t.__name__}' is expected",
+                    f"field `{pk}={pv}` has invalid type `{type(pv).__name__}` while"
+                    f" `{t.__name__}` is expected",
                     path,
                     t,
                     pk,
@@ -136,8 +136,8 @@ def validate_dict(
         elif is_typeddict(t):
             if not isinstance(pv, dict):
                 raise DictValidationException(
-                    f"field '{pk}' with value `{pv}` has invalid type '{type(pv).__name__}' while"
-                    f" '{get_type_name(t)}' is expected",
+                    f"field `{pk}` with value `{pv}` has invalid type `{type(pv).__name__}` while"
+                    f" `{get_type_name(t)}` is expected",
                     path,
                     t,
                     pk,
@@ -147,8 +147,8 @@ def validate_dict(
         elif is_list_generic_type(t):
             if not isinstance(pv, list):
                 raise DictValidationException(
-                    f"field '{pk}' with value `{pv}` has invalid type '{type(pv).__name__}' while"
-                    " 'list' is expected",
+                    f"field `{pk}` with value `{pv}` has invalid type `{type(pv).__name__}` while"
+                    " `list` is expected",
                     path,
                     t,
                     pk,
@@ -161,8 +161,8 @@ def validate_dict(
         elif is_dict_generic_type(t):
             if not isinstance(pv, dict):
                 raise DictValidationException(
-                    f"field '{pk}' with value `{pv}` has invalid type '{type(pv).__name__}' while"
-                    " 'dict' is expected",
+                    f"field `{pk}` with value `{pv}` has invalid type `{type(pv).__name__}` while"
+                    " `dict` is expected",
                     path,
                     t,
                     pk,
@@ -173,7 +173,7 @@ def validate_dict(
             for d_k, d_v in pv.items():
                 if not isinstance(d_k, str):
                     raise DictValidationException(
-                        f"field '{pk}' with key `{d_k}` must be a string", path, t, pk, d_k
+                        f"field `{pk}` with key `{d_k}` must be a `str`", path, t, pk, d_k
                     )
                 verify_prop(f"{pk}[{d_k}]", d_v, d_v_t)
         elif t is Any:
@@ -189,8 +189,8 @@ def validate_dict(
                 pass
             else:
                 raise DictValidationException(
-                    f"field '{pk}' expects callable (function or class instance) but got "
-                    f"'{pv}'. Mind that signatures are not validated",
+                    f"field `{pk}` expects `callable` (function or class instance) but got "
+                    f"`{pv}`. Mind that signatures are not validated",
                     path,
                     t,
                     pk,

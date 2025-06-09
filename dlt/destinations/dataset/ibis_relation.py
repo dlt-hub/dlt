@@ -2,8 +2,6 @@ from typing import TYPE_CHECKING, Any, Union, Sequence
 from functools import partial
 import sqlglot
 
-from dlt.common.schema.typing import TTableSchemaColumns
-from dlt.common.exceptions import TypeErrorWithKnownTypes
 from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
 
 

@@ -175,7 +175,7 @@ class RangePaginator(BasePaginator):
     def _handle_missing_total(self, response_json: Dict[str, Any]) -> None:
         raise ValueError(
             f"Total `{self.error_message_items}` not found in the response in"
-            f" `{self.__class__.__name__}`.Expected a response with a '{self.total_path}' key, got"
+            f" `{self.__class__.__name__}` .Expected a response with a `{self.total_path}` key, got"
             f" `{response_json}`."
         )
 

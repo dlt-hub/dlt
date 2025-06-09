@@ -31,7 +31,7 @@ class SqlalchemyTypeMapper(DataTypeMapper):
             return sa.Integer()
         elif precision <= 64:
             return sa.BigInteger()
-        raise TerminalValueError(f"Unsupported {precision=:} for integer type.")
+        raise TerminalValueError(f"Unsupported `{precision=:}` for integer type.")
 
     def _create_date_time_type(
         self, sc_t: str, precision: Optional[int], timezone: Optional[bool]

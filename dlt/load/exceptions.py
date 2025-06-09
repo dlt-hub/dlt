@@ -46,7 +46,7 @@ class LoadClientUnsupportedFileFormats(DestinationTerminalException):
         self.file_path = file_path
         super().__init__(
             f"Loader does not support writer for `{file_format=:}` in  file `{file_path}`."
-            f" Supported writers: {supported_file_format}"
+            f" Supported writers: `{supported_file_format}`"
         )
 
 
@@ -56,7 +56,7 @@ class LoadClientUnsupportedWriteDisposition(DestinationTerminalException):
         self.write_disposition = write_disposition
         self.file_name = file_name
         super().__init__(
-            f"Loader does not support` {write_disposition=:}` in table `{table_name}` when loading"
+            f"Loader does not support `{write_disposition=:}` in table `{table_name}` when loading"
             f" file `{file_name}`"
         )
 

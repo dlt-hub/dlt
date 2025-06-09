@@ -72,7 +72,7 @@ class PostgresTypeMapper(TypeMapperImpl):
         elif precision <= 64:
             return "bigint"
         raise TerminalValueError(
-            f"bigint with {precision=:} can't be mapped to PostgreSQL integer type"
+            f"bigint with `{precision=:}` can't be mapped to PostgreSQL integer type"
         )
 
     def to_db_datetime_type(

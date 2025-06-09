@@ -92,7 +92,8 @@ class LoadPackageNotCompleted(LoadStorageException):
     def __init__(self, load_id: str) -> None:
         self.load_id = load_id
         super().__init__(
-            f"Package with `{load_id=:}` is not yet completed, but method required that"
+            f"Package with `{load_id=:}` is not yet completed, but the calling function required a"
+            " complete package."
         )
 
 

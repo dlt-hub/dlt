@@ -76,7 +76,7 @@ class DuckDbTypeMapper(TypeMapperImpl):
         elif precision <= 128:
             return "HUGEINT"
         raise TerminalValueError(
-            f"bigint with {precision=:} can't be mapped to DuckDB integer type"
+            f"bigint with `{precision=:}` can't be mapped to DuckDB integer type"
         )
 
     def to_db_datetime_type(

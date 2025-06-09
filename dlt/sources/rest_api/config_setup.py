@@ -226,7 +226,8 @@ def setup_incremental_object(
                 raise ValueError(
                     "Only `initial_value` is allowed in the configuration of param:"
                     f" `{param_name}`. "
-                    "To set end_value too use the incremental configuration at the resource level. "
+                    "To set `end_value` too use the incremental configuration at the resource"
+                    " level. "
                     "See https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/basic#incremental-loading"
                 )
             return param_config, IncrementalParam(start=param_name, end=None), None
@@ -478,8 +479,8 @@ def _bind_path_params(resource: EndpointResource) -> None:
             else:
                 # Most likely mistyped placeholder context name
                 raise ValueError(
-                    f"The path '{path}' defined in resource '{resource['name']}' contains a"
-                    f" placeholder '{field_name}'. This placeholder is not a valid name."
+                    f"The `{path=:}` defined in resource `{resource['name']}` contains a"
+                    f" placeholder `{field_name}`. This placeholder is not a valid name."
                     " Valid names are: ['resources', 'incremental']."
                 )
 
@@ -491,7 +492,7 @@ def _bind_path_params(resource: EndpointResource) -> None:
             param_type = params[field_name].get("type")
             if param_type != "resolve":
                 raise ValueError(
-                    f"The path `{path}` defined in resource `{resource['name']} `tries to bind"
+                    f"The path `{path}` defined in resource `{resource['name']}` tries to bind"
                     f" param `{field_name}` with type `{param_type}`. Paths can only bind 'resolve'"
                     " type params."
                 )

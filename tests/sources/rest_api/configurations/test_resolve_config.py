@@ -429,7 +429,7 @@ def test_one_resource_cannot_bind_two_parents(
         rest_api_resources(config)
 
     error_msg = str(exc_info.value)
-    assert "Multiple parent resources for `user_details`" in error_msg
+    assert "Multiple parent resources for resource `user_details`" in error_msg
     assert resolved_param1 in error_msg, f"{resolved_param1} not found in {error_msg}"
     assert resolved_param2 in error_msg, f"{resolved_param2} not found in {error_msg}"
 

@@ -443,7 +443,7 @@ def merge_columns(
     * incomplete columns in `columns_a` that got completed in `columns_b` are removed to preserve order
     """
     if columns_partial is False:
-        raise NotImplementedError("`columns_partial` must be `False` for `merge_columns`")
+        raise NotImplementedError("Using `merge_columns()` requires `columns_partial=False`")
 
     # remove incomplete columns in table that are complete in diff table
     for col_name, column_b in columns_b.items():

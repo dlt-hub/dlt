@@ -181,7 +181,7 @@ def gen_copy_sql(
             f"ENCODING = '{csv_config.encoding}'",
         ]
     else:
-        raise ValueError(f"{loader_file_format=:} not supported for Snowflake COPY command.")
+        raise ValueError(f"`{loader_file_format=:}` not supported for Snowflake COPY command.")
 
     source_format = _build_format_clause(format_opts)
 

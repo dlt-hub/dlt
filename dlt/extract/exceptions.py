@@ -62,7 +62,7 @@ class InvalidStepFunctionArguments(PipeException):
             pipe_name,
             f"Unable to call `{func_name}`: {call_error}. The mapping/filtering function"
             f" `{func_name}` requires first argument to take data item and optional second argument"
-            f" named 'meta', but the signature is `{sig}`",
+            f" named `meta`, but the signature is `{sig}`",
         )
 
 
@@ -276,7 +276,7 @@ class ParametrizedResourceUnbound(DltResourceException):
         self.sig = sig
         msg = (
             f"The `{kind}` `{resource_name}` is parametrized and expects following arguments:"
-            f" {sig}. Did you forget to bind the {func_name} function? For example from"
+            f" `{sig}`. Did you forget to bind the `{func_name}` function? For example from"
             f" `source.{resource_name}.bind(...)`"
         )
         if error:
@@ -299,10 +299,10 @@ class DataItemRequiredForDynamicTableHints(DltResourceException):
     def __init__(self, resource_name: str) -> None:
         super().__init__(
             resource_name,
-            "An instance of resource's data required to generate table schema in resource"
-            f" `{resource_name}`. One of table hints for that resource (typically table name) is a"
-            " function and hint is computed separately for each instance of data extracted from"
-            " that resource.",
+            "Resource `{resource_name}` contains a dynamic hint (i.e., a value in the"
+            " `@dlt.resource` decorator is set by a function), but the data to generate the hint is"
+            " missing. Make sure that each data item contains the necessary field to compute the"
+            " dynamic hint value.",
         )
 
 
