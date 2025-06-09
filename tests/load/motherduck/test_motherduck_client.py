@@ -156,6 +156,7 @@ def test_motherduck_connect_with_user_agent_string(custom_user_agent: Optional[s
         }
     )
     config.credentials.resolve()
+    assert config.credentials.custom_user_agent == custom_user_agent
     # query params will be passed to conn str, motherduck_token added automatically
     assert config.credentials._conn_str().startswith(
         "md:dlt_data?dbinstance_inactivity_ttl=0s&motherduck_token="
@@ -174,7 +175,7 @@ def test_motherduck_connect_with_user_agent_string(custom_user_agent: Optional[s
     con = config.credentials.borrow_conn()
     try:
         assert _read_config(con) == [
-            ("custom_user_agent", custom_user_agent),
+            ("custom_user_agent", custom_user_agent or MOTHERDUCK_USER_AGENT),
             ("enable_profiling", "json"),
             ("motherduck_dbinstance_inactivity_ttl", "0s"),
         ]

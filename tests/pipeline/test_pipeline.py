@@ -2695,13 +2695,13 @@ def test_yielding_empty_list_creates_table() -> None:
             assert rows[0] == (1, None)
 
 
-local_paths = [os.path.abspath("_storage"), "."]
+local_paths = [os.path.abspath(TEST_STORAGE_ROOT), "."]
 if os.name == "nt":
     local_paths += [
         # UNC extended path
-        "\\\\?\\UNC\\localhost\\" + os.path.abspath("_storage").replace(":", "$"),
+        "\\\\?\\UNC\\localhost\\" + os.path.abspath(TEST_STORAGE_ROOT).replace(":", "$"),
         # UNC path
-        "\\\\localhost\\" + os.path.abspath("_storage").replace(":", "$"),
+        "\\\\localhost\\" + os.path.abspath(TEST_STORAGE_ROOT).replace(":", "$"),
     ]
 
 
@@ -2751,11 +2751,12 @@ def test_local_filesystem_destination(local_path: str) -> None:
 
     fs_client = pipeline._fs_client()
     # all path formats we use must lead to "_storage" relative to tests
+    expect_path_fragment = str(pathlib.Path(TEST_STORAGE_ROOT).joinpath(dataset_name).resolve())
+    expect_path_fragment = expect_path_fragment[expect_path_fragment.index(TEST_STORAGE_ROOT) :]
     # TODO: restore on windows
-    # assert (
-    #     pathlib.Path(fs_client.dataset_path).resolve()
-    #     == pathlib.Path("_storage").joinpath(dataset_name).resolve()
-    # )
+    assert str(pathlib.Path(TEST_STORAGE_ROOT).joinpath(dataset_name).resolve()).endswith(
+        expect_path_fragment
+    )
     # same for client
     assert len(fs_client.list_table_files("numbers")) == 1
     assert len(fs_client.list_table_files("_dlt_loads")) == 2

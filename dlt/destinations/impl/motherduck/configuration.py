@@ -85,7 +85,7 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
         """Adds custom agent to global config"""
         if self.global_config is None:
             self.global_config = {}
-        self.global_config["custom_user_agent"] = self.custom_user_agent
+        self.global_config["custom_user_agent"] = self.custom_user_agent or MOTHERDUCK_USER_AGENT
 
     def _has_default_token(self) -> bool:
         # TODO: implement default connection interface
