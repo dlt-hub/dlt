@@ -110,13 +110,19 @@ If you set the [`replace` strategy](../../general-usage/full-loading.md) to `sta
 recreated with an `ALTER SCHEMA ... TRANSFER`. The operation is atomic: MSSQL supports DDL transactions.
 
 ## Data loading
-Data is loaded via INSERT statements by default. MSSQL has a limit of 1000 rows per INSERT, and this is what we use.
+Data is loaded via INSERT statements by default. MSSQL has a limit of 1000 rows per INSERT, and this is what we use. We split batches into
+SQL statements and execute each in a single server call. We observed that driver locks otherwise (we could not find any reason on the server itself - 
+no database locks were present). You can revert this behavior by:
+```py
+dlt.destinations.mssql("mssql://loader:<password>@loader.database.windows.net/dlt_data?connect_timeout=15", supports_multiple_statements=True)
+```
+this may marginally speed up merge operations but we think it is not worth the risk.
 
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default
 
 ## Supported column hints
-**mssql** will create unique indexes for all columns with `unique` hints. This behavior **may be disabled**.
+**mssql** will create unique indexes for all columns with `unique` hints. This behavior **is disabled by default**.
 
 ### Table and column identifiers
 SQL Server **with the default collation** uses case-insensitive identifiers but will preserve the casing of identifiers that are stored in the INFORMATION SCHEMA. You can use [case-sensitive naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) to keep the identifier casing. Note that you risk generating identifier collisions, which are detected by `dlt` and will fail the load process.
