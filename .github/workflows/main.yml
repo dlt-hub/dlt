@@ -72,6 +72,8 @@ jobs:
     needs: [authorize_run_from_fork] #, test_common]
     uses: ./.github/workflows/test_destinations_remote.yml
     secrets: inherit
+    with:
+      run_full_test_suite: ${{ contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule'}}
 
 
   #

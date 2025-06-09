@@ -3,6 +3,12 @@ name: dest | remote
 
 on:
   workflow_call:
+    inputs:
+        run_full_test_suite:
+          required: true
+          type: boolean
+          default: false
+
   workflow_dispatch:
 
 env:
@@ -24,13 +30,29 @@ jobs:
             - name: bigquery
               destinations: "[\"bigquery\"]"
               filesystem_drivers: "[\"memory\"]"
-              extras: "-E bigquery -E parquet"
+              extras: "bigquery,parquet"
+              additional_install_commands: ""
+
+            # Motherduck
+            - name: motherduck
+              destinations: "[\"motherduck\"]"
+              filesystem_drivers: "[\"memory\"]"
+              extras: "motherduck,s3,gs,az,parquet"
+              additional_install_commands: ""
+
+            # Qdrant 
+            - name: qdrant
+              destinations: "[\"qdrant\"]"
+              filesystem_drivers: "[\"memory\"]"
+              extras: "qdrant,parquet"
+              additional_install_commands: ""
 
             # Snowflake
             - name: snowflake
               destinations: "[\"snowflake\"]"
               filesystem_drivers: "[\"memory\"]"
-              extras: "-E snowflake -E s3 -E gs -E az -E parquet"
+              extras: "snowflake,s3,gs,az,parquet"
+              additional_install_commands: ""
 
     env:
         ACTIVE_DESTINATIONS: ${{ matrix.destinations }}
@@ -62,7 +84,7 @@ jobs:
           version: 1.8.5
 
       - name: Install dependencies
-        run: poetry install --no-interaction --with sentry-sdk,pipeline,ibis,providers ${{ matrix.extras }}
+        run: poetry install --no-interaction --with sentry-sdk,pipeline,ibis,providers --extras "${{ matrix.extras }}"
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
@@ -70,10 +92,9 @@ jobs:
       - run: |
           poetry run pytest tests/load --ignore tests/load/sources -m "smoke"
         name: Run essential tests Linux
-        # TODO: forward if full ci run from main.dlt
-        if: ${{ ! (contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule')}}
+        if: ${{ !inputs.run_full_test_suite }}
 
       - run: |
           poetry run pytest tests/load --ignore tests/load/sources
         name: Run all tests Linux
-        if: ${{ contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule'}}
+        if: ${{ inputs.run_full_test_suite }}
