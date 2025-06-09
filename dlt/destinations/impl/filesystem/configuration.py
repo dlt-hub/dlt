@@ -8,9 +8,9 @@ from dlt.common.destination.client import (
     CredentialsConfiguration,
     DestinationClientStagingConfiguration,
 )
+from dlt.common.storages import FilesystemConfigurationWithLocalFiles
 
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
-from dlt.destinations.configuration import FilesystemConfigurationWithLocalFiles
 from dlt.destinations.path_utils import check_layout, get_unused_placeholders
 
 

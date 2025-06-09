@@ -15,12 +15,16 @@ from dlt.common.configuration import resolve
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import AnyAzureCredentials
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
+from dlt.common.storages import (
+    fsspec_from_config,
+    FilesystemConfiguration,
+    FilesystemConfigurationWithLocalFiles,
+)
 from dlt.common.storages.configuration import ensure_canonical_az_url, make_fsspec_url
 from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH, glob_files
 from dlt.common.utils import custom_environ, uniq_id
+
 from dlt.destinations import filesystem
-from dlt.destinations.configuration import FilesystemConfigurationWithLocalFiles
 from dlt.destinations.impl.filesystem.configuration import (
     FilesystemDestinationClientConfiguration,
 )

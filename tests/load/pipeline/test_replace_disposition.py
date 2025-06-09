@@ -36,6 +36,8 @@ def test_replace_disposition(
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "40"
     # use staging tables for replace
     os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
+    # share the same database across many pipelines in this test
+    os.environ["DESTINATION__DUCKDB__CREDENTIALS"] = "duckdb:///test_replace_disposition.duckdb"
 
     increase_state_loads = lambda info: len(
         [

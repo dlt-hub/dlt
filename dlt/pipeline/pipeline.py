@@ -13,6 +13,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    TypeVar,
     cast,
     ContextManager,
     Union,
@@ -59,6 +60,7 @@ from dlt.common.storages import (
     PackageStorage,
     LoadJobInfo,
     LoadPackageInfo,
+    WithLocalFiles,
 )
 from dlt.common.destination import (
     Destination,
@@ -97,7 +99,6 @@ from dlt.common.utils import is_interactive, simple_repr, without_none
 from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
-from dlt.destinations.configuration import WithLocalFiles
 from dlt.extract import DltSource
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import Extract, data_to_sources
@@ -147,6 +148,9 @@ from dlt.pipeline.state_sync import (
 )
 from dlt.common.storages.load_package import TLoadPackageState
 from dlt.pipeline.helpers import refresh_source
+
+
+TWithLocalFiles = TypeVar("TWithLocalFiles", bound=WithLocalFiles)
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -1128,13 +1132,25 @@ class Pipeline(SupportsPipeline):
             )
 
     def _on_set_destination(self, new_value: AnyDestination) -> None:
+        """Called when destination changes"""
         if issubclass(new_value.spec, WithLocalFiles):
             config = WithLocalFiles()
-            config._bind_pipeline(self)
+            config = self._bind_local_files(config)
             # bind config fields with pipeline context so local files are created at deterministic location
             for field in WithLocalFiles.__annotations__:
                 if config[field] is not None:
                     new_value.config_params[field] = config[field]
+
+    def _bind_local_files(self, local_files: TWithLocalFiles) -> TWithLocalFiles:
+        # get context for local files from pipeline
+        local_files.pipeline_working_dir = self.working_dir
+        try:
+            local_files.legacy_db_path = self.get_local_state_val("duckdb_database")
+        except KeyError:
+            pass
+        local_files.local_dir = self.get_local_state_val("initial_cwd")
+        local_files.pipeline_name = self.pipeline_name
+        return local_files
 
     def _get_schema_or_create(self, schema_name: str = None) -> Schema:
         if schema_name:

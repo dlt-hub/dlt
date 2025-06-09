@@ -7,9 +7,9 @@ from dlt.common.configuration import resolve_type
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.storages.fsspec_filesystem import fsspec_from_config
+from dlt.common.storages import FilesystemConfigurationWithLocalFiles
 from dlt.common.typing import TDataItem
 
-from dlt.destinations.configuration import FilesystemConfigurationWithLocalFiles
 from dlt.sources import DltResource
 from dlt.sources.config import configspec, with_config
 from dlt.sources.credentials import (

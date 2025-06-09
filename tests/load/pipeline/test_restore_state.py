@@ -54,7 +54,6 @@ def test_no_destination_sync_state(destination_config: DestinationTestConfigurat
     pipeline.run([1, 2, 3], table_name="digits", **destination_config.run_kwargs)
     assert list(pipeline.last_trace.last_normalize_info.row_counts.keys())[0].lower() == "digits"
 
-    # fixme!
     pipeline.drop()
     pipeline.sync_destination()
     assert pipeline.first_run is True

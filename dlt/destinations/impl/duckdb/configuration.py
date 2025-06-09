@@ -7,8 +7,8 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
+from dlt.common.storages import WithLocalFiles
 
-from dlt.destinations.configuration import WithLocalFiles
 from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckdbCredentials
 
 if TYPE_CHECKING:
@@ -57,7 +57,7 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
                 if key in ("custom_user_agent",):
                     connect_config[key] = global_config.pop(key)
 
-            if not hasattr(self, "_conn"):
+            if not getattr(self, "_conn", None):
                 self._conn = duckdb.connect(
                     database=self._conn_str(), read_only=self.read_only, config=connect_config
                 )
@@ -65,22 +65,30 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
                 self._conn_borrows = 0
 
             if self._conn_borrows == 0:
-                # load extensions in config
-                if self.extensions:
-                    for extension in self.extensions:
-                        self._conn.sql(f"LOAD {extension};")
+                try:
+                    # load extensions in config
+                    if self.extensions:
+                        for extension in self.extensions:
+                            self._conn.sql(f"LOAD {extension};")
 
-                self._apply_config(self._conn, "GLOBAL", global_config)
+                    self._apply_config(self._conn, "GLOBAL", global_config)
+                    # apply local config to original connection
+                    self._apply_local_config(self._conn, local_config, pragmas)
+                except Exception:
+                    if self._conn_owner:
+                        self._delete_conn()
+                    raise
 
-                # apply local config to original connection
-                self._apply_local_config(self._conn, local_config, pragmas)
-
-            # track open connections to properly close it
-            self._conn_borrows += 1
             # print(f"getting conn refcnt {self._conn_borrows} at {id(self)}")
             cur = self._conn.cursor()
-            self._apply_local_config(cur, local_config, pragmas)
-            return cur
+            try:
+                self._apply_local_config(cur, local_config, pragmas)
+                # track open connections to properly close it
+                self._conn_borrows += 1
+                return cur
+            except Exception:
+                cur.close()
+                raise
 
     def return_conn(self, borrowed_conn: DuckDBPyConnection) -> int:
         """Closed the borrowed conn, if refcount goes to 0, duckdb connection is deleted"""
@@ -158,8 +166,10 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
 
             except duckdb.CatalogException:
                 # allow search_path to fail if path does not exist
-                # TODO: raise in other cases because it seems this CatalogException is used for many things
-                pass
+                if k == "search_path":
+                    pass
+                else:
+                    raise
 
     def _conn_str(self) -> str:
         raise NotImplementedError()
