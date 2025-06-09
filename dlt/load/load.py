@@ -351,7 +351,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                             jobs = jobs + follow_up_jobs
                     except Exception as e:
                         raise TableChainFollowupJobCreationFailedException(
-                            root_table_name=prep_table_chain[0]["name"]
+                            root_table_name=prep_table_chain[0]["name"], details=str(e)
                         ) from e
 
             try:

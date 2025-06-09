@@ -159,10 +159,12 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
             # unpack because empty tuple gets interpreted as a single argument
             # https://github.com/mkleehammer/pyodbc/wiki/Features-beyond-the-DB-API#passing-parameters
             curr.execute(query, *args)
+            # NOTE: firsts recordset is wrapped in a cursor
             yield DBApiCursorImpl(curr)
-        except pyodbc.Error as outer:
-            raise outer
         finally:
+            # clear all pending result sets
+            while curr.nextset():
+                pass
             # always close cursor
             curr.close()
 

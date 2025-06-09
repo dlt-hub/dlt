@@ -167,3 +167,10 @@ def pytest_configure(config):
 
         except Exception:
             pass
+
+
+# import faulthandler, atexit, sys
+
+# faulthandler.enable()  # makes sure the module is initialised
+
+# atexit.register(lambda: faulthandler.dump_traceback(file=sys.stderr, all_threads=True))

@@ -111,6 +111,11 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
         except ValueError:
             return None
 
+    @property
+    def has_data(self) -> bool:
+        """Checks if any load packages was processed by pipeline step"""
+        return bool(self.loads_ids)
+
     def asdict(self) -> DictStrAny:
         # to be mixed with NamedTuple
         step_info: DictStrAny = self._asdict()  # type: ignore

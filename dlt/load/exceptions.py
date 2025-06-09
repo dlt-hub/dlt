@@ -68,9 +68,9 @@ class FollowupJobCreationFailedException(DestinationTransientException):
 
 
 class TableChainFollowupJobCreationFailedException(DestinationTransientException):
-    def __init__(self, root_table_name: str) -> None:
+    def __init__(self, root_table_name: str, details: str) -> None:
         self.root_table_name = root_table_name
         super().__init__(
             "Failed creating table chain followup jobs for table chain with root table"
-            f" {root_table_name}."
+            f" {root_table_name}:\n{details}"
         )

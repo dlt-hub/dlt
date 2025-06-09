@@ -11,10 +11,18 @@ from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.normalizers.typing import TRowIdType
 from dlt.common.normalizers.utils import DLT_ID_LENGTH_BYTES
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumnName, TColumnSchema, C_DLT_ID, DLT_NAME_PREFIX
+from dlt.common.schema.typing import (
+    TColumnName,
+    TColumnSchema,
+    C_DLT_ID,
+    DLT_NAME_PREFIX,
+    TTableSchema,
+)
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     get_first_column_name_with_prop,
+    get_nested_tables,
+    has_column_with_prop,
     is_nested_table,
 )
 from dlt.common.utils import digest128, digest128b
@@ -122,6 +130,32 @@ def get_propagation_mapping(
     if table in (config.get("tables") or {}):
         mappings.update(config["tables"][table])
     return mappings
+
+
+def requires_root_key(
+    schema: Schema, root_table: TTableSchema, root_key_propagation: Optional[bool]
+) -> bool:
+    """Checks if table chain containing `table` requires root_key to propagate.
+
+    1. if there's any table with `root_key` in table chain already - we always propagate
+    2. if write disposition is merge and merge strategy is "delete-insert", "upsert" and root_key_propagation is not False
+    3. root_key_propagation is True
+    """
+    table_name = root_table["name"]
+    assert not is_nested_table(root_table), f"{table_name} cannot be nested table"
+    if table_name in schema.dlt_table_names():
+        merge_requires = False
+    else:
+        merge_strategy = resolve_merge_strategy(schema.tables, root_table)
+        merge_requires = (
+            merge_strategy in ["delete-insert", "upsert"]
+            if root_key_propagation is None
+            else root_key_propagation
+        )
+    return merge_requires or any(
+        has_column_with_prop(t, "root_key", include_incomplete=True)
+        for t in get_nested_tables(schema.tables, table_name)
+    )
 
 
 def get_row_hash(row: Dict[str, Any], subset: Optional[List[str]] = None) -> str:
