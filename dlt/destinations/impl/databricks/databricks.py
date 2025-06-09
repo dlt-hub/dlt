@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Sequence, List, cast
+from typing import Dict, Optional, Sequence, List, cast
 from urllib.parse import urlparse, urlunparse
 
 from dlt.common.configuration.specs.azure_credentials import (
@@ -18,7 +18,7 @@ from dlt.common.configuration.specs import (
     AwsCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
-from dlt.common.exceptions import TerminalValueError
+from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages.configuration import ensure_canonical_az_url
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.storages.fsspec_filesystem import (
@@ -26,10 +26,18 @@ from dlt.common.storages.fsspec_filesystem import (
     S3_PROTOCOLS,
     GCS_PROTOCOLS,
 )
-from dlt.common.schema import TColumnSchema, Schema
+from dlt.destinations.impl.databricks.databricks_adapter import (
+    CLUSTER_HINT,
+    TABLE_COMMENT_HINT,
+    TABLE_TAGS_HINT,
+    COLUMN_COMMENT_HINT,
+    COLUMN_TAGS_HINT,
+)
+from dlt.common.schema import TColumnSchema, Schema, TTableSchema, TColumnHint
 from dlt.common.schema.typing import TColumnType
 from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 from dlt.common.utils import uniq_id
+from dlt.common import logger
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
@@ -40,6 +48,7 @@ from dlt.destinations.utils import is_compression_disabled
 
 SUPPORTED_BLOB_STORAGE_PROTOCOLS = AZURE_BLOB_STORAGE_PROTOCOLS + S3_PROTOCOLS + GCS_PROTOCOLS
 
+SUPPORTED_HINTS: Dict[TColumnHint, str] = {"primary_key": "PRIMARY KEY", "foreign_key": "FOREIGN KEY"}
 
 class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
@@ -303,6 +312,15 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         self.config: DatabricksClientConfiguration = config
         self.sql_client: DatabricksSqlClient = sql_client  # type: ignore[assignment, unused-ignore]
         self.type_mapper = self.capabilities.get_type_mapper()
+        self.active_hints = SUPPORTED_HINTS if self.config.create_indexes else {}
+
+    def _get_column_def_sql(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
+        column_def_sql = super()._get_column_def_sql(column, table)
+
+        if column.get(COLUMN_COMMENT_HINT) or column.get("description"):
+            comment = column.get(COLUMN_COMMENT_HINT) or column.get("description")
+            column_def_sql = f"{column_def_sql} COMMENT '{comment}'"
+        return column_def_sql
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
@@ -329,6 +347,64 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             "ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c, table) for c in new_columns)
         ]
 
+    def _get_constraints_sql(
+        self,
+        table_name: str,
+        new_columns: Sequence[TColumnSchema],
+        generate_alter: bool,
+    ) -> List[str]:
+        constraints_sql = ""
+
+        partial: TTableSchema = {
+            "name": table_name,
+            "columns": {c["name"]: c for c in new_columns},
+        }
+
+        if self.config.create_indexes:
+            # Adding primary key constraint
+            pk_columns = get_columns_names_with_prop(partial, "primary_key")
+
+            if pk_columns:
+                logger.info(f"Creating PRIMARY KEY constraint for table {table_name}")
+                if generate_alter:
+                    logger.warning(
+                        f"PRIMARY KEY on {table_name} constraint cannot be added in ALTER TABLE and"
+                        " is ignored"
+                    )
+                else:
+                    quoted_pk_cols = ", ".join(
+                        self.sql_client.escape_column_name(col) for col in pk_columns
+                    )
+                    constraints_sql += f",\nPRIMARY KEY ({quoted_pk_cols})"
+
+            # Adding primary key constraint
+            table = self.prepare_load_table(table_name)
+            references = table.get("references")
+
+            if generate_alter:
+                logger.info(
+                    f"Table options for {table_name} are not applied on ALTER TABLE. Make sure that you"
+                    " set the table options ie. by using bigquery_adapter, before it is created."
+                )
+            else:
+                if references:
+                    logger.info(f"Creating FOREIGN KEY constraint for table {table_name}")
+                    for reference in references:
+                        quoted_fk_cols = ", ".join(
+                            self.sql_client.escape_column_name(col) for col in reference.get("columns")
+                        )
+                    quoted_reference_cols = ", ".join(
+                        self.sql_client.escape_column_name(col) for col in reference.get("referenced_columns")
+                    )
+                    constraints_sql += f",\nFOREIGN KEY ({quoted_fk_cols}) REFERENCES {reference.get('referenced_table')}({quoted_reference_cols})"
+
+            # Add PK constraint if pk_columns exist
+            pk_columns = get_columns_names_with_prop(partial, "primary_key")
+
+            return constraints_sql
+
+        return ""
+
     def _get_table_update_sql(
         self,
         table_name: str,
@@ -336,14 +412,40 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         generate_alter: bool,
         separate_alters: bool = False,
     ) -> List[str]:
+        table = self.prepare_load_table(table_name)
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
 
         cluster_list = [
-            self.sql_client.escape_column_name(c["name"]) for c in new_columns if c.get("cluster")
+            self.sql_client.escape_column_name(c["name"]) for c in new_columns if c.get("cluster") or c.get(CLUSTER_HINT, False)
         ]
 
         if cluster_list:
-            sql[0] = sql[0] + "\nCLUSTER BY (" + ",".join(cluster_list) + ")"
+            sql.append(f"ALTER TABLE {table_name} CLUSTER BY (" + ",".join(cluster_list) + ")")
+
+        if table.get(TABLE_COMMENT_HINT) or table.get("description"):
+            comment = table.get(TABLE_COMMENT_HINT) or table.get("description")
+            sql.append(f"COMMENT ON TABLE {table_name} IS '{comment}'")
+
+        if table.get(TABLE_TAGS_HINT):
+            for tag in table.get(TABLE_TAGS_HINT):
+                if isinstance(tag, str):
+                    sql.append(f"ALTER TABLE {table_name} SET TAGS ('{tag}')")
+                elif isinstance(tag, dict):
+                    (key, value), *rest = tag.items()
+                    sql.append(f"ALTER TABLE {table_name} SET TAGS ('{key}'='{value}')")
+
+        column_tag_list = [
+            (self.sql_client.escape_column_name(c["name"]), c.get(COLUMN_TAGS_HINT)) for c in new_columns if c.get(COLUMN_TAGS_HINT)
+        ]
+
+        if column_tag_list:
+            for (column_name, column_tags) in column_tag_list:
+                for column_tag in column_tags:
+                    if isinstance(column_tag, str):
+                        sql.append(f"ALTER TABLE {table_name} ALTER COLUMN {column_name} SET TAGS ('{column_tag}')")
+                    elif isinstance(column_tag, dict):
+                        (key, value), *rest = column_tag.items()
+                        sql.append(f"ALTER TABLE {table_name} ALTER COLUMN {column_name} SET TAGS ('{key}'='{value}')")
 
         return sql
 
