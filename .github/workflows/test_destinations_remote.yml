@@ -26,37 +26,83 @@ jobs:
         matrix:
           include:
 
+            # Athena
+            - name: athena
+              destinations: "[\"athena\"]"
+              filesystem_drivers: "[\"memory\"]"
+              excluded_destination_configurations: "[\"athena-parquet-iceberg-no-staging-iceberg\", \"athena-parquet-iceberg-staging-iceberg\"]"
+              extras: "athena"
+
+            # Athena iceberg (NOTE: same as athene with different configs disabled)
+            - name: athena iceberg
+              destinations: "[\"athena\"]"
+              filesystem_drivers: "[\"memory\"]"
+              excluded_destination_configurations: "[\"athena-no-staging\", \"athena-parquet-no-staging\"]"
+              extras: "athena"
+
+
+
             # BigQuery
             - name: bigquery
               destinations: "[\"bigquery\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "bigquery parquet"
-              additional_install_commands: ""
+              
+            # Databricks
+            - name: databricks
+              destinations: "[\"databricks\"]"
+              filesystem_drivers: "[\"memory\"]"
+              extras: "databricks s3 gs az parquet"
+
+            # Filesystem
+            - name: filesystem
+              destinations: "[\"filesystem\"]"
+              filesystem_drivers: "[\"memory\"]"
+              extras: "gs s3 az parquet duckdb filesystem deltalake pyiceberg"
+              post_install_commands: "poetry run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
+
+            # LanceDB
+            - name: lancedb
+              destinations: "[\"lancedb\"]"
+              filesystem_drivers: "[\"memory\"]"
+              extras: "lancedb parquet"
 
             # Motherduck
             - name: motherduck
               destinations: "[\"motherduck\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "motherduck s3 gs az parquet"
-              additional_install_commands: ""
 
-            # Qdrant 
+            # MSSQL
+            - name: mssql
+              destinations: "[\"mssql\"]"
+              filesystem_drivers: "[\"memory\"]"
+              extras: "mssql s3 gs az parquet"
+              pre_install_commands: "sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
+
+            # Synapse
+            - name: synapse
+              destinations: "[\"synapse\"]"
+              filesystem_drivers: "[\"memory\"]"
+              extras: "synapse parquet"
+              pre_install_commands: "sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
+
+            # Qdrant (NOTE: should be disabled?)
             - name: qdrant
               destinations: "[\"qdrant\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "qdrant parquet"
-              additional_install_commands: ""
 
             # Snowflake
             - name: snowflake
               destinations: "[\"snowflake\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "snowflake s3 gs az parquet"
-              additional_install_commands: ""
 
     env:
         ACTIVE_DESTINATIONS: ${{ matrix.destinations }}
         ALL_FILESYSTEM_DRIVERS: ${{ matrix.filesystem_drivers }}
+        EXCLUDED_DESTINATION_CONFIGURATIONS: ${{ matrix.excluded_destination_configurations || '[]' }}
 
     defaults:
       run:
@@ -83,8 +129,16 @@ jobs:
           installer-parallel: true
           version: 1.8.5
 
+      - name: Run pre install commands
+        run: ${{ matrix.pre_install_commands }}
+        if: ${{ matrix.pre_install_commands }}
+
       - name: Install dependencies
         run: poetry install --no-interaction --with sentry-sdk,pipeline,ibis,providers --extras "${{ matrix.extras }}"
+
+      - name: Run post install commands
+        run: ${{ matrix.post_install_commands }}
+        if: ${{ matrix.post_install_commands }}
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
