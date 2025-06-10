@@ -206,7 +206,9 @@ jobs:
 
       # always run full suite, also on branches
       - name: Run tests Linux
-        run: poetry run pytest tests/load --ignore tests/load/sources --ignore tests/load/filesystem_sftp
+        run: |
+          eval "$(ssh-agent -s)"
+          poetry run pytest tests/load --ignore tests/load/sources --ignore tests/load/filesystem_sftp
 
       - name: Run additional tests
         run: ${{ matrix.additional_tests }}
