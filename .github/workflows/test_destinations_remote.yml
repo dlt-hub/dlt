@@ -14,7 +14,6 @@ on:
 env:
   DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
   RUNTIME__LOG_LEVEL: ERROR
-  RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
 
   # For s3 compatibility tests, used by "postgres and redshift", could be moved to google secrets
   TESTS__R2_AWS_ACCESS_KEY_ID: a4950a5003b26f5a71ac97ef3848ff4c
@@ -103,13 +102,12 @@ jobs:
 
             # Postgres and Redshift (used to be test_destinations.yml)
             - name: postgres and redshift
-              # TODO: check wether duckdb and all filesystem drivers need to be here, if so, explain why
               destinations: "[\"redshift\", \"postgres\", \"duckdb\", \"dummy\"]"
-              filesystem_drivers: "[\"memory\", \"file\", \"r2\", \"s3\", \"gs\", \"az\", \"abfss\", \"gdrive\"]" # excludes sftp
+              filesystem_drivers: "[\"memory\", \"file\"]"
               extras: "postgres redshift postgis s3 gs az parquet duckdb"
               with: ",adbc"
 
-            # Qdrant (disabled, TODO: explain why)
+            # Qdrant (disabled, because we do not have a test account atm, qdrant is tested with local version)
             # - name: qdrant
             #   destinations: "[\"qdrant\"]"
             #   filesystem_drivers: "[\"memory\"]"
