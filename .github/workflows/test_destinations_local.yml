@@ -13,8 +13,6 @@ env:
   RUNTIME__LOG_LEVEL: ERROR
   RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
 
-  DESTINATION__QDRANT__CREDENTIALS__location: http://localhost:6333
-
 jobs:
 
   run_destinations_local:
