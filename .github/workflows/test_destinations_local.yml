@@ -41,11 +41,11 @@ jobs:
             with: ",adbc"
 
           # Clickhouse OSS (TODO: test with minio s3)
-          # - name: clickhouse
-          #   destinations: "[\"clickhouse\"]"
-          #   filesystem_drivers: "[\"memory\", \"file\"]"
-          #   extras: "clickhouse parquet"
-          #   needs_clickhouse: true
+          - name: clickhouse
+            destinations: "[\"clickhouse\"]"
+            filesystem_drivers: "[\"memory\", \"file\"]"
+            extras: "clickhouse parquet"
+            needs_clickhouse: true
 
           # Dremio
           - name: dremio
