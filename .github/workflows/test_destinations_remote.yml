@@ -92,6 +92,7 @@ jobs:
               filesystem_drivers: "[\"memory\"]"
               extras: "mssql s3 gs az parquet"
               pre_install_commands: "sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
+              always_run_all_tests: true
 
             # Synapse
             - name: synapse
@@ -101,11 +102,18 @@ jobs:
               pre_install_commands: "sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
 
             # Postgres and Redshift (used to be test_destinations.yml)
-            - name: postgres and redshift
-              destinations: "[\"redshift\", \"postgres\", \"duckdb\"]"
+            - name: redshift
+              destinations: "[\"redshift\"]"
               filesystem_drivers: "[\"memory\", \"file\"]"
               extras: "postgres redshift postgis s3 gs az parquet duckdb"
               with: ",adbc"
+
+            - name: postgres
+              destinations: "[\"postgres\"]"
+              filesystem_drivers: "[\"memory\", \"file\"]"
+              extras: "postgres postgis parquet duckdb"
+              with: ",adbc"
+              always_run_all_tests: true
 
             # Qdrant (disabled, because we do not have a test account atm, qdrant is tested with local version)
             # - name: qdrant
@@ -166,9 +174,9 @@ jobs:
       - run: |
           poetry run pytest tests/load --ignore tests/load/sources -m "essential"
         name: Run essential tests Linux
-        if: ${{ !inputs.run_full_test_suite }}
+        if: ${{ !inputs.run_full_test_suite }} && ${{ !matrix.always_run_all_tests }}
 
       - run: |
           poetry run pytest tests/load --ignore tests/load/sources
         name: Run all tests Linux
-        if: ${{ inputs.run_full_test_suite }}
+        if: ${{ inputs.run_full_test_suite }} || ${{ matrix.always_run_all_tests }}
