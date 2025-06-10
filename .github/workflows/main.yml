@@ -52,17 +52,17 @@ jobs:
 
   test_plus:
     name: test dlt+ connection
-    needs: test_common
+    needs: lint
     uses: ./.github/workflows/test_plus.yml
 
   test_tools_airflow:
     name: test airflow helpers
-    needs: test_common
+    needs: lint
     uses: ./.github/workflows/test_tools_airflow.yml
 
   test_tools_build_images:
     name: test build images
-    needs: test_common
+    needs: lint
     uses: ./.github/workflows/test_tools_build_images.yml
 
   #
