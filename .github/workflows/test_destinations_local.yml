@@ -103,8 +103,6 @@ jobs:
         image: qdrant/qdrant:v1.8.4
         ports:
           - 6333:6333
-
-      # TODO: manually start container?
       mysql:
         image: mysql:8
         env:
@@ -195,9 +193,8 @@ jobs:
         if: ${{ matrix.additional_tests }}
 
       #
-      # Tear down services (TODO: Maybe run conditionally?)
+      # Tear down services 
       #
-
       - name: Stop weaviate
         run:  docker compose -f "tests/load/weaviate/docker-compose.yml" down -v
         if: ${{ always() }}
