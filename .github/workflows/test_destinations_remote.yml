@@ -79,6 +79,7 @@ jobs:
               destinations: "[\"lancedb\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "lancedb parquet"
+              post_install_commands: "poetry run pip install openai"
 
             # Motherduck
             - name: motherduck
