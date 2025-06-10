@@ -27,7 +27,7 @@ jobs:
           - name: filesystem, weaviate, qdrant
             destinations: "[\"filesystem\", \"weaviate\", \"qdrant\"]"
             filesystem_drivers: "[\"memory\", \"file\", \"sftp\"]"
-            extras: "parquet cli filesystem qdrant weaviate deltalake pyiceberg"
+            extras: "parquet cli filesystem qdrant weaviate deltalake pyiceberg sftp"
             needs_weaviate: true
             needs_qdrant: true
             needs_ftp: true
@@ -39,6 +39,7 @@ jobs:
             filesystem_drivers: "[\"memory\", \"file\"]"
             extras: "postgres postgis parquet duckdb cli filesystem"
             needs_postgres: true
+            with: ",adbc"
 
           # Clickhouse OSS (TODO: test with minio s3)
           # - name: clickhouse
@@ -172,7 +173,7 @@ jobs:
           version: 1.8.5
 
       - name: Install dependencies
-        run: poetry install --no-interaction --with sentry-sdk,pipeline,ibis,providers --extras "${{ matrix.extras }}"
+        run: poetry install --no-interaction --with sentry-sdk,pipeline,ibis,providers${{ matrix.with }} --extras "${{ matrix.extras }}"
 
       - name: Copy secrets for local tests
         run: |
