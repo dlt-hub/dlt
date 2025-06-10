@@ -40,13 +40,19 @@ jobs:
               excluded_destination_configurations: "[\"athena-no-staging\", \"athena-parquet-no-staging\"]"
               extras: "athena"
 
-
-
             # BigQuery
             - name: bigquery
               destinations: "[\"bigquery\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "bigquery parquet"
+
+            
+            # Clickhouse
+            - name: clickhouse
+              destinations: "[\"clickhouse\"]"
+              filesystem_drivers: "[\"memory\", \"file\"]"
+              extras: "clickhouse parquet"
+
               
             # Databricks
             - name: databricks

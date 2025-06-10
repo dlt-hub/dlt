@@ -24,12 +24,13 @@ jobs:
       - run: true
   
   lint:
-    name: lint
+    name: lint on all python versions
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     uses: ./.github/workflows/lint.yml
 
   test_common:
+    name: run common tests on all python versions and OSes
     needs: lint
     uses: ./.github/workflows/test_common.yml
 
@@ -39,23 +40,29 @@ jobs:
   #
 
   # TODO: maybe make matrix out of this for more local destination tests, such as dremio and clickhouse
-  test_local_destinations:
-    needs: test_common
+  test_destinations_local:
+    name: run local destination tests without secrets
+    # TODO: only run after tests_common
+    needs: get_docs_changes
     uses: ./.github/workflows/test_destinations_local.yml
 
-  test_local_sources:
+  test_sources_local:
+    name: run local source tests without secrets
     needs: test_common
     uses: ./.github/workflows/test_sources_local.yml
 
   test_plus:
+    name: test dlt+ connection
     needs: test_common
     uses: ./.github/workflows/test_plus.yml
 
   test_tools_airflow:
+    name: test airflow helpers
     needs: test_common
     uses: ./.github/workflows/test_tools_airflow.yml
 
   test_tools_build_images:
+    name: test build images
     needs: test_common
     uses: ./.github/workflows/test_tools_build_images.yml
 
@@ -64,11 +71,13 @@ jobs:
   # so we depend on authorize and forward secrets
   #
   test_docs_snippets:
+    name: test snippets in docs
     needs: [test_common, authorize_run_from_fork]
     uses: ./.github/workflows/test_docs_snippets.yml
     secrets: inherit
 
   test_destinations_remote:
+    name: test remote destinations with secrets
     # TODO: only run after tests common
     needs: [authorize_run_from_fork] #, test_common]
     uses: ./.github/workflows/test_destinations_remote.yml
@@ -80,6 +89,7 @@ jobs:
   # Other tools and tests that require secrets
   #
   test_tools_dbt_runner:
+    name: test dbt runner
     needs: [test_common, authorize_run_from_fork]
     uses: ./.github/workflows/test_tools_dbt_runner.yml
     secrets: inherit
