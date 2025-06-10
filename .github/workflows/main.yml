@@ -48,7 +48,8 @@ jobs:
 
   test_sources_local:
     name: run local source tests without secrets
-    needs: test_common
+    # TODO: only run after tests_common
+    needs: get_docs_changes
     uses: ./.github/workflows/test_sources_local.yml
 
   test_plus:
