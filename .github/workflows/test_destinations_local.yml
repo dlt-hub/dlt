@@ -13,30 +13,6 @@ env:
   RUNTIME__LOG_LEVEL: ERROR
   RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
 
-  # TODO: move all of this to example secrets.toml, and copy before running tests
-  DESTINATION__WEAVIATE__VECTORIZER: text2vec-contextionary
-  DESTINATION__WEAVIATE__MODULE_CONFIG: "{\"text2vec-contextionary\": {\"vectorizeClassName\": false, \"vectorizePropertyName\": true}}"
-  DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader:loader@localhost:5432/dlt_data
-  DESTINATION__QDRANT__CREDENTIALS__location: http://localhost:6333
-  DESTINATION__FILESYSTEM__CREDENTIALS__SFTP_PORT: 2222
-  DESTINATION__FILESYSTEM__CREDENTIALS__SFTP_USERNAME: foo
-  DESTINATION__FILESYSTEM__CREDENTIALS__SFTP_PASSWORD: pass
-
-  DESTINATION__DREMIO__CREDENTIALS: grpc://dremio:dremio123@localhost:32010/nas
-  DESTINATION__DREMIO__STAGING_DATA_SOURCE: minio
-  DESTINATION__MINIO__BUCKET_URL: s3://dlt-ci-test-bucket
-  DESTINATION__MINIO__CREDENTIALS__AWS_ACCESS_KEY_ID: minioadmin
-  DESTINATION__MINIO__CREDENTIALS__AWS_SECRET_ACCESS_KEY: minioadmin
-  DESTINATION__MINIO__CREDENTIALS__ENDPOINT_URL: http://127.0.0.1:9010
-
-  # DESTINATION__CLICKHOUSE__CREDENTIALS__HOST: localhost
-  # DESTINATION__CLICKHOUSE__CREDENTIALS__DATABASE: dlt_data
-  # DESTINATION__CLICKHOUSE__CREDENTIALS__USERNAME: loader
-  # DESTINATION__CLICKHOUSE__CREDENTIALS__PASSWORD: loader
-  # DESTINATION__CLICKHOUSE__CREDENTIALS__PORT: 9000
-  # DESTINATION__CLICKHOUSE__CREDENTIALS__HTTP_PORT: 8123
-  # DESTINATION__CLICKHOUSE__CREDENTIALS__SECURE: 0
-
 jobs:
 
   run_destinations_local:
@@ -199,6 +175,10 @@ jobs:
 
       - name: Install dependencies
         run: poetry install --no-interaction --with sentry-sdk,pipeline,ibis,providers --extras "${{ matrix.extras }}"
+
+      - name: Copy secrets for local tests
+        run: |
+          cp tests/.dlt/dev.secrets.toml tests/.dlt/secrets.toml
 
       - name: Run post install commands
         run: ${{ matrix.post_install_commands }}
