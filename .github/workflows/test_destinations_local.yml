@@ -33,8 +33,8 @@ jobs:
             post_install_commands: "poetry run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
             additional_tests: "poetry run pytest tests/cli"
 
-          - name: postgres, duckdb
-            destinations: "[\"postgres\", \"duckdb\"]"
+          - name: postgres, duckdb and dummy
+            destinations: "[\"postgres\", \"duckdb\", \"dummy\"]"
             filesystem_drivers: "[\"memory\", \"file\"]"
             extras: "postgres postgis parquet duckdb cli filesystem"
             needs_postgres: true

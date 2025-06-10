@@ -67,7 +67,7 @@ jobs:
 
             # Filesystem
             - name: filesystem
-              destinations: "[\"filesystem\", \"dummy\"]"
+              destinations: "[\"filesystem\"]"
               # note that all buckets are enabled for testing
               filesystem_drivers: "[\"memory\", \"file\", \"r2\", \"s3\", \"gs\", \"az\", \"abfss\", \"gdrive\"]" # excludes sftp which is run in local tests
               extras: "gs s3 az parquet duckdb filesystem deltalake pyiceberg"
@@ -102,7 +102,7 @@ jobs:
 
             # Postgres and Redshift (used to be test_destinations.yml)
             - name: postgres and redshift
-              destinations: "[\"redshift\", \"postgres\", \"duckdb\", \"dummy\"]"
+              destinations: "[\"redshift\", \"postgres\", \"duckdb\"]"
               filesystem_drivers: "[\"memory\", \"file\"]"
               extras: "postgres redshift postgis s3 gs az parquet duckdb"
               with: ",adbc"
