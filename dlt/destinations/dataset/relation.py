@@ -291,9 +291,8 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
 
         raise TypeError(
             f"Received invalid value `columns={columns}` of type"
-                f" {type(columns).__name__}`. Valid types are: ['Sequence[str]']"
+            f" {type(columns).__name__}`. Valid types are: ['Sequence[str]']"
         )
-
 
     def head(self, limit: int = 5) -> Self:
         return self.limit(limit)
