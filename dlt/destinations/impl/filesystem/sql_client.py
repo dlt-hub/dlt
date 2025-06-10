@@ -166,6 +166,8 @@ class FilesystemSqlClient(WithTableScanners):
             from_statement = (
                 f"iceberg_scan('{last_metadata_file}'{compression}, skip_schema_inference=false)"
             )
+            # TODO: on duckdb > 1.2.1 register self.remote_client.fs_client as abfss fsspec filesystem
+            #   this will enable iceberg but with lower performance
         else:
             # get file format and list of table files
             # NOTE: this does not support cases where table contains many different file formats

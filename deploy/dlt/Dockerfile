@@ -32,7 +32,7 @@ RUN git clone --no-checkout https://github.com/apache/arrow.git /arrow \
     && cd cpp \
     && mkdir build \
     && cd build \
-    && cmake -DARROW_CSV=ON -DARROW_JSON=ON -DARROW_FILESYSTEM=ON .. \
+    && cmake -DARROW_PARQUET=ON -DARROW_CSV=ON -DARROW_JSON=ON -DARROW_FILESYSTEM=ON .. \
     && make -j$(nproc) \
     && make install
 
