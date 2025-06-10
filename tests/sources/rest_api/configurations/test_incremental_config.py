@@ -53,7 +53,7 @@ def test_invalid_incremental_type_is_not_accepted() -> None:
     with pytest.raises(ValueErrorWithKnownValues) as e:
         _validate_param_type(request_params)
 
-    assert e.match("Received invalid value `since['type']=no_incremental`.")
+    assert e.match(r"Received invalid value `since\['type'\]=no_incremental`.")
 
 
 def test_one_resource_cannot_have_many_incrementals() -> None:
@@ -185,7 +185,8 @@ def test_does_not_construct_incremental_from_request_param_with_unsupported_incr
         setup_incremental_object(param_config_2)
 
     assert e.match(
-        "Only start_param and initial_value are allowed in the configuration of param: since_2."
+        "Only `start_param` and `initial_value` are allowed in the configuration of param:"
+        " `since_2`."
     )
 
     param_config_3 = {"since_3": incremental_with_init_and_end}
@@ -193,7 +194,7 @@ def test_does_not_construct_incremental_from_request_param_with_unsupported_incr
     with pytest.raises(ValueError) as e:
         setup_incremental_object(param_config_3)
 
-    assert e.match("Only initial_value is allowed in the configuration of param: since_3.")
+    assert e.match("Only `initial_value` is allowed in the configuration of param: `since_3`.")
 
 
 def test_constructs_incremental_from_endpoint_config_incremental(

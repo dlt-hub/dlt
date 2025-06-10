@@ -225,7 +225,7 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                 if table["write_disposition"] != "append":
                     raise DestinationTerminalException(
                         "BigQuery streaming insert can only be used with"
-                        " `write_disposition='append'`.Resource received"
+                        " `write_disposition='append'`. Resource received"
                         f" `write_disposition={table['write_disposition']}`"
                     )
                 if file_path.endswith(".jsonl"):

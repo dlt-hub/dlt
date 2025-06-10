@@ -45,11 +45,15 @@ def test_response_action_raises_type_error(mocker):
 
     with pytest.raises(TypeErrorWithKnownTypes) as e_1:
         _handle_response_action(response, {"status_code": 200, "action": C()})  # type: ignore[typeddict-item]
-    assert e_1.match("Received invalid value `action['action']=*` of type `C`. Valid types are:")
+    assert e_1.match(
+        r"Received invalid value `action\['action'\]=.*` of type `C`\. Valid types are:"
+    )
 
     with pytest.raises(TypeErrorWithKnownTypes) as e_2:
         _handle_response_action(response, {"status_code": 200, "action": 123})  # type: ignore[typeddict-item]
-    assert e_2.match("Received invalid value `action['action']=*` of type `C`. Valid types are:")
+    assert e_2.match(
+        r"Received invalid value `action\['action'\]=.*` of type `int`\. Valid types are:"
+    )
 
     assert ("ignore", None) == _handle_response_action(
         response, {"status_code": 200, "action": "ignore"}

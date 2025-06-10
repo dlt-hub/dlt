@@ -108,7 +108,7 @@ def validate_dict(
                         failed_validations, key=lambda ex: ex.path.count("/"), reverse=True
                     )
                     for failed in failed_validations:
-                        msg += f"For {get_type_name(failed.expected_type)}: " + str(failed) + "\n"
+                        msg += f"For `{get_type_name(failed.expected_type)}`: " + str(failed) + "\n"
                     raise DictValidationException(
                         msg,
                         path,
@@ -204,8 +204,8 @@ def validate_dict(
                 if inspect.isclass(t):
                     if not isinstance(pv, t):
                         raise DictValidationException(
-                            f"field '{pk}' expects class '{type_name}' but got instance of"
-                            f" '{pv_type_name}'",
+                            f"field `{pk}` expects class `{type_name}` but got instance of"
+                            f" `{pv_type_name}`",
                             path,
                             t,
                             pk,
@@ -214,7 +214,7 @@ def validate_dict(
                 # dropped, just __name__ can be used
                 type_name = get_type_name(t)
                 raise DictValidationException(
-                    f"field '{pk}' has expected type '{type_name}' which lacks validator",
+                    f"field `{pk}` has expected type `{type_name}` which lacks validator",
                     path,
                     t,
                     pk,

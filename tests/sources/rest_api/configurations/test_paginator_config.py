@@ -148,7 +148,6 @@ def test_allow_deprecated_json_response_paginator_2(mock_api_server) -> None:
 def test_error_message_invalid_paginator() -> None:
     with pytest.raises(ValueError) as e:
         create_paginator("non_existing_method")  # type: ignore
-    assert (
-        str(e.value)
-        == "Received invalid value `paginator_name=non_existing_method`. Valid values are:"
+    assert e.match(
+        r"Received invalid value `paginator_name=non_existing_method`\. Valid values are:"
     )

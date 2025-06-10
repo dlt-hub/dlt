@@ -84,7 +84,7 @@ INVALID_CONFIGS = [
         },
     ),
     ConfigTest(
-        expected_message="field `paginator='invalid_paginator'` is not one of:",
+        expected_message="field `paginator` expects the following types: ",
         exception=DictValidationException,
         config={
             "client": {
