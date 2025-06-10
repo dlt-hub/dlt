@@ -723,10 +723,9 @@ def test_raises_error_for_incorrect_interpolation(mock_api_server, config, locat
     with pytest.raises(ValueError) as exc_info:
         rest_api_source(config)
 
-    assert (
+    assert exc_info.match(
         f"Expression `unknown.posts.id` defined in `{location}` is not valid. Valid expressions"
-        " must start with one of: ['resources']"
-        in str(exc_info.value)
+        " must start with one of: `{'resources'}`"
     )
 
 
