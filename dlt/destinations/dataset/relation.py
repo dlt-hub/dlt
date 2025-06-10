@@ -280,10 +280,20 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         return rel
 
     def __getitem__(self, columns: Sequence[str]) -> Self:
-        if not isinstance(columns, Sequence):
-            raise TypeErrorWithKnownTypes("columns", columns, ["Sequence[str]"])
+        # NOTE remember that `issubclass(str, Sequence) is True`
+        if isinstance(columns, str):
+            raise TypeError(
+                f"Received invalid value `columns={columns}` of type"
+                f" {type(columns).__name__}`. Valid types are: ['Sequence[str]']"
+            )
+        elif isinstance(columns, Sequence):
+            return self.select(*columns)
 
-        return self.select(*columns)
+        raise TypeError(
+            f"Received invalid value `columns={columns}` of type"
+                f" {type(columns).__name__}`. Valid types are: ['Sequence[str]']"
+        )
+
 
     def head(self, limit: int = 5) -> Self:
         return self.limit(limit)
