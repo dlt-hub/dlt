@@ -5,8 +5,6 @@ on:
   workflow_call:
   workflow_dispatch:
 
-
-
 env:
 
   DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}

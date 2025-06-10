@@ -5,8 +5,6 @@ on:
   workflow_call:
   workflow_dispatch:
 
-
-
 env:
   # all credentials must be present to be passed to dbt cloud
   DBT_CLOUD__ACCOUNT_ID: ${{ secrets.DBT_CLOUD__ACCOUNT_ID }}

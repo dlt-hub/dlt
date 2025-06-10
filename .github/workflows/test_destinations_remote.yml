@@ -165,6 +165,7 @@ jobs:
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
+      # TODO: switch smoke to essential
       - run: |
           poetry run pytest tests/load --ignore tests/load/sources -m "smoke"
         name: Run essential tests Linux

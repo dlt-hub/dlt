@@ -4,8 +4,6 @@ on:
   workflow_call:
   workflow_dispatch:
 
-
-
 jobs:
   run_airflow:
     name: tools | airflow tests

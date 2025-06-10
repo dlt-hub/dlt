@@ -7,8 +7,6 @@ on:
   workflow_call:
   workflow_dispatch:
 
-
-
 env:
 
   # RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
@@ -31,13 +29,13 @@ env:
   DESTINATION__MINIO__CREDENTIALS__AWS_SECRET_ACCESS_KEY: minioadmin
   DESTINATION__MINIO__CREDENTIALS__ENDPOINT_URL: http://127.0.0.1:9010
 
-  DESTINATION__CLICKHOUSE__CREDENTIALS__HOST: localhost
-  DESTINATION__CLICKHOUSE__CREDENTIALS__DATABASE: dlt_data
-  DESTINATION__CLICKHOUSE__CREDENTIALS__USERNAME: loader
-  DESTINATION__CLICKHOUSE__CREDENTIALS__PASSWORD: loader
-  DESTINATION__CLICKHOUSE__CREDENTIALS__PORT: 9000
-  DESTINATION__CLICKHOUSE__CREDENTIALS__HTTP_PORT: 8123
-  DESTINATION__CLICKHOUSE__CREDENTIALS__SECURE: 0
+  # DESTINATION__CLICKHOUSE__CREDENTIALS__HOST: localhost
+  # DESTINATION__CLICKHOUSE__CREDENTIALS__DATABASE: dlt_data
+  # DESTINATION__CLICKHOUSE__CREDENTIALS__USERNAME: loader
+  # DESTINATION__CLICKHOUSE__CREDENTIALS__PASSWORD: loader
+  # DESTINATION__CLICKHOUSE__CREDENTIALS__PORT: 9000
+  # DESTINATION__CLICKHOUSE__CREDENTIALS__HTTP_PORT: 8123
+  # DESTINATION__CLICKHOUSE__CREDENTIALS__SECURE: 0
 
 jobs:
 
@@ -50,23 +48,28 @@ jobs:
         include:
 
           # Duckdb, Postgres, Filesystem, Weaviate, Qdrant (could be split?)
-          - name: duckdb, postgres, filesystem, weaviate, qdrant
-            destinations: "[\"duckdb\", \"postgres\", \"filesystem\", \"weaviate\", \"qdrant\"]"
+          - name: filesystem, weaviate, qdrant
+            destinations: "[\"filesystem\", \"weaviate\", \"qdrant\"]"
             filesystem_drivers: "[\"memory\", \"file\", \"sftp\"]"
-            extras: "postgres postgis parquet duckdb cli filesystem qdrant weaviate deltalake pyiceberg"
+            extras: "parquet cli filesystem qdrant weaviate deltalake pyiceberg"
             needs_weaviate: true
             needs_qdrant: true
-            needs_postgres: true
             needs_ftp: true
             post_install_commands: "poetry run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
             additional_tests: "poetry run pytest tests/cli"
 
-          # Clickhouse
-          - name: clickhouse
-            destinations: "[\"clickhouse\"]"
+          - name: postgres, duckdb
+            destinations: "[\"postgres\", \"duckdb\"]"
             filesystem_drivers: "[\"memory\", \"file\"]"
-            extras: "clickhouse parquet"
-            needs_clickhouse: true
+            extras: "postgres postgis parquet duckdb cli filesystem"
+            needs_postgres: true
+
+          # Clickhouse OSS (TODO: test with minio s3)
+          # - name: clickhouse
+          #   destinations: "[\"clickhouse\"]"
+          #   filesystem_drivers: "[\"memory\", \"file\"]"
+          #   extras: "clickhouse parquet"
+          #   needs_clickhouse: true
 
           # Dremio
           - name: dremio

@@ -8,8 +8,6 @@ on:
   workflow_call:
   workflow_dispatch:
 
-
-
 env:
   RUNTIME__LOG_LEVEL: ERROR
   RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
