@@ -26,6 +26,7 @@ RUN apk update &&\
 
 # install arrow 18.1.0
 # adapt this version to the arrow version you need
+# NOTE: it is impossible to build 18.1 because some sources are missing
 RUN git clone --no-checkout https://github.com/apache/arrow.git /arrow \
     && cd /arrow \
     && git checkout tags/apache-arrow-18.1.0 \
