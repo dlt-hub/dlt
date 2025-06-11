@@ -1,7 +1,6 @@
 import pytest
 
 from dlt import Schema
-import dlt.common.libs.sqlglot
 from dlt.common.schema.typing import TColumnSchema
 from dlt.transformations import lineage
 
@@ -55,9 +54,7 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
     destination = destination_config.destination_factory(dataset_name="d1")
     caps = destination.client(example_schema).sql_client.capabilities
     dialect = caps.sqlglot_dialect
-    sqlglot_schema = dlt.common.libs.sqlglot.dlt_schema_to_sqlglot_schema(
-        example_schema, "d1", dialect
-    )
+    sqlglot_schema = lineage.create_sqlglot_schema(example_schema, "d1", dialect)
 
     def _set_nullable(col: TColumnSchema) -> TColumnSchema:
         # if not caps.enforces_nulls:

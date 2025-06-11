@@ -9,10 +9,8 @@ from sqlglot.schema import Schema as SQLGlotSchema
 from sqlglot.optimizer.annotate_types import annotate_types
 from sqlglot.optimizer.qualify import qualify
 
-from dlt.common.libs.sqlglot import (
-    from_sqlglot_type,
-    get_metadata,
-)
+from dlt.common.libs.sqlglot import from_sqlglot_type, get_metadata, dlt_schema_to_sqlglot_schema
+from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TColumnSchema,
@@ -21,6 +19,20 @@ from dlt.transformations.exceptions import LineageFailedException
 
 
 logger = logging.getLogger(__file__)
+
+
+def create_sqlglot_schema(
+    schema: Schema,
+    dataset_name: str,
+    dialect: Optional[DialectType] = "duckdb",
+) -> SQLGlotSchema:
+    """Create an SQLGlot schema using a dlt Schema and the destination capabilities.
+    The SQLGlot schema automatically scopes the tables to the `dataset_name`.
+    This can allow cross-dataset transformations on the same physical location.
+    No name translation nor case folding is performing. All identifiers correspond
+    to identifiers in dlt schema.
+    """
+    return dlt_schema_to_sqlglot_schema(schema=schema, dataset_name=dataset_name, dialect=dialect)
 
 
 # NOTE even if `infer_sqlglot_schema=True`, some queries can have undetermined final columns

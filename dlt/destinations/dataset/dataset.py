@@ -21,8 +21,7 @@ from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation, BaseReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
-
-from dlt.common.libs import sqlglot
+from dlt.transformations import lineage
 
 
 if TYPE_CHECKING:
@@ -87,7 +86,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         # NOTE: no cache for now, it is probably more expensive to compute the current schema hash
         # to see wether this is stale than to compute a new sqlglot schema
         dialect: str = self.sql_client.capabilities.sqlglot_dialect
-        return sqlglot.dlt_schema_to_sqlglot_schema(self.schema, self.dataset_name, dialect=dialect)
+        return lineage.create_sqlglot_schema(self.schema, self.dataset_name, dialect=dialect)
 
     @property
     def dataset_name(self) -> str:
