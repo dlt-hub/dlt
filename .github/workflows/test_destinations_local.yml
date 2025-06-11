@@ -48,7 +48,7 @@ jobs:
             extras: "clickhouse parquet"
             needs_clickhouse: true
             # NOTE: we only run non-staging tests, as staging tests require credentials for s3 and azure
-            excluded_destination_configurations: "[\"staging-s3-authorization\", \"staging-az-authorization\"]"
+            excluded_destination_configurations: "[\"clickhouse-parquet-staging-s3-authorization\", \"clickhouse-parquet-staging-az-authorization\", \"clickhouse-jsonl-staging-az-authorization\", \"clickhouse-jsonl-staging-s3-authorization\"]"
 
           # Dremio
           - name: dremio
