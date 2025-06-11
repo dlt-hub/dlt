@@ -236,7 +236,7 @@ config: RESTAPIConfig = {
 The `client` configuration is used to connect to the API's endpoints. It includes the following fields:
 
 - `base_url` (str): The base URL of the API. This string is prepended to all endpoint paths. For example, if the base URL is `https://api.example.com/v1/`, and the endpoint path is `users`, the full URL will be `https://api.example.com/v1/users`.
-- `headers` (dict, optional): Additional headers that are sent with each request.
+- `headers` (dict, optional): Additional headers that are sent with each request. See the [headers configuration](./advanced#headers-configuration) section for more details.
 - `auth` (optional): Authentication configuration. This can be a simple token, an `AuthConfigBase` object, or a more complex authentication method.
 - `session` (requests.Session, optional): A custom session object. When provided, this session will be used for all HTTP requests instead of the default session. Can be used, for example, with [requests-oauthlib](https://github.com/requests/requests-oauthlib) for OAuth authentication.
 - `paginator` (optional): Configuration for the default pagination used for resources that support pagination. Refer to the [pagination](#pagination) section for more details.
@@ -360,6 +360,7 @@ The fields in the endpoint configuration are:
 - `path`: The path to the API endpoint. By default this path is appended to the given `base_url`. If this is a fully qualified URL starting with `http:` or `https:` it will be
 used as-is and `base_url` will be ignored.
 - `method`: The HTTP method to be used. The default is `GET`.
+- `headers`: Additional headers specific to this endpoint. See the [headers configuration](./advanced#headers-configuration) section for more details.
 - `params`: Query parameters to be sent with each request. For example, `sort` to order the results or `since` to specify [incremental loading](#incremental-loading). This is also may be used to define [resource relationships](#define-resource-relationships).
 - `json`: The JSON payload to be sent with the request (for POST and PUT requests).
 - `paginator`: Pagination configuration for the endpoint. See the [pagination](#pagination) section for more details.
@@ -1142,7 +1143,7 @@ Some APIs use path parameters to filter the data:
 
 #### In request headers
 
-It's not so common, but you can also use placeholders in the request headers:
+You can also use placeholders in request headers:
 
 ```py
 {
@@ -1156,6 +1157,8 @@ It's not so common, but you can also use placeholders in the request headers:
     },
 }
 ```
+
+For more details on headers configuration and dynamic placeholders, see the [headers configuration](./advanced#headers-configuration) section.
 
 You can also use different placeholder variants depending on your needs:
 
@@ -1174,7 +1177,7 @@ DEPRECATED: This method is deprecated and will be removed in a future version. U
 :::
 
 :::note
-This method only works for query string parameters. For other request parts (path, JSON body, headers), use the [placeholder method](#using-placeholders-for-incremental-loading).
+This method only works for query string parameters. For other request parts (path, JSON body, headers), use the [placeholder method](#using-placeholders-for-incremental-loading). For more details on headers, see the [headers configuration](./advanced#headers-configuration) section.
 :::
 
 For query string parameters, you can also specify incremental loading directly in the `params` section:

@@ -1,7 +1,7 @@
 ---
 title: Advanced configuration
-description: Learn custom response processing
-keywords: [rest api, restful api]
+description: Learn custom response processing, headers configuration and more
+keywords: [rest api, restful api, headers, response actions, advanced configuration]
 ---
 
 `rest_api_source()` function creates the [dlt source](../../../general-usage/source.md) and lets you configure the following parameters:
@@ -13,6 +13,126 @@ keywords: [rest api, restful api]
 - `root_key` (bool): Enables merging on all resources by propagating the root foreign key to nested tables. This option is most useful if you plan to change the write disposition of a resource to disable/enable merge. Defaults to False.
 - `schema_contract`: Schema contract settings that will be applied to this resource.
 - `spec`: A specification of configuration and secret values required by the source.
+
+### Headers configuration
+
+The REST API source supports configuring custom headers at both the client level and the endpoint level. This allows you to send additional HTTP headers with your API requests, which is useful for some use cases.
+
+#### Basic headers configuration
+
+Headers can be configured in two places:
+
+1. [Client-level headers](./basic.md#client-level-headers): Static headers applied to all requests for all resources.
+2. [Endpoint-level headers](./basic.md#endpoint-level-headers): Headers applied only to requests for a specific resource (support placeholder interpolation). These are also can be specified via `resource_defaults`.
+
+When both client-level and endpoint-level headers are specified, endpoint-level headers override client-level headers for the same header names.
+
+##### Client-level headers
+
+Client-level headers are static and applied to all requests:
+
+```py
+config: RESTAPIConfig = {
+    "client": {
+        "base_url": "https://api.example.com",
+        "headers": {
+            "User-Agent": "MyApp/1.0",
+            "Accept": "application/json",
+            "X-API-Version": "v2"
+        }
+    },
+    "resources": ["posts", "comments"]
+}
+```
+
+##### Endpoint-level headers
+
+```py
+config: RESTAPIConfig = {
+    "client": {
+        "base_url": "https://api.example.com",
+        "headers": {
+            "User-Agent": "MyApp/1.0"
+        }
+    },
+    "resources": [
+        {
+            "name": "posts",
+            "endpoint": {
+                "path": "posts",
+                "headers": {
+                    "Content-Type": "application/vnd.api+json",
+                    "X-Custom-Header": "posts-specific-value"
+                }
+            }
+        }
+    ]
+}
+```
+
+#### Dynamic headers with placeholders
+
+[Endpoint-level headers](./basic.md#endpoint-level-headers) support dynamic values using placeholder interpolation. This allows you to reference data from parent resources and incremental values.
+
+:::note
+Client-level headers do not support placeholder interpolation. If you need dynamic headers with placeholders, you must define them at the endpoint level.
+:::
+
+##### Example: headers with resource data
+
+You can reference fields from parent resources in header values:
+
+```py
+config: RESTAPIConfig = {
+    "client": {
+        "base_url": "https://api.example.com"
+    },
+    "resources": [
+        "posts",
+        {
+            "name": "comments",
+            "endpoint": {
+                "path": "posts/{resources.posts.id}/comments",
+                "headers": {
+                    "X-Post-ID": "{resources.posts.id}",
+                    "X-Post-Title": "{resources.posts.title}"
+                }
+            }
+        }
+    ]
+}
+```
+
+In this example, for each post, the `comments` resource will include headers with the post's ID and title.
+
+##### Example: headers with incremental values
+
+You can also use incremental values in headers:
+
+```py
+config: RESTAPIConfig = {
+    "client": {
+        "base_url": "https://api.example.com"
+    },
+    "resources": [
+        {
+            "name": "events",
+            "endpoint": {
+                "path": "events",
+                "headers": {
+                    "X-Since-Timestamp": "{incremental.start_value}"
+                },
+                "incremental": {
+                    "cursor_path": "updated_at",
+                    "initial_value": "2024-01-01T00:00:00Z"
+                }
+            }
+        }
+    ]
+}
+```
+
+See the [incremental loading](./basic.md#incremental-loading) section for more details.
 
 ### Response actions
 
