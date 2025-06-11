@@ -147,10 +147,14 @@ class StateInfo:
 class DestinationClientConfiguration(BaseConfiguration):
     destination_type: Annotated[str, NotResolved()] = dataclasses.field(
         default=None, init=False, repr=False, compare=False
-    )  # which destination to load data to
+    )
+    """Type of this destination, e.g. `postgres` or `duckdb`"""
     credentials: Optional[CredentialsConfiguration] = None
+    """Credentials for this destination"""
     destination_name: Optional[str] = None  # name of the destination
+    """Name of the destination, e.g. `my_postgres` or `my_duckdb`, will be the same as destination_type if not set"""
     environment: Optional[str] = None
+    """Environment of the destination, e.g. `dev` or `prod`"""
 
     def fingerprint(self) -> str:
         """Returns a destination fingerprint which is a hash of selected configuration fields. ie. host in case of connection string"""

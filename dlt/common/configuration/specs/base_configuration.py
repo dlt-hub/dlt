@@ -170,6 +170,8 @@ def configspec(
 ) -> Callable[[Type[TAnyClass]], Type[TAnyClass]]: ...
 
 
+KNOWN_CONFIG_SPEC_CLASSES = set()
+
 @dataclass_transform(eq_default=False, field_specifiers=(dataclasses.Field, dataclasses.field))
 def configspec(
     cls: Optional[Type[Any]] = None, init: bool = True
@@ -187,6 +189,8 @@ def configspec(
     """
 
     def wrap(cls: Type[TAnyClass]) -> Type[TAnyClass]:
+        global KNOWN_CONFIG_SPEC_CLASSES
+        KNOWN_CONFIG_SPEC_CLASSES.add(cls)
         cls.__hint_resolvers__ = {}  # type: ignore[attr-defined]
         is_context = issubclass(cls, _F_ContainerInjectableContext)
         # if type does not derive from BaseConfiguration then derive it

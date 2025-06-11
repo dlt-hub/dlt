@@ -80,7 +80,7 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
     dataset_table_separator: str = "___"
     """Separator for dataset table names, defaults to '___', i.e. 'database.dataset___table'."""
     table_engine_type: Optional[TTableEngineType] = "merge_tree"
-    """The default table engine to use. Defaults to 'merge_tree'. Other implemented options are 'shared_merge_tree' and 'replicated_merge_tree'."""
+    """The default table engine to use. Defaults to `merge_tree`. Other implemented options are `shared_merge_tree` and `replicated_merge_tree`."""
     dataset_sentinel_table_name: str = "dlt_sentinel_table"
     """Special table to mark dataset as existing"""
     staging_use_https: bool = True
