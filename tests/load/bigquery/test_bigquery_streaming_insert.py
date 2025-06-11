@@ -50,8 +50,8 @@ def test_bigquery_streaming_wrong_disposition():
     # pick the failed job
     assert isinstance(pip_ex.value.__cause__, LoadClientJobFailed)
     assert (
-        "BigQuery streaming insert can only be used with `write_disposition='append'`"
-        "Resource received `write_disposition=merge`"
+        "BigQuery streaming insert can only be used with `write_disposition='append'`."
+        " Resource received `write_disposition=merge`"
         in pip_ex.value.__cause__.failed_message
     )
 
