@@ -10,6 +10,9 @@ from tests.pipeline.utils import assert_load_info
 
 @pytest.mark.essential
 def test_clickhouse_gcs_s3_compatibility() -> None:
+    if "localhost" in dlt.config.get("destination.clickhouse.credentials.host"):
+        pytest.skip("Skipping test for local ClickHouse instance")
+
     @dlt.resource
     def dummy_data() -> Generator[Dict[str, int], None, None]:
         yield {"field1": 1, "field2": 2}
@@ -24,5 +27,6 @@ def test_clickhouse_gcs_s3_compatibility() -> None:
         staging=gcp_bucket,
         dev_mode=True,
     )
+
     pack = pipe.run([dummy_data])
     assert_load_info(pack)
