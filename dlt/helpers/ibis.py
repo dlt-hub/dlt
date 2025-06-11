@@ -23,6 +23,7 @@ try:
     import sqlglot
     from ibis import BaseBackend, Expr, Table
     from ibis.backends.sql.compilers.duckdb import compiler as duckdb_compiler
+    from ibis.backends.sql.compilers.bigquery import compiler as bigquery_compiler
 except ModuleNotFoundError:
     raise MissingDependencyException("dlt ibis helpers", ["ibis-framework"])
 
