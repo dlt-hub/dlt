@@ -31,14 +31,15 @@ jobs:
             needs_qdrant: true
             needs_ftp: true
             post_install_commands: "poetry run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
-            additional_tests: "poetry run pytest tests/cli"
 
-          - name: postgres, duckdb and dummy
+          - name: postgres, duckdb and dummy with cli commands
             destinations: "[\"postgres\", \"duckdb\", \"dummy\"]"
             filesystem_drivers: "[\"memory\", \"file\"]"
             extras: "postgres postgis parquet duckdb cli filesystem"
             needs_postgres: true
             with: ",adbc"
+            additional_tests: "poetry run pytest tests/cli"
+
 
           # Clickhouse OSS (TODO: test with minio s3)
           - name: clickhouse
