@@ -59,7 +59,7 @@ class Container:
     def __getitem__(self, spec: Type[TInjectableContext]) -> TInjectableContext:
         # return existing config object or create it from spec
         if not is_subclass(spec, ContainerInjectableContext):
-            raise KeyError(f"{spec.__name__} is not a context")
+            raise KeyError(f"`{spec.__name__}` is not a context")
 
         context, item = self._thread_getitem(spec)
         if item is None:

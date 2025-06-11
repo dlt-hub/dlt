@@ -397,7 +397,11 @@ def destinations_configs(
                 credentials=dict(path=str(Path(FILE_BUCKET) / "qdrant_data")),
                 extra_info="local-file",
             ),
-            DestinationTestConfiguration(destination_type="qdrant", extra_info="server"),
+            DestinationTestConfiguration(
+                destination_type="qdrant",
+                credentials=dict(location="http://localhost:6333"),
+                extra_info="server",
+            ),
         ]
 
     if (default_sql_configs or all_staging_configs) and not default_sql_configs:

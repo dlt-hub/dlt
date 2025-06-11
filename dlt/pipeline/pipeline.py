@@ -24,6 +24,7 @@ import dlt
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.configuration import inject_section, known_sections
 from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.configuration.container import Container
@@ -438,7 +439,10 @@ class Pipeline(SupportsPipeline):
     ) -> ExtractInfo:
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
         if loader_file_format and loader_file_format not in LOADER_FILE_FORMATS:
-            raise ValueError(f"{loader_file_format} is unknown.")
+            raise ValueErrorWithKnownValues(
+                "loader_file_format", loader_file_format, LOADER_FILE_FORMATS
+            )
+
         with self._maybe_destination_capabilities() as caps:
             if caps:
                 self._verify_destination_capabilities(caps, loader_file_format)
@@ -1310,7 +1314,7 @@ class Pipeline(SupportsPipeline):
                 "destination",
                 "load",
                 "Please provide `destination` argument to `pipeline`, `run` or `load` method"
-                " directly or via .dlt config.toml file or environment variable.",
+                " directly or via .dlt/config.toml file or environment variable.",
             )
 
         destination_client, staging_client = get_destination_clients(
@@ -1331,8 +1335,8 @@ class Pipeline(SupportsPipeline):
         if isinstance(destination_client.config, DestinationClientStagingConfiguration):
             if not self.dataset_name and self.dev_mode:
                 logger.warning(
-                    "Dev mode may not work if dataset name is not set. Please set the"
-                    " dataset_name argument in dlt.pipeline or run method"
+                    "`dev_mode=True` may not work if `dataset_name` is not set. "
+                    "Please set `dataset_name` in `dlt.pipeline(...)` or `Pipeline.run(...)`."
                 )
 
         return destination_client, staging_client
@@ -1344,7 +1348,7 @@ class Pipeline(SupportsPipeline):
                 "destination",
                 "normalize",
                 "Please provide `destination` argument to `pipeline`, `run` or `load` method"
-                " directly or via .dlt config.toml file or environment variable.",
+                " directly or via .dlt/config.toml file or environment variable.",
             )
 
         # check if default schema is present

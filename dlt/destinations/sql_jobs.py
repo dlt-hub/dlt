@@ -466,7 +466,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 sql_client.fully_qualified_dataset_name(staging=True),
                 [t["name"] for t in table_chain],
                 f"Multiple primary key columns found in table `{table['name']}`. "
-                "Cannot use as row_key.",
+                "Cannot use as `row_key`.",
             )
 
         raise MergeDispositionException(

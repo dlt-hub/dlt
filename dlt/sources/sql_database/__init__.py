@@ -116,7 +116,7 @@ def sql_database(
 
     if defer_table_reflect:
         if not table_names:
-            raise ValueError("You must pass table names to defer table reflection")
+            raise ValueError("You must pass `table_names` to defer table reflection")
         table_infos = [(schema, table) for table in table_names]
     else:
         # reflect tables

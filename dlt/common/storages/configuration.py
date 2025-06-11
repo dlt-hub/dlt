@@ -76,7 +76,7 @@ def ensure_canonical_az_url(
 
     if not storage_account_name and not account_host:
         raise TerminalValueError(
-            f"Could not convert azure blob storage url {bucket_url} into canonical form "
+            f"Could not convert azure blob storage url `{bucket_url}` into canonical form "
             f" ({target_scheme}://<container_name>@<storage_account_name>.dfs.core.windows.net/<path>)"
             f" because storage account name is not known. Please use {target_scheme}:// canonical"
             " url as bucket_url in filesystem credentials"
@@ -237,9 +237,9 @@ class FilesystemConfiguration(BaseConfiguration):
         url = urlparse(self.bucket_url)
         if not url.path and not url.netloc:
             raise ConfigurationValueError(
-                "File path and netloc are missing. Field bucket_url of"
-                " FilesystemClientConfiguration must contain valid url with a path or host:password"
-                " component."
+                "File `path` and `netloc` are missing. Field `bucket_url` of"
+                " `FilesystemClientConfiguration` must contain valid url with a path or"
+                " host:password component."
             )
         self.normalize_bucket_url()
 
@@ -301,9 +301,9 @@ class FilesystemConfiguration(BaseConfiguration):
         """
         url = urlparse(file_url)
         if url.scheme != "file":
-            raise ValueError(f"Must be file scheme but is {url.scheme}")
+            raise ValueError(f"Must be file scheme but is `{url.scheme}`")
         if not url.path and not url.netloc:
-            raise ConfigurationValueError("File path and netloc are missing.")
+            raise ConfigurationValueError("File `path` and `netloc` are missing.")
         local_path = unquote(url.path)
         if url.netloc:
             # or UNC file://localhost/path
@@ -377,7 +377,7 @@ class WithLocalFiles(BaseConfiguration):
             if self.pipeline_working_dir:
                 return os.path.join(self.pipeline_working_dir, _default_location())
             raise RuntimeError(
-                "Attempting to use special location :pipeline: outside of pipeline context."
+                "Attempting to use special location `:pipeline:` outside of pipeline context."
             )
         else:
             # if explicit path is absolute, use it

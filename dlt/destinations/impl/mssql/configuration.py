@@ -39,7 +39,7 @@ class MsSqlCredentials(ConnectionStringCredentials):
     def on_resolved(self) -> None:
         if self.driver not in self.SUPPORTED_DRIVERS:
             raise SystemConfigurationException(
-                f"""The specified driver "{self.driver}" is not supported."""
+                f"The specified driver `{self.driver}` is not supported."
                 f" Choose one of the supported drivers: {', '.join(self.SUPPORTED_DRIVERS)}."
             )
         self.database = self.database.lower()
@@ -68,7 +68,7 @@ class MsSqlCredentials(ConnectionStringCredentials):
         docs_url = "https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16"
         raise SystemConfigurationException(
             f"No supported ODBC driver found for MS SQL Server.  See {docs_url} for information on"
-            f" how to install the '{self.SUPPORTED_DRIVERS[0]}' on your platform."
+            f" how to install the `{self.SUPPORTED_DRIVERS[0]}` on your platform."
         )
 
     def _get_odbc_dsn_dict(self) -> Dict[str, Any]:
