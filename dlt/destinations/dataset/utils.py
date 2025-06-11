@@ -145,10 +145,10 @@ def normalize_query(
                 if len(expanded_path) == 3:
                     if node.db != expanded_path[0]:
                         node.set("catalog", sqlglot.to_identifier(expanded_path[0], quoted=False))
-        if isinstance(node, sge.Alias):
-            node.set(
-                "alias", sqlglot.to_identifier(naming.normalize_identifier(node.alias), quoted=True)
-            )
+        # if isinstance(node, sge.Alias):
+        #     node.set(
+        #         "alias", sqlglot.to_identifier(naming.normalize_identifier(node.alias), quoted=True)
+        #     )
         # quote and case-fold identifiers, TODO: maybe we could be more intelligent, but then we need to unquote ibis
         if isinstance(node, sge.Identifier):
             if is_casefolding:
