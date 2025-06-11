@@ -176,13 +176,14 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
 
         Args:
             credentials (Union[DuckDbCredentials, Dict[str, Any], str, DuckDBPyConnection], optional): Credentials to connect to the duckdb database. Can be an instance of `DuckDbCredentials` or
-                a path to a database file. Use :pipeline: to create a duckdb
-                in the working folder of the pipeline
+                a path to a database file. Use :pipeline: to create a duckdb in the working folder of the pipeline.
+                Instance of `DuckDbCredentials` allows to pass extensions, configs and pragmas to be set up for connection.
             create_indexes (bool, optional): Should unique indexes be created, defaults to False
             destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
             environment (str, optional): Environment of the destination
             **kwargs (Any): Additional arguments passed to the destination config
         """
+
         super().__init__(
             credentials=credentials,
             create_indexes=create_indexes,

@@ -58,12 +58,12 @@ def create_ibis_backend(
         import duckdb
 
         assert isinstance(client, DuckDbClient)
-        duck = duckdb.connect(
-            database=client.config.credentials._conn_str(),
-            read_only=client.config.credentials.read_only,
-            config=client.config.credentials._get_conn_config(),
-        )
-        con = ibis.duckdb.from_connection(duck)
+        # open connection, apply all settings and pragmas
+        duck_conn = client.config.credentials.borrow_conn()
+        # move main connection ownership to ibis
+        con = ibis.duckdb.from_connection(client.config.credentials.move_conn())
+        client.config.credentials.return_conn(duck_conn)
+
         # make sure we can access tables from current dataset without qualification
         dataset_name = client.sql_client.fully_qualified_dataset_name()
         con.raw_sql(f"SET search_path = '{dataset_name}';")

@@ -18,7 +18,6 @@ from tests.load.utils import (
     assert_all_data_types_row,
     destinations_configs,
     DestinationTestConfiguration,
-    drop_active_pipeline_data,
 )
 from tests.cases import TABLE_ROW_ALL_DATA_TYPES_DATETIMES
 
@@ -109,8 +108,6 @@ def test_snowflake_custom_stage(destination_config: DestinationTestConfiguration
         pipeline.run(data(), **destination_config.run_kwargs)
     assert isinstance(f_jobs.value.__cause__, LoadClientJobFailed)
     assert "MY_NON_EXISTING_STAGE" in f_jobs.value.__cause__.failed_message
-
-    drop_active_pipeline_data()
 
     # NOTE: this stage must be created in DLT_DATA database for this test to pass!
     # CREATE STAGE MY_CUSTOM_LOCAL_STAGE;

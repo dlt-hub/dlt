@@ -89,25 +89,23 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         super().__init__(None, dataset_name, staging_dataset_name, capabilities)
         self._conn: duckdb.DuckDBPyConnection = None
         self.credentials = credentials
-
-    @raise_open_connection_error
-    def open_connection(self) -> duckdb.DuckDBPyConnection:
-        self._conn = self.credentials.borrow_conn(read_only=self.credentials.read_only)
-        # TODO: apply config settings from credentials
-        self._conn.execute("PRAGMA enable_checkpoint_on_shutdown;")
-        config = {
-            "search_path": self.fully_qualified_dataset_name(),
+        # set additional connection options so derived class can change it
+        # TODO: move that to methods that can be overridden, include local_config
+        self._pragmas = ["enable_checkpoint_on_shutdown"]
+        self._global_config = {
             "TimeZone": "UTC",
             "checkpoint_threshold": "1gb",
         }
-        if config:
-            for k, v in config.items():
-                try:
-                    # TODO: serialize str and ints, dbapi args do not work here
-                    # TODO: enable various extensions ie. parquet
-                    self._conn.execute(f"SET {k} = '{v}'")
-                except (duckdb.CatalogException, duckdb.BinderException):
-                    pass
+
+    @raise_open_connection_error
+    def open_connection(self) -> duckdb.DuckDBPyConnection:
+        self._conn = self.credentials.borrow_conn(
+            pragmas=self._pragmas,
+            global_config=self._global_config,
+            local_config={
+                "search_path": self.fully_qualified_dataset_name(),
+            },
+        )
         return self._conn
 
     def close_connection(self) -> None:
@@ -189,106 +187,13 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
 
         if catalog == self.dataset_name:
             logger.warning(
-                "The current catalog (database name) '%s' is identical to the dataset name '%s'."
-                " This may lead to confusion in the DuckDB binder. Consider using distinct names."
-                " Most typically you use the same name for your pipeline and dataset or the same"
-                " name for your destination and the dataset.",
+                "The current catalog (typically database file name) '%s' is identical to the"
+                " dataset name '%s'. This may lead to confusion in the DuckDB binder. Consider"
+                " using distinct names. Most typically you use the same name for your pipeline and"
+                " dataset or the same name for your destination and the dataset.",
                 catalog,
                 self.dataset_name,
             )
-
-    @classmethod
-    def _make_database_exception(cls, ex: Exception) -> Exception:
-        if isinstance(ex, (duckdb.CatalogException)):
-            if "already exists" in str(ex):
-                raise DatabaseTerminalException(ex)
-            else:
-                raise DatabaseUndefinedRelation(ex)
-        elif isinstance(ex, duckdb.InvalidInputException):
-            if "Catalog Error" in str(ex):
-                raise DatabaseUndefinedRelation(ex)
-            # duckdb raises TypeError on malformed query parameters
-            return DatabaseTransientException(duckdb.ProgrammingError(ex))
-        elif isinstance(ex, duckdb.IOException):
-            message = str(ex)
-            if (
-                "read from delta table" in message and "No files in log segment" in message
-            ) or "Path does not exist" in message:
-                # delta scanner with no delta data and metadata exist in the location
-                return DatabaseUndefinedRelation(ex)
-            if "Could not guess Iceberg table version" in message:
-                # same but iceberg
-                return DatabaseUndefinedRelation(ex)
-            if "No files found" in message:
-                # glob patterns not found
-                return DatabaseUndefinedRelation(ex)
-            return DatabaseTransientException(ex)
-        elif isinstance(ex, duckdb.InternalException):
-            if "INTERNAL Error: Value::LIST(values)" in str(ex):
-                return IcebergViewException(
-                    ex,
-                    "duckdb Iceberg extension raises this error when empty (no data) Iceberg table"
-                    " is queried. https://github.com/duckdb/duckdb-iceberg/issues/65",
-                )
-            else:
-                return DatabaseTransientException(ex)
-        elif isinstance(
-            ex,
-            (
-                duckdb.OperationalError,
-                duckdb.InternalError,
-                duckdb.SyntaxException,
-                duckdb.ParserException,
-            ),
-        ):
-            return DatabaseTransientException(ex)
-        elif isinstance(ex, (duckdb.DataError, duckdb.ProgrammingError, duckdb.IntegrityError)):
-            return DatabaseTerminalException(ex)
-        elif cls.is_dbapi_exception(ex):
-            return DatabaseTransientException(ex)
-        else:
-            return ex
-
-    @staticmethod
-    def is_dbapi_exception(ex: Exception) -> bool:
-        return isinstance(ex, duckdb.Error)
-
-
-class WithTableScanners(DuckDbSqlClient):
-    memory_db: duckdb.DuckDBPyConnection = None
-    """Internally created in-mem database in case external is not provided"""
-
-    def __init__(
-        self,
-        remote_client: JobClientBase,
-        dataset_name: str,
-        cache_db: DuckDbCredentials = None,
-        persist_secrets: bool = False,
-    ) -> None:
-        """Allows to maps data in tables accessed via `remote_client` as VIEWs in duckdb database.
-        Creates in memory "cache" database by default or allows for external database via "cache_db".
-        Will attempt to create views lazily by parsing SQL queries, identifying tables and adding views
-        before execution.
-        """
-        # if no credentials are passed from the outside
-        # we know to keep an in memory instance here
-        if not cache_db:
-            self.memory_db = duckdb.connect(":memory:")
-            cache_db = DuckDbCredentials(self.memory_db)
-
-        from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory
-
-        super().__init__(
-            dataset_name=dataset_name,
-            staging_dataset_name=None,
-            credentials=cache_db,
-            capabilities=duckdb_factory().capabilities(
-                DuckDbClientConfiguration(credentials=cache_db), naming=remote_client.schema.naming
-            ),
-        )
-        self.remote_client = remote_client
-        self.schema = remote_client.schema
-        self.persist_secrets = persist_secrets
 
     def create_secret_name(self, scope: str) -> str:
         regex = re.compile("[^a-zA-Z]")
@@ -428,6 +333,99 @@ class WithTableScanners(DuckDbSqlClient):
         self._conn.sql("\n".join(sql))
         return True
 
+    @classmethod
+    def _make_database_exception(cls, ex: Exception) -> Exception:
+        if isinstance(ex, (duckdb.CatalogException)):
+            if "already exists" in str(ex):
+                raise DatabaseTerminalException(ex)
+            else:
+                raise DatabaseUndefinedRelation(ex)
+        elif isinstance(ex, duckdb.InvalidInputException):
+            if "Catalog Error" in str(ex):
+                raise DatabaseUndefinedRelation(ex)
+            # duckdb raises TypeError on malformed query parameters
+            return DatabaseTransientException(duckdb.ProgrammingError(ex))
+        elif isinstance(ex, duckdb.IOException):
+            message = str(ex)
+            if (
+                "delta" in message and "No files in log segment" in message
+            ) or "Path does not exist" in message:
+                # delta scanner with no delta data and metadata exist in the location
+                return DatabaseUndefinedRelation(ex)
+            if "Could not guess Iceberg table version" in message:
+                # same but iceberg
+                return DatabaseUndefinedRelation(ex)
+            if "No files found" in message:
+                # glob patterns not found
+                return DatabaseUndefinedRelation(ex)
+            return DatabaseTransientException(ex)
+        elif isinstance(ex, duckdb.InternalException):
+            if "INTERNAL Error: Value::LIST(values)" in str(ex):
+                return IcebergViewException(
+                    ex,
+                    "duckdb Iceberg extension raises this error when empty (no data) Iceberg table"
+                    " is queried. https://github.com/duckdb/duckdb-iceberg/issues/65",
+                )
+            else:
+                return DatabaseTransientException(ex)
+        elif isinstance(
+            ex,
+            (
+                duckdb.OperationalError,
+                duckdb.InternalError,
+                duckdb.SyntaxException,
+                duckdb.ParserException,
+            ),
+        ):
+            return DatabaseTransientException(ex)
+        elif isinstance(ex, (duckdb.DataError, duckdb.ProgrammingError, duckdb.IntegrityError)):
+            return DatabaseTerminalException(ex)
+        elif cls.is_dbapi_exception(ex):
+            return DatabaseTransientException(ex)
+        else:
+            return ex
+
+    @staticmethod
+    def is_dbapi_exception(ex: Exception) -> bool:
+        return isinstance(ex, duckdb.Error)
+
+
+class WithTableScanners(DuckDbSqlClient):
+    memory_db: duckdb.DuckDBPyConnection = None
+    """Internally created in-mem database in case external is not provided"""
+
+    def __init__(
+        self,
+        remote_client: JobClientBase,
+        dataset_name: str,
+        cache_db: DuckDbCredentials = None,
+        persist_secrets: bool = False,
+    ) -> None:
+        """Allows to maps data in tables accessed via `remote_client` as VIEWs in duckdb database.
+        Creates in memory "cache" database by default or allows for external database via "cache_db".
+        Will attempt to create views lazily by parsing SQL queries, identifying tables and adding views
+        before execution.
+        """
+        # if no credentials are passed from the outside
+        # we know to keep an in memory instance here
+        if not cache_db:
+            self.memory_db = duckdb.connect(":memory:")
+            cache_db = DuckDbCredentials(self.memory_db)
+
+        from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory
+
+        super().__init__(
+            dataset_name=dataset_name,
+            staging_dataset_name=None,
+            credentials=cache_db,
+            capabilities=duckdb_factory().capabilities(
+                DuckDbClientConfiguration(credentials=cache_db), naming=remote_client.schema.naming
+            ),
+        )
+        self.remote_client = remote_client
+        self.schema = remote_client.schema
+        self.persist_secrets = persist_secrets
+
     def open_connection(self) -> duckdb.DuckDBPyConnection:
         # we keep the in memory instance around, so if this prop is set, return it
         first_connection = self.credentials.never_borrowed
@@ -438,14 +436,6 @@ class WithTableScanners(DuckDbSqlClient):
             if not self.has_dataset():
                 self.create_dataset()
             self._conn.sql(f"USE {self.fully_qualified_dataset_name()}")
-
-        # this is a hack to re-enable iceberg settings that get lost when
-        # duckdb connection is closed. each clone needs settings to happen again
-        # self._conn is opened and closed in the relation.cursor()
-        try:
-            self._conn.execute("SET unsafe_enable_version_guessing=true;")
-        except Exception:
-            pass
 
         return self._conn
 
@@ -536,9 +526,6 @@ class WithTableScanners(DuckDbSqlClient):
         # https://github.com/duckdb/duckdb_iceberg/issues/71
         if semver.Version.parse(duckdb.__version__) < semver.Version.parse("1.2.0"):
             conn.execute("INSTALL Iceberg FROM core_nightly; LOAD iceberg;")
-
-        # allow unsafe version resolution
-        conn.execute("SET unsafe_enable_version_guessing=true;")
 
     def __del__(self) -> None:
         if self.memory_db:

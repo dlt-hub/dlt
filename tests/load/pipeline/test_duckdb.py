@@ -153,7 +153,7 @@ def test_new_nested_prop_parquet(destination_config: DestinationTestConfiguratio
         id: str  # noqa
         details: EventDetail
 
-    duck_factory = duckdb("_storage/test_duck.db")
+    duck_factory = duckdb("test_duck.db")
 
     pipeline = destination_config.setup_pipeline(
         "test_new_nested_prop_parquet", dataset_name="test_dataset"

@@ -30,15 +30,7 @@ from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
     get_normalized_dataset_name,
-    drop_active_pipeline_data,
 )
-
-
-@pytest.fixture(autouse=True)
-def duckdb_pipeline_location() -> None:
-    # this will store duckdb in working folder so it survives pipeline wipe
-    if "DESTINATION__DUCKDB__CREDENTIALS" in os.environ:
-        del os.environ["DESTINATION__DUCKDB__CREDENTIALS"]
 
 
 @pytest.mark.essential
@@ -453,7 +445,6 @@ def test_restore_state_pipeline(
     )
     p.run(**destination_config.run_kwargs)
     assert p.default_schema_name is None
-    drop_active_pipeline_data()
 
     # create pipeline without restore
     os.environ["RESTORE_FROM_DESTINATION"] = "False"

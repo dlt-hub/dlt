@@ -3,5 +3,4 @@ from tests.utils import (
     autouse_test_storage,
     patch_home_dir,
     wipe_pipeline,
-    duckdb_pipeline_location,
 )

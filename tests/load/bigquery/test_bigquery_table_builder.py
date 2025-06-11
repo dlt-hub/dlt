@@ -31,7 +31,6 @@ from dlt.extract import DltResource
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
-    drop_active_pipeline_data,
     TABLE_UPDATE,
     sequence_generator,
 )
@@ -533,12 +532,6 @@ def test_bigquery_no_partition_by_integer(
             has_partitions = cur.fetchone()[0]
             assert isinstance(has_partitions, bool)
             assert not has_partitions
-
-
-@pytest.fixture(autouse=True)
-def drop_bigquery_schema() -> Iterator[None]:
-    yield
-    drop_active_pipeline_data()
 
 
 def test_adapter_no_hints_parsing() -> None:
