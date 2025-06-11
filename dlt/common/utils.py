@@ -38,6 +38,7 @@ from dlt.common.exceptions import (
     ExceptionTrace,
     TerminalException,
     DependencyVersionException,
+    ValueErrorWithKnownValues,
 )
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun, Generic
 
@@ -117,7 +118,9 @@ def str2bool(v: str) -> bool:
     elif v.lower() in ("no", "false", "f", "n", "0"):
         return False
     else:
-        raise ValueError("Boolean value expected.")
+        raise ValueErrorWithKnownValues(
+            "v", v, [True, "yes", "true", "t", "y", 1, False, "no", "false", "f", "n", "0"]
+        )
 
 
 # def flatten_list_of_dicts(dicts: Sequence[StrAny]) -> StrAny:
@@ -142,12 +145,12 @@ def flatten_list_of_str_or_dicts(seq: Sequence[Union[StrAny, str]]) -> DictStrAn
         if isinstance(e, dict):
             for k, v in e.items():
                 if k in o:
-                    raise KeyError(f"Cannot flatten with duplicate key {k}")
+                    raise KeyError(f"Failed to flatten because of duplicate key `{k}`")
                 o[k] = v
         else:
             key = str(e)
             if key in o:
-                raise KeyError(f"Cannot flatten with duplicate key {key}")
+                raise KeyError(f"Failed to flatten because of duplicate key `{key}`")
             o[key] = None
     return o
 

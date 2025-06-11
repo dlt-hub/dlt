@@ -127,7 +127,7 @@ def ensure_table_schema_columns(columns: TAnySchemaColumns) -> TTableSchemaColum
     ):
         return pydantic.pydantic_to_table_schema_columns(columns)
 
-    raise ValueError(f"Unsupported columns type: {type(columns)}")
+    raise ValueError(f"Unsupported columns type: `{type(columns)}`")
 
 
 def ensure_table_schema_columns_hint(

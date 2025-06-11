@@ -103,7 +103,7 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
             except clickhouse_connect.driver.exceptions.Error as e:
                 raise LoadJobTerminalException(
                     self._file_path,
-                    f"ClickHouse connection failed due to {e}.",
+                    f"ClickHouse connection failed due to `{e}`.",
                 ) from e
             return
 
@@ -164,7 +164,7 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
         else:
             raise LoadJobTerminalException(
                 self._file_path,
-                f"ClickHouse loader does not support '{bucket_scheme}' filesystem.",
+                f"ClickHouse loader does not support `{bucket_scheme}` filesystem.",
             )
 
         statement = f"INSERT INTO {qualified_table_name} SELECT * FROM {table_function}"

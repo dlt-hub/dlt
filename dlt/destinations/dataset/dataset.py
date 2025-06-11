@@ -140,7 +140,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
             return client.sql_client
         else:
             raise Exception(
-                f"Destination {client.config.destination_type} does not support SqlClient."
+                f"Destination `{client.config.destination_type}` does not support `SqlClient`."
             )
 
     def _ensure_schema(self) -> None:
