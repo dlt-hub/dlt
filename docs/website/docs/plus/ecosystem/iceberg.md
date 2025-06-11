@@ -314,6 +314,47 @@ For more information, refer to the [Lakekeeper section above](#lakekeeper-catalo
 
 All [write dispositions](../../general-usage/incremental-loading.md) are supported.
 
+## Merge strategies
+
+The Iceberg destination supports two merge strategies when using `write_disposition="merge"`: `delete-insert` and `upsert`.
+Both strategies use a single Iceberg transaction for delete and insert operations and both support [hard delete](../../general-usage/merge-loading.md#delete-records) functionality.
+
+### Delete-insert strategy
+
+The `delete-insert` strategy first deletes existing rows matching the key columns, then inserts new data.
+
+```py
+@dlt.resource(
+    write_disposition={"disposition": "merge", "strategy": "delete-insert"},
+    primary_key="id",
+    table_format="iceberg"
+)
+def my_resource():
+    yield [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
+```
+
+#### Key characteristics
+- Requires primary key or merge key columns
+- Supports only regular tables (nested tables not supported)
+- Automatically deduplicates data based on primary keys
+- Uses single Iceberg transaction for delete and insert operations
+
+### Upsert strategy
+
+The `upsert` strategy performs is similar to delete-insert strategy with two differences:
+- It supports nested tables
+- It does not perform automatic deduplication
+
+```py
+@dlt.resource(
+    write_disposition={"disposition": "merge", "strategy": "upsert"},
+    primary_key="id",
+    table_format="iceberg"
+)
+def my_upsert_resource():
+    yield [{"id": 1, "name": "Alice Updated"}, {"id": 3, "name": "Charlie"}]
+```
+
 ## Data access
 
 The Iceberg destination integrates with `pipeline.dataset()` to give users queryable access to their data.
