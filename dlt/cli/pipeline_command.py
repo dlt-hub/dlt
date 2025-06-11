@@ -113,30 +113,35 @@ def pipeline_command(
     fmt.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
 
     if operation == "show":
-        from dlt.common.runtime import signals
-        from dlt.helpers.streamlit_app import index
+        if command_kwargs.get("marimo"):
+            from dlt.helpers.studio.runner import run_studio
 
-        with signals.delayed_signals():
-            streamlit_cmd = [
-                "streamlit",
-                "run",
-                index.__file__,
-                "--client.showSidebarNavigation",
-                "false",
-            ]
+            run_studio()
+        else:
+            from dlt.common.runtime import signals
+            from dlt.helpers.streamlit_app import index
 
-            if hot_reload:
-                streamlit_cmd.append("--server.runOnSave")
-                streamlit_cmd.append("true")
+            with signals.delayed_signals():
+                streamlit_cmd = [
+                    "streamlit",
+                    "run",
+                    index.__file__,
+                    "--client.showSidebarNavigation",
+                    "false",
+                ]
 
-            streamlit_cmd.append("--")
-            streamlit_cmd.append(pipeline_name)
-            streamlit_cmd.append("--pipelines-dir")
-            streamlit_cmd.append(p.pipelines_dir)
+                if hot_reload:
+                    streamlit_cmd.append("--server.runOnSave")
+                    streamlit_cmd.append("true")
 
-            venv = Venv.restore_current()
-            for line in iter_stdout(venv, *streamlit_cmd):
-                fmt.echo(line)
+                streamlit_cmd.append("--")
+                streamlit_cmd.append(pipeline_name)
+                streamlit_cmd.append("--pipelines-dir")
+                streamlit_cmd.append(p.pipelines_dir)
+
+                venv = Venv.restore_current()
+                for line in iter_stdout(venv, *streamlit_cmd):
+                    fmt.echo(line)
 
     if operation == "info":
         state: TSourceState = p.state  # type: ignore
