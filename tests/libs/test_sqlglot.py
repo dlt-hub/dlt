@@ -1,10 +1,32 @@
-from typing import Optional
+from typing import Optional, Union
 
 import pytest
+import sqlglot
 import sqlglot.expressions as sge
 
-from dlt.common.libs.sqlglot import from_sqlglot_type, to_sqlglot_type
-from dlt.common.schema.typing import TDataType, TColumnType
+import dlt
+from dlt.common.libs.sqlglot import (
+    from_sqlglot_type,
+    to_sqlglot_type,
+    dlt_schema_to_sqlglot_schema,
+    ddl_to_table_schema,
+    _from_sqlglot_constraint,
+    _to_sqlglot_constraint,
+    _from_sqlglot_column_def,
+    _to_sqlglot_column_def,
+    _from_sqlglot_reference,
+    _to_sqlglot_reference,
+    _from_sqlglot_table_def,
+    _to_sqlglot_table_def,
+)
+from dlt.common.schema.typing import (
+    TColumnSchema,
+    TDataType,
+    TColumnType,
+    TTableReference,
+    TTableSchema,
+)
+from dlt.common.schema.utils import remove_defaults
 
 
 @pytest.mark.parametrize(
@@ -148,8 +170,8 @@ def test_to_sqlglot_integer_with_precision(
         (sge.DataType.Type.TINYINT, 3),
         (sge.DataType.Type.SMALLINT, 5),
         (sge.DataType.Type.MEDIUMINT, 8),
-        (sge.DataType.Type.INT, 10),
-        (sge.DataType.Type.BIGINT, None),  # expect None because BIGINT is default
+        (sge.DataType.Type.INT, 10),  # INT is sqlglot default
+        (sge.DataType.Type.BIGINT, 19),  # BIGINT is dlt default
         (sge.DataType.Type.INT128, 39),
         (sge.DataType.Type.INT256, 78),
         (sge.DataType.Type.UTINYINT, 3),
@@ -357,3 +379,194 @@ def test_from_and_to_sqlglot_parameterized_types(
     # retrieve hints from DataType object; hints are not passed to `from_sqlglot_type()`
     inferred_dlt_type = from_sqlglot_type(annotated_sqlglot_type)
     assert inferred_dlt_type == {"data_type": dlt_type, **hints}
+
+
+@pytest.mark.parametrize(
+    "hint,constraint",
+    [
+        ({"nullable": False}, sge.ColumnConstraint(kind=sge.NotNullColumnConstraint())),
+        ({"nullable": True}, None),
+        ({"unique": True}, sge.ColumnConstraint(kind=sge.UniqueColumnConstraint())),
+        ({"unique": False}, None),
+        ({"primary_key": True}, sge.ColumnConstraint(kind=sge.PrimaryKeyColumnConstraint())),
+        ({"primary_key": False}, None),
+        (
+            {"description": "Hello world"},
+            sge.ColumnConstraint(this="Hello world", kind=sge.CommentColumnConstraint()),
+        ),
+        ({"description": None}, None),
+        ({"description": object()}, TypeError()),
+        ({"cluster": True}, sge.ColumnConstraint(kind=sge.ClusteredColumnConstraint())),
+        ({"cluster": False}, sge.ColumnConstraint(kind=sge.NonClusteredColumnConstraint())),
+    ],
+)
+def test_from_and_to_sqlglot_constraint(
+    hint: TColumnSchema, constraint: Union[sge.ColumnConstraint, Exception]
+) -> None:
+    """Test conversion between dlt hints and SQLGlot column constraint.
+
+    Not all dlt hints map to a constraint.
+    """
+    key = next(iter(hint))
+    #
+    if isinstance(constraint, Exception):
+        with pytest.raises(constraint.__class__):
+            _to_sqlglot_constraint(key, hint[key])
+        return
+
+    inferred_constraint = _to_sqlglot_constraint(key, hint[key])
+    assert inferred_constraint == constraint
+    if inferred_constraint is None:
+        return
+
+    # we should be able to retrieve the original hint
+    inferred_hint = _from_sqlglot_constraint(inferred_constraint)
+    assert inferred_hint == hint
+
+
+@pytest.mark.parametrize(
+    "hints,column_def",
+    [
+        (
+            {"name": "foo", "data_type": "text"},
+            sge.ColumnDef(this=sge.Identifier(this="foo", quoted=False), kind=sge.DataType.build("text")),
+        ),
+        (
+            {"name": "foo", "data_type": "text", "nullable": False},
+            sge.ColumnDef(
+                this=sge.Identifier(this="foo", quoted=False),
+                kind=sge.DataType.build("text"),
+                constraints=[sge.ColumnConstraint(kind=sge.NotNullColumnConstraint())],
+            ),
+        ),
+    ],
+)
+def test_from_and_to_sqlglot_column_def(hints: TColumnSchema, column_def: sge.ColumnDef) -> None:
+    inferred_hints = _from_sqlglot_column_def(column_def)
+    assert hints == inferred_hints
+
+    inferred_column_def = _to_sqlglot_column_def(hints)
+    assert column_def == inferred_column_def
+
+
+@pytest.mark.parametrize(
+    "reference,foreign_key",
+    [
+        (
+            dict(
+                columns=["origin"],
+                referenced_table="foreign_table",
+                referenced_columns=["foreign_col"],
+            ),
+            sge.ForeignKey(
+                expressions=[sge.Identifier(this="origin", quoted=False)],
+                reference=sge.Reference(
+                    this=sge.Schema(
+                        this=sge.Table(this=sge.Identifier(this="foreign_table", quoted=False)),
+                        expressions=[sge.Identifier(this="foreign_col", quoted=False)],
+                    )
+                ),
+            ),
+        )
+    ],
+)
+def test_from_and_to_sqlglot_reference(reference: TTableReference, foreign_key: sge.ForeignKey) -> None:
+    inferred_reference = _from_sqlglot_reference(foreign_key)
+    assert inferred_reference == reference
+
+    inferred_foreign_key = _to_sqlglot_reference(reference)
+    assert inferred_foreign_key == foreign_key
+
+
+@pytest.mark.parametrize(
+    "ddl_query,table_schema",
+    [
+        (
+            """
+            CREATE TABLE orders (
+                order_id INT PRIMARY KEY
+                , customer_id INT NOT NULL
+                , order_date DATE
+                , status STRING
+                , total_amount NUMBER(12,4)
+                , FOREIGN KEY (customer_id) REFERENCES customer(customer_id)
+            );
+            """,
+            dict(
+                name="orders",
+                columns={
+                    "order_id": {
+                        "name": "order_id",
+                        "data_type": "bigint",
+                        "precision": 10,  # explicit precision of `INT`
+                        "primary_key": True,
+                    },
+                    "customer_id": {
+                        "name": "customer_id",
+                        "data_type": "bigint",
+                        "precision": 10,  # explicit precision of `INT`
+                        "nullable": False,
+                    },
+                    "order_date": {"name": "order_date", "data_type": "date"},
+                    "status": {"name": "status", "data_type": "text"},
+                    "total_amount": {
+                        "name": "total_amount",
+                        "data_type": "decimal",
+                        "precision": 12,
+                        "scale": 4,
+                    },
+                },
+                references=[
+                    {
+                        "columns": ["customer_id"],
+                        "referenced_table": "customer",
+                        "referenced_columns": ["customer_id"],
+                    }
+                ]
+            ),
+        )
+    ],
+)
+def test_from_and_to_sqlglot_table_def(
+    ddl_query: str, table_schema: TTableSchema
+) -> None:
+    """Convert from and to table def
+    
+    We're not testing `SQL string -> dlt schema` or `dlt schema -> SQL string` here.
+    The SQL string is simply more convenient than writing the SQLGlot expression in full.
+    """
+    ddl_expr = sqlglot.maybe_parse(ddl_query)
+
+    inferred_table_schema = _from_sqlglot_table_def(ddl_expr)
+    assert inferred_table_schema == table_schema
+
+    inferred_ddl_expr = _to_sqlglot_table_def(table_schema)
+    assert inferred_ddl_expr == ddl_expr
+
+
+# TODO make this test conditional on `duckdb`
+def test_parse_retrieved_ddl(tmp_path):
+    import duckdb
+
+    @dlt.resource
+    def mock_resource():
+        yield from ({"foo": 0, "bar": True}, {"foo": 1, "bar": False})
+
+    table_name = mock_resource.__name__
+
+    con = duckdb.connect(tmp_path / "dest.duckdb")
+    pipeline = dlt.pipeline("test_retrieval_ddl", destination=dlt.destinations.duckdb(con))
+    pipeline.run(mock_resource)
+
+    schema_from_pipeline = pipeline.default_schema.get_table(table_name).copy()
+    # deleting for the purpose of the comparison
+    del schema_from_pipeline["resource"]
+    del schema_from_pipeline["write_disposition"]
+    del schema_from_pipeline["x-normalizer"]
+
+    results = con.execute(
+        f"SELECT sql FROM duckdb_tables WHERE table_name = '{table_name}'"
+    ).fetchall()
+    schema_from_destination = ddl_to_table_schema(results[0][0])
+
+    assert schema_from_pipeline == schema_from_destination
