@@ -254,7 +254,7 @@ def _from_string_type(sqlglot_type: sge.DataType) -> TColumnSchema:
         precision = sqlglot_type.expressions[0].this.to_py()
         hints: TColumnSchema = {"precision": precision}
     else:
-        hints: TColumnSchema = {}
+        hints = {}
     return hints
 
 
