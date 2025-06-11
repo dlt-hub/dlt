@@ -252,7 +252,7 @@ def _from_string_type(sqlglot_type: sge.DataType) -> TColumnSchema:
         assert len(sqlglot_type.expressions) == 1
         assert isinstance(sqlglot_type.expressions[0], sge.DataTypeParam)
         precision = sqlglot_type.expressions[0].this.to_py()
-        hints = {"precision": precision}
+        hints: TColumnSchema = {"precision": precision}
     else:
         hints: TColumnSchema = {}
     return hints
