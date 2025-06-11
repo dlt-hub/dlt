@@ -148,9 +148,9 @@ jobs:
         if: ${{ matrix.needs_dremio }}
 
       - run: |
-          docker compose -f "tests/load/clickhouse/clickhouse-compose.yml" up -d
+          docker compose -f "tests/load/clickhouse/docker-compose.yml" up -d
           echo "Waiting for ClickHouse to be healthy..."
-          timeout 30s bash -c 'until docker compose -f "tests/load/clickhouse/clickhouse-compose.yml" ps | grep -q "healthy"; do sleep 1; done'
+          timeout 30s bash -c 'until docker compose -f "tests/load/clickhouse/docker-compose.yml" ps | grep -q "healthy"; do sleep 1; done'
           echo "ClickHouse is up and running"
         name: Start ClickHouse OSS
         if: ${{ matrix.needs_clickhouse }}
@@ -208,4 +208,4 @@ jobs:
 
       - name: Stop ClickHouse OSS
         if: always()
-        run: docker compose -f "tests/load/clickhouse/clickhouse-compose.yml" down -v
+        run: docker compose -f "tests/load/clickhouse/docker-compose.yml" down -v
