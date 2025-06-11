@@ -47,6 +47,8 @@ jobs:
             filesystem_drivers: "[\"memory\", \"file\"]"
             extras: "clickhouse parquet"
             needs_clickhouse: true
+            # NOTE: we only run non-staging tests, as staging tests require credentials for s3 and azure
+            excluded_destination_configurations: "[\"staging-s3-authorization\", \"staging-az-authorization\"]"
 
           # Dremio
           - name: dremio
@@ -75,6 +77,8 @@ jobs:
     env:
       ACTIVE_DESTINATIONS: ${{ matrix.destinations }}
       ALL_FILESYSTEM_DRIVERS: ${{ matrix.filesystem_drivers }}
+      EXCLUDED_DESTINATION_CONFIGURATIONS: ${{ matrix.excluded_destination_configurations || '[]' }}
+
     defaults:
       run:
         shell: bash
