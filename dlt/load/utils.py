@@ -1,4 +1,4 @@
-from typing import List, Set, Iterable, Callable, Optional, Tuple, Sequence
+from typing import List, Set, Iterable, Callable, Optional, Tuple, Sequence, Dict, Union, Any
 from itertools import groupby
 
 from dlt.common import logger
@@ -11,7 +11,7 @@ from dlt.common.schema.utils import (
 )
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.schema import Schema, TSchemaTables
-from dlt.common.schema.typing import TTableSchema
+from dlt.common.schema.typing import TTableSchema, TColumnSchema
 from dlt.common.destination.client import JobClientBase, WithStagingDataset, LoadJob
 from dlt.load.configuration import LoaderConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -71,6 +71,7 @@ def init_client(
     load_staging_filter: Callable[[str], bool],
     drop_tables: Optional[List[TTableSchema]] = None,
     truncate_tables: Optional[List[TTableSchema]] = None,
+    from_tables_drop_cols: Optional[List[Dict[str, Union[str, List[str]]]]] = None,
 ) -> TSchemaTables:
     """Initializes destination storage including staging dataset if supported
 
@@ -85,6 +86,7 @@ def init_client(
         load_staging_filter (Callable[[str], bool]): A filter which tell which table in the staging dataset may be loaded into
         drop_tables (Optional[List[TTableSchema]]): List of tables to drop before initializing storage
         truncate_tables (Optional[List[TTableSchema]]): List of tables to truncate before initializing storage
+        from_tables_drop_cols Optional[List[Dict[str, Union[str, List[str]]]]]: List of columns to drop grouped by table.
 
     Returns:
         TSchemaTables: Actual migrations done at destination
@@ -113,6 +115,7 @@ def init_client(
 
     # get tables to drop
     drop_table_names = {table["name"] for table in drop_tables} if drop_tables else set()
+
     job_client.verify_schema(only_tables=tables_with_jobs | dlt_tables, new_jobs=new_jobs)
     applied_update = _init_dataset_and_update_schema(
         job_client,
@@ -120,6 +123,7 @@ def init_client(
         tables_with_jobs | dlt_tables,
         truncate_table_names,
         drop_tables=drop_table_names,
+        from_tables_drop_cols=from_tables_drop_cols,
     )
 
     # update the staging dataset if client supports this
@@ -153,6 +157,7 @@ def _init_dataset_and_update_schema(
     truncate_tables: Iterable[str] = None,
     staging_info: bool = False,
     drop_tables: Iterable[str] = None,
+    from_tables_drop_cols: List[Dict[str, Union[str, List[str]]]] = None,
 ) -> TSchemaTables:
     staging_text = "for staging dataset" if staging_info else ""
     logger.info(
@@ -170,6 +175,22 @@ def _init_dataset_and_update_schema(
             logger.warning(
                 f"Client for {job_client.config.destination_type} does not implement drop table."
                 f" Following tables {drop_tables} will not be dropped {staging_text}"
+            )
+    if from_tables_drop_cols and job_client.is_storage_initialized():
+        table_names = [
+            from_table_drop_cols["from_table"] for from_table_drop_cols in from_tables_drop_cols
+        ]
+        if hasattr(job_client, "drop_columns"):
+            logger.info(
+                f"Client for {job_client.config.destination_type} will drop columns"
+                f" from tables {table_names} {staging_text}"
+            )
+            job_client.drop_columns(from_tables_drop_cols, delete_schema=True)
+        else:
+            logger.warning(
+                f"Client for {job_client.config.destination_type} does not implement drop columns."
+                " Columns will not be dropped from tables"
+                f" {table_names} {staging_text}"
             )
 
     job_client.initialize_storage()

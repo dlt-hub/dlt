@@ -428,3 +428,46 @@ def pipeline_command(
             fmt.warning(warning)
         if fmt.confirm("Do you want to apply these changes?", default=False):
             drop()
+
+    if operation == "drop-columns":
+        drop = DropCommand(p, **command_kwargs)
+        if drop.is_empty:
+            fmt.echo(
+                "Could not select any columns to drop. Use"
+                " the command below to inspect the pipeline:"
+            )
+            fmt.echo(f"dlt pipeline -v {p.pipeline_name} info")
+            if len(drop.info["warnings"]):
+                fmt.echo("Additional warnings are available")
+                for warning in drop.info["warnings"]:
+                    fmt.warning(warning)
+            return
+
+        fmt.echo(
+            "About to drop the following columns in dataset %s in destination %s:"
+            % (
+                fmt.bold(p.dataset_name),
+                fmt.bold(p.destination.destination_name),
+            )
+        )
+        fmt.echo("%s: %s" % (fmt.style("Selected schema", fg="green"), drop.info["schema_name"]))
+        fmt.echo(
+            "%s: %s"
+            % (
+                fmt.style("Selected resource(s)", fg="green"),
+                drop.info["resource_names"],
+            )
+        )
+        fmt.echo("%s: %s" % (fmt.style("Table(s) to be affected", fg="green"), drop.info["tables"]))
+        if drop.from_tables_drop_cols:
+            fmt.echo(f"{fmt.style('Column(s) to be dropped', fg='green')}:")
+            for from_table_drop_cols in drop.from_tables_drop_cols:
+                table_name = from_table_drop_cols["from_table"]
+                columns = from_table_drop_cols["drop_columns"]
+                fmt.echo(f"\t{fmt.style('from table:', fg='green')} {table_name}")
+                fmt.echo(f"\t\t{fmt.style('columns:', fg='green')} {columns}")
+
+        for warning in drop.info["warnings"]:
+            fmt.warning(warning)
+        if fmt.confirm("Do you want to apply these changes?", default=False):
+            drop()

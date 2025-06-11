@@ -71,6 +71,8 @@ class TPipelineStateDoc(TypedDict, total=False):
 
 
 class TLoadPackageDropTablesState(TypedDict):
+    from_tables_drop_columns: NotRequired[List[Any]]
+    """List of tables and columns that are to be dropped from them"""
     dropped_tables: NotRequired[List[TTableSchema]]
     """List of tables that are to be dropped from the schema and destination (i.e. when `refresh` mode is used)"""
     truncated_tables: NotRequired[List[TTableSchema]]

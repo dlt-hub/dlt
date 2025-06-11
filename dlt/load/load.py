@@ -1,6 +1,6 @@
 import contextlib
 from functools import reduce
-from typing import Dict, List, Optional, Tuple, Iterator, Sequence
+from typing import Dict, List, Optional, Tuple, Iterator, Sequence, Union
 from concurrent.futures import Executor
 import os
 
@@ -517,6 +517,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # and they must be like that in order to drop existing tables
         dropped_tables = current_load_package()["state"].get("dropped_tables", [])
         truncated_tables = current_load_package()["state"].get("truncated_tables", [])
+        from_tables_drop_cols = current_load_package()["state"].get("from_tables_drop_columns", [])
 
         self.init_jobs_counter(load_id)
 
@@ -537,6 +538,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     ),
                     drop_tables=dropped_tables,
                     truncate_tables=truncated_tables,
+                    from_tables_drop_cols=from_tables_drop_cols,
                 )
 
                 # init staging client
