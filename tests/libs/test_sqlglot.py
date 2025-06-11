@@ -408,18 +408,17 @@ def test_from_and_to_sqlglot_constraint(
     Not all dlt hints map to a constraint.
     """
     key = next(iter(hint))
-    #
+    # exit early for exceptions
     if isinstance(constraint, Exception):
         with pytest.raises(constraint.__class__):
-            _to_sqlglot_constraint(key, hint[key])
+            _to_sqlglot_constraint(key, hint[key])  # type: ignore
         return
 
-    inferred_constraint = _to_sqlglot_constraint(key, hint[key])
+    inferred_constraint = _to_sqlglot_constraint(key, hint[key])  # type: ignore
     assert inferred_constraint == constraint
     if inferred_constraint is None:
         return
 
-    # we should be able to retrieve the original hint
     inferred_hint = _from_sqlglot_constraint(inferred_constraint)
     assert inferred_hint == hint
 
@@ -429,7 +428,9 @@ def test_from_and_to_sqlglot_constraint(
     [
         (
             {"name": "foo", "data_type": "text"},
-            sge.ColumnDef(this=sge.Identifier(this="foo", quoted=False), kind=sge.DataType.build("text")),
+            sge.ColumnDef(
+                this=sge.Identifier(this="foo", quoted=False), kind=sge.DataType.build("text")
+            ),
         ),
         (
             {"name": "foo", "data_type": "text", "nullable": False},
@@ -470,7 +471,9 @@ def test_from_and_to_sqlglot_column_def(hints: TColumnSchema, column_def: sge.Co
         )
     ],
 )
-def test_from_and_to_sqlglot_reference(reference: TTableReference, foreign_key: sge.ForeignKey) -> None:
+def test_from_and_to_sqlglot_reference(
+    reference: TTableReference, foreign_key: sge.ForeignKey
+) -> None:
     inferred_reference = _from_sqlglot_reference(foreign_key)
     assert inferred_reference == reference
 
@@ -522,20 +525,18 @@ def test_from_and_to_sqlglot_reference(reference: TTableReference, foreign_key: 
                         "referenced_table": "customer",
                         "referenced_columns": ["customer_id"],
                     }
-                ]
+                ],
             ),
         )
     ],
 )
-def test_from_and_to_sqlglot_table_def(
-    ddl_query: str, table_schema: TTableSchema
-) -> None:
+def test_from_and_to_sqlglot_table_def(ddl_query: str, table_schema: TTableSchema) -> None:
     """Convert from and to table def
-    
+
     We're not testing `SQL string -> dlt schema` or `dlt schema -> SQL string` here.
     The SQL string is simply more convenient than writing the SQLGlot expression in full.
     """
-    ddl_expr = sqlglot.maybe_parse(ddl_query)
+    ddl_expr: sge.Create = sqlglot.maybe_parse(ddl_query)
 
     inferred_table_schema = _from_sqlglot_table_def(ddl_expr)
     assert inferred_table_schema == table_schema

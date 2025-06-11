@@ -1,17 +1,13 @@
 from typing import Optional, Union
 
 from dlt.common.schema import Schema
-from dlt.common.schema.utils import apply_defaults
 from dlt.common.utils import without_none
 from dlt.common.exceptions import MissingDependencyException, TerminalValueError
 from dlt.common.schema.typing import (
-    COLUMN_PROPS,
     ColumnPropInfos,
     TColumnType,
     TDataType,
     TColumnSchema,
-    TStoredSchema,
-    TTableSchemaColumns,
     TTableSchema,
     TTableReference,
 )
@@ -100,7 +96,7 @@ SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, TDataType] = {
 }
 
 # NOTE currently, dlt defaults to `bigint`, but sqlglot defaults to `int`
-# therefore, both return `None` to generate no `precision` dlt hint and set `data_type="bigint"` 
+# therefore, both return `None` to generate no `precision` dlt hint and set `data_type="bigint"`
 SQLGLOT_INT_PRECISION = {
     DataType.Type.TINYINT: 3,
     DataType.Type.SMALLINT: 5,
@@ -261,6 +257,7 @@ def _from_time_type(sqlglot_type: sge.DataType) -> TColumnSchema:
 
     return hints  # type: ignore[return-value]
 
+
 # NOTE nullable seems to default to True compared to other hints
 # TODO support `text` and `binary` precision
 def to_sqlglot_type(
@@ -359,7 +356,7 @@ def _build_parameterized_sqlglot_type(
     if dlt_type == "bigint" and precision is not None:
         # special case `!=10` because `precison=10` maps to INT, which is the default in SQLGlot
         if precision == 10:
-             sqlglot_type = sge.DataType.build("INT", nested=False, **hints)
+            sqlglot_type = sge.DataType.build("INT", nested=False, **hints)
         else:
             # NOTE INT precision is not supported by many backend.
             # For instance, INT(5) in MySQL should be DECIMAL(5,0) in DuckDB
@@ -375,12 +372,16 @@ def _build_parameterized_sqlglot_type(
     elif dlt_type == "timestamp" and (precision is not None or timezone is not None):
         base_sqlglot_type = _to_named_timestamp_type(precision=None, timezone=timezone)
         params = f"({precision})" if precision is not None else ""
-        sqlglot_type = sge.DataType.build(f"{base_sqlglot_type.value}{params}", nested=False, **hints)
+        sqlglot_type = sge.DataType.build(
+            f"{base_sqlglot_type.value}{params}", nested=False, **hints
+        )
 
     elif dlt_type == "time" and (precision is not None or timezone is not None):
         base_sqlglot_type = _to_named_time_type(timezone=timezone)
         params = f"({precision})" if precision is not None else ""
-        sqlglot_type = sge.DataType.build(f"{base_sqlglot_type.value}{params}", nested=False, **hints)
+        sqlglot_type = sge.DataType.build(
+            f"{base_sqlglot_type.value}{params}", nested=False, **hints
+        )
 
     else:
         sqlglot_type = sge.DataType.build(DLT_TO_SQLGLOT[dlt_type], nested=False, **hints)
@@ -549,26 +550,26 @@ def dlt_schema_to_sqlglot_schema(
     return ensure_schema({dataset_name: sqlglot_schema}, dialect=dialect, normalize=False)
 
 
-def sqlglot_schema_to_dlt_schema(sqlglot_schema: SQLGlotSchema) -> Schema:
-    dlt_table_schema: dict[str, TColumnSchema] = {}
-    dataset_name = ...
+# def sqlglot_schema_to_dlt_schema(sqlglot_schema: SQLGlotSchema) -> Schema:
+#     dlt_table_schema: dict[str, TColumnSchema] = {}
+#     dataset_name = ...
 
-    for table in sqlglot_schema:
-        column_hints = {}
-        for column_name, sqlglot_type in table.items():
-            data_type_hints = from_sqlglot_type(sqlglot_type)
-            metadata_hints = get_metadata(sqlglot_type)
-            hints = {
-                "name": column_name,
-                **metadata_hints,
-                **data_type_hints,
-            }
-            column_hints[column_name] = hints
+#     for table in sqlglot_schema:
+#         column_hints = {}
+#         for column_name, sqlglot_type in table.items():
+#             data_type_hints = from_sqlglot_type(sqlglot_type)
+#             metadata_hints = get_metadata(sqlglot_type)
+#             hints = {
+#                 "name": column_name,
+#                 **metadata_hints,
+#                 **data_type_hints,
+#             }
+#             column_hints[column_name] = hints
 
-        if column_hints:
-            dlt_table_schema[column_name] = column_hints
+#         if column_hints:
+#             dlt_table_schema[column_name] = column_hints
 
-    return dlt_table_schema
+#     return dlt_table_schema
 
 
 def _from_sqlglot_constraint(constraint: sge.ColumnConstraint) -> TColumnSchema:
@@ -594,7 +595,7 @@ def _to_sqlglot_constraint(
     hint_key: str,
     hint_value: Union[str, bool, None],
 ) -> Optional[sge.ColumnConstraint]:
-    constraint_kind = None
+    constraint_kind: Optional[sge.ColumnConstraintKind] = None
     constraint_kwargs = {}
 
     if hint_key == "nullable":
@@ -637,16 +638,16 @@ def _from_sqlglot_column_def(column_def: sge.ColumnDef) -> TColumnSchema:
     assert column_def.kind is not None
     data_type_hints = from_sqlglot_type(column_def.kind)
 
-    constraints_hints = {}
+    constraints_hints: TColumnSchema = {}
     for constraint in column_def.constraints:
         assert constraint.kind is not None
         constraint_hint = _from_sqlglot_constraint(constraint)
-        constraints_hints.update(**constraint_hint)
+        constraints_hints.update(**constraint_hint)  # type: ignore[misc]
 
     # constraint hints override hints retrieved from sqlglot type
     # this is to avoid conflict with our "get_metadata / set_metadata mechanism"
-    hints.update(**data_type_hints)
-    hints.update(**constraints_hints)
+    hints.update(**data_type_hints)  # type: ignore[misc]
+    hints.update(**constraints_hints)  # type: ignore[misc]
 
     return hints
 
@@ -663,7 +664,7 @@ def _to_sqlglot_column_def(hints: TColumnSchema) -> sge.ColumnDef:
     )
     constraints: list[sge.ColumnConstraint] = []
     for key, value in hints.items():
-        constraint = _to_sqlglot_constraint(key, value)
+        constraint = _to_sqlglot_constraint(key, value)  # type: ignore[arg-type]
         if constraint is not None:
             constraints.append(constraint)
 
@@ -697,14 +698,18 @@ def _to_sqlglot_reference(reference: TTableReference) -> sge.ForeignKey:
         expressions=[sge.Identifier(this=col, quoted=False) for col in reference["columns"]],
         reference=sge.Reference(
             this=sge.Schema(
-                this=sge.Table(this=sge.Identifier(this=reference["referenced_table"], quoted=False)),
+                this=sge.Table(
+                    this=sge.Identifier(this=reference["referenced_table"], quoted=False)
+                ),
                 expressions=[
-                    sge.Identifier(this=col, quoted=False) for col in reference["referenced_columns"]
+                    sge.Identifier(this=col, quoted=False)
+                    for col in reference["referenced_columns"]
                 ],
             )
-        )
+        ),
     )
     return foreign_key_expr
+
 
 # TODO handle special reference for `root_key`, `parent_key`, `row_key`, `_dlt_load_id`
 # TODO accept as input `sge.Create` or `sge.Table`
@@ -716,7 +721,6 @@ def _from_sqlglot_table_def(table_def: sge.Create) -> TTableSchema:
         "name": str(table_def.this.this.this),
     }
 
-     # dlt_table["description"] = ...
     for expression in table_def.this.expressions:
         # "columns" hint
         if isinstance(expression, sge.ColumnDef):
@@ -726,36 +730,42 @@ def _from_sqlglot_table_def(table_def: sge.Create) -> TTableSchema:
             if column_hints["data_type"] == "bigint" and column_hints.get("precision") == 19:
                 del column_hints["precision"]
             table_hints["columns"][column_name] = column_hints
-        
+
         # "references" hint
         elif isinstance(expression, sge.ForeignKey):
             if table_hints.get("references") is None:
                 table_hints["references"] = []
+            assert isinstance(table_hints["references"], list)
 
             table_hints["references"].append(_from_sqlglot_reference(expression))
-            
+
     return table_hints
 
 
 # TODO handle special reference for `root_key`, `parent_key`, `row_key`, `_dlt_load_id`
 # TODO should this return `sge.Create` or `sge.Table`?
 # TODO handle CREATE OR REPLACE directive
-def _to_sqlglot_table_def(table_schema: TTableSchema, dataset_name: Optional[str] = None) -> sge.Create:
+def _to_sqlglot_table_def(
+    table_schema: TTableSchema, dataset_name: Optional[str] = None
+) -> sge.Create:
     table_name = sge.Identifier(this=table_schema["name"], quoted=False)
-    if dataset_name is None:
-        table_expr = sge.Table(this=table_name)
-    else:
-        table_expr = sge.Table(this=table_name, db=sge.Identifier(this=dataset_name, quoted=False))
+    table_expr = (
+        sge.Table(this=table_name)
+        if dataset_name is None
+        else sge.Table(this=table_name, db=sge.Identifier(this=dataset_name, quoted=False))
+    )
 
-    column_defs = [_to_sqlglot_column_def(col) for _, col in table_schema.get("columns", {}).items()]
+    column_defs = [
+        _to_sqlglot_column_def(col) for _, col in table_schema.get("columns", {}).items()
+    ]
     references = [_to_sqlglot_reference(ref) for ref in table_schema.get("references", [])]
-    
+
     create_expr = sge.Create(
         this=sge.Schema(
             this=table_expr,
             expressions=[*column_defs, *references],
         ),
-        kind="TABLE"
+        kind="TABLE",
     )
     return create_expr
 
@@ -763,25 +773,11 @@ def _to_sqlglot_table_def(table_schema: TTableSchema, dataset_name: Optional[str
 # TODO this is a temporary hack that mocks `dlt.Schema._infer_column()`
 def _set_default_hints(table_hints: TTableSchema) -> TTableSchema:
     DEFAULT_HINTS = {
-      "not_null": [
-        "_dlt_id",
-        "_dlt_root_id",
-        "_dlt_parent_id",
-        "_dlt_list_idx",
-        "_dlt_load_id"
-      ],
-      "parent_key": [
-        "_dlt_parent_id"
-      ],
-      "root_key": [
-        "_dlt_root_id"
-      ],
-      "unique": [
-        "_dlt_id"
-      ],
-      "row_key": [
-        "_dlt_id"
-      ]
+        "not_null": ["_dlt_id", "_dlt_root_id", "_dlt_parent_id", "_dlt_list_idx", "_dlt_load_id"],
+        "parent_key": ["_dlt_parent_id"],
+        "root_key": ["_dlt_root_id"],
+        "unique": ["_dlt_id"],
+        "row_key": ["_dlt_id"],
     }
     for column_name, column in table_hints["columns"].items():
         # default nullable
@@ -792,14 +788,15 @@ def _set_default_hints(table_hints: TTableSchema) -> TTableSchema:
         for hint_key, column_selection in DEFAULT_HINTS.items():
             if column_name in column_selection:
                 hint_key = "nullable" if hint_key == "not_null" else hint_key
-                column[hint_key] = not ColumnPropInfos[hint_key].defaults[0]
+                column[hint_key] = not ColumnPropInfos[hint_key].defaults[0]  # type: ignore
 
     return table_hints
+
 
 # could handle 'CREATE OR REPLACE' SQL
 def ddl_to_table_schema(ddl: Union[str, sge.Create]) -> TTableSchema:
     """Convert a table DDL to a dlt table schema.
-    
+
     Can be used to discover tables on the destination that aren't managed by dlt.
 
     Compared to `_from_sqlglot_table_def()`, the output of `_dlt_to_table_schema()`
@@ -814,7 +811,10 @@ def ddl_to_table_schema(ddl: Union[str, sge.Create]) -> TTableSchema:
     table_schema = _set_default_hints(table_schema)
     return table_schema
 
+
 # yes, this is just a wrapper. This allows us to modify private interface `_to_sqlglot_table_def()`
-def table_schema_to_ddl(table_schema: TTableSchema, dataset_name: Optional[str] = None) -> sge.Create:
+def table_schema_to_ddl(
+    table_schema: TTableSchema, dataset_name: Optional[str] = None
+) -> sge.Create:
     """Convert a dlt table schema to an SQLGlot DDL query."""
     return _to_sqlglot_table_def(table_schema, dataset_name)
