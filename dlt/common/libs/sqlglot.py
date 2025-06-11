@@ -149,7 +149,6 @@ DLT_TO_SQLGLOT = {
 
 
 # TODO should we raise errors on type conversion or silently convert to correct values?
-# TODO support `text` and `binary` precision
 def from_sqlglot_type(sqlglot_type: DATA_TYPE) -> TColumnType:
     """Convert a SQLGlot DataType to dlt column hints.
 
@@ -172,6 +171,8 @@ def from_sqlglot_type(sqlglot_type: DATA_TYPE) -> TColumnType:
         hints = _from_timezone_type(sqlglot_type)
     elif dlt_type == "time":
         hints = _from_time_type(sqlglot_type)
+    elif dlt_type in ("text", "binary"):
+        hints = _from_string_type(sqlglot_type)
     else:
         hints = {}
 
@@ -204,9 +205,10 @@ def _from_decimal_type(sqlglot_type: sge.DataType) -> TColumnSchema:
             scale = sqlglot_type.expressions[1].this.to_py()
             hints = {"precision": precision, "scale": scale}
         else:
-            # TODO log or raise warning; unexpected to see more than 2 DataTypeParam
-            breakpoint()
-
+            raise RuntimeError(
+                "Expected 1 or 2 `DataTypeParam` attached to expression. "
+                f"Found {len(sqlglot_type.expressions)}: {sqlglot_type.expressions}"
+            )
     else:  # from named type
         precision_and_scale = SQLGLOT_DECIMAL_PRECISION_AND_SCALE.get(sqlglot_type.this)
         if precision_and_scale is not None:
@@ -245,7 +247,17 @@ def _from_time_type(sqlglot_type: sge.DataType) -> TColumnSchema:
     return hints  # type: ignore[return-value]
 
 
-# TODO support `text` and `binary` precision
+def _from_string_type(sqlglot_type: sge.DataType) -> TColumnSchema:
+    if sqlglot_type.expressions:  # from parameterized type
+        assert len(sqlglot_type.expressions) == 1
+        assert isinstance(sqlglot_type.expressions[0], sge.DataTypeParam)
+        precision = sqlglot_type.expressions[0].this.to_py()
+        hints = {"precision": precision}
+    else:
+        hints: TColumnSchema = {}
+    return hints
+
+
 def to_sqlglot_type(
     dlt_type: TDataType,
     precision: Optional[int] = None,
@@ -360,6 +372,12 @@ def _build_parameterized_sqlglot_type(
         base_sqlglot_type = _to_named_time_type(timezone=timezone)
         params = f"({precision})" if precision is not None else ""
         sqlglot_type = sge.DataType.build(f"{base_sqlglot_type.value}{params}", **hints)
+
+    elif dlt_type == "text" and precision is not None:
+        sqlglot_type = sge.DataType.build(f"TEXT({precision})", **hints)
+
+    elif dlt_type == "binary" and precision is not None:
+        sqlglot_type = sge.DataType.build(f"VARBINARY({precision})", **hints)
 
     else:
         sqlglot_type = sge.DataType.build(DLT_TO_SQLGLOT[dlt_type], **hints)

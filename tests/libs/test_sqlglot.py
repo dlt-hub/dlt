@@ -332,6 +332,8 @@ def test_from_sqlglot_timestamp_with_precision(
             {"data_type": "time", "precision": 5, "timezone": True},
             sge.DataType.Type.TIMETZ,
         ),
+        ({"data_type": "text", "precision": 100}, sge.DataType.Type.TEXT),
+        ({"data_type": "binary", "precision": 98}, sge.DataType.Type.VARBINARY),
     ],
 )
 def test_from_and_to_sqlglot_parameterized_types(
