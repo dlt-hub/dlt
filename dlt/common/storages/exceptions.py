@@ -22,8 +22,8 @@ class NoMigrationPathException(StorageException):
         self.migrated_version = migrated_version
         self.target_version = target_version
         super().__init__(
-            f"Could not find migration path for {storage_path} from v {initial_version} to"
-            f" {target_version}, stopped at {migrated_version}"
+            f"Could not find migration path for `{storage_path}` from `{initial_version=:}` to"
+            f" `{target_version=:}`, stopped at `{migrated_version}`"
         )
 
 
@@ -38,7 +38,8 @@ class WrongStorageVersionException(StorageException):
         self.initial_version = initial_version
         self.target_version = target_version
         super().__init__(
-            f"Expected storage {storage_path} with v {target_version} but found {initial_version}"
+            f"Expected storage `{storage_path}` with `{target_version=:}` but found"
+            f" `{initial_version=:}`"
         )
 
 
@@ -54,7 +55,7 @@ class StorageMigrationError(StorageException):
         self.from_version = from_version
         self.target_version = target_version
         super().__init__(
-            f"Storage {storage_path} with target v {target_version} at {from_version}: " + info
+            f"Storage `{storage_path}` with `{target_version=:}` at `{from_version}`: " + info
         )
 
 
@@ -68,23 +69,22 @@ class JobFileFormatUnsupported(LoadStorageException, TerminalValueError):
         self.expected_file_formats = supported_formats
         self.wrong_job = wrong_job
         super().__init__(
-            f"Job {wrong_job} for load id {load_id} requires job file format that is not one of"
-            f" {supported_formats}"
+            f"Job `{wrong_job}` for load id `{load_id}` requires job file format that is not one"
+            f" of: {supported_formats}"
         )
 
 
 class LoadPackageNotFound(LoadStorageException, FileNotFoundError):
     def __init__(self, load_id: str) -> None:
         self.load_id = load_id
-        super().__init__(f"Package with load id {load_id} could not be found")
+        super().__init__(f"Package with `{load_id=:}` could not be found")
 
 
 class LoadPackageAlreadyCompleted(LoadStorageException):
     def __init__(self, load_id: str) -> None:
         self.load_id = load_id
         super().__init__(
-            f"Package with load id {load_id} is already completed, but another complete was"
-            " requested"
+            f"Package with `{load_id=:}` is already completed, but another complete was requested"
         )
 
 
@@ -92,7 +92,8 @@ class LoadPackageNotCompleted(LoadStorageException):
     def __init__(self, load_id: str) -> None:
         self.load_id = load_id
         super().__init__(
-            f"Package with load id {load_id} is not yet completed, but method required that"
+            f"Package with `{load_id=:}` is not yet completed, but the calling function required a"
+            " complete package."
         )
 
 
@@ -103,9 +104,9 @@ class SchemaStorageException(StorageException):
 class InStorageSchemaModified(SchemaStorageException):
     def __init__(self, schema_name: str, storage_path: str) -> None:
         msg = (
-            f"Schema {schema_name} in {storage_path} was externally modified. This is not allowed"
-            " as that would prevent correct version tracking. Use import/export capabilities of"
-            " dlt to provide external changes."
+            f"Schema `{schema_name}` in `{storage_path}` was externally modified. This is not"
+            " allowed as that would prevent correct version tracking. Use import/export"
+            " capabilities of dlt to provide external changes."
         )
         super().__init__(msg)
 
@@ -118,17 +119,17 @@ class SchemaNotFoundError(SchemaStorageException, FileNotFoundError, KeyError):
         import_path: str = None,
         import_format: str = None,
     ) -> None:
-        msg = f"Schema {schema_name} in {storage_path} could not be found."
+        msg = f"Schema `{schema_name}` in `{storage_path}` could not be found."
         if import_path:
-            msg += f"Import from {import_path} and format {import_format} failed."
+            msg += f"Failed to import using `{import_path=:}` and `{import_format=:}`."
         super().__init__(msg)
 
 
 class UnexpectedSchemaName(SchemaStorageException, ValueError):
     def __init__(self, schema_name: str, storage_path: str, stored_name: str) -> None:
         super().__init__(
-            f"A schema file name '{schema_name}' in {storage_path} does not correspond to the name"
-            f" of schema in the file {stored_name}"
+            f"A schema file name `{schema_name}` in `{storage_path}` does not correspond to the"
+            f" name of schema in the file `{stored_name}`"
         )
 
 
@@ -136,5 +137,5 @@ class CurrentLoadPackageStateNotAvailable(StorageException):
     def __init__(self) -> None:
         super().__init__(
             "State of the current load package is not available. Current load package state is"
-            " only available in a function decorated with @dlt.destination during loading."
+            " only available in a function decorated with `@dlt.destination` during loading."
         )

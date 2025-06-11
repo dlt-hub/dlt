@@ -186,8 +186,8 @@ def create_ibis_backend(
         # https://github.com/ibis-project/ibis/issues/7682 connecting with aws credentials
         # does not work yet.
         raise NotImplementedError(
-            f"Destination of type {Destination.from_reference(destination).destination_type} not"
-            " supported by ibis."
+            f"Destination type `{Destination.from_reference(destination).destination_type}` is not"
+            " supported."
         )
 
     return con

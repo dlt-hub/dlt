@@ -10,7 +10,7 @@ from dlt.common.destination.dataset import (
 
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import Self
-
+from dlt.common.exceptions import TypeErrorWithKnownTypes
 from dlt.transformations import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.dataset.exceptions import (
@@ -280,16 +280,18 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         return rel
 
     def __getitem__(self, columns: Sequence[str]) -> Self:
+        # NOTE remember that `issubclass(str, Sequence) is True`
         if isinstance(columns, str):
             raise TypeError(
-                f"Invalid argument type: {type(columns).__name__}, requires a sequence of column"
-                " names Sequence[str]"
+                f"Received invalid value `columns={columns}` of type"
+                f" {type(columns).__name__}`. Valid types are: ['Sequence[str]']"
             )
         elif isinstance(columns, Sequence):
             return self.select(*columns)
+
         raise TypeError(
-            f"Invalid argument type: {type(columns).__name__}, requires a sequence of column names"
-            " Sequence[str]"
+            f"Received invalid value `columns={columns}` of type"
+            f" {type(columns).__name__}`. Valid types are: ['Sequence[str]']"
         )
 
     def head(self, limit: int = 5) -> Self:

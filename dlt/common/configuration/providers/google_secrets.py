@@ -173,7 +173,7 @@ class GoogleSecretsProvider(VaultDocProvider):
             if status_code == 403:
                 raise ConfigProviderException(
                     self.name,
-                    f"Cannot list secrets: {self.credentials.client_email} does not have "
+                    f"Cannot list secrets: `{self.credentials.client_email}` does not have "
                     "roles/secretmanager.secretViewer role. Secret listing is required when "
                     "list_secrets=True to optimize vault access by skipping lookups for "
                     f"non-existent secrets. Error: {error_message} [{error_status}]",

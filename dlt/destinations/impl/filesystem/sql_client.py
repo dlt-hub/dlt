@@ -33,9 +33,10 @@ class FilesystemSqlClient(WithTableScanners):
     ) -> None:
         if remote_client.config.protocol not in SUPPORTED_PROTOCOLS:
             raise NotImplementedError(
-                f"Protocol {remote_client.config.protocol} currently not supported for"
-                f" FilesystemSqlClient. Supported protocols are {SUPPORTED_PROTOCOLS}."
+                f"Received invalid value `protocol={remote_client.config.protocol}` for"
+                f" `FilesystemSqlClient`. Valid values are: {SUPPORTED_PROTOCOLS}"
             )
+
         super().__init__(remote_client, dataset_name, cache_db, persist_secrets=persist_secrets)
         self.remote_client: FilesystemClient = remote_client
         self.is_abfss = self.remote_client.config.protocol == "abfss"
@@ -79,9 +80,7 @@ class FilesystemSqlClient(WithTableScanners):
                 # authentication for local filesystem not needed
                 pass
             else:
-                raise ValueError(
-                    f"Cannot create secret or register filesystem for protocol {protocol}"
-                )
+                raise ValueError(f"Cannot create secret or register filesystem for `{protocol=:}`")
 
         return True
 

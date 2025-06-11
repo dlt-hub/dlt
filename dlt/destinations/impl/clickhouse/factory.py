@@ -110,7 +110,7 @@ class ClickHouseTypeMapper(TypeMapperImpl):
         if precision <= 64:
             return "Int64"
         raise TerminalValueError(
-            f"bigint with {precision} bits precision cannot be mapped into ClickHouse integer type"
+            f"bigint with `{precision=:}` can't be mapped to ClickHouse integer type"
         )
 
 

@@ -85,7 +85,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
 
         if attr is None:
             raise AttributeError(
-                f"'{self._ibis_object.__class__.__name__}' object has no attribute '{name}'"
+                f"`{self._ibis_object.__class__.__name__}` object has no attribute `{name}`"
             )
 
         if not callable(attr):
@@ -97,8 +97,8 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
     def __getitem__(self, columns: Union[str, Sequence[str]]) -> "ReadableIbisRelation":
         if not isinstance(columns, (str, Sequence)):
             raise TypeError(
-                f"Invalid argument type: {type(columns).__name__}, requires a sequence of column"
-                " names Sequence[str] or a single column name str"
+                "Expected a sequence of column names `Sequence[str]` or a single column `str`. "
+                f"Received invalid argument of type: `{type(columns).__name__}`"
             )
 
         expr = self._ibis_object[columns]
