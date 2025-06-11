@@ -1,19 +1,11 @@
 name: common | common
 
 on:
-  pull_request:
-    branches:
-      - master
-      - devel
-  workflow_dispatch:
+  workflow_call:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
 
 env:
   RUNTIME__LOG_LEVEL: ERROR
-  RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
 
   # we need the secrets only for the rest_api_pipeline tests which are in tests/sources
   # so we inject them only at the end
@@ -22,14 +14,8 @@ env:
   SOURCES__GITHUB_API_PIPELINE__ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
-  get_docs_changes:
-    name: docs changes
-    uses: ./.github/workflows/get_docs_changes.yml
-
   run_common:
     name: test
-    needs: get_docs_changes
-    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -39,29 +25,23 @@ jobs:
           - os: macos-latest
             python-version: "3.11.x"
             shell: bash
-            pytest_args: ""
 
           # linux tests
           - os: ubuntu-latest
             python-version: "3.9.x"
             shell: bash
-            pytest_args: ""
           - os: ubuntu-latest
             python-version: "3.10.x"
             shell: bash
-            pytest_args: ""
           - os: ubuntu-latest
             python-version: "3.11.x"
             shell: bash
-            pytest_args: ""
           - os: ubuntu-latest
             python-version: "3.12.x"
             shell: bash
-            pytest_args: ""
           - os: ubuntu-latest
             python-version: "3.13.x"
             shell: bash
-            pytest_args: "" 
           
           # windows tests
           - os: windows-latest
@@ -107,20 +87,9 @@ jobs:
           installer-parallel: true
           version: 1.8.5
 
-
-      # NOTE: do not cache. we want to have a clean state each run and we upgrade depdendencies later
-      # - name: Load cached venv
-      #   id: cached-poetry-dependencies
-      #   uses: actions/cache@v3
-      #   with:
-      #     # path: ${{ steps.pip-cache.outputs.dir }}
-      #     path: .venv
-      #     key: venv-${{ matrix.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-
-
       - name: Install dependencies
         run: poetry install --no-interaction --with sentry-sdk
-
+    
       - name: Run common tests with minimum dependencies
         run: |
           poetry run pytest tests/common tests/normalize tests/reflection tests/plugins tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py ${{ matrix.pytest_args }}
@@ -154,14 +123,7 @@ jobs:
       - name: Run extract and pipeline tests 
         run: |
           poetry run pytest tests/sources/sql_database
-        
 
-      # - name: Install Pydantic 1.0
-      #   run: pip install "pydantic<2"
-
-      # - name: Run extract and pipeline tests
-      #   run: |
-      #     poetry run pytest tests/libs
 
 
       # test marimo app, does not work with python 3.13

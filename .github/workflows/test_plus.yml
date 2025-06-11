@@ -5,29 +5,15 @@ name: plus | plus
 #
 
 on:
-  pull_request:
-    branches:
-      - master
-      - devel
+  workflow_call:
   workflow_dispatch:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
 
 env:
   RUNTIME__LOG_LEVEL: ERROR
-  RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
 
 jobs:
-  get_docs_changes:
-    name: docs changes
-    uses: ./.github/workflows/get_docs_changes.yml
-
-  run_common:
+  run_plus:
     name: test
-    needs: get_docs_changes
-    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -99,8 +85,8 @@ jobs:
         if: matrix.os == 'macos-latest' || matrix.os == 'windows-latest'
 
   matrix_job_required_check:
-    name: common | common tests
-    needs: run_common
+    name: plus | plus tests
+    needs: run_plus
     runs-on: ubuntu-latest
     if: always()
     steps:

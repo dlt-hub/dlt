@@ -18,6 +18,7 @@ from tests.load.utils import (
 from tests.load.pipeline.utils import skip_if_unsupported_replace_strategy
 
 
+@pytest.mark.smoke
 @pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
