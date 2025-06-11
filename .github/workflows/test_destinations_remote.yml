@@ -171,12 +171,14 @@ jobs:
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
+      # NOTE: essential tests are always run
       - run: |
           poetry run pytest tests/load --ignore tests/load/sources -m "essential"
         name: Run essential tests Linux
-        if: ${{ !inputs.run_full_test_suite && !matrix.always_run_all_tests }}
 
+      # NOTE: non-essential tests are run if the full test suite is requested or if the matrix item has always_run_all_tests set to true
+      # we want to run this step even if the essential tests fail
       - run: |
-          poetry run pytest tests/load --ignore tests/load/sources
-        name: Run all tests Linux
-        if: ${{ inputs.run_full_test_suite || matrix.always_run_all_tests }}
+          poetry run pytest tests/load --ignore tests/load/sources -m "not essential"
+        name: Run non-essential tests Linux
+        if: ${{ always() && (inputs.run_full_test_suite || matrix.always_run_all_tests) }}
