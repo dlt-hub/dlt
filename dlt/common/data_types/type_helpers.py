@@ -88,7 +88,7 @@ def coerce_from_date_types(
         return ensure_pendulum_date(v)
     if to_type == "time":
         return v.time()
-    raise TypeError(f"Cannot convert timestamp to {to_type}")
+    raise TypeError(f"Cannot convert timestamp to `{to_type}`")
 
 
 def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:

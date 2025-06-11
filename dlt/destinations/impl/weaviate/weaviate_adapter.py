@@ -1,5 +1,6 @@
 from typing import Dict, Any, Literal, Set
 
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import TColumnNames, get_args
 from dlt.extract import DltResource, resource as make_resource
@@ -63,7 +64,7 @@ def weaviate_adapter(
             vectorize = [vectorize]
         if not isinstance(vectorize, list):
             raise ValueError(
-                "vectorize must be a list of column names or a single column name as a string"
+                "`vectorize` must be a list of column names or a single column name as a string"
             )
         # create weaviate-specific vectorize hints
         for column_name in vectorize:
@@ -75,11 +76,8 @@ def weaviate_adapter(
     if tokenization:
         for column_name, method in tokenization.items():
             if method not in TOKENIZATION_METHODS:
-                allowed_methods = ", ".join(TOKENIZATION_METHODS)
-                raise ValueError(
-                    f"Tokenization type {method} for column {column_name} is invalid. Allowed"
-                    f" methods are: {allowed_methods}"
-                )
+                raise ValueErrorWithKnownValues("method", method, TOKENIZATION_METHODS)
+
             if column_name in column_hints:
                 column_hints[column_name][TOKENIZATION_HINT] = method  # type: ignore
             else:

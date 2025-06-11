@@ -8,9 +8,9 @@ class InvalidPipelineName(PipelineException, ValueError):
     def __init__(self, pipeline_name: str, details: str) -> None:
         super().__init__(
             pipeline_name,
-            f"The pipeline name {pipeline_name} contains invalid characters. The pipeline name is"
-            " used to create a pipeline working directory and must be a valid directory name. The"
-            f" actual error is: {details}",
+            f"The pipeline name `{pipeline_name}` contains invalid characters. The pipeline name is"
+            " used to create a pipeline working directory and must be a valid directory name. "
+            f"Details: {details}",
         )
 
 
@@ -25,8 +25,8 @@ class PipelineConfigMissing(PipelineException):
         self.config_elem = config_elem
         self.step_or_func = step_or_func
         msg = (
-            f"Configuration element {config_elem} was not provided and step or function"
-            f" {step_or_func} cannot be executed"
+            f"Configuration element `{config_elem}` was not provided and step or function"
+            f" `{step_or_func}` cannot be executed"
         )
         if _help:
             msg += f"\n{_help}\n"
@@ -36,7 +36,7 @@ class PipelineConfigMissing(PipelineException):
 class CannotRestorePipelineException(PipelineException):
     def __init__(self, pipeline_name: str, pipelines_dir: str, reason: str) -> None:
         msg = (
-            f"Pipeline with name {pipeline_name} in working directory {pipelines_dir} could not be"
+            f"Pipeline with `{pipeline_name=:}` and `{pipelines_dir=:}` could not be"
             f" restored: {reason}"
         )
         super().__init__(pipeline_name, msg)
@@ -59,10 +59,10 @@ class PipelineStepFailed(PipelineException):
         self.exception = exception
         self.step_info = step_info
 
-        package_str = f" when processing package {load_id}" if load_id else ""
+        package_str = f" when processing package with `{load_id=:}`" if load_id else ""
         super().__init__(
             pipeline.pipeline_name,
-            f"Pipeline execution failed at stage {step}{package_str} with"
+            f"Pipeline execution failed at `{step=:}`{package_str} with"
             f" exception:\n\n{type(exception)}\n{exception}",
         )
 
@@ -84,8 +84,8 @@ class PipelineStateEngineNoUpgradePathException(PipelineException):
         self.to_engine = to_engine
         super().__init__(
             pipeline_name,
-            f"No engine upgrade path for state in pipeline {pipeline_name} from {init_engine} to"
-            f" {to_engine}, stopped at {from_engine}. You possibly tried to run an older dlt"
+            f"No engine upgrade path for state in pipeline `{pipeline_name}` from `{init_engine}`"
+            f" to `{to_engine}`, stopped at `{from_engine}`. You possibly tried to run an older dlt"
             " version against a destination you have previously loaded data to with a newer dlt"
             " version.",
         )
@@ -94,9 +94,9 @@ class PipelineStateEngineNoUpgradePathException(PipelineException):
 class PipelineHasPendingDataException(PipelineException):
     def __init__(self, pipeline_name: str, pipelines_dir: str) -> None:
         msg = (
-            f" Operation failed because pipeline with name {pipeline_name} in working directory"
-            f" {pipelines_dir} contains pending extracted files or load packages. Use `dlt pipeline"
-            " sync` to reset the local state then run this operation again."
+            f" Operation failed because pipeline with `{pipeline_name=:}` and `{pipelines_dir=:}`"
+            " contains pending extracted files or load packages. Use `dlt pipeline sync`"
+            " to reset the local state then run this operation again."
         )
         super().__init__(pipeline_name, msg)
 
@@ -104,10 +104,10 @@ class PipelineHasPendingDataException(PipelineException):
 class PipelineNeverRan(PipelineException):
     def __init__(self, pipeline_name: str, pipelines_dir: str) -> None:
         msg = (
-            f" Operation failed because pipeline with name {pipeline_name} in working directory"
-            f" {pipelines_dir} was never run or was never synced with destination. Use `dlt"
-            " pipeline sync` or call pipeline.sync_destination() to get pipeline state and set of"
-            " schemas  from destination."
+            f" Operation failed because pipeline with `{pipeline_name=:}` and `{pipelines_dir=:}`"
+            " was never run or was never synced with destination. Use `dlt pipeline sync`"
+            " or call `pipeline.sync_destination()` to get pipeline state and set of"
+            " schemas from destination."
         )
         super().__init__(pipeline_name, msg)
 
@@ -115,5 +115,5 @@ class PipelineNeverRan(PipelineException):
 class PipelineNotActive(PipelineException):
     def __init__(self, pipeline_name: str) -> None:
         super().__init__(
-            pipeline_name, f"Pipeline {pipeline_name} is not active so it cannot be deactivated"
+            pipeline_name, f"Pipeline `{pipeline_name}` is not active so it cannot be deactivated"
         )

@@ -20,7 +20,7 @@ from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt.cli.deploy_command_helpers import get_schedule_description
 from dlt.cli.exceptions import CliCommandException
 
-from tests.utils import TEST_STORAGE_ROOT, reset_providers, test_storage
+from tests.utils import TEST_STORAGE_ROOT, reset_providers, test_storage, LOCAL_POSTGRES_CREDENTIALS
 
 
 DEPLOY_PARAMS = [
@@ -111,8 +111,7 @@ def test_deploy_command(
             # run the script with wrong credentials (it is postgres there)
             venv = Venv.restore_current()
             # mod environ so wrong password is passed to override secrets.toml
-            pg_credentials = os.environ.pop("DESTINATION__POSTGRES__CREDENTIALS", "")
-            # os.environ["DESTINATION__POSTGRES__CREDENTIALS__PASSWORD"] = "password"
+            os.environ["DESTINATION__POSTGRES__CREDENTIALS__PASSWORD"] = "password"
             with pytest.raises(CalledProcessError):
                 venv.run_script("debug_pipeline.py")
             # print(py_ex.value.output)
@@ -133,7 +132,7 @@ def test_deploy_command(
                 )
             assert ex._excinfo[1].error_code == -3
 
-            os.environ["DESTINATION__POSTGRES__CREDENTIALS"] = pg_credentials
+            os.environ["DESTINATION__POSTGRES__CREDENTIALS"] = LOCAL_POSTGRES_CREDENTIALS
             # also delete secrets so credentials are not mixed up on CI
             test_storage.delete(".dlt/secrets.toml")
             test_storage.atomic_rename(".dlt/secrets.toml.ci", ".dlt/secrets.toml")

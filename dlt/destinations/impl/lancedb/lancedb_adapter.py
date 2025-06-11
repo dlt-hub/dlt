@@ -51,7 +51,7 @@ def lancedb_adapter(
             embed = [embed]
         if not isinstance(embed, list):
             raise ValueError(
-                "'embed' must be a list of column names or a single column name as a string."
+                "`embed` must be a list of column names or a single column name as a string."
             )
         column_hints = {}
 
@@ -69,7 +69,7 @@ def lancedb_adapter(
         )
     else:
         raise ValueError(
-            "You must must provide at least either the 'embed' or 'merge_key' or 'remove_orphans'"
+            "You must must provide at least either the `embed` or `merge_key` or `remove_orphans`"
             " argument if using the adapter."
         )
 

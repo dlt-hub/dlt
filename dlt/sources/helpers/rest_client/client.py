@@ -303,23 +303,22 @@ class RESTClient:
         paginator, score = self.pagination_factory.create_paginator(response)
         if paginator is None:
             raise PaginatorNotFound(
-                f"No suitable paginator found for the response at {response.url}"
+                f"No suitable `paginator` found for the response at `{response.url}`"
             )
         if score == 1.0:
-            logger.info(f"Detected paginator: {paginator}")
+            logger.info(f"Detected `paginator`: `{paginator}`")
         elif score == 0.0:
             if isinstance(data, list):
                 logger.warning(
-                    f"Fallback paginator used: {paginator}. Please provide right paginator"
-                    " manually."
+                    f"Fallback `paginator` used: `{paginator}`. Please provide paginator manually."
                 )
             else:
                 logger.info(
-                    f"Fallback paginator used: {paginator} to handle not paginated response."
+                    f"Fallback `paginator` used: `{paginator}` to handle not paginated response."
                 )
         else:
             logger.warning(
-                "Please verify the paginator settings. We strongly suggest to use explicit"
+                "Please verify the `paginator` settings. We strongly suggest to use explicit"
                 " instance of the paginator as some settings may not be guessed correctly."
             )
         return paginator

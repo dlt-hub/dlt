@@ -74,7 +74,7 @@ UNSUPPORTED_MODEL_QUERIES = [
 )
 def test_model_builder_with_non_select_query(unsupported_model_query: str) -> None:
     with pytest.raises(
-        ValueError, match="Only SELECT statements are allowed to create a SqlModel."
+        ValueError, match="Only SELECT statements are allowed to create a `SqlModel`."
     ):
         SqlModel.from_query_string(query=unsupported_model_query)
 

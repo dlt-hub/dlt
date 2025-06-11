@@ -19,9 +19,9 @@ class UnknownDestinationModule(ReferenceImportError, DestinationException, KeyEr
 
     def __str__(self) -> str:
         if "." in self.ref:
-            msg = f"Destination module {self.ref} is not registered."
+            msg = f"Destination module `{self.ref}` is not registered."
         else:
-            msg = f"Destination {self.ref} is not one of the standard dlt destinations."
+            msg = f"Destination `{self.ref}` is not one of the standard dlt destinations."
 
         if len(self.qualified_refs) == 1 and self.qualified_refs[0] == self.ref:
             pass
@@ -39,7 +39,7 @@ class InvalidDestinationReference(DestinationException):
     def __init__(self, refs: Any) -> None:
         self.refs = refs
         msg = (
-            f"None of supplied destination refs: {refs} can be found in registry or imported as"
+            f"None of supplied destination refs: `{refs}` can be found in registry or imported as"
             " Python type."
         )
         super().__init__(msg)
@@ -60,19 +60,19 @@ class DestinationTransientException(DestinationException, TransientException):
 class DestinationLoadingViaStagingNotSupported(DestinationTerminalException):
     def __init__(self, destination: str) -> None:
         self.destination = destination
-        super().__init__(f"Destination {destination} does not support loading via staging.")
+        super().__init__(f"`{destination=:}` does not support loading via staging.")
 
 
 class DestinationLoadingWithoutStagingNotSupported(DestinationTerminalException):
     def __init__(self, destination: str) -> None:
         self.destination = destination
-        super().__init__(f"Destination {destination} does not support loading without staging.")
+        super().__init__(f"`{destination=:}` does not support loading without staging.")
 
 
 class DestinationNoStagingMode(DestinationTerminalException):
     def __init__(self, destination: str) -> None:
         self.destination = destination
-        super().__init__(f"Destination {destination} cannot be used as a staging")
+        super().__init__(f"`{destination=:}` cannot be used as a staging")
 
 
 class DestinationIncompatibleLoaderFileFormatException(DestinationTerminalException):
@@ -87,20 +87,19 @@ class DestinationIncompatibleLoaderFileFormatException(DestinationTerminalExcept
         if self.staging:
             if not supported_formats:
                 msg = (
-                    f"Staging {staging} cannot be used with destination {destination} because they"
+                    f"`{staging=:}` cannot be used with `{destination=:}` because they"
                     " have no file formats in common."
                 )
             else:
                 msg = (
-                    f"Unsupported file format {file_format} for destination {destination} in"
-                    f" combination with staging destination {staging}. Supported formats:"
-                    f" {supported_formats_str}"
+                    f"Unsupported `{file_format=:}` for `{destination=:}` with `{staging=:}` "
+                    f"Supported formats: `{supported_formats_str}`"
                 )
         else:
             msg = (
-                f"Unsupported file format {file_format} in destination {destination}. Supported"
-                f" formats: {supported_formats_str}. If {destination} supports loading data via"
-                " staging bucket, more formats may be available."
+                f"Unsupported `{file_format=:}` for `{destination=:}`Supported formats:"
+                f" {supported_formats_str}. If {destination} supports loading data via staging"
+                " bucket, more formats may be available."
             )
         super().__init__(msg)
 
@@ -142,13 +141,13 @@ class UnsupportedDataType(DestinationTerminalException):
         self.available_in_formats = available_in_formats
         self.more_info = more_info
         msg = (
-            f"Destination {destination_type} cannot load data type '{data_type}' from"
-            f" '{file_format}' files. The affected table is '{table_name}' column '{column}'."
+            f"Destination `{destination_type}` cannot load `{data_type=:}` from"
+            f" `{file_format=:}` files. The affected table is `{table_name}` column `{column}`."
         )
         if available_in_formats:
-            msg += f" Note: '{data_type}' can be loaded from {available_in_formats} formats(s)."
+            msg += f" Note: `{data_type=:}` can be loaded from format(s): `{available_in_formats}`."
         else:
-            msg += f" None of available file formats support '{data_type}' for this destination."
+            msg += f" No available file formats for this destination support `{data_type=:}`"
         if more_info:
             msg += " More info: " + more_info
         super().__init__(msg)
@@ -160,7 +159,7 @@ class DestinationHasFailedJobs(DestinationTerminalException):
         self.load_id = load_id
         self.failed_jobs = failed_jobs
         super().__init__(
-            f"Destination {destination_name} has failed jobs in load package {load_id}"
+            f"Destination `{destination_name}` has failed jobs in load package `{load_id}`"
         )
 
 
@@ -169,12 +168,12 @@ class DestinationSchemaTampered(DestinationTerminalException):
         self.version_hash = version_hash
         self.stored_version_hash = stored_version_hash
         super().__init__(
-            f"Schema {schema_name} content was changed - by a loader or by destination code - from"
-            " the moment it was retrieved by load package. Such schema cannot reliably be updated"
-            f" nor saved. Current version hash: {version_hash} != stored version hash"
-            f" {stored_version_hash}. If you are using destination client directly, without storing"
+            f"Schema `{schema_name}` content was changed - by a loader or by destination code -"
+            " from the moment it was retrieved by load package. Such schema cannot reliably be"
+            " updated nor saved. If you are using destination client directly, without storing"
             " schema in load package, you should first save it into schema storage. You can also"
-            " use schema._bump_version() in test code to remove modified flag."
+            " use schema._bump_version() in test code to remove modified flag.Version hash:"
+            f" `{version_hash=:}` != {stored_version_hash=:}"
         )
 
 
@@ -190,8 +189,8 @@ class DestinationInvalidFileFormat(DestinationTerminalException):
         self.file_format = file_format
         self.message = message
         super().__init__(
-            f"Destination {destination_type} cannot process file {file_name} with format"
-            f" {file_format}: {message}"
+            f"Destination `{destination_type}` cannot process file `{file_name=:}` with"
+            f" {file_format=:}: {message}"
         )
 
 
@@ -202,11 +201,11 @@ class OpenTableFormatNotSupported(DestinationTerminalException):
         self.detected_table_format = detected_table_format
         if detected_table_format:
             msg = (
-                f"Table {table_name} is stored as {detected_table_format} while {table_format} was"
-                " requested"
+                f"Table `{table_name}` is stored as format `{detected_table_format}` while"
+                f" `{table_format=:}` was requested"
             )
         else:
-            msg = f"Table {table_name} is not stored in any known open table format."
+            msg = f"Table `{table_name}` is not stored in any known open table format."
         super().__init__(msg)
 
 
@@ -214,36 +213,33 @@ class OpenTableCatalogNotSupported(DestinationTerminalException):
     def __init__(self, table_format: str, destination_type: str):
         self.table_format = table_format
         self.destination_type = destination_type
-        super().__init__(
-            f"Catalog not supported for table format {table_format} in {destination_type} "
-            "destination"
-        )
+        super().__init__(f"Catalog not supported for `{table_format=:}` in `{destination_type=:}`")
 
 
 class SqlClientNotAvailable(DestinationTerminalException):
     def __init__(self, pipeline_name: str, destination_name: str) -> None:
         super().__init__(
-            f"SQL Client not available for destination {destination_name} in pipeline"
-            f" {pipeline_name}",
+            f"SQL Client not available for destination `{destination_name}` in pipeline"
+            f" `{pipeline_name}`",
         )
 
 
 class DatasetNotAvailable(DestinationTerminalException):
     def __init__(self, destination_name: str) -> None:
-        super().__init__(f"Destination {destination_name} does not support datasets.")
+        super().__init__(f"Destination `{destination_name}` does not support datasets.")
 
 
 class OpenTableClientNotAvailable(DestinationTerminalException):
     def __init__(self, dataset_name: str, destination_name: str) -> None:
         super().__init__(
-            f"Open table client not available for destination {destination_name} in dataset"
-            f" {dataset_name}",
+            f"Open table client not available for destination `{destination_name}` in dataset"
+            f" `{dataset_name}`",
         )
 
 
 class FSClientNotAvailable(DestinationTerminalException):
     def __init__(self, pipeline_name: str, destination_name: str) -> None:
         super().__init__(
-            f"Filesystem Client not available for destination {destination_name} in pipeline"
-            f" {pipeline_name}",
+            f"Filesystem Client not available for destination `{destination_name}` in pipeline"
+            f" `{pipeline_name}`",
         )

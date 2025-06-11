@@ -80,7 +80,7 @@ class DatabricksTypeMapper(TypeMapperImpl):
         if precision <= 64:
             return "BIGINT"
         raise TerminalValueError(
-            f"bigint with {precision} bits precision cannot be mapped into databricks integer type"
+            f"bigint with `{precision=:}` can't be mapped to Databricks integer type"
         )
 
     def from_destination_type(

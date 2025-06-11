@@ -204,7 +204,7 @@ class FileStorage:
         to_path = self.make_full_path(to_relative_path)
 
         if not os.path.isdir(from_path):
-            raise ValueError(f"{from_path} is not a directory")
+            raise ValueError(f"`{from_path}` is not a directory")
 
         # make sure the destination directory exists
         os.makedirs(to_path, exist_ok=True)

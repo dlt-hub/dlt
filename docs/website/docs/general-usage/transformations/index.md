@@ -1,13 +1,24 @@
 ---
-title: Transforming loaded datasets
-description: Define SQL-based or mixed SQL + Python transformations on data that is **already** in your destination.
+title: Transformations 🧪
+description: Define Python-based or mixed SQL + Python transformations on data that is **already** in your destination.
 keywords: [transformation, dataset, sql, pipeline, ibis, arrow]
 ---
+# Transformations 🧪: move data after loading
 
-# Transformations: reshape data you have already loaded
+import Admonition from "@theme/Admonition";
 
-:::danger
-The `dlt.transformation` decorator is currently in preview and while it may appear to work very well, it should not be considered stable. If you found this unlinked page and would like to give us feedback, please let us know in our Slack community.
+<Admonition type="note" title={<span style={{ textTransform: "lowercase" }}>dlt+</span>}>
+    <p>
+    Transformations are part of `dlt+` - a commercial extensions of OSS `dlt`. This module is currently available in 🧪 preview to selected users and projects.
+    Contact us to get your [trial license](https://dlthub.com/legal/dlt-plus-eula)
+    <br/>
+    <em>[Copyright © 2025 dltHub Inc. All rights reserved.](https://dlthub.com/legal/dlt-plus-eula)</em>
+    </p>
+</Admonition>
+
+:::caution
+This API is not stable. We are adding several types of incremental loading, annotation propagation rules, cross dataset joins,
+data contracts and checks etc. so interfaces will change.
 :::
 
 `dlt transformations` let you build new tables or views from datasets that have _already_ been ingested with `dlt`.  
@@ -182,8 +193,8 @@ which columns resulted from origin columns that contain private data:
 
 Features and limitations:
 
-* `dlt` will only forward certain types of hints to the resulting tables: custom hints starting with `x-annotation...` and type hints such as `nullable`, `data_type`, `precision`, `scale`, and `timezone`. Other hints, such as `primary_key` or `merge_keys`, will need to be set via the `columns` argument on the transformation decorator, since dlt does not know how the transformed tables will be used.
-* `dlt` will not be able to forward hints for columns that are the result of combining two origin columns, for example by concatenating them or similar sql operations.
+* `dlt` will only forward certain types of hints to the resulting tables: custom hints starting with `x-annotation...` and type hints such as `nullable`, `precision`, `scale`, and `timezone`. Other hints, such as `primary_key` or `merge_keys`, will need to be set by the developer, since `dlt` does not know how the transformed tables will be used.
+* `dlt` will not be able to forward hints for columns that are the result of combining two origin columns, for example by concatenating them or similar operations.
 
 ## Normalization
 

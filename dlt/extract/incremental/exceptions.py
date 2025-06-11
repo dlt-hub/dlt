@@ -25,7 +25,7 @@ class IncrementalCursorPathHasValueNone(PipeException):
         self.item = item
         msg = (
             msg
-            or f"Cursor element with JSON path `{json_path}` has the value `None` in extracted data item. All data items must contain a value != None. Construct the incremental with on_cursor_value_none='include' if you want to include such rows"
+            or f"Cursor element with JSON path `{json_path}` has the value `None` in extracted data item. All data items must contain a value != None. Construct the incremental with `on_cursor_value_none='include'` if you want to include such rows"
         )
         super().__init__(pipe_name, msg)
 
@@ -46,10 +46,10 @@ class IncrementalCursorInvalidCoercion(PipeException):
         self.cursor_value_type = cursor_value_type
         self.item = item
         msg = (
-            f"Could not coerce {cursor_value_type} with value {cursor_value} and type"
-            f" {type(cursor_value)} to actual data item {item} at path {cursor_path} with type"
-            f" {item_type}: {details}. You need to use different data type for"
-            f" {cursor_value_type} or cast your data ie. by using `add_map` on this resource."
+            f"Could not coerce `{cursor_value_type}` with value `{cursor_value}` and type"
+            f" `{type(cursor_value)}` to actual data item `{item}` at path `{cursor_path}` with"
+            f" type `{item_type}`: {details}. You need to use different data type for"
+            f" `{cursor_value_type}` or cast your data ie. by using `.add_map()` on this resource."
         )
         super().__init__(pipe_name, msg)
 
@@ -59,7 +59,7 @@ class IncrementalPrimaryKeyMissing(PipeException):
         self.primary_key_column = primary_key_column
         self.item = item
         msg = (
-            f"Primary key column {primary_key_column} was not found in extracted data item. All"
+            f"Primary key column `{primary_key_column}` was not found in extracted data item. All"
             " data items must contain this column. Use the same names of fields as in your JSON"
             " document."
         )

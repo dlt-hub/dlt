@@ -223,7 +223,7 @@ def create_path(
     if callable(current_datetime):
         current_datetime = current_datetime()
         if not isinstance(current_datetime, pendulum.DateTime):
-            raise RuntimeError("current_datetime is not an instance instance of pendulum.DateTime")
+            raise RuntimeError("`current_datetime` is not an instance of `pendulum.DateTime`")
 
     job_info = ParsedLoadJobFileName.parse(file_name)
     params = prepare_params(

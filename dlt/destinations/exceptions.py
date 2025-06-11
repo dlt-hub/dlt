@@ -38,7 +38,7 @@ class DestinationConnectionError(DestinationTransientException):
         self.dataset_name = dataset_name
         self.inner_exc = inner_exc
         super().__init__(
-            f"Connection with {client_type} to dataset name {dataset_name} failed. Please check if"
+            f"Connection with `{client_type=:}` to `{dataset_name=:}` failed. Please check if"
             " you configured the credentials at all and provided the right credentials values. You"
             " can be also denied access or your internet connection may be down. The actual reason"
             f" given is: {reason}"
@@ -50,8 +50,8 @@ class LoadClientNotConnected(DestinationTransientException):
         self.client_type = client_type
         self.dataset_name = dataset_name
         super().__init__(
-            f"Connection with {client_type} to dataset {dataset_name} is closed. Open the"
-            " connection with 'client.open_connection' or with the 'with client:' statement"
+            f"Connection with `{client_type=:}` to `{dataset_name=:}` is closed. Open the"
+            " connection with `client.open_connection` or with the `with client:` context manager"
         )
 
 
@@ -60,34 +60,32 @@ class DestinationSchemaWillNotUpdate(DestinationTerminalException):
         self.table_name = table_name
         self.columns = columns
         super().__init__(
-            f"Schema for table {table_name} column(s) {columns} will not update: {msg}"
+            f"Schema for table `{table_name}` column(s) `{columns}` will not update: {msg}"
         )
 
 
 class LoadJobNotExistsException(DestinationTerminalException):
     def __init__(self, job_id: str) -> None:
-        super().__init__(f"Job with id/file name {job_id} not found")
+        super().__init__(f"Job with {job_id=:} not found")
 
 
 class LoadJobTerminalException(DestinationTerminalException):
     def __init__(self, file_path: str, message: str) -> None:
-        super().__init__(
-            f"Job with id/file name {file_path} encountered unrecoverable problem: {message}"
-        )
+        super().__init__(f"Job with `{file_path=:}` encountered unrecoverable problem: {message}")
 
 
 class LoadJobInvalidStateTransitionException(DestinationTerminalException):
     def __init__(self, from_state: TLoadJobState, to_state: TLoadJobState) -> None:
         self.from_state = from_state
         self.to_state = to_state
-        super().__init__(f"Load job cannot transition form {from_state} to {to_state}")
+        super().__init__(f"Load job cannot transition from `{from_state}` to `{to_state}`")
 
 
 class LoadJobFileTooBig(DestinationTerminalException):
     def __init__(self, file_name: str, max_size: int) -> None:
         super().__init__(
-            f"File {file_name} exceeds {max_size} and cannot be loaded. Split the file and try"
-            " again."
+            f"File `{file_name}` exceeds `{max_size=:}` and cannot be loaded. Split the file and"
+            " try again."
         )
 
 
@@ -100,11 +98,11 @@ class MergeDispositionException(DestinationTerminalException):
         self.tables = tables
         self.reason = reason
         msg = (
-            f"Merge sql job for dataset name {dataset_name}, staging dataset name"
-            f" {staging_dataset_name} COULD NOT BE GENERATED. Merge will not be performed. "
+            f"Merge sql job for `{dataset_name=:}` with `{staging_dataset_name=:}`"
+            "COULD NOT BE GENERATED. Merge will not be performed. "
         )
         msg += (
-            f"Data for the following tables ({tables}) is loaded to staging dataset. You may need"
+            f"Data for the following tables `{tables}` is loaded to staging dataset. You may need"
             " to write your own materialization. The reason is:\n"
         )
         msg += reason
@@ -127,15 +125,15 @@ class InvalidFilesystemLayout(DestinationTerminalException):
         self.layout = layout
 
         message = (
-            f"Layout '{layout}' expected {', '.join(expected_placeholders)} placeholders."
-            f"Missing placeholders: {', '.join(invalid_placeholders)}."
+            f"`{layout=:}` expected placeholders: `{expected_placeholders}` "
+            f"Missing placeholders: `{invalid_placeholders}` "
         )
 
         if extra_placeholders:
-            message += f"Extra placeholders specified: {', '.join(extra_placeholders)}."
+            message += f"Extra placeholders specified: `{extra_placeholders}` "
 
         if unused_placeholders:
-            message += f"Unused placeholders: {', '.join(unused_placeholders)}."
+            message += f"Unused placeholders: `{unused_placeholders}`"
 
         super().__init__(message)
 
@@ -144,7 +142,7 @@ class InvalidPlaceholderCallback(DestinationTransientException):
     def __init__(self, callback_name: str) -> None:
         self.callback_name = callback_name
         super().__init__(
-            f"Invalid placeholder callback: {callback_name}, please make sure it can"
+            f"Invalid placeholder `{callback_name=:}`, please make sure it can"
             " accept parameters the following `schema name`, `table name`,"
             " `load_id`, `file_id` and an `extension`",
         )
@@ -152,7 +150,7 @@ class InvalidPlaceholderCallback(DestinationTransientException):
 
 class CantExtractTablePrefix(DestinationTerminalException):
     def __init__(self, layout: str, details: str) -> None:
-        msg = f"Cannot extract unique table prefix in layout '{layout}'. "
+        msg = f"Cannot extract unique table prefix in `{layout=:}`. "
         msg += details
-        msg += "An example of valid layout: {table_name}/{load_id}.{file_id}.{ext}"
+        msg += "An example of valid layout: `{table_name}/{load_id}.{file_id}.{ext}`"
         super().__init__(msg)

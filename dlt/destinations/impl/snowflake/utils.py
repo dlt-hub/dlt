@@ -110,7 +110,8 @@ def gen_copy_sql(
         else:
             raise LoadJobTerminalException(
                 file_url,
-                f"Cannot load from S3 path {file_url} without either credentials or a stage name.",
+                f"Cannot load from S3 path `{file_url}` without either credentials or a stage"
+                " name.",
             )
 
     elif parsed_file_url.scheme in AZURE_BLOB_STORAGE_PROTOCOLS:
@@ -127,13 +128,13 @@ def gen_copy_sql(
         else:
             raise LoadJobTerminalException(
                 file_url,
-                f"Cannot load from Azure path {file_url} without either credentials or a stage"
+                f"Cannot load from Azure path `{file_url}` without either credentials or a stage"
                 " name.",
             )
     else:
         raise LoadJobTerminalException(
             file_url,
-            f"Cannot load from bucket path {file_url} without a stage name. See "
+            f"Cannot load from bucket path `{file_url}` without a stage name. See "
             "https://dlthub.com/docs/dlt-ecosystem/destinations/snowflake for "
             "instructions on setting up the `stage_name`",
         )
@@ -180,7 +181,7 @@ def gen_copy_sql(
             f"ENCODING = '{csv_config.encoding}'",
         ]
     else:
-        raise ValueError(f"{loader_file_format} not supported for Snowflake COPY command.")
+        raise ValueError(f"`{loader_file_format=:}` not supported for Snowflake COPY command.")
 
     source_format = _build_format_clause(format_opts)
 

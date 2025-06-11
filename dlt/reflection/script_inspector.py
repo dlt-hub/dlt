@@ -27,7 +27,7 @@ def import_script_module(
     Optionally, missing imports will be ignored by importing a dummy module instead.
     """
     if os.path.isabs(script_relative_path):
-        raise ValueError(script_relative_path, f"Not relative path to {module_path}")
+        raise ValueError(script_relative_path, f"Not relative path to `{module_path}`")
 
     module, _ = os.path.splitext(script_relative_path)
     module = ".".join(Path(module).parts)
@@ -39,7 +39,7 @@ def import_script_module(
         # path must be first so we always load our module of
         sys.path.insert(0, sys_path)
     try:
-        logger.info(f"Importing pipeline script from path {module_path} and module: {module}")
+        logger.info(f"Importing pipeline script from module `{module}` with path `{module_path}`")
         if ignore_missing_imports:
             return import_module_with_missing(module)
         else:

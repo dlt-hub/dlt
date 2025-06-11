@@ -161,8 +161,8 @@ def test_error_message_invalid_auth_type() -> None:
         create_auth("non_existing_method")  # type: ignore
     assert (
         str(e.value)
-        == "Invalid authentication: non_existing_method."
-        " Available options: bearer, api_key, http_basic, oauth2_client_credentials."
+        == "Received invalid value `auth_type=non_existing_method`. "
+        "Valid values are: ['bearer', 'api_key', 'http_basic', 'oauth2_client_credentials']"
     )
 
 
@@ -314,5 +314,5 @@ def test_validation_masks_auth_secrets() -> None:
         rest_api_source(incorrect_config)
     assert (
         re.search("sensitive-secret", str(e.value)) is None
-    ), "unexpectedly printed 'sensitive-secret'"
-    assert e.match(re.escape("'{'type': 'bearer', 'location': 'header', 'token': 's*****t'}'"))
+    ), "unexpectedly printed `sensitive-secret`"
+    assert e.match(re.escape("`{'type': 'bearer', 'location': 'header', 'token': 's*****t'}`"))

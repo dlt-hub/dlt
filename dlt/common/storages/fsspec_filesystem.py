@@ -32,7 +32,7 @@ from dlt.common.configuration.specs import (
     AzureCredentials,
     SFTPCredentials,
 )
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
 from dlt.common.storages.configuration import (
     FileSystemCredentials,
     FilesystemConfiguration,
@@ -264,8 +264,9 @@ class FileItemDict(DictStrAny):
         elif compression == "disable":
             compression_arg = None
         else:
-            raise ValueError("""The argument `compression` must have one of the following values:
-                "auto", "enable", "disable".""")
+            raise ValueErrorWithKnownValues(
+                "compression", compression, ["auto", "enable", "disable"]
+            )
 
         # if the user has already extracted the content, we use it so there is no need to
         # download the file again.

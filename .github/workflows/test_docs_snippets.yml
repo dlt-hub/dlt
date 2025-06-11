@@ -2,26 +2,14 @@
 name: docs | snippets & examples
 
 on:
-  pull_request_target:
-    branches:
-      - master
-      - devel
-    types:
-      - opened
-      - synchronize
-      - labeled
+  workflow_call:
   workflow_dispatch:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
 
 env:
   DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
 
   # RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
-  RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
 
   # Slack hook for chess in production example
   RUNTIME__SLACK_INCOMING_HOOK: ${{ secrets.RUNTIME__SLACK_INCOMING_HOOK }}
@@ -31,16 +19,9 @@ env:
   IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
 
 jobs:
-  authorize:
-    # run when label is assigned OR when we are not a fork
-    if: ${{ github.event.label.name == 'ci from fork' || (github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'opened' || github.event.action == 'synchronize'))}}
-    runs-on: ubuntu-latest
-    steps:
-      - run: true
 
   run_lint:
     name: docs | snippets & examples lint and test
-    needs: authorize
     runs-on: ubuntu-latest
 
     # Service containers to run with `container-job`

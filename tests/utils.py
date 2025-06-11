@@ -44,6 +44,8 @@ ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or [
     "duckdb",
 ]
 
+LOCAL_POSTGRES_CREDENTIALS = "postgresql://loader:loader@localhost:5432/dlt_data"
+
 
 # destination constants
 IMPLEMENTED_DESTINATIONS = {
