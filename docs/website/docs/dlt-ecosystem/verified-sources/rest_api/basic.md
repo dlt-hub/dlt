@@ -238,6 +238,7 @@ The `client` configuration is used to connect to the API's endpoints. It include
 - `base_url` (str): The base URL of the API. This string is prepended to all endpoint paths. For example, if the base URL is `https://api.example.com/v1/`, and the endpoint path is `users`, the full URL will be `https://api.example.com/v1/users`.
 - `headers` (dict, optional): Additional headers that are sent with each request.
 - `auth` (optional): Authentication configuration. This can be a simple token, an `AuthConfigBase` object, or a more complex authentication method.
+- `session` (requests.Session, optional): A custom session object. When provided, this session will be used for all HTTP requests instead of the default session. Can be used, for example, with [requests-oauthlib](https://github.com/requests/requests-oauthlib) for OAuth authentication.
 - `paginator` (optional): Configuration for the default pagination used for resources that support pagination. Refer to the [pagination](#pagination) section for more details.
 
 #### `resource_defaults` (optional)
