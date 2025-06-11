@@ -46,6 +46,12 @@ CONFIG_GROUPS = [
         "base_classes": [
             "CredentialsConfiguration",
         ]
+    },
+    {
+        "name": "All other Configurations",
+        "base_classes": [
+            "BaseConfiguration",
+        ]
     }
 ]
 
@@ -138,7 +144,11 @@ def extract_config_info(cls: type) -> dict:
 if __name__ == "__main__":
     print("Collecting config docs...")
     
+    # all parsed config specs
     all_config_specs = {}
+    
+    # all rendered config specs
+    rendered_config_specs = set()
     
     # get sorted specs
     found_config_specs = list(KNOWN_CONFIG_SPEC_CLASSES)
@@ -165,22 +175,24 @@ if __name__ == "__main__":
                             break
 
     
-    # write g
+    # write defined groups
     lines = []
     for group in CONFIG_GROUPS:
         lines.append(f"## {group['name']}")
         for name, spec in all_config_specs.items():
+            if name in rendered_config_specs:
+                continue
             for base in spec["bases"]:
                 if base in group["base_classes"]:
+                    rendered_config_specs.add(name)
                     lines.append(f"### {name}")
                     lines.append(f"{spec['description']}")
                     lines.append("")
                     for property in spec["properties"].values():
                         lines.append(f"* **`{property['name']}`** - _{property['type']}_ <br /> {property['doc']}")
                     lines.append("")
-                    break 
-                
-                   
+                    break
+           
     # write to output
     with open(OUTPUT_FILE, "w") as f:
         f.write(OUTPUT_HEADER)
