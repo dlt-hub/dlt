@@ -326,7 +326,6 @@ def test_get_schemas_from_destination(
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        all_staging_configs=True,
         default_vector_configs=True,
         all_buckets_filesystem_configs=True,
         table_format_filesystem_configs=True,

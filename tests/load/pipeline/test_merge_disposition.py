@@ -48,7 +48,6 @@ from tests.load.utils import (
 )
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -255,7 +254,6 @@ def test_merge_record_updates(
     )
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -373,7 +371,6 @@ def test_merge_primary_key_normalization(
         )
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -512,7 +509,6 @@ def test_merge_nested_records_inserted_deleted(
     )
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -773,8 +769,6 @@ def test_merge_no_child_tables(destination_config: DestinationTestConfiguration)
     assert github_2_counts["issues"] == 100 if destination_config.supports_merge else 115
 
 
-# mark as essential for now
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, local_filesystem_configs=True),

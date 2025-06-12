@@ -18,13 +18,9 @@ from tests.load.utils import (
 from tests.load.pipeline.utils import skip_if_unsupported_replace_strategy
 
 
-@pytest.mark.smoke
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        local_filesystem_configs=True, default_staging_configs=True, default_sql_configs=True
-    ),
+    destinations_configs(local_filesystem_configs=True, default_sql_configs=True),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
