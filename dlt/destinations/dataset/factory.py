@@ -43,4 +43,4 @@ def dataset(
     schema: Union[Schema, str, None] = None,
     dataset_type: TDatasetType = "auto",
 ) -> Any:
-    return ReadableDBAPIDataset(destination, dataset_name, schema, dataset_type)
+    return ReadableDBAPIDataset(destination, dataset_name, schema)

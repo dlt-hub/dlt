@@ -14,6 +14,7 @@ from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
 from dlt.extract.hints import SqlModel
 from dlt.extract.incremental import Incremental
 
+from dlt.extract.items_transform import LimitItem
 from dlt.transformations.typing import (
     TTransformationFunParams,
 )
@@ -30,7 +31,7 @@ from dlt.extract.hints import make_hints
 from dlt.common.destination.dataset import SupportsReadableRelation
 from dlt.extract import DltResource
 from dlt.transformations.configuration import TransformationConfiguration
-from dlt.common.utils import get_callable_name
+from dlt.common.utils import get_callable_name, simple_repr, without_none
 from dlt.common.schema.typing import (
     TWriteDisposition,
     TColumnNames,
@@ -46,6 +47,41 @@ from dlt.extract.exceptions import (
 class DltTransformationResource(DltResource):
     def __init__(self, *args: Any, **kwds: Any) -> None:
         super().__init__(*args, **kwds)
+
+    # NOTE copied from DltResource
+    def __repr__(self) -> str:
+        limit = None
+        for step in self._pipe.steps:
+            if isinstance(step, LimitItem):
+                limit = step.max_items
+                break
+
+        kwargs = {
+            "name": self.name,
+            #  "section": self.section,  should this be explicitly passed?
+            "table_name": self._hints.get("table_name"),
+            "primary_key": self._hints.get("primary_key"),
+            "merge_key": self._hints.get("merge_key"),
+            "columns": "{...}" if self._hints.get("columns") else None,
+            "parent_table_name": self._hints.get("parent_table_name"),
+            "references": "{...}" if self._hints.get("references") else None,
+            "nested_hints": "{...}" if self._hints.get("nested_hints") else None,
+            "limit": limit,  # NOTE not a valid kwarg for `@dlt.resource`
+            "max_table_nesting": self._hints.get("max_table_nesting"),
+            "write_disposition": self._hints.get("write_disposition"),
+            "table_format": self._hints.get("table_format"),
+            "file_format": self._hints.get("file_format"),
+            "schema_contract": "{...}" if self._hints.get("schema_contract") else None,
+            "incremental": self.incremental,
+            "validator": self.validator,
+        }
+        if len(self._pipe.steps) > 1:
+            # NOTE both are not valid kwargs for `@dlt.resource`
+            kwargs["n_steps"] = len(self._pipe.steps)
+            kwargs["steps"] = [type(step).__name__ for step in self._pipe.steps]
+        # the name isn't `DltResource` because it's not the main entrypoint
+        # to create a resource
+        return simple_repr("@dlt.transformation", **without_none(kwargs))
 
 
 def make_transformation_resource(

@@ -1,5 +1,6 @@
+from contextlib import contextmanager
 from types import TracebackType
-from typing import Any, Type, Union, TYPE_CHECKING, List
+from typing import Any, Generator, Literal, Type, Union, TYPE_CHECKING, List
 
 
 from sqlglot.schema import Schema as SQLGlotSchema
@@ -18,7 +19,6 @@ from dlt.common.schema import Schema
 from dlt.common.typing import Self
 from dlt.common.schema.typing import C_DLT_LOAD_ID
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
-from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation, BaseReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
 
@@ -31,7 +31,7 @@ else:
     IbisBackend = Any
 
 
-class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
+class ReadableDBAPIDataset(SupportsReadableDataset):
     """Access to dataframes and arrow tables in the destination dataset via dbapi"""
 
     def __init__(
@@ -39,12 +39,11 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         destination: TDestinationReferenceArg,
         dataset_name: str,
         schema: Union[Schema, str, None] = None,
-        dataset_type: TDatasetType = "auto",
     ) -> None:
         # provided properties
         self._destination = Destination.from_reference(destination)
         self._provided_schema = schema
-        self._dataset_name = dataset_name
+        self._name = dataset_name
 
         # derived / cached properties
         self._schema: Schema = None
@@ -53,17 +52,6 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         self._opened_sql_client: SqlClientBase[Any] = None
         self._table_client: SupportsOpenTables = None
 
-        # resolve dataset type
-        if dataset_type in ("auto", "ibis"):
-            try:
-                from dlt.helpers.ibis import ibis
-
-                dataset_type = "ibis"
-            except MissingDependencyException:
-                # if ibis is explicitly requested, reraise
-                if dataset_type == "ibis":
-                    raise
-        self._dataset_type: TDatasetType = dataset_type
 
     def ibis(self) -> IbisBackend:
         """return a connected ibis backend"""
@@ -90,8 +78,8 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         return lineage.create_sqlglot_schema(self.schema, self.dataset_name, dialect=dialect)
 
     @property
-    def dataset_name(self) -> str:
-        return self._dataset_name
+    def name(self) -> str:
+        return self._name
 
     @property
     def sql_client(self) -> SqlClientBase[Any]:
@@ -118,7 +106,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
                 self._table_client = client
             else:
                 raise OpenTableClientNotAvailable(
-                    self._dataset_name, self._destination.destination_name
+                    self._name, self._destination.destination_name
                 )
         return self._table_client
 
@@ -131,7 +119,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
 
     def _get_destination_client(self, schema: Schema) -> JobClientBase:
         return get_destination_clients(
-            schema, destination=self._destination, destination_dataset_name=self._dataset_name
+            schema, destination=self._destination, destination_dataset_name=self._name
         )[0]
 
     def _get_sql_client(self, schema: Schema) -> SqlClientBase[Any]:
@@ -162,7 +150,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
 
         # no schema name given, load newest schema from destination
         elif not self._schema:
-            with self._get_destination_client(Schema(self._dataset_name)) as client:
+            with self._get_destination_client(Schema(self._name)) as client:
                 if isinstance(client, WithStateSync):
                     stored_schema = client.get_stored_schema()
                     if stored_schema:
@@ -170,93 +158,80 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
 
         # default to empty schema with dataset name
         if not self._schema:
-            self._schema = Schema(self._dataset_name)
+            self._schema = Schema(self._name)
 
-    def __call__(self, query: Any, normalize_query: bool = True) -> ReadableDBAPIRelation:
-        # TODO: accept other query types and return a right relation: sqlglot (DBAPI) and ibis (Expr)
-        # TODO: parse query as ibis relation, however ibis will quote that query when compiling to sql
-        return ReadableDBAPIRelation(
-            readable_dataset=self, provided_query=query, normalize_query=normalize_query
-        )
-
-    def table(self, table_name: str) -> ReadableIbisRelation:
+    # TODO use `@overload` with the `type_` field set to configure the return type
+    # could be `sqlglot.expressions.Table`, `ibis.expr.types.Table`, `dlt.Relation`
+    # TODO maybe this should return a `Relation` and relation provides different
+    # access methods for different types
+    def table(
+        self,
+        table_name: str,
+        type_: Literal["ibis", "sqlglot", "relation", "lazy_narwhals", "pandas"] = "relation",
+    ) -> Any:
         # dataset only provides access to tables known in dlt schema, direct query may cirumvent this
         if table_name not in self.schema.tables.keys():
-            raise ValueError(
+            raise KeyError(
                 f"Table {table_name} not found in schema {self.schema.name} of dataset"
                 f" {self.dataset_name}. Avaible tables are: {self.schema.tables.keys()}"
             )
-
-        # we can create an ibis powered relation if ibis is available
-        relation: BaseReadableDBAPIRelation
-        if self._dataset_type == "ibis":
+        
+        if type_ == "relation":
+            # TODO no circular relationship between dataset and relation
+            return ReadableDBAPIRelation(table_name=table_name)
+        elif type_ == "sqlglot":
+            return ...
+        elif type_ == "ibis":
             from dlt.helpers.ibis import create_unbound_ibis_table
-            from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
+            return create_unbound_ibis_table(self.schema, self.dataset_name, table_name)
+        elif type_ == "lazy_narwhals":
+            import narwhals as nw
+            from dlt.helpers.ibis import create_unbound_ibis_table
 
             unbound_table = create_unbound_ibis_table(self.schema, self.dataset_name, table_name)
-            relation = ReadableIbisRelation(
-                readable_dataset=self,
-                ibis_object=unbound_table,
-            )
-
+            return nw.from_native(unbound_table)
+        elif type_ == "pandas:
+            ...
         else:
-            # fallback to the standard dbapi relation
-            relation = ReadableDBAPIRelation(
-                readable_dataset=self,
-                table_name=table_name,
-            )
+            raise ValueError(f"Invalid `type_`. Received `{type_}`. Expected one of `['relation', 'ibis', 'sqlglot']")
 
-        return relation  # type: ignore[return-value]
+    # TODO refactor BaseReadableDBAPIRelation to here
+    # NOTE this only makes sense for eager transformations
+    def iter_table(self, table_name: str, type_: Literal["pandas", "eager_narwhals", "pyarrow"]) -> Generator:
+        with self.cursor() as cursor:
+            yield from cursor.arrow(*args, **kwargs)
 
-    def row_counts(
-        self,
-        *,
-        data_tables: bool = True,
-        dlt_tables: bool = False,
-        table_names: List[str] = None,
-        load_id: str = None,
-    ) -> SupportsReadableRelation:
-        """Returns a dictionary of table names and their row counts, returns counts of all data tables by default"""
-        """If table_names is provided, only the tables in the list are returned regardless of the data_tables and dlt_tables flags"""
+    @contextmanager
+    def cursor(self) -> Generator:
+        """Gets a DBApiCursor for the current relation"""
+        try:
+            self._opened_sql_client = self.sql_client
 
-        selected_tables = table_names or []
-        if not selected_tables:
-            if data_tables:
-                selected_tables += self.schema.data_table_names(seen_data_only=True)
-            if dlt_tables:
-                selected_tables += self.schema.dlt_table_names()
+            # we allow computing the schema to fail if query normalization is disabled
+            # this is useful for raw sql query access, testing and debugging
+            try:
+                columns_schema = self.columns_schema
+            except lineage.LineageFailedException:
+                if self._should_normalize_query:
+                    raise
+                else:
+                    columns_schema = None
 
-        # filter tables so only ones with dlt_load_id column are included
-        if load_id:
-            dlt_load_id_col = self.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
-            selected_tables = [
-                table
-                for table in selected_tables
-                if dlt_load_id_col in self.schema.tables[table]["columns"].keys()
-            ]
-        # Build UNION ALL query to get row counts for all selected tables
-        queries = []
-        for table in selected_tables:
-            query = (
-                f"SELECT '{table}' as table_name, COUNT(1) as row_count FROM"
-                f" {self.sql_client.capabilities.escape_identifier(table)}"
-            )
-            if load_id:
-                query += f" WHERE {dlt_load_id_col} = '{load_id}'"
-            queries.append(query)
-
-        query = " UNION ALL ".join(queries)
-
-        # Execute query and build result dict
-        return self(query)
-
-    def __getitem__(self, table_name: str) -> ReadableIbisRelation:
-        """access of table via dict notation"""
-        return self.table(table_name)
-
-    def __getattr__(self, table_name: str) -> ReadableIbisRelation:
-        """access of table via property notation"""
-        return self.table(table_name)
+            # case 1: client is already opened and managed from outside
+            if self.sql_client.native_connection:
+                with self.sql_client.execute_query(self.query()) as cursor:
+                    if columns_schema:
+                        cursor.columns_schema = columns_schema
+                    yield cursor
+            # case 2: client is not opened, we need to manage it
+            else:
+                with self.sql_client as client:
+                    with client.execute_query(self.query()) as cursor:
+                        if columns_schema:
+                            cursor.columns_schema = columns_schema
+                        yield cursor
+        finally:
+            self._opened_sql_client = None
 
     def __enter__(self) -> Self:
         """Context manager used to open and close sql client and internal connection"""
