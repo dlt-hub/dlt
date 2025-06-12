@@ -36,6 +36,7 @@ def sql_database(
     table_names: Optional[List[str]] = dlt.config.value,
     chunk_size: int = 50000,
     backend: TableBackend = "sqlalchemy",
+    page_size: Optional[int] = None,
     detect_precision_hints: Optional[bool] = False,
     reflection_level: Optional[ReflectionLevel] = "full",
     defer_table_reflect: Optional[bool] = None,
@@ -66,6 +67,7 @@ def sql_database(
             "sqlalchemy" yields batches as lists of Python dictionaries, "pyarrow" and "connectorx" yield batches as arrow tables, "pandas" yields panda frames.
             "sqlalchemy" is the default and does not require additional dependencies, "pyarrow" creates stable destination schemas with correct data types,
             "connectorx" is typically the fastest but ignores the "chunk_size" so you must deal with large tables yourself.
+        page_size (Optional[int]): Number of rows to be retrieved per transaction. Useful when connecting to DBs with restrictions on the number of rows to retrieve.
 
         detect_precision_hints (Optional[bool]): Deprecated. Use `reflection_level`. Set column precision and scale hints for supported data types in the target schema based on the columns in the source tables.
             This is disabled by default.
@@ -142,6 +144,7 @@ def sql_database(
             metadata=metadata,
             chunk_size=chunk_size,
             backend=backend,
+            page_size=page_size,
             reflection_level=reflection_level,
             defer_table_reflect=defer_table_reflect,
             table_adapter_callback=table_adapter_callback,
@@ -162,6 +165,7 @@ def sql_table(
     incremental: Optional[Incremental[Any]] = None,
     chunk_size: int = 50000,
     backend: TableBackend = "sqlalchemy",
+    page_size: Optional[int] = None,
     detect_precision_hints: Optional[bool] = None,
     reflection_level: Optional[ReflectionLevel] = "full",
     defer_table_reflect: Optional[bool] = None,
@@ -198,6 +202,7 @@ def sql_table(
             "sqlalchemy" is the default and does not require additional dependencies, "pyarrow" creates stable destination schemas with correct data types,
             "connectorx" is typically the fastest but ignores the "chunk_size" so you must deal with large tables yourself.
 
+        page_size (Optional[int]): Number of rows to be retrieved per transaction. Useful when connecting to DBs with restrictions on the number of rows to retrieve.
         detect_precision_hints (Optional[bool]): Deprecated. Use `reflection_level`. Set column precision and scale hints for supported data types in the target schema based on the columns in the source tables.
             This is disabled by default.
 
@@ -287,6 +292,7 @@ def sql_table(
         metadata,
         chunk_size,
         backend,
+        page_size=page_size,
         incremental=incremental,
         reflection_level=reflection_level,
         table_adapter_callback=table_adapter_callback,
