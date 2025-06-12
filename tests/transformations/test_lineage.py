@@ -1,5 +1,7 @@
 from typing import Any, Union
 
+import sqlglot
+
 import pytest
 import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema, ensure_schema
@@ -31,7 +33,6 @@ def sqlglot_schema() -> SQLGlotSchema:
 QUERY_KNOWN_TABLE_STAR_SELECT = "SELECT * FROM table_1"
 QUERY_UNKNOWN_TABLE_STAR_SELECT = "SELECT * FROM table_unknown"
 QUERY_ANONYMOUS_SELECT = "SELECT LEN(col_varchar) FROM table_1"
-QUERY_GIBBERISH = "%&/ GIBBERISH"
 QUERY_DROP = "DROP TABLE table_1"
 QUERY_UNKNOWN_TABLE_AND_COLUMN_SELECT = "SELECT col_unknown FROM table_unknown"
 QUERY_KNOWN_TABLE_AND_UNKNOWN_COLUM_SELECT = "SELECT col_unknown FROM table_1"
@@ -76,8 +77,6 @@ QUERY_KNOWN_AND_UNKNOWN_JOIN_STAR_ON_KNOW_TABLE_SELECT = """\
                 "col_bool": {"name": "col_bool", "data_type": "bool"},
             },
         ),
-        (QUERY_GIBBERISH, {"allow_partial": True}, {}),
-        (QUERY_GIBBERISH, {"allow_partial": False}, LineageFailedException()),
         (QUERY_DROP, {"allow_partial": True}, {}),
         (QUERY_DROP, {"allow_partial": False}, LineageFailedException()),
         (
@@ -174,7 +173,7 @@ def test_compute_columns_schema(
     if isinstance(expected_dlt_schema, Exception):
         with pytest.raises(LineageFailedException):
             lineage.compute_columns_schema(
-                sql_query=sql_query,
+                expression=sqlglot.parse_one(sql_query),
                 sqlglot_schema=sqlglot_schema,
                 dialect=sqlglot_schema.dialect,
                 **config,
@@ -183,7 +182,7 @@ def test_compute_columns_schema(
         assert (
             expected_dlt_schema
             == lineage.compute_columns_schema(
-                sql_query=sql_query,
+                expression=sqlglot.parse_one(sql_query),
                 sqlglot_schema=sqlglot_schema,
                 dialect=sqlglot_schema.dialect,
                 **config,

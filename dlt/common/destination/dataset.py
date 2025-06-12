@@ -41,12 +41,12 @@ class SupportsReadableRelation:
     sql glot query analysis and lineage. dlt hints for columns are kept in some cases. Refere to <docs-page> for more details.
     """
 
-    def query(self) -> Any:
+    def query(self) -> str:
         """Returns the sql query that represents the relation. The query will be qualified, quoted and escaped
-           according to a SQL dialect that the destination uses, unless query normalization is disabled by the user.
+           according to a SQL dialect that the destination uses, unless a raw query was provided.
 
         Returns:
-            Any: The qualified sql query that represents the relation
+            str: The qualified sql query that represents the relation
         """
         raise NotImplementedError("`query()` method is not supported for this relation")
 
@@ -273,12 +273,15 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
             str: The name of the dataset
         """
 
-    def __call__(self, query: Any, normalize_query: bool = True) -> SupportsReadableRelation:
+    def __call__(
+        self, query: str, query_dialect: str = None, execute_raw_query: bool = False
+    ) -> SupportsReadableRelation:
         """Returns a readable relation for a given sql query
 
         Args:
-            query (Any): The sql query to base the relation on
-            normalize_query (bool, optional): Whether to run the query as is or perform query normalization and lineage. Experimental.
+            query (str): The sql query to base the relation on
+            query_dialect (str, optional): The dialect of the query. Defaults to the dataset's destination dialect. You can use this to write queries in a different dialect than the destination.
+            execute_raw_query (bool, optional): Whether to run the query as is (raw)or perform query normalization and lineage. Experimental.
 
         Returns:
             SupportsReadableRelation: The readable relation for the query

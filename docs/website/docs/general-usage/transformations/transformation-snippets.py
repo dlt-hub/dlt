@@ -142,6 +142,17 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
         )
         return enriched_purchases
 
+    # You can even use a different dialect than the one used by the destination by supplying the dialect parameter
+    # dlt will compile the query to the right destination dialect
+    @dlt.transformation()
+    def enriched_purchases_postgres(dataset: dlt.Dataset) -> Any:
+        enriched_purchases = dataset(
+            "SELECT customers.name, purchases.quantity FROM purchases JOIN customers ON"
+            " purchases.customer_id = customers.id",
+            query_dialect="duckdb",
+        )
+        return enriched_purchases
+
     # @@@DLT_SNIPPET_END sql_queries
 
     fruitshop_pipeline.run(
