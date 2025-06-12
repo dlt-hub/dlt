@@ -202,6 +202,9 @@ def _from_integer_type(sqlglot_type: sge.DataType) -> TColumnSchema:
 
     else:  # from named type
         precision = SQLGLOT_INT_PRECISION.get(sqlglot_type.this)
+
+     # special case `precison=19` maps to BIGINT, which is the default in dlt
+    precision = None if precision == 19 else precision
     return {"precision": precision}
 
 
@@ -716,6 +719,7 @@ def _to_sqlglot_reference(reference: TTableReference) -> sge.ForeignKey:
 def _from_sqlglot_table_def(table_def: sge.Create) -> TTableSchema:
     assert table_def.kind == "TABLE"
 
+    # TODO need to strip quotes from `table_def.this.this.this` when the string is quoted
     table_hints: TTableSchema = {
         "columns": {},
         "name": str(table_def.this.this.this),
@@ -724,6 +728,7 @@ def _from_sqlglot_table_def(table_def: sge.Create) -> TTableSchema:
     for expression in table_def.this.expressions:
         # "columns" hint
         if isinstance(expression, sge.ColumnDef):
+            # TODO need to strip quotes from `expression.this` when the string is quoted
             column_name = str(expression.this)
             column_hints = _from_sqlglot_column_def(expression)
             # edge case because default SQLGlot is INT and default dlt is "bigint"

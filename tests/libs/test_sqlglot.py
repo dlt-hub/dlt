@@ -171,14 +171,14 @@ def test_to_sqlglot_integer_with_precision(
         (sge.DataType.Type.SMALLINT, 5),
         (sge.DataType.Type.MEDIUMINT, 8),
         (sge.DataType.Type.INT, 10),  # INT is sqlglot default
-        (sge.DataType.Type.BIGINT, 19),  # BIGINT is dlt default
+        (sge.DataType.Type.BIGINT, None),  # BIGINT is dlt default
         (sge.DataType.Type.INT128, 39),
         (sge.DataType.Type.INT256, 78),
         (sge.DataType.Type.UTINYINT, 3),
         (sge.DataType.Type.USMALLINT, 5),
         (sge.DataType.Type.UMEDIUMINT, 8),
         (sge.DataType.Type.UINT, 10),
-        (sge.DataType.Type.UBIGINT, 19),
+        (sge.DataType.Type.UBIGINT, None),  # UBIGINT is handled like BIGINT, the dlt default
         (sge.DataType.Type.UINT128, 39),
         (sge.DataType.Type.UINT256, 78),
     ],
