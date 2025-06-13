@@ -4,7 +4,7 @@ from copy import deepcopy
 import dlt
 from dlt.common.schema.typing import LOADS_TABLE_NAME, PIPELINE_STATE_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.versioned_state import decompress_state
-from dlt.pipeline.drop import drop_resources
+from dlt.pipeline.drop import drop_resources, drop_columns
 from dlt.pipeline.helpers import DropCommand, refresh_source
 
 from tests.pipeline.utils import airtable_emojis, assert_load_info
@@ -130,6 +130,32 @@ def test_drop_helper_utils(seen_data: bool) -> None:
     else:
         assert package_state == {}
     assert set(source_clone.schema.data_table_names(include_incomplete=True)) == all_in_schema
+
+
+@pytest.mark.parametrize("seen_data", [True, False], ids=["seen_data", "no_data"])
+def test_drop_helper_utils_drop_columns(seen_data: bool) -> None:
+    pipeline = dlt.pipeline("test_drop_helpers_no_table_drop", destination="duckdb")
+    # extract first which should produce tables that didn't seen data
+    source = airtable_emojis().with_resources(
+        "📆 Schedule", "🦚Peacock", "🦚WidePeacock", "💰Budget"
+    )
+    if seen_data:
+        pipeline.run(source)
+    else:
+        pipeline.extract(source)
+
+    # drop nothing
+    drop_info = drop_columns(pipeline.default_schema.clone())
+    assert drop_info.modified_tables == []
+    assert drop_info.info["tables"] == []
+
+    # attempt to drop all droppable columns
+    drop_info = drop_columns(schema=pipeline.default_schema.clone(), columns=["re:.*"])
+    # nothing should be selected as the source doesn't have droppable columns
+    assert drop_info.modified_tables == []
+    assert drop_info.info["tables"] == []
+
+    # TODO
 
 
 def test_drop_unknown_resource() -> None:
