@@ -314,6 +314,61 @@ For more information, refer to the [Lakekeeper section above](#lakekeeper-catalo
 
 All [write dispositions](../../general-usage/incremental-loading.md) are supported.
 
+## Merge strategies
+
+The Iceberg destination supports two merge strategies when using `write_disposition="merge"`: `delete-insert` and `upsert`.
+Both strategies use a single Iceberg transaction for delete and insert operations and both support [hard delete](../../general-usage/merge-loading.md#delete-records) functionality.
+
+### Delete-insert strategy
+
+The `delete-insert` strategy first deletes existing rows matching the key columns, then inserts new data.
+
+```py
+@dlt.resource(
+    write_disposition={"disposition": "merge", "strategy": "delete-insert"},
+    primary_key="id",
+    table_format="iceberg"
+)
+def my_resource():
+    yield [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
+```
+
+#### Key characteristics
+- Requires primary key or merge key columns
+- Supports only regular tables (nested tables not supported)
+- Automatically deduplicates data based on primary keys
+- Uses single Iceberg transaction for delete and insert operations
+
+### Upsert strategy
+
+The `upsert` strategy is similar to delete-insert strategy but with key differences in behavior and requirements:
+
+- Supports nested data: unlike `delete-insert`, `upsert` handles nested data
+    - Note: nested data requires a column with the `unique` property (dlt will use `_dlt_id` by default)
+- Does not deduplicate records with duplicate primary keys in the incoming data
+- Upsert _does not_ support merge keys
+
+```py
+@dlt.resource(
+    write_disposition={"disposition": "merge", "strategy": "upsert"},
+    primary_key="id",
+    table_format="iceberg"
+)
+def my_upsert_resource():
+    yield [{"id": 1, "name": "Alice Updated"}, {"id": 3, "name": "Charlie"}]
+```
+
+:::note
+dlt+ is not using PyIceberg's `Table.upsert` but implements its own method using delete and insert operations in a single transaction.
+:::
+
+:::info Performance Testing
+Both `delete-insert` and `upsert` merge strategies have been stress tested with datasets containing tens of millions of rows without encountering any issues. Memory usage and processing time scale linearly with the size of the updated dataset.
+:::
+
+#### Known limitations
+- Orphaned nested table records: updates to nested structures that remove elements do not delete them from the destination table.
+
 ## Data access
 
 The Iceberg destination integrates with `pipeline.dataset()` to give users queryable access to their data.
