@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 from types import TracebackType
-from typing import Any, Generator, Literal, Type, Union, TYPE_CHECKING, List
+from typing import Any, Generator, Literal, Optional, Type, Union, TYPE_CHECKING, List
 
 
 from sqlglot.schema import Schema as SQLGlotSchema
@@ -167,7 +167,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
     def table(
         self,
         table_name: str,
-        type_: Literal["ibis", "sqlglot", "relation", "lazy_narwhals", "pandas"] = "relation",
+        type_: Literal["ibis", "sqlglot", "relation", "ibis_narwhals", "pandas", "polars_narwhals"] = "relation",
     ) -> Any:
         # dataset only provides access to tables known in dlt schema, direct query may cirumvent this
         if table_name not in self.schema.tables.keys():
@@ -184,51 +184,62 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         elif type_ == "ibis":
             from dlt.helpers.ibis import create_unbound_ibis_table
             return create_unbound_ibis_table(self.schema, self.dataset_name, table_name)
-        elif type_ == "lazy_narwhals":
+        elif type_ == "ibis_narwhals":
             import narwhals as nw
             from dlt.helpers.ibis import create_unbound_ibis_table
 
             unbound_table = create_unbound_ibis_table(self.schema, self.dataset_name, table_name)
             return nw.from_native(unbound_table)
-        elif type_ == "pandas:
-            ...
+        # TODO clean up eager retrieval `with cursor()` bit
+        elif type_ == "pandas":
+            with self.cursor(table_name) as cursor:
+                data = cursor.df()
+            return data
+        elif type_ == "pyarrow":
+            with self.cursor(table_name) as cursor:
+                data = cursor.arrow()
+            return data
+        elif type_ == "polars_narwhals":
+            import narwhals as nw
+
+            with self.cursor(table_name) as cursor:
+                data = cursor.arrow()
+            
+            # same approach for `pandas`, `pyarrow`, `modin`, `cudf```
+            return nw.from_arrow(data, backend="polars")
         else:
             raise ValueError(f"Invalid `type_`. Received `{type_}`. Expected one of `['relation', 'ibis', 'sqlglot']")
 
     # TODO refactor BaseReadableDBAPIRelation to here
     # NOTE this only makes sense for eager transformations
-    def iter_table(self, table_name: str, type_: Literal["pandas", "eager_narwhals", "pyarrow"]) -> Generator:
-        with self.cursor() as cursor:
-            yield from cursor.arrow(*args, **kwargs)
+    def iter_table(self, table_name: str, *, type_: Literal["pandas", "polars_narwhals", "pyarrow"], chunk_size: Optional[int] = None) -> Generator:
+        if type_ == "pandas":
+            with self.cursor(table_name) as cursor:
+                yield from cursor.iter_df(chunk_size=chunk_size)
+        elif type_ == "pyarrow":
+            with self.cursor(table_name) as cursor:
+                yield from cursor.iter_arrow(chunk_size=chunk_size)
+        elif type_ == "polars_narwhals":
+            import narwhals as nw
+            with self.cursor(table_name) as cursor:
+                for chunk in cursor.iter_arrow(chunk_size=chunk_size):
+                    yield nw.from_arrow(chunk, backend="polars")
 
+    # TODO improve this API and split into separate methods
     @contextmanager
-    def cursor(self) -> Generator:
+    def cursor(self, table_name: str) -> Generator:
         """Gets a DBApiCursor for the current relation"""
         try:
             self._opened_sql_client = self.sql_client
 
-            # we allow computing the schema to fail if query normalization is disabled
-            # this is useful for raw sql query access, testing and debugging
-            try:
-                columns_schema = self.columns_schema
-            except lineage.LineageFailedException:
-                if self._should_normalize_query:
-                    raise
-                else:
-                    columns_schema = None
-
             # case 1: client is already opened and managed from outside
             if self.sql_client.native_connection:
-                with self.sql_client.execute_query(self.query()) as cursor:
-                    if columns_schema:
-                        cursor.columns_schema = columns_schema
+                with self.sql_client.execute_query(f"SELECT * FROM {table_name}") as cursor:
                     yield cursor
             # case 2: client is not opened, we need to manage it
             else:
                 with self.sql_client as client:
-                    with client.execute_query(self.query()) as cursor:
-                        if columns_schema:
-                            cursor.columns_schema = columns_schema
+                    with client.execute_query(f"SELECT * FROM {table_name}") as cursor:
                         yield cursor
         finally:
             self._opened_sql_client = None

@@ -79,6 +79,8 @@ TPipeStep = Union[
 ]
 
 
+# TODO make this variadic (is that the right word) on T; otherwise, it shadows the actual type
+# DataItemWithMeta[T], self.data: T = data
 class DataItemWithMeta:
     __slots__ = ("meta", "data")
 

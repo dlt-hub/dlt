@@ -5,6 +5,7 @@ import sqlglot
 import pandas as pd
 import ibis
 import narwhals as nw
+import polars as pl
 from ibis import ir
 from sqlglot import exp
 
@@ -15,12 +16,14 @@ from dlt.transformations.transformation import DltTransformationResource
 
 
 @dlt.resource
-def items():
-    yield from (
+def items(n_times: int = 1):
+    rows = (
         {"id": 0, "value": "foo"},
         {"id": 1, "value": "bar"},
         {"id": 2, "value": "baz"},
     )
+    for _ in range(n_times):
+        yield from rows
 
 
 # def test_standalone_lazy_execution():
@@ -53,16 +56,13 @@ def test_dataset_access(executed_extract_and_load_pipeline: dlt.Pipeline):
     with pytest.raises(KeyError):
         dataset.table("unknown_table")
 
-# NOTE really unsure about this API
+
 def test_dataset_table_access(extract_and_load_dataset: dlt.Dataset):
     relation = extract_and_load_dataset.table("items")
     assert isinstance(relation, dlt.destinations.dataset.relation.ReadableDBAPIRelation)
 
     ibis_table = extract_and_load_dataset.table("items", type_="ibis")
     assert isinstance(ibis_table, ir.Table)
-
-    sqlglot_select = extract_and_load_dataset.table("items", type_="sqlglot")
-    assert isinstance(sqlglot_select, dict())
 
 
 def test_lazy_sql_transformation():
@@ -103,10 +103,9 @@ def test_lazy_ibis_transformation(extract_and_load_dataset: dlt.Dataset):
     """
     # @transformation
     def lazy_ibis_transformation(dataset: dlt.Dataset) -> Generator[ir.Table, None, None]:
-        table = dataset.table("items", type_="ibis")
         yield (
-            table
-            .mutate(total_length=table.value.length().sum())
+            dataset.table("items", type_="ibis")
+            .mutate(total_length=ibis._.value.length().sum())
             .select("total_length")
         )
     
@@ -136,10 +135,9 @@ def test_lazy_narwhals_transformation(extract_and_load_dataset: dlt.Dataset):
     """
     # @transformation
     def lazy_narhwals_transformation(dataset: dlt.Dataset) -> Generator[nw.LazyFrame, None, None]:
-        lazyframe = dataset.table("items", type_="lazy_narwhals")
         # NOTE Narwhals-Ibis integration is difficult to debug + lazy + unbound makes it harder
         yield (
-            lazyframe
+            dataset.table("items", type_="ibis_narwhals")
             .select(
                 nw.col("value").str.len_chars().sum().alias("total_length")
             )
@@ -179,7 +177,7 @@ def test_eager_pandas_transformation(extract_and_load_dataset: dlt.Dataset):
     User can manage size by loading data in chunks. Typically, it would
     return 
     """
-    def eager_pandas_transformation(dataset: dlt.Dataset) -> Generator[str, None, None]:
+    def eager_pandas_transformation(dataset: dlt.Dataset) -> Generator[pd.DataFrame, None, None]:
         df = dataset.table("items", type_="pandas")
         total_length = df["value"].str.len().sum()
         yield pd.DataFrame([{"total_length": total_length}])
@@ -188,26 +186,112 @@ def test_eager_pandas_transformation(extract_and_load_dataset: dlt.Dataset):
     raw_dfs = list(df_generator)
     assert len(raw_dfs) == 1
     assert isinstance(raw_dfs[0], pd.DataFrame)
+    pd.testing.assert_frame_equal(raw_dfs[0], pd.DataFrame([{"total_length": 9}]))
 
     # decorated function
     transformation_resource = transformation(eager_pandas_transformation)
     assert isinstance(transformation_resource, DltTransformationResource)
 
-    sql_models = list(transformation_resource(extract_and_load_dataset))
-    assert len(sql_models) == 1
-    assert isinstance(sql_models[0], SqlModel)
-    assert isinstance(sql_models[0].query, exp.Select)
+    data_chunks = list(transformation_resource(extract_and_load_dataset))
+    assert len(data_chunks) == 1
+    assert isinstance(data_chunks[0], pd.DataFrame)
+    pd.testing.assert_frame_equal(data_chunks[0], raw_dfs[0])
 
 
+def test_eager_narwhals_transformation(extract_and_load_dataset: dlt.Dataset):
+    """Narwhals can be used eagerly and leverage several backends using a single API
+    for example: pandas, polars, daft, cuDF, Modin.
 
-# def test_simple_case():
-#     destination = dlt.destinations.duckdb()
-#     extract_pipeline = dlt.pipeline("el", destination=destination, dev_mode=True)
-#     transform_pipeline = dlt.pipeline("t", destination=destination, dev_mode=True)
+    Note that it's the same query as LazyFrame Narwhals in this case.
+    """
+    def eager_narwhals_transformation(dataset: dlt.Dataset) -> Generator[nw.DataFrame, None, None]:
+        yield (
+            dataset.table("items", type_="polars_narwhals")
+            .select(
+                nw.col("value").str.len_chars().sum().alias("total_length")
+            )
+        )
 
-#     extract_pipeline.run([items()])
-#     transform_pipeline.run([total_value_length_lazy()])
+    df_generator = eager_narwhals_transformation(extract_and_load_dataset)
+    raw_dfs = list(df_generator)
+    assert len(raw_dfs) == 1
+    assert isinstance(raw_dfs[0], nw.DataFrame)
+    assert pl.DataFrame({"total_length": 9}).equals(raw_dfs[0].to_native())
 
-#     output_dataset = transform_pipeline.dataset(dataset_type="default")
-#     output_table = output_dataset.table("total_value_length_lazy").df()
-#     assert False
+    # decorated function
+    transformation_resource = transformation(eager_narwhals_transformation)
+    assert isinstance(transformation_resource, DltTransformationResource)
+
+    data_chunks = list(transformation_resource(extract_and_load_dataset))
+    assert len(data_chunks) == 1
+    assert isinstance(data_chunks[0], pl.DataFrame)  # native format is retrieved
+    assert data_chunks[0].equals(raw_dfs[0].to_native())
+
+
+def test_eager_chunked_pandas_transformation():
+    """This showcases how we can manage memory by chunking the loaded data. 
+    
+    We need to ingest many more rows. From trial-and-error, 1 chunk has 2048 rows in this case.
+    This may be DuckDB-specific and dependent on the number of columns and their type
+    """
+    extract_pipeline = dlt.pipeline("el", destination="duckdb")
+    # we load 3000 rows, so enough for two chunks
+    extract_pipeline.run([items(n_times=1000)])
+    extract_and_load_dataset = extract_pipeline.dataset()
+
+    def eager_pandas_transformation(dataset: dlt.Dataset) -> Generator[pd.DataFrame, None, None]:
+        # TODO we could improve the API, such that chunking is defined outside the function
+        # i.e., call `eager_pandas_transformation()` in a loop instead of having the loop inside
+        for chunk in dataset.iter_table("items", type_="pandas", chunk_size=1):
+            total_length = chunk["value"].str.len().sum()
+            yield pd.DataFrame([{"total_length": total_length}])
+
+    df_generator = eager_pandas_transformation(extract_and_load_dataset)
+    raw_dfs = list(df_generator)
+    assert len(raw_dfs) == 2
+    assert all(isinstance(df, pd.DataFrame) for df in raw_dfs)
+    pd.testing.assert_frame_equal(raw_dfs[0], pd.DataFrame([{"total_length": 6144}]))
+    pd.testing.assert_frame_equal(raw_dfs[1], pd.DataFrame([{"total_length": 2856}]))
+
+    # decorated function
+    transformation_resource = transformation(eager_pandas_transformation)
+    assert isinstance(transformation_resource, DltTransformationResource)
+
+    data_chunks = list(transformation_resource(extract_and_load_dataset))
+    assert len(data_chunks) == 2
+    assert all(isinstance(data_chunk, pd.DataFrame) for data_chunk in data_chunks)
+    pd.testing.assert_frame_equal(data_chunks[0], raw_dfs[0])
+    pd.testing.assert_frame_equal(data_chunks[1], raw_dfs[1])
+
+
+def test_eager_chunked_narwhals_transformation(extract_and_load_dataset: dlt.Dataset):
+    """This showcases how we can manage memory by chunking the loaded data. 
+    
+    Contrary to `.iter_df()`, with `.iter_arrow()` chunk_size is the number of records
+    """
+    def eager_polars_transformation(dataset: dlt.Dataset) -> Generator[nw.DataFrame, None, None]:
+        for chunk in dataset.iter_table("items", type_="polars_narwhals", chunk_size=1):
+            yield (
+                chunk
+                .select(
+                    nw.col("value").str.len_chars().sum().alias("total_length")
+                )
+            )
+
+    df_generator = eager_polars_transformation(extract_and_load_dataset)
+    raw_dfs = list(df_generator)
+    assert len(raw_dfs) == 3
+    assert all(isinstance(df, nw.DataFrame) for df in raw_dfs)
+    assert pl.DataFrame({"total_length": 3}).equals(raw_dfs[0].to_native()) 
+    assert pl.DataFrame({"total_length": 3}).equals(raw_dfs[1].to_native()) 
+
+    # decorated function
+    transformation_resource = transformation(eager_polars_transformation)
+    assert isinstance(transformation_resource, DltTransformationResource)
+
+    data_chunks = list(transformation_resource(extract_and_load_dataset))
+    assert len(data_chunks) == 3
+    # we get polars type
+    assert all(isinstance(data_chunk, pl.DataFrame) for data_chunk in data_chunks)
+    assert data_chunks[0].equals(raw_dfs[0].to_native())
+    assert data_chunks[1].equals(raw_dfs[1].to_native())

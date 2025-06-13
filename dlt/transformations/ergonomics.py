@@ -4,6 +4,7 @@ from functools import wraps
 # TODO I have a solution for isinstance checks without importing
 # external dependencies see ref: https://github.com/machow/databackend/tree/main
 import sqlglot
+from sqlglot import exp
 from ibis import ir
 import ibis.backends.sql.compilers as sc
 import narwhals as nw
@@ -121,28 +122,25 @@ def make_transformation_resource(
             # see ref: https://github.com/machow/databackend/tree/main
             if isinstance(definition, str):
                 lazy_transform = sqlglot.maybe_parse(definition)
+                yield dlt.mark.with_hints(SqlModel(lazy_transform, dialect=dialect), hints=make_hints(columns=columns))
             elif isinstance(definition, ir.Table):
                 destination_compiler = get_ibis_to_sqlglot_compiler(datasets[0]._destination)
                 lazy_transform = destination_compiler.to_sqlglot(definition)
+                yield dlt.mark.with_hints(SqlModel(lazy_transform, dialect=dialect), hints=make_hints(columns=columns))
             elif isinstance(definition, nw.LazyFrame):
                 destination_compiler = get_ibis_to_sqlglot_compiler(datasets[0]._destination)
                 lazy_transform = destination_compiler.to_sqlglot(nw.to_native(definition))
+                yield dlt.mark.with_hints(SqlModel(lazy_transform, dialect=dialect), hints=make_hints(columns=columns))
+            # TODO for eager transform, we should minimize the type conversions; maybe we can return as pyarrow.Table
+            # directly here instead of waiting for normalization / loading
             elif isinstance(definition, pd.DataFrame):
                 eager_transform = definition
+                yield dlt.mark.with_hints(eager_transform, hints=make_hints(columns=columns))
             elif isinstance(definition, nw.DataFrame):
                 eager_transform = nw.to_native(definition)
+                yield dlt.mark.with_hints(eager_transform, hints=make_hints(columns=columns))
             else:
                 raise NotImplementedError
-
-            # if lazy:
-            # NOTE since schema inference requires the full pipeline dataset, it shouldn't happen before `extract` phase
-            yield dlt.mark.with_hints(
-                SqlModel(
-                    lazy_transform,
-                    dialect=dialect,
-                ),
-                hints=make_hints(columns=columns),
-            )
 
     # TODO question which arguments make sense for `@dlt.transformation`
     # This currently wraps the function twice; we could do that directly
