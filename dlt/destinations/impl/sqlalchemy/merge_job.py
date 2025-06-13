@@ -120,6 +120,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
         )
 
         dedup_sort = get_dedup_sort_tuple(root_table)  # column_name, 'asc' | 'desc'
+        skip_dedup = root_table.get("x-stage-data-deduplicated", False)
 
         if len(table_chain) > 1 and (primary_key_names or hard_delete_col_name is not None):
             condition_column_names = (
@@ -151,7 +152,8 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
 
             inner_cols = [staging_row_key_col]
 
-            if primary_key_names:
+            if primary_key_names and not skip_dedup:
+                # deduplicate if primary key present
                 if dedup_sort is not None:
                     order_by_col = staging_root_table_obj.c[dedup_sort[0]]
                     order_dir_func = sa.asc if dedup_sort[1] == "asc" else sa.desc
@@ -188,7 +190,10 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                     staging_root_table_obj,
                     invert=True,
                 )
-                select_for_temp_insert = sa.select(staging_row_key_col).where(not_delete_cond)
+
+                select_for_temp_insert = sa.select(staging_row_key_col)
+                if not_delete_cond is not None:
+                    select_for_temp_insert = select_for_temp_insert.where(not_delete_cond)
 
             insert_into_temp_table = insert_temp_table.insert().from_select(
                 [row_key_col_name], select_for_temp_insert
@@ -217,7 +222,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                         ).subquery()
                     )
                 )
-            elif primary_key_names and len(table_chain) == 1:
+            elif primary_key_names and len(table_chain) == 1 and not skip_dedup:
                 staging_primary_key_cols = [
                     staging_table_obj.c[col_name] for col_name in primary_key_names
                 ]

@@ -126,6 +126,7 @@ class AthenaMergeJob(SqlMergeFollowupJob):
         dedup_sort: Tuple[str, TSortOrder] = None,
         condition: str = None,
         condition_columns: Sequence[str] = None,
+        skip_dedup: bool = False,
     ) -> Tuple[List[str], str]:
         sql, temp_table_name = super().gen_insert_temp_table_sql(
             table_name,
@@ -136,6 +137,7 @@ class AthenaMergeJob(SqlMergeFollowupJob):
             dedup_sort,
             condition,
             condition_columns,
+            skip_dedup,
         )
         # DROP needs backtick as escape identifier
         sql.insert(0, f"""DROP TABLE IF EXISTS {temp_table_name.replace('"', '`')};""")
