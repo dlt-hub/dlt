@@ -188,7 +188,7 @@ mimesis = "^7.0.0"
 shapely = ">=2.0.6"
 pip = ">=24.0.0"
 # keep last duckdb version that works with azure and iceberg correctly
-duckdb = "<1.2.2"
+duckdb = "<1.2.1"
 # limit the pyarrow version not to test on too new one
 pyarrow = "<19"
 pydoclint = "^0.6.5"
