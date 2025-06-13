@@ -170,7 +170,7 @@ types-python-dateutil = ">=2.8.15"
 flake8-tidy-imports = ">=4.8.0"
 flake8-encodings = { git = "https://github.com/dlt-hub/flake8-encodings.git", branch = "disable_jedi_support" }
 flake8-builtins = "^1.5.3"
-boto3-stubs = "^1.28.28"
+boto3-stubs = {extras = ["lakeformation"], version = "^1.28.28"}
 types-tqdm = "^4.66.0.2"
 types-psutil = "^5.9.5.16"
 types-psycopg2 = "^2.9.21.14"
@@ -245,7 +245,7 @@ optional = true
 [tool.poetry.group.streamlit.dependencies]
 streamlit = {version = "^1.40.0", markers = "python_version >= '3.9' and python_version != '3.9.7' and python_version < '3.14'"}
 
-# dependencies to run and test the marimo app 
+# dependencies to run and test the marimo app
 [tool.poetry.group.marimo]
 optional = true
 [tool.poetry.group.marimo.dependencies]
