@@ -134,8 +134,10 @@ def test_trailing_separators(layout: str, with_gdrive_buckets_env: str) -> None:
 
 @pytest.mark.parametrize("write_disposition", ("replace", "append", "merge"))
 @pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
-def test_successful_load(write_disposition: str, layout: str, with_gdrive_buckets_env: str) -> None:
-    """Test load is successful with an empty destination dataset"""
+def test_successful_load(write_disposition: str, layout: str, default_buckets_env: str) -> None:
+    """Test load is successful with an empty destination dataset
+    Note: removed gdrive because it is slow
+    """
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
