@@ -50,6 +50,7 @@ LOCAL_POSTGRES_CREDENTIALS = "postgresql://loader:loader@localhost:5432/dlt_data
 # destination constants
 IMPLEMENTED_DESTINATIONS = {
     "athena",
+    "cratedb",
     "duckdb",
     "bigquery",
     "redshift",
