@@ -341,9 +341,12 @@ def my_resource():
 
 ### Upsert strategy
 
-The `upsert` strategy performs is similar to delete-insert strategy with two differences:
-- It supports nested tables
-- It does not perform automatic deduplication
+The `upsert` strategy is similar to delete-insert strategy but with key differences in behavior and requirements:
+
+- Supports nested data: unlike `delete-insert`, `upsert` handles nested data
+    - Note: nested data requires a column with the `unique` property (dlt will use `_dlt_id` by default)
+- Does not deduplicate records with duplicate primary keys in the incoming data
+- Upsert _does not_ support merge keys
 
 ```py
 @dlt.resource(
@@ -354,6 +357,17 @@ The `upsert` strategy performs is similar to delete-insert strategy with two dif
 def my_upsert_resource():
     yield [{"id": 1, "name": "Alice Updated"}, {"id": 3, "name": "Charlie"}]
 ```
+
+:::note
+dlt+ is not using PyIceberg's `Table.upsert` but implements its own method using delete and insert operations in a single transaction.
+:::
+
+:::info Performance Testing
+Both `delete-insert` and `upsert` merge strategies have been stress tested with datasets containing tens of millions of rows without encountering any issues. Memory usage and processing time scale linearly with the size of the updated dataset.
+:::
+
+#### Known limitations
+- Orphaned nested table records: updates to nested structures that remove elements do not delete them from the destination table.
 
 ## Data access
 
