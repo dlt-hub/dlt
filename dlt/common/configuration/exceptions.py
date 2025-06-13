@@ -73,8 +73,27 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
                     " missing or empty.\n"
                 )
 
-        # check if entry point is run with path. this is common problem so warn the user
         main_path = main_module_file_path()
+        # check if entry point is from cli command
+        if main_path and main_path.endswith("dlt"):
+            from dlt.common.runtime import run_context
+            import dlt
+
+            settings = run_context.active().settings_dir
+            abs_main_dir = dlt.current.pipeline().state["_local"]["initial_cwd"]
+            if abs_main_dir != os.getcwd():
+                msg += (
+                    f"WARNING: dlt looks for {settings} folder in your current working"
+                    " directory and your cwd (%s) is different from directory of your pipeline"
+                    " script (%s).\n" % (os.getcwd(), abs_main_dir)
+                )
+                msg += (
+                    "If you keep your secret files in the same folder as your pipeline script"
+                    " but run a dlt cli command from some other folder, secrets/configs will not be"
+                    " found\n"
+                )
+
+        # check if entry point is run with path. this is common problem so warn the user
         if main_path and main_path.endswith(".py"):
             from dlt.common.runtime import run_context
 

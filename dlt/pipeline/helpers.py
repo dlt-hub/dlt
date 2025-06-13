@@ -6,6 +6,7 @@ from typing import (
     Optional,
     Union,
     TYPE_CHECKING,
+    Any,
 )
 
 from dlt.common.jsonpath import TAnyJsonPath
@@ -68,6 +69,7 @@ class DropCommand:
         state_paths: TAnyJsonPath = (),
         drop_all: bool = False,
         state_only: bool = False,
+        **kwargs: Any,
     ) -> None:
         """
         Args:
