@@ -52,7 +52,6 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         self._opened_sql_client: SqlClientBase[Any] = None
         self._table_client: SupportsOpenTables = None
 
-
     def ibis(self) -> IbisBackend:
         """return a connected ibis backend"""
         from dlt.helpers.ibis import create_ibis_backend
@@ -105,9 +104,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
             if isinstance(client, SupportsOpenTables):
                 self._table_client = client
             else:
-                raise OpenTableClientNotAvailable(
-                    self._name, self._destination.destination_name
-                )
+                raise OpenTableClientNotAvailable(self._name, self._destination.destination_name)
         return self._table_client
 
     def is_same_physical_destination(self, other: "ReadableDBAPIDataset") -> bool:
@@ -167,7 +164,9 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
     def table(
         self,
         table_name: str,
-        type_: Literal["ibis", "sqlglot", "relation", "ibis_narwhals", "pandas", "polars_narwhals"] = "relation",
+        type_: Literal[
+            "ibis", "sqlglot", "relation", "ibis_narwhals", "pandas", "polars_narwhals"
+        ] = "relation",
     ) -> Any:
         # dataset only provides access to tables known in dlt schema, direct query may cirumvent this
         if table_name not in self.schema.tables.keys():
@@ -175,7 +174,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
                 f"Table {table_name} not found in schema {self.schema.name} of dataset"
                 f" {self.dataset_name}. Avaible tables are: {self.schema.tables.keys()}"
             )
-        
+
         if type_ == "relation":
             # TODO no circular relationship between dataset and relation
             return ReadableDBAPIRelation(table_name=table_name)
@@ -183,6 +182,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
             return ...
         elif type_ == "ibis":
             from dlt.helpers.ibis import create_unbound_ibis_table
+
             return create_unbound_ibis_table(self.schema, self.dataset_name, table_name)
         elif type_ == "ibis_narwhals":
             import narwhals as nw
@@ -204,15 +204,24 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
 
             with self.cursor(table_name) as cursor:
                 data = cursor.arrow()
-            
+
             # same approach for `pandas`, `pyarrow`, `modin`, `cudf```
             return nw.from_arrow(data, backend="polars")
         else:
-            raise ValueError(f"Invalid `type_`. Received `{type_}`. Expected one of `['relation', 'ibis', 'sqlglot']")
+            raise ValueError(
+                f"Invalid `type_`. Received `{type_}`. Expected one of `['relation', 'ibis',"
+                " 'sqlglot']"
+            )
 
     # TODO refactor BaseReadableDBAPIRelation to here
     # NOTE this only makes sense for eager transformations
-    def iter_table(self, table_name: str, *, type_: Literal["pandas", "polars_narwhals", "pyarrow"], chunk_size: Optional[int] = None) -> Generator:
+    def iter_table(
+        self,
+        table_name: str,
+        *,
+        type_: Literal["pandas", "polars_narwhals", "pyarrow"],
+        chunk_size: Optional[int] = None,
+    ) -> Generator:
         if type_ == "pandas":
             with self.cursor(table_name) as cursor:
                 yield from cursor.iter_df(chunk_size=chunk_size)
@@ -221,6 +230,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
                 yield from cursor.iter_arrow(chunk_size=chunk_size)
         elif type_ == "polars_narwhals":
             import narwhals as nw
+
             with self.cursor(table_name) as cursor:
                 for chunk in cursor.iter_arrow(chunk_size=chunk_size):
                     yield nw.from_arrow(chunk, backend="polars")

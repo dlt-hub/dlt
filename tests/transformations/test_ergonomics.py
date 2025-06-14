@@ -32,12 +32,12 @@ def items(n_times: int = 1):
 #     assert query == "SELECT SUM(LENGTH(value)) AS total_length FROM items"
 
 
-
 @pytest.fixture
 def executed_extract_and_load_pipeline() -> Generator[dlt.Pipeline, None, None]:
     extract_pipeline = dlt.pipeline("el", destination="duckdb")
     extract_pipeline.run([items()])
     yield extract_pipeline
+
 
 @pytest.fixture
 def extract_and_load_dataset(executed_extract_and_load_pipeline: dlt.Pipeline) -> dlt.Dataset:
@@ -69,6 +69,7 @@ def test_lazy_sql_transformation():
     """The function decorated  with `@dlt.transformation` returns
     something useful for development outside `pipeline.run()`
     """
+
     # NOTE this is the "streamlined" transformation decorator
     # @transformation
     def lazy_sql_transformation() -> Generator[str, None, None]:
@@ -89,18 +90,19 @@ def test_lazy_sql_transformation():
     assert len(sql_models) == 1
     assert isinstance(sql_models[0], SqlModel)
     assert isinstance(sql_models[0].query, exp.Select)
-    
+
     assert sqlglot.parse_one(raw_queries[0]) == sql_models[0].query
 
 
 def test_lazy_ibis_transformation(extract_and_load_dataset: dlt.Dataset):
     """Ibis is special because it needs tables to produce queries.
     This a unique constraint for lazy transformations.
-    
+
     Tables can be bound or unbound. We produce unbound tables from
     the dlt schema instead of poking the destination. We pass these
     values using a `dlt.Dataset` argument
     """
+
     # @transformation
     def lazy_ibis_transformation(dataset: dlt.Dataset) -> Generator[ir.Table, None, None]:
         yield (
@@ -108,7 +110,7 @@ def test_lazy_ibis_transformation(extract_and_load_dataset: dlt.Dataset):
             .mutate(total_length=ibis._.value.length().sum())
             .select("total_length")
         )
-    
+
     query_generator = lazy_ibis_transformation(extract_and_load_dataset)
     raw_queries = list(query_generator)
     assert len(raw_queries) == 1
@@ -122,7 +124,7 @@ def test_lazy_ibis_transformation(extract_and_load_dataset: dlt.Dataset):
     assert len(sql_models) == 1
     assert isinstance(sql_models[0], SqlModel)
     assert isinstance(sql_models[0].query, exp.Select)
-    
+
     raw_query_sql_via_ibis = str(ibis.to_sql(raw_queries[0]))
     sqlglot_via_ibis = sqlglot.parse_one(raw_query_sql_via_ibis)
     # NOTE queries are not equal, should check results for equivalence
@@ -133,16 +135,16 @@ def test_lazy_narwhals_transformation(extract_and_load_dataset: dlt.Dataset):
     """Narwhals allows to use the Polars API to transform Ibis data.
     Therefore, we still have the constraint of passing the dataset
     """
+
     # @transformation
     def lazy_narhwals_transformation(dataset: dlt.Dataset) -> Generator[nw.LazyFrame, None, None]:
         # NOTE Narwhals-Ibis integration is difficult to debug + lazy + unbound makes it harder
         yield (
-            dataset.table("items", type_="ibis_narwhals")
-            .select(
+            dataset.table("items", type_="ibis_narwhals").select(
                 nw.col("value").str.len_chars().sum().alias("total_length")
             )
         )
-    
+
     query_generator = lazy_narhwals_transformation(extract_and_load_dataset)
     raw_queries = list(query_generator)
     assert len(raw_queries) == 1
@@ -169,14 +171,14 @@ def test_lazy_narwhals_transformation(extract_and_load_dataset: dlt.Dataset):
     # assert ibis_to_sqlglot_equivalent == sql_models[0].query
 
 
-
 def test_eager_pandas_transformation(extract_and_load_dataset: dlt.Dataset):
     """Eager transformations necessarily take a dataset input. If they don't
     require a dataset input, it's semantically a `@dlt.resource`.
 
     User can manage size by loading data in chunks. Typically, it would
-    return 
+    return
     """
+
     def eager_pandas_transformation(dataset: dlt.Dataset) -> Generator[pd.DataFrame, None, None]:
         df = dataset.table("items", type_="pandas")
         total_length = df["value"].str.len().sum()
@@ -204,10 +206,10 @@ def test_eager_narwhals_transformation(extract_and_load_dataset: dlt.Dataset):
 
     Note that it's the same query as LazyFrame Narwhals in this case.
     """
+
     def eager_narwhals_transformation(dataset: dlt.Dataset) -> Generator[nw.DataFrame, None, None]:
         yield (
-            dataset.table("items", type_="polars_narwhals")
-            .select(
+            dataset.table("items", type_="polars_narwhals").select(
                 nw.col("value").str.len_chars().sum().alias("total_length")
             )
         )
@@ -229,8 +231,8 @@ def test_eager_narwhals_transformation(extract_and_load_dataset: dlt.Dataset):
 
 
 def test_eager_chunked_pandas_transformation():
-    """This showcases how we can manage memory by chunking the loaded data. 
-    
+    """This showcases how we can manage memory by chunking the loaded data.
+
     We need to ingest many more rows. From trial-and-error, 1 chunk has 2048 rows in this case.
     This may be DuckDB-specific and dependent on the number of columns and their type
     """
@@ -265,25 +267,21 @@ def test_eager_chunked_pandas_transformation():
 
 
 def test_eager_chunked_narwhals_transformation(extract_and_load_dataset: dlt.Dataset):
-    """This showcases how we can manage memory by chunking the loaded data. 
-    
+    """This showcases how we can manage memory by chunking the loaded data.
+
     Contrary to `.iter_df()`, with `.iter_arrow()` chunk_size is the number of records
     """
+
     def eager_polars_transformation(dataset: dlt.Dataset) -> Generator[nw.DataFrame, None, None]:
         for chunk in dataset.iter_table("items", type_="polars_narwhals", chunk_size=1):
-            yield (
-                chunk
-                .select(
-                    nw.col("value").str.len_chars().sum().alias("total_length")
-                )
-            )
+            yield (chunk.select(nw.col("value").str.len_chars().sum().alias("total_length")))
 
     df_generator = eager_polars_transformation(extract_and_load_dataset)
     raw_dfs = list(df_generator)
     assert len(raw_dfs) == 3
     assert all(isinstance(df, nw.DataFrame) for df in raw_dfs)
-    assert pl.DataFrame({"total_length": 3}).equals(raw_dfs[0].to_native()) 
-    assert pl.DataFrame({"total_length": 3}).equals(raw_dfs[1].to_native()) 
+    assert pl.DataFrame({"total_length": 3}).equals(raw_dfs[0].to_native())
+    assert pl.DataFrame({"total_length": 3}).equals(raw_dfs[1].to_native())
 
     # decorated function
     transformation_resource = transformation(eager_polars_transformation)

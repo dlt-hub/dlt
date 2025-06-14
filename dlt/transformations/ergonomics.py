@@ -6,13 +6,10 @@ from functools import wraps
 import sqlglot
 from sqlglot import exp
 from ibis import ir
-import ibis.backends.sql.compilers as sc
 import narwhals as nw
 import pandas as pd
 
 import dlt
-import dlt.helpers.ibis
-from dlt.common.destination import TDestinationReferenceArg, Destination
 from dlt.common.typing import AnyFun, TDataItems, TTableHintTemplate
 from dlt.extract.hints import SqlModel
 from dlt.transformations.typing import TTransformationFunParams
@@ -28,6 +25,7 @@ from dlt.common.schema.typing import (
     TTableReferenceParam,
 )
 from dlt.transformations.transformation import DltTransformationResource
+from dlt.common.libs.ibis import get_sqlglot_compiler
 
 
 def transformation(
@@ -93,7 +91,6 @@ def make_transformation_resource(
     parallelized: bool,
     section: Optional[TTableHintTemplate[str]],
 ) -> DltTransformationResource:
-    
     @wraps(transformation_func)
     def transformation_function(*args: Any, **kwargs: Any) -> Iterator[TDataItems]:
         all_arg_values = list(args) + list(kwargs.values())
@@ -122,15 +119,21 @@ def make_transformation_resource(
             # see ref: https://github.com/machow/databackend/tree/main
             if isinstance(definition, str):
                 lazy_transform = sqlglot.maybe_parse(definition)
-                yield dlt.mark.with_hints(SqlModel(lazy_transform, dialect=dialect), hints=make_hints(columns=columns))
+                yield dlt.mark.with_hints(
+                    SqlModel(lazy_transform, dialect=dialect), hints=make_hints(columns=columns)
+                )
             elif isinstance(definition, ir.Table):
-                destination_compiler = get_ibis_to_sqlglot_compiler(datasets[0]._destination)
+                destination_compiler = get_sqlglot_compiler(datasets[0]._destination)
                 lazy_transform = destination_compiler.to_sqlglot(definition)
-                yield dlt.mark.with_hints(SqlModel(lazy_transform, dialect=dialect), hints=make_hints(columns=columns))
+                yield dlt.mark.with_hints(
+                    SqlModel(lazy_transform, dialect=dialect), hints=make_hints(columns=columns)
+                )
             elif isinstance(definition, nw.LazyFrame):
-                destination_compiler = get_ibis_to_sqlglot_compiler(datasets[0]._destination)
+                destination_compiler = get_sqlglot_compiler(datasets[0]._destination)
                 lazy_transform = destination_compiler.to_sqlglot(nw.to_native(definition))
-                yield dlt.mark.with_hints(SqlModel(lazy_transform, dialect=dialect), hints=make_hints(columns=columns))
+                yield dlt.mark.with_hints(
+                    SqlModel(lazy_transform, dialect=dialect), hints=make_hints(columns=columns)
+                )
             # TODO for eager transform, we should minimize the type conversions; maybe we can return as pyarrow.Table
             # directly here instead of waiting for normalization / loading
             elif isinstance(definition, pd.DataFrame):
@@ -146,7 +149,7 @@ def make_transformation_resource(
     # This currently wraps the function twice; we could do that directly
     # @transformation
     #  @resource
-    #    transformation_func 
+    #    transformation_func
     #
     return dlt.resource(  # type: ignore[return-value]
         name=name,
@@ -166,114 +169,3 @@ def make_transformation_resource(
         _impl_cls=DltTransformationResource,
         _base_spec=TransformationConfiguration,
     )(transformation_function)
-
-
-# TODO move this code to the right place
-def _get_sqlalchemy_compiler(destination: Destination):
-    """
-    reference: https://docs.sqlalchemy.org/en/20/dialects/
-    """
-    # Dialects included in SQLAlchemy
-    # SQLite via SQLAlchemy is fully-tested with dlt
-    if ... == "sqlite":
-        compiler = sc.SQLiteCompiler()
-    # MySQL via SQLAlchemy is fully-tested with dlt
-    elif ... == "mysql":
-        compiler = sc.MySQLCompiler()
-
-    elif ... == "oracle":
-        compiler = sc.OracleCompiler()
-
-    elif ... == "mariadb":
-        raise NotImplementedError
-
-    elif ... == "postgres":
-        compiler = sc.PostgresCompiler()
-
-    elif ... == "mssql":
-        compiler = sc.MSSQLCompiler()
-
-    # SQLAlchemy extension dialects
-    elif ... == "druid":
-        compiler = sc.DruidCompiler()
-
-    elif ... == "hive":
-        compiler = sc.TrinoCompiler()
-
-    elif ... == "clickhouse":
-        compiler = sc.ClickHouseCompiler()
-
-    elif ... == "databricks":
-        compiler = sc.DatabricksCompiler()
-
-    elif ... == "bigquery":
-        compiler = sc.BigQueryCompiler()
-
-    elif ... == "impala":
-        compiler = sc.ImpalaCompiler()
-
-    elif ... == "snowflake":
-        compiler = sc.SnowflakeCompiler()
-
-    else:
-        raise NotImplementedError
-
-    return compiler
-
-
-
-def get_ibis_to_sqlglot_compiler(destination: TDestinationReferenceArg): 
-    # ensure destination is a Destination instance
-    if not isinstance(destination, Destination):
-        destination = Destination.from_reference(destination)
-    assert isinstance(destination, Destination)
-
-    if destination.destination_name == "duckdb":
-        compiler = sc.DuckDBCompiler()
-
-    elif destination.destination_name == "filesystem":
-        compiler = sc.DuckDBCompiler()
-
-    elif destination.destination_name == "motherduck":
-        compiler = sc.DuckDBCompiler()
-
-    elif destination.destination_name == "postgres":
-        compiler = sc.PostgresCompiler()
-
-    elif destination.destination_name == "clickhouse":
-        compiler = sc.ClickHouseCompiler()
-
-    elif destination.destination_name == "snowflake":
-        compiler = sc.SnowflakeCompiler()
-
-    elif destination.destination_name == "databricks":
-        compiler = sc.DatabricksCompiler()
-
-    elif destination.destination_name == "mssql":
-        compiler = sc.MSSQLCompiler()
-
-    # NOTE synapse might differ from MSSQL
-    elif destination.destination_name == "synapse":
-        compiler = sc.MSSQLCompiler()
-
-    elif destination.destination_name == "bigquery":
-        compiler = sc.BigQueryCompiler()
-
-    elif destination.destination_name == "athena":
-        compiler = sc.AthenaCompiler()
-
-    # NOTE Dremio uses a presto/trino-based language
-    elif destination.destination_name == "dremio":
-        compiler = sc.TrinoCompiler()
-
-    # TODO parse the SQLAlchemy dialect
-    elif destination.destination_name == "sqlalchemy":
-        compiler = _get_sqlalchemy_compiler(destination)
-
-    else:
-        raise NotImplementedError(
-            f"Destination of type {Destination.from_reference(destination).destination_type} not"
-            " supported by ibis."
-        )
-
-    return compiler
