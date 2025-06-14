@@ -159,7 +159,7 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
             # unpack because empty tuple gets interpreted as a single argument
             # https://github.com/mkleehammer/pyodbc/wiki/Features-beyond-the-DB-API#passing-parameters
             curr.execute(query, *args)
-            yield DBApiCursorImpl(curr)  # type: ignore[abstract]
+            yield DBApiCursorImpl(curr)
         except pyodbc.Error as outer:
             raise outer
         finally:

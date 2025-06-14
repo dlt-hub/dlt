@@ -25,10 +25,10 @@ import dlt
 from dlt.common import json, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
-    GcpOAuthCredentialsWithoutDefaults,
 )
 from dlt.common.destination.client import (
     DestinationClientDwhConfiguration,
@@ -42,7 +42,7 @@ from dlt.common.destination.client import (
     DEFAULT_FILE_LAYOUT,
 )
 from dlt.common.destination import TLoaderFileFormat, Destination, TDestinationReferenceArg
-from dlt.common.destination.exceptions import SqlClientNotAvailable
+from dlt.common.destination.exceptions import DestinationUndefinedEntity, SqlClientNotAvailable
 from dlt.common.data_writers import DataWriter
 from dlt.common.pipeline import PipelineContext
 from dlt.common.schema import TTableSchemaColumns, Schema
@@ -56,6 +56,7 @@ from dlt.common.utils import uniq_id
 
 from dlt.destinations.exceptions import CantExtractTablePrefix
 from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
+from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
@@ -215,8 +216,11 @@ class DestinationTestConfiguration:
 
     def setup(self) -> None:
         """Sets up environment variables for this destination configuration"""
+        env_key_prefix = (  # "DESTINATION__" + (self.destination_name or self.destination_type).upper()
+            "DESTINATION"
+        )
         for k, v in self.factory_kwargs.items():
-            os.environ[f"DESTINATION__{k.upper()}"] = str(v)
+            os.environ[f"{env_key_prefix}__{k.upper()}"] = str(v)
 
         # For the filesystem destinations we disable compression to make analyzing the result easier
         os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = str(
@@ -227,10 +231,10 @@ class DestinationTestConfiguration:
 
         if self.credentials is not None:
             if isinstance(self.credentials, str):
-                os.environ["DESTINATION__CREDENTIALS"] = self.credentials
+                os.environ[f"{env_key_prefix}__CREDENTIALS"] = self.credentials
             else:
                 for key, value in dict(self.credentials).items():
-                    os.environ[f"DESTINATION__CREDENTIALS__{key.upper()}"] = str(value)
+                    os.environ[f"{env_key_prefix}__CREDENTIALS__{key.upper()}"] = str(value)
 
         if self.env_vars is not None:
             for k, v in self.env_vars.items():
@@ -393,7 +397,11 @@ def destinations_configs(
                 credentials=dict(path=str(Path(FILE_BUCKET) / "qdrant_data")),
                 extra_info="local-file",
             ),
-            DestinationTestConfiguration(destination_type="qdrant", extra_info="server"),
+            DestinationTestConfiguration(
+                destination_type="qdrant",
+                credentials=dict(location="http://localhost:6333"),
+                extra_info="server",
+            ),
         ]
 
     if (default_sql_configs or all_staging_configs) and not default_sql_configs:
@@ -577,14 +585,6 @@ def destinations_configs(
             DestinationTestConfiguration(
                 destination_type="filesystem",
                 bucket_url=FILE_BUCKET,
-                file_format="insert_values",
-                supports_merge=False,
-            )
-        ]
-        destination_configs += [
-            DestinationTestConfiguration(
-                destination_type="filesystem",
-                bucket_url=FILE_BUCKET,
                 file_format="parquet",
                 supports_merge=False,
             )
@@ -606,7 +606,7 @@ def destinations_configs(
                     bucket_url=bucket,
                     extra_info=bucket,
                     supports_merge=False,
-                    file_format="parquet",
+                    file_format="jsonl",  # keep jsonl as default, test utils are setup for this
                 )
             ]
 
@@ -645,7 +645,7 @@ def destinations_configs(
                     destination_name="filesystem_s3_gcs_comp" if bucket == GCS_BUCKET else None,
                 )
             ]
-            if bucket == AZ_BUCKET:
+            if bucket in [AZ_BUCKET]:
                 # `pyiceberg` does not support `az` scheme
                 continue
             destination_configs += [
@@ -654,7 +654,7 @@ def destinations_configs(
                     bucket_url=bucket,
                     extra_info=bucket,
                     table_format="iceberg",
-                    supports_merge=False,
+                    supports_merge=True,
                     file_format="parquet",
                     destination_name="fsgcpoauth" if bucket == GCS_BUCKET else None,
                 )
@@ -700,6 +700,7 @@ def destinations_configs(
             for conf in destination_configs
             if not (conf.destination_type in exclude or conf.destination_name in exclude)
         ]
+        destination_configs = [conf for conf in destination_configs if conf.name not in exclude]
     if bucket_exclude:
         destination_configs = [
             conf
@@ -742,15 +743,23 @@ def destinations_configs(
 @pytest.fixture(autouse=True)
 def drop_pipeline(request, preserve_environ) -> Iterator[None]:
     # NOTE: keep `preserve_environ` to make sure fixtures are executed in order``
+    # enable activation history (for the main thread) to be able to drop pipelines active during test
+    Container()[PipelineContext].enable_activation_history = True
     yield
-    if "no_load" in request.keywords:
-        return
     try:
-        drop_active_pipeline_data()
+        if "no_load" in request.keywords:
+            # always deactivate
+            Container()[PipelineContext].deactivate()
+            Container()[PipelineContext].clear_activation_history()
+        else:
+            drop_active_pipeline_data()
     except CantExtractTablePrefix:
         # for some tests we test that this exception is raised,
         # so we suppress it here
         pass
+    finally:
+        # disable activation history
+        Container()[PipelineContext].enable_activation_history = False
 
 
 def drop_pipeline_data(p: dlt.Pipeline) -> None:
@@ -758,16 +767,19 @@ def drop_pipeline_data(p: dlt.Pipeline) -> None:
 
     def _drop_dataset(schema_name: str) -> None:
         with p.destination_client(schema_name) as client:
+            # print("DROP FROM", client.config, client.config.dataset_name)
             try:
                 client.drop_storage()
-                print("dropped")
+            except DestinationUndefinedEntity:
+                pass
             except Exception as exc:
                 print(exc)
             if isinstance(client, WithStagingDataset):
                 with client.with_staging_dataset():
                     try:
                         client.drop_storage()
-                        print("staging dropped")
+                    except DestinationUndefinedEntity:
+                        pass
                     except Exception as exc:
                         print(exc)
 
@@ -775,8 +787,7 @@ def drop_pipeline_data(p: dlt.Pipeline) -> None:
     if p.destination:
         if p.config.use_single_dataset:
             # drop just the dataset for default schema
-            if p.default_schema_name:
-                _drop_dataset(p.default_schema_name)
+            _drop_dataset(p.default_schema_name)
         else:
             # for each schema, drop the dataset
             for schema_name in p.schema_names:
@@ -785,14 +796,15 @@ def drop_pipeline_data(p: dlt.Pipeline) -> None:
 
 def drop_active_pipeline_data() -> None:
     """Drops all the datasets for currently active pipeline, wipes the working folder and then deactivated it."""
-    if Container()[PipelineContext].is_active():
+    # NOTE: requires activation history to be enabled, see drop_pipeline
+    activated_pipelines = Container()[PipelineContext].activation_history()
+    if activated_pipelines:
         try:
-            # take existing pipeline
-            p = dlt.pipeline()
-            drop_pipeline_data(p)
-            # p._wipe_working_folder()
+            for pipeline in activated_pipelines:
+                drop_pipeline_data(pipeline)  # type: ignore[arg-type]
         finally:
             # always deactivate context, working directory will be wiped when the next test starts
+            Container()[PipelineContext].clear_activation_history()
             Container()[PipelineContext].deactivate()
 
 
@@ -1129,3 +1141,9 @@ def count_job_types(p: dlt.Pipeline) -> Dict[str, Dict[str, Any]]:
         )
 
     return tables
+
+
+def set_always_refresh_views(config: BaseConfiguration) -> None:
+    # set filesystem views to autorefresh
+    if isinstance(config, FilesystemDestinationClientConfiguration):
+        config["always_refresh_views"] = True

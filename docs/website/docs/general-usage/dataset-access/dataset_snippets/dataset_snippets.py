@@ -62,10 +62,10 @@ def getting_started_snippet(pipeline: dlt.Pipeline) -> None:
 def accessing_tables_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_START accessing_tables
     # Using attribute access
-    items_relation = dataset.items
+    customers_relation = dataset.customers
 
     # Using item access
-    items_relation = dataset["items"]
+    customers_relation = dataset["customers"]
     # @@@DLT_SNIPPET_END accessing_tables
 
 
@@ -150,7 +150,7 @@ def select_columns_snippet(dataset: ReadableDBAPIDataset) -> None:
     items_list = customers_relation[["id", "name"]].fetchall()
 
     # Only get one column
-    items_list = customers_relation["name"].fetchall()
+    items_list = customers_relation[["name"]].fetchall()
     # @@@DLT_SNIPPET_END select_columns
 
 

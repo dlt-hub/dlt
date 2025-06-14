@@ -8,10 +8,10 @@ from dlt.common.configuration.specs.base_configuration import (
     CredentialsConfiguration,
 )
 from dlt.common.destination.client import DestinationClientDwhConfiguration
-from dlt.common.storages.configuration import FilesystemConfiguration
+from dlt.common.storages.configuration import FilesystemConfiguration, WithLocalFiles
 from dlt.common.typing import TSecretStrValue
 from dlt.common.utils import digest128
-from dlt.destinations.configuration import WithLocalFiles
+
 from dlt.destinations.impl.lancedb.warnings import uri_on_credentials_deprecated
 
 

@@ -116,7 +116,7 @@ def sql_database(
 
     if defer_table_reflect:
         if not table_names:
-            raise ValueError("You must pass table names to defer table reflection")
+            raise ValueError("You must pass `table_names` to defer table reflection")
         table_infos = [(schema, table) for table in table_names]
     else:
         # reflect tables
@@ -153,9 +153,7 @@ def sql_database(
         )
 
 
-@decorators.resource(
-    name=lambda args: args["table"], standalone=True, spec=SqlTableResourceConfiguration
-)
+@decorators.resource(name=lambda args: args["table"], spec=SqlTableResourceConfiguration)
 def sql_table(
     credentials: Union[ConnectionStringCredentials, Engine, str] = dlt.secrets.value,
     table: str = dlt.config.value,

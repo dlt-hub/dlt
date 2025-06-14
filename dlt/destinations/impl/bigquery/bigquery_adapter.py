@@ -1,4 +1,4 @@
-from typing import Any, Optional, Literal, Dict
+from typing import Any, Optional, Literal, Dict, Union, Sequence
 
 from dateutil import parser
 
@@ -26,9 +26,47 @@ PARTITION_EXPIRATION_DAYS_HINT: Literal["x-bigquery-partition-expiration-days"] 
 CLUSTER_COLUMNS_HINT: Literal["x-bigquery-cluster-columns"] = "x-bigquery-cluster-columns"
 
 
+class PartitionTransformation:
+    template: str
+    """Template string of the transformation including column name placeholder. E.g. `RANGE_BUCKET({column_name}, GENERATE_ARRAY(0, 1000000, 10000))`"""
+    column_name: str
+    """Column name to apply the transformation to"""
+
+    def __init__(self, template: str, column_name: str) -> None:
+        self.template = template
+        self.column_name = column_name
+
+
+class bigquery_partition:
+    """Helper class to generate BigQuery partition transformations."""
+
+    @staticmethod
+    def range_bucket(
+        column_name: str,
+        start: int,
+        end: int,
+        interval: int = 1,
+    ) -> PartitionTransformation:
+        """Partition by an integer column with the specified range, where:
+
+        Args:
+            column_name: The column to partition by
+            start: The start of range partitioning (inclusive)
+            end: The end of the range partitioning (exclusive)
+            interval: The width of each range within the partition (default: 1)
+
+        Returns:
+            A PartitionTransformation object for integer range partitioning
+        """
+
+        template = f"RANGE_BUCKET({{column_name}}, GENERATE_ARRAY({start}, {end}, {interval}))"
+
+        return PartitionTransformation(template, column_name)
+
+
 def bigquery_adapter(
     data: Any,
-    partition: TColumnNames = None,
+    partition: Union[TColumnNames, PartitionTransformation] = None,
     cluster: TColumnNames = None,
     round_half_away_from_zero: TColumnNames = None,
     round_half_even: TColumnNames = None,
@@ -49,8 +87,10 @@ def bigquery_adapter(
         data (Any): The data to be transformed.
             This can be raw data or an instance of DltResource.
             If raw data is provided, the function will wrap it into a `DltResource` object.
-        partition (TColumnNames, optional): The name of the column to partition the BigQuery table by.
-            This should be a string representing a single column name.
+        partition (Union[TColumnNames, PartitionTransformation], optional): The column to partition the BigQuery table by.
+            This can be a string representing a single column name for simple partitioning,
+            or a PartitionTransformation object for advanced partitioning.
+            Use the bigquery_partition helper class to create transformation objects.
         cluster (TColumnNames, optional): A column name or list of column names to cluster the BigQuery table by.
         round_half_away_from_zero (TColumnNames, optional): Determines how values in the column are rounded when written to the table.
             This mode rounds halfway cases away from zero.
@@ -90,13 +130,23 @@ def bigquery_adapter(
     column_hints: TTableSchemaColumns = {}
 
     if partition:
-        if not isinstance(partition, str):
-            raise ValueError("`partition` must be a single column name as a string.")
+        if not (isinstance(partition, str) or isinstance(partition, PartitionTransformation)):
+            raise ValueError(
+                "`partition` must be a single column name as a `str` or a"
+                " `PartitionTransformation`."
+            )
 
         # Can only have one partition column.
         for column in resource.columns.values():  # type: ignore[union-attr]
             column.pop(PARTITION_HINT, None)  # type: ignore[typeddict-item]
-        column_hints[partition] = {"name": partition, PARTITION_HINT: True}  # type: ignore[typeddict-unknown-key]
+
+        if isinstance(partition, str):
+            column_hints[partition] = {"name": partition, PARTITION_HINT: True}  # type: ignore[typeddict-unknown-key]
+
+        if isinstance(partition, PartitionTransformation):
+            partition_hint: Dict[str, str] = {}
+            partition_hint[partition.column_name] = partition.template
+            additional_table_hints[PARTITION_HINT] = partition_hint
 
     if cluster:
         if isinstance(cluster, str):
@@ -162,7 +212,9 @@ def bigquery_adapter(
             )
             additional_table_hints[TABLE_EXPIRATION_HINT] = parsed_table_expiration_datetime
         except ValueError as e:
-            raise ValueError(f"{table_expiration_datetime} could not be parsed!") from e
+            raise ValueError(
+                f"`table_expiration_datetime={table_expiration_datetime}` could not be parsed!"
+            ) from e
 
     if partition_expiration_days is not None:
         assert isinstance(
@@ -173,8 +225,8 @@ def bigquery_adapter(
     if insert_api is not None:
         if insert_api == "streaming" and data.write_disposition != "append":
             raise ValueError(
-                "BigQuery streaming insert can only be used with `append` write_disposition, while "
-                f"the given resource has `{data.write_disposition}`."
+                "BigQuery streaming insert only accepts `write_disposition='append'`. "
+                f"Received `write_disposition={data.write_disposition}`."
             )
         additional_table_hints["x-insert-api"] = insert_api
 

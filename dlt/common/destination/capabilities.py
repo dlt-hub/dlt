@@ -199,6 +199,9 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supports_nested_types: bool = False
     """Tells if destination can write nested types, currently only destinations storing parquet are supported"""
 
+    enforces_nulls_on_alter: bool = True
+    """Tells if destination enforces null constraints when adding NOT NULL columns to existing tables"""
+
     sqlglot_dialect: Optional[str] = None
     """The SQL dialect used by sqlglot to transpile a query to match the destination syntax."""
 

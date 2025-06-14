@@ -17,7 +17,7 @@ from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import (
     assert_load_info,
     load_table_counts,
-    assert_query_data,
+    assert_query_column,
 )
 from tests.utils import TEST_STORAGE_ROOT
 from tests.load.sources.filesystem.cases import GLOB_RESULTS, TESTS_BUCKET_URLS
@@ -26,7 +26,7 @@ from tests.load.sources.filesystem.cases import GLOB_RESULTS, TESTS_BUCKET_URLS
 @pytest.fixture(autouse=True)
 def glob_test_setup() -> None:
     file_fs, _ = fsspec_filesystem("file")
-    file_path = os.path.join(TEST_STORAGE_ROOT, "standard_source")
+    file_path = os.path.join(TEST_STORAGE_ROOT, "data", "standard_source")
     if not file_fs.isdir(file_path):
         file_fs.mkdirs(file_path)
         file_fs.upload(TEST_SAMPLE_FILES, file_path, recursive=True)
@@ -121,12 +121,13 @@ def test_fsspec_as_credentials(
     item: FileItemDict = None
     for item in gs_resource:
         _assert_cached(item.fsspec)
+        file_url = item["file_url"]
         break
     assert item
 
     # get authenticated client
     fs_client = fsspec_from_resource(gs_resource)
-    print(fs_client.ls(bucket_url))
+    print(fs_client.ls(file_url))
     _assert_cached(fs_client)
 
     # use to create resource instead of credentials
@@ -160,7 +161,7 @@ def test_csv_transformers(
         with pipeline.sql_client() as client:
             table_name = client.make_qualified_table_name("met_csv")
         # TODO: comment out when filesystem destination supports queries (data pond PR)
-        assert_query_data(pipeline, f"SELECT code FROM {table_name}", ["A881"] * 24)
+        assert_query_column(pipeline, f"SELECT code FROM {table_name}", ["A881"] * 24)
 
     # load the other folder that contains data for the same day + one other day
     # the previous data will be replaced
@@ -174,7 +175,7 @@ def test_csv_transformers(
         with pipeline.sql_client() as client:
             table_name = client.make_qualified_table_name("met_csv")
         # TODO: comment out when filesystem destination supports queries (data pond PR)
-        assert_query_data(pipeline, f"SELECT code FROM {table_name}", ["A803"] * 48)
+        assert_query_column(pipeline, f"SELECT code FROM {table_name}", ["A803"] * 48)
         # and 48 rows in total -> A881 got replaced
         # print(pipeline.default_schema.to_pretty_yaml())
         assert load_table_counts(pipeline, "met_csv") == {"met_csv": 48}

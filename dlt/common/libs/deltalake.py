@@ -9,7 +9,7 @@ from dlt.common.libs.pyarrow import cast_arrow_schema_types
 from dlt.common.libs.utils import load_open_tables
 from dlt.common.schema.typing import TWriteDisposition, TTableSchema
 from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns_names_with_prop
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
 from dlt.common.storages import FilesystemConfiguration
 from dlt.common.utils import assert_min_pkg_version
 from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
@@ -84,9 +84,8 @@ def get_delta_write_mode(write_disposition: TWriteDisposition) -> str:
     elif write_disposition == "replace":
         return "overwrite"
     else:
-        raise ValueError(
-            "`write_disposition` must be `append`, `replace`, or `merge`,"
-            f" but `{write_disposition}` was provided."
+        raise ValueErrorWithKnownValues(
+            "write_disposition", write_disposition, ["append", "replace", "merge"]
         )
 
 
@@ -118,6 +117,7 @@ def merge_delta_table(
     table: DeltaTable,
     data: Union[pa.Table, pa.RecordBatchReader],
     schema: TTableSchema,
+    load_table_name: str,
 ) -> None:
     """Merges in-memory Arrow data into on-disk Delta table."""
 
@@ -149,7 +149,10 @@ def merge_delta_table(
 
         qry.execute()
     else:
-        ValueError(f'Merge strategy "{strategy}" not supported.')
+        raise ValueError(
+            f'Merge strategy "{strategy}" is not supported for Delta tables. '
+            f'Table: "{load_table_name}".'
+        )
 
 
 def get_delta_tables(

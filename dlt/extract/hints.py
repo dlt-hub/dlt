@@ -29,7 +29,7 @@ from dlt.common.schema.typing import (
     MERGE_STRATEGIES,
     TTableReferenceParam,
 )
-
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.typing import TTableNames, TypedDict, Unpack
 from dlt.common.schema.utils import (
     DEFAULT_WRITE_DISPOSITION,
@@ -124,7 +124,7 @@ class SqlModel(NamedTuple):
 
         # Ensure the parsed query is a SELECT statement
         if not isinstance(parsed_query, sqlglot.exp.Select):
-            raise ValueError("Only SELECT statements are allowed to create a SqlModel.")
+            raise ValueError("Only SELECT statements are allowed to create a `SqlModel`.")
 
         normalized_query = parsed_query.sql(dialect=dialect)
         return cls(query=normalized_query, dialect=dialect)
@@ -453,8 +453,7 @@ class DltResourceHints:
         if create_table_variant:
             if not isinstance(table_name, str):
                 raise ValueError(
-                    "Please provide string table name if you want to create a table variant of"
-                    " hints"
+                    "Please provide `str` table name if you want to create a table variant of hints"
                 )
             # select hints variant
             t = self._hints_variants.get(table_name, None)
@@ -592,20 +591,20 @@ class DltResourceHints:
             # incremental cannot be specified in variant
             if hints_template.get("incremental"):
                 raise InconsistentTableTemplate(
-                    f"You can specify incremental only for the resource `{self.name}` hints, not in"
-                    f" table `{table_name}` variant-"
+                    f"You can specify `incremental` only for the resource `{self.name}` hints, not"
+                    f" in table `{table_name}` variant-"
                 )
             if hints_template.get("validator"):
                 logger.warning(
-                    f"A data item validator was created from column schema in {self.name} for a"
+                    f"A data item validator was created from column schema in `{self.name}` for a"
                     f" table `{table_name}` variant. Currently such validator is ignored."
                 )
             # dynamic hints will be ignored
             for name, hint in hints_template.items():
                 if callable(hint) and name not in NATURAL_CALLABLES:
                     raise InconsistentTableTemplate(
-                        f"Table `{table_name}` variant hint is resource {self.name} cannot have"
-                        f" dynamic hint but {name} does."
+                        f"Table `{table_name}` variant hint is resource `{self.name}` can't have"
+                        f" dynamic hint but `{name}` does."
                     )
             self._hints_variants[table_name] = hints_template
         else:
@@ -777,7 +776,8 @@ class DltResourceHints:
             callable(v) for k, v in template.items() if k not in ["table_name", *NATURAL_CALLABLES]
         ) and not callable(table_name):
             raise InconsistentTableTemplate(
-                f"Table name {table_name} must be a function if any other table hint is a function"
+                f"Table name `{table_name}` must be a function if any other table hint is a"
+                " function"
             )
 
     @staticmethod
@@ -786,9 +786,8 @@ class DltResourceHints:
         if isinstance(wd, dict) and wd["disposition"] == "merge":
             wd = cast(TMergeDispositionDict, wd)
             if "strategy" in wd and wd["strategy"] not in MERGE_STRATEGIES:
-                raise ValueError(
-                    f'`{wd["strategy"]}` is not a valid merge strategy. '
-                    f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}."""
+                raise ValueErrorWithKnownValues(
+                    "write_disposition['strategy']", wd["strategy"], MERGE_STRATEGIES
                 )
 
             if wd.get("strategy") == "scd2":
@@ -804,7 +803,7 @@ class DltResourceHints:
                             ensure_pendulum_datetime(wd[ts])  # type: ignore[literal-required]
                         except Exception:
                             raise ValueError(
-                                f'could not parse `{ts}` value "{wd[ts]}"'  # type: ignore[literal-required]
+                                f"could not parse `{ts}` value `{wd[ts]}`"  # type: ignore[literal-required]
                             )
 
     @staticmethod

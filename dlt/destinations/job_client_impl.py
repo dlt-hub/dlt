@@ -29,6 +29,7 @@ from dlt.common.destination.utils import resolve_replace_strategy
 from dlt.common.json import json
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
+    C_DLT_LOADS_TABLE_LOAD_ID,
     COLUMN_HINTS,
     TColumnType,
     TColumnSchemaBase,
@@ -168,7 +169,7 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         """
         sql_client = self._job_client.sql_client
         target_table = sql_client.make_qualified_table_name(self._load_table["name"])
-        target_catalog = sql_client.catalog_name(escape=False)
+        target_catalog = sql_client.catalog_name(quote=False)
         destination_dialect = self._job_client.capabilities.sqlglot_dialect
 
         # Parse SELECT
@@ -542,7 +543,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         state_table = self.sql_client.make_qualified_table_name(self.schema.state_table_name)
         loads_table = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
         c_load_id, c_dlt_load_id, c_pipeline_name, c_status = self._norm_and_escape_columns(
-            "load_id", C_DLT_LOAD_ID, "pipeline_name", "status"
+            C_DLT_LOADS_TABLE_LOAD_ID, C_DLT_LOAD_ID, "pipeline_name", "status"
         )
 
         maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(1)

@@ -1,4 +1,5 @@
 import os
+import copy
 import hashlib
 import random
 from string import ascii_lowercase
@@ -11,14 +12,14 @@ from dlt.common.utils import uniq_id
 
 from dlt.destinations import filesystem, redshift
 
-from dlt.pipeline.exceptions import PipelineStepFailed
 
+from tests.cases import TABLE_ROW_ALL_DATA_TYPES, TABLE_UPDATE, TABLE_UPDATE_COLUMNS_SCHEMA
+from tests.load.pipeline.utils import get_load_package_jobs
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
-    drop_active_pipeline_data,
 )
-from tests.pipeline.utils import assert_load_info, load_table_counts, load_tables_to_dicts
+from tests.pipeline.utils import assert_load_info, load_tables_to_dicts
 from tests.utils import TestDataItemFormat
 
 
@@ -56,6 +57,7 @@ def test_postgres_encoded_binary(
 
 
 # do not remove - it allows us to filter tests by destination
+@pytest.mark.no_load
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, subset=["postgres"]),
@@ -108,9 +110,19 @@ def test_pipeline_explicit_destination_credentials(
 
     # instance of credentials will be simply passed
     cred = PostgresCredentials("postgresql://user:pass@localhost/dlt_data")
+    # if resolved
+    cred.resolve()
     p = dlt.pipeline(destination=postgres(credentials=cred))
     inner_c = p.destination_client()
     assert inner_c.config.credentials is cred
+
+    # if not resolved then content is identical (but instance is recreated)
+    cred = PostgresCredentials("postgresql://user:pass@localhost/dlt_data")
+    p = dlt.pipeline(destination=postgres(credentials=cred))
+    inner_c = p.destination_client()
+    assert dict(inner_c.config.credentials) == dict(cred)
+    # it seems that equality is by content, skip assert for now
+    # assert inner_c.config.credentials == cred
 
     # with staging
     p = dlt.pipeline(
@@ -124,6 +136,32 @@ def test_pipeline_explicit_destination_credentials(
         config.credentials.to_native_representation()
         == "redshift://loader:password@localhost:5432/dlt_data?client_encoding=utf-8&connect_timeout=15"
     )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["postgres"]),
+    ids=lambda x: x.name,
+)
+def test_postgres_adbc_parquet_loading(destination_config: DestinationTestConfiguration) -> None:
+    pipeline = destination_config.setup_pipeline(
+        "test_postgres_adbc_parquet_loading", dev_mode=True
+    )
+
+    table_schema = copy.copy(TABLE_UPDATE_COLUMNS_SCHEMA)
+    del table_schema["col6_precision"]  # adbc cannot process decimal(6,2)
+    del table_schema["col11_precision"]  # TIME(3) not supported
+
+    @dlt.resource(file_format="parquet", columns=table_schema, max_table_nesting=0)
+    def complex_resource():
+        yield TABLE_ROW_ALL_DATA_TYPES
+
+    info = pipeline.run(complex_resource())
+    jobs = get_load_package_jobs(
+        info.load_packages[0], "completed_jobs", "complex_resource", ".parquet"
+    )
+    # there must be a parquet job or adbc is not installed so we fall back to other job type
+    assert len(jobs) == 1
 
 
 # TODO: uncomment and finalize when we implement encoding for psycopg2

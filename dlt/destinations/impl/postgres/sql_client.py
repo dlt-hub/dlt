@@ -102,7 +102,7 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
         with self._conn.cursor() as curr:
             try:
                 curr.execute(query, db_args)
-                yield DBApiCursorImpl(curr)  # type: ignore
+                yield DBApiCursorImpl(curr)
             except psycopg2.Error as outer:
                 try:
                     self._reset_connection()

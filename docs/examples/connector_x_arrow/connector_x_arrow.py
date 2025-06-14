@@ -45,7 +45,6 @@ def genome_resource():
         name="genome",
         write_disposition="merge",
         primary_key="upid",
-        standalone=True,
     )(read_sql_x)(
         "mysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam",  # type: ignore[arg-type]
         "SELECT * FROM genome ORDER BY created LIMIT 1000",

@@ -236,6 +236,13 @@ For example, to set the Facebook Ads access token:
 export SOURCES__FACEBOOK_ADS__ACCESS_TOKEN="<access_token>"
 ```
 
+or when you want to pass a list or dict of values:
+```sh
+export DESTINATION__DUCKDB__CREDENTIALS__PRAGMAS="[\"enable_logging\"]"
+```
+Note that you can use environment variables to pass dictionaries and lists: those must be passed as Python literals (not JSON!).
+You may also need to escape quotation marks, depending on your shell.
+
 See the [examples section](#examples) for more details on setting up credentials with environment variables.
 
 :::tip

@@ -113,7 +113,7 @@ class FuturesPool:
         elif callable(item):
             future = self._ensure_thread_pool().submit(item)
         else:
-            raise ValueError(f"Unsupported item type: {type(item)}")
+            raise ValueError(f"Unsupported item type: `{type(item)}`")
 
         # Future is not removed from self.futures until it's been consumed by the
         # pipe iterator. But we always want to vacate a slot so new jobs can be submitted

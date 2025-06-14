@@ -9,8 +9,9 @@ from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
-from tests.pipeline.utils import load_table_counts
-from tests.utils import TEST_STORAGE_ROOT, assert_load_info
+from tests.utils import TEST_STORAGE_ROOT
+from tests.pipeline.utils import assert_load_info, load_table_counts
+
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential

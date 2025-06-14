@@ -201,7 +201,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         if not v:
             return v
         v = self.capabilities.casefold_identifier(v)
-        # bigquery uses hive escaping
+        # athena uses hive escaping
         return escape_hive_identifier(v)
 
     def fully_qualified_ddl_dataset_name(self) -> str:
@@ -212,8 +212,13 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         return f"{self.fully_qualified_ddl_dataset_name()}.{table_name}"
 
     def create_dataset(self) -> None:
+        db_location_clause = (
+            f" LOCATION '{self.config.db_location}'" if self.config.db_location else ""
+        )
         # HIVE escaping for DDL
-        self.execute_sql(f"CREATE DATABASE {self.fully_qualified_ddl_dataset_name()};")
+        self.execute_sql(
+            f"CREATE DATABASE {self.fully_qualified_ddl_dataset_name()}{db_location_clause};"
+        )
 
     def drop_dataset(self) -> None:
         self.execute_sql(f"DROP DATABASE {self.fully_qualified_ddl_dataset_name()} CASCADE;")
@@ -310,7 +315,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
             # TODO: (important) allow to use PandasCursor and ArrowCursor to get fast data access
             #    the problem: you need to set the cursor type upfront. so if user uses wrong cursor
             #    we won't be able to dynamically change it.
-            yield DBApiCursorImpl(cursor)  # type: ignore
+            yield DBApiCursorImpl(cursor)
 
 
 class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):

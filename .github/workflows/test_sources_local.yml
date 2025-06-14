@@ -3,34 +3,20 @@
 name: src | rest_api, sql_database, filesystem
 
 on:
-  pull_request:
-    branches:
-      - master
-      - devel
+  workflow_call:
   workflow_dispatch:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
 
 env:
 
   # RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
-  RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
 
   ACTIVE_DESTINATIONS: "[\"duckdb\", \"postgres\", \"filesystem\"]"
   ALL_FILESYSTEM_DRIVERS: "[\"file\"]"
 
 jobs:
-  get_docs_changes:
-    name: docs changes
-    uses: ./.github/workflows/get_docs_changes.yml
-
   run_loader:
     name: src | rest_api, sql_database, filesystem
-    needs: get_docs_changes
-    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: false
     defaults:
@@ -84,13 +70,15 @@ jobs:
 
       # TODO: which deps should we enable?
       - name: Install dependencies
-        run: poetry install --no-interaction -E postgres -E postgis -E duckdb -E parquet -E filesystem -E cli -E sql_database --with sentry-sdk,pipeline,sources
+        run: poetry install --no-interaction -E postgres -E postgis -E duckdb -E parquet -E filesystem -E cli -E sql_database --with sentry-sdk,pipeline,sources,adbc
+
+      - name: Copy secrets for local tests
+        run: |
+          cp tests/.dlt/dev.secrets.toml tests/.dlt/secrets.toml
 
       # run sources tests in load against configured destinations
       - run: poetry run pytest tests/load/sources
         name: Run tests Linux
-        env:
-          DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader:loader@localhost:5432/dlt_data
 
       # here we upgrade sql alchemy to 2 an run the sql_database tests again
       - name: Upgrade sql alchemy
@@ -98,5 +86,3 @@ jobs:
 
       - run: poetry run pytest tests/load/sources/sql_database
         name: Run tests Linux
-        env:
-          DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader:loader@localhost:5432/dlt_data

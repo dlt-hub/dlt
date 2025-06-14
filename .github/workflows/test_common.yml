@@ -1,19 +1,11 @@
 name: common | common
 
 on:
-  pull_request:
-    branches:
-      - master
-      - devel
-  workflow_dispatch:
+  workflow_call:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
 
 env:
   RUNTIME__LOG_LEVEL: ERROR
-  RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
 
   # we need the secrets only for the rest_api_pipeline tests which are in tests/sources
   # so we inject them only at the end
@@ -22,14 +14,8 @@ env:
   SOURCES__GITHUB_API_PIPELINE__ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
-  get_docs_changes:
-    name: docs changes
-    uses: ./.github/workflows/get_docs_changes.yml
-
   run_common:
     name: test
-    needs: get_docs_changes
-    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -39,29 +25,23 @@ jobs:
           - os: macos-latest
             python-version: "3.11.x"
             shell: bash
-            pytest_args: ""
 
           # linux tests
           - os: ubuntu-latest
             python-version: "3.9.x"
             shell: bash
-            pytest_args: ""
           - os: ubuntu-latest
             python-version: "3.10.x"
             shell: bash
-            pytest_args: ""
           - os: ubuntu-latest
             python-version: "3.11.x"
             shell: bash
-            pytest_args: ""
           - os: ubuntu-latest
             python-version: "3.12.x"
             shell: bash
-            pytest_args: ""
           - os: ubuntu-latest
             python-version: "3.13.x"
             shell: bash
-            pytest_args: "" 
           
           # windows tests
           - os: windows-latest
@@ -107,19 +87,9 @@ jobs:
           installer-parallel: true
           version: 1.8.5
 
-
-      # NOTE: do not cache. we want to have a clean state each run and we upgrade depdendencies later
-      # - name: Load cached venv
-      #   id: cached-poetry-dependencies
-      #   uses: actions/cache@v3
-      #   with:
-      #     # path: ${{ steps.pip-cache.outputs.dir }}
-      #     path: .venv
-      #     key: venv-${{ matrix.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-
       - name: Install dependencies
         run: poetry install --no-interaction --with sentry-sdk
-
+    
       - name: Run common tests with minimum dependencies
         run: |
           poetry run pytest tests/common tests/normalize tests/reflection tests/plugins tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py ${{ matrix.pytest_args }}
@@ -144,7 +114,7 @@ jobs:
 
       - name: Run extract and pipeline tests
         run: |
-          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources ${{ matrix.pytest_args }}
+          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources tests/transformations ${{ matrix.pytest_args }}
 
       # here we upgrade sql alchemy to 2 an run the sql_database tests again
       - name: Upgrade sql alchemy
@@ -153,14 +123,30 @@ jobs:
       - name: Run extract and pipeline tests 
         run: |
           poetry run pytest tests/sources/sql_database
-        
 
-      # - name: Install Pydantic 1.0
-      #   run: pip install "pydantic<2"
 
-      # - name: Run extract and pipeline tests
-      #   run: |
-      #     poetry run pytest tests/libs
+
+      # test marimo app, does not work with python 3.13
+      - name: Install dlt with duckdb and studio
+        run: poetry install --no-interaction -E duckdb --with sentry-sdk,pipeline,sources,ibis,marimo
+        if: matrix.python-version != '3.13.x'
+
+      - name: Install playwright
+        run: poetry run playwright install
+        if: matrix.python-version != '3.13.x'
+
+      # Run marimo studio unit tests
+      - name: Run marimo studio unit tests
+        run: |
+          poetry run pytest tests/helpers/studio
+        if: matrix.python-version != '3.13.x'
+
+      # Run marimo e2e tests (does not pass with python 3.9, does not pass on windows (playwright does not work somehow), does not pass on python 3.13 (ibis not available))
+      - name: Run marimo e2e
+        run: |
+          poetry run marimo run --headless dlt/helpers/studio/app.py -- -- --pipelines_dir _storage/.dlt/pipelines/ --with_test_identifiers true & poetry run pytest --browser chromium tests/e2e
+        if: matrix.python-version != '3.13.x' && matrix.python-version != '3.9.x' && matrix.os != 'windows-latest'
+
 
 
   matrix_job_required_check:

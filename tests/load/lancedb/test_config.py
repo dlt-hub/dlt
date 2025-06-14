@@ -12,20 +12,12 @@ from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
 )
 
-from tests.load.utils import (
-    drop_active_pipeline_data,
-)
+
 from tests.utils import TEST_STORAGE_ROOT
 
 
 # Mark all tests as essential, do not remove.
 pytestmark = pytest.mark.essential
-
-
-@pytest.fixture(autouse=True)
-def drop_lancedb_data() -> Iterator[None]:
-    yield
-    drop_active_pipeline_data()
 
 
 def test_lancedb_configuration() -> None:
@@ -76,9 +68,9 @@ def test_lancedb_follows_local_dir() -> None:
     # check pipeline name
     pipeline = dlt.pipeline("test_lancedb_follows_local_dir")
     c = resolve_configuration(
-        LanceDBClientConfiguration()
-        ._bind_dataset_name(dataset_name="test_dataset")
-        ._bind_local_files(pipeline)
+        pipeline._bind_local_files(
+            LanceDBClientConfiguration()._bind_dataset_name(dataset_name="test_dataset")
+        )
     )
     db_path = os.path.join(local_dir, "test_lancedb_follows_local_dir.lancedb")
     assert c.lance_uri.endswith(db_path)

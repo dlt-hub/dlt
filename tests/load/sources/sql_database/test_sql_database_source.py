@@ -6,6 +6,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 import dlt
+from dlt.common import logger
 from dlt.common import json
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.exceptions import MissingDependencyException
@@ -24,8 +25,8 @@ from tests.pipeline.utils import (
     load_tables_to_dicts,
 )
 from tests.load.sources.sql_database.test_helpers import mock_json_column, mock_array_column
-from tests.utils import data_item_length, load_table_counts
-
+from tests.utils import data_item_length
+from tests.pipeline.utils import load_table_counts
 
 try:
     from dlt.sources.sql_database import (
@@ -66,7 +67,7 @@ def make_pipeline(destination_name: str) -> dlt.Pipeline:
         pipeline_name="sql_database" + uniq_id(),
         destination=destination_name,
         dataset_name="test_sql_pipeline_" + uniq_id(),
-        full_refresh=False,
+        dev_mode=False,
     )
 
 
@@ -142,7 +143,7 @@ def test_sqlalchemy_no_quoted_name(
         pipeline_name="sql_database" + uniq_id(),
         destination="duckdb",
         dataset_name="test_sql_pipeline_" + uniq_id(),
-        full_refresh=False,
+        dev_mode=False,
         import_schema_path=import_schema_path,
         export_schema_path=export_schema_path,
     )
@@ -230,7 +231,7 @@ def test_named_sql_table_config(sql_source_db: SQLAlchemySourceDB) -> None:
     table = sql_table(table="chat_message", schema=sql_source_db.schema)
     with pytest.raises(ResourceExtractionError) as ext_ex:
         len(list(table))
-    assert "'updated_at_x'" in str(ext_ex.value)
+    assert "`updated_at_x`" in str(ext_ex.value)
 
 
 def test_general_sql_database_config(sql_source_db: SQLAlchemySourceDB) -> None:
@@ -264,7 +265,7 @@ def test_general_sql_database_config(sql_source_db: SQLAlchemySourceDB) -> None:
     table = sql_table(table="chat_message", schema=sql_source_db.schema)
     with pytest.raises(ResourceExtractionError) as ext_ex:
         len(list(table))
-    assert "'updated_at_x'" in str(ext_ex.value)
+    assert "`updated_at_x`" in str(ext_ex.value)
     with pytest.raises(ResourceExtractionError) as ext_ex:
         list(sql_database(schema=sql_source_db.schema).with_resources("chat_message"))
     # other resources will be loaded, incremental is selective
@@ -888,6 +889,83 @@ def test_all_types_no_precision_hints(
         load_tables_to_dicts(pipeline, table_name)[table_name],
         nullable,
         backend in ["sqlalchemy", "pyarrow"],
+    )
+
+
+@pytest.mark.parametrize("backend", ["pyarrow", "sqlalchemy"])
+def test_null_column_warning(
+    sql_source_db: SQLAlchemySourceDB,
+    backend: TableBackend,
+    mocker: MockerFixture,
+) -> None:
+    source = (
+        sql_database(
+            credentials=sql_source_db.credentials,
+            schema=sql_source_db.schema,
+            reflection_level="minimal",
+            backend=backend,
+            chunk_size=10,
+        )
+        .with_resources("app_user")
+        .add_limit(1)
+    )
+
+    logger_spy = mocker.spy(logger, "warning")
+
+    pipeline = dlt.pipeline(
+        pipeline_name="blabla", destination="duckdb", dataset_name="anuuns_test"
+    )
+    pipeline.run(source)
+
+    logger_spy.assert_called()
+    assert logger_spy.call_count == 1
+    expected_warning = (
+        "The column empty_col in table app_user did not receive any data during this load."
+        " Therefore, its type couldn't be inferred."
+    )
+    assert expected_warning in logger_spy.call_args_list[0][0][0]
+    assert (
+        pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]["x-normalizer"][
+            "seen-null-first"
+        ]
+        is True
+    )
+    assert "data_type" not in pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]
+
+    def add_value_to_empty_col(
+        query, table, incremental=None, engine=None
+    ) -> sa.sql.elements.TextClause:
+        if table.name == "app_user":
+            t_query = sa.text(
+                "SELECT id, email, display_name, created_at, updated_at, 'constant_value' as"
+                f" empty_col FROM {table.fullname}"
+            )
+        else:
+            t_query = query
+
+        return t_query
+
+    source = (
+        sql_database(
+            credentials=sql_source_db.credentials,
+            schema=sql_source_db.schema,
+            reflection_level="minimal",
+            backend=backend,
+            chunk_size=10,
+            query_adapter_callback=add_value_to_empty_col,
+        )
+        .with_resources("app_user")
+        .add_limit(1)
+    )
+
+    logger_spy = mocker.spy(logger, "warning")
+    pipeline.run(source)
+    assert logger_spy.call_count == 0
+    assert (
+        "x-normalizer" not in pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]
+    )
+    assert (
+        pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]["data_type"] == "text"
     )
 
 

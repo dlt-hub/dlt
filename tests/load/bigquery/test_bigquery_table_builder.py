@@ -19,7 +19,7 @@ from dlt.common.schema.exceptions import SchemaIdentifierNormalizationCollision
 from dlt.common.utils import custom_environ
 from dlt.common.utils import uniq_id
 from dlt.destinations import bigquery
-from dlt.destinations.adapters import bigquery_adapter
+from dlt.destinations.adapters import bigquery_adapter, bigquery_partition
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
 from dlt.destinations.impl.bigquery.bigquery_adapter import (
@@ -31,7 +31,6 @@ from dlt.extract import DltResource
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
-    drop_active_pipeline_data,
     TABLE_UPDATE,
     sequence_generator,
 )
@@ -250,6 +249,47 @@ def test_create_table_with_integer_partition(gcp_client: BigQueryClient) -> None
     sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
     assert "PARTITION BY RANGE_BUCKET(`col1`, GENERATE_ARRAY(-172800000, 691200000, 86400))" in sql
+
+
+def test_create_table_with_custom_range_bucket_partition() -> None:
+    @dlt.resource
+    def partitioned_table():
+        yield {
+            "user_id": 10000,
+            "name": "user 1",
+            "created_at": "2021-01-01T00:00:00Z",
+            "category": "category 1",
+            "score": 100.0,
+        }
+
+    bigquery_adapter(
+        partitioned_table,
+        partition=bigquery_partition.range_bucket(
+            column_name="user_id",
+            start=0,
+            end=1000000,
+            interval=10000,
+        ),
+    )
+
+    pipeline = dlt.pipeline(
+        "bigquery_test",
+        destination="bigquery",
+        dev_mode=True,
+    )
+
+    pipeline.extract(partitioned_table)
+    pipeline.normalize()
+
+    with pipeline.destination_client() as client:
+        sql_partitioned = client._get_table_update_sql(  # type: ignore[attr-defined]
+            "partitioned_table",
+            list(pipeline.default_schema.tables["partitioned_table"]["columns"].values()),
+            False,
+        )[0]
+
+    expected_clause = "PARTITION BY RANGE_BUCKET(`user_id`, GENERATE_ARRAY(0, 1000000, 10000))"
+    assert expected_clause in sql_partitioned
 
 
 @pytest.mark.parametrize(
@@ -494,12 +534,6 @@ def test_bigquery_no_partition_by_integer(
             assert not has_partitions
 
 
-@pytest.fixture(autouse=True)
-def drop_bigquery_schema() -> Iterator[None]:
-    yield
-    drop_active_pipeline_data()
-
-
 def test_adapter_no_hints_parsing() -> None:
     @dlt.resource(columns=[{"name": "int_col", "data_type": "bigint"}])
     def some_data() -> Iterator[Dict[str, str]]:
@@ -525,7 +559,10 @@ def test_adapter_hints_parsing_partitioning_more_than_one_column() -> None:
         "col2": {"data_type": "bigint", "name": "col2"},
     }
 
-    with pytest.raises(ValueError, match="^`partition` must be a single column name as a string.$"):
+    with pytest.raises(
+        ValueError,
+        match="`partition` must be a single column name as a `str` or a `PartitionTransformation`.",
+    ):
         bigquery_adapter(some_data, partition=["col1", "col2"])
 
 
@@ -589,9 +626,9 @@ def test_adapter_hints_partitioning(
     with pipeline.sql_client() as c:
         nc: google.cloud.bigquery.client.Client = c.native_connection
 
-        fqtn_no_hints = c.make_qualified_table_name("no_hints", escape=False)
-        fqtn_hints = c.make_qualified_table_name("hints", escape=False)
-        fqtn_date_hints = c.make_qualified_table_name("date_hints", escape=False)
+        fqtn_no_hints = c.make_qualified_table_name("no_hints", quote=False)
+        fqtn_hints = c.make_qualified_table_name("hints", quote=False)
+        fqtn_date_hints = c.make_qualified_table_name("date_hints", quote=False)
 
         no_hints_table = nc.get_table(fqtn_no_hints)
         hints_table = nc.get_table(fqtn_hints)
@@ -846,8 +883,8 @@ def test_adapter_hints_multiple_clustering(
     with pipeline.sql_client() as c:
         nc: google.cloud.bigquery.client.Client = c.native_connection
 
-        fqtn_no_hints = c.make_qualified_table_name("no_hints", escape=False)
-        fqtn_hints = c.make_qualified_table_name("hints", escape=False)
+        fqtn_no_hints = c.make_qualified_table_name("no_hints", quote=False)
+        fqtn_hints = c.make_qualified_table_name("hints", quote=False)
 
         no_hints_table = nc.get_table(fqtn_no_hints)
         hints_table = nc.get_table(fqtn_hints)
@@ -909,7 +946,7 @@ def test_adapter_hints_custom_clustering_order(
 
     with pipeline.sql_client() as c:
         nc: google.cloud.bigquery.client.Client = c.native_connection
-        fqtn = c.make_qualified_table_name("cluster_order", escape=False)
+        fqtn = c.make_qualified_table_name("cluster_order", quote=False)
         table = nc.get_table(fqtn)
         cluster_fields = [] if table.clustering_fields is None else table.clustering_fields
         # The cluster fields must match the user-specified order
@@ -947,8 +984,8 @@ def test_adapter_hints_clustering(
     with pipeline.sql_client() as c:
         nc: google.cloud.bigquery.client.Client = c.native_connection
 
-        fqtn_no_hints = c.make_qualified_table_name("no_hints", escape=False)
-        fqtn_hints = c.make_qualified_table_name("hints", escape=False)
+        fqtn_no_hints = c.make_qualified_table_name("no_hints", quote=False)
+        fqtn_hints = c.make_qualified_table_name("hints", quote=False)
 
         no_hints_table = nc.get_table(fqtn_no_hints)
         hints_table = nc.get_table(fqtn_hints)
@@ -1040,8 +1077,8 @@ def test_adapter_additional_table_hints_table_description(
     with pipeline.sql_client() as c:
         nc: google.cloud.bigquery.client.Client = c.native_connection
 
-        fqtn_no_hints = c.make_qualified_table_name("no_hints", escape=False)
-        fqtn_hints = c.make_qualified_table_name("hints", escape=False)
+        fqtn_no_hints = c.make_qualified_table_name("no_hints", quote=False)
+        fqtn_hints = c.make_qualified_table_name("hints", quote=False)
 
         no_hints_table = nc.get_table(fqtn_no_hints)
         hints_table = nc.get_table(fqtn_hints)
@@ -1089,8 +1126,8 @@ def test_adapter_additional_table_hints_table_description_with_alter_table(
     with pipeline.sql_client() as c:
         nc: google.cloud.bigquery.client.Client = c.native_connection
 
-        fqtn_no_hints = c.make_qualified_table_name("no_hints", escape=False)
-        fqtn_hints = c.make_qualified_table_name("hints", escape=False)
+        fqtn_no_hints = c.make_qualified_table_name("no_hints", quote=False)
+        fqtn_hints = c.make_qualified_table_name("hints", quote=False)
 
         no_hints_table = nc.get_table(fqtn_no_hints)
         hints_table = nc.get_table(fqtn_hints)

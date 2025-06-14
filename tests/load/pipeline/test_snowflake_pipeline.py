@@ -12,13 +12,12 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.load.snowflake.test_snowflake_client import QUERY_TAG
 
 from tests.load.pipeline.test_pipelines import simple_nested_pipeline
-from tests.pipeline.utils import assert_load_info, assert_query_data
+from tests.pipeline.utils import assert_load_info, assert_query_column
 from tests.load.utils import (
     TABLE_UPDATE_COLUMNS_SCHEMA,
     assert_all_data_types_row,
     destinations_configs,
     DestinationTestConfiguration,
-    drop_active_pipeline_data,
 )
 from tests.cases import TABLE_ROW_ALL_DATA_TYPES_DATETIMES
 
@@ -110,8 +109,6 @@ def test_snowflake_custom_stage(destination_config: DestinationTestConfiguration
     assert isinstance(f_jobs.value.__cause__, LoadClientJobFailed)
     assert "MY_NON_EXISTING_STAGE" in f_jobs.value.__cause__.failed_message
 
-    drop_active_pipeline_data()
-
     # NOTE: this stage must be created in DLT_DATA database for this test to pass!
     # CREATE STAGE MY_CUSTOM_LOCAL_STAGE;
     # GRANT READ, WRITE ON STAGE DLT_DATA.PUBLIC.MY_CUSTOM_LOCAL_STAGE TO ROLE DLT_LOADER_ROLE;
@@ -129,7 +126,7 @@ def test_snowflake_custom_stage(destination_config: DestinationTestConfiguration
         assert len(staged_files) == 3
         # check data of one table to ensure copy was done successfully
         tbl_name = client.make_qualified_table_name("lists")
-        assert_query_data(pipeline, f"SELECT value FROM {tbl_name}", ["a", None, None])
+        assert_query_column(pipeline, f"SELECT value FROM {tbl_name}", ["a", None, None])
 
 
 # do not remove - it allows us to filter tests by destination
@@ -159,7 +156,7 @@ def test_snowflake_delete_file_after_copy(destination_config: DestinationTestCon
 
         # ensure copy was done
         tbl_name = client.make_qualified_table_name("lists")
-        assert_query_data(pipeline, f"SELECT value FROM {tbl_name}", ["a", None, None])
+        assert_query_column(pipeline, f"SELECT value FROM {tbl_name}", ["a", None, None])
 
 
 from dlt.common.normalizers.naming.sql_cs_v1 import NamingConvention as SqlCsV1NamingConvention

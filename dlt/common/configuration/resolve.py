@@ -4,7 +4,10 @@ import os
 from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, Type, TypeVar
 
 from dlt.common import logger
-from dlt.common.configuration.providers.provider import ConfigProvider
+from dlt.common.configuration.providers.provider import (
+    ConfigProvider,
+    EXPLICIT_VALUES_PROVIDER_NAME,
+)
 from dlt.common.configuration.const import TYPE_EXAMPLES
 from dlt.common.typing import (
     AnyType,
@@ -51,21 +54,23 @@ def resolve_configuration(
     explicit_value: Any = None,
     accept_partial: bool = False,
 ) -> TConfiguration:
-    if not isinstance(config, BaseConfiguration):
+    if not isinstance(config, BaseConfiguration) or not hasattr(config.__class__, "__configspec__"):
         raise ConfigurationWrongTypeException(type(config))
 
     # try to get the native representation of the top level configuration using the config section as a key
     # allows, for example, to store connection string or service.json in their native form in single env variable or under single vault key
+    # this happens only when explicit value for the configuration was not provided
+    # TODO: we can move it into _resolve_configuration and also remove similar code in _resolve_config_field
+    # TODO: also allow when explicit_value is dict so we can parse initial value and merge with it
     if config.__section__ and explicit_value is None:
         initial_hint = TSecretValue if isinstance(config, CredentialsConfiguration) else AnyType
-        explicit_value, traces = _resolve_single_value(
+        initial_value, traces = _resolve_single_value(
             config.__section__, initial_hint, AnyType, None, sections, ()
         )
-        if isinstance(explicit_value, C_Mapping):
-            # mappings cannot be used as explicit values, we want to enumerate mappings and request the fields' values one by one
-            explicit_value = None
-        else:
-            log_traces(None, config.__section__, type(config), explicit_value, None, traces)
+        # mappings cannot be used as explicit values, we want to enumerate mappings and request the fields' values one by one
+        if initial_value is not None and not isinstance(initial_value, C_Mapping):
+            explicit_value = initial_value
+            log_traces(None, config.__section__, type(config), initial_value, None, traces)
 
     return _resolve_configuration(config, sections, (), explicit_value, accept_partial)
 
@@ -122,29 +127,38 @@ def inject_section(
 
 
 def _maybe_parse_native_value(
-    config: TConfiguration, explicit_value: Any, embedded_sections: Tuple[str, ...]
-) -> Any:
-    # use initial value to resolve the whole configuration. if explicit value is a mapping it will be applied field by field later
-    if explicit_value and (
-        not isinstance(explicit_value, C_Mapping) or isinstance(explicit_value, BaseConfiguration)
+    config: TConfiguration, native_value: Any, embedded_sections: Tuple[str, ...]
+) -> Dict[str, Any]:
+    """Parses `native_value` via `config.parse_native_representation` and returns a dict of all fields that are different from
+    defaults. Note that `config` will be modified.
+    """
+    is_explicit_instance = isinstance(native_value, BaseConfiguration)
+    # if explicit value is a mapping it will be applied field by field later
+    if native_value is not None and (
+        not isinstance(native_value, C_Mapping) or is_explicit_instance
     ):
         try:
-            # parse the native value anyway because there are configs with side effects
-            config.parse_native_representation(explicit_value)
-            default_value = config.__class__()
+            try:
+                # parse the native value anyway because there are configs with side effects
+                config.parse_native_representation(native_value)
+            except (ValueError, NotImplementedError):
+                # allow native_values that are already config classes to skip parsing
+                # note that we still try to do that - some like Incremental are able to initialize form those
+                if not is_explicit_instance:
+                    raise
             # parse native value and convert it into dict, extract the diff and use it as exact value
-            # NOTE: as those are the same dataclasses, the set of keys must be the same
-            explicit_value = {
+            # explicit_value may not be complete ie. may be a connection string without password
+            # we want the resolve to still fill missing values
+            default_value = config.__class__()
+            native_value = {
                 k: v
-                for k, v in config.__class__.from_init_value(explicit_value).items()
+                for k, v in config.__class__.from_init_value(native_value).items()
                 if default_value[k] != v
             }
-        except ValueError as v_err:
-            # provide generic exception
-            raise InvalidNativeValue(type(config), type(explicit_value), embedded_sections, v_err)
-        except NotImplementedError:
-            pass
-    return explicit_value
+        except (ValueError, NotImplementedError) as v_err:
+            raise InvalidNativeValue(type(config), type(native_value), embedded_sections, v_err)
+
+    return native_value  # type: ignore[no-any-return]
 
 
 def _resolve_configuration(
@@ -231,7 +245,9 @@ def _resolve_config_fields(
             # do not resolve not resolvable, but allow for explicit values to be passed
             if not explicit_none:
                 current_value = default_value if explicit_value is None else explicit_value
-            traces = [LookupTrace("ExplicitValues", None, key, current_value)]
+            traces = [
+                LookupTrace(EXPLICIT_VALUES_PROVIDER_NAME, embedded_sections, key, current_value)
+            ]
             _set_field()
             continue
 
@@ -240,7 +256,8 @@ def _resolve_config_fields(
             # if hint is union of configurations, any of them must be resolved
             specs_in_union: List[Type[BaseConfiguration]] = []
             if is_union_type(hint):
-                # if union contains a type of explicit value which is not a valid hint, return it as current value
+                # if union contains a type of explicit value which is not a valid hint then return it
+                # it could be ie. sqlalchemy Engine
                 if (
                     explicit_value
                     and not is_valid_hint(type(explicit_value))
@@ -250,6 +267,11 @@ def _resolve_config_fields(
                 ):
                     current_value, traces = explicit_value, []
                 else:
+                    # TODO: use default_value and explicit_value to filter the right specs from union, they constrain
+                    #   base configuration
+                    # if is_base_configuration_inner_hint(type(default_value)) and is_base_configuration_inner_hint(type(explicit_value)):
+                    #     if type(default_value) != type(explicit_value):
+                    #         raise ConfigurationValueError()
                     specs_in_union = get_all_types_of_class_in_union(hint, BaseConfiguration)
             if not current_value:
                 if len(specs_in_union) > 1:
@@ -290,7 +312,7 @@ def _resolve_config_fields(
                     )
         else:
             # set the trace for explicit none
-            traces = [LookupTrace("ExplicitValues", None, key, None)]
+            traces = [LookupTrace(EXPLICIT_VALUES_PROVIDER_NAME, embedded_sections, key, None)]
 
         _set_field()
 
@@ -313,20 +335,24 @@ def _resolve_config_field(
     default_value: Any,
     explicit_value: Any,
     config: BaseConfiguration,
-    config_sections: str,
+    config_section: str,
     explicit_sections: Tuple[str, ...],
     embedded_sections: Tuple[str, ...],
     accept_partial: bool,
 ) -> Tuple[Any, List[LookupTrace]]:
     inner_hint = extract_inner_hint(hint, preserve_literal=True)
-
     if explicit_value is not None:
         value = explicit_value
-        traces: List[LookupTrace] = []
+        # TODO: consider logging explicit values, currently initial values taken from configuration
+        #  are passed as explicit values so that needs to be fixed first
+        traces: List[LookupTrace] = [
+            LookupTrace(EXPLICIT_VALUES_PROVIDER_NAME, embedded_sections, key, value)
+        ]
     else:
         # resolve key value via active providers passing the original hint ie. to preserve TSecretValue
+        # NOTE: if inner_hint is an embedded config, it won't be resolved and value is None
         value, traces = _resolve_single_value(
-            key, hint, inner_hint, config_sections, explicit_sections, embedded_sections
+            key, hint, inner_hint, config_section, explicit_sections, embedded_sections
         )
         log_traces(config, key, hint, value, default_value, traces)
     # contexts must be resolved as a whole
@@ -334,31 +360,25 @@ def _resolve_config_field(
         pass
     # if inner_hint is BaseConfiguration then resolve it recursively
     elif is_base_configuration_inner_hint(inner_hint):
-        if isinstance(default_value, BaseConfiguration):
-            # if default value was instance of configuration, use it as embedded initial
-            embedded_config = default_value
-            default_value = None
-        elif isinstance(value, BaseConfiguration):
-            # if resolved value is instance of configuration (typically returned by context provider)
-            embedded_config = value
-            default_value = None
-            value = None
+        if isinstance(explicit_value, BaseConfiguration) and explicit_value.is_resolved():
+            # explicit value was resolved so use it as it is
+            pass
         else:
-            embedded_config = inner_hint()
-
-        if embedded_config.is_resolved():
-            # print(f"{embedded_config} IS RESOLVED with VALUE {value}")
-            # injected context will be resolved
-            if value is not None:
-                from_native_explicit = _maybe_parse_native_value(
-                    embedded_config, value, embedded_sections + (key,)
-                )
-                if from_native_explicit is not value:
-                    embedded_config.update(from_native_explicit)
-            value = embedded_config
-        else:
+            if default_value is not None:
+                # parse default value and use it as embedded config
+                if not isinstance(default_value, BaseConfiguration):
+                    embedded_config = inner_hint()
+                    _maybe_parse_native_value(embedded_config, default_value, embedded_sections)
+                else:
+                    # if default value was instance of configuration, use it as embedded initial
+                    # NOTE: we do not deep copy default value. dataclasses force factories or immutable objects
+                    embedded_config = default_value
+            else:
+                embedded_config = inner_hint()
             # only config with sections may look for initial values
-            if embedded_config.__section__ and value is None:
+            # TODO: all this code can be moved into _resolve_configuration
+            # TODO: also allow when explicit_value is dict so we can parse initial value and merge with it
+            if embedded_config.__section__ and explicit_value is None:
                 # config section becomes the key if the key does not start with, otherwise it keeps its original value
                 initial_key, initial_embedded = _apply_embedded_sections_to_config_sections(
                     embedded_config.__section__, embedded_sections + (key,)
@@ -369,22 +389,20 @@ def _resolve_config_field(
                     if isinstance(embedded_config, CredentialsConfiguration)
                     else AnyType
                 )
-                value, initial_traces = _resolve_single_value(
+                initial_value, initial_traces = _resolve_single_value(
                     initial_key, initial_hint, AnyType, None, explicit_sections, initial_embedded
                 )
-                if isinstance(value, C_Mapping):
-                    # mappings are not passed as initials
-                    value = None
-                else:
+                if initial_value is not None and not isinstance(initial_value, C_Mapping):
                     traces.extend(initial_traces)
                     log_traces(
                         config,
                         initial_key,
                         type(embedded_config),
-                        value,
+                        initial_value,
                         default_value,
                         initial_traces,
                     )
+                    explicit_value = initial_value
 
             # check if hint optional
             is_optional = is_optional_type(hint)
@@ -392,17 +410,19 @@ def _resolve_config_field(
             accept_partial = accept_partial or is_optional
             # create new instance and pass value from the provider as initial, add key to sections
             # if current config has section, propagate it
-            sec_ = (config_sections,) if config_sections else ()
+            sec_ = (config_section,) if config_section else ()
+
             value = _resolve_configuration(
                 embedded_config,
                 explicit_sections,
                 embedded_sections + sec_ + (key,),
-                default_value if value is None else value,
+                explicit_value,
                 accept_partial,
             )
             if value.is_partial() and is_optional:
                 # do not return partially resolved optional embeds
                 value = None
+                default_value = None
     else:
         # if value is resolved, then deserialize and coerce it
         if value is not None:

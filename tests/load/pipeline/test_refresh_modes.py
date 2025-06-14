@@ -14,7 +14,6 @@ from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
 from tests.utils import clean_test_storage, TEST_STORAGE_ROOT
 from tests.pipeline.utils import (
-    _is_filesystem,
     assert_load_info,
     load_table_counts,
     load_tables_to_dicts,
@@ -114,11 +113,6 @@ def refresh_source(first_run: bool = True, drop_sources: bool = False):
 def test_refresh_drop_sources(
     destination_config: DestinationTestConfiguration, in_source: bool, with_wipe: bool
 ):
-    # do not place duckdb in the working dir, because we may wipe it
-    os.environ["DESTINATION__DUCKDB__CREDENTIALS"] = os.path.join(
-        TEST_STORAGE_ROOT, "refresh_source_db.duckdb"
-    )
-
     pipeline = destination_config.setup_pipeline("refresh_source")
 
     data: Any = refresh_source(first_run=True, drop_sources=True)
@@ -234,10 +228,6 @@ def test_existing_schema_hash(destination_config: DestinationTestConfiguration):
 def test_refresh_drop_resources(
     destination_config: DestinationTestConfiguration, in_source: bool, with_wipe: bool
 ):
-    # do not place duckdb in the working dir, because we may wipe it
-    os.environ["DESTINATION__DUCKDB__CREDENTIALS"] = os.path.join(
-        TEST_STORAGE_ROOT, "refresh_source_db.duckdb"
-    )
     # First run pipeline with load to destination so tables are created
     pipeline = destination_config.setup_pipeline("refresh_source")
 
@@ -589,12 +579,8 @@ def test_refresh_staging_dataset(destination_config: DestinationTestConfiguratio
     assert_load_info(info)
 
     # tables got dropped
-    if _is_filesystem(pipeline):
-        assert load_table_counts(pipeline, "data_1", "data_2") == {}
-    else:
-        with pytest.raises(DestinationUndefinedEntity):
-            load_table_counts(pipeline, "data_1", "data_2")
-    load_table_counts(pipeline, "data_1_v2", "data_1_v2")
+    with pytest.raises(DestinationUndefinedEntity):
+        load_table_counts(pipeline, "data_1", "data_2")
 
 
 @pytest.mark.parametrize(

@@ -146,6 +146,13 @@ def schema_command_wrapper(file_path: str, format_: str, remove_defaults: bool) 
     fmt.echo(schema_str)
 
 
+@utils.track_command("studio", True)
+def studio_command_wrapper() -> None:
+    from dlt.helpers.studio.runner import run_studio
+
+    run_studio()
+
+
 @utils.track_command("telemetry", False)
 def telemetry_status_command_wrapper() -> None:
     telemetry_status_command()
