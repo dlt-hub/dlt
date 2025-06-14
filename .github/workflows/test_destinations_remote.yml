@@ -70,7 +70,7 @@ jobs:
               destinations: "[\"filesystem\"]"
               # note that all buckets are enabled for testing
               filesystem_drivers: "[\"memory\", \"file\", \"r2\", \"s3\"]" # excludes sftp which is run in local tests
-              extras: "s3parquet duckdb filesystem deltalake pyiceberg"
+              extras: "s3 parquet duckdb filesystem deltalake pyiceberg"
               post_install_commands: "poetry run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
 
             - name: filesystem_az
