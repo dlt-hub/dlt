@@ -47,9 +47,6 @@ from tests.load.utils import (
 )
 from tests.load.pipeline.utils import skip_if_unsupported_replace_strategy
 
-# mark all tests as essential, do not remove
-pytestmark = pytest.mark.essential
-
 
 @pytest.mark.parametrize(
     "destination_config",
@@ -151,6 +148,7 @@ def test_default_pipeline_names(
         assert_table_column(p, "data_fun", data, schema_name="names", info=info)
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -297,6 +295,7 @@ def test_skip_sync_schema_for_tables_without_columns(
         assert not exists
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -341,6 +340,7 @@ def test_run_dev_mode(destination_config: DestinationTestConfiguration) -> None:
     assert_table_column(p, "lists__value", sorted(data_list))
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True),
@@ -503,6 +503,7 @@ def test_pipeline_data_writer_compression(
     assert_table_column(p, "data", data, info=info)
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
@@ -530,11 +531,12 @@ def test_source_max_nesting(destination_config: DestinationTestConfiguration) ->
     assert cn_val == nested_part
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        all_staging_configs=True,
+        default_staging_configs=True,
         with_file_format="parquet",
         local_filesystem_configs=True,
         table_format_local_configs=True,

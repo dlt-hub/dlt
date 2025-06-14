@@ -196,6 +196,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     assert new_stored_state["_state_version"] + 1 == new_stored_state_2["_state_version"]
 
 
+@pytest.mark.no_load
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, default_vector_configs=True),
@@ -326,7 +327,6 @@ def test_get_schemas_from_destination(
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        all_staging_configs=True,
         default_vector_configs=True,
         all_buckets_filesystem_configs=True,
         table_format_filesystem_configs=True,

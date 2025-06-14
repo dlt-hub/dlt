@@ -48,7 +48,6 @@ from tests.load.utils import (
 )
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -255,7 +254,6 @@ def test_merge_record_updates(
     )
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -373,7 +371,6 @@ def test_merge_primary_key_normalization(
         )
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -512,7 +509,6 @@ def test_merge_nested_records_inserted_deleted(
     )
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -773,8 +769,6 @@ def test_merge_no_child_tables(destination_config: DestinationTestConfiguration)
     assert github_2_counts["issues"] == 100 if destination_config.supports_merge else 115
 
 
-# mark as essential for now
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
@@ -883,6 +877,48 @@ def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration)
 
     github_1_counts = load_table_counts(p)
     assert github_1_counts["issues"] == 100
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        subset=("postgres", "athena", "sqlalchemy"),
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("max_table_nesting", (0, 1))
+def test_pipeline_disable_deduplication(
+    destination_config: DestinationTestConfiguration, max_table_nesting: int
+) -> None:
+    pipeline = destination_config.setup_pipeline("github_3", dev_mode=True)
+    # do not save state to destination so jobs counting is easier
+    pipeline.config.restore_from_destination = False
+    github_data = github()
+    # generate some nested types
+    github_data.max_table_nesting = max_table_nesting
+    github_data_copy = github()
+    github_data_copy.max_table_nesting = max_table_nesting
+
+    # disable deduplication
+    pipeline.run(
+        [github_data, github_data_copy],
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "delete-insert",
+            "deduplicated": True,
+        },
+        **destination_config.run_kwargs,
+    )
+    github_1_counts = load_table_counts(pipeline)
+    # dedup disabled
+    assert github_1_counts["issues"] == 200
+    # make sure we get expected number of tables
+    assert len(github_1_counts) == 1 if max_table_nesting == 0 else 3
+    if max_table_nesting == 1:
+        assert github_1_counts["issues__labels"] == 68
+        assert github_1_counts["issues__assignees"] == 62
 
 
 @dlt.transformer(

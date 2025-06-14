@@ -66,11 +66,25 @@ jobs:
               extras: "databricks s3 gs az parquet"
 
             # Filesystem
-            - name: filesystem
+            - name: filesystem_s3_local
               destinations: "[\"filesystem\"]"
               # note that all buckets are enabled for testing
-              filesystem_drivers: "[\"memory\", \"file\", \"r2\", \"s3\", \"gs\", \"az\", \"abfss\", \"gdrive\"]" # excludes sftp which is run in local tests
-              extras: "gs s3 az parquet duckdb filesystem deltalake pyiceberg"
+              filesystem_drivers: "[\"memory\", \"file\", \"r2\", \"s3\"]" # excludes sftp which is run in local tests
+              extras: "s3parquet duckdb filesystem deltalake pyiceberg"
+              post_install_commands: "poetry run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
+
+            - name: filesystem_az
+              destinations: "[\"filesystem\"]"
+              # note that all buckets are enabled for testing
+              filesystem_drivers: "[\"memory\", \"az\", \"abfss\"]" # excludes sftp which is run in local tests
+              extras: "az parquet duckdb filesystem deltalake pyiceberg"
+              post_install_commands: "poetry run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
+
+            - name: filesystem_gs_gdrive
+              destinations: "[\"filesystem\"]"
+              # note that all buckets are enabled for testing
+              filesystem_drivers: "[\"memory\", \"gs\", \"gdrive\"]" # excludes sftp which is run in local tests
+              extras: "gs parquet duckdb filesystem deltalake pyiceberg"
               post_install_commands: "poetry run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
 
             # LanceDB
