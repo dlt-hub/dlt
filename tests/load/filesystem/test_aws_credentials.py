@@ -1,14 +1,18 @@
 import pytest
-from typing import Dict
+from typing import Any, Dict
 
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration
 from dlt.common.utils import digest128
 from dlt.common.configuration import resolve_configuration
-from dlt.common.configuration.specs.aws_credentials import AwsCredentials
+from dlt.common.configuration.specs.aws_credentials import (
+    AwsCredentials,
+    AwsCredentialsWithoutDefaults,
+)
 from dlt.common.configuration.specs.exceptions import InvalidBoto3Session
 
 from tests.common.configuration.utils import environment
-from tests.load.utils import ALL_FILESYSTEM_DRIVERS
+from tests.load.filesystem.utils import can_connect_pyiceberg_fileio_config, fs_creds
+from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AWS_BUCKET, R2_BUCKET_CONFIG
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -157,6 +161,73 @@ def test_explicit_filesystem_credentials() -> None:
     config = p.destination_client().config
     assert isinstance(config.credentials, AwsCredentials)
     assert config.credentials.is_resolved()
+
+
+def test_aws_credentials_pyiceberg_export_import(fs_creds: Dict[str, Any]) -> None:
+    """test that AWS credentials can be exported to PyIceberg config and imported back."""
+    # test AwsCredentialsWithoutDefaults
+    original_creds = AwsCredentialsWithoutDefaults(
+        aws_access_key_id=fs_creds["aws_access_key_id"],
+        aws_secret_access_key=fs_creds["aws_secret_access_key"],
+        region_name=fs_creds.get("region_name"),
+    )
+
+    # export to PyIceberg config
+    pyiceberg_config = original_creds.to_pyiceberg_fileio_config()
+
+    # config should contain required fields with correct values
+    assert "s3.access-key-id" in pyiceberg_config
+    assert pyiceberg_config["s3.access-key-id"] == fs_creds["aws_access_key_id"]
+    assert "s3.secret-access-key" in pyiceberg_config
+    assert pyiceberg_config["s3.secret-access-key"] == fs_creds["aws_secret_access_key"]
+    assert "s3.region" in pyiceberg_config
+    assert pyiceberg_config["s3.region"] == fs_creds.get("region_name")
+
+    # import back from PyIceberg config
+    imported_creds = AwsCredentialsWithoutDefaults.from_pyiceberg_fileio_config(pyiceberg_config)
+
+    # verify credentials were restored correctly
+    assert imported_creds.aws_access_key_id == original_creds.aws_access_key_id
+    assert imported_creds.aws_secret_access_key == original_creds.aws_secret_access_key
+    assert imported_creds.region_name == original_creds.region_name
+
+    # test connection using imported credentials
+    assert can_connect_pyiceberg_fileio_config(AWS_BUCKET, pyiceberg_config)
+
+
+def test_aws_r2_credentials_pyiceberg_export_import() -> None:
+    """test that AWS R2 credentials can be exported to PyIceberg config and imported back."""
+    # skip if R2 bucket config is not available
+    if not R2_BUCKET_CONFIG:
+        pytest.skip("R2 bucket configuration not available")
+
+    fs_creds: Dict[str, Any] = R2_BUCKET_CONFIG["credentials"]  # type: ignore[assignment]
+
+    # test AwsCredentialsWithoutDefaults for R2
+    original_creds = AwsCredentialsWithoutDefaults(
+        aws_access_key_id=fs_creds["aws_access_key_id"],
+        aws_secret_access_key=fs_creds["aws_secret_access_key"],
+        endpoint_url=fs_creds.get("endpoint_url"),
+    )
+
+    # export to PyIceberg config
+    pyiceberg_config = original_creds.to_pyiceberg_fileio_config()
+
+    # config should contain required fields with correct values
+    assert "s3.access-key-id" in pyiceberg_config
+    assert pyiceberg_config["s3.access-key-id"] == fs_creds["aws_access_key_id"]
+    assert "s3.secret-access-key" in pyiceberg_config
+    assert pyiceberg_config["s3.secret-access-key"] == fs_creds["aws_secret_access_key"]
+    assert "s3.endpoint" in pyiceberg_config
+    assert pyiceberg_config["s3.endpoint"] == fs_creds.get("endpoint_url")
+
+    # import back from PyIceberg config
+    imported_creds = AwsCredentialsWithoutDefaults.from_pyiceberg_fileio_config(pyiceberg_config)
+
+    # verify credentials were restored correctly
+    assert imported_creds.aws_access_key_id == original_creds.aws_access_key_id
+    assert imported_creds.aws_secret_access_key == original_creds.aws_secret_access_key
+    assert imported_creds.endpoint_url == original_creds.endpoint_url
 
 
 def set_aws_credentials_env(environment: Dict[str, str]) -> None:

@@ -2,9 +2,10 @@ import os
 import posixpath
 import tempfile
 from contextlib import contextmanager
-from typing import Iterator
+from typing import Dict, Iterator
 from typing import List, Sequence, Tuple
 
+from pyparsing import Any
 import pytest
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -103,3 +104,34 @@ def self_signed_cert() -> Iterator[str]:
     yield cert_path
 
     os.remove(cert_path)
+
+
+@pytest.fixture
+def fs_creds() -> Dict[str, Any]:
+    """Injects filesystem credentials lazily"""
+
+    import dlt
+
+    creds: Dict[str, Any] = dlt.secrets.get("destination.filesystem.credentials")
+    if creds is None:
+        pytest.skip(
+            msg="`destination.filesystem.credentials` must be configured for these tests.",
+        )
+    return creds
+
+
+def can_connect_pyiceberg_fileio_config(
+    bucket_url: str, pyiceberg_fileio_config: Dict[str, str]
+) -> bool:
+    from pyiceberg.table import StaticTable
+
+    try:
+        StaticTable.from_metadata(
+            f"{bucket_url}/non_existing_metadata_file.json",
+            properties=pyiceberg_fileio_config,
+        )
+    except FileNotFoundError:
+        # this error implies the connection was successful
+        # there is no Iceberg metadata file at the specified path
+        return True
+    return False

@@ -667,6 +667,7 @@ def test_max_column_identifier_length(client: SqlJobClientBase) -> None:
 def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     if client.capabilities.supports_transactions is False:
         pytest.skip("Destination does not support tx")
+
     client.schema._bump_version()
     client.update_stored_schema()
     version_table = client.sql_client.make_qualified_table_name("_dlt_version")
@@ -684,6 +685,7 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     statements = ["BEGIN TRANSACTION;", f"INVERT INTO {version_table} VALUES(1);", "COMMIT;"]
     with pytest.raises(DatabaseTransientException):
         client.sql_client.execute_many(statements)
+
     # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "ProgrammingError")
     assert client.get_stored_schema(client.schema.name) is not None
     client.complete_load("EFG")
@@ -705,6 +707,19 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     assert client.get_stored_schema(client.schema.name) is not None
     client.complete_load("HJK")
     assert_load_id(client.sql_client, "HJK")
+
+    # again but with transaction scope
+    statements = [
+        f"INSERT INTO {version_table}(version) VALUES(1);",
+        "COMMIT;",
+    ]
+    # cannot insert NULL value
+    with pytest.raises(DatabaseTerminalException):
+        with client.sql_client.begin_transaction():
+            client.sql_client.execute_many(statements)
+
+    client.complete_load("LMN")
+    assert_load_id(client.sql_client, "LMN")
 
 
 def assert_load_id(sql_client: SqlClientBase[TNativeConn], load_id: str) -> None:

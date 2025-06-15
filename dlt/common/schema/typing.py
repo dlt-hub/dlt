@@ -256,6 +256,10 @@ class TMergeDispositionDict(TWriteDispositionDict):
     strategy: Optional[TLoaderMergeStrategy]
 
 
+class TDeleteInsertStrategyDict(TMergeDispositionDict):
+    deduplicated: Optional[bool]
+
+
 class TScd2StrategyDict(TMergeDispositionDict, total=False):
     validity_column_names: Optional[List[str]]
     active_record_timestamp: Optional[TAnyDateTime]
@@ -264,7 +268,11 @@ class TScd2StrategyDict(TMergeDispositionDict, total=False):
 
 
 TWriteDispositionConfig = Union[
-    TWriteDisposition, TWriteDispositionDict, TMergeDispositionDict, TScd2StrategyDict
+    TWriteDisposition,
+    TWriteDispositionDict,
+    TMergeDispositionDict,
+    TScd2StrategyDict,
+    TDeleteInsertStrategyDict,
 ]
 
 

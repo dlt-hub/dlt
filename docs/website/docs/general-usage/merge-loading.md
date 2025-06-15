@@ -42,18 +42,6 @@ def resource():
     ...
 ```
 
-By default, `primary_key` deduplication is arbitrary. You can pass the `dedup_sort` column hint with a value of `desc` or `asc` to influence which record remains after deduplication. Using `desc`, the records sharing the same `primary_key` are sorted in descending order before deduplication, making sure the record with the highest value for the column with the `dedup_sort` hint remains. `asc` has the opposite behavior.
-
-```py
-@dlt.resource(
-    primary_key="id",
-    write_disposition="merge",
-    columns={"created_at": {"dedup_sort": "desc"}}  # select "latest" record
-)
-def resource():
-    ...
-```
-
 Example below merges on a column `batch_day` that holds the day for which the given record is valid.
 Merge keys also can be compound:
 
@@ -90,6 +78,20 @@ def github_repo_events(last_created_at = dlt.sources.incremental("created_at", "
 If you use the `merge` write disposition, but do not specify merge or primary keys, merge will fallback to `append`.
 The appended data will be inserted from a staging table in one transaction for most destinations in this case.
 :::
+
+### Control deduplication of staging data
+
+By default, `primary_key` deduplication is arbitrary. You can pass the `dedup_sort` column hint with a value of `desc` or `asc` to influence which record remains after deduplication. Using `desc`, the records sharing the same `primary_key` are sorted in descending order before deduplication, making sure the record with the highest value for the column with the `dedup_sort` hint remains. `asc` has the opposite behavior.
+
+```py
+@dlt.resource(
+    primary_key="id",
+    write_disposition="merge",
+    columns={"created_at": {"dedup_sort": "desc"}}  # select "latest" record
+)
+def resource():
+    ...
+```
 
 **Example: deduplication with timestamp based sorting**
 
@@ -129,6 +131,16 @@ When this resource is executed, the following deduplication rules are applied:
 2. For records with identical values in the `dedup_sort` column:
    - The first occurrence encountered is kept.
    - For example, between records with id=2 and identical `"metadata_modified"="2024-01-01"`, the first record (value="C") is kept.
+
+### Disable deduplication
+If staging data is already deduplicated (or was always clean) you can disable it. Deduplication is preformed by the database backend so you
+may save some costs:
+
+```py
+@dlt.resource(primary_key="id", write_disposition={"disposition": "merge", "strategy": "delete-insert", "deduplicated": True})
+def github_repo_events():
+    yield from _get_event_pages()
+```
 
 ### Delete records
 The `hard_delete` column hint can be used to delete records from the destination dataset. The behavior of the delete mechanism depends on the data type of the column marked with the hint:

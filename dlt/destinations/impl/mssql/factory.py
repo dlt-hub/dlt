@@ -105,6 +105,7 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
         caps.max_text_data_type_length = 2**30 - 1
         caps.is_max_text_data_type_length_in_bytes = False
         caps.supports_ddl_transactions = True
+        caps.supports_multiple_statements = True
         caps.supports_create_table_if_not_exists = False  # IF NOT EXISTS not supported
         caps.max_rows_per_insert = 1000
         caps.timestamp_precision = 7
