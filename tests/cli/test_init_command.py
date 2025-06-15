@@ -63,7 +63,16 @@ CORE_SOURCES_CONFIG = {
 CORE_SOURCES = list(CORE_SOURCES_CONFIG.keys())
 
 # we also hardcode all the templates here for testing
-TEMPLATES = ["debug", "default", "arrow", "requests", "dataframe", "fruitshop", "github_api"]
+TEMPLATES = [
+    "debug",
+    "default",
+    "arrow",
+    "requests",
+    "dataframe",
+    "fruitshop",
+    "github_api",
+    "vibe_rest_api",
+]
 
 # a few verified sources we know to exist
 SOME_KNOWN_VERIFIED_SOURCES = ["chess", "google_sheets", "pipedrive"]
@@ -293,7 +302,7 @@ def test_init_core_sources_ejected(cloned_init_repo: FileStorage) -> None:
             assert files.has_folder(candidate)
 
 
-def test_init_writes_example_config_placeholders(repo_dir: str) -> None:
+def test_init_writes_example_config_placeholders(repo_dir: str, project_files: FileStorage) -> None:
     init_command.init_command("filesystem", "bigquery", repo_dir)
     # check that written secret of type string was replaced with correct placeholder value
     secrets = SecretsTomlProvider(settings_dir=dlt.current.run_context().settings_dir)
