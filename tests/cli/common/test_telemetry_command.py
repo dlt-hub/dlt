@@ -136,12 +136,12 @@ def test_command_instrumentation() -> None:
 
 
 def test_instrumentation_wrappers() -> None:
+    from dlt.cli import (
+        DEFAULT_VERIFIED_SOURCES_REPO,
+    )
     from dlt.cli.deploy_command import (
         DeploymentMethods,
         COMMAND_DEPLOY_REPO_LOCATION,
-    )
-    from dlt.cli.init_command import (
-        DEFAULT_VERIFIED_SOURCES_REPO,
     )
     from dlt.cli.command_wrappers import (
         init_command_wrapper,
