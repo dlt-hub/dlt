@@ -5,10 +5,7 @@ import dlt.cli.echo as fmt
 
 
 from dlt.common.configuration import plugins
-from dlt.cli import SupportsCliCommand
-from dlt.cli.init_command import (
-    DEFAULT_VERIFIED_SOURCES_REPO,
-)
+from dlt.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
 from dlt.cli.exceptions import CliCommandException
 from dlt.cli.command_wrappers import (
     init_command_wrapper,
