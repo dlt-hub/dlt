@@ -9,7 +9,6 @@ import dlt.destinations
 from dlt.common import git
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.providers import (
-    CONFIG_TOML,
     SECRETS_TOML,
     ConfigTomlProvider,
     SecretsTomlProvider,
@@ -28,8 +27,10 @@ from dlt.sources import SourceReference
 import dlt.reflection.names as n
 from dlt.reflection.script_inspector import import_pipeline_script
 
-from dlt.cli import echo as fmt, pipeline_files as files_ops, source_detection
-from dlt.cli import utils
+from dlt.cli import echo as fmt, pipeline_files as files_ops, source_detection, utils
+
+# keep it for backward compat
+from dlt.cli import DEFAULT_VERIFIED_SOURCES_REPO
 from dlt.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.cli.pipeline_files import (
     TEMPLATE_FILES,
