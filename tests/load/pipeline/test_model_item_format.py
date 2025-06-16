@@ -150,22 +150,22 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
     # Define a resource that aliases column "a" as "b"
     @dlt.resource()
     def copied_table_with_a_as_b() -> Any:
-        query = dataset["example_table"][["a", "_dlt_load_id", "_dlt_id"]].query()
-        # Parse into AST
-        parsed = sqlglot.parse_one(query, read=select_dialect)
-        # Get first expression in the SELECT statement (e.g "a")
-        query = parsed.sql(select_dialect)
-        first_expr = parsed.expressions[0]
-        # Clickhouse aliases by default, so special handling is needed
-        if isinstance(first_expr, sqlglot.exp.Alias):
-            original_expr = first_expr.this
-        else:
-            original_expr = first_expr
-        # Wrap the first expression with an alias: "a AS b"
-        parsed.expressions[0] = sqlglot.exp.Alias(this=original_expr, alias="b")
-        # Convert back to an SQL
-        query = parsed.sql(select_dialect)
-        sql_model = SqlModel.from_query_string(query=query, dialect=select_dialect)
+        rel = dataset("SELECT a as b, _dlt_load_id, _dlt_id FROM example_table")
+        # parsed = rel._qualified_query
+
+        # # sqlglot.parse_one(query, read=select_dialect)
+        # # Get first expression in the SELECT statement (e.g "a")
+        # first_expr = parsed.expressions[0]
+        # # Clickhouse aliases by default, so special handling is needed
+        # if isinstance(first_expr, sqlglot.exp.Alias):
+        #     original_expr = first_expr.this
+        # else:
+        #     original_expr = first_expr
+        # # Wrap the first expression with an alias: "a AS b"
+        # parsed.expressions[0] = sqlglot.exp.Alias(this=original_expr, alias="b")
+        # # Convert back to an SQL
+        # query = rel.query()
+        sql_model = SqlModel.from_query_string(query=rel.query(), dialect=select_dialect)
         yield dlt.mark.with_hints(
             sql_model,
             hints=make_hints(columns={k: v for k, v in example_table_columns.items() if k != "a"}),
@@ -373,13 +373,12 @@ def test_model_from_two_tables(destination_config: DestinationTestConfiguration,
         table_format=destination_config.run_kwargs["table_format"],
     )
 
-    casefold = pipeline.sql_client().capabilities.casefold_identifier
     df = dataset["merged_table"].df()
 
     assert len(df) == 11
-    assert sum(df[casefold("a")].to_list()) == 19  # -1 + 2 * (0 + 1 + 2 + 3 + 4)
-    assert df[casefold("b")].dropna().sum() == 59  # -1 + 11 + 12 + 13 + 14 + 15
-    assert df[casefold("c")].dropna().sum() == 109  # -1 + 21 + 22 + 23 + 24 + 25
+    assert sum(df["a"].to_list()) == 19  # -1 + 2 * (0 + 1 + 2 + 3 + 4)
+    assert df["b"].dropna().sum() == 59  # -1 + 11 + 12 + 13 + 14 + 15
+    assert df["c"].dropna().sum() == 109  # -1 + 21 + 22 + 23 + 24 + 25
 
 
 @pytest.mark.parametrize(
@@ -447,13 +446,12 @@ def test_model_from_two_consecutive_tables(destination_config: DestinationTestCo
         "_dlt_load_id",
     }
 
-    casefold = pipeline.sql_client().capabilities.casefold_identifier
     df = dataset["result_table"].df()
 
     assert len(df) == 10
-    assert sum(df[casefold("a")].to_list()) == 20  # 2 * (0 + 1 + 2 + 3 + 4)
-    assert df[casefold("b")].dropna().sum() == 60  # 11 + 12 + 13 + 14 + 15
-    assert df[casefold("c")].dropna().sum() == 110  # 21 + 22 + 23 + 24 + 25
+    assert sum(df["a"].to_list()) == 20  # 2 * (0 + 1 + 2 + 3 + 4)
+    assert df["b"].dropna().sum() == 60  # 11 + 12 + 13 + 14 + 15
+    assert df["c"].dropna().sum() == 110  # 21 + 22 + 23 + 24 + 25
 
 
 @pytest.mark.essential

@@ -92,7 +92,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         # set additional connection options so derived class can change it
         # TODO: move that to methods that can be overridden, include local_config
         self._pragmas = ["enable_checkpoint_on_shutdown"]
-        self._global_config = {
+        self._global_config: Dict[str, Any] = {
             "TimeZone": "UTC",
             "checkpoint_threshold": "1gb",
         }
@@ -425,6 +425,13 @@ class WithTableScanners(DuckDbSqlClient):
         self.remote_client = remote_client
         self.schema = remote_client.schema
         self.persist_secrets = persist_secrets
+        self._global_config.update(
+            {
+                "parquet_metadata_cache": True,
+                # prevents HEAD command by caching parquet metadata
+                "enable_http_metadata_cache": True,
+            }
+        )
 
     def open_connection(self) -> duckdb.DuckDBPyConnection:
         # we keep the in memory instance around, so if this prop is set, return it
