@@ -203,20 +203,21 @@ def section_schema(
         for table in dlt_schema_table_list.value:  # type: ignore[union-attr,unused-ignore]
             _table_name = table["name"]  # type: ignore[index,unused-ignore]
             _result.append(mo.md(strings.schema_table_columns_title.format(_table_name)))
+            columns_list = utils.create_column_list(
+                dlt_config,
+                dlt_pipeline,
+                _table_name,
+                show_internals=dlt_schema_show_dlt_columns.value,
+                show_type_hints=dlt_schema_show_type_hints.value,
+                show_other_hints=dlt_schema_show_other_hints.value,
+                show_custom_hints=dlt_schema_show_custom_hints.value,
+            )
             _result.append(
                 mo.ui.table(
-                    utils.create_column_list(
-                        dlt_config,
-                        dlt_pipeline,
-                        _table_name,
-                        show_internals=dlt_schema_show_dlt_columns.value,
-                        show_type_hints=dlt_schema_show_type_hints.value,
-                        show_other_hints=dlt_schema_show_other_hints.value,
-                        show_custom_hints=dlt_schema_show_custom_hints.value,
-                    ),
+                    columns_list,
                     selection=None,
                     style_cell=utils.style_cell,
-                    freeze_columns_left=["name"],
+                    freeze_columns_left=["name"] if len(columns_list) > 0 else None,
                 )
             )
 
@@ -849,8 +850,8 @@ def ui_primary_controls(
         dlt_schema_table_list = mo.ui.table(
             _table_list,  # type: ignore[arg-type,unused-ignore]
             style_cell=utils.style_cell,
-            initial_selection=[0],
-            freeze_columns_left=["name"],
+            initial_selection=[0] if len(_table_list) > 0 else None,
+            freeze_columns_left=["name"] if len(_table_list) > 0 else None,
         )
 
     #
@@ -858,17 +859,18 @@ def ui_primary_controls(
     #
     dlt_data_table_list: mo.ui.table = None
     if dlt_section_browse_data_switch.value and dlt_pipeline and dlt_pipeline.default_schema_name:
+        table_list = utils.create_table_list(
+            dlt_config,
+            dlt_pipeline,
+            show_internals=dlt_schema_show_dlt_tables.value,
+            show_child_tables=dlt_schema_show_child_tables.value,
+            show_row_counts=dlt_schema_show_row_counts.value,
+        )
         dlt_data_table_list = mo.ui.table(
-            utils.create_table_list(  # type: ignore[arg-type,unused-ignore]
-                dlt_config,
-                dlt_pipeline,
-                show_internals=dlt_schema_show_dlt_tables.value,
-                show_child_tables=dlt_schema_show_child_tables.value,
-                show_row_counts=dlt_schema_show_row_counts.value,
-            ),
+            table_list,  # type: ignore[arg-type,unused-ignore]
             style_cell=utils.style_cell,
             selection="single",
-            freeze_columns_left=["name"],
+            freeze_columns_left=["name"] if len(table_list) > 0 else None,
         )
 
     #
