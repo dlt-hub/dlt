@@ -18,12 +18,10 @@ keywords: [rest api, restful api, headers, response actions, advanced configurat
 
 The REST API source supports configuring custom headers at both the client level and the endpoint level. This allows you to send additional HTTP headers with your API requests, which is useful for some use cases.
 
-#### Basic headers configuration
-
 Headers can be configured in two places:
 
-1. [Client-level headers](./basic.md#client-level-headers): Static headers applied to all requests for all resources.
-2. [Endpoint-level headers](./basic.md#endpoint-level-headers): Headers applied only to requests for a specific resource (support placeholder interpolation). These are also can be specified via `resource_defaults`.
+1. [Client-level headers](#client-level-headers): Static headers applied to all requests for all resources.
+2. [Endpoint-level headers](#endpoint-level-headers): Headers applied only to requests for a specific resource (support placeholder interpolation). These are also can be specified via `resource_defaults`.
 
 When both client-level and endpoint-level headers are specified, endpoint-level headers override client-level headers for the same header names.
 
@@ -72,7 +70,7 @@ config: RESTAPIConfig = {
 
 #### Dynamic headers with placeholders
 
-[Endpoint-level headers](./basic.md#endpoint-level-headers) support dynamic values using placeholder interpolation. This allows you to reference data from parent resources and incremental values.
+[Endpoint-level headers](#endpoint-level-headers) support dynamic values using placeholder interpolation. This allows you to reference data from parent resources and incremental values.
 
 :::note
 Client-level headers do not support placeholder interpolation. If you need dynamic headers with placeholders, you must define them at the endpoint level.
