@@ -1,5 +1,6 @@
 import pytest
 from copy import deepcopy
+import re
 
 import dlt
 from dlt.common.schema.typing import LOADS_TABLE_NAME, PIPELINE_STATE_TABLE_NAME, VERSION_TABLE_NAME
@@ -145,17 +146,70 @@ def test_drop_helper_utils_drop_columns(seen_data: bool) -> None:
         pipeline.extract(source)
 
     # drop nothing
-    drop_info = drop_columns(pipeline.default_schema.clone())
-    assert drop_info.modified_tables == []
-    assert drop_info.info["tables"] == []
+    drop_result = drop_columns(pipeline.default_schema.clone())
+    assert drop_result.modified_tables == []
+    assert drop_result.info["tables"] == []
 
     # attempt to drop all droppable columns
-    drop_info = drop_columns(schema=pipeline.default_schema.clone(), columns=["re:.*"])
+    drop_result = drop_columns(schema=pipeline.default_schema.clone(), columns=["re:.*"])
     # nothing should be selected as the source doesn't have droppable columns
-    assert drop_info.modified_tables == []
-    assert drop_info.info["tables"] == []
+    assert drop_result.modified_tables == []
+    assert drop_result.info["tables"] == []
 
-    # TODO
+    # add a droppable columns to the peacock and wide_peacock resources
+    def add_droppable_column(data_item):
+        data_item["droppable_col1"] = 1
+        data_item["droppable_col2"] = 1
+        return data_item
+
+    source.resources["🦚Peacock"].add_map(add_droppable_column)
+    if seen_data:
+        pipeline.run(source)
+    else:
+        pipeline.extract(source)
+
+    drop_result = drop_columns(schema=pipeline.default_schema.clone(), columns=["re:.*"])
+    if seen_data:
+        assert drop_result.modified_tables[0]["name"] == "_peacock"
+        assert drop_result.info["tables"] == ["_peacock"]
+        assert drop_result.info["tables_with_data"] == ["_peacock"]
+        assert drop_result.info["resource_states"] == []
+        assert drop_result.info["state_paths"] == []
+        assert drop_result.info["resource_names"] == ["🦚Peacock"]
+        assert len(drop_result.info["warnings"]) == 3
+        assert (
+            "After dropping matched droppable columns ['value'] from table '_wide_peacock__peacock'"
+            " only internal dlt columns will remain. This is not allowed."
+            in drop_result.info["warnings"]
+        )
+        assert (
+            "After dropping matched droppable columns ['value'] from table '_peacock__peacock' only"
+            " internal dlt columns will remain. This is not allowed."
+            in drop_result.info["warnings"]
+        )
+        assert (
+            "After dropping matched droppable columns ['value'] from table '_schedule' only"
+            " internal dlt columns will remain. This is not allowed."
+            in drop_result.info["warnings"]
+        )
+        assert drop_result.info["schema_name"] == "airtable_emojis"
+        assert drop_result.info["drop_all"] is False
+        assert drop_result.info["resource_pattern"] == re.compile(".*")
+        assert drop_result.info["drop_columns"] is True
+        assert "droppable_col1" not in drop_result.schema.get_table_columns("_peacock")
+        assert "droppable_col2" not in drop_result.schema.get_table_columns("_peacock")
+    else:
+        assert drop_result.modified_tables == []
+        assert drop_result.info["tables"] == []
+        assert drop_result.info["tables_with_data"] == []
+        assert drop_result.info["resource_states"] == []
+        assert drop_result.info["state_paths"] == []
+        assert drop_result.info["resource_names"] == []
+        assert drop_result.info["warnings"] == []
+        assert drop_result.info["schema_name"] == "airtable_emojis"
+        assert drop_result.info["drop_all"] is False
+        assert drop_result.info["resource_pattern"] == re.compile(".*")
+        assert drop_result.info["drop_columns"] is False
 
 
 def test_drop_unknown_resource() -> None:
