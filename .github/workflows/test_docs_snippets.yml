@@ -54,50 +54,37 @@ jobs:
       - name: Start weaviate
         run:  docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.10.x"
-
       - name: Setup node 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1.3.2
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-          installer-parallel: true
-          version: 1.8.5
+          python-version: "3.10"
 
-      # - name: Load cached venv
-      #   id: cached-poetry-dependencies
-      #   uses: actions/cache@v3
-      #   with:
-      #     path: .venv
-      #     key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.10"
+          activate-environment: true
+          enable-cache: true
 
       - name: Install dlt-plus nightly devel build without cache
-        run: poetry run pip install --upgrade --force-reinstall --no-cache-dir --pre dlt-plus
+        run: uv run pip install --upgrade --force-reinstall --no-cache-dir --pre dlt-plus
 
       - name: run docs preprocessor
         run: make preprocess-docs
 
       - name: Install dependencies
-        # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E duckdb -E weaviate -E parquet -E qdrant -E bigquery -E postgres -E lancedb --with docs,sentry-sdk,ibis --without airflow -E s3
+        run: uv sync --extra duckdb --extra weaviate --extra parquet --extra qdrant --extra bigquery --extra postgres --extra lancedb --group docs --group sentry-sdk --group ibis --extra s3
 
       - name: create secrets.toml for examples
         run: pwd && echo "$DLT_SECRETS_TOML" > docs/examples/.dlt/secrets.toml
 
       - name: create secrets.toml for snippets
         run: pwd && echo "$DLT_SECRETS_TOML" > docs/website/docs/.dlt/secrets.toml
-
-      # NOTE: there seems to be a conflict between pydoclint and pydoc-markdown dependencies
-      - name: Force uninstall pydoclint
-        run: poetry run pip uninstall pydoclint -y
 
       - name: Run linter and tests on snippets
         run: make lint-and-test-snippets
