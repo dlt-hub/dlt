@@ -324,9 +324,6 @@ SELECT 1
         else:
             return f"DELETE FROM {qualified_table_name} WHERE 1=1;"
 
-    def _limit_clause_sql(self, limit: int) -> Tuple[str, str]:
-        return "", f"LIMIT {limit}"
-
 
 class WithSqlClient(ABC):
     @property

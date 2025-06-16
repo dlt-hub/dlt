@@ -1,7 +1,7 @@
 from types import TracebackType
 from typing import Any, Type, Union, TYPE_CHECKING, List
 
-
+import sqlglot
 from sqlglot.schema import Schema as SQLGlotSchema
 
 from dlt.common.destination.exceptions import (
@@ -25,6 +25,7 @@ from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation, BaseReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
+from dlt.destinations.queries import build_row_counts_expr
 
 from dlt.transformations import lineage
 
@@ -232,6 +233,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
                 selected_tables += self.schema.dlt_table_names()
 
         # filter tables so only ones with dlt_load_id column are included
+        dlt_load_id_col = None
         if load_id:
             dlt_load_id_col = self.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
             selected_tables = [
@@ -239,18 +241,22 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
                 for table in selected_tables
                 if dlt_load_id_col in self.schema.tables[table]["columns"].keys()
             ]
-        # Build UNION ALL query to get row counts for all selected tables
-        queries = []
-        for table in selected_tables:
-            query = (
-                f"SELECT '{table}' as table_name, COUNT(1) as row_count FROM"
-                f" {self.sql_client.capabilities.escape_identifier(table)}"
-            )
-            if load_id:
-                query += f" WHERE {dlt_load_id_col} = '{load_id}'"
-            queries.append(query)
 
-        query = " UNION ALL ".join(queries)
+        union_all_expr = None
+
+        for table_name in selected_tables:
+            counts_expr = build_row_counts_expr(
+                table_name=table_name,
+                dlt_load_id_col=dlt_load_id_col,
+                load_id=load_id,
+            )
+            if union_all_expr is None:
+                union_all_expr = counts_expr
+            else:
+                union_all_expr = union_all_expr.union(counts_expr, distinct=False)
+
+        dialect = self.destination_client.capabilities.sqlglot_dialect
+        query = union_all_expr.sql(dialect)
 
         # Execute query and build result dict
         return self(query)

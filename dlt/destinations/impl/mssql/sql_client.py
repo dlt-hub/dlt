@@ -207,6 +207,3 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
         return isinstance(ex, pyodbc.Error)
-
-    def _limit_clause_sql(self, limit: int) -> Tuple[str, str]:
-        return f"TOP ({limit})", ""

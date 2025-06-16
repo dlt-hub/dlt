@@ -19,7 +19,8 @@ from typing import (
 import zlib
 import re
 
-import sqlglot.expressions
+import sqlglot
+import sqlglot.expressions as sge
 
 from dlt.common import pendulum, logger
 from dlt.common.destination.capabilities import DataTypeMapper
@@ -74,8 +75,8 @@ from dlt.destinations.utils import (
     verify_schema_merge_disposition,
     verify_schema_replace_disposition,
 )
-
-import sqlglot
+from dlt.destinations.queries import normalize_query, build_select_expr
+from dlt.transformations.lineage import create_sqlglot_schema
 
 # this should suffice for now
 DDL_COMMANDS = ["ALTER", "CREATE", "DROP"]
@@ -210,7 +211,7 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
             columns.append(sqlglot.exp.to_identifier(alias_name))
 
         # Build final INSERT
-        query = sqlglot.expressions.insert(
+        query = sge.insert(
             expression=parsed_select,
             into=target_table,
             columns=columns,
@@ -245,25 +246,20 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     ) -> None:
         # get definitions of the dlt tables, normalize column names and keep for later use
         version_table_ = normalize_table_identifiers(version_table(), schema.naming)
-        self.version_table_schema_columns = ", ".join(
-            sql_client.escape_column_name(col) for col in version_table_["columns"]
-        )
+        self.version_table_schema_columns = version_table_["columns"]
         loads_table_ = normalize_table_identifiers(loads_table(), schema.naming)
-        self.loads_table_schema_columns = ", ".join(
-            sql_client.escape_column_name(col) for col in loads_table_["columns"]
-        )
+        self.loads_table_schema_columns = loads_table_["columns"]
         state_table_ = normalize_table_identifiers(
             get_pipeline_state_query_columns(), schema.naming
         )
-        self.state_table_columns = ", ".join(
-            sql_client.escape_column_name(col) for col in state_table_["columns"]
-        )
+        self.state_table_cols = state_table_["columns"]
         self.active_hints: Dict[TColumnHint, str] = {}
         self.type_mapper: DataTypeMapper = None
         super().__init__(schema, config, sql_client.capabilities)
         self.sql_client = sql_client
         assert isinstance(config, DestinationClientDwhConfiguration)
         self.config: DestinationClientDwhConfiguration = config
+        self.schema = schema
 
     @property
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
@@ -407,8 +403,11 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     def complete_load(self, load_id: str) -> None:
         name = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
         now_ts = pendulum.now()
+        load_table_columns = ", ".join(
+            self.sql_client.escape_column_name(col) for col in self.loads_table_schema_columns
+        )
         self.sql_client.execute_sql(
-            f"INSERT INTO {name}({self.loads_table_schema_columns}) VALUES(%s, %s, %s, %s, %s);",
+            f"INSERT INTO {name}({load_table_columns}) VALUES(%s, %s, %s, %s, %s);",
             load_id,
             self.schema.name,
             0,
@@ -523,36 +522,111 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         pass
 
     def get_stored_schema(self, schema_name: str = None) -> StorageSchemaInfo:
-        name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        c_schema_name, c_inserted_at = self._norm_and_escape_columns("schema_name", "inserted_at")
-        if not schema_name:
-            query = (
-                f"SELECT {self.version_table_schema_columns} FROM {name}"
-                f" ORDER BY {c_inserted_at} DESC;"
+        table_name = self.schema.version_table_name
+        c_schema_name, c_inserted_at = [
+            self.schema.naming.normalize_path(p) for p in ["schema_name", "inserted_at"]
+        ]
+
+        select_expr = build_select_expr(
+            table_name=table_name,
+            selected_columns=list(self.version_table_schema_columns.keys()),
+            quoted_identifiers=True,
+        )
+
+        order_expr = sqlglot.exp.Ordered(
+            this=sqlglot.exp.Column(this=sqlglot.exp.to_identifier(c_inserted_at, quoted=True)),
+            desc=True,
+        )
+
+        where_condition = None
+        if schema_name:
+            where_condition = sqlglot.exp.EQ(
+                this=sqlglot.exp.Column(this=c_schema_name),
+                expression=sqlglot.exp.Literal.string(schema_name),
             )
-            return self._row_to_schema_info(query)
-        else:
-            query = (
-                f"SELECT {self.version_table_schema_columns} FROM {name} WHERE {c_schema_name} = %s"
-                f" ORDER BY {c_inserted_at} DESC;"
-            )
-            return self._row_to_schema_info(query, schema_name)
+
+        select_expr = select_expr.where(where_condition).order_by(order_expr)
+
+        dialect = self.sql_client.capabilities.sqlglot_dialect
+        sqlglot_schema = create_sqlglot_schema(self.schema, self.sql_client.dataset_name, dialect)
+        normalized_query = normalize_query(sqlglot_schema, select_expr, self.sql_client).sql(
+            dialect=dialect
+        )
+
+        return self._row_to_schema_info(normalized_query)
 
     def get_stored_state(self, pipeline_name: str) -> StateInfo:
-        state_table = self.sql_client.make_qualified_table_name(self.schema.state_table_name)
-        loads_table = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
-        c_load_id, c_dlt_load_id, c_pipeline_name, c_status = self._norm_and_escape_columns(
-            C_DLT_LOADS_TABLE_LOAD_ID, C_DLT_LOAD_ID, "pipeline_name", "status"
+        state_table_name = self.schema.state_table_name
+        loads_table_name = self.schema.loads_table_name
+        c_load_id, c_dlt_load_id, c_pipeline_name, c_status = [
+            self.schema.naming.normalize_path(p)
+            for p in ["load_id", C_DLT_LOAD_ID, "pipeline_name", "status"]
+        ]
+
+        state_table_expr = sqlglot.exp.Table(
+            this=sqlglot.exp.to_identifier(state_table_name, quoted=True),
+            alias=sqlglot.exp.to_identifier("s", quoted=False),
         )
 
-        maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(1)
-
-        query = (
-            f"SELECT {maybe_limit_clause_1} {self.state_table_columns} FROM {state_table} AS s JOIN"
-            f" {loads_table} AS l ON l.{c_load_id} = s.{c_dlt_load_id} WHERE {c_pipeline_name} = %s"
-            f" AND l.{c_status} = 0 ORDER BY {c_load_id} DESC {maybe_limit_clause_2}"
+        loads_table_expr = sqlglot.exp.Table(
+            this=sqlglot.exp.to_identifier(loads_table_name, quoted=True),
+            alias=sqlglot.exp.to_identifier("l", quoted=False),
         )
-        with self.sql_client.execute_query(query, pipeline_name) as cur:
+
+        join_condition = sqlglot.exp.EQ(
+            this=sqlglot.exp.Column(
+                this=sqlglot.exp.to_identifier(c_load_id, quoted=True),
+                table=sqlglot.exp.to_identifier("l", quoted=False),
+            ),
+            expression=sqlglot.exp.Column(
+                this=sqlglot.exp.to_identifier(c_dlt_load_id, quoted=True),
+                table=sqlglot.exp.to_identifier("s", quoted=False),
+            ),
+        )
+
+        where_condition = sqlglot.exp.and_(
+            sqlglot.exp.EQ(
+                this=sqlglot.exp.Column(
+                    this=sqlglot.exp.to_identifier(c_pipeline_name, quoted=True)
+                ),
+                expression=sqlglot.exp.Literal.string(pipeline_name),
+            ),
+            sqlglot.exp.EQ(
+                this=sqlglot.exp.Column(
+                    this=sqlglot.exp.to_identifier(c_status, quoted=True),
+                    table=sqlglot.exp.to_identifier("l", quoted=False),
+                ),
+                expression=sqlglot.exp.Literal.number(0),
+            ),
+        )
+
+        select_expr = sqlglot.exp.Select(
+            expressions=[
+                sqlglot.exp.Column(this=sqlglot.exp.to_identifier(col, quoted=True))
+                for col in self.state_table_cols
+            ]
+        )
+
+        order_expr = sqlglot.exp.Ordered(
+            this=sqlglot.exp.Column(this=sqlglot.exp.to_identifier(c_load_id, quoted=True)),
+            desc=True,
+        )
+
+        select_expr = (
+            select_expr.from_(state_table_expr)
+            .join(loads_table_expr, on=join_condition)
+            .where(where_condition)
+            .order_by(order_expr)
+            .limit(1)
+        )
+
+        dialect = self.sql_client.capabilities.sqlglot_dialect
+        sqlglot_schema = create_sqlglot_schema(self.schema, self.sql_client.dataset_name, dialect)
+        normalized_query = normalize_query(sqlglot_schema, select_expr, self.sql_client).sql(
+            dialect=dialect
+        )
+
+        with self.sql_client.execute_query(normalized_query) as cur:
             row = cur.fetchone()
         if not row:
             return None
@@ -572,16 +646,29 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         )
 
     def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
-        table_name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        (c_version_hash,) = self._norm_and_escape_columns("version_hash")
+        table_name = self.schema.version_table_name
+        c_version_hash = self.schema.naming.normalize_path("version_hash")
 
-        maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(1)
-
-        query = (
-            f"SELECT {maybe_limit_clause_1} {self.version_table_schema_columns} FROM"
-            f" {table_name} WHERE {c_version_hash} = %s {maybe_limit_clause_2};"
+        select_expr = build_select_expr(
+            table_name=table_name,
+            selected_columns=list(self.version_table_schema_columns.keys()),
+            quoted_identifiers=True,
         )
-        return self._row_to_schema_info(query, version_hash)
+
+        where_condition = sqlglot.exp.EQ(
+            this=sqlglot.exp.Column(this=c_version_hash),
+            expression=sqlglot.exp.Literal.string(version_hash),
+        )
+
+        select_expr = select_expr.where(where_condition).limit(1)
+
+        dialect = self.sql_client.capabilities.sqlglot_dialect
+        sqlglot_schema = create_sqlglot_schema(self.schema, self.sql_client.dataset_name, dialect)
+        normalized_query = normalize_query(sqlglot_schema, select_expr, self.sql_client).sql(
+            dialect=dialect
+        )
+
+        return self._row_to_schema_info(normalized_query)
 
     def _get_info_schema_columns_query(
         self, catalog_name: Optional[str], schema_name: str, folded_table_names: List[str]
@@ -855,9 +942,11 @@ WHERE """
         now_ts = pendulum.now()
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         # values =  schema.version_hash, schema.name, schema.version, schema.ENGINE_VERSION, str(now_ts), schema_str
+        version_table_columns = ", ".join(
+            self.sql_client.escape_column_name(col) for col in self.version_table_schema_columns
+        )
         self.sql_client.execute_sql(
-            f"INSERT INTO {name}({self.version_table_schema_columns}) VALUES (%s, %s, %s, %s, %s,"
-            " %s);",
+            f"INSERT INTO {name}({version_table_columns}) VALUES (%s, %s, %s, %s, %s, %s);",
             schema.version,
             schema.ENGINE_VERSION,
             now_ts,
