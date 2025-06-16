@@ -6,19 +6,13 @@ import os
 
 import dlt
 from dlt.cli import echo as fmt
-from dlt.destinations.sql_client import SqlClientBase
 
-from dlt.destinations.exceptions import (
-    DatabaseUndefinedRelation,
-    DatabaseTerminalException,
-    DatabaseTransientException,
-)
 
 SKIP_DATASETS = ["pyicebergdemodb"]
 
 
 # all destinations that can be cleaned by this script
-ALL_DESTINATIONS = ["bigquery", "redshift", "postgres", "snowflake", "athena"]
+ALL_DESTINATIONS = ["bigquery", "redshift", "postgres", "snowflake", "athena", "databricks"]
 
 # limit the number of datasets to clean per run
 LIMIT = 100000
@@ -31,9 +25,9 @@ def get_datasets_command(pipeline: dlt.Pipeline, destination: str) -> tuple[str,
 
     if destination in ["athena"]:
         return "SHOW DATABASES", 0
-    elif destination in ["snowflake"]:
-        return "SHOW SCHEMAS;", 1
-    elif destination in ["redshift"]:
+    elif destination in ["databricks"]:
+        return "SHOW SCHEMAS;", 0
+    elif destination in ["redshift", "snowflake"]:
         return "SHOW SCHEMAS;", 1
     elif destination == "bigquery":
         project_id = destination_client.config.credentials.project_id  # type: ignore
@@ -56,7 +50,7 @@ def drop_dataset_command(destination: str, dataset_name: str) -> str:
         return f"DROP DATABASE {dataset_name} CASCADE;"
     elif destination in ["redshift", "postgres", "snowflake"]:
         return f"DROP SCHEMA IF EXISTS {dataset_name} CASCADE;"
-    elif destination in ["bigquery"]:
+    elif destination in ["bigquery", "databricks"]:
         return f"DROP SCHEMA {dataset_name} CASCADE;"
     else:
         raise ValueError(f"Destination {destination} is not supported")
@@ -74,9 +68,9 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    selected_destination = [args.destination] if args.destination else ALL_DESTINATIONS
+    selected_destinations = [args.destination] if args.destination else ALL_DESTINATIONS
 
-    for destination in selected_destination:
+    for destination in selected_destinations:
         fmt.echo("====")
         fmt.echo(f"Cleaning {destination}...")
         fmt.echo("====")
@@ -92,20 +86,26 @@ if __name__ == "__main__":
 
         # info
         total = len(datasets)
-        fmt.echo(f"Found {total} datasets to clean, will clean {LIMIT} of them")
+        fmt.echo(f"Found {total} datasets to clean, will clean up to {LIMIT} of them")
 
         # clean datasets
         with pipeline.sql_client() as client:
             count = 0
             for dataset in datasets[:LIMIT]:
                 if dataset in SKIP_DATASETS:
-                    fmt.echo(f"Skipping dataset {dataset}")
+                    fmt.echo(f"Skipping protected dataset: {dataset}")
                     continue
+                
+                if "fixture" in dataset:
+                    fmt.echo(f"Skipping fixture dataset: {dataset}")
+                    continue
+                
                 count += 1
-                fmt.echo(f"Cleaning dataset {count} of {total}: {dataset}, ")
+                fmt.echo(f"Cleaning dataset {count}/{total}: {dataset}")
+                
                 command = drop_dataset_command(destination, dataset)
                 try:
                     with client.execute_query(command) as cur:
                         pass
                 except Exception as e:
-                    print(f"Could not delete schema: {str(e)}")
+                    fmt.echo(f"Failed to delete schema {dataset}: {str(e)}")

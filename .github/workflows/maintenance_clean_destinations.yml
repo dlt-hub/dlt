@@ -53,16 +53,16 @@ jobs:
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - name: Clean redshift
-        run:  cd tests && tools/clean_destinations.py --destination redshift
+        run:  cd tests && poetry run python tools/clean_destinations.py --destination redshift
 
       - name: Clean snowflake
-        run:  cd tests && tools/clean_destinations.py --destination snowflake
+        run:  cd tests && poetry run python tools/clean_destinations.py --destination snowflake
 
       - name: Clean bigquery
-        run:  cd tests && tools/clean_destinations.py --destination bigquery
+        run:  cd tests && poetry run python tools/clean_destinations.py --destination bigquery
 
       - name: Clean postgres
-        run:  cd tests && tools/clean_destinations.py --destination postgres
+        run:  cd tests && poetry run python tools/clean_destinations.py --destination postgres
 
       - name: Clean athena
-        run:  cd tests && tools/clean_destinations.py --destination athena
+        run:  cd tests && poetry run python tools/clean_destinations.py --destination athena
