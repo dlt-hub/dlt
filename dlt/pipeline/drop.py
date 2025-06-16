@@ -192,16 +192,19 @@ def drop_resources(
     return _DropResult(schema, info, tables_to_drop_from_dest, new_state, None)
 
 
-def _get_droppable_columns(table_columns: Dict[str, TColumnSchema]) -> Tuple[List[str], bool]:
+def _get_matched_droppable_columns(
+    table_columns: Dict[str, TColumnSchema], columns_pattern: REPattern
+) -> Tuple[List[str], bool]:
     """
-    Identify columns in a table schema that are safe to drop, based on nullability and disqualifying hints.
+    Identify columns in a table schema that are safe to drop and matched, based on nullability and disqualifying hints.
 
     Args:
         table_columns: Dictionary of column names and their schemas.
+        columns_pattern: A compiled regex pattern to match column names.
 
     Returns:
         A tuple containint:
-            - A list of column names that can be dropped.
+            - A list of column names that can be dropped and are matched.
             - Whether it's safe to drop these columns without leaving only internal dlt columns.
     """
     disqualifying_hints = [
@@ -225,13 +228,16 @@ def _get_droppable_columns(table_columns: Dict[str, TColumnSchema]) -> Tuple[Lis
         if is_nullable_column(col_schema)
         and not any(col_schema.get(hint, False) for hint in disqualifying_hints)
     ]
+    matched_droppable_cols = [
+        col_name for col_name in droppable_cols if columns_pattern.match(col_name)
+    ]
 
-    remaining_cols = set(table_columns) - set(droppable_cols)
+    remaining_cols = set(table_columns) - set(matched_droppable_cols)
     can_drop = not (
         remaining_cols and all(col.startswith(DLT_NAME_PREFIX) for col in remaining_cols)
     )
 
-    return droppable_cols, can_drop
+    return matched_droppable_cols, can_drop
 
 
 def drop_columns(
@@ -261,14 +267,14 @@ def drop_columns(
         # Match all
         resource_pattern = compile_simple_regex(TSimpleRegex("re:.*"))
 
-    data_tables = {t["name"]: t for t in schema.data_tables(include_incomplete=True)}
-    resource_tables = group_tables_by_resource(data_tables, pattern=resource_pattern)
-    resource_names = list(resource_tables.keys())
-    tables_to_drop_from_schema = list(chain.from_iterable(resource_tables.values()))
-    tables_to_drop_from_schema.reverse()
-    tables_to_drop_from_schema_names = [t["name"] for t in tables_to_drop_from_schema]
-    tables_to_drop_from_dest = [t for t in tables_to_drop_from_schema if has_table_seen_data(t)]
-    tables_to_drop_from_dest_names = [t["name"] for t in tables_to_drop_from_dest]
+    non_dlt_tables = {t["name"]: t for t in schema.data_tables(include_incomplete=True)}
+    tables_by_resource = group_tables_by_resource(non_dlt_tables, pattern=resource_pattern)
+    potentially_affected_schema_tables = list(chain.from_iterable(tables_by_resource.values()))
+    # So that we process child tables first
+    potentially_affected_schema_tables.reverse()
+    potentially_affected_data_tables = [
+        t for t in potentially_affected_schema_tables if has_table_seen_data(t)
+    ]
 
     columns = set(columns)
     if columns:
@@ -280,46 +286,57 @@ def drop_columns(
     # Collect columns to drop grouped by table
     warnings: List[str] = []
     from_tables_drop_cols: List[_FromTableDropCols] = []
+    affected_schema_table_names: List[str] = []
 
-    for table in tables_to_drop_from_dest:
+    for table in potentially_affected_data_tables:
         table_name = table["name"]
         table_columns = table["columns"]
-        droppable_cols, can_drop = _get_droppable_columns(table_columns)
+        matched_droppable_cols, can_drop = _get_matched_droppable_columns(
+            table_columns, columns_pattern
+        )
 
-        if not can_drop:
+        if not can_drop and len(matched_droppable_cols) > 0:
             warning = (
-                f"""After dropping droppable columns {droppable_cols} from table '{table_name}'"""
+                f"""After dropping matched droppable columns {matched_droppable_cols} from table '{table_name}'"""
                 " only internal dlt columns will remain. This is not allowed."
             )
-            tables_to_drop_from_schema_names.remove(table_name)
-            tables_to_drop_from_dest_names.remove(table_name)
             warnings.append(warning)
             continue
 
         drop_cols = [
-            schema.tables[table_name]["columns"].pop(col)["name"]
-            for col in droppable_cols
-            if columns_pattern.match(col)
+            schema.tables[table_name]["columns"].pop(col)["name"] for col in matched_droppable_cols
         ]
 
         if drop_cols:
             from_tables_drop_cols.append({"from_table": table_name, "drop_columns": drop_cols})
+            affected_schema_table_names.append(table_name)
 
-    # Set to None if no columns need to be dropped
-    from_tables_drop_cols = from_tables_drop_cols or None
-    tables_to_drop_from_dest = tables_to_drop_from_dest if from_tables_drop_cols else []
+    affected_data_table_names = [item["from_table"] for item in from_tables_drop_cols]
+    affected_data_tables = [
+        schema.get_table(table_name) for table_name in affected_data_table_names
+    ]
+    affected_resource_names = list(
+        set(
+            [
+                affected_table["resource"]
+                for affected_table in affected_data_tables
+                if "resource" in affected_table  # This means it's a child table
+            ]
+        )
+    )
+    drop_columns = bool(from_tables_drop_cols)
 
     info: _DropInfo = dict(
-        tables=tables_to_drop_from_schema_names if from_tables_drop_cols else [],
-        tables_with_data=tables_to_drop_from_dest_names if from_tables_drop_cols else [],
+        tables=affected_schema_table_names,
+        tables_with_data=affected_data_table_names,
         resource_states=[],
         state_paths=[],
-        resource_names=resource_names if from_tables_drop_cols else [],
+        resource_names=affected_resource_names,
         schema_name=schema.name,
         drop_all=False,
         resource_pattern=resource_pattern,
         warnings=warnings,
-        drop_columns=True,
+        drop_columns=drop_columns,
     )
 
-    return _DropResult(schema, info, tables_to_drop_from_dest, None, from_tables_drop_cols)
+    return _DropResult(schema, info, affected_data_tables, None, from_tables_drop_cols)
