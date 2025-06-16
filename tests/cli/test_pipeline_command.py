@@ -6,6 +6,7 @@ import logging
 from subprocess import CalledProcessError
 
 import dlt
+from dlt.common.utils import set_working_dir
 from dlt.common.runners.venv import Venv
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
@@ -133,6 +134,11 @@ def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) 
 
         _out = buf.getvalue()
         assert "Selected resource(s): ['players_games']" in _out
+        assert (
+            "WARNING: Unless hardcoded, credentials are loaded from environment variables and/or"
+            " configuration files."
+            not in _out
+        )
 
         # Command was executed
         pipeline = dlt.attach(pipeline_name="chess_pipeline")
@@ -243,4 +249,39 @@ def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileS
         pipeline_command.pipeline_command("drop-pending-packages", "chess_pipeline", None, 1)
         _out = buf.getvalue()
         assert "No pending packages found" in _out
+    print(_out)
+
+
+def test_drop_from_wrong_dir(repo_dir: str, project_files: FileStorage) -> None:
+    init_command.init_command("chess", "duckdb", repo_dir)
+
+    try:
+        pipeline = dlt.attach(pipeline_name="chess_pipeline")
+        pipeline.drop()
+    except Exception as e:
+        print(e)
+
+    os.environ.pop(
+        "DESTINATION__DUCKDB__CREDENTIALS", None
+    )  # settings from local project (secrets.toml etc.)
+    venv = Venv.restore_current()
+    try:
+        print(venv.run_script("chess_pipeline.py"))
+    except CalledProcessError as cpe:
+        print(cpe.stdout)
+        print(cpe.stderr)
+        raise
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        os.makedirs("wrong_dir", exist_ok=True)
+        with set_working_dir("wrong_dir"):
+            pipeline_command.pipeline_command(
+                "drop", "chess_pipeline", None, 0, resources=["players_games"]
+            )
+        _out = buf.getvalue()
+    assert (
+        "WARNING: Unless hardcoded, credentials are loaded from environment variables and/or"
+        " configuration files."
+        in _out
+    )
     print(_out)
