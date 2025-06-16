@@ -122,7 +122,7 @@ def pipeline_command(
             from dlt.helpers.studio.runner import run_studio
 
             with custom_environ({DLT_DATA_DIR: os.path.dirname(p.pipelines_dir)}):
-                run_studio()
+                run_studio(pipeline_name)
         else:
             from dlt.common.runtime import signals
             from dlt.helpers.streamlit_app import index

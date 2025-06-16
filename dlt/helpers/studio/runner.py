@@ -15,7 +15,14 @@ except ModuleNotFoundError:
     )
 
 
-def run_studio() -> None:
+def run_studio(pipeline_name: str = None) -> None:
     from dlt.helpers.studio import app
 
-    subprocess.run(["marimo", "run", app.__file__])
+    studio_cmd = ["marimo", "run", app.__file__]
+
+    if pipeline_name:
+        studio_cmd.append("--")
+        studio_cmd.append("--pipeline")
+        studio_cmd.append(pipeline_name)
+
+    subprocess.run(studio_cmd)

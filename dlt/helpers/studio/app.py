@@ -693,6 +693,7 @@ def section_ibis_backend(
 @app.cell(hide_code=True)
 def utils_discover_pipelines(
     mo_cli_arg_pipelines_dir: str,
+    mo_cli_arg_pipeline: str,
     mo_query_var_pipeline_name: str,
 ):
     """
@@ -705,7 +706,11 @@ def utils_discover_pipelines(
     dlt_pipelines_dir, dlt_all_pipelines = utils.get_local_pipelines(mo_cli_arg_pipelines_dir)
     dlt_pipeline_select: mo.ui.multiselect = mo.ui.multiselect(
         options=[p["name"] for p in dlt_all_pipelines],
-        value=[mo_query_var_pipeline_name] if mo_query_var_pipeline_name else None,
+        value=(
+            [mo_query_var_pipeline_name]
+            if mo_query_var_pipeline_name
+            else ([mo_cli_arg_pipeline] if mo_cli_arg_pipeline else None)
+        ),
         max_selections=1,
         label=strings.app_pipeline_select_label,
         on_change=lambda value: mo.query_params().set("pipeline", str(value[0]) if value else None),
@@ -886,6 +891,7 @@ def utils_cli_args_and_query_vars_config():
 
     try:
         mo_query_var_pipeline_name: str = cast(str, mo.query_params().get("pipeline")) or None
+        mo_cli_arg_pipeline: str = cast(str, mo.cli_args().get("pipeline")) or None
         mo_cli_arg_pipelines_dir: str = cast(str, mo.cli_args().get("pipelines_dir")) or None
         mo_cli_arg_with_test_identifiers: bool = (
             cast(bool, mo.cli_args().get("with_test_identifiers")) or False
@@ -894,11 +900,13 @@ def utils_cli_args_and_query_vars_config():
         mo_query_var_pipeline_name = None
         mo_cli_arg_pipelines_dir = None
         mo_cli_arg_with_test_identifiers = False
+        mo_cli_arg_pipeline = None
 
     return (
         mo_cli_arg_pipelines_dir,
         mo_cli_arg_with_test_identifiers,
         mo_query_var_pipeline_name,
+        mo_cli_arg_pipeline,
     )
 
 
