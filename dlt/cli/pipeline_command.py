@@ -1,3 +1,4 @@
+import os
 import yaml
 from typing import Any, Optional, Sequence, Tuple
 import dlt
@@ -8,6 +9,7 @@ from dlt.common.pipeline import resource_state, get_dlt_pipelines_dir, TSourceSt
 from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
+from dlt.common.runtime import run_context
 from dlt.common.schema.utils import (
     group_tables_by_resource,
     has_table_seen_data,
@@ -358,6 +360,22 @@ def pipeline_command(
                 for warning in drop.info["warnings"]:
                     fmt.warning(warning)
             return
+
+        if p.get_local_state_val("last_run_context").get("local_dir") != os.getcwd():
+            fmt.warning(
+                fmt.style(
+                    "Unless hardcoded, credentials are loaded from environment variables and/or"
+                    " configuration files. dlt will look for configuration files in the (%s) folder"
+                    " of your current working directory.\nYou should run this from the same"
+                    " directory as the pipeline script (%s), or make sure that the required"
+                    " environment variables are set."
+                    % (
+                        p.get_local_state_val("last_run_context").get("settings_dir"),
+                        p.get_local_state_val("last_run_context").get("local_dir"),
+                    ),
+                    fg="yellow",
+                )
+            )
 
         fmt.echo(
             "About to drop the following data in dataset %s in destination %s:"

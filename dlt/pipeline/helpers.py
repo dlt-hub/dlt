@@ -6,6 +6,7 @@ from typing import (
     Optional,
     Union,
     TYPE_CHECKING,
+    Any,
 )
 
 from dlt.common.jsonpath import TAnyJsonPath
@@ -68,6 +69,7 @@ class DropCommand:
         state_paths: TAnyJsonPath = (),
         drop_all: bool = False,
         state_only: bool = False,
+        **kwargs: Any,
     ) -> None:
         """
         Args:
@@ -117,7 +119,7 @@ class DropCommand:
             raise PipelineHasPendingDataException(
                 self.pipeline.pipeline_name, self.pipeline.pipelines_dir
             )
-        self.pipeline.sync_destination()
+        self.pipeline.sync_destination(update_last_run_context=False)
 
         if not self.drop_state and not self.drop_tables:
             return  # Nothing to drop
