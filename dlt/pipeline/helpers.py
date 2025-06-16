@@ -1,18 +1,11 @@
 from copy import deepcopy
-from typing import (
-    Callable,
-    Sequence,
-    Iterable,
-    Optional,
-    Union,
-    TYPE_CHECKING,
-)
+from typing import Callable, Sequence, Iterable, Optional, Union, TYPE_CHECKING, List
 
 from dlt.common.jsonpath import TAnyJsonPath
 from dlt.common.exceptions import TerminalException
 from dlt.common.schema.typing import TSimpleRegex
 from dlt.common.pipeline import pipeline_state as current_pipeline_state, TRefreshMode
-from dlt.common.storages.load_package import TLoadPackageDropTablesState
+from dlt.common.storages.load_package import TLoadPackageDropTablesState, TLoadPackageState
 from dlt.pipeline.exceptions import (
     PipelineNeverRan,
     PipelineStepFailed,
@@ -20,7 +13,7 @@ from dlt.pipeline.exceptions import (
 )
 from dlt.pipeline.state_sync import force_state_extract
 from dlt.pipeline.typing import TPipelineStep
-from dlt.pipeline.drop import drop_resources
+from dlt.pipeline.drop import drop_resources, drop_columns
 from dlt.extract import DltSource
 
 if TYPE_CHECKING:
@@ -68,6 +61,8 @@ class DropCommand:
         state_paths: TAnyJsonPath = (),
         drop_all: bool = False,
         state_only: bool = False,
+        from_resources: Union[Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]] = (),
+        columns: List[str] = None,
     ) -> None:
         """
         Args:
@@ -77,6 +72,8 @@ class DropCommand:
             state_paths: JSON path(s) relative to the source state to drop
             drop_all: Drop all resources and tables in the schema (supersedes `resources` list)
             state_only: Drop only state, not tables
+            from_resources: Resources to drop columns from
+            columns: Columns to drop from the specified resource
         """
         self.pipeline = pipeline
 
@@ -85,22 +82,38 @@ class DropCommand:
         # clone schema to keep it as original in case we need to restore pipeline schema
         self.schema = pipeline.schemas[schema_name or pipeline.default_schema_name].clone()
 
-        drop_result = drop_resources(
-            # create clones to have separate schemas and state
-            self.schema.clone(),
-            deepcopy(pipeline.state),
-            resources,
-            state_paths,
-            drop_all,
-            state_only,
-        )
+        if from_resources and columns:
+            drop_result = drop_columns(
+                self.schema.clone(),
+                from_resources,
+                columns,
+            )
+        else:
+            drop_result = drop_resources(
+                # create clones to have separate schemas and state
+                self.schema.clone(),
+                deepcopy(pipeline.state),
+                resources,
+                state_paths,
+                drop_all,
+                state_only,
+            )
         # get modified schema and state
-        self._new_state = drop_result.state
+        self.from_tables_drop_cols = drop_result.from_tables_drop_cols
+        self._new_state = (
+            drop_result.state if not self.from_tables_drop_cols else deepcopy(pipeline.state)
+        )
         self._new_schema = drop_result.schema
         self.info = drop_result.info
         self._modified_tables = drop_result.modified_tables
-        self.drop_tables = not state_only and bool(self._modified_tables)
-        self.drop_state = bool(drop_all or resources or state_paths)
+        self.drop_tables = (
+            not state_only and bool(self._modified_tables)
+            if not self.from_tables_drop_cols
+            else False
+        )
+        self.drop_state = (
+            bool(drop_all or resources or state_paths) if not self.from_tables_drop_cols else False
+        )
 
     @property
     def is_empty(self) -> bool:
@@ -118,20 +131,25 @@ class DropCommand:
                 self.pipeline.pipeline_name, self.pipeline.pipelines_dir
             )
         self.pipeline.sync_destination()
-
-        if not self.drop_state and not self.drop_tables:
+        if not self.drop_state and not self.drop_tables and not self.from_tables_drop_cols:
             return  # Nothing to drop
 
         self._new_schema._bump_version()
         new_state = deepcopy(self._new_state)
         force_state_extract(new_state)
 
+        load_package_state_update: Optional[TLoadPackageState]
+        if self.drop_tables:
+            load_package_state_update = {"dropped_tables": self._modified_tables}
+        elif self.from_tables_drop_cols:
+            load_package_state_update = {"from_tables_drop_columns": self.from_tables_drop_cols}
+        else:
+            load_package_state_update = None
+
         self.pipeline._save_and_extract_state_and_schema(
             new_state,
             schema=self._new_schema,
-            load_package_state_update=(
-                {"dropped_tables": self._modified_tables} if self.drop_tables else None
-            ),
+            load_package_state_update=load_package_state_update,
         )
 
         self.pipeline.normalize()
