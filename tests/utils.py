@@ -339,9 +339,12 @@ def setup_secret_providers_to_current_module(request):
             ConfigTomlProvider(settings_dir=config_dir),
         ]
 
-    with set_working_dir(dname), patch(
-        "dlt.common.runtime.run_context.RunContext.initial_providers",
-        _initial_providers,
+    with (
+        set_working_dir(dname),
+        patch(
+            "dlt.common.runtime.run_context.RunContext.initial_providers",
+            _initial_providers,
+        ),
     ):
         Container()[PluggableRunContext].reload_providers()
 
