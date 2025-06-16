@@ -8,8 +8,11 @@ import dlt
 from dlt.cli import echo as fmt
 
 
+# datasets that should be skipped
 SKIP_DATASETS = ["pyicebergdemodb"]
 
+# skip datasets that contain this marker
+FIXTURE_MARKER = "fixture"
 
 # all destinations that can be cleaned by this script
 ALL_DESTINATIONS = ["bigquery", "redshift", "postgres", "snowflake", "athena", "databricks"]
@@ -57,7 +60,9 @@ def drop_dataset_command(destination: str, dataset_name: str) -> str:
 
 
 if __name__ == "__main__":
+    # NOTE: make destinations work that require a staging filesystem (we do not actually use it here)
     os.environ["BUCKET_URL"] = "SOME_BUCKET"
+
     # parse input args
     parser = argparse.ArgumentParser(description="Clean datasets from destinations used by our ci")
     parser.add_argument(
@@ -71,11 +76,12 @@ if __name__ == "__main__":
     selected_destinations = [args.destination] if args.destination else ALL_DESTINATIONS
 
     for destination in selected_destinations:
+
         fmt.echo("====")
         fmt.echo(f"Cleaning {destination}...")
         fmt.echo("====")
 
-        # we use the pipeline to access the sql client and configs
+
         pipeline = dlt.pipeline(pipeline_name="clean_destinations", destination=destination)
 
         # get datasets
@@ -95,14 +101,14 @@ if __name__ == "__main__":
                 if dataset in SKIP_DATASETS:
                     fmt.echo(f"Skipping protected dataset: {dataset}")
                     continue
-                
-                if "fixture" in dataset:
+
+                if FIXTURE_MARKER in dataset:
                     fmt.echo(f"Skipping fixture dataset: {dataset}")
                     continue
-                
+
                 count += 1
                 fmt.echo(f"Cleaning dataset {count}/{total}: {dataset}")
-                
+
                 command = drop_dataset_command(destination, dataset)
                 try:
                     with client.execute_query(command) as cur:
