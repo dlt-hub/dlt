@@ -68,20 +68,18 @@ gcp = [
 bigquery = [
     "grpcio>=1.50.0",
     "google-cloud-bigquery>=2.26.0",
-    "pyarrow>=14.0.0; python_version < '3.13'",
-    "pyarrow>=18.0.0; python_version >= '3.13'",
+    "pyarrow",
     "gcsfs>=2022.4.0",
     "db-dtypes>=1.2.0",
 ]
 postgres = [
-    "psycopg2-binary>=2.9.1"
+    "psycopg2-binary"
 ]
 redshift = [
-    "psycopg2-binary>=2.9.1"
+    "psycopg2-binary"
 ]
 parquet = [
-    "pyarrow>=14.0.0; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "pyarrow",
 ]
 duckdb = [
     "duckdb>=0.9"
@@ -105,9 +103,8 @@ sftp = [
 ]
 snowflake = ["snowflake-connector-python>=3.5.0"]
 motherduck = [
-    "duckdb>=0.9",
-    "pyarrow>=14.0.0 ; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "duckdb",
+    "pyarrow",
 ]
 cli = [
     "pipdeptree>=2.9.0,<2.10",
@@ -116,8 +113,7 @@ cli = [
 ]
 athena = [
     "pyathena>=2.9.6",
-    "pyarrow>=14.0.0 ; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "pyarrow",
     "s3fs>=2022.4.0",
     "botocore>=1.28",
 ]
@@ -130,8 +126,7 @@ mssql = [
 synapse = [
     "pyodbc>=4.0.39",
     "adlfs>=2024.7.0",
-    "pyarrow>=14.0.0 ; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "pyarrow",
 ]
 qdrant = [
     "qdrant-client[fastembed]>=1.8"
@@ -146,23 +141,19 @@ clickhouse = [
     "s3fs>=2022.4.0",
     "gcsfs>=2022.4.0",
     "adlfs>=2024.7.0",
-    "pyarrow>=14.0.0 ; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "pyarrow",
 ]
 dremio = [
-    "pyarrow>=14.0.0 ; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "pyarrow",
 ]
 lancedb = [
     "lancedb>=0.8.2 ; python_version < '3.13'",
-    "pyarrow>=14.0.0 ; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "pyarrow",
     "tantivy>= 0.22.0",
 ]
 deltalake = [
     "deltalake>=0.25.1",
-    "pyarrow>=14.0.0; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "pyarrow",
 ]
 sql_database = ["sqlalchemy>=1.4"]
 sqlalchemy = [
@@ -171,12 +162,11 @@ sqlalchemy = [
 ]
 pyiceberg = [
     "pyiceberg>=0.9.1",
-    "pyarrow>=14.0.0 ; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "pyarrow",
     "sqlalchemy>=1.4",
 ]
 postgis = [
-    "psycopg2-binary>=2.9.1"
+    "psycopg2-binary"
 ]
 
 [project.urls]
@@ -233,8 +223,7 @@ dev = [
     "mimesis>=7.0.0,<8",
     "shapely>=2.0.6",
     "pip>=24.0.0",
-    # keep last duckdb version that works with azure and iceberg correctly
-    "duckdb<1.2.1",
+    "duckdb",
     "pydoclint>=0.6.5,<0.7",
     # limit the pyarrow version not to test on too new one
     "pyarrow>=14.0.0,<19.0.0",
@@ -251,11 +240,8 @@ pipeline = [
     "enlighten>=1.11.2,<2",
     "alive-progress>=3.1.1,<4",
     "pydantic>=2.10",
-    "numpy>=1.21,<2.0 ; python_version >= '3.9' and python_version < '3.12'",
-    "numpy>=1.26,<2.0 ; python_version >= '3.12' and python_version < '3.13'",
-    "numpy>=2.0.0 ; python_version >= '3.13'",
-    "pandas>2.1 ; python_version >= '3.12'",
-    "pandas<2.1 ; python_version < '3.12'",
+    "numpy",
+    "pandas",
 ]
 airflow = ["apache-airflow>=2.8.0,<3 ; python_version < '3.12'"]
 ibis = ["ibis-framework[duckdb, postgres, bigquery, snowflake, mssql, clickhouse, databricks]>=10.3.0 ; python_version >= '3.10'"]
@@ -264,8 +250,7 @@ marimo = [
     "marimo>=0.13.6",
     "playwright>=1.52.0,<2",
     "pytest-playwright>=0.7.0,<1",
-    "pyarrow>=14.0.0; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'"
+    "pyarrow",
     ]
 providers = ["google-api-python-client>=2.86.0,<3"]
 sentry-sdk = ["sentry-sdk>=2.0.0,<3"]
@@ -291,9 +276,8 @@ docs = [
     "pymongo>=4.3.3",
     "pandas>2",
     "alive-progress>=3.0.1",
-    "pyarrow>=14.0.0; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
-    "psycopg2-binary>=2.9",
+    "pyarrow",
+    "psycopg2-binary",
     "lancedb>=0.8.2 ; python_version < '3.13'",
     "openai>=1.45",
     "connectorx>=0.3.2,<0.4.2",
@@ -301,6 +285,20 @@ docs = [
 ]
 
 [tool.uv]
+
+# global constraints for dependencies
+constraint-dependencies = [
+    "pyarrow>=14.0.0 ; python_version < '3.13'",
+    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "numpy>=1.21,<2.0 ; python_version >= '3.9' and python_version < '3.12'",
+    "numpy>=1.26,<2.0 ; python_version >= '3.12' and python_version < '3.13'",
+    "numpy>=2.0.0 ; python_version >= '3.13'",
+    "pandas>2.1 ; python_version >= '3.12'",
+    "pandas<2.1 ; python_version < '3.12'",
+    # keep last duckdb version that works with azure and iceberg correctly
+    "duckdb>=0.9,<1.2.1",
+    "psycopg2-binary>=2.9.1"
+]
 
 [tool.uv.sources]
 flake8-encodings = { git = "https://github.com/dlt-hub/flake8-encodings.git", branch = "disable_jedi_support" }
