@@ -71,11 +71,13 @@ lint-snippets:
 	cd docs/tools && uv run python check_embedded_snippets.py full
 
 lint-and-test-snippets: lint-snippets
+	uv pip install docstring_parser_fork --reinstall
 	uv run mypy --config-file mypy.ini docs/website docs/tools --exclude docs/tools/lint_setup --exclude docs/website/docs_processed
 	uv run flake8 --max-line-length=200 docs/website docs/tools --exclude docs/website/.dlt-repo
 	cd docs/website/docs && uv run pytest --ignore=node_modules
 
 lint-and-test-examples:
+	uv pip install docstring_parser_fork --reinstall
 	cd docs/tools && uv run python prepare_examples_tests.py
 	uv run flake8 --max-line-length=200 docs/examples
 	uv run mypy --config-file mypy.ini docs/examples
