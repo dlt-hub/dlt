@@ -329,7 +329,7 @@ def test_create_table_with_custom_range_bucket_partition_using_partition_spec() 
             False,
         )[0]
 
-    expected_clause = "PARTITION BY RANGE_BUCKET(`user_id`, GENERATE_ARRAY(0, 1000000, 10000))"
+    expected_clause = "PARTITION BY RANGE_BUCKET(user_id, GENERATE_ARRAY(0, 1000000, 10000))"
     assert expected_clause in sql_partitioned
 
 
@@ -602,8 +602,10 @@ def test_adapter_hints_parsing_partitioning_more_than_one_column() -> None:
 
     with pytest.raises(
         ValueError,
-        match="`partition` must be a single column name as a `str`, `PartitionTransformation`, or"
-            " `BigQueryPartitionSpec`.",
+        match=(
+            "`partition` must be a single column name as a string, PartitionTransformation, or"
+            " BigQueryPartitionSpec."
+        ),
     ):
         bigquery_adapter(some_data, partition=["col1", "col2"])
 
