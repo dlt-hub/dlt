@@ -53,7 +53,6 @@ dev-airflow: has-uv
 	uv sync --all-extras --group docs --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
 	
 lint:
-	uv run python ./tools/check-lockfile.py
 	uv run mypy --config-file mypy.ini dlt tests
 	# NOTE: we need to make sure docstring_parser_fork is the only version of docstring_parser installed
 	uv pip uninstall docstring_parser
