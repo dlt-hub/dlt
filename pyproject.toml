@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "1.11.0"
+version = "1.12.0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Anton Burnashev <anton@dlthub.com>", "David Scharf <david@dlthub.com>" ]
@@ -54,18 +54,15 @@ jsonpath-ng = ">=1.5.3"
 fsspec = ">=2022.4.0"
 packaging = ">=21.1"
 pluggy = ">=1.3.0"
-win-precise-time = {version = ">=1.4.2", markers="os_name == 'nt'"}
+win-precise-time = {version = ">=1.4.2", markers="os_name == 'nt' and python_version < '3.13'"}
 sqlglot = ">=23.0.0"
 rich-argparse = ">=1.6.0"
 
 psycopg2-binary = {version = ">=2.9.1", optional = true}
-# use this dependency as the current version of psycopg2cffi does not have sql module
-# psycopg2cffi = {git = "https://github.com/chtd/psycopg2cffi.git", optional = true, markers="platform_python_implementation == 'PyPy'"}
-psycopg2cffi = {version = ">=2.9.0", optional = true, markers="platform_python_implementation == 'PyPy'"}
 grpcio = {version = ">=1.50.0", optional = true}
 google-cloud-bigquery = {version = ">=2.26.0", optional = true}
 pyarrow = [
-    {version = ">=12.0.0,<18", markers = "python_version >= '3.9' and python_version < '3.13'", optional = true},
+    {version = ">=14.0.0", markers = "python_version >= '3.9' and python_version < '3.13'", optional = true},
     {version = ">=18.0.0", markers = "python_version >= '3.13'", optional = true}
 ]
 duckdb = {version = ">=0.9", optional = true}
@@ -105,7 +102,7 @@ db-dtypes = { version = ">=1.2.0", optional = true }
 # https://github.com/apache/airflow/issues/28723
 # pyiceberg = { version = ">=0.7.1", optional = true, extras = ["sql-sqlite"] }
 # we will rely on manual installation of `sqlalchemy>=2.0.18` instead
-pyiceberg = { version = ">=0.9.1" , optional = true }
+pyiceberg = { version = ">=0.9.1",  optional = true }
 databricks-sdk = {version = ">=0.38.0", optional = true}
 pywin32 = {version = ">=306", optional = true, platform = "win32"}
 marimo = {version = ">=0.13.6", optional = true}
@@ -114,8 +111,8 @@ marimo = {version = ">=0.13.6", optional = true}
 gcp = ["grpcio", "google-cloud-bigquery", "db-dtypes", "gcsfs"]
 # bigquery is alias on gcp extras
 bigquery = ["grpcio", "google-cloud-bigquery", "pyarrow", "gcsfs", "db-dtypes"]
-postgres = ["psycopg2-binary", "psycopg2cffi"]
-redshift = ["psycopg2-binary", "psycopg2cffi"]
+postgres = ["psycopg2-binary"]
+redshift = ["psycopg2-binary"]
 parquet = ["pyarrow"]
 duckdb = ["duckdb"]
 filesystem = ["s3fs", "botocore"]
@@ -139,7 +136,7 @@ deltalake = ["deltalake", "pyarrow"]
 sql_database = ["sqlalchemy"]
 sqlalchemy = ["sqlalchemy", "alembic"]
 pyiceberg = ["pyiceberg", "pyarrow", "sqlalchemy"]
-postgis = ["psycopg2-binary", "psycopg2cffi"]
+postgis = ["psycopg2-binary"]
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"
@@ -190,8 +187,10 @@ flake8-print = "^5.0.0"
 mimesis = "^7.0.0"
 shapely = ">=2.0.6"
 pip = ">=24.0.0"
-# keep duckdb compatible with motherduck
-duckdb = "<1.3"
+# keep last duckdb version that works with azure and iceberg correctly
+duckdb = "<1.2.1"
+# limit the pyarrow version not to test on too new one
+pyarrow = "<19"
 pydoclint = "^0.6.5"
 
 [tool.poetry.group.sources]

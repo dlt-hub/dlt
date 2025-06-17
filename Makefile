@@ -44,7 +44,7 @@ has-poetry:
 	poetry --version
 
 dev: has-poetry
-	poetry install --all-extras --with docs,providers,pipeline,sources,sentry-sdk,ibis,adbc,marimo
+	poetry install --all-extras --with docs,providers,pipeline,sources,sentry-sdk,ibis,adbc
 
 
 dev-airflow: has-poetry
@@ -131,7 +131,8 @@ test-build-images: build-library
 	# filter out libs that need native compilation
 	grep `cat compiled_packages.txt` _gen_requirements.txt > compiled_requirements.txt
 	docker build -f deploy/dlt/Dockerfile.airflow --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
-	docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
+	# enable when we upgrade arrow to 20.x
+	# docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
 
 preprocess-docs:
 	# run docs preprocessing to run a few checks and ensure examples can be parsed
@@ -143,7 +144,7 @@ start-test-containers:
 	docker compose -f "tests/load/weaviate/docker-compose.yml" up -d
 	docker compose -f "tests/load/filesystem_sftp/docker-compose.yml" up -d
 	docker compose -f "tests/load/sqlalchemy/docker-compose.yml" up -d
-	docker compose -f "tests/load/clickhouse/clickhouse-compose.yml" up -d
+	docker compose -f "tests/load/clickhouse/docker-compose.yml" up -d
 
 update-cli-docs:
 	poetry run dlt --debug render-docs docs/website/docs/reference/command-line-interface.md

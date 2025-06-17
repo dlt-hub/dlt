@@ -113,30 +113,41 @@ def pipeline_command(
     fmt.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
 
     if operation == "show":
-        from dlt.common.runtime import signals
-        from dlt.helpers.streamlit_app import index
+        if command_kwargs.get("marimo"):
+            import os
 
-        with signals.delayed_signals():
-            streamlit_cmd = [
-                "streamlit",
-                "run",
-                index.__file__,
-                "--client.showSidebarNavigation",
-                "false",
-            ]
+            from dlt.common.utils import custom_environ
+            from dlt.common.known_env import DLT_DATA_DIR
 
-            if hot_reload:
-                streamlit_cmd.append("--server.runOnSave")
-                streamlit_cmd.append("true")
+            from dlt.helpers.studio.runner import run_studio
 
-            streamlit_cmd.append("--")
-            streamlit_cmd.append(pipeline_name)
-            streamlit_cmd.append("--pipelines-dir")
-            streamlit_cmd.append(p.pipelines_dir)
+            with custom_environ({DLT_DATA_DIR: os.path.dirname(p.pipelines_dir)}):
+                run_studio()
+        else:
+            from dlt.common.runtime import signals
+            from dlt.helpers.streamlit_app import index
 
-            venv = Venv.restore_current()
-            for line in iter_stdout(venv, *streamlit_cmd):
-                fmt.echo(line)
+            with signals.delayed_signals():
+                streamlit_cmd = [
+                    "streamlit",
+                    "run",
+                    index.__file__,
+                    "--client.showSidebarNavigation",
+                    "false",
+                ]
+
+                if hot_reload:
+                    streamlit_cmd.append("--server.runOnSave")
+                    streamlit_cmd.append("true")
+
+                streamlit_cmd.append("--")
+                streamlit_cmd.append(pipeline_name)
+                streamlit_cmd.append("--pipelines-dir")
+                streamlit_cmd.append(p.pipelines_dir)
+
+                venv = Venv.restore_current()
+                for line in iter_stdout(venv, *streamlit_cmd):
+                    fmt.echo(line)
 
     if operation == "info":
         state: TSourceState = p.state  # type: ignore

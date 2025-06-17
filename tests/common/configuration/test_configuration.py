@@ -1269,28 +1269,32 @@ def test_resolved_trace(environment: Any) -> None:
         }
     ):
         c = resolve.resolve_configuration(EmbeddedConfiguration(default="_DEFF"))
-    traces = get_resolved_traces()
+    tracer = get_resolved_traces()
+
+    def _resolved_traces():
+        return tracer._get_log_as_dict(tracer.resolved_traces)
+
     prov_name = environ_provider.EnvironProvider().name
-    assert traces[".default"] == ResolvedValueTrace(
+    assert _resolved_traces()[".default"] == ResolvedValueTrace(
         "default", "DEF", "_DEFF", str, [], prov_name, c
     )
-    assert traces["instrumented.head"] == ResolvedValueTrace(
+    assert _resolved_traces()["instrumented.head"] == ResolvedValueTrace(
         "head", "h", None, str, ["instrumented"], prov_name, c.instrumented
     )
     # value is before casting
-    assert traces["instrumented.tube"] == ResolvedValueTrace(
+    assert _resolved_traces()["instrumented.tube"] == ResolvedValueTrace(
         "tube", '["tu", "u", "be"]', None, List[str], ["instrumented"], prov_name, c.instrumented
     )
     assert deserialize_value(
-        "tube", traces["instrumented.tube"].value, resolve.extract_inner_hint(List[str])
+        "tube", _resolved_traces()["instrumented.tube"].value, resolve.extract_inner_hint(List[str])
     ) == ["tu", "u", "be"]
-    assert traces["instrumented.heels"] == ResolvedValueTrace(
+    assert _resolved_traces()["instrumented.heels"] == ResolvedValueTrace(
         "heels", "xhe", None, str, ["instrumented"], prov_name, c.instrumented
     )
-    assert traces["sectioned.password"] == ResolvedValueTrace(
+    assert _resolved_traces()["sectioned.password"] == ResolvedValueTrace(
         "password", "passwd", None, str, ["sectioned"], prov_name, c.sectioned
     )
-    assert len(traces) == 5
+    assert len(_resolved_traces()) == 5
 
     # try to get native representation
     with patch.object(InstrumentedConfiguration, "__section__", "snake"):
@@ -1305,14 +1309,51 @@ def test_resolved_trace(environment: Any) -> None:
             c = resolve.resolve_configuration(EmbeddedConfiguration())
             resolve.resolve_configuration(InstrumentedConfiguration())
 
-    assert traces[".default"] == ResolvedValueTrace("default", "UNDEF", None, str, [], prov_name, c)
-    assert traces[".instrumented"] == ResolvedValueTrace(
+    assert _resolved_traces()[".default"] == ResolvedValueTrace(
+        "default", "UNDEF", None, str, [], prov_name, c
+    )
+    assert _resolved_traces()[".instrumented"] == ResolvedValueTrace(
         "instrumented", "h>t>t>t>he", None, InstrumentedConfiguration, [], prov_name, c
     )
 
-    assert traces[".snake"] == ResolvedValueTrace(
+    assert _resolved_traces()[".snake"] == ResolvedValueTrace(
         "snake", "h>t>t>t>he", None, InstrumentedConfiguration, [], prov_name, None
     )
+
+
+@pytest.mark.parametrize("enable_logging", (True, False))
+def test_unresolved_trace(environment: Any, enable_logging: bool) -> None:
+    tracer = get_resolved_traces()
+    tracer.logging_enabled = enable_logging
+
+    @configspec
+    class OptEmbeddedConfiguration(BaseConfiguration):
+        default: Optional[str] = None
+        instrumented: InstrumentedConfiguration = None
+        sectioned: SectionedConfiguration = None
+
+    with custom_environ(
+        {
+            "INSTRUMENTED__HEAD": "h",
+            "INSTRUMENTED__TUBE": '["tu", "u", "be"]',
+            "INSTRUMENTED__HEELS": "xhe",
+        }
+    ):
+        resolve.resolve_configuration(
+            OptEmbeddedConfiguration(default="_DEFF"),
+            sections=("wrapper", "spec"),
+            explicit_value={"default": None, "sectioned": {"password": "$pwd"}},
+        )
+
+    if enable_logging:
+        # we try in ("wrapper", "spec") so there are 3 read attempts per resolved value
+        assert len(tracer.all_traces) == 3 * len(tracer.resolved_traces)
+        # there are 3 resolved values, explicit values are not included
+        assert len(tracer.resolved_traces) == 3
+        # first resolved value sections are full depth
+        assert tracer.all_traces[0].sections == ["wrapper", "spec", "instrumented"]
+    else:
+        assert len(tracer.all_traces) == len(tracer.resolved_traces) == 0
 
 
 def test_extract_inner_hint() -> None:

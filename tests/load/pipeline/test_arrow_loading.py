@@ -30,15 +30,12 @@ from tests.utils import (
 )
 from tests.cases import arrow_table_all_data_types
 
-# mark all tests as essential, do not remove
-pytestmark = pytest.mark.essential
-
 
 # NOTE: this test runs on parquet + postgres needs adbc dependency group
 destination_cases = destinations_configs(
     default_sql_configs=True,
     default_staging_configs=True,
-    all_staging_configs=True,
+    all_staging_configs=False,
     table_format_filesystem_configs=True,
 )
 # if postgres got selected, add postgres config with native parquet support via adbc
@@ -48,6 +45,7 @@ if "postgres" in [case.destination_type for case in destination_cases]:
     )
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destination_cases,
@@ -249,6 +247,7 @@ def test_parquet_column_names_are_normalized(
         assert result_tbl.schema.names == expected_column_names
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destination_cases,

@@ -32,6 +32,12 @@ from dlt.destinations.impl.bigquery.bigquery_adapter import CLUSTER_HINT, PARTIT
 from dlt.destinations.impl.bigquery.bigquery_partition_specs import BigQueryRangeBucketPartition
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.extract import DltResource
+from tests.load.utils import (
+    destinations_configs,
+    DestinationTestConfiguration,
+    TABLE_UPDATE,
+    sequence_generator,
+)
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -569,12 +575,6 @@ def test_bigquery_no_partition_by_integer(
             assert not has_partitions
 
 
-@pytest.fixture(autouse=True)
-def drop_bigquery_schema() -> Iterator[None]:
-    yield
-    drop_active_pipeline_data()
-
-
 def test_adapter_no_hints_parsing() -> None:
     @dlt.resource(columns=[{"name": "int_col", "data_type": "bigint"}])
     def some_data() -> Iterator[Dict[str, str]]:
@@ -602,10 +602,8 @@ def test_adapter_hints_parsing_partitioning_more_than_one_column() -> None:
 
     with pytest.raises(
         ValueError,
-        match=(
-            "^`partition` must be a single column name as a string, PartitionTransformation, or"
-            " BigQueryPartitionSpec.$"
-        ),
+        match="`partition` must be a single column name as a `str`, `PartitionTransformation`, or"
+            " `BigQueryPartitionSpec`.",
     ):
         bigquery_adapter(some_data, partition=["col1", "col2"])
 

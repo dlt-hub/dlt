@@ -250,7 +250,7 @@ If for any reason you want to have those files in a local folder, set up the `bu
 
 ```toml
 [destination.filesystem]
-bucket_url = "file:///absolute/path"  # three / for an absolute path
+bucket_url = "file:///absolute/path"  # three slashes (file:///) for an absolute path
 ```
 
 :::tip

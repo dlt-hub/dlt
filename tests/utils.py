@@ -4,7 +4,7 @@ import os
 import platform
 import sys
 from os import environ
-from typing import Any, Iterable, Iterator, Literal, Union, get_args, List
+from typing import Any, Iterable, Iterator, Literal, Optional, Union, get_args, List
 from unittest.mock import patch
 
 import pytest
@@ -43,6 +43,8 @@ TEST_STORAGE_ROOT = "_storage"
 ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or [
     "duckdb",
 ]
+
+LOCAL_POSTGRES_CREDENTIALS = "postgresql://loader:loader@localhost:5432/dlt_data"
 
 
 # destination constants
@@ -167,13 +169,48 @@ def test_storage() -> FileStorage:
 
 
 @pytest.fixture(autouse=True)
-def autouse_test_storage() -> FileStorage:
-    return clean_test_storage()
+def autouse_test_storage(request) -> Optional[FileStorage]:
+    # skip storage cleanup if module level fixture is activated
+    if not request.keywords.get("skip_autouse_test_storage", False):
+        return clean_test_storage()
+    return None
 
 
 @pytest.fixture(scope="function", autouse=True)
 def preserve_environ() -> Iterator[None]:
     yield from _preserve_environ()
+
+
+@pytest.fixture(autouse=True)
+def patch_home_dir() -> Iterator[None]:
+    yield from _patch_home_dir()
+
+
+@pytest.fixture(autouse=True, scope="module")
+def autouse_module_test_storage(request) -> FileStorage:
+    request.keywords["skip_autouse_test_storage"] = True
+    return clean_test_storage()
+
+
+@pytest.fixture(autouse=True, scope="module")
+def preserve_module_environ() -> Iterator[None]:
+    yield from _preserve_environ()
+
+
+@pytest.fixture(autouse=True, scope="module")
+def patch_module_home_dir(autouse_module_test_storage) -> Iterator[None]:
+    yield from _patch_home_dir()
+
+
+def _patch_home_dir() -> Iterator[None]:
+    ctx = PluggableRunContext()
+    mock = MockableRunContext.from_context(ctx.context)
+    mock._local_dir = os.path.abspath(TEST_STORAGE_ROOT)
+    mock._global_dir = mock._data_dir = os.path.join(mock._local_dir, DOT_DLT)
+    ctx.context = mock
+
+    with Container().injectable_context(ctx):
+        yield
 
 
 def _preserve_environ() -> Iterator[None]:
@@ -189,7 +226,6 @@ def _preserve_environ() -> Iterator[None]:
             "AWS_SESSION_TOKEN",
         ]
     }
-    # print("PRE ENV", saved_environ)
     try:
         yield
     finally:
@@ -200,13 +236,6 @@ def _preserve_environ() -> Iterator[None]:
                 environ[key_] = value_ or ""
             else:
                 del environ[key_]
-        # print("POST ENV", environ)
-
-
-@pytest.fixture(autouse=True)
-def duckdb_pipeline_location() -> Iterator[None]:
-    with custom_environ({"DESTINATION__DUCKDB__CREDENTIALS": ":pipeline:"}):
-        yield
 
 
 class MockableRunContext(RunContext):
@@ -222,6 +251,10 @@ class MockableRunContext(RunContext):
     def run_dir(self) -> str:
         return os.environ.get(known_env.DLT_PROJECT_DIR, self._run_dir)
 
+    @property
+    def local_dir(self) -> str:
+        return os.environ.get(known_env.DLT_LOCAL_DIR, self._local_dir)
+
     # @property
     # def settings_dir(self) -> str:
     #     return self._settings_dir
@@ -235,6 +268,7 @@ class MockableRunContext(RunContext):
     _run_dir: str
     _settings_dir: str
     _data_dir: str
+    _local_dir: str
 
     @classmethod
     def from_context(cls, ctx: SupportsRunContext) -> "MockableRunContext":
@@ -244,18 +278,8 @@ class MockableRunContext(RunContext):
         cls_._run_dir = ctx.run_dir
         cls_._settings_dir = ctx.settings_dir
         cls_._data_dir = ctx.data_dir
+        cls_._local_dir = ctx.local_dir
         return cls_
-
-
-@pytest.fixture(autouse=True)
-def patch_home_dir() -> Iterator[None]:
-    ctx = PluggableRunContext()
-    mock = MockableRunContext.from_context(ctx.context)
-    mock._global_dir = mock._data_dir = os.path.join(os.path.abspath(TEST_STORAGE_ROOT), DOT_DLT)
-    ctx.context = mock
-
-    with Container().injectable_context(ctx):
-        yield
 
 
 @pytest.fixture(autouse=True)

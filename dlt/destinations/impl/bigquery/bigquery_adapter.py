@@ -364,7 +364,9 @@ def bigquery_adapter(
             )
             additional_table_hints[TABLE_EXPIRATION_HINT] = parsed_table_expiration_datetime
         except ValueError as e:
-            raise ValueError(f"{table_expiration_datetime} could not be parsed!") from e
+            raise ValueError(
+                f"`table_expiration_datetime={table_expiration_datetime}` could not be parsed!"
+            ) from e
 
     if partition_expiration_days is not None:
         assert isinstance(
@@ -375,8 +377,8 @@ def bigquery_adapter(
     if insert_api is not None:
         if insert_api == "streaming" and data.write_disposition != "append":
             raise ValueError(
-                "BigQuery streaming insert can only be used with `append` write_disposition, while "
-                f"the given resource has `{data.write_disposition}`."
+                "BigQuery streaming insert only accepts `write_disposition='append'`. "
+                f"Received `write_disposition={data.write_disposition}`."
             )
         additional_table_hints["x-insert-api"] = insert_api
 

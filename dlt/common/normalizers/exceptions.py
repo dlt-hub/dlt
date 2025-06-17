@@ -10,6 +10,6 @@ class InvalidJsonNormalizer(NormalizerException):
         self.required_normalizer = required_normalizer
         self.present_normalizer = present_normalizer
         super().__init__(
-            f"Operation requires {required_normalizer} normalizer while"
-            f" {present_normalizer} normalizer is present"
+            f"Operation requires `{required_normalizer}` normalizer while"
+            f" `{present_normalizer}` normalizer is present"
         )

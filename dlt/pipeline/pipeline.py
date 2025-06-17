@@ -13,6 +13,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    TypeVar,
     cast,
     ContextManager,
     Union,
@@ -23,6 +24,7 @@ import dlt
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.configuration import inject_section, known_sections
 from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.configuration.container import Container
@@ -59,6 +61,7 @@ from dlt.common.storages import (
     PackageStorage,
     LoadJobInfo,
     LoadPackageInfo,
+    WithLocalFiles,
 )
 from dlt.common.destination import (
     Destination,
@@ -97,7 +100,6 @@ from dlt.common.utils import is_interactive, simple_repr, without_none
 from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
-from dlt.destinations.configuration import WithLocalFiles
 from dlt.extract import DltSource
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import Extract, data_to_sources
@@ -147,6 +149,9 @@ from dlt.pipeline.state_sync import (
 )
 from dlt.common.storages.load_package import TLoadPackageState
 from dlt.pipeline.helpers import refresh_source
+
+
+TWithLocalFiles = TypeVar("TWithLocalFiles", bound=WithLocalFiles)
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -434,7 +439,10 @@ class Pipeline(SupportsPipeline):
     ) -> ExtractInfo:
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
         if loader_file_format and loader_file_format not in LOADER_FILE_FORMATS:
-            raise ValueError(f"{loader_file_format} is unknown.")
+            raise ValueErrorWithKnownValues(
+                "loader_file_format", loader_file_format, LOADER_FILE_FORMATS
+            )
+
         with self._maybe_destination_capabilities() as caps:
             if caps:
                 self._verify_destination_capabilities(caps, loader_file_format)
@@ -1128,12 +1136,25 @@ class Pipeline(SupportsPipeline):
             )
 
     def _on_set_destination(self, new_value: AnyDestination) -> None:
+        """Called when destination changes"""
         if issubclass(new_value.spec, WithLocalFiles):
             config = WithLocalFiles()
-            config._bind_local_files(self)
+            config = self._bind_local_files(config)
             # bind config fields with pipeline context so local files are created at deterministic location
             for field in WithLocalFiles.__annotations__:
-                new_value.config_params[field] = config[field]
+                if config[field] is not None:
+                    new_value.config_params[field] = config[field]
+
+    def _bind_local_files(self, local_files: TWithLocalFiles) -> TWithLocalFiles:
+        # get context for local files from pipeline
+        local_files.pipeline_working_dir = self.working_dir
+        try:
+            local_files.legacy_db_path = self.get_local_state_val("duckdb_database")
+        except KeyError:
+            pass
+        local_files.local_dir = self.get_local_state_val("initial_cwd")
+        local_files.pipeline_name = self.pipeline_name
+        return local_files
 
     def _get_schema_or_create(self, schema_name: str = None) -> Schema:
         if schema_name:
@@ -1293,7 +1314,7 @@ class Pipeline(SupportsPipeline):
                 "destination",
                 "load",
                 "Please provide `destination` argument to `pipeline`, `run` or `load` method"
-                " directly or via .dlt config.toml file or environment variable.",
+                " directly or via .dlt/config.toml file or environment variable.",
             )
 
         destination_client, staging_client = get_destination_clients(
@@ -1314,8 +1335,8 @@ class Pipeline(SupportsPipeline):
         if isinstance(destination_client.config, DestinationClientStagingConfiguration):
             if not self.dataset_name and self.dev_mode:
                 logger.warning(
-                    "Dev mode may not work if dataset name is not set. Please set the"
-                    " dataset_name argument in dlt.pipeline or run method"
+                    "`dev_mode=True` may not work if `dataset_name` is not set. "
+                    "Please set `dataset_name` in `dlt.pipeline(...)` or `Pipeline.run(...)`."
                 )
 
         return destination_client, staging_client
@@ -1327,7 +1348,7 @@ class Pipeline(SupportsPipeline):
                 "destination",
                 "normalize",
                 "Please provide `destination` argument to `pipeline`, `run` or `load` method"
-                " directly or via .dlt config.toml file or environment variable.",
+                " directly or via .dlt/config.toml file or environment variable.",
             )
 
         # check if default schema is present

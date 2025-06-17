@@ -125,6 +125,13 @@ The threshold for this is usually 1000 tables, but we learned that for Athena a 
 info_tables_query_threshold=90
 ```
 
+You can specify the database location using db_location:
+```toml
+[destination.athena]
+db_location="s3://[your_bucket_name]" # replace with your bucket name,
+```
+
+
 ## Write disposition
 
 The `athena` destination handles the write dispositions as follows:

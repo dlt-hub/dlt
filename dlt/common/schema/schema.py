@@ -310,7 +310,7 @@ class Schema:
                     None,
                     schema_contract,
                     data_item,
-                    f"Trying to add table {table_name} but new tables are frozen.",
+                    f"Can't add table `{table_name}` because `tables` are frozen.",
                 )
             # filter tables with name below
             return None, [("tables", table_name, schema_contract["tables"])]
@@ -339,8 +339,8 @@ class Schema:
                         existing_table,
                         schema_contract,
                         data_item,
-                        f"Trying to add column {column_name} to table {table_name} but columns are"
-                        " frozen.",
+                        f"Can't add table column `{column_name}` to table `{table_name}` because"
+                        " `columns` are frozen.",
                     )
                 # filter column with name below
                 filters.append(("columns", column_name, column_mode))
@@ -359,8 +359,8 @@ class Schema:
                         existing_table,
                         schema_contract,
                         data_item,
-                        f"Trying to create new variant column {column_name} to table"
-                        f" {table_name} but data_types are frozen.",
+                        f"Can't add variant column `{column_name}` for table `{table_name}`"
+                        " because `data_types` are frozen.",
                     )
                 # filter column with name below
                 filters.append(("columns", column_name, data_mode))
@@ -538,9 +538,9 @@ class Schema:
         if len(existing_columns) != len(casefold_existing):
             raise SchemaCorruptedException(
                 self.name,
-                f"A set of existing columns passed to get_new_table_columns table {table_name} has"
-                " colliding names when case insensitive comparison is used. Original names:"
-                f" {list(existing_columns.keys())}. Case-folded names:"
+                "A set of existing columns passed to `get_new_table_columns` table"
+                f" `{table_name}` has colliding names when case insensitive comparison is used."
+                f" Original names: {list(existing_columns.keys())}. Case-folded names:"
                 f" {list(casefold_existing.keys())}",
             )
         diff_c: List[TColumnSchema] = []
@@ -1066,7 +1066,7 @@ class Schema:
                         table["name"],
                         to_naming,
                         from_naming,
-                        f"Attempt to rename table name to {norm_table['name']}.",
+                        f"Attempt to rename table to `{norm_table['name']}`.",
                     )
                 # if len(norm_table["columns"]) != len(table["columns"]):
                 #     print(norm_table["columns"])
@@ -1087,7 +1087,7 @@ class Schema:
                         table["name"],
                         to_naming,
                         from_naming,
-                        f"Some columns got renamed to {col_diff}.",
+                        f"Some columns got renamed to `{col_diff}`.",
                     )
 
         naming_changed = from_naming and type(from_naming) is not type(to_naming)
@@ -1135,7 +1135,7 @@ class Schema:
                     "-",
                     to_naming,
                     from_naming,
-                    "Schema contains tables that received data. As a precaution changing naming"
+                    "Schema contains tables that received data. As a precaution, changing naming"
                     " conventions is disallowed until full identifier lineage is implemented.",
                 )
             # re-index the table names
@@ -1165,7 +1165,7 @@ class Schema:
             if not table_name.startswith(self._dlt_tables_prefix):
                 raise SchemaCorruptedException(
                     self.name,
-                    f"A naming convention {self.naming.name()} mangles _dlt table prefix to"
+                    f"A naming convention `{self.naming.name()}` mangles `_dlt` table prefix to"
                     f" '{self._dlt_tables_prefix}'. A table '{table_name}' does not start with it.",
                 )
         # normalize default hints
@@ -1231,11 +1231,11 @@ class Schema:
         self._schema_tables = stored_schema.get("tables") or {}
         if self.version_table_name not in self._schema_tables:
             raise SchemaCorruptedException(
-                stored_schema["name"], f"Schema must contain table {self.version_table_name}"
+                stored_schema["name"], f"Schema must contain table `{self.version_table_name}`"
             )
         if self.loads_table_name not in self._schema_tables:
             raise SchemaCorruptedException(
-                stored_schema["name"], f"Schema must contain table {self.loads_table_name}"
+                stored_schema["name"], f"Schema must contain table `{self.loads_table_name}`"
             )
         self._stored_version = stored_schema["version"]
         self._stored_version_hash = stored_schema["version_hash"]

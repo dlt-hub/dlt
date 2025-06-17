@@ -126,6 +126,7 @@ class AthenaMergeJob(SqlMergeFollowupJob):
         dedup_sort: Tuple[str, TSortOrder] = None,
         condition: str = None,
         condition_columns: Sequence[str] = None,
+        skip_dedup: bool = False,
     ) -> Tuple[List[str], str]:
         sql, temp_table_name = super().gen_insert_temp_table_sql(
             table_name,
@@ -136,6 +137,7 @@ class AthenaMergeJob(SqlMergeFollowupJob):
             dedup_sort,
             condition,
             condition_columns,
+            skip_dedup,
         )
         # DROP needs backtick as escape identifier
         sql.insert(0, f"""DROP TABLE IF EXISTS {temp_table_name.replace('"', '`')};""")
@@ -212,8 +214,13 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         return f"{self.fully_qualified_ddl_dataset_name()}.{table_name}"
 
     def create_dataset(self) -> None:
+        db_location_clause = (
+            f" LOCATION '{self.config.db_location}'" if self.config.db_location else ""
+        )
         # HIVE escaping for DDL
-        self.execute_sql(f"CREATE DATABASE {self.fully_qualified_ddl_dataset_name()};")
+        self.execute_sql(
+            f"CREATE DATABASE {self.fully_qualified_ddl_dataset_name()}{db_location_clause};"
+        )
 
     def drop_dataset(self) -> None:
         self.execute_sql(f"DROP DATABASE {self.fully_qualified_ddl_dataset_name()} CASCADE;")

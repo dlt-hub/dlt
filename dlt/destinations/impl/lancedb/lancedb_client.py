@@ -46,6 +46,7 @@ from dlt.common.destination.client import (
 from dlt.common.pendulum import timedelta
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import (
+    C_DLT_LOADS_TABLE_LOAD_ID,
     TColumnType,
     TTableSchemaColumns,
     TWriteDisposition,
@@ -216,7 +217,7 @@ def write_records(
                 ).when_matched_update_all().when_not_matched_insert_all().execute(records)
         else:
             raise DestinationTerminalException(
-                f"Unsupported write disposition {write_disposition} for LanceDB Destination - batch"
+                f"Unsupported `{write_disposition=:}` for LanceDB Destination - batch"
                 " failed AND WILL **NOT** BE RETRIED."
             )
     except ArrowInvalid as e:
@@ -389,7 +390,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                     if len(merge_key) > 1:
                         raise DestinationTerminalException(
                             "You cannot specify multiple merge keys with LanceDB orphan remove"
-                            f" enabled: {merge_key}"
+                            f" enabled: `{merge_key}`"
                         )
         return loaded_tables
 
@@ -571,7 +572,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         loads_table_.checkout_latest()
 
         # normalize property names
-        p_load_id = self.schema.naming.normalize_identifier("load_id")
+        p_load_id = self.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID)
         p_dlt_load_id = self.schema.naming.normalize_identifier(
             self.schema.data_item_normalizer.c_dlt_load_id  # type: ignore[attr-defined]
         )
@@ -690,7 +691,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def complete_load(self, load_id: str) -> None:
         records = [
             {
-                self.schema.naming.normalize_identifier("load_id"): load_id,
+                self.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID): load_id,
                 self.schema.naming.normalize_identifier("schema_name"): self.schema.name,
                 self.schema.naming.normalize_identifier("status"): 0,
                 self.schema.naming.normalize_identifier("inserted_at"): pendulum.now(),

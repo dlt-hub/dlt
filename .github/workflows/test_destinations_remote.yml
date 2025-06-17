@@ -1,0 +1,198 @@
+
+name: dest | remote
+
+on:
+  workflow_call:
+    inputs:
+        run_full_test_suite:
+          required: true
+          type: boolean
+          default: false
+
+  workflow_dispatch:
+
+env:
+  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
+  RUNTIME__LOG_LEVEL: ERROR
+
+  # For s3 compatibility tests, used by "postgres and redshift", could be moved to google secrets
+  TESTS__R2_AWS_ACCESS_KEY_ID: a4950a5003b26f5a71ac97ef3848ff4c
+  TESTS__R2_AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+  TESTS__R2_ENDPOINT_URL: https://9830548e4e4b582989be0811f2a0a97f.r2.cloudflarestorage.com
+  TESTS__R2_REGION_NAME: us-east-1
+
+jobs:
+
+  run_destinations_remote:
+    name: dest | remote
+
+    strategy:
+        fail-fast: false
+        matrix:
+          include:
+
+            # Athena
+            - name: athena
+              destinations: "[\"athena\"]"
+              filesystem_drivers: "[\"memory\"]"
+              excluded_destination_configurations: "[\"athena-parquet-iceberg-no-staging-iceberg\", \"athena-parquet-iceberg-staging-iceberg\"]"
+              extras: "athena"
+
+            # Athena iceberg (NOTE: same as athene with different configs disabled)
+            - name: athena iceberg
+              destinations: "[\"athena\"]"
+              filesystem_drivers: "[\"memory\"]"
+              excluded_destination_configurations: "[\"athena-no-staging\", \"athena-parquet-no-staging\"]"
+              extras: "athena"
+
+            # BigQuery
+            - name: bigquery
+              destinations: "[\"bigquery\"]"
+              filesystem_drivers: "[\"memory\"]"
+              extras: "bigquery parquet"
+
+            
+            # Clickhouse
+            - name: clickhouse
+              destinations: "[\"clickhouse\"]"
+              filesystem_drivers: "[\"memory\", \"file\"]"
+              extras: "clickhouse parquet"
+
+              
+            # Databricks
+            - name: databricks
+              destinations: "[\"databricks\"]"
+              filesystem_drivers: "[\"memory\"]"
+              extras: "databricks s3 gs az parquet"
+
+            # Filesystem
+            - name: filesystem_s3_local
+              destinations: "[\"filesystem\"]"
+              # note that all buckets are enabled for testing
+              filesystem_drivers: "[\"memory\", \"file\", \"r2\", \"s3\"]" # excludes sftp which is run in local tests
+              extras: "s3 parquet duckdb filesystem deltalake pyiceberg"
+              post_install_commands: "poetry run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
+
+            - name: filesystem_az
+              destinations: "[\"filesystem\"]"
+              # note that all buckets are enabled for testing
+              filesystem_drivers: "[\"memory\", \"az\", \"abfss\"]" # excludes sftp which is run in local tests
+              extras: "az parquet duckdb filesystem deltalake pyiceberg"
+              post_install_commands: "poetry run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
+
+            - name: filesystem_gs_gdrive
+              destinations: "[\"filesystem\"]"
+              # note that all buckets are enabled for testing
+              filesystem_drivers: "[\"memory\", \"gs\", \"gdrive\"]" # excludes sftp which is run in local tests
+              extras: "gs parquet duckdb filesystem deltalake pyiceberg"
+              post_install_commands: "poetry run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
+
+            # LanceDB
+            - name: lancedb
+              destinations: "[\"lancedb\"]"
+              filesystem_drivers: "[\"memory\"]"
+              extras: "lancedb parquet"
+              post_install_commands: "poetry run pip install openai"
+
+            # Motherduck
+            - name: motherduck
+              destinations: "[\"motherduck\"]"
+              filesystem_drivers: "[\"memory\"]"
+              extras: "motherduck s3 gs az parquet"
+
+            # MSSQL
+            - name: mssql
+              destinations: "[\"mssql\"]"
+              filesystem_drivers: "[\"memory\"]"
+              extras: "mssql s3 gs az parquet"
+              pre_install_commands: "sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
+              always_run_all_tests: true
+
+            # Synapse
+            - name: synapse
+              destinations: "[\"synapse\"]"
+              filesystem_drivers: "[\"memory\"]"
+              extras: "synapse parquet"
+              pre_install_commands: "sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
+
+            # Postgres and Redshift (used to be test_destinations.yml)
+            - name: redshift
+              destinations: "[\"redshift\"]"
+              filesystem_drivers: "[\"memory\", \"file\"]"
+              extras: "postgres redshift postgis s3 gs az parquet duckdb"
+              with: ",adbc"
+
+            - name: postgres
+              destinations: "[\"postgres\"]"
+              filesystem_drivers: "[\"memory\", \"file\"]"
+              extras: "postgres postgis parquet duckdb"
+              with: ",adbc"
+              always_run_all_tests: true
+
+            # Qdrant (disabled, because we do not have a test account atm, qdrant is tested with local version)
+            # - name: qdrant
+            #   destinations: "[\"qdrant\"]"
+            #   filesystem_drivers: "[\"memory\"]"
+            #   extras: "qdrant parquet"
+
+            # Snowflake
+            - name: snowflake
+              destinations: "[\"snowflake\"]"
+              filesystem_drivers: "[\"memory\"]"
+              extras: "snowflake s3 gs az parquet"
+
+    env:
+        ACTIVE_DESTINATIONS: ${{ matrix.destinations }}
+        ALL_FILESYSTEM_DRIVERS: ${{ matrix.filesystem_drivers }}
+        EXCLUDED_DESTINATION_CONFIGURATIONS: ${{ matrix.excluded_destination_configurations || '[]' }}
+
+    defaults:
+      run:
+        shell: bash
+    runs-on: "ubuntu-latest"
+
+    steps:
+
+      - name: Check out
+        uses: actions/checkout@master
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10.x"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1.3.2
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+          version: 1.8.5
+
+      - name: Run pre install commands
+        run: ${{ matrix.pre_install_commands }}
+        if: ${{ matrix.pre_install_commands }}
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --with sentry-sdk,pipeline,ibis,providers${{ matrix.with }} --extras "${{ matrix.extras }}"
+
+      - name: Run post install commands
+        run: ${{ matrix.post_install_commands }}
+        if: ${{ matrix.post_install_commands }}
+
+      - name: create secrets.toml
+        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
+
+      # NOTE: essential tests are always run
+      - run: |
+          poetry run pytest tests/load --ignore tests/load/sources -m "essential"
+        name: Run essential tests Linux
+
+      # NOTE: non-essential tests are run if the full test suite is requested or if the matrix item has always_run_all_tests set to true
+      # we want to run this step even if the essential tests fail
+      - run: |
+          poetry run pytest tests/load --ignore tests/load/sources -m "not essential"
+        name: Run non-essential tests Linux
+        if: ${{ always() && (inputs.run_full_test_suite || matrix.always_run_all_tests) }}

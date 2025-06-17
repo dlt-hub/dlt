@@ -19,6 +19,8 @@ from .configuration import (
     SchemaStorageConfiguration,
     TSchemaFileFormat,
     FilesystemConfiguration,
+    WithLocalFiles,
+    FilesystemConfigurationWithLocalFiles,
 )
 from .fsspec_filesystem import fsspec_from_config, fsspec_filesystem
 
@@ -36,6 +38,8 @@ __all__ = [
     "SchemaStorageConfiguration",
     "TSchemaFileFormat",
     "FilesystemConfiguration",
+    "WithLocalFiles",
+    "FilesystemConfigurationWithLocalFiles",
     "ParsedLoadJobFileName",
     "LoadJobInfo",
     "LoadPackageInfo",

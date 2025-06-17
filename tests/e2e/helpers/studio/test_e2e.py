@@ -9,7 +9,6 @@ from tests.utils import (
     patch_home_dir,
     autouse_test_storage,
     preserve_environ,
-    # duckdb_pipeline_location, #  using this will break the e2e tests
     wipe_pipeline,
 )
 

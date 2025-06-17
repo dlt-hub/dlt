@@ -172,7 +172,9 @@ class PluggableRunContext(ContainerInjectableContext):
         """Pops context from stack and re-initializes it if in container"""
         _c, context, providers, runtime_config = self._context_stack.pop()
         if cookie != _c:
-            raise ValueError(f"Run context stack mangled. Got cookie {_c} but expected {cookie}")
+            raise ValueError(
+                f"Run context stack mangled. Got cookie `{_c}` but expected `{cookie}`"
+            )
         self.runtime_config = runtime_config
         self.reload(context)
 
@@ -181,4 +183,6 @@ class PluggableRunContext(ContainerInjectableContext):
         state_ = self._context_stack.pop()
         _c = state_[0]
         if cookie != _c:
-            raise ValueError(f"Run context stack mangled. Got cookie {_c} but expected {cookie}")
+            raise ValueError(
+                f"Run context stack mangled. Got cookie `{_c}` but expected `{cookie}`"
+            )
