@@ -221,6 +221,15 @@ Requires `streamlit` to be installed in the current environment: `pip install st
             action="store_true",
             help="Launch marimo app preview instead of streamlit",
         )
+        show_cmd.add_argument(
+            "--edit",
+            default=False,
+            action="store_true",
+            help=(
+                "Launch marimo app preview in edit mode (only works together with --marimo flag,"
+                " otherwise it will be ignored)"
+            ),
+        )
         pipeline_subparsers.add_parser(
             "failed-jobs",
             help=(

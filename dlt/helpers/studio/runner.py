@@ -5,17 +5,25 @@ from dlt.common.exceptions import MissingDependencyException
 # keep this, will raise if user tries to run studio without dependencies
 try:
     import marimo
-    import ibis
     import pandas
+    import ibis
 except ModuleNotFoundError:
     raise MissingDependencyException(
-        "dlt Studio",
+        "dlt marimo app",
         ["marimo", "pandas", "ibis-framework"],
-        "dlt Studio requires additional dependencies, such as marimo, pandas and ibis-framework.",
+        "the dlt marimo app requires additional dependencies, such as marimo, pandas and"
+        " ibis-framework.",
     )
 
 
-def run_studio() -> None:
+def run_studio(pipeline_name: str = None, edit: bool = False) -> None:
     from dlt.helpers.studio import app
 
-    subprocess.run(["marimo", "run", app.__file__])
+    studio_cmd = ["marimo", "run" if not edit else "edit", app.__file__]
+
+    if pipeline_name:
+        studio_cmd.append("--")
+        studio_cmd.append("--pipeline")
+        studio_cmd.append(pipeline_name)
+
+    subprocess.run(studio_cmd)
