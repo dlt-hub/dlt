@@ -296,7 +296,8 @@ constraint-dependencies = [
     "pandas>2.1 ; python_version >= '3.12'",
     "pandas<2.1 ; python_version < '3.12'",
     # keep last duckdb version that works with azure and iceberg correctly
-    "duckdb>=0.9,<1.2.1",
+    # NOTE, we need to allow duckdb 0.8 for venv tests with old dlt versions
+    "duckdb>=0.8,<1.2.1",
     "psycopg2-binary>=2.9.1"
 ]
 
