@@ -33,14 +33,14 @@ class TestDateTruncPartition:
         assert part2.granularity == "YEAR"
 
     def test_invalid_granularity(self):
-        with pytest.raises(ValueError, match="granularity must be one of \\['MONTH', 'YEAR'\\] for DDL partition expressions"):
+        with pytest.raises(ValueError, match="granularity must be one of \\['MONTH', 'YEAR'\\], got DAY"):
             BigQueryDateTruncPartition("created_at", "DAY")
         
         # Test other invalid granularities
-        with pytest.raises(ValueError, match="granularity must be one of \\['MONTH', 'YEAR'\\] for DDL partition expressions"):
+        with pytest.raises(ValueError, match="granularity must be one of \\['MONTH', 'YEAR'\\], got QUARTER"):
             BigQueryDateTruncPartition("created_at", "QUARTER")
         
-        with pytest.raises(ValueError, match="granularity must be one of \\['MONTH', 'YEAR'\\] for DDL partition expressions"):
+        with pytest.raises(ValueError, match="granularity must be one of \\['MONTH', 'YEAR'\\], got WEEK"):
             BigQueryDateTruncPartition("created_at", "WEEK")
 
 
