@@ -2,6 +2,9 @@ from abc import ABC
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Type, TypeVar, Union, Literal
 
+# Constant to avoid magic strings
+PARTITION_SPEC_TYPE_KEY = "_dlt_partition_spec_type"
+
 # Generic type for partition specs
 T = TypeVar('T', bound='SerializablePartitionSpec')
 
@@ -13,14 +16,14 @@ class SerializablePartitionSpec(ABC):
     def to_dict(self) -> Dict[str, Any]:
         """Convert partition spec to dictionary with type information."""
         data = asdict(self)
-        data["_dlt_partition_spec_type"] = self.__class__.__name__
+        data[PARTITION_SPEC_TYPE_KEY] = self.__class__.__name__
         return data
     
     @classmethod
     def from_dict(cls: Type[T], data: Dict[str, Any]) -> T:
         """Reconstruct partition spec from dictionary."""
         # Remove the type marker
-        spec_data = {k: v for k, v in data.items() if k != "_dlt_partition_spec_type"}
+        spec_data = {k: v for k, v in data.items() if k != PARTITION_SPEC_TYPE_KEY}
         return cls(**spec_data)
 
 

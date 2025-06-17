@@ -18,6 +18,7 @@ from dlt.destinations.impl.bigquery.bigquery_partition_specs import (
     BigQueryTimestampOrDateTimePartition,
     BigQueryTimestampTruncIngestionPartition,
     BigQueryTimestampTruncPartition,
+    PARTITION_SPEC_TYPE_KEY,
 )
 from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
@@ -288,7 +289,7 @@ def bigquery_adapter(
         if isinstance(partition, get_args(BigQueryPartitionSpec)):
             # Store the spec as a dict with type information for reconstruction
             partition_dict = asdict(partition)
-            partition_dict["_dlt_partition_type"] = type(partition).__name__
+            partition_dict[PARTITION_SPEC_TYPE_KEY] = type(partition).__name__
             additional_table_hints[PARTITION_HINT] = partition_dict
         elif isinstance(partition, str):
             column_hints[partition] = {"name": partition, PARTITION_HINT: True}  # type: ignore[typeddict-unknown-key]
