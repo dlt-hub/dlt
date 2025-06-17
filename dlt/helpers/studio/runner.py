@@ -16,10 +16,10 @@ except ModuleNotFoundError:
     )
 
 
-def run_studio(pipeline_name: str = None) -> None:
+def run_studio(pipeline_name: str = None, edit: bool = False) -> None:
     from dlt.helpers.studio import app
 
-    studio_cmd = ["marimo", "run", app.__file__]
+    studio_cmd = ["marimo", "run" if not edit else "edit", app.__file__]
 
     if pipeline_name:
         studio_cmd.append("--")
