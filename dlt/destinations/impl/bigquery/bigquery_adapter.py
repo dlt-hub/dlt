@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Literal, Optional, Protocol, Sequence, TypeVar, Union, get_args
 
 from dateutil import parser
@@ -286,8 +286,10 @@ def bigquery_adapter(
             column.pop(PARTITION_HINT, None)  # type: ignore[typeddict-item]
 
         if isinstance(partition, get_args(BigQueryPartitionSpec)):
-            # Store the spec object directly as the table hint
-            additional_table_hints[PARTITION_HINT] = partition
+            # Store the spec as a dict with type information for reconstruction
+            partition_dict = asdict(partition)
+            partition_dict["_dlt_partition_type"] = type(partition).__name__
+            additional_table_hints[PARTITION_HINT] = partition_dict
         elif isinstance(partition, str):
             column_hints[partition] = {"name": partition, PARTITION_HINT: True}  # type: ignore[typeddict-unknown-key]
         elif isinstance(partition, PartitionTransformation):
