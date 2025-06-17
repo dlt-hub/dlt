@@ -29,7 +29,6 @@ jobs:
   # NOTE: we could splint linting and testing of docs so linter can also always run for fork PRs
   test_docs_snippets:
     name: test snippets in docs
-    needs: [authorize_run_from_fork]
     uses: ./.github/workflows/test_docs_snippets.yml
     secrets: inherit
   
