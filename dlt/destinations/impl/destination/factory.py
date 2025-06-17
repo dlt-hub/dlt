@@ -99,7 +99,7 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
         """
         if spec and not issubclass(spec, CustomDestinationClientConfiguration):
             raise TerminalValueError(
-                "A SPEC for a sink destination must use CustomDestinationClientConfiguration as a"
+                "A SPEC for a sink destination must use `CustomDestinationClientConfiguration` as a"
                 " base."
             )
         # resolve callable

@@ -32,6 +32,7 @@ from dlt.normalize.items_normalizers import (
     FileImportNormalizer,
     JsonLItemsNormalizer,
     ItemsNormalizer,
+    ModelItemsNormalizer,
 )
 
 
@@ -141,7 +142,7 @@ def w_normalize_files(
                     logger.warning(
                         f"The configured value `{config_loader_file_format}` "
                         "for `loader_file_format` is not supported for table "
-                        f"`{table_name}` and will be ignored. Dlt "
+                        f"`{table_name}` and will be ignored. dlt "
                         "will use a supported format instead."
                     )
 
@@ -170,6 +171,8 @@ def w_normalize_files(
                 cls = ArrowItemsNormalizer
             elif item_format == "object":
                 cls = JsonLItemsNormalizer
+            elif item_format == "model":
+                cls = ModelItemsNormalizer
             else:
                 cls = FileImportNormalizer
             logger.info(

@@ -112,7 +112,7 @@ class AthenaTypeMapper(TypeMapperImpl):
         elif precision <= 64:
             return "bigint"
         raise TerminalValueError(
-            f"bigint with {precision} bits precision cannot be mapped into athena integer type"
+            f"bigint with `{precision=:}` can't be mapped to athena integer type"
         )
 
     def from_destination_type(
@@ -162,6 +162,7 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
         caps.merge_strategies_selector = athena_merge_strategies_selector
         caps.replace_strategies_selector = athena_replace_strategies_selector
+        caps.enforces_nulls_on_alter = False
         caps.sqlglot_dialect = "athena"
 
         return caps

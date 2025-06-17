@@ -187,7 +187,7 @@ Generates and launches Streamlit app with the loading status and dataset explore
 
 **Usage**
 ```sh
-dlt pipeline [pipeline_name] show [-h]
+dlt pipeline [pipeline_name] show [-h] [--marimo] [--edit]
 ```
 
 **Description**
@@ -196,7 +196,7 @@ Generates and launches Streamlit (https://streamlit.io/) app with the loading st
 
 This is a simple app that you can use to inspect the schemas and data in the destination as well as your pipeline state and loading status/stats. It should be executed from the same folder from which you ran the pipeline script to access destination credentials.
 
-Requires `streamlit` to be installed in the current environment: `pip install streamlit`.
+Requires `streamlit` to be installed in the current environment: `pip install streamlit`. Using --marimo flag to launch marimo app preview instead of streamlit.
 
 <details>
 
@@ -206,6 +206,8 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 **Options**
 * `-h, --help` - Show this help message and exit
+* `--marimo` - Launch marimo app preview instead of streamlit
+* `--edit` - Launch marimo app preview in edit mode (only works together with --marimo flag, otherwise it will be ignored)
 
 </details>
 

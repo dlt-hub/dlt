@@ -1,6 +1,5 @@
-from typing import Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING, Tuple, List
 import os
-import re
 import duckdb
 
 from dlt.common import logger
@@ -34,28 +33,29 @@ class FilesystemSqlClient(WithTableScanners):
     ) -> None:
         if remote_client.config.protocol not in SUPPORTED_PROTOCOLS:
             raise NotImplementedError(
-                f"Protocol {remote_client.config.protocol} currently not supported for"
-                f" FilesystemSqlClient. Supported protocols are {SUPPORTED_PROTOCOLS}."
+                f"Received invalid value `protocol={remote_client.config.protocol}` for"
+                f" `FilesystemSqlClient`. Valid values are: {SUPPORTED_PROTOCOLS}"
             )
+
         super().__init__(remote_client, dataset_name, cache_db, persist_secrets=persist_secrets)
         self.remote_client: FilesystemClient = remote_client
         self.is_abfss = self.remote_client.config.protocol == "abfss"
         self.iceberg_initialized = False
+        if self.is_abfss:
+            self._global_config["azure_transport_option_type"] = "curl"
 
     def can_create_view(self, table_schema: PreparedTableSchema) -> bool:
         if table_schema.get("table_format") in ("delta", "iceberg"):
             return True
-        file_format = self.get_file_format(table_schema)
-        return file_format in ("jsonl", "parquet", "csv")
+        # checking file type is expensive so we optimistically allow to create view and prune later
+        return True
 
-    def get_file_format(self, table_schema: PreparedTableSchema) -> str:
+    def get_file_format_and_files(self, table_schema: PreparedTableSchema) -> Tuple[str, List[str]]:
         table_name = table_schema["name"]
-        if table_name in self.schema.dlt_table_names():
-            return "jsonl"
         files = self.remote_client.list_table_files(table_name)
         if len(files) == 0:
             raise DestinationUndefinedEntity(table_name)
-        return os.path.splitext(files[0])[1][1:]
+        return os.path.splitext(files[0])[1][1:], files
 
     def create_secret(
         self,
@@ -82,9 +82,8 @@ class FilesystemSqlClient(WithTableScanners):
                 # authentication for local filesystem not needed
                 pass
             else:
-                raise ValueError(
-                    f"Cannot create secret or register filesystem for protocol {protocol}"
-                )
+                raise ValueError(f"Cannot create secret or register filesystem for `{protocol=:}`")
+
         return True
 
     def open_connection(self) -> duckdb.DuckDBPyConnection:
@@ -92,18 +91,23 @@ class FilesystemSqlClient(WithTableScanners):
         super().open_connection()
 
         if first_connection:
+            # TODO: we need to frontload the httpfs extension for abfss for some reason
+            if self.is_abfss:
+                self._conn.sql("INSTALL httpfs; LOAD httpfs;")
+
             # create single authentication for the whole client
             self.create_secret(
                 self.remote_client.config.bucket_url, self.remote_client.config.credentials
             )
-
-        self._conn.sql("SET azure_transport_option_type = 'curl';")
         return self._conn
 
     def should_replace_view(self, view_name: str, table_schema: PreparedTableSchema) -> bool:
-        # we use alternative method to get snapshot on abfss and we need to replace
-        # the view each time to control the freshness (abfss cannot glob)
-        return self.is_abfss  # and table_format == "iceberg"
+        if self.remote_client.config.always_refresh_views:
+            table_format = table_schema.get("table_format")
+            if table_format == "delta":
+                # delta will auto refresh
+                return False
+        return self.remote_client.config.always_refresh_views
 
     @raise_database_error
     def create_view(self, view_name: str, table_schema: PreparedTableSchema) -> None:
@@ -139,40 +143,39 @@ class FilesystemSqlClient(WithTableScanners):
         # create from statement
         from_statement = ""
         if table_format == "delta":
+            table_location = table_location.rstrip("/")
             from_statement = f"delta_scan('{table_location}')"
         elif table_format == "iceberg":
+            table_location = table_location.rstrip("/")
             if not self.iceberg_initialized:
                 self._setup_iceberg(self._conn)
                 self.iceberg_initialized = True
-            if self.is_abfss:
-                # duckdb can't glob on abfss 🤯
-                from dlt.common.libs.pyiceberg import get_last_metadata_file
 
-                metadata_path = f"{table_location}/metadata"
-                last_metadata_file = get_last_metadata_file(
-                    metadata_path, self.remote_client.fs_client, self.remote_client.config
-                )
-                from_statement = (
-                    f"iceberg_scan('{last_metadata_file}', skip_schema_inference=false)"
-                )
+            from dlt.common.libs.pyiceberg import get_last_metadata_file
+
+            metadata_path = f"{table_location}/metadata"
+            last_metadata_file = get_last_metadata_file(
+                metadata_path, self.remote_client.fs_client, self.remote_client.config
+            )
+            if ".gz." in last_metadata_file:
+                compression = ", metadata_compression_codec = 'gzip'"
             else:
-                # skip schema inference to make nested data types work
-                # https://github.com/duckdb/duckdb_iceberg/issues/47
-                from_statement = (
-                    f"iceberg_scan('{table_location}', version='?', allow_moved_paths = true,"
-                    " skip_schema_inference=false)"
-                )
+                compression = ""
+
+            from_statement = (
+                f"iceberg_scan('{last_metadata_file}'{compression}, skip_schema_inference=false)"
+            )
+            # TODO: on duckdb > 1.2.1 register self.remote_client.fs_client as abfss fsspec filesystem
+            #   this will enable iceberg but with lower performance
         else:
-            # get file format from schema
+            # get file format and list of table files
             # NOTE: this does not support cases where table contains many different file formats
-            first_file_type = self.get_file_format(table_schema)
-
-            # build files string
-            supports_wildcard_notation = not self.is_abfss
-
-            resolved_files_string = f"'{table_location}/**/*.{first_file_type}'"
-            if not supports_wildcard_notation:
-                files = self.remote_client.list_table_files(table_name)
+            # NOTE: since we must list all the files anyway we just pass them to duckdb without further globbing
+            #   list is in the memory already and query size in duckdb is very large
+            first_file_type, files = self.get_file_format_and_files(table_schema)
+            if protocol == "file":
+                resolved_files_string = ",".join(map(lambda f: f"'{f}'", files))
+            else:
                 resolved_files_string = ",".join(map(lambda f: f"'{protocol}://{f}'", files))
 
             if first_file_type == "parquet":
@@ -219,11 +222,14 @@ class FilesystemSqlClient(WithTableScanners):
                     )
 
             else:
-                raise NotImplementedError(
-                    f"Unknown filetype {first_file_type} for table {table_name}. Currently only"
-                    " jsonl and parquet files as well as delta and iceberg tables are"
-                    " supported."
-                )
+                # we skipped checking file type in can_create_view to not repeat globs which are expensive
+                # so we skip here.
+                return
+                # raise NotImplementedError(
+                #     f"Unknown filetype {first_file_type} for table {table_name}. Currently only"
+                #     " jsonl and parquet files as well as delta and iceberg tables are"
+                #     " supported."
+                # )
 
         # create table
         view_name = self.make_qualified_table_name(view_name)

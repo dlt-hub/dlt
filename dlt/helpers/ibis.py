@@ -4,10 +4,8 @@ from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination import TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase
 from dlt.common.schema import Schema
-from dlt.common.schema.utils import new_table
 from dlt.common.storages.configuration import FilesystemConfiguration
 
-from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
@@ -18,7 +16,7 @@ from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfigu
 from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.impl.clickhouse.configuration import ClickHouseClientConfiguration
-
+from dlt.destinations.impl.synapse.configuration import SynapseClientConfiguration
 
 try:
     import ibis
@@ -60,12 +58,12 @@ def create_ibis_backend(
         import duckdb
 
         assert isinstance(client, DuckDbClient)
-        duck = duckdb.connect(
-            database=client.config.credentials._conn_str(),
-            read_only=client.config.credentials.read_only,
-            config=client.config.credentials._get_conn_config(),
-        )
-        con = ibis.duckdb.from_connection(duck)
+        # open connection, apply all settings and pragmas
+        duck_conn = client.config.credentials.borrow_conn()
+        # move main connection ownership to ibis
+        con = ibis.duckdb.from_connection(client.config.credentials.move_conn())
+        client.config.credentials.return_conn(duck_conn)
+
         # make sure we can access tables from current dataset without qualification
         dataset_name = client.sql_client.fully_qualified_dataset_name()
         con.raw_sql(f"SET search_path = '{dataset_name}';")
@@ -109,11 +107,14 @@ def create_ibis_backend(
         con = ibis.snowflake.connect(
             schema=dataset_name, **sn_credentials, create_object_udfs=False
         )
-    elif issubclass(destination.spec, MsSqlClientConfiguration):
+    elif issubclass(destination.spec, MsSqlClientConfiguration) and not issubclass(
+        destination.spec, SynapseClientConfiguration
+    ):  # exclude synapse
         from dlt.destinations.impl.mssql.mssql import MsSqlJobClient
 
         assert isinstance(client, MsSqlJobClient)
         ms_credentials = client.config.credentials.to_native_representation()
+        ms_credentials = ms_credentials.replace("synapse://", "mssql://")
         con = ibis.connect(ms_credentials, driver=client.config.credentials.driver)
     elif issubclass(destination.spec, BigQueryClientConfiguration):
         from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
@@ -123,7 +124,7 @@ def create_ibis_backend(
         con = ibis.bigquery.connect(
             credentials=credentials,
             project_id=client.sql_client.project_id,
-            dataset_id=client.sql_client.fully_qualified_dataset_name(escape=False),
+            dataset_id=client.sql_client.fully_qualified_dataset_name(quote=False),
             location=client.sql_client.location,
         )
     elif issubclass(destination.spec, ClickHouseClientConfiguration):
@@ -139,14 +140,14 @@ def create_ibis_backend(
             secure=bool(ch_client.config.credentials.secure),
             # compression=True,
         )
-    elif issubclass(destination.spec, DatabricksClientConfiguration):
-        from dlt.destinations.impl.databricks.databricks import DatabricksClient
+    # elif issubclass(destination.spec, DatabricksClientConfiguration):
+    #     from dlt.destinations.impl.databricks.databricks import DatabricksClient
 
-        bricks_client = cast(DatabricksClient, client)
-        con = ibis.databricks.connect(
-            **bricks_client.config.credentials.to_connector_params(),
-            schema=bricks_client.sql_client.dataset_name,
-        )
+    #     bricks_client = cast(DatabricksClient, client)
+    #     con = ibis.databricks.connect(
+    #         **bricks_client.config.credentials.to_connector_params(),
+    #         schema=bricks_client.sql_client.dataset_name,
+    #     )
     elif issubclass(destination.spec, AthenaClientConfiguration):
         from dlt.destinations.impl.athena.athena import AthenaClient
 
@@ -185,42 +186,26 @@ def create_ibis_backend(
         # https://github.com/ibis-project/ibis/issues/7682 connecting with aws credentials
         # does not work yet.
         raise NotImplementedError(
-            f"Destination of type {Destination.from_reference(destination).destination_type} not"
-            " supported by ibis."
+            f"Destination type `{Destination.from_reference(destination).destination_type}` is not"
+            " supported."
         )
 
     return con
 
 
-def create_unbound_ibis_table(
-    sql_client: SqlClientBase[Any], schema: Schema, table_name: str
-) -> Expr:
-    """Create an unbound ibis table from a dlt schema. Tables not in schema will be created
-    without columns.
+def create_unbound_ibis_table(schema: Schema, dataset_name: str, table_name: str) -> Table:
+    """Create an unbound ibis table from a dlt schema. No additional identifiers normalization, quoting
+    or escaping is performed.
     """
-    # allow to create empty tables without schema to unify behavior with default relation
-    if table_name not in schema.tables:
-        schema.update_table(new_table(table_name))
     table_schema = schema.tables[table_name]
 
     # Convert dlt table schema columns to ibis schema
     ibis_schema = {
-        sql_client.capabilities.casefold_identifier(col_name): DATA_TYPE_MAP[
-            col_info.get("data_type", "string")
-        ]
+        col_name: DATA_TYPE_MAP[col_info.get("data_type", "text")]
         for col_name, col_info in table_schema.get("columns", {}).items()
     }
 
-    # normalize table name
-    table_path = sql_client.make_qualified_table_name_path(table_name, escape=False)
-
-    catalog = None
-    if len(table_path) == 3:
-        catalog, database, table = table_path
-    else:
-        database, table = table_path
-
     # create unbound ibis table and return in dlt wrapper
-    unbound_table = ibis.table(schema=ibis_schema, name=table, database=database, catalog=catalog)
+    unbound_table = ibis.table(schema=ibis_schema, name=table_name, database=dataset_name)
 
     return unbound_table

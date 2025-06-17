@@ -1,3 +1,4 @@
+import os
 import pytest
 
 import dlt
@@ -8,6 +9,7 @@ from dlt.common.destination.exceptions import (
 )
 
 from tests.load.utils import (
+    ABFS_BUCKET,
     destinations_configs,
     DestinationTestConfiguration,
     FILE_BUCKET,
@@ -15,6 +17,7 @@ from tests.load.utils import (
     AWS_BUCKET,
     GCS_BUCKET,
 )
+from tests.pipeline.utils import assert_table_counts
 
 
 @pytest.mark.parametrize(
@@ -23,7 +26,7 @@ from tests.load.utils import (
         table_format_filesystem_configs=True,
         with_table_format=("delta", "iceberg"),
         # using specific buckets
-        bucket_subset=(FILE_BUCKET, AZ_BUCKET, AWS_BUCKET, GCS_BUCKET),
+        bucket_subset=(FILE_BUCKET, AZ_BUCKET, AWS_BUCKET, GCS_BUCKET, ABFS_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -49,6 +52,53 @@ def test_get_open_table_location(destination_config: DestinationTestConfiguratio
             location.startswith(destination_config.bucket_url)
         # location should include the table name
         assert table_name in location
+        assert location.endswith("/")
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        all_buckets_filesystem_configs=True,
+        local_filesystem_configs=True,
+        bucket_subset=(FILE_BUCKET, AZ_BUCKET, AWS_BUCKET, GCS_BUCKET, ABFS_BUCKET),
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "layout",
+    (
+        "{table_name}/{load_id}.{file_id}.{ext}",
+        "{table_name}.{load_id}.{file_id}.{ext}",
+        "{table_name}/{load_id}/{file_id}.{ext}",
+        "{table_name}.{load_id}/{file_id}.{ext}",
+    ),
+)
+def test_open_table_location_native(
+    destination_config: DestinationTestConfiguration, layout: str
+) -> None:
+    # note that data dir is native path fs path
+    pipeline = destination_config.setup_pipeline("open_tables", dev_mode=True)
+    pipeline.destination.config_params["layout"] = layout
+
+    # run pipeline first, then get client using context manager
+    pipeline.run([1, 2, 3], table_name="digits", loader_file_format="parquet")
+    pipeline.run(["A", "B", "C", "D"], table_name="letters", loader_file_format="csv")
+
+    with pipeline.destination_client() as client:
+        assert isinstance(client, SupportsOpenTables)
+        location = client.get_open_table_location(None, "digits")
+        # location must be url
+        protocol = destination_config.bucket_url.split("://")[0]
+        if protocol == "file":
+            assert location.startswith("file://")
+        else:
+            location.startswith(destination_config.bucket_url)
+        is_folder = layout.startswith("{table_name}/")
+        if is_folder:
+            assert location.endswith("digits/")
+        else:
+            assert location.endswith("digits.")
+        assert_table_counts(pipeline, expected_counts={"digits": 3, "letters": 4})
 
 
 @pytest.mark.parametrize(
@@ -57,7 +107,7 @@ def test_get_open_table_location(destination_config: DestinationTestConfiguratio
         table_format_filesystem_configs=True,
         with_table_format=("delta", "iceberg"),
         # using specific buckets
-        bucket_subset=(FILE_BUCKET, AZ_BUCKET, AWS_BUCKET, GCS_BUCKET),
+        bucket_subset=(FILE_BUCKET, AZ_BUCKET, AWS_BUCKET, GCS_BUCKET, ABFS_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -102,7 +152,7 @@ def test_is_open_table(destination_config: DestinationTestConfiguration) -> None
         table_format_filesystem_configs=True,
         with_table_format=("delta", "iceberg"),
         # using specific buckets
-        bucket_subset=(FILE_BUCKET, AZ_BUCKET, AWS_BUCKET, GCS_BUCKET),
+        bucket_subset=(FILE_BUCKET, AZ_BUCKET, AWS_BUCKET, GCS_BUCKET, ABFS_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -146,7 +196,7 @@ def test_get_open_table_catalog(destination_config: DestinationTestConfiguration
         table_format_filesystem_configs=True,
         with_table_format=("delta", "iceberg"),
         # using specific buckets
-        bucket_subset=(FILE_BUCKET, AZ_BUCKET, AWS_BUCKET, GCS_BUCKET),
+        bucket_subset=(FILE_BUCKET, AZ_BUCKET, AWS_BUCKET, GCS_BUCKET, ABFS_BUCKET),
     ),
     ids=lambda x: x.name,
 )
@@ -247,7 +297,7 @@ def test_table_client_not_available() -> None:
         table_format_filesystem_configs=True,
         with_table_format=("delta", "iceberg"),
         # using specific buckets
-        bucket_subset=(FILE_BUCKET, AZ_BUCKET, AWS_BUCKET, GCS_BUCKET),
+        bucket_subset=(FILE_BUCKET, AZ_BUCKET, AWS_BUCKET, GCS_BUCKET, ABFS_BUCKET),
     ),
     ids=lambda x: x.name,
 )

@@ -187,8 +187,11 @@ def _run_dataset_checks(
         source().with_resources("arrow_all_types"),
         loader_file_format=destination_config.file_format,
     )
+    # and recreate views because autorefresh is not enabled by default
     with fs_sql_client as sql_client:
-        sql_client.create_views_for_tables({"arrow_all_types": "arrow_all_types"})
+        sql_client.create_view(
+            "arrow_all_types", pipeline.default_schema.get_table("arrow_all_types")  # type: ignore
+        )
     assert external_db.sql("FROM second.arrow_all_types;").arrow().num_rows == (2 * total_records)
 
     external_db.close()
@@ -267,6 +270,7 @@ def _run_dataset_checks(
     destinations_configs(
         local_filesystem_configs=True,
         all_buckets_filesystem_configs=True,
+        table_format_local_configs=True,
         bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
     ),  # TODO: make SFTP work
     ids=lambda x: x.name,
@@ -289,7 +293,7 @@ def test_read_interfaces_filesystem(
 
     pipeline = destination_config.setup_pipeline(
         "read_pipeline",
-        dataset_name="read_test",
+        dataset_name="test_read_interfaces_filesystem",
         dev_mode=True,
     )
 
@@ -301,9 +305,59 @@ def test_read_interfaces_filesystem(
             GCS_BUCKET.replace("gs://", "s3://"), destination_name="filesystem_s3_gcs_comp"
         )
         pipeline = destination_config.setup_pipeline(
-            "read_pipeline", dataset_name="read_test", dev_mode=True, destination=gcp_bucket
+            "read_pipeline",
+            dataset_name="test_read_interfaces_filesystem_gcs",
+            dev_mode=True,
+            destination=gcp_bucket,
         )
         _run_dataset_checks(pipeline, destination_config, secret_directory=secret_directory)
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        local_filesystem_configs=True,
+        all_buckets_filesystem_configs=True,
+        table_format_local_configs=True,
+        bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
+    ),  # TODO: make SFTP work
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("autorefresh", (True, False))
+def test_auto_refresh_views(
+    destination_config: DestinationTestConfiguration, autorefresh: bool
+) -> None:
+    pipeline = destination_config.setup_pipeline(
+        "read_pipeline",
+        dataset_name="test_auto_refresh_views",
+        dev_mode=True,
+    )
+    # set autorefresh
+    pipeline.destination.config_params["always_refresh_views"] = autorefresh
+    pipeline.run(
+        [1, 2, 3],
+        table_name="digits",
+        table_format=destination_config.table_format,
+        loader_file_format=destination_config.file_format,
+    )
+
+    # get dataset and keep connection
+    with pipeline.dataset() as ds_:
+        digits = ds_.digits
+        # this also creates view
+        assert len(digits.fetchall()) == 3
+
+        # do not close dataset to not remove views and run again
+        pipeline.run(
+            [7, 8],
+            table_name="digits",
+            table_format=destination_config.table_format,
+            loader_file_format=destination_config.file_format,
+        )
+
+        should_refresh = autorefresh or destination_config.table_format == "delta"
+        assert len(digits.fetchall()) == 5 if should_refresh else 3
 
 
 @pytest.mark.essential
@@ -322,7 +376,7 @@ def test_table_formats(
 
     pipeline = destination_config.setup_pipeline(
         "read_pipeline",
-        dataset_name="read_test",
+        dataset_name="test_table_formats",
         dev_mode=True,
     )
 
@@ -361,7 +415,7 @@ def test_evolving_filesystem(
 
     pipeline = destination_config.setup_pipeline(
         "read_pipeline",
-        dataset_name="read_test",
+        dataset_name="test_evolving_filesystem",
         dev_mode=True,
     )
 

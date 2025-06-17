@@ -155,7 +155,7 @@ def test_convert_to_arrow_json_is_not_a_string():
     assert pa.types.is_string(arrow_table[column_name].type)
 
 
-def test_convert_to_arrow_null_column_is_removed():
+def test_convert_to_arrow_null_column_is_not_removed():
     column_name = "null_col"
     columns_schema: TTableSchemaColumns = {
         "int_col": {"name": "int_col"},
@@ -174,8 +174,8 @@ def test_convert_to_arrow_null_column_is_removed():
     assert pa.types.is_null(arrow_array.type)
 
     arrow_table = row_tuples_to_arrow(rows, columns_schema, "UTC")
-    assert len(arrow_table.schema) == 1
-    assert column_name not in arrow_table.schema.names
+    assert len(arrow_table.schema) == 2
+    assert column_name in arrow_table.schema.names
 
 
 def test_convert_to_arrow_null_column_with_data_type_is_not_removed():

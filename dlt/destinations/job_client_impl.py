@@ -29,6 +29,7 @@ from dlt.common.destination.utils import resolve_replace_strategy
 from dlt.common.json import json
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
+    C_DLT_LOADS_TABLE_LOAD_ID,
     COLUMN_HINTS,
     TColumnType,
     TColumnSchemaBase,
@@ -40,6 +41,7 @@ from dlt.common.schema.utils import (
     normalize_table_identifiers,
     version_table,
 )
+from dlt.common.utils import read_dialect_and_sql
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
@@ -147,10 +149,10 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
 
     def run(self) -> None:
         with FileStorage.open_zipsafe_ro(self._file_path, "r", encoding="utf-8") as f:
-            select_dialect = (
-                f.readline().split(":")[1].strip() or self._job_client.capabilities.sqlglot_dialect
+            select_dialect, select_statement = read_dialect_and_sql(
+                file_obj=f,
+                fallback_dialect=self._job_client.capabilities.sqlglot_dialect,  # caps are available at this point
             )
-            select_statement = f.read()
 
         sql_client = self._job_client.sql_client
         insert_statement = self._insert_statement_from_select_statement(
@@ -167,7 +169,7 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         """
         sql_client = self._job_client.sql_client
         target_table = sql_client.make_qualified_table_name(self._load_table["name"])
-        target_catalog = sql_client.catalog_name(escape=False)
+        target_catalog = sql_client.catalog_name(quote=False)
         destination_dialect = self._job_client.capabilities.sqlglot_dialect
 
         # Parse SELECT
@@ -201,23 +203,12 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
                 " using a SELECT statement."
             )
 
-        # Casefold column names according to destination and wrap them in aliases
+        # Get identifiers for the columns in the INSERT statement
+        # Normalizer aliased all selections
         columns = []
-        for i, expr in enumerate(top_level_select.expressions):
-            if isinstance(expr, sqlglot.exp.Column):
-                original_name = expr.name
-                alias_name = self._job_client.capabilities.casefold_identifier(original_name)
-                alias = sqlglot.exp.Alias(
-                    this=expr.copy(),
-                    alias=sqlglot.exp.to_identifier(alias_name),
-                )
-                top_level_select.expressions[i] = alias
-                columns.append(sqlglot.exp.to_identifier(alias_name))
-            elif isinstance(expr, sqlglot.exp.Alias):
-                alias_name = expr.alias
-                casefolded_alias = self._job_client.capabilities.casefold_identifier(alias_name)
-                expr.set("alias", casefolded_alias)
-                columns.append(sqlglot.exp.to_identifier(casefolded_alias))
+        for _, expr in enumerate(top_level_select.expressions):
+            alias_name = expr.alias
+            columns.append(sqlglot.exp.to_identifier(alias_name))
 
         # Build final INSERT
         query = sqlglot.expressions.insert(
@@ -247,9 +238,6 @@ class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
 
 
 class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
-    INFO_TABLES_QUERY_THRESHOLD: ClassVar[int] = 1000
-    """Fallback to querying all tables in the information schema if checking more than threshold"""
-
     def __init__(
         self,
         schema: Schema,
@@ -468,7 +456,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         )
         # if we have more tables to lookup than a threshold, we prefer to filter them in code
         if (
-            len(name_lookup) > self.INFO_TABLES_QUERY_THRESHOLD
+            len(name_lookup) > self.config.info_tables_query_threshold
             or len(",".join(folded_table_names)) > self.capabilities.max_query_length / 2
         ):
             logger.info(
@@ -555,7 +543,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         state_table = self.sql_client.make_qualified_table_name(self.schema.state_table_name)
         loads_table = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
         c_load_id, c_dlt_load_id, c_pipeline_name, c_status = self._norm_and_escape_columns(
-            "load_id", C_DLT_LOAD_ID, "pipeline_name", "status"
+            C_DLT_LOADS_TABLE_LOAD_ID, C_DLT_LOAD_ID, "pipeline_name", "status"
         )
 
         maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(1)

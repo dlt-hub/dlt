@@ -1,6 +1,9 @@
+from collections.abc import MutableMapping
 from typing import Dict
+
 import pytest
 
+from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.common.destination import Destination, DestinationReference
 from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -304,6 +307,21 @@ def test_import_destination_config() -> None:
         Destination.from_reference(ref=None, destination_name="balh")
 
 
+def test_destination_config_explicit_credentials() -> None:
+    # set explicit credentials via reference
+    dest = Destination.from_reference(
+        "postgres", ConnectionStringCredentials(dict(password="PASS"))
+    )
+    dest_config = dest.spec()._bind_dataset_name(dataset_name="dataset")  # type: ignore
+    # set default value which is cred class instance
+    dest_config.credentials = ConnectionStringCredentials("mysql+pymsql://USER@/dlt_data")
+    config = dest.configuration(dest_config)
+    # will be able to merge and resolve credentials
+    assert config.credentials.is_resolved()
+    assert config.credentials.password == "PASS"  # type: ignore[attr-defined]
+    assert config.credentials.username == "USER"  # type: ignore[attr-defined]
+
+
 def test_normalize_dataset_name() -> None:
     # with schema name appended
 
@@ -458,3 +476,21 @@ def test_normalize_dataset_name_none_default_schema() -> None:
         .normalize_dataset_name(Schema("default"))
         == "ban_ana_dataset"
     )
+
+
+def test_destination_repr() -> None:
+    from dlt import destinations
+
+    sentinel = object()
+    destination = destinations.dummy()
+
+    repr_ = destination.__repr__()
+    assert isinstance(repr_, str)
+    assert "dlt.destinations." in repr_
+
+    # check that properties used by `__repr__` exist
+    assert getattr(destination, "config_params", sentinel) is not sentinel
+    assert isinstance(destination.config_params, dict)
+    assert callable(getattr(destination, "spec", sentinel))
+    # we need to be able to **unpack the spec() object
+    assert isinstance(destination.spec(), MutableMapping)

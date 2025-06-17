@@ -16,8 +16,11 @@ class MotherDuckSqlClient(DuckDbSqlClient):
         super().__init__(dataset_name, staging_dataset_name, credentials, capabilities)
         self.database_name = credentials.database
 
-    def catalog_name(self, escape: bool = True) -> Optional[str]:
-        database_name = self.database_name
-        if escape:
+    def catalog_name(self, quote: bool = True, casefold: bool = True) -> Optional[str]:
+        if casefold:
+            database_name = self.capabilities.casefold_identifier(self.database_name)
+        else:
+            database_name = self.database_name
+        if quote:
             database_name = self.capabilities.escape_identifier(database_name)
         return database_name

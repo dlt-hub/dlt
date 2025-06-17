@@ -54,7 +54,7 @@ Motherduck now supports configurable **access tokens**. Please refer to the [doc
 
 You can pass token in a native Motherduck environment variable:
 ```sh
-export motherduck_token='<token>'
+export MOTHERDUCK_TOKEN='<token>'
 ```
 in that case you can skip **password** / **motherduck_token** secret.
 
@@ -71,6 +71,16 @@ python3 chess_pipeline.py
 ### Motherduck connection identifier
 We enable Motherduck to identify that the connection is created by `dlt`. Motherduck will use this identifier to better understand the usage patterns
 associated with `dlt` integration. The connection identifier is `dltHub_dlt/DLT_VERSION(OS_NAME)`.
+
+### Additional configuration
+Query string will be passed to `duckdb` connection. Several global configs may be set using it:
+```toml
+[destination]
+motherduck.credentials="md:dlt_data_3?dbinstance_inactivity_ttl=0s"
+```
+will disable connection caching.
+
+Additional `duckdb` configuration, [where you can set up extensions, pragmas, global and local setting](duckdb.md#additional-configuration), is also supported.
 
 ## Write disposition
 All write dispositions are supported.

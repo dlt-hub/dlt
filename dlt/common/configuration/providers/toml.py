@@ -153,7 +153,7 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
 
         try:
             import streamlit as st
-            import streamlit.runtime as st_r  # type: ignore
+            import streamlit.runtime as st_r
 
             if not st_r.exists():
                 return None

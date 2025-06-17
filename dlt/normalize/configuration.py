@@ -35,5 +35,9 @@ class NormalizeConfiguration(PoolRunnerConfiguration):
         add_dlt_id=False, add_dlt_load_id=False
     )
 
+    model_normalizer: ItemsNormalizerConfiguration = ItemsNormalizerConfiguration(
+        add_dlt_id=False, add_dlt_load_id=True
+    )
+
     def on_resolved(self) -> None:
         self.pool_type = "none" if self.workers == 1 else "process"

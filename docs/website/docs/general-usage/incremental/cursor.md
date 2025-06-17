@@ -18,8 +18,8 @@ Once you've figured that out, `dlt` takes care of finding maximum/minimum cursor
 ```py
 @dlt.resource(primary_key="id")
 def repo_issues(
-    access_token,
-    repository,
+    access_token=dlt.secrets.value,
+    repository=dlt.config.value,
     updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
 ):
     # Get issues since "updated_at" stored in state on previous run (or initial_value on first run)
@@ -107,12 +107,12 @@ You can specify both initial and end dates when defining incremental loading. Le
 ```py
 @dlt.resource(primary_key="id")
 def repo_issues(
-    access_token,
-    repository,
-    created_at=dlt.sources.incremental("created_at", initial_value="1970-01-01T00:00:00Z", end_value="2022-07-01T00:00:00Z")
+    access_token=dlt.secrets.value,
+    repository=dlt.config.value,
+    updated_at=dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z", end_value="2022-07-01T00:00:00Z")
 ):
-    # get issues created from the last "created_at" value
-    for page in _get_issues_page(access_token, repository, since=created_at.start_value, until=created_at.end_value):
+    # get issues updated in range defined by incremental
+    for page in _get_issues_page(access_token, repository, since=updated_at.start_value, until=updated_at.end_value):
         yield page
 ```
 Above, we use the `initial_value` and `end_value` arguments of the `incremental` to define the range of issues that we want to retrieve
@@ -127,12 +127,12 @@ To define specific ranges to load, you can simply override the incremental argum
 
 ```py
 july_issues = repo_issues(
-    created_at=dlt.sources.incremental(
+    updated_at=dlt.sources.incremental(
         initial_value='2022-07-01T00:00:00Z', end_value='2022-08-01T00:00:00Z'
     )
 )
 august_issues = repo_issues(
-    created_at=dlt.sources.incremental(
+    updated_at=dlt.sources.incremental(
         initial_value='2022-08-01T00:00:00Z', end_value='2022-09-01T00:00:00Z'
     )
 )

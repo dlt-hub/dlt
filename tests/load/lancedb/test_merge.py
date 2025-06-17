@@ -10,12 +10,13 @@ from pandas.testing import assert_frame_equal
 import dlt
 from dlt.common.typing import DictStrAny, DictStrStr
 from dlt.common.utils import uniq_id
+
 from dlt.destinations.impl.lancedb.lancedb_adapter import (
     lancedb_adapter,
 )
+
 from tests.load.lancedb.utils import chunk_document
 from tests.load.utils import (
-    drop_active_pipeline_data,
     sequence_generator,
 )
 from tests.pipeline.utils import (
@@ -25,12 +26,6 @@ from tests.pipeline.utils import (
 
 # Mark all tests as essential, don't remove.
 pytestmark = pytest.mark.essential
-
-
-@pytest.fixture(autouse=True)
-def drop_lancedb_data() -> Iterator[None]:
-    yield
-    drop_active_pipeline_data()
 
 
 def test_lancedb_remove_nested_orphaned_records() -> None:

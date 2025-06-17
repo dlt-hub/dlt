@@ -23,12 +23,12 @@ ConfigTest = namedtuple("ConfigTest", ["expected_message", "exception", "config"
 
 INVALID_CONFIGS = [
     ConfigTest(
-        expected_message="following required fields are missing {'resources'}",
+        expected_message="missing required fields `{'resources'}`",
         exception=DictValidationException,
         config={"client": {"base_url": ""}},
     ),
     ConfigTest(
-        expected_message="following required fields are missing {'client'}",
+        expected_message="missing required fields `{'client'}`",
         exception=DictValidationException,
         config={"resources": []},
     ),
@@ -61,8 +61,7 @@ INVALID_CONFIGS = [
     #   before secrets are bound, this must be changed
     ConfigTest(
         expected_message=(
-            "For ApiKeyAuthConfig: In path ./client/auth: following required fields are missing"
-            " {'api_key'}"
+            "For `ApiKeyAuthConfig`: Path `./client/auth`: missing required fields `{'api_key'}`"
         ),
         exception=DictValidationException,
         config={
@@ -74,7 +73,7 @@ INVALID_CONFIGS = [
         },
     ),
     ConfigTest(
-        expected_message="In path ./client: following fields are unexpected {'invalid_key'}",
+        expected_message="Path `./client`: received unexpected fields `{'invalid_key'}`",
         exception=DictValidationException,
         config={
             "client": {
@@ -85,7 +84,7 @@ INVALID_CONFIGS = [
         },
     ),
     ConfigTest(
-        expected_message="field 'paginator' with value invalid_paginator is not one of:",
+        expected_message="field `paginator` expects the following types: ",
         exception=DictValidationException,
         config={
             "client": {

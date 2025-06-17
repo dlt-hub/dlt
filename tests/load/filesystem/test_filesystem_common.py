@@ -15,10 +15,15 @@ from dlt.common.configuration import resolve
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import AnyAzureCredentials
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
+from dlt.common.storages import (
+    fsspec_from_config,
+    FilesystemConfiguration,
+    FilesystemConfigurationWithLocalFiles,
+)
 from dlt.common.storages.configuration import ensure_canonical_az_url, make_fsspec_url
 from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH, glob_files
 from dlt.common.utils import custom_environ, uniq_id
+
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.configuration import (
     FilesystemDestinationClientConfiguration,
@@ -35,8 +40,8 @@ from tests.load.filesystem.utils import self_signed_cert
 pytestmark = pytest.mark.essential
 
 
-@with_config(spec=FilesystemConfiguration, sections=("destination", "filesystem"))
-def get_config(config: FilesystemConfiguration = None) -> FilesystemConfiguration:
+@with_config(spec=FilesystemConfigurationWithLocalFiles, sections=("destination", "filesystem"))
+def get_config(config: FilesystemConfigurationWithLocalFiles = None) -> FilesystemConfiguration:
     return config
 
 
@@ -52,6 +57,7 @@ def test_filesystem_configuration() -> None:
         "client_kwargs": None,
         "kwargs": None,
         "deltalake_storage_options": None,
+        "deltalake_configuration": None,
     }
 
 
@@ -71,6 +77,17 @@ def test_remote_url(bucket_url: str) -> None:
     fs_path = fs_class._strip_protocol(bucket_url)
     # reconstitute url
     assert make_fsspec_url(scheme, fs_path, bucket_url) == bucket_url
+    # make sure bucket_url does not have separator at the end
+    assert not bucket_url.endswith("/")
+    assert not fs_path.endswith("/")
+    # separator must be preserved
+    fs_path += "/"
+    assert make_fsspec_url(scheme, fs_path, bucket_url) == bucket_url + "/"
+    # add path
+    fs_path += "path"
+    assert make_fsspec_url(scheme, fs_path, bucket_url) == bucket_url + "/path"
+    fs_path += "/"
+    assert make_fsspec_url(scheme, fs_path, bucket_url) == bucket_url + "/path/"
 
 
 def test_make_az_url() -> None:
@@ -130,7 +147,7 @@ def test_filesystem_instance(with_gdrive_buckets_env: str) -> None:
     file_dir = posixpath.join(url, f"filesystem_common_dir_{uniq_id()}")
     file_url = posixpath.join(file_dir, filename)
     try:
-        filesystem.mkdir(file_dir, create_parents=False)
+        filesystem.mkdir(file_dir, create_parents=True)
         filesystem.pipe(file_url, b"test bytes")
         check_file_exists(file_dir, file_url)
         filesystem.pipe(file_url, b"test bytes2")
@@ -212,6 +229,10 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
         kwargs={"use_ssl": True},
         client_kwargs={"verify": "public.crt"},
         deltalake_storage_options={"AWS_S3_LOCKING_PROVIDER": "dynamodb"},
+        deltalake_configuration={
+            "delta.minWriterVersion": "7",
+            "delta.enableChangeDataFeed": "true",
+        },
     )
     assert dict(config) == {
         "read_only": False,
@@ -220,6 +241,10 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
         "kwargs": {"use_ssl": True},
         "client_kwargs": {"verify": "public.crt"},
         "deltalake_storage_options": {"AWS_S3_LOCKING_PROVIDER": "dynamodb"},
+        "deltalake_configuration": {
+            "delta.minWriterVersion": "7",
+            "delta.enableChangeDataFeed": "true",
+        },
     }
 
 
@@ -347,7 +372,7 @@ def glob_test_setup(
             filesystem.mkdirs(mem_path)
             filesystem.upload(TEST_SAMPLE_FILES, mem_path, recursive=True)
     if config.protocol == "file":
-        file_path = os.path.join("_storage", "standard_source")
+        file_path = os.path.join("_storage", "data", "standard_source")
         if not filesystem.isdir(file_path):
             filesystem.mkdirs(file_path)
             filesystem.upload(TEST_SAMPLE_FILES, file_path, recursive=True)

@@ -107,9 +107,15 @@ def test_write_delta_table(
         arrow_data(arrow_table, arrow_data_type),
         write_disposition="append",
         storage_options=storage_options,
+        configuration={"delta.logRetentionDuration": "interval 1 day"},  # default is 30 days
     )
     dt = DeltaTable(remote_dir, storage_options=storage_options)
+
     assert dt.version() == 0
+
+    # Check that the configuration is passed to the Delta table correctly
+    assert dt.metadata().configuration == {"delta.logRetentionDuration": "interval 1 day"}
+
     dt_arrow_table = dt.to_pyarrow_table()
     assert dt_arrow_table.shape == (arrow_table.num_rows, arrow_table.num_columns)
 

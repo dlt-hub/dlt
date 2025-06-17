@@ -46,6 +46,7 @@ from tests.load.utils import (
     TABLE_UPDATE_COLUMNS_SCHEMA,
     expect_load_file,
     load_table,
+    set_always_refresh_views,
     yield_client_with_storage,
     cm_yield_client_with_storage,
     write_dataset,
@@ -211,6 +212,8 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     ids=lambda x: x.name,
 )
 def test_complete_load(naming: str, client: SqlJobClientBase) -> None:
+    set_always_refresh_views(client.config)
+
     loads_table_name = client.schema.loads_table_name
     version_table_name = client.schema.version_table_name
     client.update_stored_schema()
@@ -525,21 +528,34 @@ def test_preserve_sql_column_order(client: SqlJobClientBase) -> None:
 def test_data_writer_load(naming: str, client: SqlJobClientBase, file_storage: FileStorage) -> None:
     if not client.capabilities.preferred_loader_file_format:
         pytest.skip("preferred loader file format not set, destination will only work with staging")
+    # set filesystem views to autorefresh
+    set_always_refresh_views(client.config)
+
     rows, table_name = prepare_schema(client, "simple_row")
+    root_table = client.schema.get_table(table_name)
+    root_table["table_format"] = client.destination_config.table_format  # type: ignore[attr-defined]
     canonical_name = client.sql_client.make_qualified_table_name(table_name)
     # write only first row
     with io.BytesIO() as f:
-        write_dataset(client, f, [rows[0]], client.schema.get_table(table_name))
+        write_dataset(
+            client, f, [rows[0]], root_table, file_format=client.destination_config.file_format  # type: ignore[attr-defined]
+        )
         query = f.getvalue()
-    expect_load_file(client, file_storage, query, table_name)
+    expect_load_file(
+        client, file_storage, query, table_name, file_format=client.destination_config.file_format  # type: ignore[attr-defined]
+    )
     db_row = client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0]
     # content must equal
     assert list(db_row) == list(rows[0].values())
     # write second row that contains two nulls
     with io.BytesIO() as f:
-        write_dataset(client, f, [rows[1]], client.schema.get_table(table_name))
+        write_dataset(
+            client, f, [rows[1]], root_table, file_format=client.destination_config.file_format  # type: ignore[attr-defined]
+        )
         query = f.getvalue()
-    expect_load_file(client, file_storage, query, table_name)
+    expect_load_file(
+        client, file_storage, query, table_name, file_format=client.destination_config.file_format  # type: ignore[attr-defined]
+    )
     f_int_name = client.schema.naming.normalize_identifier("f_int")
     f_int_name_quoted = client.sql_client.escape_column_name(f_int_name)
     db_row = client.sql_client.execute_sql(
@@ -562,9 +578,17 @@ def test_data_writer_string_escape(client: SqlJobClientBase, file_storage: FileS
     inj_str = f", NULL'); DROP TABLE {canonical_name} --"
     row["f_str"] = inj_str
     with io.BytesIO() as f:
-        write_dataset(client, f, [rows[0]], client.schema.get_table(table_name))
+        write_dataset(
+            client,
+            f,
+            [rows[0]],
+            client.schema.get_table(table_name),
+            file_format=client.destination_config.file_format,  # type: ignore[attr-defined]
+        )
         query = f.getvalue()
-    expect_load_file(client, file_storage, query, table_name)
+    expect_load_file(
+        client, file_storage, query, table_name, file_format=client.destination_config.file_format  # type: ignore[attr-defined]
+    )
     db_row = client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0]
     assert list(db_row) == list(row.values())
 
@@ -581,11 +605,17 @@ def test_data_writer_string_escape_edge(
     if not client.capabilities.preferred_loader_file_format:
         pytest.skip("preferred loader file format not set, destination will only work with staging")
     rows, table_name = prepare_schema(client, "weird_rows")
+    root_table = client.schema.get_table(table_name)
+    root_table["table_format"] = client.destination_config.table_format  # type: ignore[attr-defined]
     canonical_name = client.sql_client.make_qualified_table_name(table_name)
     with io.BytesIO() as f:
-        write_dataset(client, f, rows, client.schema.get_table(table_name))
+        write_dataset(
+            client, f, rows, root_table, file_format=client.destination_config.file_format  # type: ignore[attr-defined]
+        )
         query = f.getvalue()
-    expect_load_file(client, file_storage, query, table_name)
+    expect_load_file(
+        client, file_storage, query, table_name, file_format=client.destination_config.file_format  # type: ignore[attr-defined]
+    )
     for i in range(1, len(rows) + 1):
         db_row = client.sql_client.execute_sql(f"SELECT str FROM {canonical_name} WHERE idx = {i}")
         row_value, expected = db_row[0][0], rows[i - 1]["str"]
@@ -617,6 +647,7 @@ def test_load_with_all_types(
             table_name, write_disposition=write_disposition, columns=list(column_schemas.values())
         )
     )
+    partial["table_format"] = client.destination_config.table_format  # type: ignore[attr-defined]
     # get normalized schema
     table_name = partial["name"]
     normalize_rows([data_row], client.schema.naming)
@@ -641,10 +672,14 @@ def test_load_with_all_types(
         canonical_name = client.sql_client.make_qualified_table_name(table_name)
     # write row
     with io.BytesIO() as f:
-        write_dataset(client, f, [data_row], partial)
+        write_dataset(
+            client, f, [data_row], partial, file_format=client.destination_config.file_format  # type: ignore[attr-defined]
+        )
         query = f.getvalue()
     # print(client.schema.to_pretty_yaml())
-    expect_load_file(client, file_storage, query, table_name)
+    expect_load_file(
+        client, file_storage, query, table_name, file_format=client.destination_config.file_format  # type: ignore[attr-defined]
+    )
     db_row = list(client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0])
     assert len(db_row) == len(data_row)
     # assert_all_data_types_row has many hardcoded columns so for now skip that part
@@ -682,6 +717,8 @@ def test_write_dispositions(
 ) -> None:
     if not client.capabilities.preferred_loader_file_format:
         pytest.skip("preferred loader file format not set, destination will only work with staging")
+    # set filesystem views to autorefresh
+    set_always_refresh_views(client.config)
 
     table_name = "event_test_table" + uniq_id()
     column_schemas, data_row = get_columns_and_row_all_types(client.config)
@@ -809,9 +846,21 @@ def test_get_resumed_job(client: SqlJobClientBase, file_storage: FileStorage) ->
     }
     print(client.schema.get_table(user_table_name)["columns"])
     with io.BytesIO() as f:
-        write_dataset(client, f, [load_json], client.schema.get_table(user_table_name))
+        write_dataset(
+            client,
+            f,
+            [load_json],
+            client.schema.get_table(user_table_name),
+            file_format=client.destination_config.file_format,  # type: ignore[attr-defined]
+        )
         dataset = f.getvalue()
-    job = expect_load_file(client, file_storage, dataset, user_table_name)
+    job = expect_load_file(
+        client,
+        file_storage,
+        dataset,
+        user_table_name,
+        file_format=client.destination_config.file_format,  # type: ignore[attr-defined]
+    )
     # now try to retrieve the job
     # TODO: we should re-create client instance as this call is intended to be run after some disruption ie. stopped loader process
     r_job = client.create_load_job(
@@ -903,9 +952,17 @@ def test_get_stored_state(
         norm_doc = {client.schema.naming.normalize_identifier(k): v for k, v in doc.items()}
         with io.BytesIO() as f:
             # use normalized columns
-            write_dataset(client, f, [norm_doc], partial)
+            write_dataset(
+                client, f, [norm_doc], partial, file_format=destination_config.file_format
+            )
             query = f.getvalue()
-        expect_load_file(client, file_storage, query, partial["name"])
+        expect_load_file(
+            client,
+            file_storage,
+            query,
+            partial["name"],
+            file_format=destination_config.file_format,
+        )
         client.complete_load("_load_id")
 
         # get state
@@ -958,6 +1015,8 @@ def test_many_schemas_single_dataset(
             pytest.skip(
                 "preferred loader file format not set, destination will only work with staging"
             )
+        # set filesystem views to autorefresh
+        set_always_refresh_views(client.config)
 
         user_table = load_table("event_user")["event_user"]
         client.schema.update_table(
@@ -1025,11 +1084,7 @@ def test_many_schemas_single_dataset(
         )
         client.schema._bump_version()
         # open tables on filesystem update schema on write and this write will fail
-        if destination_config.destination_type in ("clickhouse", "filesystem") or (
-            # mysql allows adding not-null columns (they have an implicit default)
-            destination_config.destination_type == "sqlalchemy"
-            and client.sql_client.dialect_name == "mysql"
-        ):
+        if not client.capabilities.enforces_nulls_on_alter:
             client.update_stored_schema()
         else:
             with pytest.raises(DestinationException) as py_ex:

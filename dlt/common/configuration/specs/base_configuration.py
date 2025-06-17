@@ -23,6 +23,8 @@ from typing import (
 from typing_extensions import dataclass_transform
 from functools import wraps
 
+from dlt.common.utils import classlocal
+
 if TYPE_CHECKING:
     TDtcField = dataclasses.Field[Any]
 else:
@@ -250,6 +252,13 @@ def configspec(
                         )
                     setattr(cls, att_name, None)
 
+                from types import MappingProxyType
+
+                # make dict immutable: TODO: fix propery
+                # somehow default_factory does not work here..
+                if isinstance(att_value, dict):
+                    setattr(cls, att_name, MappingProxyType(att_value))
+
                 if isinstance(att_value, BaseConfiguration):
                     # Wrap config defaults in default_factory to work around dataclass
                     # blocking mutable defaults
@@ -270,6 +279,9 @@ def configspec(
                 " synthesize __init__. Please correct `init` flag in confispec decorator. You are"
                 " probably receiving incorrect __init__ signature for type checking"
             )
+        # mark exactly this class as processed by configspec so we can warn the user if it is not done
+        # this is not visible in derived classes that must be always decorated with configspec
+        cls.__configspec__ = classlocal(True, cls)  # type: ignore[attr-defined]
         # do not generate repr as it may contain secret values
         return dataclasses.dataclass(cls, init=synth_init, eq=False, repr=False)  # type: ignore
 

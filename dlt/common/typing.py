@@ -88,6 +88,7 @@ CallableAny = NewType("CallableAny", Any)  # type: ignore[valid-newtype]
 NoneType = type(None)
 DictStrAny: TypeAlias = Dict[str, Any]
 DictStrStr: TypeAlias = Dict[str, str]
+DictStrOptionalStr: TypeAlias = Dict[str, Optional[str]]
 StrAny: TypeAlias = Mapping[str, Any]  # immutable, covariant entity
 StrStr: TypeAlias = Mapping[str, str]  # immutable, covariant entity
 StrStrStr: TypeAlias = Mapping[str, Mapping[str, str]]  # immutable, covariant entity
@@ -298,7 +299,7 @@ def is_literal_type(hint: Type[Any]) -> bool:
 def get_literal_args(literal: Type[Any]) -> List[Any]:
     """Recursively get arguments from nested Literal types and return an unified list."""
     if not hasattr(literal, "__origin__") or literal.__origin__ is not Literal:
-        raise ValueError("Provided type is not a Literal")
+        raise ValueError(f"Provided object is not a `Literal`. Object: {literal}")
 
     unified_args = []
 

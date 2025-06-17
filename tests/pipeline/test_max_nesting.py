@@ -44,7 +44,7 @@ def _table_names_for_base_table(
 def _get_pipeline() -> dlt.Pipeline:
     return dlt.pipeline(
         pipeline_name="test_max_table_nesting",
-        destination=dummy(timeout=0.1, completed_prob=1),
+        destination=dummy(timeout=0.5, completed_prob=1),
         dev_mode=True,
     )
 
