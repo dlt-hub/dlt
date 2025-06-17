@@ -50,6 +50,7 @@ from dlt.destinations.impl.bigquery.bigquery_partition_specs import (
     BigQueryRangeBucketPartition,
     BigQueryDateTruncPartition,
 )
+from dlt.destinations.impl.bigquery import bigquery_partition_specs
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.impl.bigquery.sql_client import BQ_TERMINAL_REASONS, BigQuerySqlClient
 from dlt.destinations.impl.bigquery.warnings import per_column_cluster_hint_deprecated
@@ -270,11 +271,11 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         # Check if this has a type marker from our serialization
         if "_dlt_partition_type" in partition_hint:
             partition_type = partition_hint.pop("_dlt_partition_type")
-            if partition_type == "BigQueryRangeBucketPartition":
-                return BigQueryRangeBucketPartition.from_dict(partition_hint)
-            elif partition_type == "BigQueryDateTruncPartition":
-                return BigQueryDateTruncPartition.from_dict(partition_hint)
-            # Add other partition types as needed
+            try:
+                partition_class = getattr(bigquery_partition_specs, partition_type)
+                return partition_class.from_dict(partition_hint)
+            except AttributeError:
+                raise ValueError(f"Unknown partition type: {partition_type}")
 
         # Legacy: Check if this looks like a serialized BigQueryRangeBucketPartition
         if all(key in partition_hint for key in ["column_name", "start", "end"]):
