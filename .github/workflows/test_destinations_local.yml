@@ -147,7 +147,7 @@ jobs:
         if: ${{ matrix.needs_ftp }}
         
       - name: Start dremio
-        run: docker compose -f "tests/load/dremio/docker-compose.yml" up -d
+        run: docker compose -f "tests/load/dremio/docker-compose.yml" up -d && sleep 30
         if: ${{ matrix.needs_dremio }}
 
       - run: |
