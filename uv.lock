@@ -1544,18 +1544,47 @@ wheels = [
 
 [[package]]
 name = "databricks-sql-connector"
+version = "3.7.4"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version == '3.12.*'",
+    "python_full_version == '3.11.*'",
+    "python_full_version == '3.10.*'",
+    "python_full_version < '3.10'",
+]
+dependencies = [
+    { name = "lz4", marker = "python_full_version < '3.13'" },
+    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
+    { name = "oauthlib", marker = "python_full_version < '3.13'" },
+    { name = "openpyxl", marker = "python_full_version < '3.13'" },
+    { name = "pandas", version = "2.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.12.*'" },
+    { name = "pyarrow", marker = "python_full_version < '3.13'" },
+    { name = "requests", marker = "python_full_version < '3.13'" },
+    { name = "thrift", marker = "python_full_version < '3.13'" },
+    { name = "urllib3", marker = "python_full_version < '3.13'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b4/1f/d5d69f1a34683ab9da17e901209e36f42aadaf9f98248cd959fc1729c2c6/databricks_sql_connector-3.7.4.tar.gz", hash = "sha256:74530a2c2c1e805f21eb3591a9049845d35fab71449ce986bfb21a03c4ef1f3b", size = 414541, upload-time = "2025-04-22T04:49:42.535Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/72/73/7abc365f80fe8a26b3b05d9add42f690756fa1f041a493fd07ba6da5df02/databricks_sql_connector-3.7.4-py3-none-any.whl", hash = "sha256:6bf6a5006ba843d672964ecb0592c2d467c9fd51d7b81b2c702f5aed60729254", size = 431129, upload-time = "2025-04-22T04:49:40.1Z" },
+]
+
+[[package]]
+name = "databricks-sql-connector"
 version = "4.0.3"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.13'",
+]
 dependencies = [
-    { name = "lz4" },
-    { name = "oauthlib" },
-    { name = "openpyxl" },
-    { name = "pandas", version = "2.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "python-dateutil" },
-    { name = "requests" },
-    { name = "thrift" },
-    { name = "urllib3" },
+    { name = "lz4", marker = "python_full_version >= '3.13'" },
+    { name = "oauthlib", marker = "python_full_version >= '3.13'" },
+    { name = "openpyxl", marker = "python_full_version >= '3.13'" },
+    { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
+    { name = "python-dateutil", marker = "python_full_version >= '3.13'" },
+    { name = "requests", marker = "python_full_version >= '3.13'" },
+    { name = "thrift", marker = "python_full_version >= '3.13'" },
+    { name = "urllib3", marker = "python_full_version >= '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/25/b9/057c58d6a9bbe61eb629f8661f5a6bf5b94cef5c920c6d8dc321f6bb599e/databricks_sql_connector-4.0.3.tar.gz", hash = "sha256:4bc4654f8a51d6da5c1628660f4f0d6f04f0d047c82417943bf4c32fa1aedd98", size = 316443, upload-time = "2025-04-22T07:48:04.09Z" }
 wheels = [
@@ -1958,7 +1987,8 @@ clickhouse = [
 ]
 databricks = [
     { name = "databricks-sdk" },
-    { name = "databricks-sql-connector" },
+    { name = "databricks-sql-connector", version = "3.7.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
+    { name = "databricks-sql-connector", version = "4.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
 ]
 deltalake = [
     { name = "deltalake" },
@@ -2177,7 +2207,8 @@ requires-dist = [
     { name = "clickhouse-driver", marker = "extra == 'clickhouse'", specifier = ">=0.2.7" },
     { name = "cron-descriptor", marker = "extra == 'cli'", specifier = ">=1.2.32" },
     { name = "databricks-sdk", marker = "extra == 'databricks'", specifier = ">=0.38.0" },
-    { name = "databricks-sql-connector", marker = "extra == 'databricks'" },
+    { name = "databricks-sql-connector", marker = "python_full_version >= '3.13' and extra == 'databricks'", specifier = ">=3.6.0" },
+    { name = "databricks-sql-connector", marker = "python_full_version < '3.13' and extra == 'databricks'", specifier = ">=2.9.3,<4" },
     { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
     { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
