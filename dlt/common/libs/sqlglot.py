@@ -16,11 +16,8 @@ SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, TDataType] = {
     DataType.Type.OBJECT: "json",
     DataType.Type.STRUCT: "json",
     DataType.Type.NESTED: "json",
-    DataType.Type.UNION: "json",
     DataType.Type.ARRAY: "json",
-    DataType.Type.LIST: "json",
     DataType.Type.JSON: "json",
-    DataType.Type.VECTOR: "json",
     # TEXT
     DataType.Type.CHAR: "text",
     DataType.Type.NCHAR: "text",
@@ -52,23 +49,15 @@ SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, TDataType] = {
     # DECIMAL
     DataType.Type.BIGDECIMAL: "decimal",
     DataType.Type.DECIMAL: "decimal",
-    DataType.Type.DECIMAL32: "decimal",
-    DataType.Type.DECIMAL64: "decimal",
-    DataType.Type.DECIMAL128: "decimal",
-    DataType.Type.DECIMAL256: "decimal",
     DataType.Type.MONEY: "decimal",
     DataType.Type.SMALLMONEY: "decimal",
     DataType.Type.UDECIMAL: "decimal",
-    DataType.Type.UDOUBLE: "decimal",
     # TEMPORAL
     DataType.Type.DATE: "date",
     DataType.Type.DATE32: "date",
     DataType.Type.DATETIME: "date",
-    DataType.Type.DATETIME2: "date",
     DataType.Type.DATETIME64: "date",
-    DataType.Type.SMALLDATETIME: "date",
     DataType.Type.TIMESTAMP: "timestamp",
-    DataType.Type.TIMESTAMPNTZ: "timestamp",
     DataType.Type.TIMESTAMPLTZ: "timestamp",
     DataType.Type.TIMESTAMPTZ: "timestamp",
     DataType.Type.TIMESTAMP_MS: "timestamp",
@@ -83,6 +72,45 @@ SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, TDataType] = {
     # UNKNOWN
     DataType.Type.UNKNOWN: None,
 }
+
+# these types were introduced after our sqlglot minimum version of 23.6.3
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.UDOUBLE] = "decimal"
+except AttributeError:
+    pass
+
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.DATETIME2] = "date"
+except AttributeError:
+    pass
+
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.SMALLDATETIME] = "date"
+except AttributeError:
+    pass
+
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.UNION] = "json"
+except AttributeError:
+    pass
+
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.LIST] = "json"
+except AttributeError:
+    pass
+
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.VECTOR] = "json"
+except AttributeError:
+    pass
+
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.DECIMAL32] = "decimal"
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.DECIMAL64] = "decimal"
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.DECIMAL128] = "decimal"
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.DECIMAL256] = "decimal"
+except AttributeError:
+    pass
 
 SQLGLOT_INT_PRECISION = {
     DataType.Type.TINYINT: 3,
@@ -104,14 +132,18 @@ SQLGLOT_INT_PRECISION = {
 SQLGLOT_DECIMAL_PRECISION_AND_SCALE = {
     DataType.Type.BIGDECIMAL: (38, 10),
     DataType.Type.DECIMAL: (38, 10),
-    DataType.Type.DECIMAL32: (7, 2),
-    DataType.Type.DECIMAL64: (16, 4),
-    DataType.Type.DECIMAL128: (34, 10),
-    DataType.Type.DECIMAL256: (76, 20),
     DataType.Type.MONEY: (19, 4),
     DataType.Type.SMALLMONEY: (10, 4),
     DataType.Type.UDECIMAL: (38, 10),
 }
+
+try:
+    SQLGLOT_DECIMAL_PRECISION_AND_SCALE[DataType.Type.DECIMAL32] = (7, 2)
+    SQLGLOT_DECIMAL_PRECISION_AND_SCALE[DataType.Type.DECIMAL64] = (16, 4)
+    SQLGLOT_DECIMAL_PRECISION_AND_SCALE[DataType.Type.DECIMAL128] = (34, 10)
+    SQLGLOT_DECIMAL_PRECISION_AND_SCALE[DataType.Type.DECIMAL256] = (76, 20)
+except AttributeError:
+    pass
 
 SQLGLOT_TEMPORAL_PRECISION = {
     DataType.Type.TIMESTAMP: None,  # default value; default precision varies across DB
@@ -123,7 +155,6 @@ SQLGLOT_TEMPORAL_PRECISION = {
 # NOTE in Snowflake, TIMESTAMPNTZ == DATETIME; is this true for dlt?
 SQLGLOT_HAS_TIMEZONE = {
     DataType.Type.TIMESTAMP: None,  # default value; False
-    DataType.Type.TIMESTAMPNTZ: False,
     DataType.Type.TIMESTAMPLTZ: True,
     DataType.Type.TIMESTAMPTZ: True,
     DataType.Type.TIMESTAMP_MS: False,
@@ -132,6 +163,11 @@ SQLGLOT_HAS_TIMEZONE = {
     DataType.Type.TIME: False,  # default value; False
     DataType.Type.TIMETZ: True,
 }
+
+has_timestampntz = hasattr(DataType.Type, "TIMESTAMPNTZ")
+if has_timestampntz:
+    SQLGLOT_HAS_TIMEZONE[DataType.Type.TIMESTAMPNTZ] = False
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.TIMESTAMPNTZ] = "timestamp"
 
 DLT_TO_SQLGLOT = {
     "json": DataType.Type.JSON,
@@ -430,7 +466,7 @@ def _to_named_timestamp_type(precision: Optional[int], timezone: Optional[bool])
     if precision is None:
         if timezone is True:
             sqlglot_type = DataType.Type.TIMESTAMPTZ
-        elif timezone is False:
+        elif timezone is False and has_timestampntz:
             sqlglot_type = DataType.Type.TIMESTAMPNTZ
         elif timezone is None:
             sqlglot_type = DataType.Type.TIMESTAMP
