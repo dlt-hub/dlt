@@ -299,8 +299,8 @@ def bigquery_adapter(
             additional_table_hints[PARTITION_HINT] = partition_hint
         else:
             raise ValueError(
-                "`partition` must be a single column name as a string, PartitionTransformation, or"
-                " BigQueryPartitionSpec."
+                "`partition` must be a single column name as a `str`, `PartitionTransformation`, or"
+                " `BigQueryPartitionSpec`."
             )
 
     if cluster:
