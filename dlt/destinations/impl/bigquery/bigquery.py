@@ -460,11 +460,12 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                 )
 
         # Reconstruct BigQuery partition specs from dict if needed
-        if PARTITION_HINT in table:
+        partition_hint = table.get(PARTITION_HINT)
+        if partition_hint is not None:
             try:
-                reconstructed = self._reconstruct_partition_spec(table[PARTITION_HINT])
+                reconstructed = self._reconstruct_partition_spec(cast(Dict[str, Any], partition_hint))
                 # This key is not in the TypedDict, but is used for BigQuery partitioning logic
-                table[PARTITION_HINT] = reconstructed  # type: ignore
+                cast(Dict[str, Any], table)[PARTITION_HINT] = reconstructed
             except ValueError:
                 # Not a serialized partition spec, keep the original hint for legacy processing
                 pass
@@ -675,7 +676,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
         self,
         partition_hint: Union[None, BigQueryPartitionSpec, Dict[str, Any]],
         partition_column_info: Optional[TColumnSchema] = None,
-    ) -> Optional[BigQueryPartitionSpec]:  # type: ignore[no-any-return]
+    ) -> Optional[BigQueryPartitionSpec]:
         """
         Convert any supported partition hint (legacy or modern) to a BigQueryPartitionSpec.
 
@@ -696,7 +697,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
         # Dict: try to reconstruct as a serialized spec first
         if isinstance(partition_hint, dict):
             try:
-                return cast(BigQueryPartitionSpec, self._reconstruct_partition_spec(partition_hint))  # type: ignore[no-any-return]
+                return cast(BigQueryPartitionSpec, self._reconstruct_partition_spec(partition_hint))
             except ValueError:
                 pass  # Not a serialized spec, try legacy formats below
 
