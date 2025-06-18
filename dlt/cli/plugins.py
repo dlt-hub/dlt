@@ -216,15 +216,19 @@ Requires `streamlit` to be installed in the current environment: `pip install st
             "--marimo",
             default=False,
             action="store_true",
-            help="Launch marimo app preview instead of streamlit",
+            help=(
+                "Launch marimo app preview instead of streamlit. Will launch ejected version of app"
+                " (created with --edit flag) if it exists in the current directory."
+            ),
         )
         show_cmd.add_argument(
             "--edit",
             default=False,
             action="store_true",
             help=(
-                "Launch marimo app preview in edit mode (only works together with --marimo flag,"
-                " otherwise it will be ignored)"
+                "Ejects marimo app preview to current directory (if it does not exist there yet)"
+                " and launches it in edit mode (only works together with --marimo flag, otherwise"
+                " it will be ignored)"
             ),
         )
         pipeline_subparsers.add_parser(
