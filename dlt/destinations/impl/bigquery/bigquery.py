@@ -356,11 +356,18 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         final_partition_spec = None
         if has_table_partition:
             # mypy: only allow None, BigQueryPartitionSpec, or Dict[str, Any] for partition_hint
-            if isinstance(partition_hint, dict) or any(isinstance(partition_hint, t) for t in get_args(BigQueryPartitionSpec)) or partition_hint is None:
+            if (
+                isinstance(partition_hint, dict)
+                or any(isinstance(partition_hint, t) for t in get_args(BigQueryPartitionSpec))
+                or partition_hint is None
+            ):
                 final_partition_spec = self._convert_partition_hint_to_spec(partition_hint)  # type: ignore[arg-type]
             else:
                 # This branch is only to make mypy happy; partition_hint should never be another type
-                raise TypeError(f"partition_hint must be None, BigQueryPartitionSpec, or Dict[str, Any], got {type(partition_hint)}")
+                raise TypeError(
+                    "partition_hint must be None, BigQueryPartitionSpec, or Dict[str, Any], got"
+                    f" {type(partition_hint)}"
+                )
         elif has_column_partition:
             # Convert single column partition hint to partition spec
             # Also find the column info for data type checking
@@ -463,7 +470,9 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         partition_hint = table.get(PARTITION_HINT)
         if partition_hint is not None:
             try:
-                reconstructed = self._reconstruct_partition_spec(cast(Dict[str, Any], partition_hint))
+                reconstructed = self._reconstruct_partition_spec(
+                    cast(Dict[str, Any], partition_hint)
+                )
                 # This key is not in the TypedDict, but is used for BigQuery partitioning logic
                 cast(Dict[str, Any], table)[PARTITION_HINT] = reconstructed
             except ValueError:
