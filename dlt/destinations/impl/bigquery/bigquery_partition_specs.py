@@ -1,4 +1,3 @@
-from abc import ABC
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Type, TypeVar, Union, Literal
 
@@ -10,7 +9,7 @@ T = TypeVar("T", bound="SerializablePartitionSpec")
 
 
 @dataclass(frozen=True)
-class SerializablePartitionSpec(ABC):
+class SerializablePartitionSpec:
     """Base class for partition specs that automatically handles serialization/deserialization."""
 
     def to_dict(self) -> Dict[str, Any]:
