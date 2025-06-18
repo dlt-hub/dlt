@@ -4,7 +4,7 @@
 import marimo
 
 __generated_with = "0.13.9"
-app = marimo.App(width="medium", app_title="dlt studio", css_file="style.css")
+app = marimo.App(width="medium", app_title="dlt studio", css_file="dlt_app_styles.css")
 
 with app.setup:
     from typing import Any, Dict, List, Callable, cast
