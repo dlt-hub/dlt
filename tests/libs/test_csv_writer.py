@@ -219,3 +219,29 @@ def assert_csv_rows(csv_row: Dict[str, Any], expected_row: Dict[str, Any]) -> No
         assert actual[1] == expected, print(
             f"Failed on {actual[0]}: actual: {actual[1]} vs expected: {expected}"
         )
+
+
+@pytest.mark.parametrize("line_ending", ["lf", "crlf"])
+@pytest.mark.parametrize("writer_type", [CsvWriter, ArrowToCsvWriter])
+def test_csv_line_endings(writer_type: Type[DataWriter], line_ending: str) -> None:
+    data = copy(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
+
+    if writer_type == ArrowToCsvWriter:
+        # write parquet and read it
+        with get_writer(ParquetDataWriter) as pq_writer:
+            pq_writer.write_data_item([data], TABLE_UPDATE_COLUMNS_SCHEMA)
+
+        with open(pq_writer.closed_files[0].file_path, "rb") as f:
+            table = pq.read_table(f)
+        data = table
+
+    with get_writer(writer_type, disable_compression=True, line_ending=line_ending) as writer:
+        writer.write_data_item(data, TABLE_UPDATE_COLUMNS_SCHEMA)
+
+    with open(writer.closed_files[0].file_path, "rb") as f:
+        content = f.read()
+        expected_eol = b"\r\n" if line_ending == "crlf" else b"\n"
+        assert expected_eol in content
+        # Verify that all line endings are consistent
+        assert content.count(expected_eol) > 0
+        assert content.count(b"\r\n" if line_ending == "lf" else b"\n") == 0
