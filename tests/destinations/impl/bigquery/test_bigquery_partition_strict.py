@@ -29,13 +29,13 @@ def test_reconstruct_partition_spec_strict_error_handling():
 
     # Test with invalid input - should now raise ValueError
     with pytest.raises(ValueError, match="_reconstruct_partition_spec expects a dict"):
-        client._reconstruct_partition_spec("invalid_string")
+        client._reconstruct_partition_spec("invalid_string")  # type: ignore[arg-type]
 
     with pytest.raises(ValueError, match="_reconstruct_partition_spec expects a dict"):
-        client._reconstruct_partition_spec(123)
+        client._reconstruct_partition_spec(123)  # type: ignore[arg-type]
 
     with pytest.raises(ValueError, match="_reconstruct_partition_spec expects a dict"):
-        client._reconstruct_partition_spec(True)
+        client._reconstruct_partition_spec(True)  # type: ignore[arg-type]
 
     with pytest.raises(ValueError, match="_reconstruct_partition_spec expects a dict"):
         client._reconstruct_partition_spec(None)
@@ -76,12 +76,12 @@ def test_bigquery_partition_clause_strict_error_handling():
     with pytest.raises(
         ValueError, match="_bigquery_partition_clause only accepts BigQueryPartitionSpec"
     ):
-        client._bigquery_partition_clause("invalid_string")
+        client._bigquery_partition_clause("invalid_string")  # type: ignore[arg-type]
 
     with pytest.raises(
         ValueError, match="_bigquery_partition_clause only accepts BigQueryPartitionSpec"
     ):
-        client._bigquery_partition_clause({"type": "dict"})
+        client._bigquery_partition_clause({"type": "dict"})  # type: ignore[arg-type]
 
     with pytest.raises(
         ValueError, match="_bigquery_partition_clause only accepts BigQueryPartitionSpec"
