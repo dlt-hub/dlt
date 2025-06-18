@@ -26,12 +26,12 @@ class TestBigQueryPartitionStrictHandling:
         with pytest.raises(
             ValueError, match=r"_reconstruct_partition_spec expects a dict, got str.*"
         ):
-            client._reconstruct_partition_spec("invalid_string")
+            client._reconstruct_partition_spec("invalid_string")  # type: ignore[arg-type]
 
         with pytest.raises(
             ValueError, match=r"_reconstruct_partition_spec expects a dict, got int.*"
         ):
-            client._reconstruct_partition_spec(123)
+            client._reconstruct_partition_spec(123)  # type: ignore[arg-type]
 
         with pytest.raises(
             ValueError, match=r"_reconstruct_partition_spec expects a dict, got NoneType.*"
@@ -72,7 +72,7 @@ class TestBigQueryPartitionStrictHandling:
                 r" str.*"
             ),
         ):
-            client._bigquery_partition_clause("invalid_string")
+            client._bigquery_partition_clause("invalid_string")  # type: ignore[arg-type]
 
         with pytest.raises(
             ValueError,
@@ -81,7 +81,7 @@ class TestBigQueryPartitionStrictHandling:
                 r" dict.*"
             ),
         ):
-            client._bigquery_partition_clause({"column_name": "test"})
+            client._bigquery_partition_clause({"column_name": "test"})  # type: ignore[arg-type]
 
         with pytest.raises(
             ValueError,
