@@ -692,7 +692,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
 
         # Already a partition spec, return as-is
         if isinstance(partition_hint, get_args(BigQueryPartitionSpec)):
-            return partition_hint
+            return cast(BigQueryPartitionSpec, partition_hint)
 
         # Dict: try to reconstruct as a serialized spec first
         if isinstance(partition_hint, dict):
