@@ -101,7 +101,7 @@ class BigQueryPartitionRenderer(PartitionRenderer[BigQueryPartitionSpec]):
 
     @staticmethod
     def _render_date_column_expr(partition: "BigQueryDateColumnPartition") -> str:
-        return partition.column_name
+        return exp.to_identifier(partition.column_name).sql(dialect="bigquery")
 
     @staticmethod
     def _render_timestamp_or_datetime_expr(
