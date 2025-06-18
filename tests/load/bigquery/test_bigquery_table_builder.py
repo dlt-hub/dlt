@@ -217,9 +217,7 @@ def test_create_table_with_partition_and_cluster(gcp_client: BigQueryClient) -> 
     sqlfluff.parse(sql, dialect="bigquery")
     # clustering must be the last
     assert sql.endswith("CLUSTER BY `col2`, `col5`")
-    assert (
-        "PARTITION BY `col10`" in sql or "PARTITION BY col10" in sql
-    )
+    assert "PARTITION BY `col10`" in sql or "PARTITION BY col10" in sql
 
 
 def test_double_partition_exception(gcp_client: BigQueryClient) -> None:
@@ -238,9 +236,7 @@ def test_create_table_with_time_partition(gcp_client: BigQueryClient) -> None:
     mod_update[3]["partition"] = True
     sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
-    assert (
-        "PARTITION BY DATE(`col4`)" in sql or "PARTITION BY DATE(col4)" in sql
-    )
+    assert "PARTITION BY DATE(`col4`)" in sql or "PARTITION BY DATE(col4)" in sql
 
 
 def test_create_table_with_date_partition(gcp_client: BigQueryClient) -> None:
@@ -248,9 +244,7 @@ def test_create_table_with_date_partition(gcp_client: BigQueryClient) -> None:
     mod_update[9]["partition"] = True
     sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
-    assert (
-        "PARTITION BY `col10`" in sql or "PARTITION BY col10" in sql
-    )
+    assert "PARTITION BY `col10`" in sql or "PARTITION BY col10" in sql
 
 
 def test_create_table_with_integer_partition(gcp_client: BigQueryClient) -> None:
@@ -259,8 +253,8 @@ def test_create_table_with_integer_partition(gcp_client: BigQueryClient) -> None
     sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
     assert (
-        "PARTITION BY RANGE_BUCKET(`col1`, GENERATE_ARRAY(-172800000, 691200000, 86400))" in sql or
-        "PARTITION BY RANGE_BUCKET(col1, GENERATE_ARRAY(-172800000, 691200000, 86400))" in sql
+        "PARTITION BY RANGE_BUCKET(`col1`, GENERATE_ARRAY(-172800000, 691200000, 86400))" in sql
+        or "PARTITION BY RANGE_BUCKET(col1, GENERATE_ARRAY(-172800000, 691200000, 86400))" in sql
     )
 
 
@@ -301,8 +295,12 @@ def test_create_table_with_custom_range_bucket_partition() -> None:
             False,
         )[0]
 
-    expected_clause_quoted = "PARTITION BY RANGE_BUCKET(`user_id`, GENERATE_ARRAY(0, 1000000, 10000))"
-    expected_clause_unquoted = "PARTITION BY RANGE_BUCKET(user_id, GENERATE_ARRAY(0, 1000000, 10000))"
+    expected_clause_quoted = (
+        "PARTITION BY RANGE_BUCKET(`user_id`, GENERATE_ARRAY(0, 1000000, 10000))"
+    )
+    expected_clause_unquoted = (
+        "PARTITION BY RANGE_BUCKET(user_id, GENERATE_ARRAY(0, 1000000, 10000))"
+    )
     assert expected_clause_quoted in sql_partitioned or expected_clause_unquoted in sql_partitioned
 
 

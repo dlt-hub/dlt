@@ -33,14 +33,20 @@ class TestDateTruncPartition:
         assert part2.granularity == "YEAR"
 
     def test_invalid_granularity(self):
-        with pytest.raises(ValueError, match="granularity must be one of \\['MONTH', 'YEAR'\\], got DAY"):
+        with pytest.raises(
+            ValueError, match="granularity must be one of \\['MONTH', 'YEAR'\\], got DAY"
+        ):
             BigQueryDateTruncPartition("created_at", "DAY")
-        
+
         # Test other invalid granularities
-        with pytest.raises(ValueError, match="granularity must be one of \\['MONTH', 'YEAR'\\], got QUARTER"):
+        with pytest.raises(
+            ValueError, match="granularity must be one of \\['MONTH', 'YEAR'\\], got QUARTER"
+        ):
             BigQueryDateTruncPartition("created_at", "QUARTER")
-        
-        with pytest.raises(ValueError, match="granularity must be one of \\['MONTH', 'YEAR'\\], got WEEK"):
+
+        with pytest.raises(
+            ValueError, match="granularity must be one of \\['MONTH', 'YEAR'\\], got WEEK"
+        ):
             BigQueryDateTruncPartition("created_at", "WEEK")
 
 
@@ -97,29 +103,29 @@ class TestTimestampTruncIngestionPartition:
 
 class TestSerialization:
     """Test serialization/deserialization of partition specs."""
-    
+
     def test_json_serialization_round_trip(self):
         """Test that partition specs survive JSON serialization with explicit and default values."""
         # Test RangeBucketPartition with explicit values
         range_explicit = BigQueryRangeBucketPartition("user_id", 100, 2000, 50)
         range_dict = range_explicit.to_dict()
-        
+
         # Verify dict structure contains type marker
         assert "_dlt_partition_spec_type" in range_dict
         assert range_dict["_dlt_partition_spec_type"] == "BigQueryRangeBucketPartition"
-        
+
         # Serialize to JSON and back
         json_string = json.dumps(range_dict)
         json_dict = json.loads(json_string)
         range_reconstructed = BigQueryRangeBucketPartition.from_dict(json_dict)
-        
+
         assert range_reconstructed == range_explicit
-        
+
         # Test RangeBucketPartition with default interval value
         range_default = BigQueryRangeBucketPartition("score", 0, 100)  # Uses default interval=1
         range_default_dict = range_default.to_dict()
         assert range_default_dict["interval"] == 1  # Default value should be in dict
-        
+
         json_string = json.dumps(range_default_dict)
         json_dict = json.loads(json_string)
         range_default_reconstructed = BigQueryRangeBucketPartition.from_dict(json_dict)

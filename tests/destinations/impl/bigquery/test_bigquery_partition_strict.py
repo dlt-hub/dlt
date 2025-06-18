@@ -26,38 +26,39 @@ def create_test_client() -> BigQueryClient:
 def test_reconstruct_partition_spec_strict_error_handling():
     """Test that _reconstruct_partition_spec now raises ValueError for invalid input."""
     client = create_test_client()
-    
+
     # Test with invalid input - should now raise ValueError
     with pytest.raises(ValueError, match="_reconstruct_partition_spec expects a dict"):
         client._reconstruct_partition_spec("invalid_string")
-    
+
     with pytest.raises(ValueError, match="_reconstruct_partition_spec expects a dict"):
         client._reconstruct_partition_spec(123)
-    
+
     with pytest.raises(ValueError, match="_reconstruct_partition_spec expects a dict"):
         client._reconstruct_partition_spec(True)
-    
+
     with pytest.raises(ValueError, match="_reconstruct_partition_spec expects a dict"):
         client._reconstruct_partition_spec(None)
-    
+
     # Test with dict missing required type key - should raise ValueError
-    with pytest.raises(ValueError, match="Missing '_dlt_partition_spec_type' in partition hint dict"):
+    with pytest.raises(
+        ValueError, match="Missing '_dlt_partition_spec_type' in partition hint dict"
+    ):
         client._reconstruct_partition_spec({"column_name": "test"})
-    
+
     # Test with unknown partition spec type
     with pytest.raises(ValueError, match="Unknown partition spec type 'UnknownType'"):
-        client._reconstruct_partition_spec({
-            "_dlt_partition_spec_type": "UnknownType",
-            "column_name": "test"
-        })
-    
+        client._reconstruct_partition_spec(
+            {"_dlt_partition_spec_type": "UnknownType", "column_name": "test"}
+        )
+
     # Test successful reconstruction with valid dict
     valid_spec_dict = {
         "_dlt_partition_spec_type": "BigQueryRangeBucketPartition",
         "column_name": "user_id",
         "start": 0,
         "end": 1000,
-        "interval": 10
+        "interval": 10,
     }
     result = client._reconstruct_partition_spec(valid_spec_dict)
     assert isinstance(result, BigQueryRangeBucketPartition)
@@ -70,17 +71,23 @@ def test_reconstruct_partition_spec_strict_error_handling():
 def test_bigquery_partition_clause_strict_error_handling():
     """Test that _bigquery_partition_clause now only accepts BigQueryPartitionSpec objects."""
     client = create_test_client()
-    
+
     # Test with non-BigQueryPartitionSpec input - should raise ValueError
-    with pytest.raises(ValueError, match="_bigquery_partition_clause only accepts BigQueryPartitionSpec"):
+    with pytest.raises(
+        ValueError, match="_bigquery_partition_clause only accepts BigQueryPartitionSpec"
+    ):
         client._bigquery_partition_clause("invalid_string")
-    
-    with pytest.raises(ValueError, match="_bigquery_partition_clause only accepts BigQueryPartitionSpec"):
+
+    with pytest.raises(
+        ValueError, match="_bigquery_partition_clause only accepts BigQueryPartitionSpec"
+    ):
         client._bigquery_partition_clause({"type": "dict"})
-    
-    with pytest.raises(ValueError, match="_bigquery_partition_clause only accepts BigQueryPartitionSpec"):
+
+    with pytest.raises(
+        ValueError, match="_bigquery_partition_clause only accepts BigQueryPartitionSpec"
+    ):
         client._bigquery_partition_clause(None)
-    
+
     # Test successful clause generation with valid spec
     valid_spec = BigQueryRangeBucketPartition("user_id", 0, 1000, 10)
     result = client._bigquery_partition_clause(valid_spec)
