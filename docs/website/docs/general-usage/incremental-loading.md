@@ -32,7 +32,7 @@ To find the "write disposition" you should use, the first question you should as
 
 Because stateless data does not need to be updated, we can just append it.
 
-For stateful data, comes a second question - Can I extract it incrementally from the source? If yes, you should use [slowly changing dimensions (Type-2)](./merge-loading.md#scd2-strategy), which allow you to maintain historical records of data changes over time.
+For stateful data, comes a second question - Do you need to track history of change ? If yes, you should use [slowly changing dimensions (Type-2)](./merge-loading.md#scd2-strategy), which allow you to maintain historical records of data changes over time.
 
 If not, then we need to replace the entire dataset. However, if we can request the data incrementally, such as "all users added or modified since yesterday," then we can simply apply changes to our existing dataset with the merge write disposition.
 

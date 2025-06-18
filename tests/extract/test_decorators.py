@@ -47,7 +47,7 @@ from dlt.extract.exceptions import (
 from dlt.extract.items import TableNameMeta
 
 from tests.common.utils import load_yml_case
-from tests.utils import MockableRunContext, unload_modules
+from tests.utils import unload_modules
 
 
 @pytest.fixture(autouse=True, scope="function")

@@ -187,7 +187,7 @@ Generates and launches Streamlit app with the loading status and dataset explore
 
 **Usage**
 ```sh
-dlt pipeline [pipeline_name] show [-h] [--marimo]
+dlt pipeline [pipeline_name] show [-h] [--marimo] [--edit]
 ```
 
 **Description**
@@ -207,6 +207,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 **Options**
 * `-h, --help` - Show this help message and exit
 * `--marimo` - Launch marimo app preview instead of streamlit
+* `--edit` - Launch marimo app preview in edit mode (only works together with --marimo flag, otherwise it will be ignored)
 
 </details>
 
