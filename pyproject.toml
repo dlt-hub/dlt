@@ -305,8 +305,8 @@ constraint-dependencies = [
 flake8-encodings = { git = "https://github.com/dlt-hub/flake8-encodings.git", branch = "disable_jedi_support" }
 
 [tool.hatch.build.targets.sdist]
+packages = ["dlt"]
 include = [
-    "dlt",
     "LICENSE.txt",
     "README.md",
     "dlt/sources/pipeline_templates/.gitignore",
@@ -314,8 +314,8 @@ include = [
 ]
 
 [tool.hatch.build.targets.wheel]
+packages = ["dlt"]
 include = [
-    "dlt",
     "LICENSE.txt",
     "README.md",
     "dlt/sources/pipeline_templates/.gitignore",
