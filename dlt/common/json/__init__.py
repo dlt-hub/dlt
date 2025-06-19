@@ -72,8 +72,6 @@ def _custom_encode(obj: Any) -> JsonSerializable:
         return obj.value  # type: ignore[no-any-return]
     elif _custom_encoder is not None:
         return _custom_encoder(obj)
-    elif hasattr(obj, "to_dict"):
-        return obj.to_dict()  # type: ignore[no-any-return]
     raise TypeError(f"`{repr(obj)}` is not JSON serializable")
 
 

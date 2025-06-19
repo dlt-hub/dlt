@@ -721,6 +721,9 @@ class Schema:
             utils.remove_defaults(stored_schema)
         return stored_schema
 
+    def asdict(self) -> TStoredSchema:
+        return self.to_dict(bump_version=False, remove_processing_hints=True)
+
     def to_pretty_json(
         self, remove_defaults: bool = True, remove_processing_hints: bool = False
     ) -> str:
