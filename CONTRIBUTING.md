@@ -36,9 +36,9 @@ Thank you for considering contributing to **dlt**! We appreciate your help in ma
 To get started, follow these steps:
 
 1. Fork the `dlt` repository and clone it to your local machine.
-2. Install `poetry` with `make install-poetry` (or follow the [official instructions](https://python-poetry.org/docs/#installation)).
+2. Install `uv` with `make install-uv` (or follow the [official instructions](https://docs.astral.sh/uv/getting-started/installation/).
 3. Run `make dev` to install all dependencies including dev ones.
-4. Start working in the `poetry` shell by executing `poetry shell`.
+4. Activate your venv with `make shell` and starting working, or prepend all commands with `uv run` to run within the uv environment. `uv run` is encouraged as it will automatically keep you project dependencies up to date.
 
 ## Submitting Changes
 
@@ -149,7 +149,7 @@ We'll provide you with access to the resources above if you wish to test locally
 
 ## Local Development
 
-Use Python 3.9 for development, as it's the lowest supported version for `dlt`. You'll need `distutils` and `venv`. You may also use `pyenv`, as suggested by [poetry](https://python-poetry.org/docs/managing-environments/).
+Use Python 3.9 for development, as it's the lowest supported version for `dlt`. You can select (and if needed download) the python version you need with `uv venv --python 3.11.6`, [uv python version docs](https://docs.astral.sh/uv/concepts/python-versions/#managed-and-system-python-installations).
 
 ## Publishing (Maintainers Only)
 
@@ -157,28 +157,28 @@ This section is intended for project maintainers who have the necessary permissi
 
 Please read how we [version the library](README.md#adding-as-dependency) first.
 
-The source of truth for the current version is `pyproject.toml`, and we use `poetry` to manage it.
+The source of truth for the current version is `pyproject.toml`, and we use `uv` to manage it.
 
 ### Regular release
 
 Before publishing a new release, make sure to bump the project's version accordingly:
 
 1. Check out the **devel** branch.
-2. Use `poetry version patch` to increase the **patch** version
+2. Use `uv version --bump patch` to increase the **patch** version. You can also bump to `minor` or `major`.
 3. Run `make build-library` to apply the changes to the project.
 4. Create a new branch, and submit the PR to **devel**. Go through the standard process to merge it.
 5. Create a merge PR from `devel` to `master` and merge it with a merge commit.
 
 ### Hotfix release
 1. Check out the **master** branch
-2. Use `poetry version patch` to increase the **patch** version
+2. Use `uv version --bump patch` to increase the **patch** version
 3. Run `make build-library` to apply the changes to the project.
 4. Create a new branch, submit the PR to **master** and merge it.
 
 ### Pre-release
 Occasionally we may release an alpha version directly from the **branch**.
 1. Check out the **devel** branch
-2. Use `poetry version prerelease` to increase the **alpha** version
+2. You need to manually update the alpha version in the `pyproject.toml` file and run `uv sync` to update the uv lockfile.
 3. Run `make build-library` to apply the changes to the project.
 4. Create a new branch, and submit the PR to **devel** and merge it.
 
@@ -187,15 +187,16 @@ Occasionally we may release an alpha version directly from the **branch**.
 Once the version has been bumped, follow these steps to publish the new release to PyPI:
 
 1. Ensure that you are on the **master** branch and have the latest code that has passed all tests on CI.
-2. Verify the current version with `poetry version`.
-3. Obtain a PyPI access token and configure it with `poetry config pypi-token.pypi your-api-token`.
-4. Run `make publish-library` to publish the new version.
+2. Verify the current version with `uv version`.
+3. Obtain a PyPI access token
+4. Build the library with `make build-library`
+4. Run `uv publish --token "$PYPI_API_TOKEN"` to publish the new version.
 5. Create a release on GitHub, using the version and git tag as the release name.
 
 ## Resources
 
 - [dlt Docs](https://dlthub.com/docs)
-- [Poetry Documentation](https://python-poetry.org/docs/)
+- [uv Documentation](https://docs.astral.sh/uv/)
 
 If you have any questions or need help, don't hesitate to reach out to us. We're here to help you succeed in contributing to `dlt`. Happy coding!
 ****

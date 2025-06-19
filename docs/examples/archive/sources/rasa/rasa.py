@@ -3,7 +3,7 @@ from typing import Any, Iterator
 import dlt
 from dlt.common.typing import StrAny, TDataItem, TDataItems
 from dlt.common.time import timestamp_within
-from dlt.extract.resource import DltResource
+from dlt.extract import DltResource, DltSource
 
 
 @dlt.source
@@ -14,7 +14,7 @@ def rasa(
     initial_timestamp: float = None,
     end_timestamp: float = None,
     store_last_timestamp: bool = True,
-) -> Any:
+) -> DltSource:
     """Transforms the base resource provided in `data_from` into a rasa tracker store raw dataset where each event type get it's own table.
     The resource is a stream resource and it generates tables dynamically from data. The source uses `rasa.schema.yaml` file to initialize the schema
 

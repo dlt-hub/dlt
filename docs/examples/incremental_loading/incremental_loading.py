@@ -20,13 +20,14 @@ We'll learn:
 # NOTE: this line is only for dlt CI purposes, you may delete it if you are using this example
 __source_name__ = "zendesk"
 
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple, Iterable, List
 
 import dlt
 from dlt.common import pendulum
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.typing import TAnyDateTime
 from dlt.sources.helpers import requests
+from dlt.extract import DltResource
 
 
 @dlt.source(max_table_nesting=2)
@@ -34,19 +35,19 @@ def zendesk_support(
     credentials: Dict[str, str] = dlt.secrets.value,
     start_date: Optional[TAnyDateTime] = pendulum.datetime(year=2000, month=1, day=1),  # noqa: B008
     end_date: Optional[TAnyDateTime] = None,
-):
+) -> DltResource:
     """
     Retrieves data from Zendesk Support for tickets events.
 
     Args:
-        credentials: Zendesk credentials (default: dlt.secrets.value)
-        start_date: Start date for data extraction (default: 2000-01-01)
-        end_date: End date for data extraction (default: None).
+        credentials (Dict[str, str]): Zendesk credentials (default: dlt.secrets.value)
+        start_date (Optional[TAnyDateTime]): Start date for data extraction (default: 2000-01-01)
+        end_date (Optional[TAnyDateTime]): End date for data extraction (default: None).
             If end time is not provided, the incremental loading will be
             enabled, and after the initial run, only new data will be retrieved.
 
     Returns:
-        DltResource.
+        DltResource: a resource with ticket events
     """
     # Convert start_date and end_date to Pendulum datetime objects
     start_date_obj = ensure_pendulum_datetime(start_date)
@@ -101,19 +102,19 @@ def get_pages(
     auth: Tuple[str, str],
     data_point_name: str,
     params: Optional[Dict[str, Any]] = None,
-):
+) -> Iterable[List[Dict[str, Any]]]:
     """
     Makes a request to a paginated endpoint and returns a generator of data items per page.
 
     Args:
-        url: The base URL.
-        endpoint: The url to the endpoint, e.g. /api/v2/calls
-        auth: Credentials for authentication.
-        data_point_name: The key which data items are nested under in the response object (e.g. calls)
-        params: Optional dict of query params to include in the request.
+        url (str): The base URL.
+        endpoint (str): The url to the endpoint, e.g. /api/v2/calls
+        auth (Tuple[str, str]): Credentials for authentication.
+        data_point_name (str): The key which data items are nested under in the response object (e.g. calls)
+        params (Optional[Dict[str, Any]], optional): Optional dict of query params to include in the request.
 
-    Returns:
-        Generator of pages, each page is a list of dict data items.
+    Yields:
+        List[Dict[str, Any]]: Generator of pages, each page is a list of dict data items.
     """
     # update the page size to enable cursor pagination
     params = params or {}
