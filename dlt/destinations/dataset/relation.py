@@ -13,6 +13,8 @@ from typing import (
 from contextlib import contextmanager
 from collections.abc import Iterable
 
+from enum import Enum, auto
+
 import sqlglot
 import sqlglot.expressions as sge
 
@@ -31,6 +33,29 @@ if TYPE_CHECKING:
     from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
 else:
     ReadableDBAPIDataset = Any
+
+
+class FilterOp(Enum):
+    EQ = auto()
+    NE = auto()
+    GT = auto()
+    LT = auto()
+    GTE = auto()
+    LTE = auto()
+    IN = auto()
+    NOT_IN = auto()
+
+
+_FILTER_OP_MAP = {
+    FilterOp.EQ: sqlglot.exp.EQ,
+    FilterOp.NE: sqlglot.exp.NEQ,
+    FilterOp.GT: sqlglot.exp.GT,
+    FilterOp.LT: sqlglot.exp.LT,
+    FilterOp.GTE: sqlglot.exp.GTE,
+    FilterOp.LTE: sqlglot.exp.LTE,
+    FilterOp.IN: sqlglot.exp.In,
+    FilterOp.NOT_IN: sqlglot.exp.Not,
+}
 
 
 class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
@@ -170,11 +195,6 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         if self._dataset.schema is None:
             return {}, None
 
-        if hasattr(self, "_sqlglot_expression") and self._sqlglot_expression:
-            table_name = self._sqlglot_expression.find(sqlglot.exp.Table).name
-            if table_name not in self._dataset.schema.tables.keys():
-                return {}, None
-
         dialect: str = self._dataset.sql_client.capabilities.sqlglot_dialect
 
         return lineage.compute_columns_schema(
@@ -235,7 +255,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         normalize_query: bool = True,
         sqlglot_expression: sqlglot.exp.Select = None,
     ) -> None:
-        """Create a lazy evaluated relation to for the dataset of a destination"""
+        """Create a lazy evaluated relation for the dataset of a destination"""
 
         # NOTE: we can keep an assertion here, this class will not be created by the user
         assert (
@@ -289,11 +309,9 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
     def select(self, *columns: str) -> Self:
         rel = self.__copy__()
         rel._selected_columns = columns
-
         new_proj = [
             sqlglot.exp.Column(this=sqlglot.exp.to_identifier(col, quoted=True)) for col in columns
         ]
-
         rel._sqlglot_expression.set("expressions", new_proj)
         rel.compute_columns_schema()
         return rel
@@ -312,9 +330,18 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
     def where(
         self,
         column_name: str,
+        operator: Union[FilterOp, str],
         value: Any,
-        operator: Literal["eq", "ne", "gt", "lt", "gte", "lte", "in", "not_in"],
     ) -> Self:
+        if isinstance(operator, str):
+            try:
+                operator = FilterOp[operator.upper()]
+            except KeyError:
+                raise ValueError(
+                    f"Invalid operator '{operator}'. Expected one of:"
+                    f" {[op.name.lower() for op in FilterOp]}"
+                )
+
         value_expr: Union[sqlglot.exp.Literal, sqlglot.exp.Tuple]
         if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
             value_expr = sqlglot.exp.Tuple(
@@ -337,36 +364,35 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         column = sqlglot.exp.Column(this=sqlglot.exp.to_identifier(column_name, quoted=True))
 
         condition: sqlglot.exp.Expression = None
-        if operator == "eq":
-            condition = sqlglot.exp.EQ(this=column, expression=value_expr)
-        elif operator == "ne":
-            condition = sqlglot.exp.NEQ(this=column, expression=value_expr)
-        elif operator == "gt":
-            condition = sqlglot.exp.GT(this=column, expression=value_expr)
-        elif operator == "lt":
-            condition = sqlglot.exp.LT(this=column, expression=value_expr)
-        elif operator == "gte":
-            condition = sqlglot.exp.GTE(this=column, expression=value_expr)
-        elif operator == "lte":
-            condition = sqlglot.exp.LTE(this=column, expression=value_expr)
-        elif operator == "in":
+        if operator == FilterOp.IN:
             exprs = (
                 value_expr.expressions
                 if isinstance(value_expr, sqlglot.exp.Tuple)
                 else [value_expr]
             )
             condition = sqlglot.exp.In(this=column, expressions=exprs)
-        elif operator == "not_in":
+        elif operator == FilterOp.NOT_IN:
             exprs = (
                 value_expr.expressions
                 if isinstance(value_expr, sqlglot.exp.Tuple)
                 else [value_expr]
             )
             condition = sqlglot.exp.Not(this=sqlglot.exp.In(this=column, expressions=exprs))
+        else:
+            condition_cls = _FILTER_OP_MAP[operator]
+            condition = condition_cls(this=column, expression=value_expr)
 
         rel = self.__copy__()
         rel._sqlglot_expression = rel._sqlglot_expression.where(condition)
         return rel
+
+    def filter(  # noqa: A003
+        self,
+        column_name: str,
+        operator: Union[FilterOp, str],
+        value: Any,
+    ) -> Self:
+        return self.where(column_name=column_name, operator=operator, value=value)
 
     def __getitem__(self, columns: Sequence[str]) -> Self:
         # NOTE remember that `issubclass(str, Sequence) is True`

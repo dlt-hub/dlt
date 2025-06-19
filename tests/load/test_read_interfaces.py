@@ -711,29 +711,29 @@ def test_where(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
     items = populated_pipeline.dataset(dataset_type="default").items
 
-    eq_rows = items.where("id", 10, "eq").fetchall()
+    eq_rows = items.where("id", "eq", 10).fetchall()
     assert len(eq_rows) == 1 and eq_rows[0][0] == 10
 
-    ne_rows = items.where("id", 0, "ne").fetchall()
+    ne_rows = items.filter("id", "ne", 0).fetchall()
     assert total_records - 1 == len(ne_rows)
 
-    gt_rows = items.where("id", 2, "gt").fetchall()
+    gt_rows = items.where("id", "gt", 2).fetchall()
     assert total_records - 3 == len(gt_rows)
 
-    lt_rows = items.where("id", 5, "lt").fetchall()
+    lt_rows = items.filter("id", "lt", 5).fetchall()
     assert 5 == len(lt_rows)
 
-    gte_rows = items.where("id", 5, "gte").fetchall()
-    lte_rows = items.where("id", 5, "lte").fetchall()
+    gte_rows = items.where("id", "gte", 5).fetchall()
+    lte_rows = items.filter("id", "lte", "5").fetchall()
     assert total_records - 5 == len(gte_rows)
     assert 6 == len(lte_rows)
 
     in_ids = [
-        r[0] for r in (items.where("id", [3, 1, 7], "in").order_by("id").select("id").fetchall())
+        r[0] for r in (items.where("id", "in", [3, 1, 7]).order_by("id").select("id").fetchall())
     ]
     assert in_ids == [1, 3, 7]
 
-    not_in_rows = items.where("id", [0, 1, 2], "not_in").fetchall()
+    not_in_rows = items.filter("id", "not_in", [0, 1, 2]).fetchall()
     assert total_records - 3 == len(not_in_rows)
 
 

@@ -154,6 +154,22 @@ def select_columns_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END select_columns
 
 
+def order_by_snippet(dataset: ReadableDBAPIDataset) -> None:
+    customers_relation = dataset.customers
+    # @@@DLT_SNIPPET_START order_by
+    # Order by 'id'
+    ordered_list = customers_relation.order_by("id").fetchall()
+    # @@@DLT_SNIPPET_END order_by
+
+
+def filter_snippet(dataset: ReadableDBAPIDataset) -> None:
+    customers_relation = dataset.customers
+    # @@@DLT_SNIPPET_START filter
+    # Filter by 'id'
+    filtered = customers_relation.where("id", [3, 1, 7], "in").fetchall()
+    # @@@DLT_SNIPPET_END filter
+
+
 def chain_operations_snippet(dataset: ReadableDBAPIDataset) -> None:
     customers_relation = dataset.customers
 

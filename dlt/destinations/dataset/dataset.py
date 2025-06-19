@@ -257,7 +257,6 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
 
         dialect = self.destination_client.capabilities.sqlglot_dialect
         query = union_all_expr.sql(dialect)
-
         # Execute query and build result dict
         return self(query)
 
