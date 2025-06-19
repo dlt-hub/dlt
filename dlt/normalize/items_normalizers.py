@@ -152,7 +152,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
             # Build aliased expression
             dlt_load_id_expr = sqlglot.exp.Alias(
                 this=sqlglot.exp.Literal.string(self.load_id),
-                alias=sqlglot.exp.to_identifier(NORM_C_DLT_LOAD_ID),
+                alias=sqlglot.to_identifier(NORM_C_DLT_LOAD_ID, quoted=True),
             )
             # Replace in-place if already present, otherwise append and update schema
             idx = existing.get(C_DLT_LOAD_ID)
@@ -186,7 +186,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
                     )
                 dlt_id_expr = sqlglot.exp.Alias(
                     this=self._uuid_expr_for_dialect(sql_dialect),
-                    alias=sqlglot.exp.to_identifier(NORM_C_DLT_ID),
+                    alias=sqlglot.to_identifier(NORM_C_DLT_ID, quoted=True),
                 )
                 outer_parsed_select.selects.append(dlt_id_expr)
                 partial_table = normalize_table_identifiers(
@@ -233,7 +233,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
                     new_selects.append(
                         sqlglot.exp.Alias(
                             this=sqlglot.exp.Null(),
-                            alias=sqlglot.exp.to_identifier(self._normalize_casefold(col)),
+                            alias=sqlglot.to_identifier(self._normalize_casefold(col), quoted=True),
                         )
                     )
                 else:
@@ -289,11 +289,11 @@ class ModelItemsNormalizer(ItemsNormalizer):
             selected_columns.append(norm_casefolded)
 
             column_ref = sqlglot.exp.Dot(
-                this=sqlglot.exp.to_identifier(DLT_SUBQUERY_NAME),
-                expression=sqlglot.exp.to_identifier(name, quoted=True),
+                this=sqlglot.to_identifier(DLT_SUBQUERY_NAME),
+                expression=sqlglot.to_identifier(name, quoted=True),
             )
 
-            outer_selects.append(column_ref.as_(norm_casefolded))
+            outer_selects.append(column_ref.as_(norm_casefolded, quoted=True))
 
         needs_reordering = selected_columns != list(columns.keys())
 

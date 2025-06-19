@@ -121,6 +121,44 @@ If you prefer to write your queries in SQL, you can omit ibis expressions by sim
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::sql_queries-->
 
+The identifiers (table and column names) used in these raw SQL expressions must correspond to the identifiers as they are present in your dlt schema, NOT in your destination database schema. 
+
+## Query Processing
+
+When executing your transformations, dlt will apply a number of processing steps to both `ibis expression` and `raw sql` based transformations to prepare them for execution on the input dataset:
+
+1. Expand star selects
+2. Add dlt columns (see below)
+3. Fully qualify your identifiers (add database/dataset prefixes to unambiguously identify tables in your warehouse)
+4. Quote and if needed casefold your identifiers
+5. Apply differences in naming conventions by aliasing your columns and tables to new names that match the destination naming
+6. Re-order columns to match the column order on the destination
+7. Add default null values for columns if the destination table has more columns than your query selects
+
+Given a table of the name `my_table` with the columns `id` and `value` on `duckdb`, on a dataset with the name `my_dataset`, loaded into a dataset named `transformed_dataset`, the following query:
+
+```sql
+SELECT id, value FROM table
+```
+
+Will be translated to
+
+```sql
+INSERT INTO 
+    "my_pipeline_dataset"."my_transformation" ("id", "value", "_dlt_load_id", "_dlt_id") 
+SELECT 
+    _dlt_subquery."id" AS "id", 
+    _dlt_subquery."value" AS "value", 
+    '1749134128.17655' AS "_dlt_load_id", 
+    UUID() AS "_dlt_id" 
+FROM (
+    SELECT 
+        "my_table"."id" AS "id", 
+        "my_table"."value" AS "value" 
+    FROM "my_pipeline_dataset"."my_table" AS "my_table"
+    ) 
+AS _dlt_subquery
+```
 
 ## Using pandas dataframes or arrow tables
 
