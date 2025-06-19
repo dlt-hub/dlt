@@ -1,4 +1,5 @@
 import io
+import sys
 import os
 from typing import Any, List, NamedTuple
 from dataclasses import dataclass
@@ -55,7 +56,11 @@ except ImportError:
 
 
 def test_orjson_default_imported() -> None:
-    assert json._impl_name == "orjson"
+    # NOTE: orjson is not supported on python 3.14, update this test as soon as it is supported
+    if sys.version_info <= (3, 13):
+        assert json._impl_name == "orjson"
+    else:
+        assert json._impl_name == "simplejson"
 
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
