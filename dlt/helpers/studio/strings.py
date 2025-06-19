@@ -105,12 +105,12 @@ schema_show_raw_yaml_text = "Show raw schema as YAML"
 # Schema UI controls
 ui_show_dlt_tables = "Show `_dlt` tables"
 ui_show_child_tables = "Show child tables"
-ui_show_row_counts = "Show row counts"
+ui_load_row_counts = "Load row counts"
 ui_show_dlt_columns = "Show `_dlt` columns"
 ui_show_type_hints = "Show type hints"
 ui_show_other_hints = "Show other hints"
 ui_show_custom_hints = "Show custom hints (x-)"
-ui_cache_query_results = "Cache query results"
+ui_clear_cache = "Clear cache"
 ui_limit_to_1000_rows = "Limit to 1000 rows"
 
 #
@@ -120,24 +120,22 @@ browse_data_title = "Browse Pipeline Data"
 browse_data_subtitle = "Browse data from the current pipeline."
 browse_data_subtitle_long = (
     "Browse data from the current pipeline. Select a table from the list to start or write a SQL"
-    " query in the text area below. Toggling row counts will load the row counts for all tables"
-    " from the destination. To reload, toggle the switch again."
+    " query in the text area below. Clicking the row counts button will load the row counts for all"
+    " tables from the destination. To reload the row count, just click the button again."
 )
 
 browse_data_error_text = f"Error connecting to destination. {_credentials_info}"
 
 browse_data_explorer_title = """
-<small>Select a table above or write a SQL query in the text area below to explore the data in the destination. The query will be executed on the destination and the results will be displayed in a table. If you disable query caching, all cached queries will be purged.</small>
+<small>Select a table above or write a SQL query in the text area below to explore the data in the destination. The query will be executed on the destination and the results will be displayed in a table. All queries are cached, please clear the cache if you need to refresh the results for a query.</small>
 """
 
 browse_data_query_result_title = "Query Result"
 
 browse_data_query_history_title = "Query History"
 browse_data_query_history_subtitle = (
-    "The following list shows all queries that have been executed on the destination and are may be"
-    " present in the cache. Select one or more to see the results again below and compare.If you"
-    " have purged or disabled the cache inbetween, selecting a query will load the result from the"
-    " destination."
+    "The following list shows all queries that have been executed on the destination and are"
+    " present in the cache. Select one or more to see the results again below and compare."
 )
 
 browse_data_query_error = "Error executing SQL query:"
