@@ -217,7 +217,7 @@ def clear_query_cache(pipeline: dlt.Pipeline) -> None:
     get_query_result.cache_clear()
     get_loads.cache_clear()
     get_schema_by_version.cache_clear()
-    get_row_counts.cache_clear()
+    # get_row_counts.cache_clear()
 
 
 @functools.cache
@@ -228,7 +228,6 @@ def get_query_result(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
     return pipeline.dataset()(query).df()
 
 
-@functools.cache
 def get_row_counts(pipeline: dlt.Pipeline, load_id: str = None) -> Dict[str, int]:
     """Get the row counts for a pipeline.
 
