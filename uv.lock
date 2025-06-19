@@ -1923,7 +1923,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.12.0"
+version = "1.12.1"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -2282,7 +2282,7 @@ requires-dist = [
     { name = "sqlalchemy", marker = "extra == 'pyiceberg'", specifier = ">=1.4" },
     { name = "sqlalchemy", marker = "extra == 'sql-database'", specifier = ">=1.4" },
     { name = "sqlalchemy", marker = "extra == 'sqlalchemy'", specifier = ">=1.4" },
-    { name = "sqlglot", specifier = ">=23.0.0" },
+    { name = "sqlglot", specifier = ">=25.4.0" },
     { name = "tantivy", marker = "extra == 'lancedb'", specifier = ">=0.22.0" },
     { name = "tenacity", specifier = ">=8.0.2" },
     { name = "tomlkit", specifier = ">=0.11.3" },
