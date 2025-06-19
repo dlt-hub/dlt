@@ -3,7 +3,7 @@ name = "dlt"
 version = "1.12.1"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
-requires-python = ">=3.9.2, <3.14, !=3.9.7"
+requires-python = ">=3.9.2, <3.15, !=3.9.7"
 readme = "README.md"
 license = "Apache-2.0"
 maintainers = [
@@ -46,7 +46,7 @@ dependencies = [
     "gitpython>=3.1.29",
     "pytz>=2022.6",
     "giturlparse>=0.10.0",
-    "orjson>=3.6.7,<4,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1 ; platform_python_implementation != 'PyPy'",
+    "orjson>=3.6.7,<4,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1 ; platform_python_implementation != 'PyPy' and python_version < '3.14'",
     "tenacity>=8.0.2",
     "jsonpath-ng>=1.5.3",
     "fsspec>=2022.4.0",
@@ -232,13 +232,13 @@ dev = [
     "types-regex>=2024.5.15.20240519,<2025",
     "flake8-print>=5.0.0,<6",
     "mimesis>=7.0.0,<8",
-    "shapely>=2.0.6",
+    "shapely>=2.0.6; python_version < '3.14'",
     "pip>=24.0.0",
     # keep last duckdb version that works with azure and iceberg correctly
     "duckdb<1.2.1",
     "pydoclint>=0.6.5,<0.7",
     # limit the pyarrow version not to test on too new one
-    "pyarrow>=14.0.0,<19.0.0",
+    "pyarrow>=14.0.0,<19.0.0 ; python_version < '3.14'",
 ]
 sources = [
     "connectorx>=0.3.3 ; python_version >= '3.9'",

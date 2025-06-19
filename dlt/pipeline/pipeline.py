@@ -1690,6 +1690,14 @@ class Pipeline(SupportsPipeline):
                             f" {state_staging}:{state.get('staging_name')} is ignored"
                         )
 
+    def asdict(self):
+        return {
+            "pipeline_name": self.pipeline_name,
+            "default_schema_name": self.default_schema_name,
+            "dataset_name": self.dataset_name,
+            "working_dir": self.working_dir,
+        }
+
     def _props_to_state(self, state: TPipelineState) -> TPipelineState:
         """Write pipeline props to `state`, returns it for chaining"""
         for prop in Pipeline.STATE_PROPS:

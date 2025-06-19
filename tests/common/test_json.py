@@ -1,4 +1,5 @@
 import io
+import sys
 import os
 from typing import Any, List, NamedTuple
 from dataclasses import dataclass
@@ -15,7 +16,6 @@ from dlt.common.json import (
     PUA_CHARACTER_MAX,
     custom_pua_decode,
     may_have_pua,
-    _orjson,
     _simplejson,
     SupportsJson,
     _DATETIME,
@@ -45,11 +45,22 @@ class DataClassTest:
     dec_field: Decimal = Decimal("0.5")
 
 
-_JSON_IMPL: List[SupportsJson] = [_orjson, _simplejson]  # type: ignore[list-item]
+_JSON_IMPL: List[SupportsJson] = [_simplejson]  # type: ignore[list-item]
+
+try:
+    from dlt.common.json import _orjson
+
+    _JSON_IMPL.append(_orjson)  # type: ignore[arg-type]
+except ImportError:
+    pass
 
 
 def test_orjson_default_imported() -> None:
-    assert json._impl_name == "orjson"
+    # NOTE: orjson is not supported on python 3.14, update this test as soon as it is supported
+    if sys.version_info < (3, 14):
+        assert json._impl_name == "orjson"
+    else:
+        assert json._impl_name == "simplejson"
 
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
