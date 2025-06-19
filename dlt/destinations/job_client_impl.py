@@ -656,7 +656,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         )
 
         where_condition = sqlglot.exp.EQ(
-            this=sqlglot.exp.Column(this=c_version_hash),
+            this=sqlglot.exp.Column(this=sqlglot.exp.Identifier(this=c_version_hash, quoted=True)),
             expression=sqlglot.exp.Literal.string(version_hash),
         )
 
