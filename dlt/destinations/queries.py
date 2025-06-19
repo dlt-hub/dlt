@@ -72,6 +72,10 @@ def build_row_counts_expr(
     load_id: str = None,
 ) -> sqlglot.exp.Select:
     """Builds a SQL expression to count rows in a table, optionally filtering by a load ID."""
+
+    if bool(load_id) ^ bool(dlt_load_id_col):
+        raise ValueError("Both `load_id` and `dlt_load_id_col` must be provided together.")
+
     table_expr = sqlglot.exp.Table(
         this=sqlglot.exp.to_identifier(table_name, quoted=quoted_identifiers)
     )
@@ -105,6 +109,9 @@ def build_select_expr(
     quoted_identifiers: bool = True,
 ) -> sqlglot.exp.Select:
     """Builds a SQL expression to select all or selected rows from a table."""
+
+    if selected_columns is None:
+        selected_columns = ["*"]
 
     table_expr = sqlglot.exp.Table(
         this=sqlglot.exp.to_identifier(table_name, quoted=quoted_identifiers)

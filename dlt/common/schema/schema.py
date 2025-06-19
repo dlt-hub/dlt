@@ -1019,6 +1019,9 @@ class Schema:
         self._schema_tables[self.loads_table_name] = utils.normalize_table_identifiers(
             utils.loads_table(), self.naming
         )
+        self._schema_tables[self.state_table_name] = utils.normalize_table_identifiers(
+            utils.pipeline_state_table(), self.naming
+        )
 
     def _add_standard_hints(self) -> None:
         default_hints = utils.default_hints()
