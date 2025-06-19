@@ -140,7 +140,7 @@ def compute_columns_schema(
             f"Failed to resolve SQL query against the schema received: {e}"
         ) from e
 
-    expression = annotate_types(expression, schema=sqlglot_schema, dialect=dialect)
+    expression = annotate_types(expression, schema=sqlglot_schema)
 
     # NOTE: this has to be fixed
     if allow_anonymous_columns is False:
