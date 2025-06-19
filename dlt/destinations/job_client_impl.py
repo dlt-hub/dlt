@@ -33,6 +33,7 @@ from dlt.common.schema.typing import (
     COLUMN_HINTS,
     TColumnType,
     TColumnSchemaBase,
+    TPartialTableSchema,
 )
 from dlt.common.schema.utils import (
     get_inherited_table_hint,
@@ -624,7 +625,10 @@ WHERE """
         return fields
 
     def _execute_schema_update_sql(self, only_tables: Iterable[str]) -> TSchemaTables:
-        sql_scripts, schema_update = self._build_schema_update_sql(only_tables)
+        # Only `only_tables` are included, or all if None.
+        sql_scripts, schema_update = self._build_schema_update_sql(
+            list(self.get_storage_tables(only_tables or self.schema.tables.keys()))
+        )
         # Stay within max query size when doing DDL.
         # Some DB backends use bytes not characters, so decrease the limit by half,
         # assuming most of the characters in DDL encoded into single bytes.
@@ -633,25 +637,23 @@ WHERE """
         return schema_update
 
     def _build_schema_update_sql(
-        self, only_tables: Iterable[str]
+        self, storage_tables: Iterable[Tuple[str, TTableSchemaColumns]]
     ) -> Tuple[List[str], TSchemaTables]:
         """Generates CREATE/ALTER sql for tables that differ between the destination and in the client's Schema.
 
-        This method compares all or `only_tables` defined in `self.schema` to the respective tables in the destination.
-        It detects only new tables and new columns.
-        Any other changes like data types, hints, etc. are ignored.
+        This method compares schema tables to the respective tables in the destination passed in `storage_tables`
+        It detects only new tables and new columns. Any other changes like data types, hints, etc. are ignored.
 
         Args:
-            only_tables (Iterable[str]): Only `only_tables` are included, or all if None.
+            storage_tables (Iterable[Tuple[str, TTableSchemaColumns]]): list of storage tables (tuples (name, column schema))
 
         Returns:
             Tuple[List[str], TSchemaTables]: Tuple with a list of CREATE/ALTER scripts, and a list of all tables with columns that will be added.
         """
         sql_updates = []
+        post_sql_updates = []
         schema_update: TSchemaTables = {}
-        for table_name, storage_columns in self.get_storage_tables(
-            only_tables or self.schema.tables.keys()
-        ):
+        for table_name, storage_columns in storage_tables:
             # this will skip incomplete columns
             new_columns = self._create_table_update(table_name, storage_columns)
             generate_alter = len(storage_columns) > 0
@@ -668,6 +670,14 @@ WHERE """
                 # keep only new columns
                 partial_table["columns"] = {c["name"]: c for c in new_columns}
                 schema_update[table_name] = partial_table
+                post_sql_statements = self._get_table_post_update_sql(partial_table)
+                for sql in post_sql_statements:
+                    if not sql.endswith(";"):
+                        sql += ";"
+                    post_sql_updates.append(sql)
+
+        # add post sql updates at the end
+        sql_updates.extend(post_sql_updates)
 
         return sql_updates, schema_update
 
@@ -678,6 +688,7 @@ WHERE """
         return [f"ADD COLUMN {self._get_column_def_sql(c, table)}" for c in new_columns]
 
     def _make_create_table(self, qualified_name: str, table: PreparedTableSchema) -> str:
+        """Begins CREATE TABLE statement"""
         not_exists_clause = " "
         if (
             table["name"] in self.schema.dlt_table_names()
@@ -689,7 +700,9 @@ WHERE """
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
-        # build sql
+        """Generates a list of SQL statements that updates table `table_name` to include `new_columns`
+        columns. `generate_alter` is set to True if table already exists in destination.
+        """
         qualified_name = self.sql_client.make_qualified_table_name(table_name)
         table = self.prepare_load_table(table_name)
         sql_result: List[str] = []
@@ -719,7 +732,14 @@ WHERE """
     def _get_constraints_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> str:
+        """Creates or alters additional constraints that are not inlined into CREATE/ALTER TABLE statements"""
         return ""
+
+    def _get_table_post_update_sql(self, partial_table: TPartialTableSchema) -> List[str]:
+        """Generates SQL statements executed after all tables are migrated ie. containing foreign reference.
+        `partial_table` contains all table hints and new columns with their hints.
+        """
+        return []
 
     def _check_table_update_hints(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
