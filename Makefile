@@ -158,4 +158,4 @@ test-e2e-studio-headed:
 	uv run pytest --headed --browser chromium tests/e2e
 
 start-dlt-studio-e2e:
-	uv run marimo run --headless dlt/helpers/studio/app.py -- -- --pipelines_dir _storage/.dlt/pipelines --with_test_identifiers true
+	uv run marimo run --headless dlt/helpers/studio/dlt_app.py -- -- --pipelines_dir _storage/.dlt/pipelines --with_test_identifiers true

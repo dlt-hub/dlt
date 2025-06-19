@@ -142,7 +142,7 @@ jobs:
       # Run marimo e2e tests (does not pass with python 3.9, does not pass on windows (playwright does not work somehow), does not pass on python 3.13 (ibis not available))
       - name: Run marimo e2e
         run: |
-          marimo run --headless dlt/helpers/studio/app.py -- -- --pipelines_dir _storage/.dlt/pipelines/ --with_test_identifiers true & pytest --browser chromium tests/e2e
+          marimo run --headless dlt/helpers/studio/dlt_app.py -- -- --pipelines_dir _storage/.dlt/pipelines/ --with_test_identifiers true & pytest --browser chromium tests/e2e
         if: matrix.python-version != '3.13' && matrix.python-version != '3.9' && matrix.os != 'windows-latest'
 
 
