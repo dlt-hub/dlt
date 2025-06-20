@@ -28,13 +28,11 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     def __init__(
         self,
         *,
-        readable_dataset: "ReadableDBAPIDataset",
         normalize_query: bool = True,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
 
         # provided properties
-        self._dataset = readable_dataset
         self._should_normalize_query: bool = normalize_query
 
         # derived / cached properties
@@ -207,7 +205,6 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
     def __init__(
         self,
         *,
-        readable_dataset: "ReadableDBAPIDataset",
         provided_query: Any = None,
         table_name: str = None,
         limit: int = None,
@@ -221,7 +218,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
             provided_query
         ), "Please provide either an sql query OR a table_name"
 
-        super().__init__(readable_dataset=readable_dataset, normalize_query=normalize_query)
+        super().__init__(normalize_query=normalize_query)
 
         self._provided_query = provided_query
         self._table_name = table_name
@@ -257,7 +254,6 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
 
     def __copy__(self) -> Self:
         return self.__class__(
-            readable_dataset=self._dataset,
             provided_query=self._provided_query,
             table_name=self._table_name,
             limit=self._limit,

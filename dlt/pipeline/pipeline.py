@@ -1858,5 +1858,4 @@ class Pipeline(SupportsPipeline):
             self._destination,
             self.dataset_name,
             schema=schema,
-            dataset_type=dataset_type,
         )
