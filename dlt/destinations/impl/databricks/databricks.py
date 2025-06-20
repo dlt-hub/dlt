@@ -375,31 +375,7 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
                     quoted_pk_cols = ", ".join(
                         self.sql_client.escape_column_name(col) for col in pk_columns
                     )
-                    constraints_sql += f",\nPRIMARY KEY ({quoted_pk_cols})"
-
-            # Adding primary key constraint
-            table = self.prepare_load_table(table_name)
-            references = table.get("references")
-
-            if generate_alter:
-                logger.info(
-                    f"Table options for {table_name} are not applied on ALTER TABLE. Make sure that you"
-                    " set the table options ie. by using bigquery_adapter, before it is created."
-                )
-            else:
-                if references:
-                    logger.info(f"Creating FOREIGN KEY constraint for table {table_name}")
-                    for reference in references:
-                        quoted_fk_cols = ", ".join(
-                            self.sql_client.escape_column_name(col) for col in reference.get("columns")
-                        )
-                    quoted_reference_cols = ", ".join(
-                        self.sql_client.escape_column_name(col) for col in reference.get("referenced_columns")
-                    )
-                    constraints_sql += f",\nFOREIGN KEY ({quoted_fk_cols}) REFERENCES {reference.get('referenced_table')}({quoted_reference_cols})"
-
-            # Add PK constraint if pk_columns exist
-            pk_columns = get_columns_names_with_prop(partial, "primary_key")
+                    constraints_sql += f",\nPRIMARY KEY ({quoted_pk_cols})"                
 
             return constraints_sql
 
@@ -448,6 +424,25 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
                         sql.append(f"ALTER TABLE {table_name} ALTER COLUMN {column_name} SET TAGS ('{key}'='{value}')")
 
         return sql
+
+    def _get_table_post_update_sql(
+        self,
+        table_name: str,
+    ) -> List[str]:
+        table = self.prepare_load_table(table_name)
+        references = table.get("references")
+
+        if references:
+            logger.info(f"Creating FOREIGN KEY constraint for table {table_name}")
+            for reference in references:
+                quoted_fk_cols = ", ".join(
+                    self.sql_client.escape_column_name(col) for col in reference.get("columns")
+                )
+            quoted_reference_cols = ", ".join(
+                self.sql_client.escape_column_name(col) for col in reference.get("referenced_columns")
+            )
+            constraints_sql += f",\nFOREIGN KEY ({quoted_fk_cols}) REFERENCES {reference.get('referenced_table')}({quoted_reference_cols})"
+        
 
     def _from_db_type(
         self, bq_t: str, precision: Optional[int], scale: Optional[int]
