@@ -37,7 +37,7 @@ help:
 install-uv:
 ifneq ($(VIRTUAL_ENV),)
 	$(error you cannot be under virtual environment $(VIRTUAL_ENV))
-endif u
+endif
 	curl -LsSf https://astral.sh/uv/install.sh | sh
 
 has-uv:
