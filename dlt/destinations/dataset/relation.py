@@ -1,5 +1,19 @@
-from typing import Any, Dict, Generator, Optional, Sequence, Tuple, Type, Union, TYPE_CHECKING
+from typing import (
+    Any,
+    cast,
+    Generator,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    Literal,
+    Union,
+    TYPE_CHECKING,
+)
 from contextlib import contextmanager
+from collections.abc import Iterable
+
+from enum import Enum, auto
 
 import sqlglot
 import sqlglot.expressions as sge
@@ -13,15 +27,35 @@ from dlt.common.typing import Self
 from dlt.common.exceptions import TypeErrorWithKnownTypes
 from dlt.transformations import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
-from dlt.destinations.dataset.exceptions import (
-    ReadableRelationHasQueryException,
-)
-from dlt.destinations.dataset.utils import normalize_query
+from dlt.destinations.queries import normalize_query, build_select_expr
 
 if TYPE_CHECKING:
     from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
 else:
     ReadableDBAPIDataset = Any
+
+
+class FilterOp(Enum):
+    EQ = auto()
+    NE = auto()
+    GT = auto()
+    LT = auto()
+    GTE = auto()
+    LTE = auto()
+    IN = auto()
+    NOT_IN = auto()
+
+
+_FILTER_OP_MAP = {
+    FilterOp.EQ: sqlglot.exp.EQ,
+    FilterOp.NE: sqlglot.exp.NEQ,
+    FilterOp.GT: sqlglot.exp.GT,
+    FilterOp.LT: sqlglot.exp.LT,
+    FilterOp.GTE: sqlglot.exp.GTE,
+    FilterOp.LTE: sqlglot.exp.LTE,
+    FilterOp.IN: sqlglot.exp.In,
+    FilterOp.NOT_IN: sqlglot.exp.Not,
+}
 
 
 class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
@@ -155,15 +189,10 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         Args:
             infer_sqlglot_schema (bool): If False, raise if any column types are not known
             allow_anonymous_columns (bool): If False, raise if any columns have auto assigned names
-            allow_partial (bool): If False, will raise if for some reason no columns can be computed
+            allow_partial (bool): If False, will raise in case of parsing errors, missing table reference, unresolved `SELECT *`, etc.
         """
-        # TODO: the docstrings above seem not right!
         # NOTE: if we do not have a schema, we cannot compute the columns schema
-        if self._dataset.schema is None or (
-            hasattr(self, "_table_name")
-            and self._table_name
-            and self._table_name not in self._dataset.schema.tables.keys()
-        ):
+        if self._dataset.schema is None:
             return {}, None
 
         dialect: str = self._dataset.sql_client.capabilities.sqlglot_dialect
@@ -213,71 +242,146 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         limit: int = None,
         selected_columns: Sequence[str] = None,
         normalize_query: bool = True,
+        sqlglot_expression: sqlglot.exp.Select = None,
     ) -> None:
-        """Create a lazy evaluated relation to for the dataset of a destination"""
+        """Create a lazy evaluated relation for the dataset of a destination"""
 
         # NOTE: we can keep an assertion here, this class will not be created by the user
-        assert bool(table_name) != bool(
-            provided_query
-        ), "Please provide either an sql query OR a table_name"
-
+        assert (
+            sum(x is not None for x in (provided_query, table_name, sqlglot_expression)) == 1
+        ), "Please provide either an sql query, a table_name or a an explicit sqlglot expression"
         super().__init__(readable_dataset=readable_dataset, normalize_query=normalize_query)
 
         self._provided_query = provided_query
-        self._table_name = table_name
-        self._limit = limit
         self._selected_columns = selected_columns
 
-    def _query(self) -> Any:
-        # TODO reimplement this using SQLGLot instead of passing strings
-        if self._provided_query:
-            return self._provided_query
-
-        dataset_schema = self._dataset.schema
-
-        table_name = (
-            self._table_name
-        )  # self.sql_client.make_qualified_table_name(self._table_name, quote=False, casefold=False)
-
-        maybe_limit_clause_1 = ""
-        maybe_limit_clause_2 = ""
-        if self._limit:
-            maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(
-                self._limit
+        self._sqlglot_expression: sqlglot.exp.Select = None
+        if sqlglot_expression:
+            self._sqlglot_expression = sqlglot_expression
+        elif provided_query:
+            self._sqlglot_expression = cast(
+                sqlglot.exp.Select,
+                sqlglot.parse_one(
+                    provided_query,
+                    read=self.sql_client.capabilities.sqlglot_dialect,
+                ),
             )
+        else:
+            self._sqlglot_expression = build_select_expr(
+                table_name=table_name,
+                selected_columns=(
+                    list(selected_columns)
+                    if selected_columns
+                    else list(self._dataset.schema.get_table_columns(table_name).keys())
+                ),
+            )
+            if limit:
+                self._sqlglot_expression = self._sqlglot_expression.limit(limit)
 
-        selected_columns = (
-            self._selected_columns
-            if self._selected_columns
-            else dataset_schema.get_table_columns(self._table_name).keys()
+    def _query(self) -> Any:
+        return self._sqlglot_expression.sql(
+            dialect=self._dataset.sql_client.capabilities.sqlglot_dialect
         )
-        selector = ",".join(selected_columns)
-
-        return f"SELECT {maybe_limit_clause_1} {selector} FROM {table_name} {maybe_limit_clause_2}"
 
     def __copy__(self) -> Self:
         return self.__class__(
             readable_dataset=self._dataset,
-            provided_query=self._provided_query,
-            table_name=self._table_name,
-            limit=self._limit,
             selected_columns=self._selected_columns,
+            sqlglot_expression=self._sqlglot_expression,
         )
 
     def limit(self, limit: int, **kwargs: Any) -> Self:
-        if self._provided_query:
-            raise ReadableRelationHasQueryException("limit")
         rel = self.__copy__()
-        rel._limit = limit
+        rel._sqlglot_expression = rel._sqlglot_expression.limit(limit)
         return rel
 
     def select(self, *columns: str) -> Self:
-        if self._provided_query:
-            raise ReadableRelationHasQueryException("select")
         rel = self.__copy__()
         rel._selected_columns = columns
+        new_proj = [
+            sqlglot.exp.Column(this=sqlglot.exp.to_identifier(col, quoted=True)) for col in columns
+        ]
+        rel._sqlglot_expression.set("expressions", new_proj)
         rel.compute_columns_schema()
         return rel
+
+    def order_by(self, column_name: str, direction: Literal["asc", "desc"] = "asc") -> Self:
+        order_expr = sqlglot.exp.Ordered(
+            this=sqlglot.exp.Column(
+                this=sqlglot.exp.to_identifier(column_name, quoted=True),
+            ),
+            desc=(direction == "desc"),
+        )
+        rel = self.__copy__()
+        rel._sqlglot_expression = rel._sqlglot_expression.order_by(order_expr)
+        return rel
+
+    def where(
+        self,
+        column_name: str,
+        operator: Union[FilterOp, str],
+        value: Any,
+    ) -> Self:
+        if isinstance(operator, str):
+            try:
+                operator = FilterOp[operator.upper()]
+            except KeyError:
+                raise ValueError(
+                    f"Invalid operator '{operator}'. Expected one of:"
+                    f" {[op.name.lower() for op in FilterOp]}"
+                )
+
+        value_expr: Union[sqlglot.exp.Literal, sqlglot.exp.Tuple]
+        if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
+            value_expr = sqlglot.exp.Tuple(
+                expressions=[
+                    (
+                        sqlglot.exp.Literal.string(v)
+                        if isinstance(v, str)
+                        else sqlglot.exp.Literal.number(v)
+                    )
+                    for v in value
+                ]
+            )
+        else:
+            value_expr = (
+                sqlglot.exp.Literal.string(value)
+                if isinstance(value, str)
+                else sqlglot.exp.Literal.number(value)
+            )
+
+        column = sqlglot.exp.Column(this=sqlglot.exp.to_identifier(column_name, quoted=True))
+
+        condition: sqlglot.exp.Expression = None
+        if operator == FilterOp.IN:
+            exprs = (
+                value_expr.expressions
+                if isinstance(value_expr, sqlglot.exp.Tuple)
+                else [value_expr]
+            )
+            condition = sqlglot.exp.In(this=column, expressions=exprs)
+        elif operator == FilterOp.NOT_IN:
+            exprs = (
+                value_expr.expressions
+                if isinstance(value_expr, sqlglot.exp.Tuple)
+                else [value_expr]
+            )
+            condition = sqlglot.exp.Not(this=sqlglot.exp.In(this=column, expressions=exprs))
+        else:
+            condition_cls = _FILTER_OP_MAP[operator]
+            condition = condition_cls(this=column, expression=value_expr)
+
+        rel = self.__copy__()
+        rel._sqlglot_expression = rel._sqlglot_expression.where(condition)
+        return rel
+
+    def filter(  # noqa: A003
+        self,
+        column_name: str,
+        operator: Union[FilterOp, str],
+        value: Any,
+    ) -> Self:
+        return self.where(column_name=column_name, operator=operator, value=value)
 
     def __getitem__(self, columns: Sequence[str]) -> Self:
         # NOTE remember that `issubclass(str, Sequence) is True`
