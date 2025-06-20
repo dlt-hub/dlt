@@ -2,8 +2,6 @@ from typing import TYPE_CHECKING, Any, Union, Sequence
 from functools import partial
 import sqlglot
 
-from dlt.common.schema.typing import TTableSchemaColumns
-
 from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
 
 
@@ -35,22 +33,27 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         self._ibis_object = ibis_object
 
     def _query(self) -> Any:
-        """build the query"""
         from dlt.helpers.ibis import ibis
 
-        target_dialect = self._dataset.sql_client.capabilities.sqlglot_dialect
+        ibis_expr = self._ibis_object
+        caps = self._dataset.sql_client.capabilities
+        target_dialect = caps.sqlglot_dialect
 
         # render sql directly if possible
+        # NOTE: ibis is optimized for reading a real schema from db and pushing back optimized sql
+        #  - it quotes all identifiers, there's no option to get unqoted query
+        #  - it converts full lists of column names back into star
+        #  - it optimizes the query inside, adds meaningless aliases to all tables etc.
         if target_dialect not in TRANSPILE_VIA_DEFAULT:
             if target_dialect == "tsql":
                 # NOTE: Ibis uses the product name "mssql" as the dialect instead of the official "tsql".
-                return ibis.to_sql(self._ibis_object, dialect="mssql")
+                return ibis.to_sql(ibis_expr, dialect="mssql")
             else:
-                return ibis.to_sql(self._ibis_object, dialect=target_dialect)
+                return ibis.to_sql(ibis_expr, dialect=target_dialect)
 
         # here we need to transpile to ibis default and transpile back to target with sqlglot
         # NOTE: ibis defaults to the duckdb dialect, if a dialect is not passed
-        sql = ibis.to_sql(self._ibis_object)
+        sql = ibis.to_sql(ibis_expr)
         sql = sqlglot.transpile(sql, write=target_dialect)[0]
         return sql
 
@@ -69,16 +72,6 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
             for k, v in kwargs.items()
         }
 
-        # casefold string params, we assume these are column names
-        args = tuple(
-            self.sql_client.capabilities.casefold_identifier(arg) if isinstance(arg, str) else arg
-            for arg in args
-        )
-        kwargs = {
-            k: self.sql_client.capabilities.casefold_identifier(v) if isinstance(v, str) else v
-            for k, v in kwargs.items()
-        }
-
         # Call it with provided args
         result = method(*args, **kwargs)
 
@@ -90,14 +83,9 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
 
         attr = getattr(self._ibis_object, name, None)
 
-        # try casefolded name for ibis columns access
-        if attr is None:
-            name = self._dataset._sql_client.capabilities.casefold_identifier(name)
-            attr = getattr(self._ibis_object, name, None)
-
         if attr is None:
             raise AttributeError(
-                f"'{self._ibis_object.__class__.__name__}' object has no attribute '{name}'"
+                f"`{self._ibis_object.__class__.__name__}` object has no attribute `{name}`"
             )
 
         if not callable(attr):
@@ -107,15 +95,10 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         return partial(self._proxy_expression_method, name)
 
     def __getitem__(self, columns: Union[str, Sequence[str]]) -> "ReadableIbisRelation":
-        # casefold column-names
-        if isinstance(columns, str):
-            columns = self.sql_client.capabilities.casefold_identifier(columns)
-        elif isinstance(columns, Sequence):
-            columns = [self.sql_client.capabilities.casefold_identifier(col) for col in columns]
-        else:
+        if not isinstance(columns, (str, Sequence)):
             raise TypeError(
-                f"Invalid argument type: {type(columns).__name__}, requires a sequence of column"
-                " names Sequence[str] or a single column name str"
+                "Expected a sequence of column names `Sequence[str]` or a single column `str`. "
+                f"Received invalid argument of type: `{type(columns).__name__}`"
             )
 
         expr = self._ibis_object[columns]

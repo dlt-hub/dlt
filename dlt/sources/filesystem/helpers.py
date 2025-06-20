@@ -7,10 +7,10 @@ from dlt.common.configuration import resolve_type
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.storages.fsspec_filesystem import fsspec_from_config
+from dlt.common.storages import FilesystemConfigurationWithLocalFiles
 from dlt.common.typing import TDataItem
 
 from dlt.sources import DltResource
-from dlt.sources.filesystem import fsspec_filesystem
 from dlt.sources.config import configspec, with_config
 from dlt.sources.credentials import (
     CredentialsConfiguration,
@@ -22,7 +22,7 @@ from .settings import DEFAULT_CHUNK_SIZE
 
 
 @configspec
-class FilesystemConfigurationResource(FilesystemConfiguration):
+class FilesystemConfigurationResource(FilesystemConfigurationWithLocalFiles):
     credentials: Union[FileSystemCredentials, AbstractFileSystem] = None
     file_glob: Optional[str] = "*"
     files_per_page: int = DEFAULT_CHUNK_SIZE
@@ -30,7 +30,7 @@ class FilesystemConfigurationResource(FilesystemConfiguration):
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
-        # use known credentials or empty credentials for unknown protocol
+        # also allow AbstractFileSystem to be directly passed
         return Union[self.PROTOCOL_CREDENTIALS.get(self.protocol) or Optional[CredentialsConfiguration], AbstractFileSystem]  # type: ignore[return-value]
 
 

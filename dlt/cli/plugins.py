@@ -5,10 +5,7 @@ import dlt.cli.echo as fmt
 
 
 from dlt.common.configuration import plugins
-from dlt.cli import SupportsCliCommand
-from dlt.cli.init_command import (
-    DEFAULT_VERIFIED_SOURCES_REPO,
-)
+from dlt.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
 from dlt.cli.exceptions import CliCommandException
 from dlt.cli.command_wrappers import (
     init_command_wrapper,
@@ -202,7 +199,7 @@ schemas, resources in schemas, list of completed and normalized load packages, a
 pipeline state set by the resources during the extraction process.
 """,
         )
-        pipeline_subparsers.add_parser(
+        show_cmd = pipeline_subparsers.add_parser(
             "show",
             help=(
                 "Generates and launches Streamlit app with the loading status and dataset explorer"
@@ -212,8 +209,23 @@ Generates and launches Streamlit (https://streamlit.io/) app with the loading st
 
 This is a simple app that you can use to inspect the schemas and data in the destination as well as your pipeline state and loading status/stats. It should be executed from the same folder from which you ran the pipeline script to access destination credentials.
 
-Requires `streamlit` to be installed in the current environment: `pip install streamlit`.
+Requires `streamlit` to be installed in the current environment: `pip install streamlit`. Using --marimo flag to launch marimo app preview instead of streamlit.
 """,
+        )
+        show_cmd.add_argument(
+            "--marimo",
+            default=False,
+            action="store_true",
+            help="Launch marimo app preview instead of streamlit",
+        )
+        show_cmd.add_argument(
+            "--edit",
+            default=False,
+            action="store_true",
+            help=(
+                "Launch marimo app preview in edit mode (only works together with --marimo flag,"
+                " otherwise it will be ignored)"
+            ),
         )
         pipeline_subparsers.add_parser(
             "failed-jobs",
@@ -726,9 +738,10 @@ def plug_cli_schema() -> Type[SupportsCliCommand]:
     return SchemaCommand
 
 
-@plugins.hookimpl(specname="plug_cli")
-def plug_cli_studio() -> Type[SupportsCliCommand]:
-    return StudioCommand
+# TODO: define actual command and re-enable
+# @plugins.hookimpl(specname="plug_cli")
+# def plug_cli_studio() -> Type[SupportsCliCommand]:
+#     return StudioCommand
 
 
 @plugins.hookimpl(specname="plug_cli")

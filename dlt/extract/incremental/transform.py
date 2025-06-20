@@ -301,7 +301,7 @@ class ArrowIncremental(IncrementalTransform):
             self.new_value_compare = pa.compute.less
         else:
             raise NotImplementedError(
-                "Only min or max last_value_func is supported for arrow tables"
+                "Only `min` or `max` of `last_value_func` is supported for arrow tables"
             )
 
     def compute_unique_values(self, item: "TAnyArrowItem", unique_columns: List[str]) -> List[str]:
@@ -370,7 +370,7 @@ class ArrowIncremental(IncrementalTransform):
                 cursor_path,
                 tbl,
                 f"Column name `{cursor_path}` was not found in the arrow table. Nested JSON paths"
-                " are not supported for arrow tables and dataframes, the incremental cursor_path"
+                " are not supported for arrow tables and dataframes, the incremental `cursor_path`"
                 " must be a column name.",
             ) from e
 
@@ -475,7 +475,7 @@ class ArrowIncremental(IncrementalTransform):
                     assert isinstance(tbl_with_null, pa.RecordBatch)
                     tbl = pa.Table.from_batches([tbl, tbl_with_null])
                 else:
-                    tbl = pa.concat_tables([tbl, tbl_with_null])
+                    tbl = pa.concat_tables([tbl, tbl_with_null], promote_options="none")
 
         if len(tbl) == 0:
             return None, start_out_of_range, end_out_of_range

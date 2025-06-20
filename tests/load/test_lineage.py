@@ -1,15 +1,9 @@
 import pytest
 
-import sqlglot
-
 from dlt import Schema
-from dlt.sources._single_file_templates.fruitshop_pipeline import (
-    fruitshop as fruitshop_source,
-)
+from dlt.common.schema.typing import TColumnSchema
 from dlt.transformations import lineage
-from tests.utils import autouse_test_storage
 
-from dlt.destinations import duckdb
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from dlt.transformations.exceptions import LineageFailedException
 
@@ -26,7 +20,8 @@ def example_schema(autouse_test_storage) -> Schema:
                 "name": {  #  type: ignore[typeddict-unknown-key]
                     "data_type": "text",
                     "name": "name",
-                    "x-pii": True,
+                    "x-annotation-pii": True,
+                    "x-annotation-pii": True,  # not propagated
                 },
                 "email": {"data_type": "text", "name": "email", "nullable": True},
             },
@@ -51,7 +46,6 @@ def example_schema(autouse_test_storage) -> Schema:
         # TODO: see if we can get sqlalchemy, snowflake to work natively
         default_sql_configs=True,
         local_filesystem_configs=True,
-        exclude=["sqlalchemy", "snowflake", "clickhouse"],
     ),
     ids=lambda x: x.name,
 )
@@ -60,42 +54,44 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
     destination = destination_config.destination_factory(dataset_name="d1")
     caps = destination.client(example_schema).sql_client.capabilities
     dialect = caps.sqlglot_dialect
-    sqlglot_schema = lineage.create_sqlglot_schema(
-        example_schema, destination.client(example_schema).sql_client
-    )
+    sqlglot_schema = lineage.create_sqlglot_schema(example_schema, "d1", dialect)
 
-    # TODO: investigate if we can fix this, this is a side effect of going via duckdb dialect
-    # in snowflake bigint is the same as decimal(19,0)
-    id_result_type = "bigint" if ("snowflake" not in destination_config.name) else "decimal"
+    def _set_nullable(col: TColumnSchema) -> TColumnSchema:
+        # if not caps.enforces_nulls:
+        if destination.destination_type.endswith("clickhouse"):
+            # looks like a bug in clickhouse dialect? clickhouse does not enforce nulls so setting it to false
+            # does not make sense
+            col.setdefault("nullable", False)
+        return col
 
     # test star select
     sql_query = "SELECT * FROM customers"
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, dialect) == {
-        "id": {"name": "id", "data_type": id_result_type},
-        "name": {"name": "name", "data_type": "text", "x-pii": True},
+    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, dialect)[0] == {
+        "id": {"name": "id", "data_type": "bigint"},
+        "name": {"name": "name", "data_type": "text", "x-annotation-pii": True},
         "email": {"name": "email", "data_type": "text", "nullable": True},
     }
 
     # test select with fully qualified table and column names
-    sql_query = "SELECT ID, d1.customers.name, d1.customers.email FROM d1.customers"
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, dialect) == {
-        "id": {"name": "id", "data_type": id_result_type},
-        "name": {"name": "name", "data_type": "text", "x-pii": True},
+    sql_query = "SELECT id, d1.customers.name, d1.customers.email FROM d1.customers"
+    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, dialect)[0] == {
+        "id": {"name": "id", "data_type": "bigint"},
+        "name": {"name": "name", "data_type": "text", "x-annotation-pii": True},
         "email": {"name": "email", "data_type": "text", "nullable": True},
     }
 
     # test select with casting and avg
     sql_query = "SELECT AVG(id) as mean_id, name, email, CAST(LEN(name) as DOUBLE) FROM customers"
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, dialect) == {
+    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, dialect)[0] == {
         "mean_id": {"name": "mean_id", "data_type": "double"},
-        "name": {"name": "name", "data_type": "text", "x-pii": True},
+        "name": {"name": "name", "data_type": "text", "x-annotation-pii": True},
         "email": {"name": "email", "data_type": "text", "nullable": True},
-        "_col_3": {"name": "_col_3", "data_type": "double"},  # anonymous columns
+        "_col_3": _set_nullable({"name": "_col_3", "data_type": "double"}),  # anonymous columns
     }
 
     # test concat
     sql_query = "SELECT CONCAT(name, email) as concat FROM customers"
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, dialect) == {
+    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, dialect)[0] == {
         "concat": {"name": "concat", "data_type": "text"},
     }
 
@@ -104,8 +100,8 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
         "SELECT customers.name, orders.amount FROM customers JOIN orders ON customers.id ="
         " orders.customer_id"
     )
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, "duckdb") == {
-        "name": {"name": "name", "data_type": "text", "x-pii": True},
+    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, "duckdb")[0] == {
+        "name": {"name": "name", "data_type": "text", "x-annotation-pii": True},
         "amount": {"name": "amount", "data_type": "double"},
     }
 
@@ -115,7 +111,7 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
         orders GROUP BY 1 ) AS "t1" ORDER BY t1.count DESC
         LIMIT 10
     """
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, "duckdb") == {
+    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, "duckdb")[0] == {
         "count": {"name": "count", "data_type": "bigint"},
         "amount": {"name": "amount", "data_type": "double"},
     }
@@ -133,8 +129,8 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
         FROM orders o
         JOIN customers c ON o.customer_id = c.id
     """
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, "duckdb") == {
-        "name": {"name": "name", "data_type": "text", "x-pii": True},
+    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, "duckdb")[0] == {
+        "name": {"name": "name", "data_type": "text", "x-annotation-pii": True},
         "total_amount": {"name": "total_amount"},  # , "data_type": "double"},
     }
 
@@ -147,7 +143,9 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
         )
         SELECT customer_id, total_amount FROM customer_orders
     """
-    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, "duckdb") == {
+    assert lineage.compute_columns_schema(sql_query, sqlglot_schema, "duckdb")[0] == {
         "customer_id": {"name": "customer_id", "data_type": "bigint"},
         "total_amount": {"name": "total_amount", "data_type": "double"},
     }
+
+    # TODO: please test UNION and UNION ALL this works now!

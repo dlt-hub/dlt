@@ -373,12 +373,22 @@ def test_supports_variant_autovariant_conflict(schema: Schema) -> None:
     assert exc_val.value.coerced_value == "no double"
 
 
-def test_corece_new_null_value(schema: Schema) -> None:
+def test_coerce_new_null_value(schema: Schema) -> None:
     row = {"timestamp": None}
     new_row, new_table = schema.coerce_row("event_user", None, row)
+    # No new rows, but new column in schema
     assert "timestamp" not in new_row
-    # columns were not created
-    assert new_table is None
+    assert "data_type" not in new_table["columns"]["timestamp"]
+    assert new_table["columns"]["timestamp"]["nullable"] is True
+    assert new_table["columns"]["timestamp"]["x-normalizer"]["seen-null-first"] is True
+
+
+def test_coerce_new_null_value_over_not_null(schema: Schema) -> None:
+    row = {"_dlt_id": None}
+    with pytest.raises(CannotCoerceNullException) as exc_info:
+        schema.coerce_row("event_user", None, row)
+    # Make sure it was raised by _infer_column
+    assert exc_info.traceback[-1].name == "_infer_column"
 
 
 def test_coerce_null_value_over_existing(schema: Schema) -> None:
@@ -390,7 +400,7 @@ def test_coerce_null_value_over_existing(schema: Schema) -> None:
     assert "timestamp" not in new_row
 
 
-def test_corece_null_value_over_not_null(schema: Schema) -> None:
+def test_coerce_null_value_over_not_null(schema: Schema) -> None:
     row = {"timestamp": 82178.1298812}
     _, new_table = schema.coerce_row("event_user", None, row)
     schema.update_table(new_table)

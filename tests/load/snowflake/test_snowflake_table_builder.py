@@ -52,12 +52,12 @@ def test_create_table(snowflake_client: SnowflakeClient) -> None:
     assert snowflake_client.capabilities.generates_case_sensitive_identifiers() is False
     # check if dataset name is properly folded
     assert (
-        snowflake_client.sql_client.fully_qualified_dataset_name(escape=False)
+        snowflake_client.sql_client.fully_qualified_dataset_name(quote=False)
         == snowflake_client.config.dataset_name.upper()
     )
     with snowflake_client.sql_client.with_staging_dataset():
         assert (
-            snowflake_client.sql_client.fully_qualified_dataset_name(escape=False)
+            snowflake_client.sql_client.fully_qualified_dataset_name(quote=False)
             == (
                 snowflake_client.config.staging_dataset_name_layout
                 % snowflake_client.config.dataset_name
@@ -180,7 +180,7 @@ def test_create_table_case_sensitive(cs_client: SnowflakeClient) -> None:
     )[0]
     sqlfluff.parse(sql, dialect="snowflake")
     # everything capitalized
-    assert cs_client.sql_client.fully_qualified_dataset_name(escape=False)[0] == "T"  # Test
+    assert cs_client.sql_client.fully_qualified_dataset_name(quote=False)[0] == "T"  # Test
     # every line starts with "Col"
     for line in sql.split("\n")[1:]:
         assert line.startswith('"Col')

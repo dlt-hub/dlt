@@ -587,31 +587,48 @@ class SupportsPipelineRun(Protocol):
 
 @configspec
 class PipelineContext(ContainerInjectableContext):
-    _DEFERRED_PIPELINE: ClassVar[Callable[[], SupportsPipeline]] = None
+    _PIPELINE_FACTORY: ClassVar[Callable[[], SupportsPipeline]] = None
+    """Maker of default pipeline, set at runtime"""
     _pipeline: SupportsPipeline = dataclasses.field(
         default=None, init=False, repr=False, compare=False
     )
+    """Active pipeline"""
+    _pipelines: Optional[List[SupportsPipeline]] = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
+    """History of previously activated pipelines, disabled by default"""
+    enable_activation_history: bool = False
+    """When True, references to activated pipelines will be also stored"""
 
     can_create_default: ClassVar[bool] = True
 
     def pipeline(self) -> SupportsPipeline:
-        """Creates or returns exiting pipeline"""
+        """Creates or returns an active pipeline"""
         if not self._pipeline:
             # delayed pipeline creation
-            assert PipelineContext._DEFERRED_PIPELINE is not None, (
+            assert PipelineContext._PIPELINE_FACTORY is not None, (
                 "Deferred pipeline creation function not provided to PipelineContext. Are you"
                 " calling dlt.pipeline() from another thread?"
             )
-            self.activate(PipelineContext._DEFERRED_PIPELINE())
+            self.activate(PipelineContext._PIPELINE_FACTORY())
         return self._pipeline
 
     def activate(self, pipeline: SupportsPipeline) -> None:
+        """Activates `pipeline` and deactivates active one."""
         # do not activate currently active pipeline
         if pipeline == self._pipeline:
             return
         self.deactivate()
         pipeline._set_context(True)
         self._pipeline = pipeline
+        # store activated pipelines
+        # NOTE: this prevents them from being garbage collected
+        # NOTE: this context has thread affinity so each thread has own history
+        if self.enable_activation_history:
+            if self._pipelines is None:
+                self._pipelines = []
+            if pipeline not in self._pipelines:
+                self._pipelines.append(pipeline)
 
     def is_active(self) -> bool:
         return self._pipeline is not None
@@ -621,10 +638,19 @@ class PipelineContext(ContainerInjectableContext):
             self._pipeline._set_context(False)
         self._pipeline = None
 
+    def clear_activation_history(self) -> None:
+        self._pipelines = []
+
+    def activation_history(self) -> List[SupportsPipeline]:
+        """Get list of pipelines that were activated"""
+        if not self.enable_activation_history:
+            raise RuntimeError("Activation history is not enabled")
+        return self._pipelines or []
+
     @classmethod
     def cls__init__(self, deferred_pipeline: Callable[..., SupportsPipeline] = None) -> None:
         """Initialize the context with a function returning the Pipeline object to allow creation on first use"""
-        self._DEFERRED_PIPELINE = deferred_pipeline
+        self._PIPELINE_FACTORY = deferred_pipeline
 
 
 def current_pipeline() -> SupportsPipeline:

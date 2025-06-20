@@ -1,12 +1,14 @@
-from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING
+from typing import Any, Optional, Sequence, Tuple, Type, Union, Dict, TYPE_CHECKING
 
+from dlt.common import logger
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.data_writers.escape import escape_postgres_identifier, escape_postgres_literal
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.schema.typing import TColumnSchema, TColumnType
+from dlt.common.schema.typing import TColumnSchema, TColumnType, TTableSchema
+from dlt.common.typing import TLoaderFileFormat
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 from dlt.destinations.impl.postgres.configuration import (
     PostgresCredentials,
@@ -70,7 +72,7 @@ class PostgresTypeMapper(TypeMapperImpl):
         elif precision <= 64:
             return "bigint"
         raise TerminalValueError(
-            f"bigint with {precision} bits precision cannot be mapped into postgres integer type"
+            f"bigint with `{precision=:}` can't be mapped to PostgreSQL integer type"
         )
 
     def to_db_datetime_type(
@@ -94,8 +96,8 @@ class PostgresTypeMapper(TypeMapperImpl):
                 timestamp += f" ({precision})"
             else:
                 raise TerminalValueError(
-                    f"Postgres does not support precision '{precision}' for '{column_name}' in"
-                    f" table '{table_name}'"
+                    f"Postgres doesn't support {precision=:} for timestamp column `{column_name}`"
+                    f" in table `{table_name}`"
                 )
 
         # append timezone part
@@ -113,13 +115,42 @@ class PostgresTypeMapper(TypeMapperImpl):
             return dict(data_type="wei")
         if db_type.startswith("geometry"):
             return dict(data_type="text")
+        if db_type.startswith("json"):
+            return dict(data_type="json")
         return super().from_destination_type(db_type, precision, scale)
 
     def to_destination_type(self, column: TColumnSchema, table: PreparedTableSchema) -> str:
         if column.get(GEOMETRY_HINT):
             srid = column.get(SRID_HINT, 4326)
             return f"geometry(Geometry, {srid})"
+        if column["data_type"] == "json" and table.get("file_format") == "parquet":
+            return "json"  # adbc is not able to copy into JSONB columns
         return super().to_destination_type(column, table)
+
+
+def postgres_loader_file_format_selector(
+    preferred_loader_file_format: TLoaderFileFormat,
+    supported_loader_file_formats: Sequence[TLoaderFileFormat],
+    /,
+    *,
+    table_schema: TTableSchema,
+) -> Tuple[TLoaderFileFormat, Sequence[TLoaderFileFormat]]:
+    try:
+        # supports adbc for direct parquet loading
+        import adbc_driver_postgresql.dbapi
+    except ImportError:
+        supported_loader_file_formats = list(supported_loader_file_formats)
+        supported_loader_file_formats.remove("parquet")
+
+        if table_schema.get("file_format") == "parquet":
+            logger.warning(
+                f"parquet file format was requested for table {table_schema['name']} but ADBC"
+                " driver "
+                "for postgres was not installed. Read more:"
+                " https://dlthub.com/docs/dlt-ecosystem/destinations/postgres#fast-loading-with-arrow-tables-and-parquet"
+            )
+
+    return (preferred_loader_file_format, supported_loader_file_formats)
 
 
 class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
@@ -129,7 +160,8 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         # https://www.postgresql.org/docs/current/limits.html
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "insert_values"
-        caps.supported_loader_file_formats = ["insert_values", "csv", "model"]
+        caps.supported_loader_file_formats = ["insert_values", "csv", "parquet", "model"]
+        caps.loader_file_format_selector = postgres_loader_file_format_selector
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []
         caps.type_mapper = PostgresTypeMapper

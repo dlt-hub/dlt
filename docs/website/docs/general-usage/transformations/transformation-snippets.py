@@ -220,7 +220,7 @@ def column_level_lineage_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
 
     # Let's run the transformation and see that the name column in the NEW table is also marked as PII
     fruitshop_pipeline.run(enriched_purchases(fruitshop_pipeline.dataset()))
-    assert fruitshop_pipeline.dataset().schema.tables["enriched_purchases"]["columns"]["name"]["x-pii"] is True  # type: ignore
+    assert fruitshop_pipeline.dataset().schema.tables["enriched_purchases"]["columns"]["name"]["x-annotation-pii"] is True  # type: ignore
     # @@@DLT_SNIPPET_END column_level_lineage
 
 

@@ -29,6 +29,12 @@ pip install -r requirements.txt
 python3 chess_pipeline.py
 ```
 
+## Supported version
+`dlt` supports `duckdb` versions starting from **0.9**. Below are a few notes on problems with particular versions observed
+in our tests:
+* `iceberg_scan` does not work on `duckdb` > 1.2.1 and azure blob storage (certain functions are not implemented)
+* we observed crashes (segfault) on certain tests using azure blob storage on `duckdb` version 1.3
+
 ## Write disposition
 All write dispositions are supported.
 
@@ -237,8 +243,46 @@ Unique indexes may be created during loading if the following config value is se
 create_indexes=true
 ```
 
+You can load extensions and set pragmas, [local and global config](https://duckdb.org/docs/stable/configuration/overview.html#global-configuration-options) options by adding those to the configuration:
+```toml
+[destination.duckdb.credentials]
+extensions=["spatial"]
+pragmas=["enable_progress_bar", "enable_logging"]
+
+[destination.duckdb.credentials.global_config]
+azure_transport_option_type=true
+
+[destination.duckdb.credentials.local_config]
+errors_as_json=true
+```
+The configuration above will LOAD extension **spatial** (but it will not install it), apply the global config (`SET GLOBAL azure_transport_option_type=true`), then pragmas (`PRAGMA enable_logging`) and local config (`SET SESSION errors_as_json=true`) at the end.
+Internally, `dlt` opens new `duckdb` connection and then dispenses separate sessions to worker threads via `cursor()` (even if the calling thread is the same as the one that creates connection). Extensions and global config are applied only once - to the "original" connection and are automatically propagated to sessions.
+
+Note that you can use environment variables to pass dictionaries and lists: those must be passed as Python literals (not JSON!). See below:
+
+You can also pass additional options in code:
+```py
+import os
+import duckdb
+from dlt.destinations.impl.duckdb.configuration import DuckDbCredentials
+
+# install spatial
+duckdb.sql("INSTALL spatial;")
+
+# use Python list literal to pass complex env variable
+os.environ["DESTINATION__DUCKDB__CREDENTIALS__PRAGMAS"] = '["enable_logging"]'
+
+dest_ = dlt.destinations.duckdb(
+    DuckDbCredentials("duck.db", extensions=["spatial"], local_config={"errors_as_json": True})
+)
+```
+Code above install **spatial** (`dlt` only loads extension) and passes duckdb credentials to the destination constructor. Database file is **duck.db**, logging and error messages as `json` are enabled. 
+
+
 ### dbt support
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-duckdb](https://github.com/jwills/dbt-duckdb), which is a community-supported package. The `duckdb` database is shared with `dbt`. In rare cases, you may see information that the binary database format does not match the database format expected by `dbt-duckdb`. You can avoid this by updating the `duckdb` package in your `dlt` project with `pip install -U`.
+
+NOTE: extensions, pragmas and configs are not propagated from `dlt` configuration to the dbt profile at this moment.
 
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).

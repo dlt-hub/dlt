@@ -25,6 +25,7 @@ from dlt.common.configuration.specs.exceptions import (
 )
 from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials, WithPyicebergConfig
 
+from tests.load.filesystem.utils import can_connect_pyiceberg_fileio_config
 from tests.load.utils import (
     AZ_BUCKET,
     ABFS_BUCKET,
@@ -94,23 +95,6 @@ def can_connect_object_store_rs_credentials(
     except TableNotFoundError:
         # this error implies the connection was successful
         # there is no Delta table at `bucket_url`
-        return True
-    return False
-
-
-def can_connect_pyiceberg_fileio_config(
-    bucket_url: str, pyiceberg_fileio_config: Dict[str, str]
-) -> bool:
-    from pyiceberg.table import StaticTable
-
-    try:
-        StaticTable.from_metadata(
-            f"{bucket_url}/non_existing_metadata_file.json",
-            properties=pyiceberg_fileio_config,
-        )
-    except FileNotFoundError:
-        # this error implies the connection was successful
-        # there is no Iceberg metadata file at the specified path
         return True
     return False
 

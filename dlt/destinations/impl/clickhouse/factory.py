@@ -110,7 +110,7 @@ class ClickHouseTypeMapper(TypeMapperImpl):
         if precision <= 64:
             return "Int64"
         raise TerminalValueError(
-            f"bigint with {precision} bits precision cannot be mapped into ClickHouse integer type"
+            f"bigint with `{precision=:}` can't be mapped to ClickHouse integer type"
         )
 
 
@@ -164,6 +164,7 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
 
         caps.supported_merge_strategies = ["delete-insert", "scd2"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
+        caps.enforces_nulls_on_alter = False
 
         caps.sqlglot_dialect = "clickhouse"
 

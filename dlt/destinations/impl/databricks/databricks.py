@@ -164,7 +164,7 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
         if bucket_scheme not in SUPPORTED_BLOB_STORAGE_PROTOCOLS:
             raise LoadJobTerminalException(
                 self._file_path,
-                f"Databricks cannot load data from staging bucket {bucket_path}. "
+                f"Databricks cannot load data from staging bucket `{bucket_path}`. "
                 "Only s3, azure and gcs buckets are supported. "
                 "Please note that gcs buckets are supported only via named credential.",
             )

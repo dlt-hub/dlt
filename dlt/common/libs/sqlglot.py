@@ -16,11 +16,8 @@ SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, TDataType] = {
     DataType.Type.OBJECT: "json",
     DataType.Type.STRUCT: "json",
     DataType.Type.NESTED: "json",
-    DataType.Type.UNION: "json",
     DataType.Type.ARRAY: "json",
-    DataType.Type.LIST: "json",
     DataType.Type.JSON: "json",
-    DataType.Type.VECTOR: "json",
     # TEXT
     DataType.Type.CHAR: "text",
     DataType.Type.NCHAR: "text",
@@ -52,23 +49,15 @@ SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, TDataType] = {
     # DECIMAL
     DataType.Type.BIGDECIMAL: "decimal",
     DataType.Type.DECIMAL: "decimal",
-    DataType.Type.DECIMAL32: "decimal",
-    DataType.Type.DECIMAL64: "decimal",
-    DataType.Type.DECIMAL128: "decimal",
-    DataType.Type.DECIMAL256: "decimal",
     DataType.Type.MONEY: "decimal",
     DataType.Type.SMALLMONEY: "decimal",
     DataType.Type.UDECIMAL: "decimal",
-    DataType.Type.UDOUBLE: "decimal",
     # TEMPORAL
     DataType.Type.DATE: "date",
     DataType.Type.DATE32: "date",
     DataType.Type.DATETIME: "date",
-    DataType.Type.DATETIME2: "date",
     DataType.Type.DATETIME64: "date",
-    DataType.Type.SMALLDATETIME: "date",
     DataType.Type.TIMESTAMP: "timestamp",
-    DataType.Type.TIMESTAMPNTZ: "timestamp",
     DataType.Type.TIMESTAMPLTZ: "timestamp",
     DataType.Type.TIMESTAMPTZ: "timestamp",
     DataType.Type.TIMESTAMP_MS: "timestamp",
@@ -83,6 +72,45 @@ SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, TDataType] = {
     # UNKNOWN
     DataType.Type.UNKNOWN: None,
 }
+
+# these types were introduced after our sqlglot minimum version of 23.6.3
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.UDOUBLE] = "decimal"
+except AttributeError:
+    pass
+
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.DATETIME2] = "date"
+except AttributeError:
+    pass
+
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.SMALLDATETIME] = "date"
+except AttributeError:
+    pass
+
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.UNION] = "json"
+except AttributeError:
+    pass
+
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.LIST] = "json"
+except AttributeError:
+    pass
+
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.VECTOR] = "json"
+except AttributeError:
+    pass
+
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.DECIMAL32] = "decimal"
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.DECIMAL64] = "decimal"
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.DECIMAL128] = "decimal"
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.DECIMAL256] = "decimal"
+except AttributeError:
+    pass
 
 SQLGLOT_INT_PRECISION = {
     DataType.Type.TINYINT: 3,
@@ -104,14 +132,18 @@ SQLGLOT_INT_PRECISION = {
 SQLGLOT_DECIMAL_PRECISION_AND_SCALE = {
     DataType.Type.BIGDECIMAL: (38, 10),
     DataType.Type.DECIMAL: (38, 10),
-    DataType.Type.DECIMAL32: (7, 2),
-    DataType.Type.DECIMAL64: (16, 4),
-    DataType.Type.DECIMAL128: (34, 10),
-    DataType.Type.DECIMAL256: (76, 20),
     DataType.Type.MONEY: (19, 4),
     DataType.Type.SMALLMONEY: (10, 4),
     DataType.Type.UDECIMAL: (38, 10),
 }
+
+try:
+    SQLGLOT_DECIMAL_PRECISION_AND_SCALE[DataType.Type.DECIMAL32] = (7, 2)
+    SQLGLOT_DECIMAL_PRECISION_AND_SCALE[DataType.Type.DECIMAL64] = (16, 4)
+    SQLGLOT_DECIMAL_PRECISION_AND_SCALE[DataType.Type.DECIMAL128] = (34, 10)
+    SQLGLOT_DECIMAL_PRECISION_AND_SCALE[DataType.Type.DECIMAL256] = (76, 20)
+except AttributeError:
+    pass
 
 SQLGLOT_TEMPORAL_PRECISION = {
     DataType.Type.TIMESTAMP: None,  # default value; default precision varies across DB
@@ -123,7 +155,6 @@ SQLGLOT_TEMPORAL_PRECISION = {
 # NOTE in Snowflake, TIMESTAMPNTZ == DATETIME; is this true for dlt?
 SQLGLOT_HAS_TIMEZONE = {
     DataType.Type.TIMESTAMP: None,  # default value; False
-    DataType.Type.TIMESTAMPNTZ: False,
     DataType.Type.TIMESTAMPLTZ: True,
     DataType.Type.TIMESTAMPTZ: True,
     DataType.Type.TIMESTAMP_MS: False,
@@ -132,6 +163,11 @@ SQLGLOT_HAS_TIMEZONE = {
     DataType.Type.TIME: False,  # default value; False
     DataType.Type.TIMETZ: True,
 }
+
+has_timestampntz = hasattr(DataType.Type, "TIMESTAMPNTZ")
+if has_timestampntz:
+    SQLGLOT_HAS_TIMEZONE[DataType.Type.TIMESTAMPNTZ] = False
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.TIMESTAMPNTZ] = "timestamp"
 
 DLT_TO_SQLGLOT = {
     "json": DataType.Type.JSON,
@@ -149,7 +185,6 @@ DLT_TO_SQLGLOT = {
 
 
 # TODO should we raise errors on type conversion or silently convert to correct values?
-# TODO support `text` and `binary` precision
 def from_sqlglot_type(sqlglot_type: DATA_TYPE) -> TColumnType:
     """Convert a SQLGlot DataType to dlt column hints.
 
@@ -172,6 +207,8 @@ def from_sqlglot_type(sqlglot_type: DATA_TYPE) -> TColumnType:
         hints = _from_timezone_type(sqlglot_type)
     elif dlt_type == "time":
         hints = _from_time_type(sqlglot_type)
+    elif dlt_type in ("text", "binary"):
+        hints = _from_string_type(sqlglot_type)
     else:
         hints = {}
 
@@ -204,9 +241,10 @@ def _from_decimal_type(sqlglot_type: sge.DataType) -> TColumnSchema:
             scale = sqlglot_type.expressions[1].this.to_py()
             hints = {"precision": precision, "scale": scale}
         else:
-            # TODO log or raise warning; unexpected to see more than 2 DataTypeParam
-            breakpoint()
-
+            raise RuntimeError(
+                "Expected 1 or 2 `DataTypeParam` attached to expression. "
+                f"Found {len(sqlglot_type.expressions)}: {sqlglot_type.expressions}"
+            )
     else:  # from named type
         precision_and_scale = SQLGLOT_DECIMAL_PRECISION_AND_SCALE.get(sqlglot_type.this)
         if precision_and_scale is not None:
@@ -245,7 +283,17 @@ def _from_time_type(sqlglot_type: sge.DataType) -> TColumnSchema:
     return hints  # type: ignore[return-value]
 
 
-# TODO support `text` and `binary` precision
+def _from_string_type(sqlglot_type: sge.DataType) -> TColumnSchema:
+    if sqlglot_type.expressions:  # from parameterized type
+        assert len(sqlglot_type.expressions) == 1
+        assert isinstance(sqlglot_type.expressions[0], sge.DataTypeParam)
+        precision = sqlglot_type.expressions[0].this.to_py()
+        hints: TColumnSchema = {"precision": precision}
+    else:
+        hints = {}
+    return hints
+
+
 def to_sqlglot_type(
     dlt_type: TDataType,
     precision: Optional[int] = None,
@@ -361,6 +409,12 @@ def _build_parameterized_sqlglot_type(
         params = f"({precision})" if precision is not None else ""
         sqlglot_type = sge.DataType.build(f"{base_sqlglot_type.value}{params}", **hints)
 
+    elif dlt_type == "text" and precision is not None:
+        sqlglot_type = sge.DataType.build(f"TEXT({precision})", **hints)
+
+    elif dlt_type == "binary" and precision is not None:
+        sqlglot_type = sge.DataType.build(f"VARBINARY({precision})", **hints)
+
     else:
         sqlglot_type = sge.DataType.build(DLT_TO_SQLGLOT[dlt_type], **hints)
 
@@ -412,7 +466,7 @@ def _to_named_timestamp_type(precision: Optional[int], timezone: Optional[bool])
     if precision is None:
         if timezone is True:
             sqlglot_type = DataType.Type.TIMESTAMPTZ
-        elif timezone is False:
+        elif timezone is False and has_timestampntz:
             sqlglot_type = DataType.Type.TIMESTAMPNTZ
         elif timezone is None:
             sqlglot_type = DataType.Type.TIMESTAMP
@@ -471,9 +525,12 @@ def get_metadata(sqlglot_type: sge.DataType) -> TColumnSchema:
 
 def _filter_dlt_hints(hints: TColumnSchema) -> TColumnSchema:
     """Filter the metadata dictionary to only include dlt hints."""
-    DATA_TYPE_HINTS = ("name", "data_type", "nullable", "precision", "scale", "timezone")
-    ALLOWED_HINTS = ("hard_delete", "incremental")
-    CUSTOM_HINT_PREFIX = "x-"
+    DATA_TYPE_HINTS = ("data_type", "nullable", "precision", "scale", "timezone")
+    # allow original name to be propagated, so we can track it if aliases were used
+    ALLOWED_HINTS = ("name", "hard_delete", "incremental")
+    # only propagate specially designated hints
+    # TODO review all x- hints we use and decide which to propagate
+    CUSTOM_HINT_PREFIX = "x-annotation"
 
     final_hints = {}
     for k, v in hints.items():

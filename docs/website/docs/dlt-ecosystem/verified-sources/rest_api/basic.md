@@ -238,6 +238,7 @@ The `client` configuration is used to connect to the API's endpoints. It include
 - `base_url` (str): The base URL of the API. This string is prepended to all endpoint paths. For example, if the base URL is `https://api.example.com/v1/`, and the endpoint path is `users`, the full URL will be `https://api.example.com/v1/users`.
 - `headers` (dict, optional): Additional headers that are sent with each request.
 - `auth` (optional): Authentication configuration. This can be a simple token, an `AuthConfigBase` object, or a more complex authentication method.
+- `session` (requests.Session, optional): A custom session object. When provided, this session will be used for all HTTP requests instead of the default session. Can be used, for example, with [requests-oauthlib](https://github.com/requests/requests-oauthlib) for OAuth authentication.
 - `paginator` (optional): Configuration for the default pagination used for resources that support pagination. Refer to the [pagination](#pagination) section for more details.
 
 #### `resource_defaults` (optional)
@@ -286,15 +287,24 @@ This is a list of resource configurations that define the API endpoints to be lo
 
 ### Resource configuration
 
-A resource configuration is used to define a [dlt resource](../../../general-usage/resource.md) for the data to be loaded from an API endpoint. It contains the following key fields:
+A resource configuration is used to define a [dlt resource](../../../general-usage/resource.md) for the data to be loaded from an API endpoint. When defining the resource you may specify:
+- dlt resource parameters, for for example:
+    - `name`: The name of the resource. This is also used as the table name in the destination unless overridden by the `table_name` parameter.
+    - `write_disposition`: The write disposition for the resource.
+    - `primary_key`: The primary key for the resource.
+    - `table_name`: Override the table name for this resource.
+    - `max_table_nesting`: Sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
+    - `selected`: A flag to indicate if the resource is selected for loading. This could be useful when you want to load data only from child resources and not from the parent resource.
 
-- `endpoint`: The endpoint configuration for the resource. It can be a string or a dict representing the endpoint settings. See the [endpoint configuration](#endpoint-configuration) section for more details.
-- `write_disposition`: The write disposition for the resource.
-- `primary_key`: The primary key for the resource.
-- `include_from_parent`: A list of fields from the parent resource to be included in the resource output. See the [resource relationships](#include-fields-from-the-parent-resource) section for more details.
-- `processing_steps`: A list of [processing steps](#processing-steps-filter-and-transform-data) to filter and transform your data.
-- `selected`: A flag to indicate if the resource is selected for loading. This could be useful when you want to load data only from child resources and not from the parent resource.
-- `auth`: An optional `AuthConfig` instance. If passed, is used over the one defined in the [client](#client) definition. Example:
+    see [dlt resource API reference](../../../api_reference/dlt/extract/decorators#resource) for more details.
+
+- `rest_api` specific parameters, such as:
+    - `endpoint`: The endpoint configuration for the resource. It can be a string or a dict representing the endpoint settings. See the [endpoint configuration](#endpoint-configuration) section for more details.
+    - `include_from_parent`: A list of fields from the parent resource to be included in the resource output. See the [resource relationships](#include-fields-from-the-parent-resource) section for more details.
+    - `processing_steps`: A list of [processing steps](#processing-steps-filter-and-transform-data) to filter and transform your data.
+    - `auth`: An optional `AuthConfig` instance. If passed, is used over the one defined in the [client](#client) definition.
+
+Example:
 ```py
 from dlt.sources.helpers.rest_client.auth import HttpBasicAuth
 
@@ -309,6 +319,8 @@ config = {
         "resource-using-bearer-auth",
         {
             "name": "my-resource-with-special-auth",
+            "write_disposition": "merge",
+            "table_name": "my_custom_table",
             "endpoint": {
                 # ...
                 "auth": HttpBasicAuth("user", dlt.secrets["your_basic_auth_password"])
@@ -320,8 +332,6 @@ config = {
 }
 ```
 This would use `Bearer` auth as defined in the `client` for `resource-using-bearer-auth` and `Http Basic` auth for `my-resource-with-special-auth`.
-
-You can also pass additional resource parameters that will be used to configure the dlt resource. See [dlt resource API reference](../../../api_reference/dlt/extract/decorators#resource) for more details.
 
 ### Endpoint configuration
 
@@ -363,7 +373,7 @@ The REST API source will try to automatically handle pagination for you. This wo
 
 In some special cases, you may need to specify the pagination configuration explicitly.
 
-To specify the pagination configuration, use the `paginator` field in the [client](#client) or [endpoint](#endpoint-configuration) configurations. You may either use a dictionary with a string alias in the `type` field along with the required parameters, or use a [paginator class instance](../../../general-usage/http/rest-client.md#paginators).
+To specify the pagination configuration, use the `paginator` field in the [client](#client), [resource_defaults](#resource_defaults-optional), or [endpoint](#endpoint-configuration) configurations (see [pagination configuration hierarchy](#pagination-configuration-hierarchy)). You may either use a dictionary with a string alias in the `type` field along with the required parameters, or use a [paginator class instance](../../../general-usage/http/rest-client.md#paginators).
 
 #### Example
 
@@ -409,8 +419,27 @@ from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
 }
 ```
 
+:::tip JSONPath escaping for special characters
+When working with APIs that use field names containing special characters (like dots, @ symbols, or other reserved JSONPath characters), you need to escape the field names using bracket notation.
+
+For example, Microsoft Graph API uses `@odata.nextLink` for pagination. To access this field, use bracket notation with quotes:
+
+```py
+{
+    "path": "users",
+    "paginator": {
+        "type": "json_link",
+        "next_url_path": "['@odata.nextLink']",  # Escaped using bracket notation
+    }
+}
+```
+
+Refer to the [JSONPath syntax](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) for more details.
+
+:::
+
 :::note
-Currently, pagination is supported only for GET requests. To handle POST requests with pagination, you need to implement a [custom paginator](../../../general-usage/http/rest-client.md#implementing-a-custom-paginator).
+Currently, pagination is supported only for GET requests for all paginators except [`JSONResponseCursorPaginator`](../../../general-usage/http/rest-client.md#jsonresponsecursorpaginator). To handle POST requests with pagination, you need to implement a [custom paginator](../../../general-usage/http/rest-client.md#implementing-a-custom-paginator).
 :::
 
 These are the available paginators:
@@ -424,6 +453,43 @@ These are the available paginators:
 | `cursor` | [JSONResponseCursorPaginator](../../../general-usage/http/rest-client.md#jsonresponsecursorpaginator) | The pagination is based on a cursor parameter, with the value of the cursor in the response body (JSON).<br/>*Parameters:*<ul><li>`cursor_path` (str) - the JSONPath to the cursor value. Defaults to "cursors.next"</li><li>`cursor_param` (str) - the query parameter name for the cursor. Defaults to "cursor" if neither `cursor_param` nor `cursor_body_path` is provided.</li><li>`cursor_body_path` (str, optional) - the JSONPath to place the cursor in the request body.</li></ul>Note: You must provide either `cursor_param` or `cursor_body_path`, but not both. If neither is provided, `cursor_param` will default to "cursor". |
 | `single_page` | SinglePagePaginator | The response will be interpreted as a single-page response, ignoring possible pagination metadata. |
 | `auto` | `None` | Explicitly specify that the source should automatically detect the pagination method. |
+
+#### Pagination configuration hierarchy
+
+Paginators are applied in the following order of precedence:
+
+1. Endpoint-level paginator: defined in individual [resource endpoint configurations](#endpoint-configuration).
+2. Resource defaults paginator: defined in `resource_defaults.endpoint.paginator`
+3. Client-level paginator: defined in the [client](#client) configuration. This is the lowest priority.
+
+#### Single entity endpoint detection
+
+The REST API source tries to automatically detect endpoints that return single entities (e.g. not paginated lists of items). It works by looking if the path contains any placeholders with references to other resources (for example `users/{resources.users.id}/` or `user/{id}`) and applies special handling:
+
+- If no `paginator` is explicitly configured at endpoint or resource defaults level, these endpoints automatically use `SinglePagePaginator`.
+- If no `data_selector` is explicitly configured, these endpoints automatically use `"$"` to select the entire response.
+
+:::warning
+Single entity detection only applies when no paginator is configured at endpoint or resource defaults level. So:
+
+- Endpoint-level paginators always take precedence and are _never overridden_ by single entity detection.
+- Resource defaults paginators are preserved and _not overridden_ by single entity detection.
+- Client-level paginators are ignored and _get overridden_ by single entity detection.
+
+To change this behavior for a specific endpoint, explicitly set the `paginator` in the endpoint configuration:
+
+```py
+{
+    "name": "user_details",
+    "endpoint": {
+        "path": "user/{id}/comments",
+        "paginator": {"type": "json_link", "next_url_path": "next"}
+    }
+}
+```
+:::
+
+#### Custom paginators
 
 For more complex pagination methods, you can implement a [custom paginator](../../../general-usage/http/rest-client.md#implementing-a-custom-paginator), instantiate it, and use it in the configuration.
 
@@ -498,6 +564,10 @@ You can use the following endpoint configuration:
 ```
 
 Read more about [JSONPath syntax](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) to learn how to write selectors.
+
+:::tip
+For field names with special characters (dots, @ symbols, etc.), use the bracket notation escaping technique described in the [pagination section](#pagination).
+:::
 
 ### Authentication
 

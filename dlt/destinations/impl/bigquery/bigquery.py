@@ -91,7 +91,7 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
             elif reason in BQ_TERMINAL_REASONS:
                 # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
                 raise LoadJobTerminalException(
-                    self._file_path, f"The server reason was: {reason}"
+                    self._file_path, f"The server reason was: `{reason}`"
                 ) from gace
             else:
                 raise DatabaseTransientException(gace) from gace
@@ -110,19 +110,20 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
                 # the job permanently failed for the reason above
                 raise DatabaseTerminalException(
                     Exception(
-                        f"Bigquery Load Job failed, reason reported from bigquery: '{reason}'"
+                        f"Bigquery Load Job failed, reason reported from bigquery: `{reason}`"
                     )
                 )
             elif reason in ["internalError"]:
                 logger.warning(
-                    f"Got reason {reason} for job {self._file_name}, job considered still"
+                    f"Got reason `{reason}` for job `{self._file_name}`, job considered still"
                     f" running. ({self._bq_load_job.error_result})"
                 )
                 continue
             else:
                 raise DatabaseTransientException(
                     Exception(
-                        f"Bigquery Job needs to be retried, reason reported from bigquer '{reason}'"
+                        "Bigquery Job needs to be retried, reason reported from bigquery"
+                        f" `{reason}`"
                     )
                 )
 
@@ -223,9 +224,9 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
             if insert_api == "streaming":
                 if table["write_disposition"] != "append":
                     raise DestinationTerminalException(
-                        "BigQuery streaming insert can only be used with `append`"
-                        " write_disposition, while the given resource has"
-                        f" `{table['write_disposition']}`."
+                        "BigQuery streaming insert can only be used with"
+                        " `write_disposition='append'`. Resource received"
+                        f" `write_disposition={table['write_disposition']}`"
                     )
                 if file_path.endswith(".jsonl"):
                     job_cls = DestinationJsonlLoadJob
@@ -233,7 +234,7 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                     job_cls = DestinationParquetLoadJob  # type: ignore
                 else:
                     raise ValueError(
-                        f"Unsupported file type for BigQuery streaming inserts: {file_path}"
+                        f"Unsupported file type for BigQuery streaming inserts: `{file_path}`"
                     )
 
                 job = job_cls(
@@ -415,7 +416,7 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
             try:
                 schema_table: TTableSchemaColumns = {}
                 table = self.sql_client.native_connection.get_table(
-                    self.sql_client.make_qualified_table_name(table_name, escape=False),
+                    self.sql_client.make_qualified_table_name(table_name, quote=False),
                     retry=self.sql_client._default_retry,
                     timeout=self.config.http_timeout,
                 )
@@ -496,7 +497,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
         if bucket_path:
             return self.sql_client.native_connection.load_table_from_uri(
                 bucket_path,
-                self.sql_client.make_qualified_table_name(table_name, escape=False),
+                self.sql_client.make_qualified_table_name(table_name, quote=False),
                 job_id=job_id,
                 job_config=job_config,
                 timeout=self.config.file_upload_timeout,
@@ -505,7 +506,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
         with open(file_path, "rb") as f:
             return self.sql_client.native_connection.load_table_from_file(
                 f,
-                self.sql_client.make_qualified_table_name(table_name, escape=False),
+                self.sql_client.make_qualified_table_name(table_name, quote=False),
                 job_id=job_id,
                 job_config=job_config,
                 timeout=self.config.file_upload_timeout,
@@ -586,7 +587,7 @@ def _streaming_load(
 
     sql_client = job_client.sql_client
 
-    full_name = sql_client.make_qualified_table_name(table["name"], escape=False)
+    full_name = sql_client.make_qualified_table_name(table["name"], quote=False)
 
     bq_client = sql_client._client
     bq_client.insert_rows_json(

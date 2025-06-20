@@ -1,4 +1,4 @@
-from typing import Any, cast, Tuple, List
+from typing import Any, Iterator, cast, Tuple, List
 import re
 import pytest
 import dlt
@@ -13,24 +13,19 @@ from functools import reduce
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableFormat
-from dlt.common.storages.exceptions import SchemaNotFoundError
-from dlt.common.storages.file_storage import FileStorage
+
 from dlt.extract.source import DltSource
+from dlt.destinations.dataset import dataset as _dataset
+from dlt.transformations.exceptions import LineageFailedException
+
 from tests.load.utils import (
-    FILE_BUCKET,
     destinations_configs,
     DestinationTestConfiguration,
-    GCS_BUCKET,
     SFTP_BUCKET,
     MEMORY_BUCKET,
 )
-from tests.utils import TEST_STORAGE_ROOT, clean_test_storage
-from dlt.destinations.dataset.exceptions import (
-    ReadableRelationUnknownColumnException,
-)
+from tests.utils import preserve_module_environ, autouse_module_test_storage, patch_module_home_dir
 from tests.load.utils import drop_pipeline_data
-from dlt.destinations.dataset import dataset as _dataset
-from dlt.transformations.exceptions import LineageFailedException
 
 EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
 
@@ -117,18 +112,13 @@ def create_test_source(destination_type: str, table_format: TTableFormat) -> Dlt
     return source()
 
 
-# this also disables autouse_test_storage on function level which destroys some tests here
-@pytest.fixture(scope="session")
-def autouse_test_storage() -> FileStorage:
-    return clean_test_storage()
-
-
-@pytest.fixture(scope="session")
-def populated_pipeline(request, autouse_test_storage) -> Any:
+@pytest.fixture(scope="module")
+def populated_pipeline(
+    request, autouse_module_test_storage, preserve_module_environ, patch_module_home_dir
+) -> Any:
     """fixture that returns a pipeline object populated with the example data"""
 
     destination_config = cast(DestinationTestConfiguration, request.param)
-
     if (
         destination_config.file_format not in ["parquet", "jsonl"]
         and destination_config.destination_type == "filesystem"
@@ -224,25 +214,26 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
     chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
-    casefolder = populated_pipeline.destination.capabilities().casefold_identifier
 
     # full table
     table = table_relationship.arrow()
     assert table.num_rows == total_records
+    assert set(table.column_names) == set(EXPECTED_COLUMNS)
 
     # chunk
     table = table_relationship.arrow(chunk_size=chunk_size)
-    assert set(table.column_names) == set([casefolder(c) for c in EXPECTED_COLUMNS])
-    assert table.num_rows == chunk_size
+    assert set(table.column_names) == set(EXPECTED_COLUMNS)
+    # NOTE: chunksize is unpredictable on snowflake
+    if populated_pipeline.destination.destination_type != "dlt.destinations.snowflake":
+        assert table.num_rows == chunk_size
 
     # check frame amount and items counts
     tables = list(table_relationship.iter_arrow(chunk_size=chunk_size))
-    assert [t.num_rows for t in tables] == expected_chunk_counts
+    if populated_pipeline.destination.destination_type != "dlt.destinations.snowflake":
+        assert [t.num_rows for t in tables] == expected_chunk_counts
 
-    # check all items are present
-    ids = reduce(
-        lambda a, b: a + b, [t.column(casefolder(EXPECTED_COLUMNS[0])).to_pylist() for t in tables]
-    )
+    # check all items are present, this MUST also be true for snowflake
+    ids = reduce(lambda a, b: a + b, [t.column(EXPECTED_COLUMNS[0]).to_pylist() for t in tables])
     assert set(ids) == set(range(total_records))
 
 
@@ -255,26 +246,28 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_dataframe_access(populated_pipeline: Pipeline) -> None:
-    casefolder = populated_pipeline.destination.capabilities().casefold_identifier
     # access via key
     table_relationship = populated_pipeline.dataset()["items"]
     total_records = _total_records(populated_pipeline.destination.destination_type)
     chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
-    skip_df_chunk_size_check = (
-        populated_pipeline.destination.destination_type == "dlt.destinations.filesystem"
-    )
+    skip_df_chunk_size_check = populated_pipeline.destination.destination_type in [
+        "dlt.destinations.filesystem",
+        "dlt.destinations.snowflake",
+    ]
 
     # full frame
     df = table_relationship.df()
     assert len(df.index) == total_records
+    assert set(df.columns.values) == set(EXPECTED_COLUMNS)
 
+    # TODO: snowflake does not follow a chunk size, make and exception (accept range), same for arrow
     # chunk
     df = table_relationship.df(chunk_size=chunk_size)
     if not skip_df_chunk_size_check:
         assert len(df.index) == chunk_size
 
-    assert set(df.columns.values) == set([casefolder(c) for c in EXPECTED_COLUMNS])
+    assert set(df.columns.values) == set(EXPECTED_COLUMNS)
 
     # iterate all dataframes
     frames = list(table_relationship.iter_df(chunk_size=chunk_size))
@@ -282,7 +275,7 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
         assert [len(df.index) for df in frames] == expected_chunk_counts
 
     # check all items are present
-    ids = reduce(lambda a, b: a + b, [f[casefolder(EXPECTED_COLUMNS[0])].to_list() for f in frames])
+    ids = reduce(lambda a, b: a + b, [f[EXPECTED_COLUMNS[0]].to_list() for f in frames])
     assert set(ids) == set(range(total_records))
 
 
@@ -331,20 +324,24 @@ def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
 )
 def test_hint_preservation(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset(dataset_type="default").items
-    casefolder = populated_pipeline.destination.capabilities().casefold_identifier
     # check that hints are carried over to arrow table
     expected_decimal_precision = 10
     expected_decimal_precision_2 = 12
-    if populated_pipeline.destination.destination_type == "dlt.destinations.bigquery":
+    if populated_pipeline.destination.destination_type in [
+        "dlt.destinations.bigquery",
+        "dlt.destinations.snowflake",
+    ]:
         # bigquery does not allow precision configuration..
         expected_decimal_precision = 38
         expected_decimal_precision_2 = 38
+
+    # NOTE: pyarrow 19 exposes decimal64 type and duckdb 1.3 is using it for low precision decimals
     assert (
-        table_relationship.arrow().schema.field(casefolder("decimal")).type.precision
+        table_relationship.arrow().schema.field("decimal").type.precision
         == expected_decimal_precision
     )
     assert (
-        table_relationship.arrow().schema.field(casefolder("other_decimal")).type.precision
+        table_relationship.arrow().schema.field("other_decimal").type.precision
         == expected_decimal_precision_2
     )
 
@@ -459,18 +456,17 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_sql_queries(populated_pipeline: Pipeline) -> None:
+    dataset_name = populated_pipeline.dataset_name
     # simple check that query also works
-    tname = populated_pipeline.sql_client().make_qualified_table_name("items")
-    query_relationship = populated_pipeline.dataset()(f"select * from {tname} where id < 20")
+    query_relationship = populated_pipeline.dataset()("select * from items where id < 20")
 
     # we selected the first 20
     table = query_relationship.arrow()
     assert table.num_rows == 20
 
     # check join query
-    tdname = populated_pipeline.sql_client().make_qualified_table_name("double_items")
     query = (
-        f"SELECT i.id, di.double_id FROM {tname} as i JOIN {tdname} as di ON (i.id = di.id) WHERE"
+        "SELECT i.id, di.double_id FROM items as i JOIN double_items as di ON (i.id = di.id) WHERE"
         " i.id < 20 ORDER BY i.id ASC"
     )
     join_relationship = populated_pipeline.dataset()(query)
@@ -479,6 +475,16 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
     assert list(table[0]) == [0, 0]
     assert list(table[5]) == [5, 10]
     assert list(table[10]) == [10, 20]
+
+    # check query with explicit dataset
+    query = (
+        f"SELECT i.id, di.double_id FROM {dataset_name}.items as i JOIN {dataset_name}.double_items"
+        " as di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
+    )
+
+    join_relationship = populated_pipeline.dataset()(query)
+    table = join_relationship.fetchall()
+    assert len(table) == 20
 
 
 @pytest.mark.no_load
@@ -633,34 +639,55 @@ def test_dataset_client_caching_and_connection_handling(populated_pipeline: Pipe
 )
 def test_column_selection(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset(dataset_type="default").items
-    casefolder = populated_pipeline.destination.capabilities().casefold_identifier
-    columns = [casefolder("_dlt_load_id"), casefolder("other_decimal")]
+    columns = ["_dlt_load_id", "other_decimal"]
     data_frame = table_relationship.select(*columns).head().df()
     assert list(data_frame.columns.values) == columns
     assert len(data_frame.index) == 5
 
-    columns = [casefolder("decimal"), casefolder("other_decimal")]
+    columns = ["decimal", "other_decimal"]
     arrow_table = table_relationship[columns].head().arrow()
     assert arrow_table.column_names == columns
     assert arrow_table.num_rows == 5
 
+    # TODO: fix those for bigquery and snowflake which use native cursor and does not fit into our schema 100#
+    # this is really good test, we should make a strict test for arrow reading for all destinations
     # hints should also be preserved via computed reduced schema
     expected_decimal_precision = 10
     expected_decimal_precision_2 = 12
-    if populated_pipeline.destination.destination_type == "dlt.destinations.bigquery":
-        # bigquery does not allow precision configuration..
+    expected_decimal_scale = 3
+    # bigquery and snowflake take arrow tables via native cursor and they mange precision
+    # we should probably cast arrow tables to our schema in cursors
+    if populated_pipeline.destination.destination_type in [
+        "dlt.destinations.bigquery",
+        "dlt.destinations.snowflake",
+    ]:
         expected_decimal_precision = 38
         expected_decimal_precision_2 = 38
-    assert (
-        arrow_table.schema.field(casefolder("decimal")).type.precision == expected_decimal_precision
-    )
-    assert (
-        arrow_table.schema.field(casefolder("other_decimal")).type.precision
-        == expected_decimal_precision_2
-    )
+
+    if populated_pipeline.destination.destination_type == "dlt.destinations.bigquery":
+        expected_decimal_scale = 9
+
+    assert arrow_table.schema.field("decimal").type.scale == expected_decimal_scale
+    assert arrow_table.schema.field("other_decimal").type.scale == expected_decimal_scale
+
+    assert arrow_table.schema.field("decimal").type.precision == expected_decimal_precision
+    assert arrow_table.schema.field("other_decimal").type.precision == expected_decimal_precision_2
 
     with pytest.raises(LineageFailedException):
-        arrow_table = table_relationship.select(casefolder("unknown_column")).head().arrow()
+        arrow_table = table_relationship.select("unknown_column").head().arrow()
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_unknown_table_access(populated_pipeline: Pipeline) -> None:
+    with pytest.raises(ValueError, match="Table unknown_table not found in schema"):
+        populated_pipeline.dataset().unknown_table
 
 
 @pytest.mark.no_load
@@ -793,16 +820,24 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
 
     # selecting two columns
     assert sql_from_expr(items_table.select("id", "decimal")) == (
-        'SELECT "t0"."id", "t0"."decimal" FROM "dataset"."items" AS "t0"',
+        'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal" FROM "dataset"."items" AS "t0"',
         ["id", "decimal"],
     )
 
-    # selecting all columns
-    assert sql_from_expr(items_table) == ('SELECT * FROM "dataset"."items"', ALL_COLUMNS)
+    # selecting all columns (star schema expanded, columns aliased)
+    # TODO: fixe tests
+    assert sql_from_expr(items_table) == (
+        (
+            'SELECT "items"."id" AS "id", "items"."decimal" AS "decimal", "items"."other_decimal"'
+            ' AS "other_decimal", "items"."_dlt_load_id" AS "_dlt_load_id", "items"."_dlt_id" AS'
+            ' "_dlt_id" FROM "dataset"."items" AS "items"'
+        ),
+        ALL_COLUMNS,
+    )
 
     # selecting two other columns via item getter
     assert sql_from_expr(items_table["id", "decimal"]) == (
-        'SELECT "t0"."id", "t0"."decimal" FROM "dataset"."items" AS "t0"',
+        'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal" FROM "dataset"."items" AS "t0"',
         ["id", "decimal"],
     )
 
@@ -810,7 +845,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     new_col = (items_table.id * 2).name("new_col")
     assert sql_from_expr(items_table.select("id", "decimal", new_col)) == (
         (
-            'SELECT "t0"."id", "t0"."decimal", "t0"."id" * 2 AS "new_col" FROM'
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."id" * 2 AS "new_col" FROM'
             ' "dataset"."items" AS "t0"'
         ),
         ["id", "decimal", "new_col"],
@@ -820,7 +855,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert sql_from_expr(
         items_table.mutate(double_id=items_table.id * 2).select("id", "double_id")
     ) == (
-        'SELECT "t0"."id", "t0"."id" * 2 AS "double_id" FROM "dataset"."items" AS "t0"',
+        'SELECT "t0"."id" AS "id", "t0"."id" * 2 AS "double_id" FROM "dataset"."items" AS "t0"',
         ["id", "double_id"],
     )
 
@@ -828,31 +863,43 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert sql_from_expr(
         items_table.mutate(new_col=ibis.literal("static_value")).select("id", "new_col")
     ) == (
-        'SELECT "t0"."id", \'static_value\' AS "new_col" FROM "dataset"."items" AS "t0"',
+        'SELECT "t0"."id" AS "id", \'static_value\' AS "new_col" FROM "dataset"."items" AS "t0"',
         ["id", "new_col"],
     )
 
     # check filtering (preserves all columns)
     assert sql_from_expr(items_table.filter(items_table.id < 10)) == (
-        'SELECT * FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10',
+        (
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10'
+        ),
         ALL_COLUMNS,
     )
 
     # filtering and selecting a single column
     assert sql_from_expr(items_table.filter(items_table.id < 10).select("id")) == (
-        'SELECT "t0"."id" FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10',
+        'SELECT "t0"."id" AS "id" FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10',
         ["id"],
     )
 
     # check filter "and" condition
     assert sql_from_expr(items_table.filter(items_table.id < 10).filter(items_table.id > 5)) == (
-        'SELECT * FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10 AND "t0"."id" > 5',
+        (
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10 AND "t0"."id" > 5'
+        ),
         ALL_COLUMNS,
     )
 
     # check filter "or" condition
     assert sql_from_expr(items_table.filter((items_table.id < 10) | (items_table.id > 5))) == (
-        'SELECT * FROM "dataset"."items" AS "t0" WHERE ( "t0"."id" < 10 ) OR ( "t0"."id" > 5 )',
+        (
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" WHERE ("t0"."id" < 10) OR ("t0"."id" > 5)'
+        ),
         ALL_COLUMNS,
     )
 
@@ -863,9 +910,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         .aggregate(sum_id=items_table.id.sum())
     ) == (
         (
-            'SELECT "t1"."id", "t1"."sum_id" FROM ( SELECT "t0"."id", SUM("t0"."id") AS "sum_id",'
-            ' COUNT(*) AS "CountStar(items)" FROM "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1"'
-            ' WHERE "t1"."CountStar(items)" >= 1000'
+            'SELECT "t1"."id" AS "id", "t1"."sum_id" AS "sum_id" FROM (SELECT "t0"."id" AS "id",'
+            ' SUM("t0"."id") AS "sum_id", COUNT(*) AS "CountStar(items)" FROM "dataset"."items" AS'
+            ' "t0" GROUP BY "t0"."id") AS "t1" WHERE "t1"."CountStar(items)" >= 1000'
         ),
         ["id", "sum_id"],
     )
@@ -873,8 +920,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # sorting and ordering
     assert sql_from_expr(items_table.order_by("id", "decimal").limit(10)) == (
         (
-            'SELECT * FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC, "t0"."decimal" ASC'
-            " LIMIT 10"
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC, "t0"."decimal" ASC LIMIT 10'
         ),
         ALL_COLUMNS,
     )
@@ -882,15 +930,20 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # sort desc and asc
     assert sql_from_expr(items_table.order_by(ibis.desc("id"), ibis.asc("decimal")).limit(10)) == (
         (
-            'SELECT * FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" DESC, "t0"."decimal" ASC'
-            " LIMIT 10"
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" DESC, "t0"."decimal" ASC LIMIT 10'
         ),
         ALL_COLUMNS,
     )
 
     # offset and limit
     assert sql_from_expr(items_table.order_by("id").limit(10, offset=5)) == (
-        'SELECT * FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC LIMIT 10 OFFSET 5',
+        (
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC LIMIT 10 OFFSET 5'
+        ),
         ALL_COLUMNS,
     )
 
@@ -901,8 +954,8 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         ]
     ) == (
         (
-            'SELECT "t2"."id", "t3"."double_id" FROM "dataset"."items" AS "t2" INNER JOIN'
-            ' "dataset"."double_items" AS "t3" ON "t2"."id" = "t3"."id"'
+            'SELECT "t2"."id" AS "id", "t3"."double_id" AS "double_id" FROM "dataset"."items" AS'
+            ' "t2" INNER JOIN "dataset"."double_items" AS "t3" ON "t2"."id" = "t3"."id"'
         ),
         ["id", "double_id"],
     )
@@ -912,8 +965,10 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         items_table.filter(items_table.decimal.isin(double_items_table.di_decimal))
     ) == (
         (
-            'SELECT * FROM "dataset"."items" AS "t0" WHERE "t0"."decimal" IN ( SELECT'
-            ' "t1"."di_decimal" FROM "dataset"."double_items" AS "t1" )'
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" WHERE "t0"."decimal" IN (SELECT "t1"."di_decimal" AS'
+            ' "di_decimal" FROM "dataset"."double_items" AS "t1")'
         ),
         ALL_COLUMNS,
     )
@@ -921,9 +976,10 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # topk
     assert sql_from_expr(items_table.decimal.topk(10)) == (
         (
-            'SELECT * FROM ( SELECT "t0"."decimal", COUNT(*) AS "decimal_count" FROM'
-            ' "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1" ORDER BY "t1"."decimal_count" DESC'
-            " LIMIT 10"
+            'SELECT "t1"."decimal" AS "decimal", "t1"."decimal_count" AS "decimal_count" FROM'
+            ' (SELECT "t0"."decimal" AS "decimal", COUNT(*) AS "decimal_count" FROM'
+            ' "dataset"."items" AS "t0" GROUP BY "t0"."decimal") AS "t1" ORDER BY'
+            ' "t1"."decimal_count" DESC LIMIT 10'
         ),
         ["decimal", "decimal_count"],
     )
