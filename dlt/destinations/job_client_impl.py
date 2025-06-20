@@ -736,7 +736,7 @@ WHERE """
         return ""
 
     def _get_table_post_update_sql(self, partial_table: TPartialTableSchema) -> List[str]:
-        """Generates SQL statements executed after all tables are migrated ie. containing foreign reference.
+        """Generates SQL statements executed after all tables are migrated i.e. containing foreign reference.
         `partial_table` contains all table hints and new columns with their hints.
         """
         return []
