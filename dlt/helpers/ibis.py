@@ -17,6 +17,7 @@ from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.impl.clickhouse.configuration import ClickHouseClientConfiguration
 from dlt.destinations.impl.synapse.configuration import SynapseClientConfiguration
+from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyClientConfiguration
 
 try:
     import ibis
@@ -156,7 +157,24 @@ def create_ibis_backend(
             schema_name=athena_client.sql_client.dataset_name,
             **athena_client.config.to_connector_params(),
         )
-    # TODO: allow for sqlalchemy mysql and sqlite here
+    elif issubclass(destination.spec, SqlalchemyClientConfiguration):
+        from dlt.destinations.impl.sqlalchemy.sqlalchemy_job_client import SqlalchemyJobClient
+
+        assert isinstance(client, SqlalchemyJobClient)
+        backend_name = client.config.get_backend_name()
+
+        if backend_name in ("mysql", "mariadb"):
+            # Connect to MySQL/MariaDB using ibis
+            connection_string = client.config.credentials.to_native_representation()
+            con = ibis.connect(connection_string)
+        elif backend_name == "sqlite":
+            # Connect to SQLite using ibis
+            connection_string = client.config.credentials.to_native_representation()
+            con = ibis.connect(connection_string)
+        else:
+            # For other SQLAlchemy backends, use generic ibis.connect
+            connection_string = client.config.credentials.to_native_representation()
+            con = ibis.connect(connection_string)
     elif issubclass(destination.spec, FilesystemConfiguration):
         import duckdb
         from dlt.destinations.impl.filesystem.sql_client import (
