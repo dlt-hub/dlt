@@ -91,6 +91,9 @@ class CrateDbClient(PostgresClient):
         load_id: str,
         restore: bool = False,
     ) -> LoadJob:
+        """
+        CrateDB only supports the "insert values" paradigm.
+        """
         job = InsertValuesJobClient.create_load_job(self, table, file_path, load_id, restore)
         if job is not None:
             return job
@@ -131,18 +134,5 @@ class CrateDbClient(PostgresClient):
         """
         result = super()._delete_schema_in_storage(schema=schema)
         table_name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        self.sql_client.execute_sql(f"REFRESH TABLE {table_name}")
-        return result
-
-    def _insert_statement_from_select_statement(
-        self, select_dialect: str, select_statement: str
-    ) -> str:
-        """
-        Intercept to invoke a `REFRESH TABLE ...` statement.
-        """
-        result = super()._insert_statement_from_select_statement(
-            select_dialect=select_dialect, select_statement=select_statement
-        )
-        table_name = self.sql_client.make_qualified_table_name(self._load_table["name"])
         self.sql_client.execute_sql(f"REFRESH TABLE {table_name}")
         return result

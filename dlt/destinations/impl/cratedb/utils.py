@@ -1,7 +1,7 @@
 import json
 import platform
 from datetime import datetime, date, time
-from typing import Union, Sequence, Any
+from typing import Union, Sequence, Any, Optional
 
 from dlt.common.data_writers.escape import _escape_extended, _make_sql_escape_re
 
@@ -15,7 +15,7 @@ SQL_ESCAPE_DICT = {"'": "''"}
 SQL_ESCAPE_RE = _make_sql_escape_re(SQL_ESCAPE_DICT)
 
 
-def _escape_extended_cratedb(v):
+def _escape_extended_cratedb(v: str) -> str:
     """
     The best-practice escaper for CrateDB, discovered by trial-and-error.
     """
@@ -109,7 +109,7 @@ class SystemColumnWorkaround:
         return sql
 
     @classmethod
-    def patch_result(cls, result: Union[Sequence[tuple], None]) -> Union[Sequence[tuple], None]:
+    def patch_result(cls, result: Sequence[Sequence[Any]]) -> Optional[Sequence[Sequence[Any]]]:
         if result is None:
             return None
         row_new = []

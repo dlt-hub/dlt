@@ -13,7 +13,7 @@ else:
     import psycopg2
 
 from contextlib import contextmanager
-from typing import Any, AnyStr, Iterator, Optional, Sequence, List
+from typing import Any, AnyStr, Iterator, Optional, Sequence, List, cast
 
 from dlt.common.destination.dataset import DBApiCursor
 
@@ -98,13 +98,13 @@ class CrateDbSqlClient(Psycopg2SqlClient):
         """
         Need to patch the SQL statement and use the custom `CrateDbApiCursorImpl`.
         """
-        query = SystemColumnWorkaround.patch_sql(query)
+        query = cast(AnyStr, SystemColumnWorkaround.patch_sql(query))
         curr: DBApiCursor = None
         db_args = args if args else kwargs if kwargs else None
         with self._conn.cursor() as curr:
             try:
                 curr.execute(query, db_args)
-                yield CrateDbApiCursorImpl(curr)
+                yield CrateDbApiCursorImpl(curr)  # type: ignore[abstract]
             except psycopg2.Error as outer:
                 try:
                     self._reset_connection()
@@ -142,7 +142,7 @@ class CrateDbSqlClient(Psycopg2SqlClient):
         CrateDB does not know `CREATE|DROP SCHEMA ...` statements.
         A no-op is not enough, because downstream operations expect the schema to exist.
         """
-        return self.execute_sql(
+        self.execute_sql(
             f"CREATE TABLE IF NOT EXISTS {self.fully_qualified_dataset_name()}._placeholder (id"
             " INT)"
         )
@@ -152,6 +152,4 @@ class CrateDbSqlClient(Psycopg2SqlClient):
         CrateDB does not know `CREATE|DROP SCHEMA ...` statements.
         A no-op is not enough, because downstream operations expect the schema to exist.
         """
-        return self.execute_sql(
-            f"DROP TABLE IF EXISTS {self.fully_qualified_dataset_name()}._placeholder"
-        )
+        self.execute_sql(f"DROP TABLE IF EXISTS {self.fully_qualified_dataset_name()}._placeholder")

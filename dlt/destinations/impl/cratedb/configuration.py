@@ -9,9 +9,9 @@ from dlt.destinations.impl.postgres.configuration import (
 
 @configspec(init=False)
 class CrateDbCredentials(PostgresCredentials):
-    drivername: Final[str] = dataclasses.field(
+    drivername: Final[str] = dataclasses.field(  # type: ignore[misc]
         default="postgres", init=False, repr=False, compare=False
-    )  # type: ignore
+    )
 
 
 # CrateDB does not support databases, just schemas.
@@ -21,7 +21,7 @@ del CrateDbCredentials.__dataclass_fields__["database"]
 
 @configspec
 class CrateDbClientConfiguration(PostgresClientConfiguration):
-    destination_type: Final[str] = dataclasses.field(
+    destination_type: Final[str] = dataclasses.field(  # type: ignore[misc]
         default="cratedb", init=False, repr=False, compare=False
-    )  # type: ignore
+    )
     credentials: CrateDbCredentials = None

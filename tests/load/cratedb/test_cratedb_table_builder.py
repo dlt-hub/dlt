@@ -1,4 +1,5 @@
 from copy import deepcopy
+from typing import cast
 
 import pytest
 import sqlfluff
@@ -14,6 +15,7 @@ from dlt.destinations.impl.cratedb.configuration import (
 from dlt.destinations.impl.cratedb.cratedb import (
     CrateDbClient,
 )
+from dlt.destinations.impl.postgres.postgres import PostgresClient
 from tests.cases import (
     TABLE_UPDATE,
     TABLE_UPDATE_ALL_INT_PRECISIONS,
@@ -38,7 +40,7 @@ def create_client(empty_schema: Schema, credentials: CrateDbCredentials) -> Crat
     config = CrateDbClientConfiguration(credentials=credentials)._bind_dataset_name(
         dataset_name="test_" + uniq_id()
     )
-    return cratedb().client(empty_schema, config)
+    return cast(CrateDbClient, cratedb().client(empty_schema, config))
 
 
 def test_create_table(client: CrateDbClient) -> None:
@@ -140,12 +142,15 @@ def test_create_table_with_hints(
     assert '"col4" timestamp with time zone  NOT NULL' in sql
 
     # same thing without indexes
-    client = cratedb().client(
-        empty_schema,
-        CrateDbClientConfiguration(
-            create_indexes=False,
-            credentials=credentials,
-        )._bind_dataset_name(dataset_name="test_" + uniq_id()),
+    client = cast(
+        CrateDbClient,
+        cratedb().client(
+            empty_schema,
+            CrateDbClientConfiguration(
+                create_indexes=False,
+                credentials=credentials,
+            )._bind_dataset_name(dataset_name="test_" + uniq_id()),
+        ),
     )
     sql = client._get_table_update_sql("event_test_table", mod_update, False)[0]
     # FIXME: SQLFluff does not support CrateDB yet, failing on its special data types.

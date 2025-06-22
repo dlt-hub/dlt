@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Type, TYPE_CHECKING
+from typing import Type, TYPE_CHECKING, List, Any, Dict
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
@@ -22,7 +22,7 @@ class CrateDbTypeMapper(PostgresTypeMapper):
     - CrateDB does not support `binary` or `bytea`.
     """
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args: List[Any], **kwargs: Dict[str, Any]) -> "CrateDbTypeMapper":
         cls.sct_to_unbound_dbt = deepcopy(PostgresTypeMapper.sct_to_unbound_dbt)
         cls.sct_to_unbound_dbt["json"] = "object(dynamic)"
         cls.sct_to_unbound_dbt["binary"] = "text"
@@ -32,7 +32,7 @@ class CrateDbTypeMapper(PostgresTypeMapper):
         del cls.sct_to_dbt["time"]
 
         cls.dbt_to_sct = deepcopy(PostgresTypeMapper.dbt_to_sct)
-        cls.dbt_to_sct["jsonb"] = "object(dynamic)"
+        cls.dbt_to_sct["jsonb"] = "object(dynamic)"  # type: ignore[assignment]
         cls.dbt_to_sct["bytea"] = "text"
 
         return super().__new__(cls)
@@ -51,7 +51,7 @@ class CrateDbTypeMapper(PostgresTypeMapper):
 
 
 class cratedb(postgres, Destination[CrateDbClientConfiguration, "CrateDbClient"]):
-    spec = CrateDbClientConfiguration
+    spec = CrateDbClientConfiguration  # type: ignore[assignment]
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         """
