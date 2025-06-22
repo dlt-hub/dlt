@@ -46,3 +46,43 @@ class CrateDbClient(PostgresClient):
         if job is not None:
             return job
         return None
+
+    def complete_load(self, load_id: str) -> None:
+        """
+        Intercept to invoke a `REFRESH TABLE ...` statement.
+        """
+        result = super().complete_load(load_id=load_id)
+        table_name = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
+        self.sql_client.execute_sql(f"REFRESH TABLE {table_name}")
+        return result
+
+    def _commit_schema_update(self, schema: Schema, schema_str: str) -> None:
+        """
+        Intercept to invoke a `REFRESH TABLE ...` statement.
+        """
+        result = super()._commit_schema_update(schema=schema, schema_str=schema_str)
+        table_name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
+        self.sql_client.execute_sql(f"REFRESH TABLE {table_name}")
+        return result
+
+    def _delete_schema_in_storage(self, schema: Schema) -> None:
+        """
+        Intercept to invoke a `REFRESH TABLE ...` statement.
+        """
+        result = super()._delete_schema_in_storage(schema=schema)
+        table_name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
+        self.sql_client.execute_sql(f"REFRESH TABLE {table_name}")
+        return result
+
+    def _insert_statement_from_select_statement(
+        self, select_dialect: str, select_statement: str
+    ) -> str:
+        """
+        Intercept to invoke a `REFRESH TABLE ...` statement.
+        """
+        result = super()._insert_statement_from_select_statement(
+            select_dialect=select_dialect, select_statement=select_statement
+        )
+        table_name = self.sql_client.make_qualified_table_name(self._load_table["name"])
+        self.sql_client.execute_sql(f"REFRESH TABLE {table_name}")
+        return result
