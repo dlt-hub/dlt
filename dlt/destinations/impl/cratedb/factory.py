@@ -59,14 +59,18 @@ class cratedb(postgres, Destination[CrateDbClientConfiguration, "CrateDbClient"]
         """
         caps = super()._raw_capabilities()
 
-        # CrateDB's type mapping needs adjustments compared to PostgreSQL.
-        caps.type_mapper = CrateDbTypeMapper
         # CrateDB does not support transactions.
         caps.supports_transactions = False
         caps.supports_ddl_transactions = False
 
         # CrateDB does not support `TRUNCATE TABLE`, use `DELETE FROM` instead.
         caps.supports_truncate_command = False
+
+        # CrateDB's type mapping needs adjustments compared to PostgreSQL.
+        caps.type_mapper = CrateDbTypeMapper
+
+        # TODO: Provide a dedicated dialect for SQLGlot.
+        caps.sqlglot_dialect = "postgres"
 
         # CrateDB needs a slightly adjusted escaping of literals.
         # TODO: Escaping might need further adjustments, to be explored using integration tests.
