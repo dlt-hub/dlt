@@ -1,19 +1,68 @@
-from typing import Dict
+import logging
+from typing import Dict, Any, Sequence, List
 
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.client import (
     PreparedTableSchema,
     LoadJob,
+    FollowupJobRequest,
 )
 from dlt.common.schema import TColumnHint, Schema
 from dlt.destinations.impl.cratedb.configuration import CrateDbClientConfiguration
 from dlt.destinations.impl.cratedb.sql_client import CrateDbSqlClient
 from dlt.destinations.impl.postgres.postgres import PostgresClient
 from dlt.destinations.insert_job_client import InsertValuesJobClient
+from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_jobs import SqlStagingReplaceFollowupJob
 
 # FIXME: The `UNIQUE` constraint is dearly missing.
 #        When loading data multiple times, duplicates will happen.
 HINT_TO_CRATEDB_ATTR: Dict[TColumnHint, str] = {"unique": ""}
+
+
+logger = logging.getLogger(__name__)
+
+
+class CrateDbStagingReplaceJob(SqlStagingReplaceFollowupJob):
+    @classmethod
+    def generate_sql(
+        cls,
+        table_chain: Sequence[PreparedTableSchema],
+        sql_client: SqlClientBase[Any],
+    ) -> List[str]:
+        """
+        CrateDB uses `ALTER CLUSTER SWAP TABLE`.
+
+        -- https://github.com/crate/crate/issues/14833
+        """
+        sql: List[str] = []
+        for table in table_chain:
+            with sql_client.with_staging_dataset():
+                staging_table_name = sql_client.make_qualified_table_name(table["name"])
+            table_name = sql_client.make_qualified_table_name(table["name"])
+            sql.extend(
+                (
+                    # Drop destination table.
+                    f"DROP TABLE IF EXISTS {table_name};",
+                    # Recreate destination table, because `ALTER CLUSTER SWAP TABLE` needs it.
+                    (
+                        f"CREATE TABLE IF NOT EXISTS {table_name} AS SELECT * FROM"
+                        f" {staging_table_name} WHERE 1 = 0;"
+                    ),
+                    # Move the staging table to the destination schema.
+                    f"ALTER CLUSTER SWAP TABLE {staging_table_name} TO {table_name};",
+                    # CrateDB needs to flush writes.
+                    f"REFRESH TABLE {table_name};",
+                    # Recreate staging table not needed with CrateDB, because
+                    # `ALTER CLUSTER SWAP TABLE` does not remove the source table.
+                    (
+                        f"CREATE TABLE IF NOT EXISTS {staging_table_name} AS SELECT * FROM"
+                        f" {table_name} WHERE 1 = 0;"
+                    ),
+                    f"REFRESH TABLE {staging_table_name};",
+                )
+            )
+        return sql
 
 
 class CrateDbClient(PostgresClient):
@@ -46,6 +95,17 @@ class CrateDbClient(PostgresClient):
         if job is not None:
             return job
         return None
+
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[PreparedTableSchema]
+    ) -> List[FollowupJobRequest]:
+        """
+        CrateDB currently does not support "merge" followup jobs.
+        -- https://github.com/crate-workbench/dlt/issues/4
+
+        Workaround: Redirect the "merge" job to use a "replace" job instead.
+        """
+        return [CrateDbStagingReplaceJob.from_table_chain(table_chain, self.sql_client)]
 
     def complete_load(self, load_id: str) -> None:
         """
