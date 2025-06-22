@@ -15,13 +15,14 @@ from collections.abc import Iterable
 
 from enum import Enum, auto
 
-import sqlglot
+from sqlglot import parse_one
 import sqlglot.expressions as sge
 
 from dlt.common.destination.dataset import (
     SupportsReadableRelation,
 )
 
+from dlt.common.libs.sqlglot import to_sqlglot_type
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import Self
 from dlt.common.exceptions import TypeErrorWithKnownTypes
@@ -47,14 +48,14 @@ class FilterOp(Enum):
 
 
 _FILTER_OP_MAP = {
-    FilterOp.EQ: sqlglot.exp.EQ,
-    FilterOp.NE: sqlglot.exp.NEQ,
-    FilterOp.GT: sqlglot.exp.GT,
-    FilterOp.LT: sqlglot.exp.LT,
-    FilterOp.GTE: sqlglot.exp.GTE,
-    FilterOp.LTE: sqlglot.exp.LTE,
-    FilterOp.IN: sqlglot.exp.In,
-    FilterOp.NOT_IN: sqlglot.exp.Not,
+    FilterOp.EQ: sge.EQ,
+    FilterOp.NE: sge.NEQ,
+    FilterOp.GT: sge.GT,
+    FilterOp.LT: sge.LT,
+    FilterOp.GTE: sge.GTE,
+    FilterOp.LTE: sge.LTE,
+    FilterOp.IN: sge.In,
+    FilterOp.NOT_IN: sge.Not,
 }
 
 
@@ -253,7 +254,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         limit: int = None,
         selected_columns: Sequence[str] = None,
         normalize_query: bool = True,
-        sqlglot_expression: sqlglot.exp.Select = None,
+        sqlglot_expression: sge.Select = None,
     ) -> None:
         """Create a lazy evaluated relation for the dataset of a destination"""
 
@@ -266,13 +267,13 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         self._provided_query = provided_query
         self._selected_columns = selected_columns
 
-        self._sqlglot_expression: sqlglot.exp.Select = None
+        self._sqlglot_expression: sge.Select = None
         if sqlglot_expression:
             self._sqlglot_expression = sqlglot_expression
         elif provided_query:
             self._sqlglot_expression = cast(
-                sqlglot.exp.Select,
-                sqlglot.parse_one(
+                sge.Select,
+                parse_one(
                     provided_query,
                     read=self.sql_client.capabilities.sqlglot_dialect,
                 ),
@@ -309,17 +310,15 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
     def select(self, *columns: str) -> Self:
         rel = self.__copy__()
         rel._selected_columns = columns
-        new_proj = [
-            sqlglot.exp.Column(this=sqlglot.exp.to_identifier(col, quoted=True)) for col in columns
-        ]
+        new_proj = [sge.Column(this=sge.to_identifier(col, quoted=True)) for col in columns]
         rel._sqlglot_expression.set("expressions", new_proj)
         rel.compute_columns_schema()
         return rel
 
     def order_by(self, column_name: str, direction: Literal["asc", "desc"] = "asc") -> Self:
-        order_expr = sqlglot.exp.Ordered(
-            this=sqlglot.exp.Column(
-                this=sqlglot.exp.to_identifier(column_name, quoted=True),
+        order_expr = sge.Ordered(
+            this=sge.Column(
+                this=sge.to_identifier(column_name, quoted=True),
             ),
             desc=(direction == "desc"),
         )
@@ -342,42 +341,47 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
                     f" {[op.name.lower() for op in FilterOp]}"
                 )
 
-        value_expr: Union[sqlglot.exp.Literal, sqlglot.exp.Tuple]
+        def _build_typed_literal(v: Any, sqlglot_type: sge.DataType) -> sge.Expression:
+            """
+            Create a literal and CAST it to the requested sqlglot DataType.
+            """
+            lit: sge.Expression
+            if v is None:
+                lit = sge.Null()
+            elif isinstance(v, str):
+                lit = sge.Literal.string(v)
+            elif isinstance(v, (int, float)):
+                lit = sge.Literal.number(v)
+            elif isinstance(v, (bytes, bytearray)):
+                lit = sge.Literal.string(v.hex())
+            else:
+                lit = sge.Literal.string(str(v))
+            return sge.Cast(this=lit, to=sqlglot_type.copy()) if sqlglot_type is not None else lit
+
+        sqlgot_type = to_sqlglot_type(
+            dlt_type=self.columns_schema[column_name].get("data_type"),
+            precision=self.columns_schema[column_name].get("precision"),
+            timezone=self.columns_schema[column_name].get("timezone"),
+            nullable=self.columns_schema[column_name].get("nullable"),
+        )
+
+        value_expr: Union[sge.Expression, sge.Tuple]
         if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
-            value_expr = sqlglot.exp.Tuple(
-                expressions=[
-                    (
-                        sqlglot.exp.Literal.string(v)
-                        if isinstance(v, str)
-                        else sqlglot.exp.Literal.number(v)
-                    )
-                    for v in value
-                ]
+            value_expr = sge.Tuple(
+                expressions=[_build_typed_literal(v, sqlgot_type) for v in value]
             )
         else:
-            value_expr = (
-                sqlglot.exp.Literal.string(value)
-                if isinstance(value, str)
-                else sqlglot.exp.Literal.number(value)
-            )
+            value_expr = _build_typed_literal(value, sqlgot_type)
 
-        column = sqlglot.exp.Column(this=sqlglot.exp.to_identifier(column_name, quoted=True))
+        column = sge.Column(this=sge.to_identifier(column_name, quoted=True))
 
-        condition: sqlglot.exp.Expression = None
+        condition: sge.Expression = None
         if operator == FilterOp.IN:
-            exprs = (
-                value_expr.expressions
-                if isinstance(value_expr, sqlglot.exp.Tuple)
-                else [value_expr]
-            )
-            condition = sqlglot.exp.In(this=column, expressions=exprs)
+            exprs = value_expr.expressions if isinstance(value_expr, sge.Tuple) else [value_expr]
+            condition = sge.In(this=column, expressions=exprs)
         elif operator == FilterOp.NOT_IN:
-            exprs = (
-                value_expr.expressions
-                if isinstance(value_expr, sqlglot.exp.Tuple)
-                else [value_expr]
-            )
-            condition = sqlglot.exp.Not(this=sqlglot.exp.In(this=column, expressions=exprs))
+            exprs = value_expr.expressions if isinstance(value_expr, sge.Tuple) else [value_expr]
+            condition = sge.Not(this=sge.In(this=column, expressions=exprs))
         else:
             condition_cls = _FILTER_OP_MAP[operator]
             condition = condition_cls(this=column, expression=value_expr)

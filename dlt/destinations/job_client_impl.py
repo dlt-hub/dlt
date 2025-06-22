@@ -40,6 +40,7 @@ from dlt.common.schema.utils import (
     loads_table,
     normalize_table_identifiers,
     version_table,
+    pipeline_state_table,
 )
 from dlt.common.utils import read_dialect_and_sql
 from dlt.common.storages import FileStorage
@@ -541,7 +542,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         where_condition = None
         if schema_name:
             where_condition = sqlglot.exp.EQ(
-                this=sqlglot.exp.Column(this=c_schema_name),
+                this=sqlglot.exp.Column(this=sqlglot.exp.to_identifier(c_schema_name, quoted=True)),
                 expression=sqlglot.exp.Literal.string(schema_name),
             )
 
