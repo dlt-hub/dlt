@@ -686,7 +686,7 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_unknown_table_access(populated_pipeline: Pipeline) -> None:
-    with pytest.raises(ValueError, match="Table unknown_table not found in schema"):
+    with pytest.raises(ValueError, match="Table `unknown_table` not found in schema"):
         populated_pipeline.dataset().unknown_table
 
 

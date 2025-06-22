@@ -20,8 +20,6 @@ import zlib
 import re
 
 import sqlglot.expressions
-import sqlglot.optimizer
-import sqlglot.optimizer.normalize_identifiers
 
 from dlt.common import pendulum, logger
 from dlt.common.destination.capabilities import DataTypeMapper
