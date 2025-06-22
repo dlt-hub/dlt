@@ -1,5 +1,6 @@
 import platform
 
+from dlt.destinations.exceptions import DatabaseUndefinedRelation, DatabaseTransientException
 from dlt.destinations.impl.cratedb.utils import SystemColumnWorkaround
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.common import logger
@@ -111,3 +112,46 @@ class CrateDbSqlClient(Psycopg2SqlClient):
                     self.close_connection()
                     self.open_connection()
                 raise outer
+
+    @staticmethod
+    def _is_error_schema_unknown(exception: Exception) -> bool:
+        """
+        CrateDB raises `Schema 'testdrive' unknown` errors when accessing schemas not including any tables yet.
+
+        psycopg2.errors.InternalError_: Schema 'testdrive_staging' unknown
+        dlt.destinations.exceptions.DatabaseTransientException: Schema 'testdrive_staging' unknown
+
+        a) Try to ignore that.
+        b) TODO: Refactor to synthesize an empty result, see `job_client_impl.get_stored_state`.
+        c) Resolve in CrateDB.
+        """
+        msg = str(exception)
+        return "Schema" in msg and "unknown" in msg
+
+    @classmethod
+    def _make_database_exception(cls, ex: Exception) -> Exception:
+        """
+        Loop in additional error evaluation for CrateDB.
+        """
+        if cls._is_error_schema_unknown(exception=ex):
+            raise DatabaseUndefinedRelation(ex)
+        return Psycopg2SqlClient._make_database_exception(ex)
+
+    def create_dataset(self) -> None:
+        """
+        CrateDB does not know `CREATE|DROP SCHEMA ...` statements.
+        A no-op is not enough, because downstream operations expect the schema to exist.
+        """
+        return self.execute_sql(
+            f"CREATE TABLE IF NOT EXISTS {self.fully_qualified_dataset_name()}._placeholder (id"
+            " INT)"
+        )
+
+    def drop_dataset(self) -> None:
+        """
+        CrateDB does not know `CREATE|DROP SCHEMA ...` statements.
+        A no-op is not enough, because downstream operations expect the schema to exist.
+        """
+        return self.execute_sql(
+            f"DROP TABLE IF EXISTS {self.fully_qualified_dataset_name()}._placeholder"
+        )
