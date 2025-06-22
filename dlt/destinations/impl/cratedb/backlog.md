@@ -13,6 +13,21 @@
   would create the schema transparently, without needing an explicit
   `CREATE SCHEMA ...` operation.
 
+- ERROR: mismatched input 'ABORT' expecting {....
+
+- Documentation: How JSONB/ARRAYs are mapped to CrateDB
+
+- The `merge` followup job is currently defunct with CrateDB.
+  It has been replaced by  a `replace" [sic!] job.
+
+- Troubleshooting: Workloads specifying certain write dispositions currently
+  need to be invoked twice. On the first invocation, this happens:
+
+      dlt.pipeline.exceptions.PipelineStepFailed: Pipeline execution failed at stage load when processing package 1750628689.026369 with exception:
+
+      <class 'dlt.common.destination.exceptions.DestinationSchemaTampered'>
+      Schema frankfurter content was changed - by a loader or by destination code - from the moment it was retrieved by load package. Such schema cannot reliably be updated nor saved. Current version hash: ZUJEaD/gSBvY9vbgx3urdi93mJppp7CMlRaLuJkxJCs= != stored version hash Cocqcq+4Qzo8zLOc9R3uYjhjLZr6D/QwgS03TtFG2wI=. If you are using destination client directly, without storing schema in load package, you should first save it into schema storage. You can also use schema._bump_version() in test code to remove modified flag.
+
 - Is it possible to use an `adapter` to better support CrateDB's special
   data types? For example, full round-tripping using `sys.summits` isn't
   possible just yet, due to the `coordinates` column, for example when
