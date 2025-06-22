@@ -3,6 +3,7 @@ import platform
 from dlt.destinations.impl.cratedb.utils import SystemColumnWorkaround
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.common import logger
+from dlt.destinations.typing import DBTransaction
 
 if platform.python_implementation() == "PyPy":
     import psycopg2cffi as psycopg2
@@ -52,24 +53,33 @@ class CrateDbSqlClient(Psycopg2SqlClient):
         self._reset_connection()
         return self._conn
 
+    @contextmanager
+    @raise_database_error
+    def begin_transaction(self) -> Iterator[DBTransaction]:
+        """
+        CrateDB does not support transactions. Make emitting `BEGIN TRANSACTION` a no-op.
+        """
+        logger.warning(
+            "CrateDB does not support transactions. Each SQL statement is auto-committed"
+            " separately."
+        )
+        yield self
+
     @raise_database_error
     def commit_transaction(self) -> None:
         """
-        Make it a no-op with CrateDB.
+        CrateDB does not support transactions. Make emitting `COMMIT` a no-op.
         """
         pass
 
     @raise_database_error
     def rollback_transaction(self) -> None:
         """
-        Make it a no-op with CrateDB, but emit a warning.
+        CrateDB does not support transactions. Raise an exception on `ROLLBACK`.
 
         TODO: Any better idea?
         """
-        logger.warning(
-            "Rolling back transaction (no-op with CrateDB). This indicates the last SQL statement"
-            " failed"
-        )
+        raise NotImplementedError("CrateDB statements can not be rolled back")
 
     # @raise_database_error
     def execute_sql(
