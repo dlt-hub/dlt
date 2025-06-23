@@ -459,6 +459,7 @@ const sidebars = {
       items: [
         'reference/command-line-interface',
         'reference/telemetry',
+        'reference/configuration',
         'dlt-ecosystem/staging',
         {
           type: 'category',
