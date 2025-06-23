@@ -18,10 +18,11 @@ from typing import (
     List,
     Generator,
     cast,
+    Union,
 )
 
 from dlt.common.typing import TFun, TypedDict, Self
-from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.schema.typing import TTableSchemaColumns, TColumnSchema
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.utils import concat_strings_with_limit
 from dlt.common.destination.client import JobClientBase
@@ -139,6 +140,20 @@ SELECT 1
         statements = [
             f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)};" for table in tables
         ]
+        self.execute_many(statements)
+
+    def drop_columns(self, from_tables_drop_cols: List[Dict[str, Union[str, List[str]]]]) -> None:
+        """Drops specified columns from specified tables if they exist"""
+
+        statements = []
+        for from_table_drop_cols in from_tables_drop_cols:
+            table = cast(str, from_table_drop_cols["from_table"])
+            for column in from_table_drop_cols["drop_columns"]:
+                statements.append(
+                    f"ALTER TABLE {self.make_qualified_table_name(table)} DROP COLUMN IF EXISTS"
+                    f" {self.escape_column_name(column)};"
+                )
+
         self.execute_many(statements)
 
     def _to_named_paramstyle(self, query: str, args: Sequence[Any]) -> Tuple[str, Dict[str, Any]]:

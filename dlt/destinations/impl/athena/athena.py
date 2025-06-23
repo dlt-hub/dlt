@@ -12,6 +12,7 @@ from typing import (
     Iterable,
     Type,
     cast,
+    Union,
 )
 from copy import deepcopy
 import re
@@ -231,6 +232,20 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         statements = [
             f"DROP TABLE IF EXISTS {self.make_qualified_ddl_table_name(table)};" for table in tables
         ]
+        self.execute_many(statements)
+
+    def drop_columns(self, from_tables_drop_cols: List[Dict[str, Union[str, List[str]]]]) -> None:
+        """Drops specified columns from specified tables. The statement will fail if the columns don't exist."""
+
+        statements = []
+        for from_table_drop_cols in from_tables_drop_cols:
+            table = cast(str, from_table_drop_cols["from_table"])
+            for column in from_table_drop_cols["drop_columns"]:
+                statements.append(
+                    f"ALTER TABLE {self.make_qualified_ddl_table_name(table)} DROP COLUMN"
+                    f" {self.escape_column_name(column)};"
+                )
+
         self.execute_many(statements)
 
     @contextmanager
