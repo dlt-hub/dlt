@@ -1,20 +1,22 @@
-[tool.poetry]
+[project]
 name = "dlt-example-plugin"
 version = "0.1.0"
 description = ""
-authors = ["dave <shrps@posteo.net>"]
+authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
 readme = "README.md"
-packages = [
-    { include = "dlt_example_plugin" },
-]
+requires-python = ">=3.9.1"
 
-[tool.poetry.plugins.dlt]
+[project.optional-dependencies]
+dev = []
+
+[project.entry-points."dlt"]
 dlt-example-plugin = "dlt_example_plugin.plugin"
 
-[tool.poetry.dependencies]
-python = ">=3.9.1"
-dlt={"path"="../../../"}
+[tool.uv]
+# No additional uv-specific configuration needed
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.uv.dependencies]
+dlt = { path = "../../../" }
+
+[tool.uv.packages]
+dlt_example_plugin = { include = "dlt_example_plugin" }
