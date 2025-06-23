@@ -35,15 +35,16 @@ def test_databricks_hints(
                 "some_int": i,
             }
 
-    databricks_adapter(demo_resource_primary,
+    databricks_adapter(
+        demo_resource_primary,
         table_comment="Dummy table comment",
         table_tags=[{"environment": "dummy"}, "pii"],
         column_hints={
-            "some_int": {
+            "some_int": {  # type: ignore[typeddict-unknown-key]
                 "column_comment": "Dummy column comment",
                 "column_tags": [{"environment": "dummy"}, "pii"],
             }
-        }
+        },
     )
 
     @dlt.resource(
@@ -62,8 +63,6 @@ def test_databricks_hints(
                 "some_int_2": i,
             }
 
-
-
     @dlt.source(max_table_nesting=0)
     def demo_source():
         return [demo_resource_primary, demo_resource_foreign]
@@ -71,8 +70,8 @@ def test_databricks_hints(
     pipeline.run(demo_source())
 
     with pipeline.sql_client() as c:
-
-        with c.execute_query(f"""
+        with c.execute_query(
+            f"""
                 SELECT tables.comment, table_tags.tag_name, table_tags.tag_value
                 FROM information_schema.tables
                 LEFT JOIN information_schema.table_tags ON tables.table_catalog = table_tags.catalog_name
@@ -80,7 +79,8 @@ def test_databricks_hints(
                     AND tables.table_name = table_tags.table_name
                 WHERE tables.table_name = 'demo_resource_primary'
                     AND tables.table_schema = '{pipeline.dataset_name}';
-            """) as cur:
+            """
+        ) as cur:
             rows = cur.fetchall()
 
             assert all("Dummy table comment" in str(row[0]) for row in rows)
@@ -103,7 +103,8 @@ def test_databricks_hints(
                 WHERE columns.table_schema = '{pipeline.dataset_name}'
                     AND columns.table_name = 'demo_resource_primary'
                     AND columns.column_name NOT LIKE '\\_%';
-            """) as cur:
+            """
+        ) as cur:
             rows = cur.fetchall()
 
             assert all("Dummy column comment" in str(row[0]) for row in rows)

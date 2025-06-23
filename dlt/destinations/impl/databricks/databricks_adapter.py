@@ -1,4 +1,4 @@
-from typing import Any, Optional, Literal, Dict, List, Union
+from typing import Any, Optional, Literal, Dict, List, Union, cast
 
 from dateutil import parser
 
@@ -67,22 +67,33 @@ def databricks_adapter(
             additional_column_hints[column_name] = {"name": column_name, CLUSTER_HINT: True}  # type: ignore[typeddict-unknown-key]
 
     if column_hints:
-        for column_name in column_hints.keys():
-            additional_column_hints[column_name] = { "name": column_name }  # type: ignore[typeddict-unknown-key]
-            if column_hints[column_name].get("column_comment"):
-                additional_column_hints[column_name][COLUMN_COMMENT_HINT] = column_hints[column_name].get("column_comment")
-            if column_hints[column_name].get("column_tags"):
-                if not isinstance(column_hints[column_name].get("column_tags"), list):
-                    raise ValueError("`column_tags` must be a list of strings and/or key-value pairs.")
-                for tag in column_hints[column_name].get("column_tags"):
+        for column_name, hints in column_hints.items():
+            if column_name not in additional_column_hints:
+                additional_column_hints[column_name] = {"name": column_name}
+
+            # cast to a generic dict to access keys not in TColumnSchema
+            hints_dict = cast(Dict[str, Any], hints)
+            if "column_comment" in hints_dict:
+                additional_column_hints[column_name][COLUMN_COMMENT_HINT] = hints_dict[
+                    "column_comment"
+                ]  # type: ignore[typeddict-unknown-key]
+            if "column_tags" in hints_dict:
+                column_tags = hints_dict["column_tags"]
+                if not isinstance(column_tags, list):
+                    raise ValueError(
+                        "`column_tags` must be a list of strings and/or key-value pairs."
+                    )
+                for tag in column_tags:
                     if isinstance(tag, str):
                         continue
-                    elif isinstance(tag, dict) and len(tag) == 1:
+                    if isinstance(tag, dict) and len(tag) == 1:
                         # Ensure the dictionary has exactly one key-value pair
                         continue
-                    else:
-                        raise ValueError("Each tag must be either a string or a dictionary with a single key-value pair.")
-                additional_column_hints[column_name][COLUMN_TAGS_HINT] = column_hints[column_name].get("column_tags")
+                    raise ValueError(
+                        "Each tag must be either a string or a dictionary with a single key-value"
+                        " pair."
+                    )
+                additional_column_hints[column_name][COLUMN_TAGS_HINT] = column_tags  # type: ignore[typeddict-unknown-key]
 
     if table_comment:
         if not isinstance(table_comment, str):

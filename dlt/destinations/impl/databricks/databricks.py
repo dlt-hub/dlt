@@ -427,22 +427,30 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
 
     def _get_table_post_update_sql(
         self,
-        table_name: str,
+        table: TTableSchema,
     ) -> List[str]:
-        table = self.prepare_load_table(table_name)
-        references = table.get("references")
+        sql: List[str] = []
+        table_name = table["name"]
 
+        # add foreign key constraints
+        references = table.get("references")
         if references:
             logger.info(f"Creating FOREIGN KEY constraint for table {table_name}")
             for reference in references:
                 quoted_fk_cols = ", ".join(
                     self.sql_client.escape_column_name(col) for col in reference.get("columns")
                 )
-            quoted_reference_cols = ", ".join(
-                self.sql_client.escape_column_name(col) for col in reference.get("referenced_columns")
-            )
-            constraints_sql += f",\nFOREIGN KEY ({quoted_fk_cols}) REFERENCES {reference.get('referenced_table')}({quoted_reference_cols})"
-        
+                quoted_reference_cols = ", ".join(
+                    self.sql_client.escape_column_name(col)
+                    for col in reference.get("referenced_columns")
+                )
+                sql.append(
+                    f"ALTER TABLE {self.sql_client.make_qualified_table_name(table_name)} ADD"
+                    f" FOREIGN KEY ({quoted_fk_cols}) REFERENCES"
+                    f" {self.sql_client.make_qualified_table_name(reference.get('referenced_table'))}({quoted_reference_cols})"
+                )
+
+        return sql
 
     def _from_db_type(
         self, bq_t: str, precision: Optional[int], scale: Optional[int]
