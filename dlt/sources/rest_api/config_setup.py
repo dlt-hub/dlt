@@ -194,6 +194,12 @@ def create_auth(auth_config: Optional[AuthConfig]) -> Optional[AuthConfigBase]:
         auth_class = get_auth_class(auth_type)
         auth = auth_class.from_init_value(exclude_keys(auth_config, {"type"}))
 
+    if auth_config is not None and auth is None:
+        raise ValueError(
+            f"Incorrect auth object type '{type(auth_config).__name__}'. "
+            "Expected str (auth type), dict (auth config), an instance of AuthConfigBase, or None."
+        )
+
     if auth and not auth.__is_resolved__:
         # TODO: provide explicitly (non-default) values as explicit explicit_value=dict(auth)
         # this will resolve auth which is a configuration using current section context
