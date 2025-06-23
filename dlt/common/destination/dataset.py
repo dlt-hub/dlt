@@ -10,15 +10,11 @@ from typing import (
     Tuple,
     AnyStr,
     overload,
-    runtime_checkable,
 )
-
-from abc import ABC, abstractmethod
 
 from sqlglot.schema import Schema as SQLGlotSchema
 
 from dlt.common.typing import Self, Generic, TypeVar
-from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns
 
