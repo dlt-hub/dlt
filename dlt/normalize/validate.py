@@ -38,18 +38,23 @@ def verify_normalized_table(
     2. Raise `UnboundColumnException` on incomplete non-nullable columns (e.g. missing merge/primary key)
     3. Log warning if table format is not supported by destination capabilities
     """
+    null_first_cols = []
+
     for column, nullable in find_incomplete_columns(table):
         exc = UnboundColumnException(schema.name, table["name"], column)
         if nullable:
             # warn if null column
             seen_null_first = column.get("x-normalizer", {}).get("seen-null-first")
             if seen_null_first is True:
-                null_exc = UnboundColumnWithoutTypeException(schema.name, table["name"], column)
-                logger.warning(str(null_exc))
+                null_first_cols.append(column)
             else:
                 logger.warning(str(exc))
         else:
             raise exc
+
+    if null_first_cols:
+        null_exc = UnboundColumnWithoutTypeException(schema.name, table["name"], null_first_cols)
+        logger.info(str(null_exc))
 
     # TODO: 3. raise if we detect name conflict for SCD2 columns
     # until we track data per column we won't be able to implement this

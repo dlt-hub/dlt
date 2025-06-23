@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, List
 
 from dlt.common.exceptions import DltException
 from dlt.common.data_types import TDataType
@@ -262,18 +262,22 @@ class UnboundColumnException(SchemaException):
 
 
 class UnboundColumnWithoutTypeException(SchemaException):
-    def __init__(self, schema_name: str, table_name: str, column: TColumnSchemaBase) -> None:
-        self.column = column
+    def __init__(self, schema_name: str, table_name: str, columns: List[TColumnSchemaBase]) -> None:
+        self.columns = columns
         self.schema_name = schema_name
         self.table_name = table_name
 
+        column_names = [col["name"] for col in columns]
+
         msg = (
-            f"The column {column['name']} in table {table_name} did not receive any data during"
-            " this load. Therefore, its type couldn't be inferred. Unless a type hint is provided,"
-            " the column will not be materialized in the destination. One way to provide a type"
-            " hint is to use the 'columns' argument in the '@dlt.resource' decorator. For"
-            f" example:\n\n@dlt.resource(columns={{{repr(column['name'])}: {{'data_type':"
-            " 'text'}})\n\n"
+            f"The following columns in table '{table_name}' did not receive any data during this"
+            " load and therefore could not have their types inferred:\n"
+            + "\n".join(f"  - {name}" for name in column_names)
+            + "\n\nUnless type hints are provided, these columns will not be materialized in the"
+            " destination.\nOne way to provide type hints is to use the 'columns' argument in"
+            " the '@dlt.resource' decorator.  For"
+            f" example:\n\n@dlt.resource(columns={{{repr(column_names[0])}: {{'data_type':"
+            " 'text'}})\n"
         )
 
         super().__init__(schema_name, msg)

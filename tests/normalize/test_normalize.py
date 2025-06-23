@@ -844,7 +844,7 @@ def test_warning_from_json_normalizer_on_null_column(
         ],
     }
 
-    logger_spy = mocker.spy(logger, "warning")
+    logger_spy = mocker.spy(logger, "info")
 
     extract_items(
         raw_normalize.normalize_storage,
@@ -855,16 +855,13 @@ def test_warning_from_json_normalizer_on_null_column(
     with ThreadPoolExecutor(max_workers=1) as pool:
         raw_normalize.run(pool)
 
+    expected_warning = (
+        "columns in table 'nested_table__children' did not receive any data during this load "
+        "and therefore could not have their types inferred:\n"
+        "  - col1"
+    )
     if is_none:
         logger_spy.assert_called()
-        assert logger_spy.call_count == 1
-        expected_warning = (
-            "The column col1 in table nested_table__children did not receive any data during this"
-            " load. Therefore, its type couldn't be inferred. Unless a type hint is provided, the"
-            " column will not be materialized in the destination. One way to provide a type hint is"
-            " to use the 'columns' argument in the '@dlt.resource' decorator. For"
-            " example:\n\n@dlt.resource(columns={'col1': {'data_type': 'text'}})\n\n"
-        )
-        assert expected_warning in logger_spy.call_args_list[0][0][0]
+        assert any(expected_warning in str(call.args[0]) for call in logger_spy.call_args_list)
     else:
-        logger_spy.assert_not_called()
+        assert not any(expected_warning in str(call.args[0]) for call in logger_spy.call_args_list)
