@@ -1,3 +1,4 @@
+from typing import List, Dict, Any
 import pytest
 from copy import deepcopy
 import re
@@ -134,7 +135,21 @@ def test_drop_helper_utils(seen_data: bool) -> None:
 
 
 @pytest.mark.parametrize("seen_data", [True, False], ids=["seen_data", "no_data"])
-def test_drop_helper_utils_drop_columns(seen_data: bool) -> None:
+@pytest.mark.parametrize(
+    # These are equivalent and will output all droppable columns
+    "params",
+    [
+        {"from_resources": ["re:.*"], "from_tables": ["re:.*"], "columns": ["re:.*"]},
+        {"from_resources": ["re:.*"], "columns": ["re:.*"]},
+        {"from_resources": ["re:.*"], "from_tables": ["re:.*"]},
+        {"from_resources": ["re:.*"]},
+        {"from_tables": ["re:.*"]},
+        {"columns": ["re:.*"]},
+        {},
+    ],
+    ids=lambda x: ("+".join(x.keys()) or "default"),
+)
+def test_drop_helper_utils_drop_columns(seen_data: bool, params: Dict[str, Any]) -> None:
     pipeline = dlt.pipeline("test_drop_helpers_no_table_drop", destination="duckdb")
     # extract first which should produce tables that didn't seen data
     source = airtable_emojis().with_resources(
@@ -150,8 +165,9 @@ def test_drop_helper_utils_drop_columns(seen_data: bool) -> None:
     assert drop_result.modified_tables == []
     assert drop_result.info["tables"] == []
 
-    # attempt to drop all droppable columns
-    drop_result = drop_columns(schema=pipeline.default_schema.clone(), columns=["re:.*"])
+    # attempt to drop all droppable columns with equivalent commands
+    drop_result = drop_columns(schema=pipeline.default_schema.clone(), **params)
+
     # nothing should be selected as the source doesn't have droppable columns
     assert drop_result.modified_tables == []
     assert drop_result.info["tables"] == []

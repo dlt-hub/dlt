@@ -192,6 +192,23 @@ def drop_resources(
     return _DropResult(schema, info, tables_to_drop_from_dest, new_state, None)
 
 
+DISQUALIFYING_HINTS = {
+    "parition",
+    "cluster",
+    "unique",
+    "sort",
+    "primary_key",
+    "row_key",
+    "parent_key",
+    "root_key",
+    "merge_key",
+    "variant",
+    "hard_delete",
+    "dedup_sort",
+    "incremental",
+}
+
+
 def _get_matched_droppable_columns(
     table_columns: Dict[str, TColumnSchema], columns_pattern: REPattern
 ) -> Tuple[List[str], bool]:
@@ -207,26 +224,11 @@ def _get_matched_droppable_columns(
             - A list of column names that can be dropped and are matched.
             - Whether it's safe to drop these columns without leaving only internal dlt columns.
     """
-    disqualifying_hints = [
-        "parition",
-        "cluster",
-        "unique",
-        "sort",
-        "primary_key",
-        "row_key",
-        "parent_key",
-        "root_key",
-        "merge_key",
-        "variant",
-        "hard_delete",
-        "dedup_sort",
-        "incremental",
-    ]
     droppable_cols = [
         col_name
         for col_name, col_schema in table_columns.items()
         if is_nullable_column(col_schema)
-        and not any(col_schema.get(hint, False) for hint in disqualifying_hints)
+        and not any(col_schema.get(hint, False) for hint in DISQUALIFYING_HINTS)
     ]
     matched_droppable_cols = [
         col_name for col_name in droppable_cols if columns_pattern.match(col_name)
@@ -243,6 +245,7 @@ def _get_matched_droppable_columns(
 def drop_columns(
     schema: Schema,
     from_resources: Union[Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]] = (),
+    from_tables: Union[Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]] = (),
     columns: Union[Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]] = (),
 ) -> _DropResult:
     """Generate a new schema and pipeline state with the requested columns removed.
@@ -260,7 +263,7 @@ def drop_columns(
             - state: Always None for this function, indicating no changes are made to the state.
             - from_tables_drop_cols: A list of _FromTableDropCols representing columns to drop, grouped by table.
     """
-    from_resources = set(from_resources)
+    from_resources = set(from_resources or [])
     if from_resources:
         resource_pattern = compile_simple_regexes(TSimpleRegex(r) for r in from_resources)
     else:
@@ -276,12 +279,19 @@ def drop_columns(
         t for t in potentially_affected_schema_tables if has_table_seen_data(t)
     ]
 
-    columns = set(columns)
+    from_tables = set(from_tables or [])
+    if from_tables:
+        table_pattern = compile_simple_regexes(TSimpleRegex(r) for r in from_tables)
+    else:
+        # Match all
+        table_pattern = compile_simple_regex(TSimpleRegex("re:.*"))
+
+    columns = set(columns or [])
     if columns:
         columns_pattern = compile_simple_regexes(TSimpleRegex(r) for r in columns)
     else:
         # Match nothing
-        columns_pattern = compile_simple_regex(TSimpleRegex("a^"))
+        columns_pattern = compile_simple_regex(TSimpleRegex("re:.*"))
 
     # Collect columns to drop grouped by table
     warnings: List[str] = []
@@ -290,26 +300,28 @@ def drop_columns(
 
     for table in potentially_affected_data_tables:
         table_name = table["name"]
-        table_columns = table["columns"]
-        matched_droppable_cols, can_drop = _get_matched_droppable_columns(
-            table_columns, columns_pattern
-        )
-
-        if not can_drop and len(matched_droppable_cols) > 0:
-            warning = (
-                f"""After dropping matched droppable columns {matched_droppable_cols} from table '{table_name}'"""
-                " only internal dlt columns will remain. This is not allowed."
+        if table_pattern.match(table_name):
+            table_columns = table["columns"]
+            matched_droppable_cols, can_drop = _get_matched_droppable_columns(
+                table_columns, columns_pattern
             )
-            warnings.append(warning)
-            continue
 
-        drop_cols = [
-            schema.tables[table_name]["columns"].pop(col)["name"] for col in matched_droppable_cols
-        ]
+            if not can_drop and len(matched_droppable_cols) > 0:
+                warning = (
+                    f"""After dropping matched droppable columns {matched_droppable_cols} from table '{table_name}'"""
+                    " only internal dlt columns will remain. This is not allowed."
+                )
+                warnings.append(warning)
+                continue
 
-        if drop_cols:
-            from_tables_drop_cols.append({"from_table": table_name, "drop_columns": drop_cols})
-            affected_schema_table_names.append(table_name)
+            drop_cols = [
+                schema.tables[table_name]["columns"].pop(col)["name"]
+                for col in matched_droppable_cols
+            ]
+
+            if drop_cols:
+                from_tables_drop_cols.append({"from_table": table_name, "drop_columns": drop_cols})
+                affected_schema_table_names.append(table_name)
 
     affected_data_table_names = [item["from_table"] for item in from_tables_drop_cols]
     affected_data_tables = [
