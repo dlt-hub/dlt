@@ -14,7 +14,7 @@ reliable and focuses on using software-defined assets (SDAs) to simplify complex
 enhance the ability to reuse code, and provide a better understanding of data.
 
 To read more, please refer to Dagster’s
-[documentation.](https://docs.dagster.io/getting-started) or see this community member's [article](https://dlthub.com/blog/multi-asset-rest-api-pipelines) for alternative approaches.
+[documentation.](https://docs.dagster.io/getting-started/quickstart) or see this community member's [article](https://dlthub.com/blog/multi-asset-rest-api-pipelines) for alternative approaches.
 
 ### Dagster Cloud features
 
