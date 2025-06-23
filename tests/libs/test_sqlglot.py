@@ -40,11 +40,9 @@ def _from_sqlglot_cases() -> list[tuple[sge.DataType.Type, Optional[TDataType]]]
         sge.DataType.Type.OBJECT: "json",
         sge.DataType.Type.STRUCT: "json",
         sge.DataType.Type.NESTED: "json",
-        sge.DataType.Type.UNION: "json",
         sge.DataType.Type.ARRAY: "json",
         sge.DataType.Type.LIST: "json",
         sge.DataType.Type.JSON: "json",
-        sge.DataType.Type.VECTOR: "json",
         # TEXT
         sge.DataType.Type.CHAR: "text",
         sge.DataType.Type.NCHAR: "text",
@@ -76,21 +74,14 @@ def _from_sqlglot_cases() -> list[tuple[sge.DataType.Type, Optional[TDataType]]]
         # DECIMAL
         sge.DataType.Type.BIGDECIMAL: "decimal",
         sge.DataType.Type.DECIMAL: "decimal",
-        sge.DataType.Type.DECIMAL32: "decimal",
-        sge.DataType.Type.DECIMAL64: "decimal",
-        sge.DataType.Type.DECIMAL128: "decimal",
-        sge.DataType.Type.DECIMAL256: "decimal",
         sge.DataType.Type.MONEY: "decimal",
         sge.DataType.Type.SMALLMONEY: "decimal",
         sge.DataType.Type.UDECIMAL: "decimal",
-        sge.DataType.Type.UDOUBLE: "decimal",
         # TEMPORAL
         sge.DataType.Type.DATE: "date",
         sge.DataType.Type.DATE32: "date",
         sge.DataType.Type.DATETIME: "date",
-        sge.DataType.Type.DATETIME2: "date",
         sge.DataType.Type.DATETIME64: "date",
-        sge.DataType.Type.SMALLDATETIME: "date",
         sge.DataType.Type.TIMESTAMP: "timestamp",
         sge.DataType.Type.TIMESTAMPNTZ: "timestamp",
         sge.DataType.Type.TIMESTAMPLTZ: "timestamp",
@@ -107,6 +98,44 @@ def _from_sqlglot_cases() -> list[tuple[sge.DataType.Type, Optional[TDataType]]]
         # UNKNOWN
         sge.DataType.Type.UNKNOWN: None,
     }
+
+    try:
+        mapping[sge.DataType.Type.UDOUBLE] = "decimal"
+    except AttributeError:
+        pass
+
+    try:
+        mapping[sge.DataType.Type.DATETIME2] = "date"
+    except AttributeError:
+        pass
+
+    try:
+        mapping[sge.DataType.Type.SMALLDATETIME] = "date"
+    except AttributeError:
+        pass
+
+    try:
+        mapping[sge.DataType.Type.UNION] = "json"
+    except AttributeError:
+        pass
+
+    try:
+        mapping[sge.DataType.Type.LIST] = "json"
+    except AttributeError:
+        pass
+
+    try:
+        mapping[sge.DataType.Type.VECTOR] = "json"
+    except AttributeError:
+        pass
+
+    try:
+        mapping[sge.DataType.Type.DECIMAL32] = "decimal"
+        mapping[sge.DataType.Type.DECIMAL64] = "decimal"
+        mapping[sge.DataType.Type.DECIMAL128] = "decimal"
+        mapping[sge.DataType.Type.DECIMAL256] = "decimal"
+    except AttributeError:
+        pass
 
     # "text" is the default dlt data_type
     return [(sqlglot_type, mapping.get(sqlglot_type, "text")) for sqlglot_type in sge.DataType.Type]
