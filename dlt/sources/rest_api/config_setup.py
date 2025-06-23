@@ -35,6 +35,7 @@ from dlt.sources.helpers.rest_client.paginators import (
     SinglePagePaginator,
     JSONLinkPaginator,
     HeaderLinkPaginator,
+    HeaderCursorPaginator,
     JSONResponseCursorPaginator,
     OffsetPaginator,
     PageNumberPaginator,
@@ -75,6 +76,7 @@ PAGINATOR_MAP: Dict[str, Type[BasePaginator]] = {
         JSONLinkPaginator
     ),  # deprecated. Use json_link instead. Will be removed in upcoming release
     "header_link": HeaderLinkPaginator,
+    "header_cursor": HeaderCursorPaginator,
     "auto": None,
     "single_page": SinglePagePaginator,
     "cursor": JSONResponseCursorPaginator,
