@@ -502,7 +502,7 @@ const sidebars = {
             keywords: ['release notes, release highlights'],
           },
           items: [
-            'release_notes/1.12.0',
+            'release_notes/1.12.1',
           ]
         },
         'reference/frequently-asked-questions',
