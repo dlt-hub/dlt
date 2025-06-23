@@ -1,6 +1,5 @@
 from typing import Any, Dict, List, Union
 import pytest
-from tests.load.utils import destinations_configs
 import sqlglot
 
 VARIOUS_QUERIES: List[Dict[str, Union[str, bool]]] = [
