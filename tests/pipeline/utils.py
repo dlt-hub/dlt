@@ -520,7 +520,7 @@ def select_data(
     dataset = p.dataset(schema=schema_name)
     # a hack to change the dataset name for the purposes of this test
     if dataset_name:
-        dataset._dataset_name = dataset_name
+        dataset._name = dataset_name
     return list(dataset(sql, normalize_query=normalize_query).fetchall())
 
 
