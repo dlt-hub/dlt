@@ -492,6 +492,19 @@ const sidebars = {
           ]
         },
         'general-usage/dataset-access/data-quality-dashboard',
+        {
+          type: 'category',
+          label: 'Release highlights',
+          link: {
+            type: 'generated-index',
+            title: 'Release highlights',
+            slug: 'reference/release-highlights',
+            keywords: ['release notes, release highlights'],
+          },
+          items: [
+            'release_notes/1.12.0',
+          ]
+        },
         'reference/frequently-asked-questions',
       ],
     },
