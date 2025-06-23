@@ -1,4 +1,5 @@
 from typing import Iterator, List, Tuple, NamedTuple, Union, Optional
+from packaging.version import Version
 
 from dlt.common.destination import DestinationCapabilitiesContext, merge_caps_file_formats
 from dlt.common.configuration.container import Container
@@ -165,6 +166,14 @@ def test_simple_model_normalizing(
     Explicit queries are used to clearly show the expected transformation process.
     """
     # TODO: tests for sqlalchemy dialects
+    print(sqlglot.__version__)
+    if caps.sqlglot_dialect in ["snowflake", "bigquery", "tsql", "postgres"] and (
+        Version(sqlglot.__version__) < Version("26.0.0")
+    ):
+        pytest.skip(
+            "Skipping some tests for older sqlglot versions as in the current version we have"
+            " better support for these dialects and the sql output is slightly different"
+        )
 
     # create escaped input
     dialect = caps.sqlglot_dialect
