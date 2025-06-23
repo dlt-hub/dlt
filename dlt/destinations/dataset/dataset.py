@@ -1,12 +1,13 @@
 from types import TracebackType
-from typing import Any, Type, Union, TYPE_CHECKING, List
-
+from typing import Any, Type, Union, TYPE_CHECKING, List, Optional
 
 from sqlglot.schema import Schema as SQLGlotSchema
 
+import dlt
+from dlt.extract.incremental import Incremental
 from dlt.common.destination.exceptions import OpenTableClientNotAvailable
 from dlt.common.json import json
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.exceptions import MissingDependencyException, SourceSectionNotAvailable
 from dlt.common.destination.reference import TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase, SupportsOpenTables, WithStateSync
 from dlt.common.destination.dataset import (
@@ -178,9 +179,40 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         return ReadableDBAPIRelation(
             readable_dataset=self, provided_query=query, normalize_query=normalize_query
         )
+    
+    # TODO this shouldn't be a method; move to `ops`
+    def _incremental_table(self, relation, incremental: Incremental):
+        try:
+            state = dlt.current.state()
+            transformation_name = dlt.current.resource_name()
+        except SourceSectionNotAvailable:
+            raise
 
-    def table(self, table_name: str) -> ReadableIbisRelation:
+        cursor = state["resources"][transformation_name]["incremental"][incremental.cursor_path]
+        initial_value = cursor["initial_value"]
+        last_value = cursor["last_value"]
+        column = relation[incremental.cursor_path]
+
+        if incremental.range_start == "closed":
+            condition = column > initial_value
+        else:
+            condition = column >= initial_value
+
+        if last_value != "":
+            if incremental.range_end == "closed":
+                condition &= column < last_value
+            else:
+                condition &= column <= last_value
+            
+        cursor["initial_value"] = column.max().scalar()
+
+        return relation.filter(condition)
+
+    def table(self, table_name: str, incremental: Optional[Incremental] = None) -> ReadableIbisRelation:
         # dataset only provides access to tables known in dlt schema, direct query may cirumvent this
+        if not (isinstance(incremental, Incremental) or incremental is None):
+            raise TypeError(incremental)
+        
         if table_name not in self.schema.tables.keys():
             raise ValueError(
                 f"Table {table_name} not found in schema {self.schema.name} of dataset"
@@ -205,6 +237,10 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
                 readable_dataset=self,
                 table_name=table_name,
             )
+
+        # TODO support ReadableIbisRelation and ReadableDBAPIRelation
+        if incremental is not None:
+            relation = self._incremental_table(relation, incremental)
 
         return relation  # type: ignore[return-value]
 
