@@ -260,8 +260,8 @@ pipeline = [
 ]
 airflow = ["apache-airflow>=2.8.0,<3 ; python_version < '3.12'"]
 ibis = [
-    "ibis-framework[duckdb, postgres, bigquery, snowflake, mssql, clickhouse, databricks]>=10.3.0 ; python_version >= '3.10' and python_version < '3.13'",
-    "ibis-framework[duckdb, postgres, bigquery, snowflake, clickhouse, databricks]>=10.3.0 ; python_version >= '3.13'"
+    "ibis-framework[duckdb, postgres, bigquery, snowflake, mssql, clickhouse, databricks]>=10.5.0 ; python_version >= '3.10' and python_version < '3.13'",
+    "ibis-framework[duckdb, postgres, bigquery, snowflake, clickhouse, databricks]>=10.5.0 ; python_version >= '3.13'"
 ]
 streamlit = ["streamlit>=1.40.0,<2 ; python_version >= '3.9' and python_version != '3.9.7' and python_version < '3.14'"]
 marimo = [
