@@ -1923,7 +1923,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.12.1"
+version = "1.12.2a0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -2251,16 +2251,16 @@ requires-dist = [
     { name = "pyarrow", marker = "python_full_version >= '3.13' and extra == 'parquet'", specifier = ">=18.0.0" },
     { name = "pyarrow", marker = "python_full_version >= '3.13' and extra == 'pyiceberg'", specifier = ">=18.0.0" },
     { name = "pyarrow", marker = "python_full_version >= '3.13' and extra == 'synapse'", specifier = ">=18.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'athena'", specifier = ">=14.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'bigquery'", specifier = ">=14.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'clickhouse'", specifier = ">=14.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'deltalake'", specifier = ">=14.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'dremio'", specifier = ">=14.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'lancedb'", specifier = ">=14.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'motherduck'", specifier = ">=14.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'parquet'", specifier = ">=14.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'pyiceberg'", specifier = ">=14.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'synapse'", specifier = ">=14.0.0" },
+    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'athena'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'bigquery'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'clickhouse'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'deltalake'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'dremio'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'lancedb'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'motherduck'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'parquet'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'pyiceberg'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'synapse'", specifier = ">=16.0.0" },
     { name = "pyathena", marker = "extra == 'athena'", specifier = ">=2.9.6" },
     { name = "pyiceberg", marker = "extra == 'pyiceberg'", specifier = ">=0.9.1" },
     { name = "pyodbc", marker = "python_full_version < '3.13' and extra == 'mssql'", specifier = ">=4.0.39" },
@@ -2325,12 +2325,12 @@ dev = [
     { name = "mimesis", specifier = ">=7.0.0,<8" },
     { name = "mypy", specifier = ">=1.11.0,<1.13.0" },
     { name = "pip", specifier = ">=24.0.0" },
-    { name = "pyarrow", specifier = ">=14.0.0,<19.0.0" },
+    { name = "pyarrow", specifier = ">=16.0.0,<19.0.0" },
     { name = "pydoclint", specifier = ">=0.6.5,<0.7" },
     { name = "pyjwt", specifier = ">=2.8.0,<3" },
-    { name = "pytest", specifier = ">=7.0.0,<8" },
+    { name = "pytest", specifier = ">=7.4.4,<8" },
     { name = "pytest-asyncio", specifier = ">=0.23.5,<0.24" },
-    { name = "pytest-cases", specifier = ">=3.6.9" },
+    { name = "pytest-cases", specifier = ">=3.8.6" },
     { name = "pytest-console-scripts", specifier = ">=1.4.1,<2" },
     { name = "pytest-forked", specifier = ">=1.3.0" },
     { name = "pytest-mock", specifier = ">=3.14.0,<4" },
@@ -2366,7 +2366,7 @@ docs = [
     { name = "openai", specifier = ">=1.45" },
     { name = "pandas", specifier = ">2" },
     { name = "psycopg2-binary", specifier = ">=2.9" },
-    { name = "pyarrow", marker = "python_full_version < '3.13'", specifier = ">=14.0.0" },
+    { name = "pyarrow", marker = "python_full_version < '3.13'", specifier = ">=16.0.0" },
     { name = "pyarrow", marker = "python_full_version >= '3.13'", specifier = ">=18.0.0" },
     { name = "pydoc-markdown", specifier = ">=4.8.2,<5" },
     { name = "pymongo", specifier = ">=4.3.3" },
@@ -2375,13 +2375,13 @@ docs = [
     { name = "sqlalchemy", specifier = ">=1.4.0" },
 ]
 ibis = [
-    { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "clickhouse", "databricks"], marker = "python_full_version >= '3.13'", specifier = ">=10.3.0" },
-    { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse", "databricks"], marker = "python_full_version >= '3.10' and python_full_version < '3.13'", specifier = ">=10.3.0" },
+    { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "clickhouse", "databricks"], marker = "python_full_version >= '3.13'", specifier = ">=10.5.0" },
+    { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse", "databricks"], marker = "python_full_version >= '3.10' and python_full_version < '3.13'", specifier = ">=10.5.0" },
 ]
 marimo = [
     { name = "marimo", specifier = ">=0.13.6" },
     { name = "playwright", specifier = ">=1.52.0,<2" },
-    { name = "pyarrow", marker = "python_full_version < '3.13'", specifier = ">=14.0.0" },
+    { name = "pyarrow", marker = "python_full_version < '3.13'", specifier = ">=16.0.0" },
     { name = "pyarrow", marker = "python_full_version >= '3.13'", specifier = ">=18.0.0" },
     { name = "pytest-playwright", specifier = ">=0.7.0,<1" },
 ]

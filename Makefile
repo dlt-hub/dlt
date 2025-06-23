@@ -46,9 +46,6 @@ has-uv:
 dev: has-uv
 	uv sync --all-extras --group docs --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group marimo
 
-shell:
-	source .venv/bin/activate
-
 dev-airflow: has-uv
 	uv sync --all-extras --group docs --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
 	
