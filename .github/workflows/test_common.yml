@@ -103,7 +103,7 @@ jobs:
           pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py ${{ matrix.pytest_args }}
 
       - name: Install pyarrow
-        run: uv sync ${{ matrix.uv_sync_args }}--extra duckdb --extra cli --extra parquet --group sentry-sdk
+        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra cli --extra parquet --group sentry-sdk
 
       - name: Run pipeline tests with pyarrow but no pandas installed
         run: |
