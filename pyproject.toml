@@ -3,7 +3,7 @@ name = "dlt"
 version = "1.14.1"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
-requires-python = ">=3.9.2, <3.14"
+requires-python = ">=3.9.2, <3.15"
 readme = "README.md"
 license = "Apache-2.0"
 maintainers = [
@@ -30,7 +30,7 @@ classifiers = [
 ]
 dependencies = [
     "requests>=2.26.0",
-    "pendulum>=2.1.2",
+    "pendulum>=3.0.0",
     "simplejson>=3.17.5",
     "PyYAML>=5.4.1",
     "semver>=3.0.0",
@@ -310,6 +310,8 @@ docs = [
 
 [tool.uv.sources]
 flake8-encodings = { git = "https://github.com/dlt-hub/flake8-encodings.git", branch = "disable_jedi_support" }
+# NOTE: orjson for python 3.14 is not released yet, so we use the PR to the official github repo
+orjson = { git = "https://github.com/cdce8p/orjson.git", branch = "python-3.14" }
 
 [tool.hatch.build.targets.sdist]
 packages = ["dlt"]
@@ -344,3 +346,4 @@ line_length = 100
 profile = "black"
 src_paths = ["dlt"]
 multi_line_output = 3
+

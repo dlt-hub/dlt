@@ -48,6 +48,10 @@ jobs:
             python-version: "3.11"
             shell: bash
             uv_sync_args: '--resolution lowest-direct' # could also be 'direct'
+
+          - os: ubuntu-latest
+            python-version: "3.14.0-beta.3"
+            shell: bash
           
           # windows tests
           - os: windows-latest
