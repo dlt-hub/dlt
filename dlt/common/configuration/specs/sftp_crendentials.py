@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional
 
-from dlt.common.typing import TSecretStrValue, DictStrAny
+from dlt.common.typing import TSecretStrValue, DictStrAny, SocketLike
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
 
 
@@ -37,6 +37,7 @@ class SFTPCredentials(CredentialsConfiguration):
     sftp_allow_agent: Optional[bool] = True
     sftp_look_for_keys: Optional[bool] = True
     sftp_compress: Optional[bool] = False
+    sftp_sock: Optional[SocketLike] = None
     sftp_gss_auth: Optional[bool] = False
     sftp_gss_kex: Optional[bool] = False
     sftp_gss_deleg_creds: Optional[bool] = True
@@ -59,6 +60,7 @@ class SFTPCredentials(CredentialsConfiguration):
             "allow_agent": self.sftp_allow_agent,
             "look_for_keys": self.sftp_look_for_keys,
             "compress": self.sftp_compress,
+            "sock": self.sftp_sock,
             "gss_auth": self.sftp_gss_auth,
             "gss_kex": self.sftp_gss_kex,
             "gss_deleg_creds": self.sftp_gss_deleg_creds,
