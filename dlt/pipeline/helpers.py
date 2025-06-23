@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Callable, Sequence, Iterable, Optional, Union, TYPE_CHECKING, List
+from typing import Callable, Sequence, Iterable, Optional, Union, TYPE_CHECKING, List, Any
 
 from dlt.common.jsonpath import TAnyJsonPath
 from dlt.common.exceptions import TerminalException
@@ -13,7 +13,8 @@ from dlt.pipeline.exceptions import (
 )
 from dlt.pipeline.state_sync import force_state_extract
 from dlt.pipeline.typing import TPipelineStep
-from dlt.pipeline.drop import drop_resources, drop_columns
+from dlt.pipeline.drop import drop_resources
+from dlt.pipeline.drop import drop_columns as _drop_columns
 from dlt.extract import DltSource
 
 if TYPE_CHECKING:
@@ -62,7 +63,9 @@ class DropCommand:
         drop_all: bool = False,
         state_only: bool = False,
         from_resources: Union[Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]] = (),
+        from_tables: Union[Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]] = (),
         columns: List[str] = None,
+        **kwargs: Any,
     ) -> None:
         """
         Args:
@@ -82,10 +85,11 @@ class DropCommand:
         # clone schema to keep it as original in case we need to restore pipeline schema
         self.schema = pipeline.schemas[schema_name or pipeline.default_schema_name].clone()
 
-        if from_resources and columns:
-            drop_result = drop_columns(
+        if from_resources or from_tables or columns:
+            drop_result = _drop_columns(
                 self.schema.clone(),
                 from_resources,
+                from_tables,
                 columns,
             )
         else:
