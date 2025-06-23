@@ -1,6 +1,6 @@
 [project]
 name = "dlt"
-version = "1.12.1"
+version = "1.12.2a0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
 requires-python = ">=3.9.2, <3.14, !=3.9.7"
@@ -30,7 +30,7 @@ classifiers = [
 ]
 dependencies = [
     "requests>=2.26.0",
-    "pendulum>=3.0.0",
+    "pendulum>=2.1.2",
     "simplejson>=3.17.5",
     "PyYAML>=5.4.1",
     "semver>=3.0.0",
