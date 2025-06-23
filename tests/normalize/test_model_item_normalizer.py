@@ -166,7 +166,6 @@ def test_simple_model_normalizing(
     Explicit queries are used to clearly show the expected transformation process.
     """
     # TODO: tests for sqlalchemy dialects
-    print(sqlglot.__version__)
     if caps.sqlglot_dialect in ["snowflake", "bigquery", "tsql", "postgres"] and (
         Version(sqlglot.__version__) < Version("26.0.0")
     ):
