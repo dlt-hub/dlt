@@ -453,15 +453,21 @@ You can use regexes to select resources and columns. Prepend the `re:` string to
             ),
         )
         pipe_cmd_drop_columns.add_argument(
-            "--from",
+            "--from-resources",
             dest="from_resources",
             nargs="*",
-            help="(With --columns) Resource names to drop columns from.",
+            help="Resource names to drop columns from.",
+        )
+        pipe_cmd_drop_columns.add_argument(
+            "--from-tables",
+            dest="from_tables",
+            nargs="*",
+            help="Table names to drop columns from.",
         )
         pipe_cmd_drop_columns.add_argument(
             "--columns",
             nargs="*",
-            help="(With --from) Column names to drop from the specified resources.",
+            help="Column names to drop from the specified resources.",
             default=(),
         )
 
