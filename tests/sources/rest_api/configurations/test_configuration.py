@@ -531,6 +531,41 @@ def test_resource_defaults_dont_apply_to_DltResource() -> None:
     )
 
 
+def test_multiple_dlt_resources() -> None:
+    @dlt.resource
+    def first_resource():
+        yield [{"id": 1, "name": "first"}]
+
+    @dlt.resource
+    def second_resource():
+        yield [{"id": 2, "name": "second"}]
+
+    config: RESTAPIConfig = {
+        "client": {"base_url": "https://api.example.com"},
+        "resources": [
+            {
+                "name": "endpoint_resource",
+                "endpoint": {
+                    "path": "items",
+                    "method": "GET",
+                },
+            },
+            first_resource(),
+            second_resource(),
+        ],
+    }
+
+    source = rest_api_source(config)
+    resource_names = list(source.resources.keys())
+
+    assert (
+        len(resource_names) == 3
+    ), f"Expected 3 resources, got {len(resource_names)}: {resource_names}"
+    assert "endpoint_resource" in resource_names
+    assert "first_resource" in resource_names
+    assert "second_resource" in resource_names
+
+
 @pytest.mark.parametrize(
     "config, expected_client_paginator, expected_endpoint_paginator",
     [
