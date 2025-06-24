@@ -1,7 +1,11 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Annotated
 
 from dlt.common.typing import TSecretStrValue, DictStrAny, SocketLike
-from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
+from dlt.common.configuration.specs.base_configuration import (
+    CredentialsConfiguration,
+    configspec,
+    NotResolved,
+)
 
 
 @configspec
@@ -37,7 +41,8 @@ class SFTPCredentials(CredentialsConfiguration):
     sftp_allow_agent: Optional[bool] = True
     sftp_look_for_keys: Optional[bool] = True
     sftp_compress: Optional[bool] = False
-    sftp_sock: Optional[SocketLike] = None
+    # Runtime-only socket; cannot be loaded from env var, skip configspec.
+    sftp_sock: Annotated[Optional[SocketLike], NotResolved()] = None
     sftp_gss_auth: Optional[bool] = False
     sftp_gss_kex: Optional[bool] = False
     sftp_gss_deleg_creds: Optional[bool] = True
