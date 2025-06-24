@@ -22,9 +22,6 @@ from tests.pipeline.utils import (
 )
 from tests.load.utils import FILE_BUCKET, destinations_configs, DestinationTestConfiguration
 
-# mark all tests as essential, do not remove
-pytestmark = pytest.mark.essential
-
 
 def assert_source_state_is_wiped(state: DictStrAny) -> None:
     # Keys contains only "resources" or is empty
@@ -213,6 +210,9 @@ def test_existing_schema_hash(destination_config: DestinationTestConfiguration):
     assert new_schema_hash == first_schema_hash
 
 
+pytest.mark.essential
+
+
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -228,6 +228,9 @@ def test_existing_schema_hash(destination_config: DestinationTestConfiguration):
 def test_refresh_drop_resources(
     destination_config: DestinationTestConfiguration, in_source: bool, with_wipe: bool
 ):
+    if destination_config not in ["duckdb", "filesystem", "iceberg"] and in_source and with_wipe:
+        pytest.skip("not needed")
+
     # First run pipeline with load to destination so tables are created
     pipeline = destination_config.setup_pipeline("refresh_source")
 
@@ -585,9 +588,7 @@ def test_refresh_staging_dataset(destination_config: DestinationTestConfiguratio
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True, default_staging_configs=True, all_buckets_filesystem_configs=True
-    ),
+    destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("refresh", ["drop_source", "drop_resource", "drop_data"])

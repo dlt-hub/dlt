@@ -979,13 +979,16 @@ def assert_complete_job(
     # will complete all jobs
     timestamp = "2024-04-05T09:16:59.942779Z"
     mocked_timestamp = {"state": {"created_at": timestamp}}
-    with mock.patch(
-        "dlt.current.load_package",
-        return_value=mocked_timestamp,
-    ), patch.object(
-        dummy_impl.DummyClient,
-        "complete_load",
-    ) as complete_load:
+    with (
+        mock.patch(
+            "dlt.current.load_package",
+            return_value=mocked_timestamp,
+        ),
+        patch.object(
+            dummy_impl.DummyClient,
+            "complete_load",
+        ) as complete_load,
+    ):
         with ThreadPoolExecutor() as pool:
             load.run(pool)
 

@@ -203,20 +203,21 @@ def section_schema(
         for table in dlt_schema_table_list.value:  # type: ignore[union-attr,unused-ignore]
             _table_name = table["name"]  # type: ignore[index,unused-ignore]
             _result.append(mo.md(strings.schema_table_columns_title.format(_table_name)))
+            columns_list = utils.create_column_list(
+                dlt_config,
+                dlt_pipeline,
+                _table_name,
+                show_internals=dlt_schema_show_dlt_columns.value,
+                show_type_hints=dlt_schema_show_type_hints.value,
+                show_other_hints=dlt_schema_show_other_hints.value,
+                show_custom_hints=dlt_schema_show_custom_hints.value,
+            )
             _result.append(
                 mo.ui.table(
-                    utils.create_column_list(
-                        dlt_config,
-                        dlt_pipeline,
-                        _table_name,
-                        show_internals=dlt_schema_show_dlt_columns.value,
-                        show_type_hints=dlt_schema_show_type_hints.value,
-                        show_other_hints=dlt_schema_show_other_hints.value,
-                        show_custom_hints=dlt_schema_show_custom_hints.value,
-                    ),
+                    columns_list,
                     selection=None,
                     style_cell=utils.style_cell,
-                    freeze_columns_left=["name"],
+                    freeze_columns_left=["name"] if len(columns_list) > 0 else None,
                 )
             )
 
@@ -693,6 +694,7 @@ def section_ibis_backend(
 @app.cell(hide_code=True)
 def utils_discover_pipelines(
     mo_cli_arg_pipelines_dir: str,
+    mo_cli_arg_pipeline: str,
     mo_query_var_pipeline_name: str,
 ):
     """
@@ -705,7 +707,11 @@ def utils_discover_pipelines(
     dlt_pipelines_dir, dlt_all_pipelines = utils.get_local_pipelines(mo_cli_arg_pipelines_dir)
     dlt_pipeline_select: mo.ui.multiselect = mo.ui.multiselect(
         options=[p["name"] for p in dlt_all_pipelines],
-        value=[mo_query_var_pipeline_name] if mo_query_var_pipeline_name else None,
+        value=(
+            [mo_query_var_pipeline_name]
+            if mo_query_var_pipeline_name
+            else ([mo_cli_arg_pipeline] if mo_cli_arg_pipeline else None)
+        ),
         max_selections=1,
         label=strings.app_pipeline_select_label,
         on_change=lambda value: mo.query_params().set("pipeline", str(value[0]) if value else None),
@@ -844,8 +850,8 @@ def ui_primary_controls(
         dlt_schema_table_list = mo.ui.table(
             _table_list,  # type: ignore[arg-type,unused-ignore]
             style_cell=utils.style_cell,
-            initial_selection=[0],
-            freeze_columns_left=["name"],
+            initial_selection=[0] if len(_table_list) > 0 else None,
+            freeze_columns_left=["name"] if len(_table_list) > 0 else None,
         )
 
     #
@@ -853,17 +859,18 @@ def ui_primary_controls(
     #
     dlt_data_table_list: mo.ui.table = None
     if dlt_section_browse_data_switch.value and dlt_pipeline and dlt_pipeline.default_schema_name:
+        table_list = utils.create_table_list(
+            dlt_config,
+            dlt_pipeline,
+            show_internals=dlt_schema_show_dlt_tables.value,
+            show_child_tables=dlt_schema_show_child_tables.value,
+            show_row_counts=dlt_schema_show_row_counts.value,
+        )
         dlt_data_table_list = mo.ui.table(
-            utils.create_table_list(  # type: ignore[arg-type,unused-ignore]
-                dlt_config,
-                dlt_pipeline,
-                show_internals=dlt_schema_show_dlt_tables.value,
-                show_child_tables=dlt_schema_show_child_tables.value,
-                show_row_counts=dlt_schema_show_row_counts.value,
-            ),
+            table_list,  # type: ignore[arg-type,unused-ignore]
             style_cell=utils.style_cell,
             selection="single",
-            freeze_columns_left=["name"],
+            freeze_columns_left=["name"] if len(table_list) > 0 else None,
         )
 
     #
@@ -886,6 +893,7 @@ def utils_cli_args_and_query_vars_config():
 
     try:
         mo_query_var_pipeline_name: str = cast(str, mo.query_params().get("pipeline")) or None
+        mo_cli_arg_pipeline: str = cast(str, mo.cli_args().get("pipeline")) or None
         mo_cli_arg_pipelines_dir: str = cast(str, mo.cli_args().get("pipelines_dir")) or None
         mo_cli_arg_with_test_identifiers: bool = (
             cast(bool, mo.cli_args().get("with_test_identifiers")) or False
@@ -894,11 +902,13 @@ def utils_cli_args_and_query_vars_config():
         mo_query_var_pipeline_name = None
         mo_cli_arg_pipelines_dir = None
         mo_cli_arg_with_test_identifiers = False
+        mo_cli_arg_pipeline = None
 
     return (
         mo_cli_arg_pipelines_dir,
         mo_cli_arg_with_test_identifiers,
         mo_query_var_pipeline_name,
+        mo_cli_arg_pipeline,
     )
 
 

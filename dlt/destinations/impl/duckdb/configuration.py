@@ -158,8 +158,12 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
             try:
                 try:
                     conn.execute(f"SET {scope} {k} = ?", (v,))
-                except duckdb.BinderException:
-                    # binders do not work on duckdb
+                except (
+                    duckdb.BinderException,
+                    duckdb.ParserException,
+                    duckdb.InvalidInputException,
+                ):
+                    # binders do not work on motherduck and old versions of duckdb
                     if isinstance(v, str):
                         v = f"'{v}'"
                     conn.execute(f"SET {scope} {k} = {v}")

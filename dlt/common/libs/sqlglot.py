@@ -1,14 +1,12 @@
-from typing import Optional
+from typing import Optional, Union, Set
 
 from dlt.common.utils import without_none
 from dlt.common.exceptions import MissingDependencyException, TerminalValueError
 from dlt.common.schema.typing import TColumnType, TDataType, TColumnSchema
 
-try:
-    import sqlglot.expressions as sge
-    from sqlglot.expressions import DataType, DATA_TYPE
-except ModuleNotFoundError:
-    raise MissingDependencyException("dlt sqlglot helpers", ["sqlglot"])
+import sqlglot.expressions as sge
+from sqlglot.expressions import DataType, DATA_TYPE
+from sqlglot.optimizer.scope import build_scope
 
 
 SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, TDataType] = {
@@ -16,11 +14,8 @@ SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, TDataType] = {
     DataType.Type.OBJECT: "json",
     DataType.Type.STRUCT: "json",
     DataType.Type.NESTED: "json",
-    DataType.Type.UNION: "json",
     DataType.Type.ARRAY: "json",
-    DataType.Type.LIST: "json",
     DataType.Type.JSON: "json",
-    DataType.Type.VECTOR: "json",
     # TEXT
     DataType.Type.CHAR: "text",
     DataType.Type.NCHAR: "text",
@@ -52,23 +47,15 @@ SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, TDataType] = {
     # DECIMAL
     DataType.Type.BIGDECIMAL: "decimal",
     DataType.Type.DECIMAL: "decimal",
-    DataType.Type.DECIMAL32: "decimal",
-    DataType.Type.DECIMAL64: "decimal",
-    DataType.Type.DECIMAL128: "decimal",
-    DataType.Type.DECIMAL256: "decimal",
     DataType.Type.MONEY: "decimal",
     DataType.Type.SMALLMONEY: "decimal",
     DataType.Type.UDECIMAL: "decimal",
-    DataType.Type.UDOUBLE: "decimal",
     # TEMPORAL
     DataType.Type.DATE: "date",
     DataType.Type.DATE32: "date",
     DataType.Type.DATETIME: "date",
-    DataType.Type.DATETIME2: "date",
     DataType.Type.DATETIME64: "date",
-    DataType.Type.SMALLDATETIME: "date",
     DataType.Type.TIMESTAMP: "timestamp",
-    DataType.Type.TIMESTAMPNTZ: "timestamp",
     DataType.Type.TIMESTAMPLTZ: "timestamp",
     DataType.Type.TIMESTAMPTZ: "timestamp",
     DataType.Type.TIMESTAMP_MS: "timestamp",
@@ -83,6 +70,45 @@ SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, TDataType] = {
     # UNKNOWN
     DataType.Type.UNKNOWN: None,
 }
+
+# these types were introduced after our sqlglot minimum version of 23.6.3
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.UDOUBLE] = "decimal"
+except AttributeError:
+    pass
+
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.DATETIME2] = "date"
+except AttributeError:
+    pass
+
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.SMALLDATETIME] = "date"
+except AttributeError:
+    pass
+
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.UNION] = "json"
+except AttributeError:
+    pass
+
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.LIST] = "json"
+except AttributeError:
+    pass
+
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.VECTOR] = "json"
+except AttributeError:
+    pass
+
+try:
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.DECIMAL32] = "decimal"
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.DECIMAL64] = "decimal"
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.DECIMAL128] = "decimal"
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.DECIMAL256] = "decimal"
+except AttributeError:
+    pass
 
 SQLGLOT_INT_PRECISION = {
     DataType.Type.TINYINT: 3,
@@ -104,14 +130,18 @@ SQLGLOT_INT_PRECISION = {
 SQLGLOT_DECIMAL_PRECISION_AND_SCALE = {
     DataType.Type.BIGDECIMAL: (38, 10),
     DataType.Type.DECIMAL: (38, 10),
-    DataType.Type.DECIMAL32: (7, 2),
-    DataType.Type.DECIMAL64: (16, 4),
-    DataType.Type.DECIMAL128: (34, 10),
-    DataType.Type.DECIMAL256: (76, 20),
     DataType.Type.MONEY: (19, 4),
     DataType.Type.SMALLMONEY: (10, 4),
     DataType.Type.UDECIMAL: (38, 10),
 }
+
+try:
+    SQLGLOT_DECIMAL_PRECISION_AND_SCALE[DataType.Type.DECIMAL32] = (7, 2)
+    SQLGLOT_DECIMAL_PRECISION_AND_SCALE[DataType.Type.DECIMAL64] = (16, 4)
+    SQLGLOT_DECIMAL_PRECISION_AND_SCALE[DataType.Type.DECIMAL128] = (34, 10)
+    SQLGLOT_DECIMAL_PRECISION_AND_SCALE[DataType.Type.DECIMAL256] = (76, 20)
+except AttributeError:
+    pass
 
 SQLGLOT_TEMPORAL_PRECISION = {
     DataType.Type.TIMESTAMP: None,  # default value; default precision varies across DB
@@ -123,7 +153,6 @@ SQLGLOT_TEMPORAL_PRECISION = {
 # NOTE in Snowflake, TIMESTAMPNTZ == DATETIME; is this true for dlt?
 SQLGLOT_HAS_TIMEZONE = {
     DataType.Type.TIMESTAMP: None,  # default value; False
-    DataType.Type.TIMESTAMPNTZ: False,
     DataType.Type.TIMESTAMPLTZ: True,
     DataType.Type.TIMESTAMPTZ: True,
     DataType.Type.TIMESTAMP_MS: False,
@@ -132,6 +161,11 @@ SQLGLOT_HAS_TIMEZONE = {
     DataType.Type.TIME: False,  # default value; False
     DataType.Type.TIMETZ: True,
 }
+
+has_timestampntz = hasattr(DataType.Type, "TIMESTAMPNTZ")
+if has_timestampntz:
+    SQLGLOT_HAS_TIMEZONE[DataType.Type.TIMESTAMPNTZ] = False
+    SQLGLOT_TO_DLT_TYPE_MAP[DataType.Type.TIMESTAMPNTZ] = "timestamp"
 
 DLT_TO_SQLGLOT = {
     "json": DataType.Type.JSON,
@@ -430,7 +464,7 @@ def _to_named_timestamp_type(precision: Optional[int], timezone: Optional[bool])
     if precision is None:
         if timezone is True:
             sqlglot_type = DataType.Type.TIMESTAMPTZ
-        elif timezone is False:
+        elif timezone is False and has_timestampntz:
             sqlglot_type = DataType.Type.TIMESTAMPNTZ
         elif timezone is None:
             sqlglot_type = DataType.Type.TIMESTAMP
@@ -508,3 +542,86 @@ def _filter_dlt_hints(hints: TColumnSchema) -> TColumnSchema:
             final_hints[k] = v
 
     return final_hints  # type: ignore[return-value]
+
+
+def query_is_complex(
+    parsed_select: Union[sge.Select, sge.Union],
+    columns: Set[str],
+) -> bool:
+    """
+    Return **True** unless the query is provably “simple”.
+    A *simple* query
+    1. references **exactly one** physical table,
+    2. contains no complex constructs (CTEs, sub-queries, derived tables,
+       unions, window functions, GROUP BY, DISTINCT, etc.),
+    3. projects either
+         • a plain/qualified star with only constant literals after it, or
+         • the full, explicit list of *all* columns with only constant
+           literals after it.
+    Anything we cannot *prove* to be simple is conservatively flagged
+    as complex.
+    """
+    root_scope = build_scope(parsed_select)
+    tables: list[sge.Table] = []
+    non_literal_cols: dict[str, int] = {}
+    star_present = False
+    for node in root_scope.walk():
+        if isinstance(node, sge.Table):
+            tables.append(node)
+        if isinstance(node, sge.Window):
+            return True
+        if isinstance(node, sge.SetOperation):
+            return True
+        if isinstance(node, sge.With):
+            return True
+        if isinstance(node, sge.Distinct):
+            return True
+        if isinstance(node, sge.Group):
+            return True
+        if isinstance(node, sge.DPipe):
+            return True
+        # Detect a star in the outermost projection list.
+        # A star can be either “*” or a qualified “t.*”.
+        # In the AST:
+        #   • bare  “*”    Star -> SELECT
+        #   • qual. “t.*”  Star -> Column -> SELECT
+        if isinstance(node, sge.Star) and (
+            node.parent == parsed_select or (node.parent and node.parent.parent == parsed_select)
+        ):
+            star_present = True
+        # Detect plain (aliased) column references that belong to the outermost projection list.
+        if isinstance(node, sge.Column) and not isinstance(node.this, sge.Star):
+            # it's an (aliased) column in our outer select
+            if node.parent == parsed_select or (
+                isinstance(node.parent, sge.Alias) and node.parent_select == parsed_select
+            ):
+                non_literal_cols[node.name] = non_literal_cols.get(node.name, 0) + 1
+        # An aliased expression that is *not* just a column or a
+        # literal disqualifies the query from being “simple
+        if isinstance(node, sge.Alias):
+            if not (isinstance(node.this, sge.Column) or isinstance(node.this, sge.Literal)):
+                return True
+    if len(tables) > 1:
+        return True
+    if star_present and not non_literal_cols:
+        return False
+    non_literal_cols_names = set(non_literal_cols.keys())
+    # if any column is selected twice, it is complex
+    if any(count > 1 for count in non_literal_cols.values()):
+        return True
+    # if selected columns are exactly the same as the table columns, it is simple
+    if non_literal_cols_names == columns:
+        return False
+    # if newly added columns are all exclusively dlt columns, it is simple
+    if (
+        all(col_name.startswith("_dlt_") for col_name in non_literal_cols_names - columns)
+        and non_literal_cols_names - columns != set()
+    ):
+        return False
+    # if missing columns are all exclusively dlt columns, it is simple
+    if (
+        all(col_name.startswith("_dlt_") for col_name in columns - non_literal_cols_names)
+        and columns - non_literal_cols_names != set()
+    ):
+        return False
+    return True

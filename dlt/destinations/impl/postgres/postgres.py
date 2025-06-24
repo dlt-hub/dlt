@@ -67,9 +67,10 @@ class PostgresParquetCopyJob(RunnableLoadJob, HasFollowupJobs):
             for table in pq_stream_with_new_columns(file_path, ()):
                 yield from table.to_batches()
 
-        with adbapi.connect(
-            self._config.credentials.to_native_representation()
-        ) as conn, conn.cursor() as cur:
+        with (
+            adbapi.connect(self._config.credentials.to_native_representation()) as conn,
+            conn.cursor() as cur,
+        ):
             rows = cur.adbc_ingest(
                 self.load_table_name,
                 _iter_batches(self._file_path),

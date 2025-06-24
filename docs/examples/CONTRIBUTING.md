@@ -30,5 +30,5 @@ If you use any secrets for the code snippets, e.g. Zendesk requires credentials.
 
 If your example requires any additional dependency, then you can add it
 
-- To  `pyproject.toml` in the `[tool.poetry.group.docs.dependencies]` section.
-- Do not forget to update your `poetry.lock` file with `poetry lock --no-update` command and commit.
+- To `pyproject.toml` in the `[dependency-groups]` section in the `docs` group.
+- Do not forget to update your `uv.lock` file with `uv sync` command and commit.

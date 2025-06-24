@@ -24,6 +24,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: true
+
+  # testing and linting of docs snippets is always run to catch problems in the docs
+  # NOTE: we could splint linting and testing of docs so linter can also always run for fork PRs
+  test_docs_snippets:
+    name: test snippets in docs
+    uses: ./.github/workflows/test_docs_snippets.yml
+    secrets: inherit
   
   lint:
     name: lint on all python versions
@@ -69,11 +76,7 @@ jobs:
   # Remote destination tests and docs snippets, needs secrets, 
   # so we depend on authorize and forward secrets
   #
-  test_docs_snippets:
-    name: test snippets in docs
-    needs: [test_common, authorize_run_from_fork]
-    uses: ./.github/workflows/test_docs_snippets.yml
-    secrets: inherit
+
 
   test_destinations_remote:
     name: test remote destinations with secrets

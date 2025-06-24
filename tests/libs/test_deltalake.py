@@ -1,6 +1,6 @@
 import os
 from typing import Iterator, Tuple, Union, cast
-
+from packaging.version import Version
 import pytest
 
 import dlt
@@ -17,6 +17,10 @@ from dlt.destinations.impl.filesystem.filesystem import (
 )
 
 from tests.cases import arrow_table_all_data_types
+
+
+if Version(pa.__version__) < Version("17.0.0"):
+    pytest.skip("Tests disabled for pyarrow < 17.0.0", allow_module_level=True)
 
 
 @pytest.fixture()

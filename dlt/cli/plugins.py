@@ -5,10 +5,7 @@ import dlt.cli.echo as fmt
 
 
 from dlt.common.configuration import plugins
-from dlt.cli import SupportsCliCommand
-from dlt.cli.init_command import (
-    DEFAULT_VERIFIED_SOURCES_REPO,
-)
+from dlt.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
 from dlt.cli.exceptions import CliCommandException
 from dlt.cli.command_wrappers import (
     init_command_wrapper,
@@ -220,6 +217,15 @@ Requires `streamlit` to be installed in the current environment: `pip install st
             default=False,
             action="store_true",
             help="Launch marimo app preview instead of streamlit",
+        )
+        show_cmd.add_argument(
+            "--edit",
+            default=False,
+            action="store_true",
+            help=(
+                "Launch marimo app preview in edit mode (only works together with --marimo flag,"
+                " otherwise it will be ignored)"
+            ),
         )
         pipeline_subparsers.add_parser(
             "failed-jobs",
