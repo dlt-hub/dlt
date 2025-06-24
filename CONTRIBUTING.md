@@ -189,8 +189,7 @@ Once the version has been bumped, follow these steps to publish the new release 
 1. Ensure that you are on the **master** branch and have the latest code that has passed all tests on CI.
 2. Verify the current version with `uv version`.
 3. Obtain a PyPI access token
-4. Build the library with `make build-library`
-4. Run `uv publish --token "$PYPI_API_TOKEN"` to publish the new version.
+4. Build and publish the library with `make publish-library`, you will be asked to input the PyPI token.
 5. Create a release on GitHub, using the version and git tag as the release name.
 
 ## Resources
