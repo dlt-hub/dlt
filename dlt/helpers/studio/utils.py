@@ -168,10 +168,10 @@ def create_column_list(
         pipeline_name (str): The name of the pipeline to create the column list for.
         table_name (str): The name of the table to create the column list for.
     """
-    table = pipeline.default_schema.tables[table_name]
-
     column_list: List[Dict[str, Any]] = []
-    for column in table["columns"].values():
+    for column in pipeline.default_schema.get_table_columns(
+        table_name, include_incomplete=False
+    ).values():
         column_dict: Dict[str, Any] = {
             "name": column["name"],
         }
