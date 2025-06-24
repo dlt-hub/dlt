@@ -2,7 +2,7 @@ from typing import List
 
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TTableSchema, TSchemaUpdate
+from dlt.common.schema.typing import TTableSchema, TSchemaUpdate, TColumnSchemaBase
 from dlt.common.schema.utils import (
     ensure_compatible_tables,
     find_incomplete_columns,
@@ -38,23 +38,34 @@ def verify_normalized_table(
     2. Raise `UnboundColumnException` on incomplete non-nullable columns (e.g. missing merge/primary key)
     3. Log warning if table format is not supported by destination capabilities
     """
-    null_first_cols = []
+    incomplete_nullable_not_seen_data: List[TColumnSchemaBase] = []
+    incomplete_nullable_seen_data: List[TColumnSchemaBase] = []
 
     for column, nullable in find_incomplete_columns(table):
-        exc = UnboundColumnException(schema.name, table["name"], column)
         if nullable:
-            # warn if null column
             seen_null_first = column.get("x-normalizer", {}).get("seen-null-first")
+            # warn if column exists in source, but has no data
             if seen_null_first is True:
-                null_first_cols.append(column)
+                incomplete_nullable_not_seen_data.append(column)
+            # warn if column doesn't exist in source
             else:
-                logger.warning(str(exc))
+                incomplete_nullable_seen_data.append(column)
         else:
-            raise exc
+            raise UnboundColumnException(schema.name, table["name"], [column])
 
-    if null_first_cols:
-        null_exc = UnboundColumnWithoutTypeException(schema.name, table["name"], null_first_cols)
-        logger.info(str(null_exc))
+    if incomplete_nullable_not_seen_data:
+        logger.warning(
+            str(
+                UnboundColumnWithoutTypeException(
+                    schema.name, table["name"], incomplete_nullable_not_seen_data
+                )
+            )
+        )
+
+    if incomplete_nullable_seen_data:
+        logger.warning(
+            str(UnboundColumnException(schema.name, table["name"], incomplete_nullable_seen_data))
+        )
 
     # TODO: 3. raise if we detect name conflict for SCD2 columns
     # until we track data per column we won't be able to implement this
@@ -81,6 +92,6 @@ def verify_normalized_table(
             f"Table {table['name']} has parent_key on column {parent_key} but no corresponding"
             " `parent` table hint to refer to parent table.Such table is not considered a nested"
             " table and relational normalizer will not generate linking data. The most probable"
-            " cause is manual modification of the dtl schema for the table. The most probable"
+            " cause is manual modification of the dlt schema for the table. The most probable"
             f" outcome will be NULL violation during the load process on {parent_key}."
         )

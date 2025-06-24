@@ -236,27 +236,36 @@ class ColumnNameConflictException(SchemaException):
 
 
 class UnboundColumnException(SchemaException):
-    def __init__(self, schema_name: str, table_name: str, column: TColumnSchemaBase) -> None:
-        self.column = column
+    def __init__(self, schema_name: str, table_name: str, columns: List[TColumnSchemaBase]) -> None:
+        self.columns = columns
         self.schema_name = schema_name
         self.table_name = table_name
-        nullable: bool = column.get("nullable", False)
-        key_type: str = ""
-        if column.get("merge_key"):
-            key_type = "merge key"
-        elif column.get("primary_key"):
-            key_type = "primary key"
+
+        col_infos: List[str] = []
+        for column in columns:
+            key_type: str = ""
+            if column.get("merge_key"):
+                key_type = "merge key"
+            elif column.get("primary_key"):
+                key_type = "primary key"
+
+            line = f"  - {column['name']}"
+            if key_type or not column.get("nullable", True):
+                suffix = " (marked as non-nullable"
+                if key_type:
+                    suffix += f" {key_type}"
+                suffix += " and must have values)"
+                line += suffix
+            col_infos.append(line)
 
         msg = (
-            f"The column `{column['name']}` in table `{table_name}` did not receive any data during"
-            " this load. "
+            f"The following columns in table `{table_name}` did not receive any data during"
+            " this load:\n"
+            + "\n".join(col_info for col_info in col_infos)
         )
-        if key_type or not nullable:
-            msg += f"It is marked as non-nullable{' '+key_type} and it must have values. "
-
         msg += (
-            "This can happen if you specify the column manually, for example using the `merge_key`,"
-            " `primary_key` or `columns` argument but it does not exist in the data."
+            "\n\nThis can happen if you specify columns manually, for example, using the"
+            " `merge_key`, `primary_key` or `columns` argument but they do not exist in the data.\n"
         )
         super().__init__(schema_name, msg)
 
