@@ -181,7 +181,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         # TODO: accept other query types and return a right relation: sqlglot (DBAPI) and ibis (Expr)
         # TODO: parse query as ibis relation, however ibis will quote that query when compiling to sql
         return ReadableDBAPIRelation(
-            readable_dataset=self, provided_query=query, normalize_query=normalize_query
+            readable_dataset=self, query_or_expression=query, normalize_query=normalize_query
         )
 
     def table(self, table_name: str) -> ReadableIbisRelation:
@@ -255,10 +255,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
             else:
                 union_all_expr = union_all_expr.union(counts_expr, distinct=False)
 
-        dialect = self.destination_client.capabilities.sqlglot_dialect
-        query = union_all_expr.sql(dialect)
-        # Execute query and build result dict
-        return self(query)
+        return self(query=union_all_expr)
 
     def __getitem__(self, table_name: str) -> ReadableIbisRelation:
         """access of table via dict notation"""

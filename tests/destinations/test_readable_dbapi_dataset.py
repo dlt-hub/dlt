@@ -154,13 +154,18 @@ def test_changing_relation_with_query(dataset_type: TDatasetType) -> None:
         "pipeline_dataset",
         dataset_type=dataset_type,
     )
-    relation = dataset("SELECT * FROM something")
 
-    query = relation.limit(5)._query()
-    assert "SELECT * FROM something LIMIT 5" == query
+    with pytest.raises(ValueError) as py_exc:
+        relation = dataset("SELECT * FROM something")
+    assert "Queries using a star (`*`) expression are not allowed." in py_exc.value.args[0]
+
+    relation = dataset("SELECT this, that FROM something")
 
     query = relation.head()._query()
-    assert "SELECT * FROM something LIMIT 5" == query
+    assert "SELECT this, that FROM something LIMIT 5" == query
 
-    query = relation.select("hello", "hillo")._query()
-    assert 'SELECT "hello", "hillo" FROM something' == query
+    query = relation.select("this")._query()
+    assert """SELECT "this" FROM (SELECT this, that FROM something)""" == query
+
+    with pytest.raises(LineageFailedException):
+        query = relation.select("hello", "hillo")._query()

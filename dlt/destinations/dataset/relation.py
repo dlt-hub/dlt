@@ -1,6 +1,8 @@
+from textwrap import indent
 from typing import (
+    overload,
     Any,
-    cast,
+    get_args,
     Generator,
     Optional,
     Sequence,
@@ -15,17 +17,17 @@ from collections.abc import Iterable
 
 from enum import Enum, auto
 
-from sqlglot import parse_one
+from sqlglot import maybe_parse
 import sqlglot.expressions as sge
 
 from dlt.common.destination.dataset import (
     SupportsReadableRelation,
 )
 
-from dlt.common.libs.sqlglot import to_sqlglot_type
+from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import Self
-from dlt.common.exceptions import TypeErrorWithKnownTypes
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.transformations import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.queries import normalize_query, build_select_expr
@@ -34,6 +36,9 @@ if TYPE_CHECKING:
     from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
 else:
     ReadableDBAPIDataset = Any
+
+
+OpLiteral = Literal["eq", "ne", "gt", "lt", "gte", "lte", "in", "not_in"]
 
 
 class FilterOp(Enum):
@@ -109,7 +114,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
             dialect=self._dataset.sql_client.capabilities.sqlglot_dialect, pretty=pretty
         )
 
-    def _query(self) -> Any:
+    def _query(self) -> str:
         """Returns a compliant with dlt schema in the relation.
         1. identifiers are not case folded
         2. star top level selects are not expanded
@@ -245,52 +250,61 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
 
 
 class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
+    @overload
     def __init__(
         self,
         *,
         readable_dataset: "ReadableDBAPIDataset",
-        provided_query: Any = None,
-        table_name: str = None,
-        limit: int = None,
-        selected_columns: Sequence[str] = None,
+        query_or_expression: Union[str, sge.Select],
         normalize_query: bool = True,
-        sqlglot_expression: sge.Select = None,
+    ) -> None: ...
+
+    @overload
+    def __init__(
+        self,
+        *,
+        readable_dataset: "ReadableDBAPIDataset",
+        table_name: str,
+        normalize_query: bool = True,
+    ) -> None: ...
+
+    def __init__(
+        self,
+        *,
+        readable_dataset: "ReadableDBAPIDataset",
+        query_or_expression: Optional[Union[str, sge.Select]] = None,
+        table_name: Optional[str] = None,
+        normalize_query: bool = True,
     ) -> None:
         """Create a lazy evaluated relation for the dataset of a destination"""
 
         # NOTE: we can keep an assertion here, this class will not be created by the user
         assert (
-            sum(x is not None for x in (provided_query, table_name, sqlglot_expression)) == 1
-        ), "Please provide either an sql query, a table_name or a an explicit sqlglot expression"
+            sum(x is not None for x in (query_or_expression, table_name)) == 1
+        ), "Please provide either an sql query or expression, or a table_name"
         super().__init__(readable_dataset=readable_dataset, normalize_query=normalize_query)
 
-        self._provided_query = provided_query
-        self._selected_columns = selected_columns
-
         self._sqlglot_expression: sge.Select = None
-        if sqlglot_expression:
-            self._sqlglot_expression = sqlglot_expression
-        elif provided_query:
-            self._sqlglot_expression = cast(
-                sge.Select,
-                parse_one(
-                    provided_query,
-                    read=self.sql_client.capabilities.sqlglot_dialect,
-                ),
+        if query_or_expression:
+            self._sqlglot_expression = maybe_parse(
+                query_or_expression,
+                dialect=self.sql_client.capabilities.sqlglot_dialect,
             )
         else:
             self._sqlglot_expression = build_select_expr(
                 table_name=table_name,
-                selected_columns=(
-                    list(selected_columns)
-                    if selected_columns
-                    else list(self._dataset.schema.get_table_columns(table_name).keys())
-                ),
+                selected_columns=list(self._dataset.schema.get_table_columns(table_name).keys()),
             )
-            if limit:
-                self._sqlglot_expression = self._sqlglot_expression.limit(limit)
 
-    def _query(self) -> Any:
+        if any(isinstance(expr, sge.Star) for expr in self._sqlglot_expression.expressions):
+            raise ValueError(
+                "\n\nA `SELECT *` was detected in the query:\n\n"
+                f"{self._sqlglot_expression.sql(self.sql_client.capabilities.sqlglot_dialect)}\n\n"
+                "Queries using a star (`*`) expression are not allowed. "
+                "Please rewrite the query to explicitly specify the columns to be selected.\n"
+            )
+
+    def _query(self) -> str:
         return self._sqlglot_expression.sql(
             dialect=self._dataset.sql_client.capabilities.sqlglot_dialect
         )
@@ -298,8 +312,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
     def __copy__(self) -> Self:
         return self.__class__(
             readable_dataset=self._dataset,
-            selected_columns=self._selected_columns,
-            sqlglot_expression=self._sqlglot_expression,
+            query_or_expression=self._sqlglot_expression,
         )
 
     def limit(self, limit: int, **kwargs: Any) -> Self:
@@ -308,10 +321,11 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         return rel
 
     def select(self, *columns: str) -> Self:
+        proj = [sge.Column(this=sge.to_identifier(col, quoted=True)) for col in columns]
+        subquery = self._sqlglot_expression.subquery()
+        new_expr = sge.select(*proj).from_(subquery)
         rel = self.__copy__()
-        rel._selected_columns = columns
-        new_proj = [sge.Column(this=sge.to_identifier(col, quoted=True)) for col in columns]
-        rel._sqlglot_expression.set("expressions", new_proj)
+        rel._sqlglot_expression = new_expr
         rel.compute_columns_schema()
         return rel
 
@@ -329,34 +343,16 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
     def where(
         self,
         column_name: str,
-        operator: Union[FilterOp, str],
+        operator: Union[OpLiteral, FilterOp],
         value: Any,
     ) -> Self:
         if isinstance(operator, str):
             try:
                 operator = FilterOp[operator.upper()]
             except KeyError:
-                raise ValueError(
-                    f"Invalid operator '{operator}'. Expected one of:"
-                    f" {[op.name.lower() for op in FilterOp]}"
+                raise ValueErrorWithKnownValues(
+                    key="operator", value_received=operator, valid_values=get_args(OpLiteral)
                 )
-
-        def _build_typed_literal(v: Any, sqlglot_type: sge.DataType) -> sge.Expression:
-            """
-            Create a literal and CAST it to the requested sqlglot DataType.
-            """
-            lit: sge.Expression
-            if v is None:
-                lit = sge.Null()
-            elif isinstance(v, str):
-                lit = sge.Literal.string(v)
-            elif isinstance(v, (int, float)):
-                lit = sge.Literal.number(v)
-            elif isinstance(v, (bytes, bytearray)):
-                lit = sge.Literal.string(v.hex())
-            else:
-                lit = sge.Literal.string(str(v))
-            return sge.Cast(this=lit, to=sqlglot_type.copy()) if sqlglot_type is not None else lit
 
         sqlgot_type = to_sqlglot_type(
             dlt_type=self.columns_schema[column_name].get("data_type"),
@@ -365,13 +361,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
             nullable=self.columns_schema[column_name].get("nullable"),
         )
 
-        value_expr: Union[sge.Expression, sge.Tuple]
-        if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
-            value_expr = sge.Tuple(
-                expressions=[_build_typed_literal(v, sqlgot_type) for v in value]
-            )
-        else:
-            value_expr = _build_typed_literal(value, sqlgot_type)
+        value_expr = build_typed_literal(value, sqlgot_type)
 
         column = sge.Column(this=sge.to_identifier(column_name, quoted=True))
 
@@ -393,7 +383,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
     def filter(  # noqa: A003
         self,
         column_name: str,
-        operator: Union[FilterOp, str],
+        operator: Union[OpLiteral, FilterOp],
         value: Any,
     ) -> Self:
         return self.where(column_name=column_name, operator=operator, value=value)

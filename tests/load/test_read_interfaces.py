@@ -13,6 +13,7 @@ from functools import reduce
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableFormat
+from dlt.common.exceptions import ValueErrorWithKnownValues
 
 from dlt.extract.source import DltSource
 from dlt.destinations.dataset import dataset as _dataset
@@ -685,6 +686,31 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
+def test_select(populated_pipeline: Pipeline) -> None:
+    table_relationship = populated_pipeline.dataset(dataset_type="default").items
+
+    columns = ["_dlt_load_id", "other_decimal"]
+    data_frame = table_relationship.select(*columns).head().df()
+    assert list(data_frame.columns.values) == columns
+
+    data_frame = table_relationship.select(*columns).select(*columns).head().df()
+    assert list(data_frame.columns.values) == columns
+
+    data_frame = table_relationship.select(*columns).select(*["other_decimal"]).head().df()
+    assert list(data_frame.columns.values) == ["other_decimal"]
+
+    with pytest.raises(LineageFailedException):
+        data_frame = table_relationship.select(*columns).select(*["decimal"]).head().df()
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
 def test_order_by(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
     table_relationship = populated_pipeline.dataset(dataset_type="default").items
@@ -697,6 +723,25 @@ def test_order_by(populated_pipeline: Pipeline) -> None:
 
     chained = [row[0] for row in table_relationship.order_by("id").limit(5).select("id").fetchall()]
     assert chained == list(range(5))
+
+    double_items_relationshop = populated_pipeline.dataset(dataset_type="default").double_items
+    chained_order_by = [
+        row[0]
+        for row in double_items_relationshop.order_by("di_decimal", "asc")
+        .order_by("id", "desc")
+        .limit(5)
+        .select("id")
+        .fetchall()
+    ]
+    query = (
+        double_items_relationshop.order_by("di_decimal", "asc")
+        .order_by("id", "desc")
+        .limit(5)
+        .select("id")
+        ._query()
+    )
+    assert """ORDER BY "di_decimal" ASC, "id" DESC LIMIT 5)""" in query
+    assert chained_order_by == list(range(total_records - 1, total_records - 6, -1))
 
 
 @pytest.mark.no_load
@@ -734,6 +779,17 @@ def test_where(populated_pipeline: Pipeline) -> None:
     assert in_ids == [1, 3, 7]
 
     not_in_rows = items.filter("id", "not_in", [0, 1, 2]).fetchall()
+    assert total_records - 3 == len(not_in_rows)
+
+    with pytest.raises(ValueErrorWithKnownValues) as py_exc:
+        not_in_rows = items.filter("id", "wrong", [0, 1, 2]).fetchall()
+
+    assert (
+        "Received invalid value `operator=wrong`. Valid values are: ('eq', 'ne', 'gt', 'lt', 'gte',"
+        " 'lte', 'in', 'not_in')"
+        in py_exc.value.args
+    )
+
     assert total_records - 3 == len(not_in_rows)
 
 

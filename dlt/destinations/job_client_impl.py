@@ -19,7 +19,7 @@ from typing import (
 import zlib
 import re
 
-import sqlglot
+from sqlglot import parse_one
 import sqlglot.expressions as sge
 
 from dlt.common import pendulum, logger
@@ -174,30 +174,30 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         destination_dialect = self._job_client.capabilities.sqlglot_dialect
 
         # Parse SELECT
-        parsed_select = sqlglot.parse_one(select_statement, read=select_dialect)
+        parsed_select = parse_one(select_statement, read=select_dialect)
 
         # Adjust table parts (catalog/db/this) based on dialect and catalog presence
         if select_dialect != destination_dialect:
             # TODO: We might need this
-            for table in parsed_select.find_all(sqlglot.exp.Table):
+            for table in parsed_select.find_all(sge.Table):
                 parts = list(table.parts)
                 if target_catalog:
                     if len(parts) == 3:
-                        table.set("catalog", sqlglot.exp.to_identifier(target_catalog))
-                        table.set("db", sqlglot.exp.to_identifier(parts[1].name))
-                        table.set("this", sqlglot.exp.to_identifier(parts[2].name))
+                        table.set("catalog", sge.to_identifier(target_catalog))
+                        table.set("db", sge.to_identifier(parts[1].name))
+                        table.set("this", sge.to_identifier(parts[2].name))
                     elif len(parts) == 2:
-                        table.set("catalog", sqlglot.exp.to_identifier(target_catalog))
-                        table.set("db", sqlglot.exp.to_identifier(parts[0].name))
-                        table.set("this", sqlglot.exp.to_identifier(parts[1].name))
+                        table.set("catalog", sge.to_identifier(target_catalog))
+                        table.set("db", sge.to_identifier(parts[0].name))
+                        table.set("this", sge.to_identifier(parts[1].name))
                 else:
                     if len(parts) == 3:
                         table.set("catalog", None)
-                        table.set("db", sqlglot.exp.to_identifier(parts[1].name))
-                        table.set("this", sqlglot.exp.to_identifier(parts[2].name))
+                        table.set("db", sge.to_identifier(parts[1].name))
+                        table.set("this", sge.to_identifier(parts[2].name))
 
         # Ensure there's a top-level SELECT, otherwise it doesn't make sense
-        top_level_select = parsed_select.find(sqlglot.exp.Select)
+        top_level_select = parsed_select.find(sge.Select)
         if top_level_select is None:
             raise ValueError(
                 "No top-level SELECT statement found in the model query. Models must be defined"
@@ -209,7 +209,7 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         columns = []
         for _, expr in enumerate(top_level_select.expressions):
             alias_name = expr.alias
-            columns.append(sqlglot.exp.to_identifier(alias_name))
+            columns.append(sge.to_identifier(alias_name))
 
         # Build final INSERT
         query = sge.insert(
@@ -522,11 +522,16 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     ) -> TColumnType:
         pass
 
+    def _render_sql(self, expr: sge.Select) -> str:
+        """Normalize s sqglot expression into a raw SQL string using the client's dialect and schema"""
+        dialect = self.sql_client.capabilities.sqlglot_dialect
+        sqlglot_schema = create_sqlglot_schema(self.schema, self.sql_client.dataset_name, dialect)
+        return normalize_query(sqlglot_schema, expr, self.sql_client).sql(dialect=dialect)
+
     def get_stored_schema(self, schema_name: str = None) -> StorageSchemaInfo:
         table_name = self.schema.version_table_name
-        c_schema_name, c_inserted_at = [
-            self.schema.naming.normalize_path(p) for p in ["schema_name", "inserted_at"]
-        ]
+        c_schema_name = "schema_name"
+        c_inserted_at = "inserted_at"
 
         select_expr = build_select_expr(
             table_name=table_name,
@@ -534,82 +539,76 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             quoted_identifiers=True,
         )
 
-        order_expr = sqlglot.exp.Ordered(
-            this=sqlglot.exp.Column(this=sqlglot.exp.to_identifier(c_inserted_at, quoted=True)),
+        order_expr = sge.Ordered(
+            this=sge.Column(this=sge.to_identifier(c_inserted_at, quoted=True)),
             desc=True,
         )
 
         where_condition = None
         if schema_name:
-            where_condition = sqlglot.exp.EQ(
-                this=sqlglot.exp.Column(this=sqlglot.exp.to_identifier(c_schema_name, quoted=True)),
-                expression=sqlglot.exp.Literal.string(schema_name),
+            where_condition = sge.EQ(
+                this=sge.Column(this=sge.to_identifier(c_schema_name, quoted=True)),
+                expression=sge.Literal.string(schema_name),
             )
 
         select_expr = select_expr.where(where_condition).order_by(order_expr)
 
-        dialect = self.sql_client.capabilities.sqlglot_dialect
-        sqlglot_schema = create_sqlglot_schema(self.schema, self.sql_client.dataset_name, dialect)
-        normalized_query = normalize_query(sqlglot_schema, select_expr, self.sql_client).sql(
-            dialect=dialect
-        )
+        normalized_query = self._render_sql(select_expr)
 
         return self._row_to_schema_info(normalized_query)
 
     def get_stored_state(self, pipeline_name: str) -> StateInfo:
         state_table_name = self.schema.state_table_name
         loads_table_name = self.schema.loads_table_name
-        c_load_id, c_dlt_load_id, c_pipeline_name, c_status = [
-            self.schema.naming.normalize_path(p)
-            for p in ["load_id", C_DLT_LOAD_ID, "pipeline_name", "status"]
-        ]
+        c_load_id = C_DLT_LOADS_TABLE_LOAD_ID
+        c_dlt_load_id = C_DLT_LOAD_ID
+        c_pipeline_name = "pipeline_name"
+        c_status = "status"
 
-        state_table_expr = sqlglot.exp.Table(
-            this=sqlglot.exp.to_identifier(state_table_name, quoted=True),
-            alias=sqlglot.exp.to_identifier("s", quoted=False),
+        state_table_expr = sge.Table(
+            this=sge.to_identifier(state_table_name, quoted=True),
+            alias=sge.to_identifier("s", quoted=False),
         )
 
-        loads_table_expr = sqlglot.exp.Table(
-            this=sqlglot.exp.to_identifier(loads_table_name, quoted=True),
-            alias=sqlglot.exp.to_identifier("l", quoted=False),
+        loads_table_expr = sge.Table(
+            this=sge.to_identifier(loads_table_name, quoted=True),
+            alias=sge.to_identifier("l", quoted=False),
         )
 
-        join_condition = sqlglot.exp.EQ(
-            this=sqlglot.exp.Column(
-                this=sqlglot.exp.to_identifier(c_load_id, quoted=True),
-                table=sqlglot.exp.to_identifier("l", quoted=False),
+        join_condition = sge.EQ(
+            this=sge.Column(
+                this=sge.to_identifier(c_load_id, quoted=True),
+                table=sge.to_identifier("l", quoted=False),
             ),
-            expression=sqlglot.exp.Column(
-                this=sqlglot.exp.to_identifier(c_dlt_load_id, quoted=True),
-                table=sqlglot.exp.to_identifier("s", quoted=False),
+            expression=sge.Column(
+                this=sge.to_identifier(c_dlt_load_id, quoted=True),
+                table=sge.to_identifier("s", quoted=False),
             ),
         )
 
-        where_condition = sqlglot.exp.and_(
-            sqlglot.exp.EQ(
-                this=sqlglot.exp.Column(
-                    this=sqlglot.exp.to_identifier(c_pipeline_name, quoted=True)
+        where_condition = sge.and_(
+            sge.EQ(
+                this=sge.Column(this=sge.to_identifier(c_pipeline_name, quoted=True)),
+                expression=sge.Literal.string(pipeline_name),
+            ),
+            sge.EQ(
+                this=sge.Column(
+                    this=sge.to_identifier(c_status, quoted=True),
+                    table=sge.to_identifier("l", quoted=False),
                 ),
-                expression=sqlglot.exp.Literal.string(pipeline_name),
-            ),
-            sqlglot.exp.EQ(
-                this=sqlglot.exp.Column(
-                    this=sqlglot.exp.to_identifier(c_status, quoted=True),
-                    table=sqlglot.exp.to_identifier("l", quoted=False),
-                ),
-                expression=sqlglot.exp.Literal.number(0),
+                expression=sge.Literal.number(0),
             ),
         )
 
-        select_expr = sqlglot.exp.Select(
+        select_expr = sge.Select(
             expressions=[
-                sqlglot.exp.Column(this=sqlglot.exp.to_identifier(col, quoted=True))
+                sge.Column(this=sge.to_identifier(col, quoted=True))
                 for col in self.state_table_cols
             ]
         )
 
-        order_expr = sqlglot.exp.Ordered(
-            this=sqlglot.exp.Column(this=sqlglot.exp.to_identifier(c_load_id, quoted=True)),
+        order_expr = sge.Ordered(
+            this=sge.Column(this=sge.to_identifier(c_load_id, quoted=True)),
             desc=True,
         )
 
@@ -621,11 +620,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             .limit(1)
         )
 
-        dialect = self.sql_client.capabilities.sqlglot_dialect
-        sqlglot_schema = create_sqlglot_schema(self.schema, self.sql_client.dataset_name, dialect)
-        normalized_query = normalize_query(sqlglot_schema, select_expr, self.sql_client).sql(
-            dialect=dialect
-        )
+        normalized_query = self._render_sql(select_expr)
 
         with self.sql_client.execute_query(normalized_query) as cur:
             row = cur.fetchone()
@@ -648,7 +643,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
 
     def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
         table_name = self.schema.version_table_name
-        c_version_hash = self.schema.naming.normalize_path("version_hash")
+        c_version_hash = "version_hash"
 
         select_expr = build_select_expr(
             table_name=table_name,
@@ -656,18 +651,14 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             quoted_identifiers=True,
         )
 
-        where_condition = sqlglot.exp.EQ(
-            this=sqlglot.exp.Column(this=sqlglot.exp.Identifier(this=c_version_hash, quoted=True)),
-            expression=sqlglot.exp.Literal.string(version_hash),
+        where_condition = sge.EQ(
+            this=sge.Column(this=sge.Identifier(this=c_version_hash, quoted=True)),
+            expression=sge.Literal.string(version_hash),
         )
 
         select_expr = select_expr.where(where_condition).limit(1)
 
-        dialect = self.sql_client.capabilities.sqlglot_dialect
-        sqlglot_schema = create_sqlglot_schema(self.schema, self.sql_client.dataset_name, dialect)
-        normalized_query = normalize_query(sqlglot_schema, select_expr, self.sql_client).sql(
-            dialect=dialect
-        )
+        normalized_query = self._render_sql(select_expr)
 
         return self._row_to_schema_info(normalized_query)
 

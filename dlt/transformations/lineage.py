@@ -56,23 +56,23 @@ def create_sqlglot_schema(
             column_mapping[column_name] = set_metadata(sqlglot_type, column)
         return column_mapping
 
-    sqlglot_schema = {}  # MappingSchema(empty_schema, normalize=False)
+    sqlglot_schema_dict = {}  # MappingSchema(empty_schema, normalize=False)
 
     for table_name in schema.tables.keys():
         # skip not materialized columns
         columns = schema.get_table_columns(table_name, include_incomplete=False)
         column_mapping = map_columns(columns)
         if column_mapping:
-            sqlglot_schema[table_name] = column_mapping
+            sqlglot_schema_dict[table_name] = column_mapping
 
-    if schema.state_table_name not in sqlglot_schema:
+    if schema.state_table_name not in sqlglot_schema_dict:
         state_columns = pipeline_state_table()["columns"]
         column_mapping = map_columns(state_columns)
         if column_mapping:
-            sqlglot_schema[schema.state_table_name] = column_mapping
+            sqlglot_schema_dict[schema.state_table_name] = column_mapping
 
     # ensure proper nesting with db and catalog
-    nested_schema = {dataset_name: sqlglot_schema}
+    nested_schema = {dataset_name: sqlglot_schema_dict}
 
     return ensure_schema(nested_schema, dialect=dialect, normalize=False)
 
