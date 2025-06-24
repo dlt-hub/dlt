@@ -41,6 +41,19 @@ const sidebars = {
         'tutorial/sql-database',
         'tutorial/filesystem',
         'tutorial/load-data-from-an-api',
+        {
+          type: 'category',
+          label: 'Release highlights',
+          link: {
+            type: 'generated-index',
+            title: 'Release highlights',
+            slug: 'release-highlights',
+            keywords: ['release notes, release highlights'],
+          },
+          items: [
+            'release_notes/1.12.1',
+          ]
+        },
       ]
     },
     {
@@ -492,19 +505,6 @@ const sidebars = {
           ]
         },
         'general-usage/dataset-access/data-quality-dashboard',
-        {
-          type: 'category',
-          label: 'Release highlights',
-          link: {
-            type: 'generated-index',
-            title: 'Release highlights',
-            slug: 'reference/release-highlights',
-            keywords: ['release notes, release highlights'],
-          },
-          items: [
-            'release_notes/1.12.1',
-          ]
-        },
         'reference/frequently-asked-questions',
       ],
     },
