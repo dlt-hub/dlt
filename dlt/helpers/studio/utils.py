@@ -134,12 +134,16 @@ def create_table_list(
     """
 
     # get tables and filter as needed
-    tables = list(pipeline.default_schema.tables.values())
+    tables = list(
+        pipeline.default_schema.data_tables(seen_data_only=True, include_incomplete=False)
+    )
     if not show_child_tables:
         tables = [t for t in tables if t.get("parent") is None]
 
-    row_counts = get_row_counts(pipeline) if show_row_counts else {}
+    if show_internals:
+        tables = tables + list(pipeline.default_schema.dlt_tables())
 
+    row_counts = get_row_counts(pipeline) if show_row_counts else {}
     table_list: List[Dict[str, Union[str, int, None]]] = [
         {
             **{prop: table.get(prop, None) for prop in ["name", *c.table_list_fields]},  # type: ignore[misc]
@@ -148,8 +152,7 @@ def create_table_list(
         for table in tables
     ]
     table_list.sort(key=lambda x: str(x["name"]))
-    if not show_internals:
-        table_list = [t for t in table_list if not str(t["name"]).lower().startswith("_dlt")]
+
     return _align_dict_keys(table_list)
 
 
