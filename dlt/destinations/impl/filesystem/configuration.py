@@ -25,6 +25,12 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
     """Maximum number of pipeline state files to keep; 0 or negative value disables cleanup."""
     always_refresh_views: bool = False
     """Always refresh table scanner views by setting the newest table metadata or globbing table files"""
+    experimental_exclude_dlt_tables: bool = False
+    """
+    Exclude DLT tables (_dlt_state and _dlt_version folders) from the filesystem destination
+    This is an experimental feature and may be replace with more comprehensive state and schema info
+    routing. Schema migration and restoring of pipeline state will be disabled this way.
+    """
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:

@@ -648,6 +648,17 @@ You will also notice `init` files being present in the root folder and the speci
 When a load generates a new state, for example when using incremental loads, a new state file appears in the `_dlt_pipeline_state` folder at the destination. To prevent data accumulation, state cleanup mechanisms automatically remove old state files, retaining only the latest 100 by default. This cleanup process can be customized or disabled using the filesystem configuration `max_state_files`, which determines the maximum number of pipeline state files to retain (default is 100). Setting this value to 0 or a negative number disables the cleanup of old states.
 :::
 
+### Disable synching of state and schema
+
+You can disable state, schema and loads information being saved to your filesystem or bucket by setting the `experimental_exclude_dlt_tables` flag in your toml file.
+
+```toml
+[destination.filesystem]
+experimental_exclude_dlt_tables="True"
+```
+
+In this mode, no additional folders are created and your pipeline will not remember the schema and state information on the next run in cases where the local pipeline folder is not available anymore. This works well if you are not expecting schema migrations between runs or are loading with the `write_disposition` set to `replace`. You may experience unusual behavior or failure if loading to the delta or iceberg fileformats or when accessing loaded data with the `.dataset()` accessor on your pipeline. This flag will probably be replaced with a more dynamic system to save your state and schema information to a separate destination in the mid-term future.
+
 ## Data access
 `filesystem` implements [`sql_client`](../../general-usage/dataset-access/sql-client.md#the-filesystem-sql-client) which provides read only
 SQL access to files and iceberg/delta tables with duckdb dialect. By default views that are created are "frozen" to minimize reading form bucket.
