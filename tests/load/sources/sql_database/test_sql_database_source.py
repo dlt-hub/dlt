@@ -910,19 +910,21 @@ def test_null_column_warning(
         .add_limit(1)
     )
 
-    logger_spy = mocker.spy(logger, "info")
+    logger_spy = mocker.spy(logger, "warning")
 
     pipeline = dlt.pipeline(
         pipeline_name="blabla", destination="duckdb", dataset_name="anuuns_test"
     )
     pipeline.run(source)
 
+    logger_spy.assert_called()
+    assert logger_spy.call_count == 1
     expected_warning = (
         "columns in table 'app_user' did not receive any data during this load "
         "and therefore could not have their types inferred:\n"
         "  - empty_col"
     )
-    assert any(expected_warning in str(call.args[0]) for call in logger_spy.call_args_list)
+    assert expected_warning in logger_spy.call_args_list[0][0][0]
     assert (
         pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]["x-normalizer"][
             "seen-null-first"
@@ -957,7 +959,7 @@ def test_null_column_warning(
         .add_limit(1)
     )
 
-    logger_spy = mocker.spy(logger, "warning")
+    logger_spy.reset_mock()
     pipeline.run(source)
     assert logger_spy.call_count == 0
     assert (

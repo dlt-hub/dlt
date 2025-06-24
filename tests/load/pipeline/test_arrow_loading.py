@@ -333,19 +333,20 @@ def test_warning_from_arrow_normalizer_on_null_column(
 
         return [my_resource()]
 
-    logger_spy = mocker.spy(logger, "info")
+    logger_spy = mocker.spy(logger, "warning")
 
     pipeline = destination_config.setup_pipeline("arrow_" + uniq_id())
 
     pipeline.extract(my_source())
     pipeline.normalize()
 
-    expected_warning = (
-        "columns in table 'my_resource' did not receive any data during this load "
-        "and therefore could not have their types inferred:\n"
-        "  - col1"
-    )
     if is_none:
-        assert any(expected_warning in str(call.args[0]) for call in logger_spy.call_args_list)
+        logger_spy.assert_called_once()
+        expected_warning = (
+            "columns in table 'my_resource' did not receive any data during this load "
+            "and therefore could not have their types inferred:\n"
+            "  - col1"
+        )
+        assert expected_warning in logger_spy.call_args_list[0][0][0]
     else:
-        assert not any(expected_warning in str(call.args[0]) for call in logger_spy.call_args_list)
+        logger_spy.assert_not_called()
