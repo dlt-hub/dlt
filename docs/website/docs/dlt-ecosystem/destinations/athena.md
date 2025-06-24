@@ -206,7 +206,7 @@ AWS lakeformation tags can be set on the database level when running a pipeline.
 
 #### Prerequisites
 
-- The lakeformation tags you want to apply must already exists, created thorugh IAC or the AWS console.
+- The lakeformation tags you want to apply must already exists, created through IAC or the AWS console.
 - The s3 location the data lands in must be registered as a data location in lakeformation
 
 - The IAM role/user running the pipeline is required to have lakeformation permissions in addition to regular IAM permissions
@@ -218,17 +218,17 @@ AWS lakeformation tags can be set on the database level when running a pipeline.
 
 
 Tags can be set on database level using the destination config
-```
+```toml
 [destination.athena.lakeformation_config]
 enabled = true
 
 [destination.athena.lakeformation_config.tags]
-my_tag = my_key
+my_tag = "my_key"
 ```
 
 To remove lakeformation tags you can set:
 
-```
+```toml
 [destination.athena.lakeformation_config]
 enabled = false
 ```
