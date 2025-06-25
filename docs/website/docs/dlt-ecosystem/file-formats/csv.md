@@ -47,19 +47,23 @@ Note: all destinations capable of writing CSVs must support it.
 You can change basic `csv` settings; this may be handy when working with the `filesystem` destination. Other destinations are tested
 with standard settings:
 
-* delimiter: change the delimiting character (default: ',')
-* include_header: include the header row (default: True)
-* quoting: Controls when quotes should be generated around field values. Available options:
-  * `quote_needed` - quote only values that need quoting, i.e., non-numeric values (default: `quote_needed`)
-  * `quote_all` - all values are quoted
-  * `quote_minimal` - quote only fields containing special characters (delimiter, quote character, or line terminator)
-  * `quote_none` - never quote fields; uses escape character when delimiter appears in data
+* `delimiter`: change the delimiting character (default: ',')
+* `include_header`: include the header row (default: True)
+* `quoting`: Controls when quotes should be generated around field values. Available options:
 
-When `quote_needed` is selected: in the case of the Python CSV writer, all non-numeric values are quoted. In the case of the PyArrow CSV writer, the exact behavior is not described in the documentation. We observed that in some cases, strings are not quoted as well.
+    - `quote_needed` (default): quote only values that need quoting, i.e., non-numeric values
+      - Python CSV writer: All non-numeric values are quoted
+      - PyArrow CSV writer: The exact behavior is not fully documented. We observed that in some cases, strings are not quoted as well
 
-:::note
-The `quote_minimal` and `quote_none` options are only supported by the Python standard library CSV writer. The PyArrow CSV writer only supports `quote_needed` and `quote_all`.
-:::
+    - `quote_all`: all values are quoted
+      - Supported by both Python CSV writer and PyArrow CSV writer
+
+    - `quote_minimal`: quote only fields containing special characters (delimiter, quote character, or line terminator)
+      - Supported by Python CSV writer only
+
+    - `quote_none`: never quote fields
+        - Python CSV writer: Uses escape character when delimiter appears in data
+        - PyArrow CSV writer: Raises an error if data contains special characters
 
 ```toml
 [normalize.data_writer]

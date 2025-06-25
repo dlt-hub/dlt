@@ -576,6 +576,8 @@ class ArrowToCsvWriter(DataWriter):
                         quoting = "needed"
                     elif self.quoting == "quote_all":
                         quoting = "all_valid"
+                    elif self.quoting == "quote_none":
+                        quoting = "none"
                     else:
                         raise ValueError(self.quoting)
                     try:
