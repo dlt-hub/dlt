@@ -177,7 +177,7 @@ def test_base_transformation_spec() -> None:
         assert config.buffer_max_items == 100000
         assert limit == 100
 
-        table1_ = dataset(f"SELECT col1 FROM table1 WHERE col1 = '{last_idx}' LIMIT {limit}")
+        table1_ = dataset(f"SELECT * FROM table1 WHERE col1 = '{last_idx}' LIMIT {limit}")
         return table1_
 
     assert default_transformation_spec.name == "default_name_ovr"

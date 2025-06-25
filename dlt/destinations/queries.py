@@ -1,17 +1,37 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Union, TypeVar, overload
 
 import sqlglot
 import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema
 
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.common.libs.sqlglot import build_typed_literal, to_sqlglot_type
+from dlt.common.schema.typing import TTableSchemaColumns
+
+SQLGlotExpr = TypeVar("SQLGlotExpr", sge.Query, sge.Insert)
 
 
+@overload
+def normalize_query(
+    sqlglot_schema: SQLGlotSchema,
+    qualified_query: sge.Insert,
+    sql_client: SqlClientBase[Any],
+) -> sge.Insert: ...
+
+
+@overload
 def normalize_query(
     sqlglot_schema: SQLGlotSchema,
     qualified_query: sge.Query,
     sql_client: SqlClientBase[Any],
-) -> sge.Query:
+) -> sge.Query: ...
+
+
+def normalize_query(
+    sqlglot_schema: SQLGlotSchema,
+    qualified_query: SQLGlotExpr,
+    sql_client: SqlClientBase[Any],
+) -> SQLGlotExpr:
     """Normalizes a qualified query compliant with the dlt schema into the namespace of the source dataset"""
 
     # this function modifies the incoming query
@@ -70,33 +90,31 @@ def build_row_counts_expr(
     quoted_identifiers: bool = True,
     dlt_load_id_col: str = None,
     load_id: str = None,
-) -> sqlglot.exp.Select:
+) -> sge.Select:
     """Builds a SQL expression to count rows in a table, optionally filtering by a load ID."""
 
     if bool(load_id) ^ bool(dlt_load_id_col):
         raise ValueError("Both `load_id` and `dlt_load_id_col` must be provided together.")
 
-    table_expr = sqlglot.exp.Table(
-        this=sqlglot.exp.to_identifier(table_name, quoted=quoted_identifiers)
-    )
+    table_expr = sge.Table(this=sge.to_identifier(table_name, quoted=quoted_identifiers))
 
-    select_expr = sqlglot.exp.Select(
+    select_expr = sge.Select(
         expressions=[
-            sqlglot.exp.Alias(
-                this=sqlglot.exp.Literal.string(table_name),
-                alias=sqlglot.exp.to_identifier("table_name"),
+            sge.Alias(
+                this=sge.Literal.string(table_name),
+                alias=sge.to_identifier("table_name"),
             ),
-            sqlglot.exp.Alias(
-                this=sqlglot.exp.Count(this=sqlglot.exp.Star()),
-                alias=sqlglot.exp.to_identifier("row_count"),
+            sge.Alias(
+                this=sge.Count(this=sge.Star()),
+                alias=sge.to_identifier("row_count"),
             ),
         ]
     ).from_(table_expr)
 
     if load_id:
-        where_condition = sqlglot.exp.EQ(
-            this=sqlglot.exp.to_identifier(dlt_load_id_col, quoted=quoted_identifiers),
-            expression=sqlglot.exp.Literal.string(load_id),
+        where_condition = sge.EQ(
+            this=sge.to_identifier(dlt_load_id_col, quoted=quoted_identifiers),
+            expression=sge.Literal.string(load_id),
         )
         select_expr = select_expr.where(where_condition)
 
@@ -107,25 +125,54 @@ def build_select_expr(
     table_name: str,
     selected_columns: List[str] = None,
     quoted_identifiers: bool = True,
-) -> sqlglot.exp.Select:
+) -> sge.Select:
     """Builds a SQL expression to select all or selected rows from a table."""
 
     if selected_columns is None:
         selected_columns = ["*"]
 
-    table_expr = sqlglot.exp.Table(
-        this=sqlglot.exp.to_identifier(table_name, quoted=quoted_identifiers)
-    )
+    table_expr = sge.Table(this=sge.to_identifier(table_name, quoted=quoted_identifiers))
 
     columns_expr = [
-        (
-            sqlglot.exp.Star()
-            if col == "*"
-            else sqlglot.exp.to_identifier(col, quoted=quoted_identifiers)
-        )
+        (sge.Star() if col == "*" else sge.to_identifier(col, quoted=quoted_identifiers))
         for col in selected_columns
     ]
 
-    select_expr = sqlglot.exp.Select(expressions=columns_expr).from_(table_expr)
+    select_expr = sge.Select(expressions=columns_expr).from_(table_expr)
 
     return select_expr
+
+
+def build_insert_expr(
+    table_name: str,
+    column_values: Dict[str, Any],
+    sqlglot_schema: SQLGlotSchema,
+    quoted_identifiers: bool = True,
+) -> sge.Insert:
+    """Builds a SQL expression to insert values to a table."""
+
+    table_expr = sge.Table(this=sge.to_identifier(table_name, quoted=quoted_identifiers))
+
+    columns_expr = [
+        sge.to_identifier(col, quoted=quoted_identifiers) for col in column_values.keys()
+    ]
+
+    values_expr: List[sge.Expression] = []
+    for column_name, value in column_values.items():
+        sqlglot_type = sqlglot_schema.get_column_type(table_name, column_name)
+        if (
+            sqlglot_type.this == sge.DataType.Type.TIMESTAMP
+            and sqlglot_schema.dialect == "bigquery"
+        ):
+            sqlglot_type = sge.DataType(this=sge.DataType.Type.TIMESTAMPTZ)
+        values_expr.append(build_typed_literal(value, sqlglot_type))
+
+    values_clause = sge.Values(expressions=[sge.Tuple(expressions=values_expr)])
+
+    insert_expr = sge.Insert(
+        this=table_expr,
+        columns=columns_expr,
+        expression=values_clause,
+    )
+
+    return insert_expr

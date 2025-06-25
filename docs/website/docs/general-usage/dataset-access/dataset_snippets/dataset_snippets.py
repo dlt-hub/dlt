@@ -269,7 +269,8 @@ def custom_sql_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_START custom_sql
     # Join 'customers' and 'purchases' tables
     custom_relation = dataset(
-        "SELECT * FROM customers JOIN purchases ON customers.id = purchases.customer_id"
+        "SELECT customers.id AS customer_id, customers.name, purchases.id AS purchase_id,"
+        " purchases.quantity FROM customers JOIN purchases ON customers.id = purchases.customer_id"
     )
     arrow_table = custom_relation.arrow()
     # @@@DLT_SNIPPET_END custom_sql

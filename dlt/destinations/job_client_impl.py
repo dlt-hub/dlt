@@ -6,7 +6,7 @@ from copy import copy
 from types import TracebackType
 from typing import (
     Any,
-    ClassVar,
+    Union,
     Dict,
     List,
     Optional,
@@ -76,7 +76,7 @@ from dlt.destinations.utils import (
     verify_schema_merge_disposition,
     verify_schema_replace_disposition,
 )
-from dlt.destinations.queries import normalize_query, build_select_expr
+from dlt.destinations.queries import normalize_query, build_select_expr, build_insert_expr
 from dlt.transformations.lineage import create_sqlglot_schema
 
 # this should suffice for now
@@ -261,6 +261,9 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         assert isinstance(config, DestinationClientDwhConfiguration)
         self.config: DestinationClientDwhConfiguration = config
         self.schema = schema
+        self._sqlglot_schema = create_sqlglot_schema(
+            self.schema, self.sql_client.dataset_name, self.sql_client.capabilities.sqlglot_dialect
+        )
 
     @property
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
@@ -522,16 +525,15 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     ) -> TColumnType:
         pass
 
-    def _render_sql(self, expr: sge.Select) -> str:
-        """Normalize s sqglot expression into a raw SQL string using the client's dialect and schema"""
+    def _render_sql(self, expr: Union[sge.Query, sge.Insert]) -> str:
+        """Normalizes sqlglot expression into a raw SQL string using the client's dialect and schema"""
         dialect = self.sql_client.capabilities.sqlglot_dialect
-        sqlglot_schema = create_sqlglot_schema(self.schema, self.sql_client.dataset_name, dialect)
-        return normalize_query(sqlglot_schema, expr, self.sql_client).sql(dialect=dialect)
+        return normalize_query(self._sqlglot_schema, expr, self.sql_client).sql(dialect=dialect)
 
     def get_stored_schema(self, schema_name: str = None) -> StorageSchemaInfo:
         table_name = self.schema.version_table_name
-        c_schema_name = "schema_name"
-        c_inserted_at = "inserted_at"
+        c_schema_name = self.schema.naming.normalize_path("schema_name")
+        c_inserted_at = self.schema.naming.normalize_path("inserted_at")
 
         select_expr = build_select_expr(
             table_name=table_name,
@@ -560,10 +562,10 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     def get_stored_state(self, pipeline_name: str) -> StateInfo:
         state_table_name = self.schema.state_table_name
         loads_table_name = self.schema.loads_table_name
-        c_load_id = C_DLT_LOADS_TABLE_LOAD_ID
-        c_dlt_load_id = C_DLT_LOAD_ID
-        c_pipeline_name = "pipeline_name"
-        c_status = "status"
+        c_load_id = self.schema.naming.normalize_path(C_DLT_LOADS_TABLE_LOAD_ID)
+        c_dlt_load_id = self.schema.naming.normalize_path(C_DLT_LOAD_ID)
+        c_pipeline_name = self.schema.naming.normalize_path("pipeline_name")
+        c_status = self.schema.naming.normalize_path("status")
 
         state_table_expr = sge.Table(
             this=sge.to_identifier(state_table_name, quoted=True),
@@ -643,7 +645,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
 
     def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
         table_name = self.schema.version_table_name
-        c_version_hash = "version_hash"
+        c_version_hash = self.schema.naming.normalize_path("version_hash")
 
         select_expr = build_select_expr(
             table_name=table_name,

@@ -278,10 +278,6 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
     ) -> None:
         """Create a lazy evaluated relation for the dataset of a destination"""
 
-        # NOTE: we can keep an assertion here, this class will not be created by the user
-        assert (
-            sum(x is not None for x in (query_or_expression, table_name)) == 1
-        ), "Please provide either an sql query or expression, or a table_name"
         super().__init__(readable_dataset=readable_dataset, normalize_query=normalize_query)
 
         self._sqlglot_expression: sge.Select = None
@@ -294,14 +290,6 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
             self._sqlglot_expression = build_select_expr(
                 table_name=table_name,
                 selected_columns=list(self._dataset.schema.get_table_columns(table_name).keys()),
-            )
-
-        if any(isinstance(expr, sge.Star) for expr in self._sqlglot_expression.expressions):
-            raise ValueError(
-                "\n\nA `SELECT *` was detected in the query:\n\n"
-                f"{self._sqlglot_expression.sql(self.sql_client.capabilities.sqlglot_dialect)}\n\n"
-                "Queries using a star (`*`) expression are not allowed. "
-                "Please rewrite the query to explicitly specify the columns to be selected.\n"
             )
 
     def _query(self) -> str:

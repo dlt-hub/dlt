@@ -459,7 +459,9 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
 def test_sql_queries(populated_pipeline: Pipeline) -> None:
     dataset_name = populated_pipeline.dataset_name
     # simple check that query also works
-    query_relationship = populated_pipeline.dataset()("select * from items where id < 20")
+    query_relationship = populated_pipeline.dataset()(
+        "select id, decimal, other_decimal from items where id < 20"
+    )
 
     # we selected the first 20
     table = query_relationship.arrow()
@@ -740,7 +742,7 @@ def test_order_by(populated_pipeline: Pipeline) -> None:
         .select("id")
         ._query()
     )
-    assert """ORDER BY "di_decimal" ASC, "id" DESC LIMIT 5)""" in query
+    assert """ORDER BY "di_decimal" ASC, "id" DESC""" in query
     assert chained_order_by == list(range(total_records - 1, total_records - 6, -1))
 
 
