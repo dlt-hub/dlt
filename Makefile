@@ -123,8 +123,12 @@ build-library: dev
 	uv version
 	uv build
 
-publish-library: build-library
-	@read -s -p "Enter PyPI API token: " PYPI_API_TOKEN; echo; \
+clean-dist:
+	-@rm -r dist/
+
+publish-library: clean-dist build-library
+	ls -l dist/
+	@read -p "Enter PyPI API token: " PYPI_API_TOKEN; echo ; \
 	uv publish --token "$$PYPI_API_TOKEN"
 
 test-build-images: build-library
