@@ -113,6 +113,7 @@ const config = {
             type: 'docsVersionDropdown',
           },
           { to: 'https://dlthub.com/blog', label: 'Blog', position: 'left' },
+          { to: 'release-highlights', label: 'What\'s new?', position: 'left' },
           {
             href: 'https://dlthub.com/community',
             label: 'Join community',
