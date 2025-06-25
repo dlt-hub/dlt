@@ -206,7 +206,6 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
                 self._dataset.sqlglot_schema,
                 self._qualified_query,
                 self._dataset.sql_client,
-                self._dataset.schema.naming,
             )
         return self.__normalized_query
 

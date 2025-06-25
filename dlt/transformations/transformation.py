@@ -2,7 +2,6 @@ from functools import wraps
 import inspect
 from typing import Callable, Any, Optional, Type, Iterator, List
 
-
 import dlt
 
 from dlt.common.configuration.inject import get_fun_last_config, get_fun_spec
@@ -11,36 +10,29 @@ from dlt.common.typing import TDataItems, TTableHintTemplate
 from dlt.common import logger
 
 from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
-from dlt.extract.hints import SqlModel
+from dlt.extract.hints import SqlModel, make_hints
 from dlt.extract.incremental import Incremental
-
-from dlt.transformations.typing import (
-    TTransformationFunParams,
-)
+from dlt.extract import DltResource
+from dlt.transformations.typing import TTransformationFunParams
 from dlt.transformations.exceptions import (
     TransformationException,
-    UnknownColumnTypesException,
     TransformationInvalidReturnTypeException,
     IncompatibleDatasetsException,
 )
 from dlt.pipeline.exceptions import PipelineConfigMissing
 from dlt.destinations.dataset import ReadableDBAPIDataset
-from dlt.common.schema.typing import TTableSchemaColumns
-from dlt.extract.hints import make_hints
-from dlt.common.destination.dataset import SupportsReadableRelation
-from dlt.extract import DltResource
-from dlt.transformations.configuration import TransformationConfiguration
-from dlt.common.utils import get_callable_name
 from dlt.common.schema.typing import (
+    TTableSchemaColumns,
     TWriteDisposition,
     TColumnNames,
     TSchemaContract,
     TTableFormat,
     TTableReferenceParam,
 )
-from dlt.extract.exceptions import (
-    CurrentSourceNotAvailable,
-)
+from dlt.common.destination.dataset import SupportsReadableRelation
+from dlt.transformations.configuration import TransformationConfiguration
+from dlt.common.utils import get_callable_name
+from dlt.extract.exceptions import CurrentSourceNotAvailable
 
 
 class DltTransformationResource(DltResource):
@@ -65,41 +57,35 @@ def make_transformation_resource(
     section: Optional[TTableHintTemplate[str]],
 ) -> DltTransformationResource:
     resource_name = name if name and not callable(name) else get_callable_name(func)
-
-    # check function type, for generators we assume a regular resource
-    # TODO: allow to yield models
     is_regular_resource = isgeneratorfunction(func)
-    # check if spec derives from right base
-    if spec:
-        if not issubclass(spec, TransformationConfiguration):
-            raise TransformationException(
-                resource_name,
-                "Please derive transformation spec from `TransformationConfiguration`",
-            )
+
+    if spec and not issubclass(spec, TransformationConfiguration):
+        raise TransformationException(
+            resource_name,
+            "Please derive transformation spec from `TransformationConfiguration`",
+        )
 
     @wraps(func)
     def transformation_function(*args: Any, **kwargs: Any) -> Iterator[TDataItems]:
-        config: TransformationConfiguration = get_fun_last_config(func) or get_fun_spec(func)()  # type: ignore[assignment]
+        config: TransformationConfiguration = (
+            get_fun_last_config(func) or get_fun_spec(func)()  # type: ignore[assignment]
+        )
 
+        # Collect all datasets from args and kwargs
         all_arg_values = list(args) + list(kwargs.values())
+        datasets: List[ReadableDBAPIDataset] = [
+            arg for arg in all_arg_values if isinstance(arg, ReadableDBAPIDataset)
+        ]
 
-        # collect all datasets and incrementals from args
-        datasets: List[ReadableDBAPIDataset] = []
-        for arg in all_arg_values:
-            if isinstance(arg, ReadableDBAPIDataset):
-                datasets.append(arg)
-
-        # find incrementals in func signature
-        for arg_name, arg in inspect.signature(func).parameters.items():
-            if arg.annotation is Incremental or isinstance(arg.default, Incremental):
+        # Warn if Incremental arguments are present
+        for arg_name, param in inspect.signature(func).parameters.items():
+            if param.annotation is Incremental or isinstance(param.default, Incremental):
                 logger.warning(
                     "Incremental arguments are not supported in transformation functions and will"
                     " have no effect. Found incremental argument: %s.",
                     arg_name,
                 )
 
-        # NOTE: there may be cases where some other dataset is used to get a starting
-        # point and it will be on a different destination.
         if not datasets:
             raise IncompatibleDatasetsException(
                 resource_name,
@@ -108,40 +94,29 @@ def make_transformation_resource(
             )
 
         # Determine whether to materialize the model or return it to be materialized in the load stage
-        # we need to supply the current schema name (=source name) to the dataset constructor
         should_materialize = False
-
         try:
-            # TODO: convert to dlt.current.dataset()
-
             schema_name = dlt.current.source().name
             current_pipeline = dlt.current.pipeline()
-            current_pipeline.destination_client()  # this line will raise PipelineConfigMissing if destination not configured
+            current_pipeline.destination_client()  # raises if destination not configured
 
             should_materialize = not datasets[0].is_same_physical_destination(
-                dlt.current.pipeline().dataset(schema=schema_name)
+                current_pipeline.dataset(schema=schema_name)
             )
-        # if we cannot reach the destination, or a running outside of a pipeline, we extract frames
         except (PipelineConfigMissing, CurrentSourceNotAvailable):
             logger.info(
                 "Cannot reach destination, defaulting to model extraction for transformation %s",
                 resource_name,
             )
-            # if destination is not configured when extracting we have a power user scenario
-            # assume that pipeline is correctly set up so if the user is returning model assume it can be materialized later
             should_materialize = False
 
-        # extract query from transform function
-        select_query: str = None
+        # Call the transformation function
         transformation_result: Any = func(*args, **kwargs)
 
-        # TODO: allow for existing Hints meta and TableName meta to wrap the model and merge them with
-        # our inferred columns
-
+        # If a string is returned, treat it as a SQL query
         if isinstance(transformation_result, str):
-            # use first dataset to convert query into expression
-            select_query = transformation_result
-            transformation_result = datasets[0](select_query)
+            transformation_result = datasets[0](transformation_result)
+
         if not isinstance(transformation_result, BaseReadableDBAPIRelation):
             raise TransformationInvalidReturnTypeException(
                 resource_name,
@@ -150,10 +125,8 @@ def make_transformation_resource(
                 " data (data frames / arrow table), please yield those, not return."
                 % (name, type(transformation_result)),
             )
-        # strict lineage!
-        # TODO: make it a public method
-        # TODO: why schema inference and anonymous columns are wrong? we do not want columns without
-        #  data types and only this should be disabled
+
+        # Compute columns schema
         computed_columns, _ = transformation_result._compute_columns_schema(
             infer_sqlglot_schema=True,
             allow_anonymous_columns=True,
@@ -161,7 +134,6 @@ def make_transformation_resource(
         )
         select_dialect = datasets[0].sql_client.capabilities.sqlglot_dialect
         select_query = transformation_result.query()
-
         all_columns = {**computed_columns, **(columns or {})}
 
         if not should_materialize:
@@ -170,7 +142,6 @@ def make_transformation_resource(
                 hints=make_hints(columns=all_columns),
             )
         else:
-            # NOTE: dataset will not execute query over unknown tables or columns
             for chunk in datasets[0](select_query).iter_arrow(chunk_size=config.buffer_max_items):
                 yield dlt.mark.with_hints(chunk, hints=make_hints(columns=all_columns))
 
@@ -187,7 +158,6 @@ def make_transformation_resource(
         selected=selected,
         spec=spec,
         parallelized=parallelized,
-        # incremental=None,
         section=section,
         _impl_cls=DltTransformationResource,
         _base_spec=TransformationConfiguration,
