@@ -1,6 +1,6 @@
 [project]
 name = "dlt"
-version = "1.12.2"
+version = "1.12.3"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
 requires-python = ">=3.9.2, <3.14, !=3.9.7"
