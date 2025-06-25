@@ -7,6 +7,7 @@ import pyarrow.csv as acsv
 import pyarrow.parquet as pq
 
 from dlt.common import json
+from dlt.common.data_writers.configuration import CsvQuoting
 from dlt.common.data_writers.exceptions import InvalidDataItem
 from dlt.common.data_writers.writers import (
     ArrowToCsvWriter,
@@ -15,6 +16,7 @@ from dlt.common.data_writers.writers import (
     ParquetDataWriter,
 )
 from dlt.common.libs.pyarrow import remove_columns
+from dlt.common.schema.typing import TTableSchemaColumns
 
 from tests.common.data_writers.utils import get_writer
 from tests.cases import (
@@ -223,8 +225,8 @@ def assert_csv_rows(csv_row: Dict[str, Any], expected_row: Dict[str, Any]) -> No
 
 
 @pytest.mark.parametrize("quoting", ["quote_all", "quote_needed", "quote_none", "quote_minimal"])
-def test_csv_writer_quoting_parameters(quoting: str) -> None:
-    mock_schema = {
+def test_csv_writer_quoting_parameters(quoting: CsvQuoting) -> None:
+    mock_schema: TTableSchemaColumns = {
         "col1": {"name": "col1", "data_type": "text"},
         "col2": {"name": "col2", "data_type": "bigint"},
     }
