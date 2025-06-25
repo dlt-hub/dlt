@@ -1,26 +1,15 @@
 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <g clip-path="url(#clip0_ReleaseNewsClean)">
-    <!-- Paper/Document frame -->
-    <rect x="6" y="6" width="20" height="20" rx="2" fill="#4C4898"/>
+  <!-- Background -->
+  <rect width="32" height="32" fill="white" rx="4"/>
 
-    <!-- Header line -->
-    <rect x="8" y="8" width="16" height="2" fill="white"/>
+  <!-- Document outline -->
+  <rect x="6" y="6" width="20" height="20" rx="2" stroke="#4C4898" stroke-width="2" fill="none"/>
 
-    <!-- Text lines -->
-    <rect x="8" y="12" width="10" height="2" fill="white"/>
-    <rect x="8" y="16" width="14" height="2" fill="white"/>
-    <rect x="8" y="20" width="12" height="2" fill="white"/>
+  <!-- Header line -->
+  <line x1="8" y1="10" x2="24" y2="10" stroke="#4C4898" stroke-width="2"/>
 
-    <!-- Notification badge in top right corner -->
-    <circle cx="24" cy="8" r="3" fill="white"/>
-    <path d="M23.2 6.5L24 8.6L24.8 6.5L26 8.6H22L23.2 6.5Z" fill="#4C4898"/>
-
-    <!-- Corner fold at bottom right -->
-    <path d="M24 26L26 28H24V26Z" fill="white"/>
-  </g>
-  <defs>
-    <clipPath id="clip0_ReleaseNewsClean">
-      <rect width="32" height="32" rx="4"/>
-    </clipPath>
-  </defs>
+  <!-- Text lines -->
+  <line x1="8" y1="14" x2="20" y2="14" stroke="#4C4898" stroke-width="2"/>
+  <line x1="8" y1="18" x2="22" y2="18" stroke="#4C4898" stroke-width="2"/>
+  <line x1="8" y1="22" x2="19" y2="22" stroke="#4C4898" stroke-width="2"/>
 </svg>
