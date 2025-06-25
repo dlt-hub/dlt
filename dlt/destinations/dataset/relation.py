@@ -79,9 +79,10 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
                 "Must be an SQL SELECT statement."
             )
 
-        return query.sql(
-            dialect=self._dataset.sql_client.capabilities.sqlglot_dialect, pretty=pretty
-        )
+        return query.sql(dialect=self._dataset.sqlglot_dialect, pretty=pretty)
+
+    def query_dialect(self) -> str:
+        return self._dataset.sqlglot_dialect
 
     def _query(self) -> sge.Query:
         """Returns a compliant with dlt schema in the relation.
@@ -249,16 +250,11 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         self._selected_columns = selected_columns
 
     def _query(self) -> sge.Query:
-        destination_dialect = self._dataset.sql_client.capabilities.sqlglot_dialect
-
         # TODO reimplement this using SQLGLot instead of passing strings
         if self._provided_query:
             return cast(
                 sge.Query,
-                sqlglot.parse_one(
-                    self._provided_query,
-                    dialect=self._provided_query_dialect or destination_dialect,
-                ),
+                sqlglot.parse_one(self._provided_query, dialect=self.query_dialect()),
             )
 
         dataset_schema = self._dataset.schema
@@ -285,11 +281,14 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
             ),
         )
 
+    def query_dialect(self) -> str:
+        return self._provided_query_dialect or self._dataset.sqlglot_dialect
+
     def __copy__(self) -> Self:
         return self.__class__(
             readable_dataset=self._dataset,
             provided_query=self._provided_query,
-            provided_query_dialect=self._provided_query_dialect,
+            provided_query_dialect=self.query_dialect(),
             table_name=self._table_name,
             limit=self._limit,
             selected_columns=self._selected_columns,

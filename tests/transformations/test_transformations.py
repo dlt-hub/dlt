@@ -15,6 +15,8 @@ from tests.load.transformations.utils import (
     get_job_types,
 )
 
+from dlt.extract.hints import make_hints
+
 from dlt.sources._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
 )
@@ -71,9 +73,10 @@ def test_transformations_with_supplied_hints(
     def inventory_original(dataset: SupportsReadableDataset[Any]) -> Any:
         return dataset["inventory"]
 
-    @dlt.transformation(columns={"price": {"precision": 20, "scale": 2}})
+    @dlt.transformation()
     def inventory_more_precise(dataset: SupportsReadableDataset[Any]) -> Any:
-        return dataset["inventory"]
+        hints = make_hints(columns=[{"name": "price", "precision": 20, "scale": 2}])
+        return dlt.mark.with_hints(dataset["inventory"], hints=hints)
 
     dest_p.run([inventory_original(fruit_p.dataset()), inventory_more_precise(fruit_p.dataset())])
 

@@ -10,7 +10,7 @@ from dlt.common.typing import TDataItems, TTableHintTemplate
 from dlt.common import logger
 
 from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
-from dlt.extract.hints import SqlModel, make_hints
+from dlt.extract.hints import SqlModel, make_hints, WithComputableHints, TResourceHints
 from dlt.extract.incremental import Incremental
 from dlt.extract import DltResource
 from dlt.transformations.typing import TTransformationFunParams
@@ -29,10 +29,35 @@ from dlt.common.schema.typing import (
     TTableFormat,
     TTableReferenceParam,
 )
-from dlt.common.destination.dataset import SupportsReadableRelation
 from dlt.transformations.configuration import TransformationConfiguration
 from dlt.common.utils import get_callable_name
 from dlt.extract.exceptions import CurrentSourceNotAvailable
+from dlt.common.schema.typing import TPartialTableSchema
+from dlt.extract.pipe_iterator import DataItemWithMeta
+
+
+class MaterializableSqlModel(SqlModel, WithComputableHints):
+    # NOTE: we could forward all data access methods to this class
+    __slots__ = ("relation",)
+
+    def __init__(
+        self,
+        relation: Optional[BaseReadableDBAPIRelation] = None,
+    ) -> None:
+        super().__init__(relation.query(), relation.query_dialect())
+        self.relation = relation
+
+    @classmethod
+    def from_relation(cls, relation: BaseReadableDBAPIRelation) -> "MaterializableSqlModel":
+        return cls(relation=relation)
+
+    def compute_hints(self) -> TResourceHints:
+        computed_columns, _ = self.relation._compute_columns_schema(
+            infer_sqlglot_schema=True,
+            allow_anonymous_columns=True,
+            allow_partial=True,
+        )
+        return make_hints(columns=computed_columns)
 
 
 class DltTransformationResource(DltResource):
@@ -113,11 +138,18 @@ def make_transformation_resource(
         # Call the transformation function
         transformation_result: Any = func(*args, **kwargs)
 
-        # If a string is returned, treat it as a SQL query
-        if isinstance(transformation_result, str):
-            transformation_result = datasets[0](transformation_result)
+        # unwrap meta
+        meta = None
+        if isinstance(transformation_result, DataItemWithMeta):
+            meta = transformation_result.meta
+            transformation_result = transformation_result.data
 
-        if not isinstance(transformation_result, BaseReadableDBAPIRelation):
+        # If a string is returned, construct relation from first dataset from it
+        if isinstance(transformation_result, BaseReadableDBAPIRelation):
+            relation = transformation_result
+        elif isinstance(transformation_result, str):
+            relation = datasets[0](transformation_result)
+        else:
             raise TransformationInvalidReturnTypeException(
                 resource_name,
                 "Sql Transformation %s returned an invalid type: %s. Please either return a valid"
@@ -126,24 +158,16 @@ def make_transformation_resource(
                 % (name, type(transformation_result)),
             )
 
-        # Compute columns schema
-        computed_columns, _ = transformation_result._compute_columns_schema(
-            infer_sqlglot_schema=True,
-            allow_anonymous_columns=True,
-            allow_partial=True,
-        )
-        select_dialect = datasets[0].sql_client.capabilities.sqlglot_dialect
-        select_query = transformation_result.query()
-        all_columns = {**computed_columns, **(columns or {})}
+        sql_model = MaterializableSqlModel.from_relation(relation)
 
         if not should_materialize:
-            yield dlt.mark.with_hints(
-                SqlModel(select_query, dialect=select_dialect),
-                hints=make_hints(columns=all_columns),
-            )
+            if meta:
+                yield DataItemWithMeta(meta, sql_model)
+            else:
+                yield sql_model
         else:
-            for chunk in datasets[0](select_query).iter_arrow(chunk_size=config.buffer_max_items):
-                yield dlt.mark.with_hints(chunk, hints=make_hints(columns=all_columns))
+            for chunk in relation.iter_arrow(chunk_size=config.buffer_max_items):
+                yield dlt.mark.with_hints(chunk, hints=sql_model.compute_hints())
 
     return dlt.resource(  # type: ignore[return-value]
         name=name,

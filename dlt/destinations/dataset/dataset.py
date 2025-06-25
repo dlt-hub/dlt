@@ -90,8 +90,13 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
     def sqlglot_schema(self) -> SQLGlotSchema:
         # NOTE: no cache for now, it is probably more expensive to compute the current schema hash
         # to see wether this is stale than to compute a new sqlglot schema
-        dialect: str = self.sql_client.capabilities.sqlglot_dialect
-        return lineage.create_sqlglot_schema(self.schema, self.dataset_name, dialect=dialect)
+        return lineage.create_sqlglot_schema(
+            self.schema, self.dataset_name, dialect=self.sqlglot_dialect
+        )
+
+    @property
+    def sqlglot_dialect(self) -> str:
+        return self.sql_client.capabilities.sqlglot_dialect
 
     @property
     def dataset_name(self) -> str:

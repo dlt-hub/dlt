@@ -21,7 +21,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.normalizers.json import helpers as normalize_helpers
 
-from dlt.extract.hints import HintsMeta, TResourceHints
+from dlt.extract.hints import HintsMeta, TResourceHints, WithComputableHints
 from dlt.extract.resource import DltResource
 from dlt.extract.items import DataItemWithMeta, TableNameMeta
 from dlt.extract.storage import ExtractorItemStorage
@@ -129,6 +129,11 @@ class Extractor:
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         """Write `items` to `resource` optionally computing table schemas and revalidating/filtering data"""
+
+        if isinstance(items, WithComputableHints):
+            computed_hints = items.compute_hints()
+            resource.merge_hints(computed_hints)
+
         if isinstance(meta, HintsMeta) and meta.hints:
             # update the resource with new hints, remove all caches so schema is recomputed
             # and contracts re-applied

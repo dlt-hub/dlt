@@ -40,6 +40,7 @@ from dlt.common.schema.utils import (
     migrate_complex_types,
     new_column,
     new_table,
+    merge_table,
 )
 from dlt.common.typing import TAny, TDataItem, TColumnNames
 from dlt.common.time import ensure_pendulum_datetime
@@ -55,7 +56,6 @@ from dlt.extract.items import TFunHintTemplate, TTableHintTemplate, TableNameMet
 from dlt.extract.items_transform import ValidateItem
 from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_columns_hint
 from dlt.extract.validation import create_item_validator
-from dlt.common.data_writers import TDataItemFormat
 
 import sqlglot
 
@@ -99,9 +99,26 @@ class HintsMeta:
         self.create_table_variant = create_table_variant
 
 
-class SqlModel(NamedTuple):
-    query: str
-    dialect: Optional[str] = None
+class WithComputableHints:
+    """
+    A class that can compute a schema from a data item.
+    """
+
+    def compute_hints(self) -> TResourceHints:
+        pass
+
+
+class SqlModel:
+    """
+    A SqlModel is a named tuple that contains a query and a dialect.
+    It is used to represent a SQL query and the dialect to use for parsing it.
+    """
+
+    __slots__ = ("query", "dialect")
+
+    def __init__(self, query: str, dialect: Optional[str] = None) -> None:
+        self.query = query
+        self.dialect = dialect
 
     @classmethod
     def from_query_string(cls, query: str, dialect: Optional[str] = None) -> "SqlModel":
