@@ -206,8 +206,8 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--marimo` - Launch marimo app preview instead of streamlit. will launch ejected version of app (created with --edit flag) if it exists in the current directory.
-* `--edit` - Ejects marimo app preview to current directory (if it does not exist there yet) and launches it in edit mode (only works together with --marimo flag, otherwise it will be ignored)
+* `--marimo` - Launch marimo app instead of streamlit. will launch editable version of app (created with the --edit flag) if it exists in the current directory.
+* `--edit` - Creates editable version of marimo app in current directory if it does not exist there yet and launches it in edit mode. only works when using the marimo app (--marimo flag).
 
 </details>
 

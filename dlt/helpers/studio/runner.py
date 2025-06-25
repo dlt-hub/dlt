@@ -1,7 +1,7 @@
 import os
-import pkg_resources
+from importlib.resources import files
 from typing import Any
-
+from pathlib import Path
 from dlt.common.exceptions import MissingDependencyException
 
 # keep this, will raise if user tries to run studio without dependencies
@@ -37,13 +37,13 @@ def run_studio(pipeline_name: str = None, edit: bool = False) -> None:
     if edit and not ejected_app_exists:
         with open(dlt_app.__file__, "r", encoding="utf-8") as f:
             app_code = f.read()
-            with open(ejected_app_path, "w", encoding="utf-8") as f:
-                f.write(app_code)
-        css_file_path = pkg_resources.resource_filename("dlt", f"helpers/studio/{STYLE_FILE_NAME}")
+        with open(ejected_app_path, "w", encoding="utf-8") as f:
+            f.write(app_code)
+        css_file_path = Path(files("dlt.helpers.studio") / STYLE_FILE_NAME)  # type: ignore
         with open(css_file_path, "r", encoding="utf-8") as f:
             css_content = f.read()
-            with open(os.path.join(os.getcwd(), ejected_css_path), "w", encoding="utf-8") as f:
-                f.write(css_content)
+        with open(os.path.join(os.getcwd(), ejected_css_path), "w", encoding="utf-8") as f:
+            f.write(css_content)
         ejected_app_exists = True
 
     # set current pipeline

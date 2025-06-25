@@ -316,7 +316,7 @@ include = [
     "README.md",
     "dlt/sources/pipeline_templates/.gitignore",
     "dlt/sources/pipeline_templates/.dlt/config.toml",
-    "dlt/helpers/studio/app_style.css"
+    "dlt/helpers/studio/dlt_app_styles.css"
 ]
 
 [tool.hatch.build.targets.wheel]
