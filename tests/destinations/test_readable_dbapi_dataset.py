@@ -55,19 +55,24 @@ def test_query_builder(dataset_type: TDatasetType) -> None:
     # select columns
     assert (
         dataset.my_table.select("col1").query().strip()
-        == 'SELECT "my_table"."col1" AS "col1" FROM "pipeline_dataset"."my_table" AS "my_table"'
+        == 'SELECT "_q_0"."col1" AS "col1" FROM (SELECT "my_table"."col1" AS "col1",'
+        ' "my_table"."col2" AS "col2" FROM "pipeline_dataset"."my_table" AS "my_table") AS'
+        ' "_q_0"'
     )
     # also indexer notation
     assert (
         dataset.my_table[["col2"]].query().strip()
-        == 'SELECT "my_table"."col2" AS "col2" FROM "pipeline_dataset"."my_table" AS "my_table"'
+        == 'SELECT "_q_0"."col2" AS "col2" FROM (SELECT "my_table"."col1" AS "col1",'
+        ' "my_table"."col2" AS "col2" FROM "pipeline_dataset"."my_table" AS "my_table") AS'
+        ' "_q_0"'
     )
 
     # limit and select chained
     assert (
         dataset.my_table.select("col1").limit(24).query().strip()
-        == 'SELECT "my_table"."col1" AS "col1" FROM "pipeline_dataset"."my_table" AS "my_table"'
-        " LIMIT 24"
+        == 'SELECT "_q_0"."col1" AS "col1" FROM (SELECT "my_table"."col1" AS "col1",'
+        ' "my_table"."col2" AS "col2" FROM "pipeline_dataset"."my_table" AS "my_table") AS'
+        ' "_q_0" LIMIT 24'
     )
 
 
@@ -93,8 +98,6 @@ def test_copy_and_chaining(dataset_type: TDatasetType) -> None:
 
     relation2 = relation.__copy__()
     assert relation != relation2
-    assert relation._provided_query == relation2._provided_query
-    assert relation._selected_columns == relation2._selected_columns
     assert relation._sqlglot_expression == relation2._sqlglot_expression
 
     # test copy while chaining limit
