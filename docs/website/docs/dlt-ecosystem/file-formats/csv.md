@@ -11,12 +11,14 @@ import SetTheFormat from './_set_the_format.mdx';
 `dlt` uses it for specific use cases - mostly for performance and compatibility reasons.
 
 Internally, we use two implementations:
-- **PyArrow CSV writer** - a very fast, multithreaded writer for [Arrow tables](../verified-sources/arrow-pandas.md)
-- **[Python standard library CSV writer](https://docs.python.org/3/library/csv.html)** - a CSV writer included in the Python standard library for Python objects
+- [Python standard library CSV writer](https://docs.python.org/3/library/csv.html)
+- PyArrow CSV writer - a very fast, multithreaded writer for [Arrow tables](../verified-sources/arrow-pandas.md)
 
 ## Supported destinations
 
-The CSV format is supported by the following destinations: **Postgres**, **Filesystem**, **Snowflake**
+- [Postgres](../destinations/postgres.md)
+- [Filesystem](../destinations/filesystem.md)
+- [Snowflake](../destinations/snowflake.md)
 
 ## How to configure
 
@@ -49,7 +51,7 @@ with standard settings:
 
 * `delimiter`: change the delimiting character (default: ',')
 * `include_header`: include the header row (default: True)
-* `quoting`: Controls when quotes should be generated around field values. Available options:
+* `quoting`: controls when quotes should be generated around field values. Available options:
 
     - `quote_needed` (default): quote only values that need quoting, i.e., non-numeric values
       - Python CSV writer: All non-numeric values are quoted
