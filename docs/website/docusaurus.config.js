@@ -115,7 +115,7 @@ const config = {
           { to: 'https://dlthub.com/blog', label: 'Blog', position: 'left' },
           {
             type: 'doc',
-            docId: 'release-highlights',
+            docId: '/release-highlights',
             label: "What's new?",
             position: 'left',
           },

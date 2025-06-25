@@ -498,7 +498,7 @@ const sidebars = {
           link: {
             type: 'generated-index',
             title: 'Release highlights',
-            slug: 'release-highlights',
+            slug: '/release-highlights',
             keywords: ['release notes, release highlights'],
           },
           items: [
