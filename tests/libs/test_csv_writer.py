@@ -233,10 +233,7 @@ def test_arrow_csv_writer_quoting_parameters(quoting: CsvQuoting) -> None:
         "col2": {"name": "col2", "data_type": "bigint"},
     }
 
-    test_data = pa.table({
-        "col1": ["test_value"],
-        "col2": [123]
-    })
+    test_data = pa.table({"col1": ["test_value"], "col2": [123]})
 
     expected_quoting_mapping = {
         "quote_all": "all_valid",
@@ -271,12 +268,9 @@ def test_arrow_csv_writer_quote_none_with_special_characters() -> None:
         "col2": {"name": "col2", "data_type": "text"},
     }
 
-    test_data = pa.table({
-        "col1": ["value,with,commas"],
-        "col2": ["value\nwith\nnewlines"]
-    })
+    test_data = pa.table({"col1": ["value,with,commas"], "col2": ["value\nwith\nnewlines"]})
 
-    with tempfile.NamedTemporaryFile(mode='wb', suffix='.csv') as temp_file:
+    with tempfile.NamedTemporaryFile(mode="wb", suffix=".csv") as temp_file:
         writer = ArrowToCsvWriter(temp_file, quoting="quote_none")
         writer.write_header(mock_schema)
         with pytest.raises(ArrowInvalid, match="CSV values may not contain structural characters"):
