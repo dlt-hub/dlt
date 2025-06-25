@@ -114,12 +114,6 @@ const config = {
           },
           { to: 'https://dlthub.com/blog', label: 'Blog', position: 'left' },
           {
-            type: 'doc',
-            docId: '/release-highlights',
-            label: "What's new?",
-            position: 'left',
-          },
-          {
             href: 'https://dlthub.com/community',
             label: 'Join community',
             position: 'right',

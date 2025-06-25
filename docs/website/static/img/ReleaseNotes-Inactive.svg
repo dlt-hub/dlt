@@ -1,0 +1,26 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g clip-path="url(#clip0_ReleaseNewsClean)">
+    <!-- Paper/Document frame -->
+    <rect x="6" y="6" width="20" height="20" rx="2" fill="#4C4898"/>
+
+    <!-- Header line -->
+    <rect x="8" y="8" width="16" height="2" fill="white"/>
+
+    <!-- Text lines -->
+    <rect x="8" y="12" width="10" height="2" fill="white"/>
+    <rect x="8" y="16" width="14" height="2" fill="white"/>
+    <rect x="8" y="20" width="12" height="2" fill="white"/>
+
+    <!-- Notification badge in top right corner -->
+    <circle cx="24" cy="8" r="3" fill="white"/>
+    <path d="M23.2 6.5L24 8.6L24.8 6.5L26 8.6H22L23.2 6.5Z" fill="#4C4898"/>
+
+    <!-- Corner fold at bottom right -->
+    <path d="M24 26L26 28H24V26Z" fill="white"/>
+  </g>
+  <defs>
+    <clipPath id="clip0_ReleaseNewsClean">
+      <rect width="32" height="32" rx="4"/>
+    </clipPath>
+  </defs>
+</svg>
