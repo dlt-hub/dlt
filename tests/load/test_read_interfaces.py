@@ -726,24 +726,20 @@ def test_order_by(populated_pipeline: Pipeline) -> None:
     chained = [row[0] for row in table_relationship.order_by("id").limit(5).select("id").fetchall()]
     assert chained == list(range(5))
 
-    double_items_relationshop = populated_pipeline.dataset(dataset_type="default").double_items
+    @dlt.resource
+    def chained_order():
+        yield [{"id": int(i / 2), "other_id": i} for i in range(10)]
+
+    populated_pipeline.run(chained_order())
+
+    chained_relation = populated_pipeline.dataset(dataset_type="default").chained_order
     chained_order_by = [
-        row[0]
-        for row in double_items_relationshop.order_by("di_decimal", "asc")
-        .order_by("id", "desc")
-        .limit(5)
-        .select("id")
-        .fetchall()
+        row
+        for row in chained_relation.order_by("id", "desc").order_by("other_id", "asc").fetchall()
     ]
-    query = (
-        double_items_relationshop.order_by("di_decimal", "asc")
-        .order_by("id", "desc")
-        .limit(5)
-        .select("id")
-        ._query()
-    )
-    assert """ORDER BY "di_decimal" ASC, "id" DESC""" in query
-    assert chained_order_by == list(range(total_records - 1, total_records - 6, -1))
+
+    assert [row[0] for row in chained_order_by] == [4, 4, 3, 3, 2, 2, 1, 1, 0, 0]
+    assert [row[1] for row in chained_order_by] == [8, 9, 6, 7, 4, 5, 2, 3, 0, 1]
 
 
 @pytest.mark.no_load
@@ -775,9 +771,7 @@ def test_where(populated_pipeline: Pipeline) -> None:
     assert total_records - 5 == len(gte_rows)
     assert 6 == len(lte_rows)
 
-    in_ids = [
-        r[0] for r in (items.where("id", "in", [3, 1, 7]).order_by("id").select("id").fetchall())
-    ]
+    in_ids = [r[0] for r in (items.where("id", "in", [3, 1, 7]).order_by("id").fetchall())]
     assert in_ids == [1, 3, 7]
 
     not_in_rows = items.filter("id", "not_in", [0, 1, 2]).fetchall()

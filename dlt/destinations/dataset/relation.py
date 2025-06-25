@@ -24,7 +24,7 @@ from dlt.common.destination.dataset import (
     SupportsReadableRelation,
 )
 
-from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal
+from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, query_is_complex
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import Self
 from dlt.common.exceptions import ValueErrorWithKnownValues
@@ -238,14 +238,16 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         return self._normalized_query
 
     def __str__(self) -> str:
-        # TODO: have base table name for each relation is a good idea. consider to have it in the interface
         # TODO: merge detection of "simple" transformation that preserve table schema
-        table_name = getattr(self, "_table_name", None)
-        msg = ""
+        query_expr = self.__dict__.get("_sqlglot_expression", None)
+        msg = (
+            "Relation"
+            f" query:\n{indent(query_expr.sql(dialect=self._dataset.sql_client.capabilities.sqlglot_dialect), prefix='  ')}\n"
+        )
+        msg += "Columns:\n"
         for column in self.columns_schema.values():
             # TODO: show x-annotation hints
-            msg += f"{column['name']} {column['data_type']}\n"
-        msg = f"{table_name}:\n{indent(msg, prefix='  ')}" if table_name else msg
+            msg += f"{indent(column['name'], prefix='  ')} {column['data_type']}\n"
         return msg
 
 
@@ -286,6 +288,15 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
                 query_or_expression,
                 dialect=self.sql_client.capabilities.sqlglot_dialect,
             )
+        #            if any(self._sqlglot_expression.find_all(sge.Star)):
+        #                if query_is_complex(self._sqlglot_expression, set(self._dataset.schema.get_table_columns(table_name).keys())):
+        #                    raise ValueError(
+        #                        "\n\nA star (`*`) expression was detected in the query."
+        #                        "Please rewrite the query to explicitly specify the columns to be selected.\n"
+        #                    )
+        #                else:
+        #                    pass
+
         else:
             self._sqlglot_expression = build_select_expr(
                 table_name=table_name,

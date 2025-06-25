@@ -152,22 +152,74 @@ def test_computed_schema_columns(dataset_type: TDatasetType) -> None:
 
 @pytest.mark.parametrize("dataset_type", ("default",))
 def test_changing_relation_with_query(dataset_type: TDatasetType) -> None:
+    s = Schema("my_schema")
+    t = new_table(
+        "something",
+        columns=[
+            {"name": "this", "data_type": "text"},
+            {"name": "that", "data_type": "text"},
+        ],
+    )
+
+    s.update_table(t)
     dataset = dlt.destinations.dataset.dataset(
         dlt.destinations.duckdb(destination_name="duck_db"),
         "pipeline_dataset",
         dataset_type=dataset_type,
+        schema=s,
     )
 
     relation = dataset("SELECT * FROM something")
+    query = relation.query()
+    assert (
+        'SELECT "something"."this" AS "this", "something"."that" AS "that" FROM'
+        ' "pipeline_dataset"."something" AS "something"'
+        == query
+    )
 
-    query = relation._query()
-    assert "SELECT * FROM something" == query
+    query = dataset("SELECT this, that FROM something").limit(5).query()
+    assert (
+        'SELECT "something"."this" AS "this", "something"."that" AS "that" FROM'
+        ' "pipeline_dataset"."something" AS "something" LIMIT 5'
+        == query
+    )
 
-    query = dataset("SELECT this, that FROM something").limit(5)._query()
-    assert "SELECT this, that FROM something LIMIT 5" == query
+    query = relation.select("this").query()
+    assert (
+        'SELECT "_q_0"."this" AS "this" FROM (SELECT "something"."this" AS "this",'
+        ' "something"."that" AS "that" FROM "pipeline_dataset"."something" AS "something") AS'
+        ' "_q_0"'
+        == query
+    )
 
-    query = relation.select("this")._query()
-    assert """SELECT "this" FROM (SELECT * FROM something)""" == query
+    with pytest.raises(LineageFailedException):
+        relation.select("hello", "hillo").query()
 
-    query = relation.select("hello", "hillo")._query()
-    assert """SELECT "hello", "hillo" FROM (SELECT * FROM something)""" == query
+
+@pytest.mark.parametrize("dataset_type", ("default",))
+def test_repr_and_str(dataset_type: TDatasetType) -> None:
+    # dataset not present
+    ds_ = dlt.dataset("duckdb", "test_repr_and_str", dataset_type=dataset_type)
+    # make sure we do not raise on empty dataset
+    assert repr(ds_).startswith("<dlt.dataset(dataset_name='test_repr_and_str'")
+    assert str(ds_).startswith("Dataset `test_repr_and_str` at `duckdb")
+    assert "Dataset is not available" in str(ds_)
+
+    relation = ds_("SELECT something FROM something")
+    with pytest.raises(LineageFailedException):
+        # TODO: maybe we should fallback to super() and not raise?
+        print(str(relation))
+
+    # materialized dataset, known schema
+    pipeline = dlt.pipeline("test_repr_and_str", destination="duckdb", dataset_name="table_data")
+    pipeline.run([1, 2, 3], table_name="digits")
+    ds_ = pipeline.dataset(dataset_type="default")
+    assert repr(ds_).startswith("<dlt.dataset(dataset_name='table_data'")
+    # ends with list of tables
+    assert str(ds_).endswith("digits")
+    # query (table name not known)
+    rel_ = ds_("SELECT * FROM digits")
+    assert (
+        str(rel_)
+        == """Relation query:\n  SELECT * FROM digits\nColumns:\n  value bigint\n  _dlt_load_id text\n  _dlt_id text\n"""
+    )
