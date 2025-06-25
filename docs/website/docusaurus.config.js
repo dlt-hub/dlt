@@ -44,15 +44,6 @@ if (knownVersions) {
   }
 }
 
-// Dynamically add "What's new?" only if the version supports it
-const whatsNewItem = (knownVersions.includes("master") || knownVersions.includes("devel"))
-  ? {
-      to: '/release-highlights',
-      label: "What's new?",
-      position: 'left',
-    }
-  : null;
-
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: 'dlt Docs',
@@ -122,7 +113,12 @@ const config = {
             type: 'docsVersionDropdown',
           },
           { to: 'https://dlthub.com/blog', label: 'Blog', position: 'left' },
-          ...(whatsNewItem ? [whatsNewItem] : []),
+          {
+            type: 'doc',
+            docId: '/release-highlights',
+            label: "What's new?",
+            position: 'left',
+          },
           {
             href: 'https://dlthub.com/community',
             label: 'Join community',
