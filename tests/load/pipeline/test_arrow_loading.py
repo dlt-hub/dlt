@@ -343,8 +343,9 @@ def test_warning_from_arrow_normalizer_on_null_column(
     if is_none:
         logger_spy.assert_called_once()
         expected_warning = (
-            "The column col1 in table my_resource did not receive any data during this load."
-            " Therefore, its type couldn't be inferred."
+            "columns in table 'my_resource' did not receive any data during this load "
+            "and therefore could not have their types inferred:\n"
+            "  - col1"
         )
         assert expected_warning in logger_spy.call_args_list[0][0][0]
     else:

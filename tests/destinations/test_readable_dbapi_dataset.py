@@ -164,3 +164,39 @@ def test_prevent_changing_relation_with_query(dataset_type: TDatasetType) -> Non
 
     with pytest.raises(ReadableRelationHasQueryException):
         relation.select("hello", "hillo")
+
+
+@pytest.mark.parametrize("dataset_type", ("default",))
+def test_repr_and_str(dataset_type: TDatasetType) -> None:
+    # dataset not present
+    ds_ = dlt.dataset("duckdb", "test_repr_and_str", dataset_type=dataset_type)
+    # make sure we do not raise on empty dataset
+    assert repr(ds_).startswith("<dlt.dataset(dataset_name='test_repr_and_str'")
+    assert str(ds_).startswith("Dataset `test_repr_and_str` at `duckdb")
+    assert "Dataset is not available" in str(ds_)
+
+    relation = ds_("SELECT something FROM something")
+    with pytest.raises(LineageFailedException):
+        # TODO: maybe we should fallback to super() and not raise?
+        print(str(relation))
+
+    # materialized dataset, known schema
+    pipeline = dlt.pipeline("test_repr_and_str", destination="duckdb", dataset_name="table_data")
+    pipeline.run([1, 2, 3], table_name="digits")
+    ds_ = pipeline.dataset(dataset_type="default")
+    assert repr(ds_).startswith("<dlt.dataset(dataset_name='table_data'")
+    # ends with list of tables
+    assert str(ds_).endswith("digits")
+    # query (table name not known)
+    rel_ = ds_("SELECT * FROM digits")
+    assert str(rel_) == """value bigint
+_dlt_load_id text
+_dlt_id text
+"""
+    # table name known
+    rel2_ = ds_.digits
+    assert str(rel2_) == """digits:
+  value bigint
+  _dlt_load_id text
+  _dlt_id text
+"""

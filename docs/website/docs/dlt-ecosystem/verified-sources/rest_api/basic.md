@@ -419,6 +419,25 @@ from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
 }
 ```
 
+:::tip JSONPath escaping for special characters
+When working with APIs that use field names containing special characters (like dots, @ symbols, or other reserved JSONPath characters), you need to escape the field names using bracket notation.
+
+For example, Microsoft Graph API uses `@odata.nextLink` for pagination. To access this field, use bracket notation with quotes:
+
+```py
+{
+    "path": "users",
+    "paginator": {
+        "type": "json_link",
+        "next_url_path": "['@odata.nextLink']",  # Escaped using bracket notation
+    }
+}
+```
+
+Refer to the [JSONPath syntax](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) for more details.
+
+:::
+
 :::note
 Currently, pagination is supported only for GET requests for all paginators except [`JSONResponseCursorPaginator`](../../../general-usage/http/rest-client.md#jsonresponsecursorpaginator). To handle POST requests with pagination, you need to implement a [custom paginator](../../../general-usage/http/rest-client.md#implementing-a-custom-paginator).
 :::
@@ -545,6 +564,10 @@ You can use the following endpoint configuration:
 ```
 
 Read more about [JSONPath syntax](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) to learn how to write selectors.
+
+:::tip
+For field names with special characters (dots, @ symbols, etc.), use the bracket notation escaping technique described in the [pagination section](#pagination).
+:::
 
 ### Authentication
 

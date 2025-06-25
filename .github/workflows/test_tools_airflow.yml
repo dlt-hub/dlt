@@ -14,28 +14,20 @@ jobs:
         uses: actions/checkout@master
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.10.x"
+          python-version: "3.10"
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1.3.2
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-          installer-parallel: true
-          version: 1.8.5
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v3
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-airflow-runner
+          python-version: "3.10"
+          activate-environment: true
+          enable-cache: true
 
       - name: Install dependencies
-        run: poetry install --no-interaction --with airflow --with pipeline -E duckdb -E parquet --with sentry-sdk
+        run: uv sync --group airflow --group pipeline --extra duckdb --extra parquet --group sentry-sdk
 
       - run: |
-          poetry run pytest tests/helpers/airflow_tests
+          pytest tests/helpers/airflow_tests
         name: Run tests

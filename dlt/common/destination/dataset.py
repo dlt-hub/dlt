@@ -10,15 +10,11 @@ from typing import (
     Tuple,
     AnyStr,
     overload,
-    runtime_checkable,
 )
-
-from abc import ABC, abstractmethod
 
 from sqlglot.schema import Schema as SQLGlotSchema
 
 from dlt.common.typing import Self, Generic, TypeVar
-from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns
 
@@ -41,9 +37,12 @@ class SupportsReadableRelation:
     sql glot query analysis and lineage. dlt hints for columns are kept in some cases. Refere to <docs-page> for more details.
     """
 
-    def query(self) -> Any:
+    def query(self, pretty: bool = False) -> Any:
         """Returns the sql query that represents the relation. The query will be qualified, quoted and escaped
            according to a SQL dialect that the destination uses, unless query normalization is disabled by the user.
+
+        Args:
+            pretty (bool, optional): Whether to return the query in a pretty format. Defaults to False.
 
         Returns:
             Any: The qualified sql query that represents the relation

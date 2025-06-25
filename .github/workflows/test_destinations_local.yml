@@ -26,26 +26,25 @@ jobs:
           - name: filesystem, weaviate, qdrant
             destinations: "[\"filesystem\", \"weaviate\", \"qdrant\"]"
             filesystem_drivers: "[\"memory\", \"file\", \"sftp\"]"
-            extras: "parquet cli filesystem qdrant weaviate deltalake pyiceberg sftp"
+            extras: "--extra parquet --extra cli --extra filesystem --extra qdrant --extra weaviate --extra deltalake --extra pyiceberg --extra sftp"
             needs_weaviate: true
             needs_qdrant: true
             needs_ftp: true
-            post_install_commands: "poetry run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
+            post_install_commands: "uv run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
 
           - name: postgres, duckdb and dummy with cli commands
             destinations: "[\"postgres\", \"duckdb\", \"dummy\"]"
             filesystem_drivers: "[\"memory\", \"file\"]"
-            extras: "postgres postgis parquet duckdb cli filesystem"
+            extras: "--group adbc --extra postgres --extra postgis --extra parquet --extra duckdb --extra cli --extra filesystem"
             needs_postgres: true
-            with: ",adbc"
-            additional_tests: "poetry run pytest tests/cli"
+            additional_tests: "pytest tests/cli"
 
 
           # Clickhouse OSS (TODO: test with minio s3)
           - name: clickhouse
             destinations: "[\"clickhouse\"]"
             filesystem_drivers: "[\"memory\", \"file\"]"
-            extras: "clickhouse parquet"
+            extras: "--extra clickhouse --extra parquet"
             needs_clickhouse: true
             # NOTE: we only run non-staging tests, as staging tests require credentials for s3 and azure
             excluded_destination_configurations: "[\"clickhouse-parquet-staging-s3-authorization\", \"clickhouse-parquet-staging-az-authorization\", \"clickhouse-jsonl-staging-az-authorization\", \"clickhouse-jsonl-staging-s3-authorization\"]"
@@ -54,7 +53,7 @@ jobs:
           - name: dremio
             destinations: "[\"dremio\"]"
             filesystem_drivers: "[\"memory\"]"
-            extras: "s3 gs az parquet"
+            extras: "--extra s3 --extra gs --extra az --extra parquet"
             needs_dremio: true
 
             
@@ -62,17 +61,17 @@ jobs:
           - name: sqlalchemy
             destinations: "[\"sqlalchemy\"]"
             filesystem_drivers: "[\"memory\", \"file\"]"
-            extras: "sqlalchemy filesystem parquet"
+            extras: "--extra sqlalchemy --extra filesystem --extra parquet"
             needs_mysql: true
-            post_install_commands: "poetry run pip install pymysql && poetry run pip install sqlalchemy==1.4"
+            post_install_commands: "uv run pip install pymysql && uv run pip install sqlalchemy==1.4"
 
           # SQLAlchemy 2.0 (same as above but with sqlalchemy 2.0)
           - name: sqlalchemy
             destinations: "[\"sqlalchemy\"]"
             filesystem_drivers: "[\"memory\", \"file\"]"
-            extras: "sqlalchemy filesystem parquet"
+            extras: "--extra sqlalchemy --extra filesystem --extra parquet"
             needs_mysql: true
-            post_install_commands: "poetry run pip install pymysql && poetry run pip install sqlalchemy==2.0"
+            post_install_commands: "uv run pip install pymysql && uv run pip install sqlalchemy==2.0"
 
     env:
       ACTIVE_DESTINATIONS: ${{ matrix.destinations }}
@@ -148,7 +147,7 @@ jobs:
         if: ${{ matrix.needs_ftp }}
         
       - name: Start dremio
-        run: docker compose -f "tests/load/dremio/docker-compose.yml" up -d
+        run: docker compose -f "tests/load/dremio/docker-compose.yml" up -d && sleep 30
         if: ${{ matrix.needs_dremio }}
 
       - run: |
@@ -164,20 +163,19 @@ jobs:
       #
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.10.x"
+          python-version: "3.10"
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1.3.2
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-          installer-parallel: true
-          version: 1.8.5
+          python-version: "3.10"
+          activate-environment: true
+          enable-cache: true
 
       - name: Install dependencies
-        run: poetry install --no-interaction --with sentry-sdk,pipeline,ibis,providers${{ matrix.with }} --extras "${{ matrix.extras }}"
+        run: uv sync --group sentry-sdk --group pipeline --group ibis --group providers ${{ matrix.extras }}
 
       - name: Copy secrets for local tests
         run: |
@@ -191,7 +189,7 @@ jobs:
       - name: Run tests Linux
         run: |
           eval "$(ssh-agent -s)"
-          poetry run pytest tests/load --ignore tests/load/sources --ignore tests/load/filesystem_sftp
+          pytest tests/load --ignore tests/load/sources --ignore tests/load/filesystem_sftp
 
       - name: Run additional tests
         run: ${{ matrix.additional_tests }}

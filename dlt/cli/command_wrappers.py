@@ -168,4 +168,4 @@ def telemetry_change_status_command_wrapper(enabled: bool) -> None:
 
 @utils.track_command("ai_setup", False)
 def ai_setup_command_wrapper(ide: TSupportedIde, branch: Union[str, None], repo: str) -> None:
-    ai_setup_command(ide, branch=branch, repo=repo)
+    ai_setup_command(ide, location=repo, branch=branch)

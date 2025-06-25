@@ -276,7 +276,7 @@ def configspec(
         if synth_init != init and has_default_init:
             warnings.warn(
                 f"__init__ method will not be generated on {cls.__name__} because base class didn't"
-                " synthesize __init__. Please correct `init` flag in confispec decorator. You are"
+                " synthesize __init__. Please correct `init` flag in configspec decorator. You are"
                 " probably receiving incorrect __init__ signature for type checking"
             )
         # mark exactly this class as processed by configspec so we can warn the user if it is not done

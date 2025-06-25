@@ -5,10 +5,7 @@ import dlt.cli.echo as fmt
 
 
 from dlt.common.configuration import plugins
-from dlt.cli import SupportsCliCommand
-from dlt.cli.init_command import (
-    DEFAULT_VERIFIED_SOURCES_REPO,
-)
+from dlt.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
 from dlt.cli.exceptions import CliCommandException
 from dlt.cli.command_wrappers import (
     init_command_wrapper,
@@ -219,15 +216,19 @@ Requires `streamlit` to be installed in the current environment: `pip install st
             "--marimo",
             default=False,
             action="store_true",
-            help="Launch marimo app preview instead of streamlit",
+            help=(
+                "Launch marimo app instead of streamlit. Will launch editable version of app"
+                " (created with the --edit flag) if it exists in the current directory."
+            ),
         )
         show_cmd.add_argument(
             "--edit",
             default=False,
             action="store_true",
             help=(
-                "Launch marimo app preview in edit mode (only works together with --marimo flag,"
-                " otherwise it will be ignored)"
+                "Creates editable version of marimo app in current directory if it does not exist"
+                " there yet and launches it in edit mode. Only works when using the marimo app"
+                " (--marimo flag)."
             ),
         )
         pipeline_subparsers.add_parser(
