@@ -1,4 +1,6 @@
-from typing import Any, cast, Generator, Optional, Sequence, Tuple, Type, Union, TYPE_CHECKING
+from typing import Any, cast, Generator, Optional, Sequence, Tuple, Type, TYPE_CHECKING
+
+from textwrap import indent
 from contextlib import contextmanager
 from textwrap import indent
 
