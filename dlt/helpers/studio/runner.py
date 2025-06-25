@@ -57,5 +57,7 @@ def run_studio(pipeline_name: str = None, edit: bool = False) -> None:
         studio_cmd.append("--")
         studio_cmd.append("--pipeline")
         studio_cmd.append(pipeline_name)
-
-    subprocess.run(studio_cmd)
+    try:
+        subprocess.run(studio_cmd)
+    except KeyboardInterrupt:
+        pass
