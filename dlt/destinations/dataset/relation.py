@@ -63,7 +63,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
         return self._dataset.sql_client_class
 
-    def query(self) -> Any:
+    def query(self, pretty: bool = False) -> Any:
         # NOTE: converted from property to method due to:
         #   if this property raises AttributeError, __getattr__ will get called 🤯
         #   this leads to infinite recursion as __getattr_ calls this property
@@ -72,7 +72,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
             return self._query()
 
         return self.normalized_query.sql(
-            dialect=self._dataset.sql_client.capabilities.sqlglot_dialect
+            dialect=self._dataset.sql_client.capabilities.sqlglot_dialect, pretty=pretty
         )
 
     def _query(self) -> Any:
