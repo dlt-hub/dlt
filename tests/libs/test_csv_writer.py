@@ -1,6 +1,7 @@
 import csv
 from copy import copy
 from typing import Any, Dict, Type
+from unittest.mock import Mock, patch
 import pytest
 import pyarrow.csv as acsv
 import pyarrow.parquet as pq
@@ -219,3 +220,39 @@ def assert_csv_rows(csv_row: Dict[str, Any], expected_row: Dict[str, Any]) -> No
         assert actual[1] == expected, print(
             f"Failed on {actual[0]}: actual: {actual[1]} vs expected: {expected}"
         )
+
+
+@pytest.mark.parametrize("quoting", ["quote_all", "quote_needed", "quote_none", "quote_minimal"])
+def test_csv_writer_quoting_parameters(quoting: str) -> None:
+    mock_schema = {
+        "col1": {"name": "col1", "data_type": "text"},
+        "col2": {"name": "col2", "data_type": "bigint"},
+    }
+
+    test_data = [{"col1": "test_value", "col2": 123}]
+
+    expected_quoting_mapping = {
+        "quote_all": csv.QUOTE_ALL,
+        "quote_needed": csv.QUOTE_NONNUMERIC,
+        "quote_none": csv.QUOTE_NONE,
+        "quote_minimal": csv.QUOTE_MINIMAL,
+    }
+
+    with patch("csv.DictWriter") as mock_dict_writer:
+        mock_writer_instance = Mock()
+        mock_dict_writer.return_value = mock_writer_instance
+
+        mock_file = Mock()
+        csv_writer = CsvWriter(mock_file, quoting=quoting)
+
+        csv_writer.write_header(mock_schema)
+        csv_writer.write_data(test_data)
+
+        mock_dict_writer.assert_called_once()
+        call_args = mock_dict_writer.call_args
+
+        assert "quoting" in call_args.kwargs
+        assert call_args.kwargs["quoting"] == expected_quoting_mapping[quoting]
+
+        mock_writer_instance.writeheader.assert_called_once()
+        mock_writer_instance.writerows.assert_called_once_with(test_data)

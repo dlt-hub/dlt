@@ -430,9 +430,13 @@ class CsvWriter(DataWriter):
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         self._columns_schema = columns_schema
         if self.quoting == "quote_needed":
-            quoting: Literal[1, 2] = csv.QUOTE_NONNUMERIC
+            quoting: Literal[0, 1, 2, 3] = csv.QUOTE_NONNUMERIC
         elif self.quoting == "quote_all":
             quoting = csv.QUOTE_ALL
+        elif self.quoting == "quote_none":
+            quoting = csv.QUOTE_NONE
+        elif self.quoting == "quote_minimal":
+            quoting = csv.QUOTE_MINIMAL
         else:
             raise ValueError(self.quoting)
 
