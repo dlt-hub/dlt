@@ -1,15 +1,22 @@
 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background -->
-  <rect width="32" height="32" fill="#C6D300" rx="4"/>
+  <g clip-path="url(#clip0_releaseNotesActive)">
+    <!-- Background -->
+    <rect width="32" height="32" rx="4" fill="#C6D300"/>
 
-  <!-- Document outline -->
-  <rect x="6" y="6" width="20" height="20" rx="2" stroke="white" stroke-width="2" fill="none"/>
+    <!-- Document block -->
+    <rect x="6" y="6" width="20" height="20" rx="2" fill="white"/>
 
-  <!-- Header line -->
-  <line x1="8" y1="10" x2="24" y2="10" stroke="white" stroke-width="2"/>
+    <!-- Header line -->
+    <rect x="8" y="9" width="16" height="2" fill="#C6D300"/>
 
-  <!-- Text lines -->
-  <line x1="8" y1="14" x2="20" y2="14" stroke="white" stroke-width="2"/>
-  <line x1="8" y1="18" x2="22" y2="18" stroke="white" stroke-width="2"/>
-  <line x1="8" y1="22" x2="19" y2="22" stroke="white" stroke-width="2"/>
+    <!-- Text lines -->
+    <rect x="8" y="13" width="12" height="2" fill="#C6D300"/>
+    <rect x="8" y="17" width="14" height="2" fill="#C6D300"/>
+    <rect x="8" y="21" width="10" height="2" fill="#C6D300"/>
+  </g>
+  <defs>
+    <clipPath id="clip0_releaseNotesActive">
+      <rect width="32" height="32" rx="4" fill="white"/>
+    </clipPath>
+  </defs>
 </svg>
