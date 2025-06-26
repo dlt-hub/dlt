@@ -2,7 +2,7 @@ import pytest
 
 from typing import Any
 
-import dlt
+import dlt, os
 
 from dlt.common.destination.dataset import SupportsReadableDataset
 from tests.pipeline.utils import load_table_counts
@@ -27,7 +27,10 @@ from dlt.sources._single_file_templates.fruitshop_pipeline import (
     transformation_configs(only_duckdb=True),
     ids=lambda x: x.name,
 )
-def test_simple_query_transformations(destination_config: DestinationTestConfiguration) -> None:
+@pytest.mark.parametrize("always_materialize", [True, False])
+def test_simple_query_transformations(
+    destination_config: DestinationTestConfiguration, always_materialize: bool
+) -> None:
     # get pipelines and populate fruit pipeline
     fruit_p, dest_p = setup_transformation_pipelines(destination_config)
     fruit_p.run(fruitshop_source())
@@ -37,6 +40,7 @@ def test_simple_query_transformations(destination_config: DestinationTestConfigu
         return dataset["purchases"].limit(3)
 
     # transform into transformed dataset
+    os.environ["ALWAYS_MATERIALIZE"] = str(always_materialize)
     dest_p.run(copied_purchases(fruit_p.dataset()))
 
     assert load_table_counts(dest_p, "copied_purchases") == {
@@ -45,9 +49,7 @@ def test_simple_query_transformations(destination_config: DestinationTestConfigu
 
     # all transformations are sql, except for filesystem destination
     assert get_job_types(dest_p) == {
-        "copied_purchases": (
-            {"model": 1} if destination_config.destination_type != "filesystem" else {"arrow": 1}
-        )
+        "copied_purchases": {"model": 1} if not always_materialize else {"parquet": 1}
     }
 
 

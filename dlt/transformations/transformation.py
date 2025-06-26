@@ -135,6 +135,9 @@ def make_transformation_resource(
             )
             should_materialize = False
 
+        # respect always materialize config
+        should_materialize = should_materialize or config.always_materialize
+
         # Call the transformation function
         transformation_result: Any = func(*args, **kwargs)
 
