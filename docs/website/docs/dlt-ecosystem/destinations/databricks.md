@@ -499,7 +499,7 @@ Databricks will use this user agent identifier to better understand the usage pa
 
 ## Databricks adapter
 
-You can use the databricks_adapter to add Databricks-specific hints to a resource. These hints influence how data is loaded into Databricks tables, such as adding comments and tags. Hints can be defined at both the column level and table level.
+You can use the `databricks_adapter` function to add Databricks-specific hints to a resource. These hints influence how data is loaded into Databricks tables, such as adding comments and tags. Hints can be defined at both the column level and table level.
 
 The adapter updates the DltResource with metadata about the destination column and table DDL options.
 
