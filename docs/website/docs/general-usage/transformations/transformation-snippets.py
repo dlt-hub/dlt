@@ -36,7 +36,7 @@ def basic_transformation_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     def copied_customers(dataset: dlt.Dataset) -> Any:
         # Ibis expression: sort by name and keep first 5 rows
         customers_table = dataset["customers"]
-        return customers_table.order_by("name").limit(5)
+        yield customers_table.order_by("name").limit(5)
 
     # Same pipeline & same dataset
     fruitshop_pipeline.run(copied_customers(fruitshop_pipeline.dataset()))
@@ -55,7 +55,7 @@ def orders_per_user_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     @dlt.transformation(name="orders_per_user", write_disposition="merge")
     def orders_per_user(dataset: dlt.Dataset) -> Any:
         purchases = dataset["purchases"]
-        return purchases.group_by(purchases.customer_id).aggregate(order_count=purchases.id.count())
+        yield purchases.group_by(purchases.customer_id).aggregate(order_count=purchases.id.count())
 
     # @@@DLT_SNIPPET_END orders_per_user
     fruitshop_pipeline.run(orders_per_user(fruitshop_pipeline.dataset()))
@@ -69,7 +69,7 @@ def loading_to_other_datasets_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     @dlt.transformation()
     def copied_customers(dataset: dlt.Dataset) -> Any:
         customers_table = dataset["customers"]
-        return customers_table.order_by(customers_table.name).limit(5)
+        yield customers_table.order_by(customers_table.name).limit(5)
 
     # Same duckdb instance, different dataset
     dest_p = dlt.pipeline(
@@ -98,12 +98,12 @@ def multiple_transformations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
         def enriched_purchases(dataset: dlt.Dataset) -> Any:
             purchases = dataset["purchases"]
             customers = dataset["customers"]
-            return purchases.join(customers, purchases.customer_id == customers.id)
+            yield purchases.join(customers, purchases.customer_id == customers.id)
 
         @dlt.transformation(write_disposition="replace")
         def total_items_sold(dataset: dlt.Dataset) -> Any:
             purchases = dataset["purchases"]
-            return purchases.aggregate(total_qty=purchases.quantity.sum())
+            yield purchases.aggregate(total_qty=purchases.quantity.sum())
 
         return enriched_purchases(dataset), total_items_sold(dataset)
 
@@ -129,7 +129,7 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     @dlt.transformation()
     def copied_customers(dataset: dlt.Dataset) -> Any:
         customers_table = dataset("SELECT * FROM customers LIMIT 5 ORDER BY name")
-        return customers_table
+        yield customers_table
 
     # @@@DLT_SNIPPET_END sql_queries_short
 
@@ -140,7 +140,7 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
             "SELECT customers.name, purchases.quantity FROM purchases JOIN customers ON"
             " purchases.customer_id = customers.id"
         )
-        return enriched_purchases
+        yield enriched_purchases
 
     # You can even use a different dialect than the one used by the destination by supplying the dialect parameter
     # dlt will compile the query to the right destination dialect
@@ -151,7 +151,7 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
             " purchases.customer_id = customers.id",
             query_dialect="duckdb",
         )
-        return enriched_purchases
+        yield enriched_purchases
 
     # @@@DLT_SNIPPET_END sql_queries
 
@@ -227,7 +227,7 @@ def column_level_lineage_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
             "SELECT customers.name, purchases.quantity FROM purchases JOIN customers ON"
             " purchases.customer_id = customers.id"
         )
-        return enriched_purchases
+        yield enriched_purchases
 
     # Let's run the transformation and see that the name column in the NEW table is also marked as PII
     fruitshop_pipeline.run(enriched_purchases(fruitshop_pipeline.dataset()))
@@ -272,7 +272,7 @@ def in_transit_transformations_snippet() -> None:
     def orders_per_store(dataset: dlt.Dataset) -> Any:
         orders = dataset["orders"]
         stores = dataset["stores"]
-        return (
+        yield (
             orders.join(stores, orders.store_id == stores.id)
             .group_by(stores.name)
             .aggregate(order_count=orders.id.count())
@@ -312,9 +312,7 @@ def incremental_transformations_snippet(fruitshop_pipeline: dlt.Pipeline) -> Non
         customers_table = dataset.customers
 
         # filter only new customers and exclude the name column in the result
-        return customers_table.filter(customers_table.id > max_pimary_key).drop(
-            customers_table.name
-        )
+        yield customers_table.filter(customers_table.id > max_pimary_key).drop(customers_table.name)
 
     # create a warehouse dataset, would ordinarily be snowflake or some other warehousing destination
     warehouse_pipeline = dlt.pipeline(

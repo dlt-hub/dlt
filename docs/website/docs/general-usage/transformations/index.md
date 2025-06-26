@@ -90,7 +90,7 @@ Most of the following examples will be using the ibis expressions of the `dlt.Da
 
 * **Decorator arguments** mirror those accepted by `@dlt.resource`.
 * The transformation function signature must contain at least one `dlt.Dataset` which is used inside the function to create the transformation SQL statements and calculate the resulting schema update.
-* Return a `TReadableRelation` created with ibis expressions or a select query which will be materialized into the destination table. _Do **not** yield Python dictionaries._
+* Yields a `TReadableRelation` created with ibis expressions or a select query which will be materialized into the destination table. If the first item yielded is a valid sql query or relation object, data will be interpreted as a transformation. In all other cases, the tranformation decorator will work like any other resource.
 
 ## Loading to other datasets
 

@@ -9,7 +9,7 @@ import pytest
 def test_combine_two_datasets(fruit_p: dlt.Pipeline, private_fruit_p: dlt.Pipeline) -> None:
     @dlt.transformation()
     def customers_with_ages(dataset: dlt.Dataset, dataset2: dlt.Dataset) -> Any:
-        return dataset["customers"].join(
+        yield dataset["customers"].join(
             dataset2["customers_ages"], dataset["customers"].id == dataset2["customers_ages"].id
         )
 

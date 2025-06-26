@@ -97,7 +97,7 @@ def test_state_based_incremental_transform(
         dlt.current.resource_state()[LAST_PROCESSED_LOAD_ID] = max_load_id
 
         # return filtered transformation
-        return items_table.filter(
+        yield items_table.filter(
             items_table._dlt_load_id > last_processed_load_id,
             items_table._dlt_load_id <= last_loaded_load_id,
         ).mutate(double_items=items_table.id * 2)
@@ -149,7 +149,7 @@ def test_primary_key_based_incremental_transform(
 
         # return filtered transformation
         items_table = dataset.items
-        return items_table.filter(items_table.id > max_pimary_key).mutate(
+        yield items_table.filter(items_table.id > max_pimary_key).mutate(
             double_items=items_table.id * 2
         )
 
@@ -203,7 +203,7 @@ def test_load_id_based_incremental_transform(
                 items_table._dlt_load_id <= last_loaded_load_id,
             ).mutate(double_items=items_table.id * 2)
 
-        return transformed_items(dataset)
+        yield transformed_items(dataset)
 
     # first round
     inc_p.run(first_load())
@@ -242,7 +242,7 @@ def test_merge_based_incremental_transform(
     def transformed_items(dataset: dlt.Dataset) -> Any:
         # return filtered transformation
         items_table = dataset.items
-        return items_table.mutate(double_items=items_table.id * 2)
+        yield items_table.mutate(double_items=items_table.id * 2)
 
     # first round
     inc_p.run(first_load())
