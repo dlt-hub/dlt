@@ -3,9 +3,9 @@ import inspect
 from typing import Callable, Any, Optional, Type, Iterator, List
 
 import dlt
+import sqlglot
 
 from dlt.common.configuration.inject import get_fun_last_config, get_fun_spec
-from dlt.common.reflection.inspect import isgeneratorfunction
 from dlt.common.typing import TDataItems, TTableHintTemplate
 from dlt.common import logger
 
@@ -16,7 +16,6 @@ from dlt.extract import DltResource
 from dlt.transformations.typing import TTransformationFunParams
 from dlt.transformations.exceptions import (
     TransformationException,
-    TransformationInvalidReturnTypeException,
     IncompatibleDatasetsException,
 )
 from dlt.pipeline.exceptions import PipelineConfigMissing
@@ -32,7 +31,6 @@ from dlt.common.schema.typing import (
 from dlt.transformations.configuration import TransformationConfiguration
 from dlt.common.utils import get_callable_name
 from dlt.extract.exceptions import CurrentSourceNotAvailable
-from dlt.common.schema.typing import TPartialTableSchema
 from dlt.extract.pipe_iterator import DataItemWithMeta
 
 
@@ -82,7 +80,6 @@ def make_transformation_resource(
     section: Optional[TTableHintTemplate[str]],
 ) -> DltTransformationResource:
     resource_name = name if name and not callable(name) else get_callable_name(func)
-    is_regular_resource = isgeneratorfunction(func)
 
     if spec and not issubclass(spec, TransformationConfiguration):
         raise TransformationException(
@@ -92,15 +89,52 @@ def make_transformation_resource(
 
     @wraps(func)
     def transformation_function(*args: Any, **kwargs: Any) -> Iterator[TDataItems]:
-        config: TransformationConfiguration = (
-            get_fun_last_config(func) or get_fun_spec(func)()  # type: ignore[assignment]
-        )
-
         # Collect all datasets from args and kwargs
         all_arg_values = list(args) + list(kwargs.values())
         datasets: List[ReadableDBAPIDataset] = [
             arg for arg in all_arg_values if isinstance(arg, ReadableDBAPIDataset)
         ]
+
+        # get first item from gen and see what we're dealing with
+        gen = func(*args, **kwargs)
+        original_first_item = next(gen)
+
+        # unwrap if needed
+        meta = None
+        unwrapped_item = original_first_item
+        relation = None
+        if isinstance(original_first_item, DataItemWithMeta):
+            meta = original_first_item.meta
+            unwrapped_item = original_first_item.data
+
+        # catch the two cases where we get a relation from the transformation function
+        # NOTE: we only process the first item, all other things that are still in the generator are ignored
+        if isinstance(unwrapped_item, BaseReadableDBAPIRelation):
+            relation = unwrapped_item
+        # we see if the string is a valid sql query, if so we need a dataset
+        elif isinstance(unwrapped_item, str):
+            try:
+                sqlglot.parse_one(unwrapped_item)
+                if len(datasets) == 0:
+                    raise IncompatibleDatasetsException(
+                        resource_name,
+                        "No datasets found in transformation function arguments. Please supply all"
+                        " used datasets via transform function arguments.",
+                    )
+                else:
+                    relation = datasets[0](unwrapped_item)
+            except sqlglot.errors.ParseError:
+                pass
+
+        # we have something else, so fall back to regular resource behavior
+        if not relation:
+            yield original_first_item
+            yield from gen
+            return
+
+        config: TransformationConfiguration = (
+            get_fun_last_config(func) or get_fun_spec(func)()  # type: ignore[assignment]
+        )
 
         # Warn if Incremental arguments are present
         for arg_name, param in inspect.signature(func).parameters.items():
@@ -138,31 +172,8 @@ def make_transformation_resource(
         # respect always materialize config
         should_materialize = should_materialize or config.always_materialize
 
-        # Call the transformation function
-        transformation_result: Any = func(*args, **kwargs)
-
-        # unwrap meta
-        meta = None
-        if isinstance(transformation_result, DataItemWithMeta):
-            meta = transformation_result.meta
-            transformation_result = transformation_result.data
-
-        # If a string is returned, construct relation from first dataset from it
-        if isinstance(transformation_result, BaseReadableDBAPIRelation):
-            relation = transformation_result
-        elif isinstance(transformation_result, str):
-            relation = datasets[0](transformation_result)
-        else:
-            raise TransformationInvalidReturnTypeException(
-                resource_name,
-                "Sql Transformation %s returned an invalid type: %s. Please either return a valid"
-                " sql string or Ibis / data frame expression from a dataset. If you want to return"
-                " data (data frames / arrow table), please yield those, not return."
-                % (name, type(transformation_result)),
-            )
-
+        # build model if needed
         sql_model = MaterializableSqlModel.from_relation(relation)
-
         if not should_materialize:
             if meta:
                 yield DataItemWithMeta(meta, sql_model)
@@ -188,6 +199,4 @@ def make_transformation_resource(
         section=section,
         _impl_cls=DltTransformationResource,
         _base_spec=TransformationConfiguration,
-    )(
-        func if is_regular_resource else transformation_function  # type: ignore[arg-type]
-    )
+    )(transformation_function)

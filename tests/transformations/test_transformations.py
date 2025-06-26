@@ -42,13 +42,13 @@ def test_simple_query_transformations(
 
         @dlt.transformation()
         def copied_purchases(dataset: SupportsReadableDataset[Any]) -> Any:
-            return """SELECT * FROM purchases LIMIT 3"""
+            yield """SELECT * FROM purchases LIMIT 3"""
 
     elif transformation_type == "relation":
 
         @dlt.transformation()
         def copied_purchases(dataset: SupportsReadableDataset[Any]) -> Any:
-            return dataset["purchases"].limit(3)
+            yield dataset["purchases"].limit(3)
 
     # transform into transformed dataset
     os.environ["ALWAYS_MATERIALIZE"] = str(always_materialize)
@@ -87,12 +87,12 @@ def test_transformations_with_supplied_hints(
     # we can now transform this table twice, one with changed hints and once with the original hints
     @dlt.transformation()
     def inventory_original(dataset: SupportsReadableDataset[Any]) -> Any:
-        return dataset["inventory"]
+        yield dataset["inventory"]
 
     @dlt.transformation()
     def inventory_more_precise(dataset: SupportsReadableDataset[Any]) -> Any:
         hints = make_hints(columns=[{"name": "price", "precision": 20, "scale": 2}])
-        return dlt.mark.with_hints(dataset["inventory"], hints=hints)
+        yield dlt.mark.with_hints(dataset["inventory"], hints=hints)
 
     dest_p.run([inventory_original(fruit_p.dataset()), inventory_more_precise(fruit_p.dataset())])
 
@@ -119,7 +119,7 @@ def test_extract_without_source_name_or_pipeline(
 
     @dlt.transformation()
     def buffer_size_test(dataset: SupportsReadableDataset[Any]) -> Any:
-        return dataset["customers"]
+        yield dataset["customers"]
 
     # transformations switch to model extraction
     fruit_p.deactivate()
@@ -139,7 +139,7 @@ def test_extract_without_destination(destination_config: DestinationTestConfigur
 
     @dlt.transformation()
     def extract_test(dataset: SupportsReadableDataset[Any]) -> Any:
-        return dataset["customers"]
+        yield dataset["customers"]
 
     pipeline_no_destination = dlt.pipeline(pipeline_name="no_destination")
     pipeline_no_destination._destination = None
