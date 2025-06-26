@@ -383,7 +383,7 @@ html[data-theme='dark'] .menu_vPEQ>ul>li.menu__list-item--collapsed:nth-child(2)
   background-image: url(../../static/img/ReleaseNotes-Inactive-1.svg);
 }
 
-html[data-theme='dark'] .menu_vPEQ>ul>li:nth-child(1)>div>a::before,
+html[data-theme='dark'] .menu_vPEQ>ul>li:nth-child(2)>div>a::before,
 html[data-theme='dark'] .menu_vPEQ>ul>li:hover:nth-child(2)>div>a::before {
   background-image: url(../../static/img/ReleaseNotes-Active-1.svg);
 }
