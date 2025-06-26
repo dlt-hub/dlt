@@ -512,7 +512,7 @@ column_tags - adds tags to the column. Supports a list of strings and/or key-val
 
 ### Use an adapter to apply hints to a resource
 
-Here is an example of how to use the databricks_adapter method to apply hints to a resource on both the column level and table level:
+Here is an example of how to use the `databricks_adapter` function to apply hints to a resource on both the column level and table level:
 
 ```py
 import dlt
