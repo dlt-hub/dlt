@@ -198,7 +198,7 @@ def test_load_id_based_incremental_transform(
 
             # return filtered transformation
             items_table = dataset.items
-            return items_table.filter(
+            yield items_table.filter(
                 items_table._dlt_load_id > max_load_id,
                 items_table._dlt_load_id <= last_loaded_load_id,
             ).mutate(double_items=items_table.id * 2)

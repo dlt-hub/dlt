@@ -22,8 +22,8 @@ try:
     import ibis
     import sqlglot
     from ibis import BaseBackend, Expr, Table
-    from ibis.backends.sql.compilers.duckdb import compiler as duckdb_compiler
-    from ibis.backends.sql.compilers.bigquery import compiler as bigquery_compiler
+    import ibis.backends.sql.compilers as sc
+    from ibis.backends.sql.compilers.base import SQLGlotCompiler
 except ModuleNotFoundError:
     raise MissingDependencyException("dlt ibis helpers", ["ibis-framework"])
 
@@ -211,3 +211,52 @@ def create_unbound_ibis_table(schema: Schema, dataset_name: str, table_name: str
     unbound_table = ibis.table(schema=ibis_schema, name=table_name, database=dataset_name)
 
     return unbound_table
+
+
+def get_compiler_for_dialect(dialect: str) -> SQLGlotCompiler:
+    """Get the compiler for a given dialect."""
+    if dialect == "duckdb":
+        compiler = sc.DuckDBCompiler()
+
+    elif dialect == "postgres":
+        compiler = sc.PostgresCompiler()
+
+    elif dialect == "clickhouse":
+        compiler = sc.ClickHouseCompiler()
+
+    elif dialect == "snowflake":
+        compiler = sc.SnowflakeCompiler()
+
+    elif dialect == "databricks":
+        compiler = sc.DatabricksCompiler()
+
+    elif dialect == "tsql":
+        compiler = sc.MSSQLCompiler()
+
+    elif dialect == "bigquery":
+        compiler = sc.BigQueryCompiler()
+
+    elif dialect == "athena":
+        compiler = sc.AthenaCompiler()
+
+    # NOTE Dremio uses a presto/trino-based language
+    elif dialect == "presto":
+        compiler = sc.TrinoCompiler()
+
+    elif dialect == "mysql":
+        compiler = sc.MySQLCompiler()
+
+    elif dialect == "sqlite":
+        compiler = sc.SQLiteCompiler()
+
+    # default is duckdb
+    else:
+        compiler = sc.DuckDBCompiler()
+
+    return compiler
+
+
+def compile_ibis_to_sqlglot(ibis_expr: Expr, dialect: str) -> sqlglot.expressions.Query:
+    """Compile an ibis expression to a sqlglot query."""
+    compiler = get_compiler_for_dialect(dialect)
+    return cast(sqlglot.expressions.Query, compiler.to_sqlglot(ibis_expr))
