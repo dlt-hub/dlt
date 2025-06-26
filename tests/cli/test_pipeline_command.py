@@ -255,12 +255,6 @@ def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileS
 def test_drop_from_wrong_dir(repo_dir: str, project_files: FileStorage) -> None:
     init_command.init_command("chess", "duckdb", repo_dir)
 
-    try:
-        pipeline = dlt.attach(pipeline_name="chess_pipeline")
-        pipeline.drop()
-    except Exception as e:
-        print(e)
-
     os.environ.pop(
         "DESTINATION__DUCKDB__CREDENTIALS", None
     )  # settings from local project (secrets.toml etc.)
@@ -272,6 +266,20 @@ def test_drop_from_wrong_dir(repo_dir: str, project_files: FileStorage) -> None:
         print(cpe.stderr)
         raise
 
+    # Running from the correct location should not raise warning
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        pipeline = dlt.attach(pipeline_name="chess_pipeline")
+        pipeline_dir = pipeline.last_run_context.get("local_dir")
+        with set_working_dir(pipeline_dir):
+            pipeline_command.pipeline_command(
+                "drop", "chess_pipeline", None, 0, resources=["players_games"]
+            )
+        _out = buf.getvalue()
+        assert (
+            "WARNING: You should run this from the same directory as the pipeline script"
+            not in _out
+        )
+
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         os.makedirs("wrong_dir", exist_ok=True)
         with set_working_dir("wrong_dir"):
@@ -279,9 +287,4 @@ def test_drop_from_wrong_dir(repo_dir: str, project_files: FileStorage) -> None:
                 "drop", "chess_pipeline", None, 0, resources=["players_games"]
             )
         _out = buf.getvalue()
-    assert (
-        "WARNING: Unless hardcoded, credentials are loaded from environment variables and/or"
-        " configuration files."
-        in _out
-    )
-    print(_out)
+        assert "WARNING: You should run this from the same directory as the pipeline script" in _out

@@ -439,6 +439,15 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
         pass
 
 
+class TLastRunContext(TypedDict, total=False):
+    """Stores context from the last successful pipeline run or sync"""
+
+    local_dir: str
+    """Directory of the pipeline script"""
+    settings_dir: str
+    """Directory where .dlt folder is located"""
+
+
 class TPipelineLocalState(TypedDict, total=False):
     first_run: bool
     """Indicates a first run of the pipeline, where run ends with successful loading of data"""
@@ -448,6 +457,8 @@ class TPipelineLocalState(TypedDict, total=False):
     """Hash of state that was recently synced with destination"""
     initial_cwd: str
     """Run dir when pipeline was instantiated for a first time, defaults to cwd on OSS run context"""
+    last_run_context: Optional[TLastRunContext]
+    """Context from the last successful pipeline run or sync"""
 
 
 class TPipelineState(TVersionedState, total=False):

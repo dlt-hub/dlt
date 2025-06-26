@@ -88,6 +88,7 @@ from dlt.common.pipeline import (
     PipelineContext,
     TStepInfo,
     SupportsPipeline,
+    TLastRunContext,
     TPipelineLocalState,
     TPipelineState,
     StateInjectableContext,
@@ -334,6 +335,7 @@ class Pipeline(SupportsPipeline):
         self.first_run = False
         self.dataset_name: str = None
         self.is_active = False
+        self.last_run_context: TLastRunContext = {}
 
         self.pipeline_salt = pipeline_salt
         self.config = config
@@ -489,7 +491,6 @@ class Pipeline(SupportsPipeline):
                 )
                 # commit load packages with state
                 extract_step.commit_packages()
-                self._update_last_run_context()
                 return self._get_step_info(extract_step)
         except Exception as exc:
             # emit step info
@@ -538,7 +539,6 @@ class Pipeline(SupportsPipeline):
             try:
                 with signals.delayed_signals():
                     runner.run_pool(normalize_step.config, normalize_step)
-                self._update_last_run_context()
                 return self._get_step_info(normalize_step)
             except Exception as n_ex:
                 step_info = self._get_step_info(normalize_step)
@@ -748,7 +748,6 @@ class Pipeline(SupportsPipeline):
         destination: TDestinationReferenceArg = None,
         staging: TDestinationReferenceArg = None,
         dataset_name: str = None,
-        update_last_run_context: bool = True,
     ) -> None:
         """Synchronizes pipeline state with the `destination`'s state kept in `dataset_name`
 
@@ -761,8 +760,6 @@ class Pipeline(SupportsPipeline):
         Note: this method is executed by the `run` method before any operation on data. Use `restore_from_destination` configuration option to disable that behavior.
 
         """
-        if update_last_run_context:
-            self._update_last_run_context()
         return self._sync_destination(
             destination=destination, staging=staging, dataset_name=dataset_name
         )
@@ -786,11 +783,9 @@ class Pipeline(SupportsPipeline):
                 remote_state = self._restore_state_from_destination()
 
                 # if remote state is newer or same
-                # print(f'REMOTE STATE: {(remote_state or {}).get("_state_version")} >= {state["_state_version"]}')
                 # TODO: check if remote_state["_state_version"] is not in 10 recent version. then we know remote is newer.
                 if remote_state and remote_state["_state_version"] >= state["_state_version"]:
                     state_changed = remote_state["_version_hash"] != state.get("_version_hash")
-                    # print(f"MERGED STATE: {bool(merged_state)}")
                     if state_changed:
                         # see if state didn't change the pipeline name
                         if state["pipeline_name"] != remote_state["pipeline_name"]:
@@ -810,7 +805,7 @@ class Pipeline(SupportsPipeline):
                                 f"Pipeline {self.pipeline_name} got restored from destination"
                                 " including new version",
                                 "of pipeline state but it has pending load packages that were not"
-                                " yet normalized or loaded. If that packages contain extracted"
+                                " yet normalized or loaded. If those packages contain extracted"
                                 " state or schema migrations - those will not be affected and will"
                                 " still be loaded to destination.",
                             )
@@ -832,9 +827,10 @@ class Pipeline(SupportsPipeline):
                     self._schema_storage.clear_storage()
                 for schema in restored_schemas:
                     self._schema_storage.save_schema(schema)
-                # if the remote state is present then unset first run
+                # if the remote state is present then unset first run and update last run context
                 if remote_state is not None:
                     self.first_run = False
+                    self._update_last_run_context()
             except DestinationUndefinedEntity:
                 # storage not present. wipe the pipeline if pipeline not new
                 # do it only if pipeline has any data
@@ -1064,15 +1060,11 @@ class Pipeline(SupportsPipeline):
         Persist the directory context in local state.
         Safe-no-op if the pipeline is not active or if run_context cannot be resolved.
         """
-        try:
-            ctx = dlt.current.run_context()
-        except Exception:
-            return
-
-        self.set_local_state_val(
-            "last_run_context",
-            {"settings_dir": ctx.settings_dir, "local_dir": os.path.abspath(ctx.local_dir)},
-        )
+        ctx = dlt.current.run_context()
+        self.last_run_context = {
+            "settings_dir": ctx.settings_dir,
+            "local_dir": os.path.abspath(ctx.local_dir),
+        }
 
     @with_config_section(sections=(), merge_func=ConfigSectionContext.prefer_existing)
     def sql_client(self, schema_name: str = None) -> SqlClientBase[Any]:

@@ -116,8 +116,6 @@ def pipeline_command(
 
     if operation == "show":
         if command_kwargs.get("marimo"):
-            import os
-
             from dlt.common.utils import custom_environ
             from dlt.common.known_env import DLT_DATA_DIR
 
@@ -361,17 +359,28 @@ def pipeline_command(
                     fmt.warning(warning)
             return
 
-        if p.get_local_state_val("last_run_context").get("local_dir") != os.getcwd():
+        # pipeline has never been run
+        if not p.last_run_context:
+            from dlt.common.runtime import run_context
+
+            settings = run_context.active().settings_dir
             fmt.warning(
                 fmt.style(
                     "Unless hardcoded, credentials are loaded from environment variables and/or"
                     " configuration files. dlt will look for configuration files in the (%s) folder"
-                    " of your current working directory.\nYou should run this from the same"
-                    " directory as the pipeline script (%s), or make sure that the required"
-                    " environment variables are set."
+                    " of your current working directory." % (settings),
+                    fg="yellow",
+                )
+            )
+        elif p.last_run_context.get("local_dir") != os.getcwd():
+            fmt.warning(
+                fmt.style(
+                    "You should run this from the same directory as the pipeline script (%s), where"
+                    " the folder with credentials (%s) is located. Alternatively, you can set the"
+                    " required credentials as environment variables."
                     % (
-                        p.get_local_state_val("last_run_context").get("settings_dir"),
-                        p.get_local_state_val("last_run_context").get("local_dir"),
+                        p.last_run_context.get("local_dir"),
+                        p.last_run_context.get("settings_dir"),
                     ),
                     fg="yellow",
                 )

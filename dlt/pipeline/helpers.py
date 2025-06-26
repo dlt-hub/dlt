@@ -119,7 +119,7 @@ class DropCommand:
             raise PipelineHasPendingDataException(
                 self.pipeline.pipeline_name, self.pipeline.pipelines_dir
             )
-        self.pipeline.sync_destination(update_last_run_context=False)
+        self.pipeline.sync_destination()
 
         if not self.drop_state and not self.drop_tables:
             return  # Nothing to drop

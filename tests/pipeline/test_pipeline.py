@@ -1282,9 +1282,8 @@ def test_set_get_local_value() -> None:
 def test_update_last_run_context() -> None:
     p = dlt.pipeline(destination="dummy", dev_mode=True)
     p._update_last_run_context()
-    ctx = p.get_local_state_val("last_run_context")
-    assert ctx["local_dir"] == os.path.join(os.getcwd(), "_storage")
-    assert ctx["settings_dir"] in [".\\.dlt", "./.dlt"]
+    assert p.last_run_context["local_dir"] == os.path.join(os.getcwd(), "_storage")
+    assert p.last_run_context["settings_dir"] in [".\\.dlt", "./.dlt"]
 
 
 def test_changed_write_disposition() -> None:

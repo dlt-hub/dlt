@@ -75,30 +75,33 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
 
         main_path = main_module_file_path()
 
-        # check if entry point is run with path or from cli command. This is common problem so warn the user
+        # check if entry point is run with path or from cli command. This is a common problem so warn the user
         if main_path and (main_path.endswith(".py") or main_path.endswith("dlt")):
             from dlt.common.runtime import run_context
             import dlt
 
-            last_ctx = dlt.current.pipeline().get_local_state_val("last_run_context")
-            last_ctx_local_dir = last_ctx.get("local_dir")
-
-            # check if settings are relative
-            settings = last_ctx.get("settings_dir")
+            settings = run_context.active().settings_dir
 
             # settings are relative so check makes sense
             if not os.path.isabs(settings):
-                if last_ctx_local_dir != os.getcwd():
-                    # directory was specified
+                last_ctx = dlt.current.pipeline().last_run_context
+
+                # pipeline was previously successfully run
+                if last_ctx is not None:
+                    pipeline_script_dir = last_ctx.get("local_dir")
+                else:
+                    pipeline_script_dir = os.path.abspath(os.path.dirname(main_path))
+
+                if pipeline_script_dir != os.getcwd():
                     msg += (
                         f"WARNING: dlt looks for {settings} folder in your current working"
-                        " directory and your cwd (%s) is different from directory of your pipeline"
-                        " script (%s).\n" % (os.getcwd(), last_ctx_local_dir)
+                        " directory and your cwd (%s) is different from directory of your"
+                        " pipeline script (%s).\n" % (os.getcwd(), pipeline_script_dir)
                     )
                     msg += (
                         "If you keep your secret files in the same folder as your pipeline script"
-                        " but run your script from some other folder, secrets/configs will not be"
-                        " found\n"
+                        " but run your script or a dlt cli command from some other folder,"
+                        " secrets/configs will not be found.\n"
                     )
 
         msg += "Learn more: https://dlthub.com/docs/general-usage/credentials/\n"
