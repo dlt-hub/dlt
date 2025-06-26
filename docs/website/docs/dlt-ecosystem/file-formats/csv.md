@@ -27,7 +27,7 @@ The CSV format is supported by the following destinations: **Postgres**, **Files
 * separators are commas
 * quotes are **"** and are escaped as **""**
 * `NULL` values are both empty strings and empty tokens as in the example below
-* UNIX new lines are used
+* UNIX new lines (LF) are used by default
 * dates are represented as ISO 8601
 * quoting style is "when needed"
 
@@ -50,6 +50,7 @@ with standard settings:
 * delimiter: change the delimiting character (default: ',')
 * include_header: include the header row (default: True)
 * quoting: **quote_all** - all values are quoted, **quote_needed** - quote only values that need quoting (default: `quote_needed`)
+* line_ending: **lf** - use UNIX line endings (default), **crlf** - use Windows line endings
 
 When **quote_needed** is selected: in the case of the Python csv writer, all non-numeric values are quoted. In the case of the pyarrow csv writer, the exact behavior is not described in the documentation. We observed that in some cases, strings are not quoted as well.
 
@@ -58,6 +59,7 @@ When **quote_needed** is selected: in the case of the Python csv writer, all non
 delimiter="|"
 include_header=false
 quoting="quote_all"
+line_ending="crlf"
 ```
 
 Or using environment variables:
@@ -66,6 +68,7 @@ Or using environment variables:
 NORMALIZE__DATA_WRITER__DELIMITER=|
 NORMALIZE__DATA_WRITER__INCLUDE_HEADER=False
 NORMALIZE__DATA_WRITER__QUOTING=quote_all
+NORMALIZE__DATA_WRITER__LINE_ENDING=crlf
 ```
 
 ### Destination settings
