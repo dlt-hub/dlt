@@ -28,16 +28,27 @@ from dlt.sources._single_file_templates.fruitshop_pipeline import (
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("always_materialize", [True, False])
+@pytest.mark.parametrize("transformation_type", ["sql", "relation"])
 def test_simple_query_transformations(
-    destination_config: DestinationTestConfiguration, always_materialize: bool
+    destination_config: DestinationTestConfiguration,
+    always_materialize: bool,
+    transformation_type: str,
 ) -> None:
     # get pipelines and populate fruit pipeline
     fruit_p, dest_p = setup_transformation_pipelines(destination_config)
     fruit_p.run(fruitshop_source())
 
-    @dlt.transformation()
-    def copied_purchases(dataset: SupportsReadableDataset[Any]) -> Any:
-        return dataset["purchases"].limit(3)
+    if transformation_type == "sql":
+
+        @dlt.transformation()
+        def copied_purchases(dataset: SupportsReadableDataset[Any]) -> Any:
+            return """SELECT * FROM purchases LIMIT 3"""
+
+    elif transformation_type == "relation":
+
+        @dlt.transformation()
+        def copied_purchases(dataset: SupportsReadableDataset[Any]) -> Any:
+            return dataset["purchases"].limit(3)
 
     # transform into transformed dataset
     os.environ["ALWAYS_MATERIALIZE"] = str(always_materialize)
@@ -58,14 +69,17 @@ def test_simple_query_transformations(
     transformation_configs(only_duckdb=True),
     ids=lambda x: x.name,
 )
+@pytest.mark.parametrize("always_materialize", [True, False])
 def test_transformations_with_supplied_hints(
-    destination_config: DestinationTestConfiguration,
+    destination_config: DestinationTestConfiguration, always_materialize: bool
 ) -> None:
     fruit_p, dest_p = setup_transformation_pipelines(destination_config)
 
     s = fruitshop_source()
     s.inventory.apply_hints(columns={"price": {"precision": 10, "scale": 2}})
     fruit_p.run(s)
+
+    os.environ["ALWAYS_MATERIALIZE"] = str(always_materialize)
 
     assert fruit_p.default_schema.tables["inventory"]["columns"]["price"]["precision"] == 10
     assert fruit_p.default_schema.tables["inventory"]["columns"]["price"]["scale"] == 2
