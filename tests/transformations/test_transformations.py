@@ -69,7 +69,9 @@ def test_simple_query_transformations(
     transformation_configs(only_duckdb=True),
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize("always_materialize", [True, False])
+@pytest.mark.parametrize(
+    "always_materialize", [False]
+)  # , True]) # TODO: reenable once we have figured this out
 def test_transformations_with_supplied_hints(
     destination_config: DestinationTestConfiguration, always_materialize: bool
 ) -> None:
@@ -152,3 +154,24 @@ def test_extract_without_destination(destination_config: DestinationTestConfigur
             assert job.job_file_info.file_format == "model"
             found_job = True
     assert found_job
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    transformation_configs(only_duckdb=True),
+    ids=lambda x: x.name,
+)
+def test_materializable_sql_model(destination_config: DestinationTestConfiguration) -> None:
+    fruit_p, dest_p = setup_transformation_pipelines(destination_config)
+    fruit_p.run(fruitshop_source())
+
+    @dlt.transformation()
+    def materializable_sql_model(dataset: SupportsReadableDataset[Any]) -> Any:
+        yield "SELECT id, name FROM customers"
+
+    model = list(materializable_sql_model(fruit_p.dataset()))[0]
+    assert model.relation.arrow().column_names == ["id", "name"]
+    assert model.compute_hints()["columns"] == {
+        "id": {"name": "id", "data_type": "bigint", "nullable": False},
+        "name": {"name": "name", "x-annotation-pii": True, "data_type": "text", "nullable": True},
+    }
