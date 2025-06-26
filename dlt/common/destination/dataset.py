@@ -22,11 +22,12 @@ from dlt.common.schema.typing import TTableSchemaColumns
 if TYPE_CHECKING:
     from dlt.common.libs.pandas import DataFrame
     from dlt.common.libs.pyarrow import Table as ArrowTable
-    from dlt.helpers.ibis import BaseBackend as IbisBackend
+    from dlt.helpers.ibis import BaseBackend as IbisBackend, Table as IbisTable
 else:
     DataFrame = Any
     ArrowTable = Any
     IbisBackend = Any
+    IbisTable = Any
 
 
 class SupportsReadableRelation:
@@ -192,6 +193,14 @@ class SupportsReadableRelation:
             Self: The relation with the columns selected.
         """
         raise NotImplementedError("`select()` method is not supported for this relation")
+
+    def ibis(self) -> IbisTable:
+        """Returns an undbound ibis table representing the relation.
+
+        Returns:
+            IbisTable: The ibis table for the relation
+        """
+        raise NotImplementedError("`ibis()` method is not supported for this relation")
 
     @overload
     def __getitem__(self, column: str) -> Self: ...

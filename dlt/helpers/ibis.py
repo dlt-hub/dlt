@@ -24,7 +24,7 @@ try:
     from ibis import BaseBackend, Expr, Table
     import ibis.backends.sql.compilers as sc
     from ibis.backends.sql.compilers.base import SQLGlotCompiler
-except ModuleNotFoundError:
+except ImportError:
     raise MissingDependencyException("dlt ibis helpers", ["ibis-framework"])
 
 

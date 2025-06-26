@@ -13,7 +13,6 @@ from dlt.common.destination.dataset import (
 
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import Self
-from dlt.common.exceptions import TypeErrorWithKnownTypes
 from dlt.transformations import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.dataset.exceptions import (
@@ -23,8 +22,10 @@ from dlt.destinations.dataset.utils import normalize_query
 
 if TYPE_CHECKING:
     from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+    from dlt.helpers.ibis import Table as IbisTable
 else:
     ReadableDBAPIDataset = Any
+    IbisTable = Any
 
 
 class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
@@ -326,3 +327,13 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
 
     def head(self, limit: int = 5) -> Self:
         return self.limit(limit)
+
+    def ibis(self) -> IbisTable:
+        """Returns an undbound ibis table representing the relation."""
+        from dlt.helpers.ibis import create_unbound_ibis_table
+
+        return create_unbound_ibis_table(
+            self._dataset.schema,
+            self._dataset.dataset_name,
+            self._table_name,
+        )

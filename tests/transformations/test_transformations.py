@@ -175,3 +175,33 @@ def test_materializable_sql_model(destination_config: DestinationTestConfigurati
         "id": {"name": "id", "data_type": "bigint", "nullable": False},
         "name": {"name": "name", "x-annotation-pii": True, "data_type": "text", "nullable": True},
     }
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    transformation_configs(only_duckdb=True),
+    ids=lambda x: x.name,
+)
+def test_ibis_unbound_table_transformation(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    fruit_p, dest_p = setup_transformation_pipelines(destination_config)
+    fruit_p.run(fruitshop_source())
+
+    @dlt.transformation()
+    def materializable_sql_model(dataset: SupportsReadableDataset[Any]) -> Any:
+        purchases = dataset.purchases.ibis()
+        customers = dataset.customers.ibis()
+        yield purchases.join(customers, purchases.customer_id == customers.id)[
+            ["id", "customer_id", "inventory_id", "quantity", "name"]
+        ]
+
+    model = list(materializable_sql_model(fruit_p.dataset()))[0]
+    assert model.relation.arrow().column_names == [
+        "id",
+        "customer_id",
+        "inventory_id",
+        "quantity",
+        "name",
+    ]
+    assert model.relation.arrow().shape == (3, 5)
