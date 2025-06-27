@@ -46,6 +46,7 @@ from dlt.destinations.sql_client import (
     raise_open_connection_error,
 )
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
+from dlt.destinations.queries import replace_placeholders
 
 
 # add a formatter for pendulum to be used by pyathen dbapi
@@ -210,6 +211,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         db_args = kwargs
         # convert sql and params to PyFormat, as athena does not support anything else
         if args:
+            query = re.sub(r"\((\s*\?,?[\s\?,]*?)\)", replace_placeholders, query)
             query, db_args = self._convert_to_old_pyformat(query, args)
             if kwargs:
                 db_args.update(kwargs)
