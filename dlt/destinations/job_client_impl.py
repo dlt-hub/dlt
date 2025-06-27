@@ -6,7 +6,7 @@ from copy import copy
 from types import TracebackType
 from typing import (
     Any,
-    ClassVar,
+    Union,
     Dict,
     List,
     Optional,
@@ -19,7 +19,8 @@ from typing import (
 import zlib
 import re
 
-import sqlglot.expressions
+from sqlglot import parse_one
+import sqlglot.expressions as sge
 
 from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common import pendulum, logger
@@ -75,8 +76,14 @@ from dlt.destinations.utils import (
     verify_schema_merge_disposition,
     verify_schema_replace_disposition,
 )
+from dlt.destinations.queries import (
+    normalize_query,
+    build_select_expr,
+    build_stored_state_expr,
+    build_stored_schema_expr,
+)
+from dlt.transformations.lineage import create_sqlglot_schema
 
-import sqlglot
 
 # this should suffice for now
 DDL_COMMANDS = ["ALTER", "CREATE", "DROP"]
@@ -173,30 +180,30 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         destination_dialect = self._job_client.capabilities.sqlglot_dialect
 
         # Parse SELECT
-        parsed_select = sqlglot.parse_one(select_statement, read=select_dialect)
+        parsed_select = parse_one(select_statement, read=select_dialect)
 
         # Adjust table parts (catalog/db/this) based on dialect and catalog presence
         if select_dialect != destination_dialect:
             # TODO: We might need this
-            for table in parsed_select.find_all(sqlglot.exp.Table):
+            for table in parsed_select.find_all(sge.Table):
                 parts = list(table.parts)
                 if target_catalog:
                     if len(parts) == 3:
-                        table.set("catalog", sqlglot.to_identifier(target_catalog))
-                        table.set("db", sqlglot.to_identifier(parts[1].name))
-                        table.set("this", sqlglot.to_identifier(parts[2].name))
+                        table.set("catalog", sge.to_identifier(target_catalog))
+                        table.set("db", sge.to_identifier(parts[1].name))
+                        table.set("this", sge.to_identifier(parts[2].name))
                     elif len(parts) == 2:
-                        table.set("catalog", sqlglot.to_identifier(target_catalog))
-                        table.set("db", sqlglot.to_identifier(parts[0].name))
-                        table.set("this", sqlglot.to_identifier(parts[1].name))
+                        table.set("catalog", sge.to_identifier(target_catalog))
+                        table.set("db", sge.to_identifier(parts[0].name))
+                        table.set("this", sge.to_identifier(parts[1].name))
                 else:
                     if len(parts) == 3:
                         table.set("catalog", None)
-                        table.set("db", sqlglot.to_identifier(parts[1].name))
-                        table.set("this", sqlglot.to_identifier(parts[2].name))
+                        table.set("db", sge.to_identifier(parts[1].name))
+                        table.set("this", sge.to_identifier(parts[2].name))
 
         # Ensure there's a top-level SELECT, otherwise it doesn't make sense
-        top_level_select = parsed_select.find(sqlglot.exp.Select)
+        top_level_select = parsed_select.find(sge.Select)
         if top_level_select is None:
             raise ValueError(
                 "No top-level SELECT statement found in the model query. Models must be defined"
@@ -208,10 +215,10 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         columns = []
         for _, expr in enumerate(top_level_select.expressions):
             alias_name = expr.alias
-            columns.append(sqlglot.to_identifier(alias_name, quoted=True))
+            columns.append(sge.to_identifier(alias_name))
 
         # Build final INSERT
-        query = sqlglot.expressions.insert(
+        query = sge.insert(
             expression=parsed_select,
             into=target_table,
             columns=columns,
@@ -246,9 +253,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     ) -> None:
         # get definitions of the dlt tables, normalize column names and keep for later use
         version_table_ = normalize_table_identifiers(version_table(), schema.naming)
-        self.version_table_schema_columns = ", ".join(
-            sql_client.escape_column_name(col) for col in version_table_["columns"]
-        )
+        self.version_table_schema_columns = version_table_["columns"]
         loads_table_ = normalize_table_identifiers(loads_table(), schema.naming)
         self.loads_table_schema_columns = ", ".join(
             sql_client.escape_column_name(col) for col in loads_table_["columns"]
@@ -256,15 +261,16 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         state_table_ = normalize_table_identifiers(
             get_pipeline_state_query_columns(), schema.naming
         )
-        self.state_table_columns = ", ".join(
-            sql_client.escape_column_name(col) for col in state_table_["columns"]
-        )
+        self.state_table_columns = state_table_["columns"]
         self.active_hints: Dict[TColumnHint, str] = {}
         self.type_mapper: DataTypeMapper = None
         super().__init__(schema, config, sql_client.capabilities)
         self.sql_client = sql_client
         assert isinstance(config, DestinationClientDwhConfiguration)
         self.config: DestinationClientDwhConfiguration = config
+        self._sqlglot_schema = create_sqlglot_schema(
+            self.schema, self.sql_client.dataset_name, self.sql_client.capabilities.sqlglot_dialect
+        )
 
     @property
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
@@ -523,37 +529,48 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     ) -> TColumnType:
         pass
 
+    def _render_sql(self, expr: sge.Query) -> str:
+        """Normalizes sqlglot expression into a raw SQL string using the client's dialect and schema"""
+        dialect = self.sql_client.capabilities.sqlglot_dialect
+        return normalize_query(self._sqlglot_schema, expr, self.sql_client).sql(dialect=dialect)
+
     def get_stored_schema(self, schema_name: str = None) -> StorageSchemaInfo:
-        name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        c_schema_name, c_inserted_at = self._norm_and_escape_columns("schema_name", "inserted_at")
-        if not schema_name:
-            query = (
-                f"SELECT {self.version_table_schema_columns} FROM {name}"
-                f" ORDER BY {c_inserted_at} DESC;"
-            )
-            return self._row_to_schema_info(query)
-        else:
-            query = (
-                f"SELECT {self.version_table_schema_columns} FROM {name} WHERE {c_schema_name} = %s"
-                f" ORDER BY {c_inserted_at} DESC;"
-            )
-            return self._row_to_schema_info(query, schema_name)
+        table_name = self.schema.version_table_name
+        c_schema_name = self.schema.naming.normalize_path("schema_name")
+        c_inserted_at = self.schema.naming.normalize_path("inserted_at")
+
+        select_expr = build_stored_schema_expr(
+            schema_name=schema_name,
+            table_name=table_name,
+            version_table_schema_columns=list(self.version_table_schema_columns.keys()),
+            c_inserted_at=c_inserted_at,
+            c_schema_name=c_schema_name,
+        )
+
+        normalized_query = self._render_sql(select_expr)
+        return self._row_to_schema_info(normalized_query)
 
     def get_stored_state(self, pipeline_name: str) -> StateInfo:
-        state_table = self.sql_client.make_qualified_table_name(self.schema.state_table_name)
-        loads_table = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
-        c_load_id, c_dlt_load_id, c_pipeline_name, c_status = self._norm_and_escape_columns(
-            C_DLT_LOADS_TABLE_LOAD_ID, C_DLT_LOAD_ID, "pipeline_name", "status"
+        state_table_name = self.schema.state_table_name
+        loads_table_name = self.schema.loads_table_name
+        c_load_id = self.schema.naming.normalize_path(C_DLT_LOADS_TABLE_LOAD_ID)
+        c_dlt_load_id = self.schema.naming.normalize_path(C_DLT_LOAD_ID)
+        c_pipeline_name = self.schema.naming.normalize_path("pipeline_name")
+        c_status = self.schema.naming.normalize_path("status")
+
+        stored_state_expr = build_stored_state_expr(
+            pipeline_name=pipeline_name,
+            state_table_name=state_table_name,
+            state_table_cols=list(self.state_table_columns.keys()),
+            loads_table_name=loads_table_name,
+            c_load_id=c_load_id,
+            c_dlt_load_id=c_dlt_load_id,
+            c_pipeline_name=c_pipeline_name,
+            c_status=c_status,
         )
 
-        maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(1)
-
-        query = (
-            f"SELECT {maybe_limit_clause_1} {self.state_table_columns} FROM {state_table} AS s JOIN"
-            f" {loads_table} AS l ON l.{c_load_id} = s.{c_dlt_load_id} WHERE {c_pipeline_name} = %s"
-            f" AND l.{c_status} = 0 ORDER BY {c_load_id} DESC {maybe_limit_clause_2}"
-        )
-        with self.sql_client.execute_query(query, pipeline_name) as cur:
+        normalized_query = self._render_sql(stored_state_expr)
+        with self.sql_client.execute_query(normalized_query) as cur:
             row = cur.fetchone()
         if not row:
             return None
@@ -573,16 +590,18 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         )
 
     def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
-        table_name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        (c_version_hash,) = self._norm_and_escape_columns("version_hash")
+        table_name = self.schema.version_table_name
+        c_version_hash = self.schema.naming.normalize_path("version_hash")
 
-        maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(1)
-
-        query = (
-            f"SELECT {maybe_limit_clause_1} {self.version_table_schema_columns} FROM"
-            f" {table_name} WHERE {c_version_hash} = %s {maybe_limit_clause_2};"
+        select_expr = build_stored_schema_expr(
+            table_name=table_name,
+            version_table_schema_columns=list(self.version_table_schema_columns.keys()),
+            version_hash=version_hash,
+            c_version_hash=c_version_hash,
         )
-        return self._row_to_schema_info(query, version_hash)
+
+        normalized_query = self._render_sql(select_expr)
+        return self._row_to_schema_info(normalized_query)
 
     def _get_info_schema_columns_query(
         self, catalog_name: Optional[str], schema_name: str, folded_table_names: List[str]
@@ -855,10 +874,12 @@ WHERE """
     def _commit_schema_update(self, schema: Schema, schema_str: str) -> None:
         now_ts = pendulum.now()
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
+        version_table_columns = ", ".join(
+            self.sql_client.escape_column_name(col) for col in self.version_table_schema_columns
+        )
         # values =  schema.version_hash, schema.name, schema.version, schema.ENGINE_VERSION, str(now_ts), schema_str
         self.sql_client.execute_sql(
-            f"INSERT INTO {name}({self.version_table_schema_columns}) VALUES (%s, %s, %s, %s, %s,"
-            " %s);",
+            f"INSERT INTO {name}({version_table_columns}) VALUES (%s, %s, %s, %s, %s, %s);",
             schema.version,
             schema.ENGINE_VERSION,
             now_ts,
