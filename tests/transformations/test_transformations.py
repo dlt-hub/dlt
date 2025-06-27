@@ -5,6 +5,7 @@ from typing import Any
 import dlt, os, sys
 
 from dlt.common.destination.dataset import SupportsReadableDataset
+from dlt.common.destination.dataset import SupportsReadableRelation
 from tests.pipeline.utils import load_table_counts
 from dlt.extract.hints import SqlModel
 
@@ -127,7 +128,7 @@ def test_extract_without_source_name_or_pipeline(
     fruit_p.deactivate()
     model_rows = list(buffer_size_test(fruit_p.dataset()))
     assert len(model_rows) == 1
-    assert isinstance(model_rows[0], SqlModel)
+    assert isinstance(model_rows[0], SupportsReadableRelation)
 
 
 @pytest.mark.parametrize(
@@ -170,7 +171,7 @@ def test_materializable_sql_model(destination_config: DestinationTestConfigurati
         yield "SELECT id, name FROM customers"
 
     model = list(materializable_sql_model(fruit_p.dataset()))[0]
-    assert model.relation.arrow().column_names == ["id", "name"]
+    assert model.arrow().column_names == ["id", "name"]
     assert model.compute_hints()["columns"] == {
         "id": {"name": "id", "data_type": "bigint", "nullable": False},
         "name": {"name": "name", "x-annotation-pii": True, "data_type": "text", "nullable": True},
@@ -198,11 +199,11 @@ def test_ibis_unbound_table_transformation(
         ]
 
     model = list(materializable_sql_model(fruit_p.dataset()))[0]
-    assert model.relation.arrow().column_names == [
+    assert model.arrow().column_names == [
         "id",
         "customer_id",
         "inventory_id",
         "quantity",
         "name",
     ]
-    assert model.relation.arrow().shape == (3, 5)
+    assert model.arrow().shape == (3, 5)

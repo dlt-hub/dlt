@@ -35,6 +35,7 @@ from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.transformations import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.queries import normalize_query, build_select_expr
+from dlt.extract.hints import WithComputableHints, make_hints, TResourceHints
 
 if TYPE_CHECKING:
     from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
@@ -70,7 +71,7 @@ _FILTER_OP_MAP = {
 }
 
 
-class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
+class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient, WithComputableHints):
     def __init__(
         self,
         *,
@@ -82,7 +83,6 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         # provided properties
         self._dataset = readable_dataset
         self._execute_raw_query: bool = execute_raw_query
-        self._provided_query_dialect: Optional[str] = None
 
         # derived / cached properties
         self._opened_sql_client: SqlClientBase[Any] = None
@@ -109,6 +109,14 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
         return self._dataset.sql_client_class
 
+    def compute_hints(self) -> TResourceHints:
+        computed_columns, _ = self._compute_columns_schema(
+            infer_sqlglot_schema=True,
+            allow_anonymous_columns=True,
+            allow_partial=True,
+        )
+        return make_hints(columns=computed_columns)
+
     def query(self, pretty: bool = False) -> str:
         """Returns an executable sql query string in the correct sql dialect for this relation"""
 
@@ -126,7 +134,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         return query.sql(dialect=self.query_dialect(), pretty=pretty)
 
     def query_dialect(self) -> str:
-        return self._provided_query_dialect or self._dataset.sqlglot_dialect
+        return self._dataset.sqlglot_dialect
 
     def _query(self) -> sge.Query:
         """Returns a compliant with dlt schema in the relation.
@@ -279,7 +287,6 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         *,
         readable_dataset: "ReadableDBAPIDataset",
         table_name: str,
-        execute_raw_query: bool = False,
     ) -> None: ...
 
     def __init__(
@@ -301,7 +308,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         if query_or_expression:
             self._sqlglot_expression = maybe_parse(
                 query_or_expression,
-                dialect=self.query_dialect(),
+                dialect=self._provided_query_dialect or self.query_dialect(),
             )
         else:
             self._sqlglot_expression = build_select_expr(

@@ -50,6 +50,10 @@ class SupportsReadableRelation:
         """
         raise NotImplementedError("`query()` method is not supported for this relation")
 
+    def query_dialect(self) -> str:
+        """Returns the dialect of the query that represents the relation"""
+        raise NotImplementedError("`query_dialect()` method is not supported for this relation")
+
     def compute_columns_schema(
         self,
         infer_sqlglot_schema: bool = True,
@@ -228,7 +232,7 @@ class SupportsReadableRelation:
         Returns:
             Any: The attribute of the relation
         """
-        raise NotImplementedError("`__getattr__()` method is not supported for this relation")
+        raise AttributeError("`__getattr__()` method is not supported for this relation")
 
     def __copy__(self) -> Self:
         """create a copy of the relation object

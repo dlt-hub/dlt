@@ -10,7 +10,6 @@ from dlt.common.typing import TDataItems, TTableHintTemplate
 from dlt.common import logger
 
 from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
-from dlt.extract.hints import SqlModel, make_hints, WithComputableHints, TResourceHints
 from dlt.extract.incremental import Incremental
 from dlt.extract import DltResource
 from dlt.transformations.typing import TTransformationFunParams
@@ -40,30 +39,6 @@ try:
     from dlt.helpers.ibis import compile_ibis_to_sqlglot
 except (ImportError, MissingDependencyException):
     IbisExpr = None
-
-
-class MaterializableSqlModel(SqlModel, WithComputableHints):
-    # NOTE: we could forward all data access methods to this class
-    __slots__ = ("relation",)
-
-    def __init__(
-        self,
-        relation: Optional[BaseReadableDBAPIRelation] = None,
-    ) -> None:
-        super().__init__(relation.query(), relation.query_dialect())
-        self.relation = relation
-
-    @classmethod
-    def from_relation(cls, relation: BaseReadableDBAPIRelation) -> "MaterializableSqlModel":
-        return cls(relation=relation)
-
-    def compute_hints(self) -> TResourceHints:
-        computed_columns, _ = self.relation._compute_columns_schema(
-            infer_sqlglot_schema=True,
-            allow_anonymous_columns=True,
-            allow_partial=True,
-        )
-        return make_hints(columns=computed_columns)
 
 
 class DltTransformationResource(DltResource):
@@ -184,16 +159,14 @@ def make_transformation_resource(
         # respect always materialize config
         should_materialize = should_materialize or config.always_materialize
 
-        # build model if needed
-        sql_model = MaterializableSqlModel.from_relation(relation)
         if not should_materialize:
             if meta:
-                yield DataItemWithMeta(meta, sql_model)
+                yield DataItemWithMeta(meta, relation)
             else:
-                yield sql_model
+                yield relation
         else:
             for chunk in relation.iter_arrow(chunk_size=config.buffer_max_items):
-                yield dlt.mark.with_hints(chunk, hints=sql_model.compute_hints())
+                yield dlt.mark.with_hints(chunk, hints=relation.compute_hints())
 
     return dlt.resource(  # type: ignore[return-value]
         name=name,

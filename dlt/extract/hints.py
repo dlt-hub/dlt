@@ -114,11 +114,17 @@ class SqlModel:
     It is used to represent a SQL query and the dialect to use for parsing it.
     """
 
-    __slots__ = ("query", "dialect")
+    __slots__ = ("_query", "_dialect")
 
     def __init__(self, query: str, dialect: Optional[str] = None) -> None:
-        self.query = query
-        self.dialect = dialect
+        self._query = query
+        self._dialect = dialect
+
+    def query(self) -> str:
+        return self._query
+
+    def query_dialect(self) -> str:
+        return self._dialect
 
     @classmethod
     def from_query_string(cls, query: str, dialect: Optional[str] = None) -> "SqlModel":
