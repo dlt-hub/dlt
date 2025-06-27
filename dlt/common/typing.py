@@ -185,6 +185,24 @@ class SupportsHumanize(Protocol):
         ...
 
 
+class SocketLike(Protocol):
+    def send(self, data: bytes) -> int:
+        """Send bytes; return number of bytes sent."""
+        ...
+
+    def recv(self, bufsize: int) -> bytes:
+        """Receive up to `bufsize` bytes and return them."""
+        ...
+
+    def close(self) -> None:
+        """Close the socket-like connection."""
+        ...
+
+    def settimeout(self, timeout: float) -> None:
+        """Set the timeout (in seconds) for send/recv operations."""
+        ...
+
+
 def get_type_name(t: Type[Any]) -> str:
     """Returns a human-friendly name of type `t`"""
     if name := getattr(t, "__name__", None):
