@@ -78,7 +78,7 @@ from dlt.destinations.utils import (
 )
 from dlt.destinations.queries import (
     normalize_query,
-    build_select_expr,
+    build_insert_expr,
     build_stored_state_expr,
     build_stored_schema_expr,
 )
@@ -255,9 +255,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         version_table_ = normalize_table_identifiers(version_table(), schema.naming)
         self.version_table_schema_columns = version_table_["columns"]
         loads_table_ = normalize_table_identifiers(loads_table(), schema.naming)
-        self.loads_table_schema_columns = ", ".join(
-            sql_client.escape_column_name(col) for col in loads_table_["columns"]
-        )
+        self.loads_table_schema_columns = loads_table_["columns"]
         state_table_ = normalize_table_identifiers(
             get_pipeline_state_query_columns(), schema.naming
         )
@@ -412,10 +410,16 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         return None
 
     def complete_load(self, load_id: str) -> None:
-        name = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
+        name = self.schema.loads_table_name
         now_ts = pendulum.now()
+
+        insert_expr = build_insert_expr(
+            table_name=name, columns=list(self.loads_table_schema_columns.keys())
+        )
+
+        normalized_query = self._render_sql(insert_expr)
         self.sql_client.execute_sql(
-            f"INSERT INTO {name}({self.loads_table_schema_columns}) VALUES(%s, %s, %s, %s, %s);",
+            normalized_query,
             load_id,
             self.schema.name,
             0,
@@ -529,7 +533,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     ) -> TColumnType:
         pass
 
-    def _render_sql(self, expr: sge.Query) -> str:
+    def _render_sql(self, expr: Union[sge.Query, sge.Insert]) -> str:
         """Normalizes sqlglot expression into a raw SQL string using the client's dialect and schema"""
         dialect = self.sql_client.capabilities.sqlglot_dialect
         return normalize_query(self._sqlglot_schema, expr, self.sql_client).sql(dialect=dialect)

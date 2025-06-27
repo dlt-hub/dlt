@@ -1,3 +1,4 @@
+import re
 import datetime  # noqa: I251
 
 from clickhouse_driver import dbapi as clickhouse_dbapi  # type: ignore[import-untyped]
@@ -51,6 +52,7 @@ from dlt.destinations.sql_client import (
 )
 from dlt.destinations.typing import DBTransaction, DBApi
 from dlt.destinations.utils import _convert_to_old_pyformat
+from dlt.destinations.queries import replace_placeholders
 
 
 TDeployment = Literal["ClickHouseOSS", "ClickHouseCloud"]
@@ -252,6 +254,7 @@ class ClickHouseSqlClient(
         db_args: DictStrAny = kwargs.copy()
 
         if args:
+            query = re.sub(r"\((\s*\?,?[\s\?,]*?)\)", replace_placeholders, query)
             query, db_args = _convert_to_old_pyformat(query, args, OperationalError)
             db_args.update(kwargs)
 

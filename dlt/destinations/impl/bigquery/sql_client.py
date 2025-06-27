@@ -1,3 +1,4 @@
+import re
 from contextlib import contextmanager
 from typing import Any, AnyStr, ClassVar, Iterator, List, Optional, Sequence, Generator
 
@@ -25,6 +26,7 @@ from dlt.destinations.sql_client import (
 )
 from dlt.destinations.typing import DBApi, DBTransaction, DataFrame, ArrowTable
 from dlt.common.destination.dataset import DBApiCursor
+from dlt.destinations.queries import replace_placeholders
 
 
 # terminal reasons as returned in BQ gRPC error response
@@ -212,8 +214,11 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
+        assert isinstance(query, str)
         conn: DbApiConnection = None
         db_args = args or (kwargs or None)
+        if db_args:
+            query = re.sub(r"\((\s*\?,?[\s\?,]*?)\)", replace_placeholders, query)
         try:
             conn = DbApiConnection(client=self._client)
             curr = conn.cursor()
