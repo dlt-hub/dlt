@@ -317,7 +317,7 @@ keep_staged_files = false
 ```
 :::
 
-## Suported column hints
+## Supported hints
 
 ### Supported table hints
 
@@ -328,7 +328,7 @@ Databricks supports the following table hints:
 Databricks supports the following column hints:
 
 - `primary_key` - adds a primary key constraint to the column in Unity Catalog. 
-- `description` - adds a description to the column. This can also be done by using the adapter method `column_comment`.
+- `description` - adds a description to the column. This can also be done by using the adapter method `table_comment`.
 - `references` - adds a foreign key constraint to the column in Unity Catalog.
 - `not_null` - adds a not null constraint to the column.
 - `cluster` - adds a clustering constraint to the column. This can also be done by using the adapter method `cluster`.
@@ -505,10 +505,10 @@ The adapter updates the DltResource with metadata about the destination column a
 
 ### Supported hints
 
-table_comment - adds a comment to the table. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax).
-table_tags - adds tags to the table. Supports a list of strings and/or key-value pairs.
-column_comment - adds a comment to the column. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax).
-column_tags - adds tags to the column. Supports a list of strings and/or key-value pairs.
+- `table_comment`: adds a comment to the table. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax).
+- `table_tags`: adds tags to the table. Supports a list of strings and/or key-value pairs.
+- `column_comment`: adds a comment to the column. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax).
+- `column_tags`: adds tags to the column. Supports a list of strings and/or key-value pairs.
 
 ### Use an adapter to apply hints to a resource
 
@@ -544,31 +544,7 @@ databricks_adapter(
         "user_id": {"column_comment": "The id of the user", "column_tags": ["pii", {"cost_center": "12345"}]},
       },
 
-)
-
-# Load data in "streaming insert" mode (only available with
-# write_disposition="append").
-databricks_adapter(event_data, insert_api="streaming")
 ```
-
-In the example above, the adapter specifies that event_date should be used for partitioning and both event_date and user_id should be used for clustering (in the given order) when the table is created.
-
-Some things to note with the adapter's behavior:
-
-You can only partition on one column (refer to supported hints).
-You can cluster on as many columns as you would like.
-Sequential adapter calls on the same resource accumulate parameters, akin to an OR operation, for a unified execution.
-
-caution
-
-At the time of writing, table level options aren't supported for ALTER operations.
-
-Note that bigquery_adapter updates the resource in place, but returns the resource for convenience, i.e., both the following are valid:
-
-bigquery_adapter(my_resource, partition="partition_column_name")
-my_resource = bigquery_adapter(my_resource, partition="partition_column_name")
-
-Refer to the full API specification for more details.
 
 <!--@@@DLT_TUBA databricks-->
 
