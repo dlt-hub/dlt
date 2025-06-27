@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional, overload
+from typing import Dict, Any, List, Optional, overload, Union, Match
 
 import sqlglot
 import sqlglot.expressions as sge
@@ -8,11 +8,27 @@ from dlt.destinations.sql_client import SqlClientBase
 from dlt.common.typing import TypedDict
 
 
+@overload
 def normalize_query(
     sqlglot_schema: SQLGlotSchema,
     qualified_query: sge.Query,
     sql_client: SqlClientBase[Any],
-) -> sge.Query:
+) -> sge.Query: ...
+
+
+@overload
+def normalize_query(
+    sqlglot_schema: SQLGlotSchema,
+    qualified_query: sge.Insert,
+    sql_client: SqlClientBase[Any],
+) -> sge.Insert: ...
+
+
+def normalize_query(
+    sqlglot_schema: SQLGlotSchema,
+    qualified_query: Union[sge.Query, sge.Insert],
+    sql_client: SqlClientBase[Any],
+) -> Union[sge.Query, sge.Insert]:
     """Normalizes a qualified query compliant with the dlt schema into the namespace of the source dataset"""
 
     # this function modifies the incoming query
@@ -126,6 +142,24 @@ def build_select_expr(
     select_expr = sge.Select(expressions=columns_expr).from_(table_expr)
 
     return select_expr
+
+
+def build_insert_expr(
+    table_name: str,
+    columns: List[str],
+    quoted_identifiers: bool = True,
+) -> sge.Insert:
+    table_expr = sge.Table(this=sge.to_identifier(table_name, quoted=quoted_identifiers))
+    columns_expr = [
+        sge.Column(this=sge.to_identifier(col, quoted=quoted_identifiers)) for col in columns
+    ]
+    placeholders_expr = sge.Values(
+        expressions=[sge.Tuple(expressions=[sge.Placeholder() for _ in enumerate(columns)])]
+    )
+
+    insert_expr = sge.Insert(this=table_expr, columns=columns_expr, expression=placeholders_expr)
+
+    return insert_expr
 
 
 def build_stored_state_expr(
@@ -256,3 +290,10 @@ def build_stored_schema_expr(
     select_expr = select_expr.where(where_condition).order_by(order_expr)
 
     return select_expr
+
+
+def replace_placeholders(match: Match[str]) -> str:
+    """Replaces (?, ?, ?, ...) placeholders with (%s, %s, %s, ...)."""
+    content: str = match.group(1)
+    num_questions: int = content.count("?")
+    return f"({', '.join(['%s'] * num_questions)})"

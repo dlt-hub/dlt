@@ -1,3 +1,4 @@
+import re
 from contextlib import contextmanager, suppress
 from typing import Any, AnyStr, ClassVar, Generator, Iterator, Optional, Sequence
 
@@ -19,6 +20,7 @@ from dlt.destinations.sql_client import (
 from dlt.destinations.typing import DBApi, DBTransaction, DataFrame, ArrowTable
 from dlt.destinations.impl.snowflake.configuration import SnowflakeCredentials
 from dlt.common.destination.dataset import DBApiCursor
+from dlt.destinations.queries import replace_placeholders
 
 
 class SnowflakeCursorImpl(DBApiCursorImpl):
@@ -123,8 +125,11 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
+        assert isinstance(query, str)
         curr: DBApiCursor = None
         db_args = args if args else kwargs if kwargs else None
+        if db_args:
+            query = re.sub(r"\((\s*\?,?[\s\?,]*?)\)", replace_placeholders, query)
         with self._conn.cursor() as curr:  # type: ignore[assignment]
             try:
                 curr.execute(query, db_args, num_statements=0)
