@@ -1,8 +1,9 @@
 from types import TracebackType
-from typing import Any, Type, Union, TYPE_CHECKING, List
+from typing import Any, Type, Union, TYPE_CHECKING, List, Literal, cast, overload
 
 
 from sqlglot.schema import Schema as SQLGlotSchema
+import sqlglot.expressions as sge
 
 from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
@@ -32,8 +33,12 @@ from dlt.transformations import lineage
 
 if TYPE_CHECKING:
     from dlt.helpers.ibis import BaseBackend as IbisBackend
+    from dlt.helpers.ibis import Table as IbisTable
+    from dlt.helpers.ibis import Expr as IbisExpr
 else:
     IbisBackend = Any
+    IbisTable = Any
+    IbisExpr = Any
 
 
 class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
@@ -91,8 +96,13 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
     def sqlglot_schema(self) -> SQLGlotSchema:
         # NOTE: no cache for now, it is probably more expensive to compute the current schema hash
         # to see wether this is stale than to compute a new sqlglot schema
-        dialect: str = self.sql_client.capabilities.sqlglot_dialect
-        return lineage.create_sqlglot_schema(self.schema, self.dataset_name, dialect=dialect)
+        return lineage.create_sqlglot_schema(
+            self.schema, self.dataset_name, dialect=self.sqlglot_dialect
+        )
+
+    @property
+    def sqlglot_dialect(self) -> str:
+        return self.sql_client.capabilities.sqlglot_dialect
 
     @property
     def dataset_name(self) -> str:
@@ -177,14 +187,30 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         if not self._schema:
             self._schema = Schema(self._dataset_name)
 
-    def __call__(self, query: Any, normalize_query: bool = True) -> ReadableDBAPIRelation:
+    def __call__(
+        self,
+        query: Union[str, sge.Select, IbisExpr],
+        query_dialect: str = None,
+        execute_raw_query: bool = False,
+    ) -> ReadableDBAPIRelation:
         # TODO: accept other query types and return a right relation: sqlglot (DBAPI) and ibis (Expr)
         # TODO: parse query as ibis relation, however ibis will quote that query when compiling to sql
         return ReadableDBAPIRelation(
-            readable_dataset=self, query_or_expression=query, normalize_query=normalize_query
+            readable_dataset=self,
+            query=query,
+            query_dialect=query_dialect,
+            execute_raw_query=execute_raw_query,
         )
 
-    def table(self, table_name: str) -> ReadableIbisRelation:
+    @overload
+    def table(self, table_name: str) -> ReadableIbisRelation: ...
+
+    @overload
+    def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
+
+    def table(
+        self, table_name: str, table_type: Literal["relation", "ibis"] = None
+    ) -> Union[ReadableIbisRelation, IbisTable]:
         # dataset only provides access to tables known in dlt schema, direct query may cirumvent this
         if table_name not in self.schema.tables.keys():
             raise ValueError(
@@ -192,6 +218,11 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
                 f" `{self.dataset_name}`. Available table(s):"
                 f" {', '.join(self.schema.tables.keys())}"
             )
+
+        if table_type == "ibis":
+            from dlt.helpers.ibis import create_unbound_ibis_table
+
+            return create_unbound_ibis_table(self.schema, self.dataset_name, table_name)
 
         # we can create an ibis powered relation if ibis is available
         relation: BaseReadableDBAPIRelation
@@ -212,7 +243,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
                 table_name=table_name,
             )
 
-        return relation  # type: ignore[return-value]
+        return relation
 
     def row_counts(
         self,

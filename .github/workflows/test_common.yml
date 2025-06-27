@@ -110,7 +110,7 @@ jobs:
           pytest tests/pipeline/test_pipeline_extra.py -k arrow ${{ matrix.pytest_args }}
 
       - name: Install pipeline and sources dependencies
-        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra cli --extra parquet --extra deltalake --extra sql_database --group sentry-sdk --group pipeline --group sources
+        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra cli --extra parquet --extra deltalake --extra sql_database --group sentry-sdk --group pipeline --group sources --group ibis
 
       - name: Run extract and pipeline tests
         run: |

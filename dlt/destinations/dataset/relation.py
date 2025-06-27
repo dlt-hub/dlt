@@ -1,3 +1,5 @@
+from typing import Any, cast, Generator, Optional, Sequence, Tuple, Type, TYPE_CHECKING
+
 from textwrap import indent
 from typing import (
     overload,
@@ -13,6 +15,7 @@ from typing import (
     TYPE_CHECKING,
 )
 from contextlib import contextmanager
+from textwrap import indent
 
 from enum import Enum, auto
 
@@ -32,11 +35,21 @@ from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.transformations import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.queries import normalize_query, build_select_expr
+from dlt.extract.hints import WithComputableHints, make_hints, TResourceHints
+from dlt.common.exceptions import MissingDependencyException
+
+try:
+    from dlt.helpers.ibis import Expr as IbisExpr
+    from dlt.helpers.ibis import compile_ibis_to_sqlglot
+except (ImportError, MissingDependencyException):
+    IbisExpr = None
 
 if TYPE_CHECKING:
     from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+    from dlt.helpers.ibis import Table as IbisTable, Expr as IbisExpr
 else:
     ReadableDBAPIDataset = Any
+    IbisTable = Any
 
 
 OpLiteral = Literal["eq", "ne", "gt", "lt", "gte", "lte", "in", "not_in"]
@@ -65,24 +78,24 @@ _FILTER_OP_MAP = {
 }
 
 
-class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
+class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient, WithComputableHints):
     def __init__(
         self,
         *,
         readable_dataset: "ReadableDBAPIDataset",
-        normalize_query: bool = True,
+        execute_raw_query: bool = False,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
 
         # provided properties
         self._dataset = readable_dataset
-        self._should_normalize_query: bool = normalize_query
+        self._execute_raw_query: bool = execute_raw_query
 
         # derived / cached properties
         self._opened_sql_client: SqlClientBase[Any] = None
         self._columns_schema: TTableSchemaColumns = None
-        self._qualified_query: sge.Query = None
-        self._normalized_query: sge.Query = None
+        self.__qualified_query: sge.Query = None
+        self.__normalized_query: sge.Query = None
 
         # wire protocol functions
         self.df = self._wrap_func("df")  # type: ignore
@@ -103,19 +116,36 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
         return self._dataset.sql_client_class
 
-    def query(self, pretty: bool = False) -> Any:
-        # NOTE: converted from property to method due to:
-        #   if this property raises AttributeError, __getattr__ will get called 🤯
-        #   this leads to infinite recursion as __getattr_ calls this property
-        #   also it does a heavy computation inside so it should be a method
-        if not self._should_normalize_query:
-            return self._query()
-
-        return self.normalized_query.sql(
-            dialect=self._dataset.sql_client.capabilities.sqlglot_dialect, pretty=pretty
+    def compute_hints(self) -> TResourceHints:
+        """Computes schema hints for this relation"""
+        computed_columns, _ = self._compute_columns_schema(
+            infer_sqlglot_schema=True,
+            allow_anonymous_columns=True,
+            allow_partial=True,
         )
+        # TODO: possibly also forward "table level" hints in some cases
+        return make_hints(columns=computed_columns)
 
-    def _query(self) -> Any:
+    def query(self, pretty: bool = False) -> str:
+        """Returns an executable sql query string in the correct sql dialect for this relation"""
+
+        if self._execute_raw_query:
+            query = self._query()
+        else:
+            query = self._normalized_query
+
+        if not isinstance(query, sge.Query):
+            raise ValueError(
+                f"Query `{query}` received for `{self.__class__.__name__}`. "
+                "Must be an SQL SELECT statement."
+            )
+
+        return query.sql(dialect=self.query_dialect(), pretty=pretty)
+
+    def query_dialect(self) -> str:
+        return self._dataset.sqlglot_dialect
+
+    def _query(self) -> sge.Query:
         """Returns a compliant with dlt schema in the relation.
         1. identifiers are not case folded
         2. star top level selects are not expanded
@@ -129,15 +159,11 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         try:
             self._opened_sql_client = self.sql_client
 
-            # we allow computing the schema to fail if query normalization is disabled
-            # this is useful for raw sql query access, testing and debugging
-            try:
+            # we only compute the columns schema if we are not executing the raw query
+            if self._execute_raw_query:
+                columns_schema = None
+            else:
                 columns_schema = self.columns_schema
-            except lineage.LineageFailedException:
-                if self._should_normalize_query:
-                    raise
-                else:
-                    columns_schema = None
 
             # case 1: client is already opened and managed from outside
             if self.sql_client.native_connection:
@@ -202,13 +228,11 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         if self._dataset.schema is None:
             return {}, None
 
-        dialect: str = self._dataset.sql_client.capabilities.sqlglot_dialect
-
         return lineage.compute_columns_schema(
             # use dlt schema compliant query so lineage will work correctly on non case folded identifiers
             self._query(),
             self._dataset.sqlglot_schema,
-            dialect,
+            dialect=self.query_dialect(),
             infer_sqlglot_schema=infer_sqlglot_schema,
             allow_anonymous_columns=allow_anonymous_columns,
             allow_partial=allow_partial,
@@ -217,7 +241,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     @property
     def columns_schema(self) -> TTableSchemaColumns:
         if self._columns_schema is None:
-            self._columns_schema, self._qualified_query = self._compute_columns_schema()
+            self._columns_schema, self.__qualified_query = self._compute_columns_schema()
         return self._columns_schema
 
     @columns_schema.setter
@@ -225,25 +249,28 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         raise NotImplementedError("Columns Schema may not be set")
 
     @property
-    def qualified_query(self) -> sge.Query:
-        if self._qualified_query is None:
-            self._columns_schema, self._qualified_query = self._compute_columns_schema()
-        return self._qualified_query
+    def _qualified_query(self) -> sge.Query:
+        if self.__qualified_query is None:
+            self._columns_schema, self.__qualified_query = self._compute_columns_schema()
+        return self.__qualified_query
 
     @property
-    def normalized_query(self) -> sge.Query:
-        if self._normalized_query is None:
-            self._normalized_query = normalize_query(
-                self._dataset.sqlglot_schema, self.qualified_query, self._dataset.sql_client
+    def _normalized_query(self) -> sge.Query:
+        """Computes and returns the normalized query"""
+        if self.__normalized_query is None:
+            self.__normalized_query = normalize_query(
+                self._dataset.sqlglot_schema,
+                self._qualified_query,
+                self._dataset.sql_client,
             )
-        return self._normalized_query
+        return self.__normalized_query
 
     def __str__(self) -> str:
         # TODO: merge detection of "simple" transformation that preserve table schema
         query_expr = self.__dict__.get("_sqlglot_expression", None)
         msg = (
             "Relation"
-            f" query:\n{indent(query_expr.sql(dialect=self._dataset.sql_client.capabilities.sqlglot_dialect), prefix='  ')}\n"
+            f" query:\n{indent(query_expr.sql(dialect=self.query_dialect()), prefix='  ')}\n"
         )
         msg += "Columns:\n"
         for column in self.columns_schema.values():
@@ -258,8 +285,9 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         self,
         *,
         readable_dataset: "ReadableDBAPIDataset",
-        query_or_expression: Union[str, sge.Select],
-        normalize_query: bool = True,
+        query: Union[str, sge.Select],
+        query_dialect: Optional[str] = None,
+        execute_raw_query: bool = False,
     ) -> None: ...
 
     @overload
@@ -268,26 +296,30 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         *,
         readable_dataset: "ReadableDBAPIDataset",
         table_name: str,
-        normalize_query: bool = True,
     ) -> None: ...
 
     def __init__(
         self,
         *,
         readable_dataset: "ReadableDBAPIDataset",
-        query_or_expression: Optional[Union[str, sge.Select]] = None,
+        query: Optional[Union[str, sge.Select, IbisExpr]] = None,
+        query_dialect: Optional[str] = None,
         table_name: Optional[str] = None,
-        normalize_query: bool = True,
+        execute_raw_query: bool = False,
     ) -> None:
         """Create a lazy evaluated relation for the dataset of a destination"""
 
-        super().__init__(readable_dataset=readable_dataset, normalize_query=normalize_query)
+        super().__init__(readable_dataset=readable_dataset, execute_raw_query=execute_raw_query)
 
         self._sqlglot_expression: sge.Select = None
-        if query_or_expression:
+        if IbisExpr and isinstance(query, IbisExpr):
+            self._sqlglot_expression = cast(
+                sge.Select, compile_ibis_to_sqlglot(query, self.query_dialect())
+            )
+        elif query:
             self._sqlglot_expression = maybe_parse(
-                query_or_expression,
-                dialect=self.sql_client.capabilities.sqlglot_dialect,
+                query,
+                dialect=query_dialect or self.query_dialect(),
             )
         else:
             self._sqlglot_expression = build_select_expr(
@@ -295,15 +327,13 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
                 selected_columns=list(self._dataset.schema.get_table_columns(table_name).keys()),
             )
 
-    def _query(self) -> str:
-        return self._sqlglot_expression.sql(
-            dialect=self._dataset.sql_client.capabilities.sqlglot_dialect
-        )
+    def _query(self) -> sge.Query:
+        return self._sqlglot_expression
 
     def __copy__(self) -> Self:
         return self.__class__(
             readable_dataset=self._dataset,
-            query_or_expression=self._sqlglot_expression,
+            query=self._sqlglot_expression,
         )
 
     def limit(self, limit: int, **kwargs: Any) -> Self:

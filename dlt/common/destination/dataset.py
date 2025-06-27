@@ -9,6 +9,7 @@ from typing import (
     Protocol,
     Tuple,
     AnyStr,
+    Literal,
     overload,
 )
 
@@ -22,11 +23,12 @@ from dlt.common.schema.typing import TTableSchemaColumns
 if TYPE_CHECKING:
     from dlt.common.libs.pandas import DataFrame
     from dlt.common.libs.pyarrow import Table as ArrowTable
-    from dlt.helpers.ibis import BaseBackend as IbisBackend
+    from dlt.helpers.ibis import BaseBackend as IbisBackend, Table as IbisTable
 else:
     DataFrame = Any
     ArrowTable = Any
     IbisBackend = Any
+    IbisTable = Any
 
 
 class SupportsReadableRelation:
@@ -37,17 +39,21 @@ class SupportsReadableRelation:
     sql glot query analysis and lineage. dlt hints for columns are kept in some cases. Refere to <docs-page> for more details.
     """
 
-    def query(self, pretty: bool = False) -> Any:
+    def query(self, pretty: bool = False) -> str:
         """Returns the sql query that represents the relation. The query will be qualified, quoted and escaped
-           according to a SQL dialect that the destination uses, unless query normalization is disabled by the user.
+           according to a SQL dialect that the destination uses, unless a raw query was provided.
 
         Args:
             pretty (bool, optional): Whether to return the query in a pretty format. Defaults to False.
 
         Returns:
-            Any: The qualified sql query that represents the relation
+            str: The qualified sql query that represents the relation
         """
         raise NotImplementedError("`query()` method is not supported for this relation")
+
+    def query_dialect(self) -> str:
+        """Returns the dialect of the query that represents the relation"""
+        raise NotImplementedError("`query_dialect()` method is not supported for this relation")
 
     def compute_columns_schema(
         self,
@@ -219,7 +225,7 @@ class SupportsReadableRelation:
         Returns:
             Any: The attribute of the relation
         """
-        raise NotImplementedError("`__getattr__()` method is not supported for this relation")
+        raise AttributeError("`__getattr__()` method is not supported for this relation")
 
     def __copy__(self) -> Self:
         """create a copy of the relation object
@@ -272,15 +278,37 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
             str: The name of the dataset
         """
 
-    def __call__(self, query: Any, normalize_query: bool = True) -> SupportsReadableRelation:
+    def __call__(
+        self, query: str, query_dialect: str = None, execute_raw_query: bool = False
+    ) -> SupportsReadableRelation:
         """Returns a readable relation for a given sql query
 
         Args:
-            query (Any): The sql query to base the relation on
-            normalize_query (bool, optional): Whether to run the query as is or perform query normalization and lineage. Experimental.
+            query (str): The sql query to base the relation on
+            query_dialect (str, optional): The dialect of the query. Defaults to the dataset's destination dialect. You can use this to write queries in a different dialect than the destination.
+            execute_raw_query (bool, optional): Whether to run the query as is (raw)or perform query normalization and lineage. Experimental.
 
         Returns:
             SupportsReadableRelation: The readable relation for the query
+        """
+
+    @overload
+    def table(self, table_name: str) -> TReadableRelation: ...
+
+    @overload
+    def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
+
+    def table(
+        self, table_name: str, table_type: Literal["relation", "ibis"] = None
+    ) -> Union[TReadableRelation, IbisTable]:
+        """Returns an object representing a table named `table_name`
+
+        Args:
+            table_name (str): The name of the table
+            table_type (Literal["relation", "ibis"], optional): The type of the table. Defaults to "relation" if not specified. If "ibis" is specified, you will get an unbound ibis table.
+
+        Returns:
+            Union[TReadableRelation, IbisTable]: The object representing the table
         """
 
     def __getitem__(self, table: str) -> TReadableRelation:

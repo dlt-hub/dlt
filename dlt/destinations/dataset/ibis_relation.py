@@ -1,7 +1,8 @@
 from typing import TYPE_CHECKING, Any, Union, Sequence
 from functools import partial
-import sqlglot
 
+import sqlglot
+import sqlglot.expressions as sge
 from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
 
 
@@ -11,14 +12,6 @@ if TYPE_CHECKING:
 else:
     IbisTable = object
     IbisEpr = Any
-
-
-# NOTE: some dialects are not supported by ibis, but by sqlglot, these need to
-# be transpiled with an intermediary step
-TRANSPILE_VIA_DEFAULT = [
-    "redshift",
-    "presto",
-]
 
 
 class ReadableIbisRelation(BaseReadableDBAPIRelation):
@@ -32,30 +25,13 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         super().__init__(readable_dataset=readable_dataset)
         self._ibis_object = ibis_object
 
-    def _query(self) -> Any:
-        from dlt.helpers.ibis import ibis
+    def _query(self) -> sge.Query:
+        from dlt.helpers.ibis import compile_ibis_to_sqlglot
 
-        ibis_expr = self._ibis_object
-        caps = self._dataset.sql_client.capabilities
-        target_dialect = caps.sqlglot_dialect
-
-        # render sql directly if possible
-        # NOTE: ibis is optimized for reading a real schema from db and pushing back optimized sql
-        #  - it quotes all identifiers, there's no option to get unqoted query
-        #  - it converts full lists of column names back into star
-        #  - it optimizes the query inside, adds meaningless aliases to all tables etc.
-        if target_dialect not in TRANSPILE_VIA_DEFAULT:
-            if target_dialect == "tsql":
-                # NOTE: Ibis uses the product name "mssql" as the dialect instead of the official "tsql".
-                return ibis.to_sql(ibis_expr, dialect="mssql")
-            else:
-                return ibis.to_sql(ibis_expr, dialect=target_dialect)
-
-        # here we need to transpile to ibis default and transpile back to target with sqlglot
-        # NOTE: ibis defaults to the duckdb dialect, if a dialect is not passed
-        sql = ibis.to_sql(ibis_expr)
-        sql = sqlglot.transpile(sql, write=target_dialect)[0]
-        return sql
+        select_query = compile_ibis_to_sqlglot(self._ibis_object, self._dataset.sqlglot_dialect)
+        # this should always be a query, so no need for a nice exception
+        assert isinstance(select_query, sge.Query)
+        return select_query
 
     def _proxy_expression_method(self, method_name: str, *args: Any, **kwargs: Any) -> Any:
         """Proxy method calls to the underlying ibis expression, allowing to wrap the resulting expression in a new relation"""

@@ -191,16 +191,9 @@ class ModelWriter(DataWriter):
     def write_data(self, items: Sequence[TDataItem]) -> None:
         super().write_data(items)
         for item in items:
-            dialect = item.dialect or (self._caps.sqlglot_dialect if self._caps else None)
-            query = item.query
-            parsed_query = sqlglot.parse_one(query, read=dialect)
-
-            # Ensure the parsed query is a SELECT statement
-            if not isinstance(parsed_query, sqlglot.exp.Select):
-                raise ValueError("Only SELECT statements are allowed to write model files.")
-
-            normalized_query = parsed_query.sql(dialect=dialect)
-            self._f.write("dialect: " + (dialect or "") + "\n" + normalized_query + "\n")
+            dialect = item.query_dialect() or (self._caps.sqlglot_dialect if self._caps else None)
+            query = item.query()
+            self._f.write("dialect: " + (dialect or "") + "\n" + query + "\n")
 
     @classmethod
     def writer_spec(cls) -> FileWriterSpec:

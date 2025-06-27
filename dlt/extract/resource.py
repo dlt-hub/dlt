@@ -495,6 +495,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                     self._hints["incremental"] = incremental
 
         table_schema = super().compute_table_schema(item, meta)
+
         return table_schema
 
     def bind(self, *args: Any, **kwargs: Any) -> Self:

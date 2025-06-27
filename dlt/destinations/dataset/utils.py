@@ -14,8 +14,8 @@ from dlt.common.destination.client import (
     DestinationClientDwhWithStagingConfiguration,
 )
 from dlt.common.schema import Schema
-from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.common.normalizers.naming import NamingConvention
 
 
 def get_destination_client_initial_config(
