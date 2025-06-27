@@ -2,7 +2,7 @@ import pytest
 
 from typing import Any
 
-import dlt, os
+import dlt, os, sys
 
 from dlt.common.destination.dataset import SupportsReadableDataset
 from tests.pipeline.utils import load_table_counts
@@ -177,6 +177,7 @@ def test_materializable_sql_model(destination_config: DestinationTestConfigurati
     }
 
 
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Ibis Requires Python 3.10 or higher")
 @pytest.mark.parametrize(
     "destination_config",
     transformation_configs(only_duckdb=True),
