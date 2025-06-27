@@ -1,3 +1,4 @@
+import re
 from contextlib import contextmanager, suppress
 from typing import (
     Any,
@@ -30,6 +31,7 @@ from dlt.destinations.sql_client import (
 from dlt.destinations.typing import ArrowTable, DBApi, DBTransaction, DataFrame
 from dlt.destinations.impl.databricks.configuration import DatabricksCredentials
 from dlt.common.destination.dataset import DBApiCursor
+from dlt.destinations.queries import replace_placeholders
 
 
 class DatabricksCursorImpl(DBApiCursorImpl):
@@ -139,6 +141,8 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
 
         assert isinstance(query, str)
         db_args = args or kwargs or None
+        if db_args:
+            query = re.sub(r"\((\s*\?,?[\s\?,]*?)\)", replace_placeholders, query)
         with self._conn.cursor() as curr:
             curr.execute(query, db_args)
             yield DatabricksCursorImpl(curr)  # type: ignore[arg-type, abstract, unused-ignore]
