@@ -3,6 +3,7 @@ from typing import Any, Type, Union, TYPE_CHECKING, List
 
 
 from sqlglot.schema import Schema as SQLGlotSchema
+import sqlglot.expressions as sge
 
 from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
@@ -25,6 +26,7 @@ from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation, BaseReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
+from dlt.destinations.queries import build_row_counts_expr
 
 from dlt.transformations import lineage
 
@@ -182,14 +184,17 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
             self._schema = Schema(self._dataset_name)
 
     def __call__(
-        self, query: str, query_dialect: str = None, execute_raw_query: bool = False
+        self,
+        query: Union[str, sge.Select],
+        query_dialect: str = None,
+        execute_raw_query: bool = False,
     ) -> ReadableDBAPIRelation:
         # TODO: accept other query types and return a right relation: sqlglot (DBAPI) and ibis (Expr)
         # TODO: parse query as ibis relation, however ibis will quote that query when compiling to sql
         return ReadableDBAPIRelation(
             readable_dataset=self,
-            provided_query=query,
-            provided_query_dialect=query_dialect,
+            query_or_expression=query,
+            query_dialect=query_dialect,
             execute_raw_query=execute_raw_query,
         )
 
@@ -242,6 +247,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
                 selected_tables += self.schema.dlt_table_names()
 
         # filter tables so only ones with dlt_load_id column are included
+        dlt_load_id_col = None
         if load_id:
             dlt_load_id_col = self.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
             selected_tables = [
@@ -249,21 +255,21 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
                 for table in selected_tables
                 if dlt_load_id_col in self.schema.tables[table]["columns"].keys()
             ]
-        # Build UNION ALL query to get row counts for all selected tables
-        queries = []
-        for table in selected_tables:
-            query = (
-                f"SELECT '{table}' as table_name, COUNT(1) as row_count FROM"
-                f" {self.sql_client.capabilities.escape_identifier(table)}"
+
+        union_all_expr = None
+
+        for table_name in selected_tables:
+            counts_expr = build_row_counts_expr(
+                table_name=table_name,
+                dlt_load_id_col=dlt_load_id_col,
+                load_id=load_id,
             )
-            if load_id:
-                query += f" WHERE {dlt_load_id_col} = '{load_id}'"
-            queries.append(query)
+            if union_all_expr is None:
+                union_all_expr = counts_expr
+            else:
+                union_all_expr = union_all_expr.union(counts_expr, distinct=False)
 
-        query = " UNION ALL ".join(queries)
-
-        # Execute query and build result dict
-        return self(query)
+        return self(query=union_all_expr)
 
     def __getitem__(self, table_name: str) -> ReadableIbisRelation:
         """access of table via dict notation"""

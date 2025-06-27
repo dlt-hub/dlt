@@ -93,6 +93,8 @@ def compute_columns_schema(
     Returns: tuple of dlt columns schema and qualified `sql_query`
 
     """
+    # make sure we don't modify the original expression
+    expression = expression.copy()
 
     # the only thing we care is a list of selects
     if not isinstance(expression, sge.Query):

@@ -11,6 +11,7 @@ from typing import List
 from functools import reduce
 
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableFormat
 
@@ -107,7 +108,21 @@ def create_test_source(destination_type: str, table_format: TTableFormat) -> Dlt
                 for i in range(total_records)
             ]
 
-        return [items, double_items]
+        @dlt.resource(
+            table_format=table_format,
+            write_disposition="replace",
+            columns={"id": {"data_type": "bigint"}, "other_id": {"data_type": "bigint"}},
+        )
+        def orderable_in_chain():
+            yield from [
+                {
+                    "id": int(i / 2),
+                    "other_id": i,
+                }
+                for i in range(total_records)
+            ]
+
+        return [items, double_items, orderable_in_chain]
 
     return source()
 
@@ -389,6 +404,10 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
             "items__children",
             total_records * 2,
         ),
+        (
+            "orderable_in_chain",
+            total_records,
+        ),
     }
     # get only one data table
     assert set(
@@ -443,6 +462,10 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
         (
             "items__children",
             total_records * 2,
+        ),
+        (
+            "orderable_in_chain",
+            total_records,
         ),
     }
 
@@ -713,6 +736,112 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
 
     with pytest.raises(LineageFailedException):
         arrow_table = table_relationship.select("unknown_column").head().arrow()
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_chained_column_selection(populated_pipeline: Pipeline) -> None:
+    table_relationship = populated_pipeline.dataset(dataset_type="default").items
+
+    columns = ["_dlt_load_id", "other_decimal"]
+    data_frame = table_relationship.select(*columns).head().df()
+    assert list(data_frame.columns.values) == columns
+
+    data_frame = table_relationship.select(*columns).select(*columns).head().df()
+    assert list(data_frame.columns.values) == columns
+
+    data_frame = table_relationship.select(*columns).select(*["other_decimal"]).head().df()
+    assert list(data_frame.columns.values) == ["other_decimal"]
+
+    data_frame = table_relationship.select(*columns).select(*["decimal"]).head().df()
+    assert list(data_frame.columns.values) == ["decimal"]
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_order_by(populated_pipeline: Pipeline) -> None:
+    total_records = _total_records(populated_pipeline.destination.destination_type)
+    table_relationship = populated_pipeline.dataset(dataset_type="default").items
+
+    asc_ids = [row[0] for row in table_relationship.order_by("id", "asc").limit(20).fetchall()]
+    assert asc_ids == list(range(20))
+
+    desc_ids = [row[0] for row in table_relationship.order_by("id", "desc").limit(20).fetchall()]
+    assert desc_ids == list(range(total_records - 1, total_records - 21, -1))
+
+    chained = [row[0] for row in table_relationship.order_by("id").limit(5).select("id").fetchall()]
+    assert chained == list(range(5))
+
+    chained_relation = populated_pipeline.dataset(dataset_type="default").orderable_in_chain
+    chained_order_by = [
+        row
+        for row in chained_relation.order_by("id", "asc")
+        .order_by("other_id", "desc")
+        .limit(5)
+        .fetchall()
+    ]
+
+    assert [row[0] for row in chained_order_by] == [0, 0, 1, 1, 2]
+    assert [row[1] for row in chained_order_by] == [1, 0, 3, 2, 5]
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_where(populated_pipeline: Pipeline) -> None:
+    total_records = _total_records(populated_pipeline.destination.destination_type)
+    items = populated_pipeline.dataset(dataset_type="default").items
+
+    eq_rows = items.where("id", "eq", 10).fetchall()
+    assert len(eq_rows) == 1 and eq_rows[0][0] == 10
+
+    ne_rows = items.filter("id", "ne", 0).fetchall()
+    assert total_records - 1 == len(ne_rows)
+
+    gt_rows = items.where("id", "gt", 2).fetchall()
+    assert total_records - 3 == len(gt_rows)
+
+    lt_rows = items.filter("id", "lt", 5).fetchall()
+    assert 5 == len(lt_rows)
+
+    gte_rows = items.where("id", "gte", 5).fetchall()
+    lte_rows = items.filter("id", "lte", "5").fetchall()
+    assert total_records - 5 == len(gte_rows)
+    assert 6 == len(lte_rows)
+
+    in_ids = [r[0] for r in (items.where("id", "in", [3, 1, 7]).order_by("id").fetchall())]
+    assert in_ids == [1, 3, 7]
+
+    not_in_rows = items.filter("id", "not_in", [0, 1, 2]).fetchall()
+    assert total_records - 3 == len(not_in_rows)
+
+    with pytest.raises(ValueErrorWithKnownValues) as py_exc:
+        not_in_rows = items.filter("id", "wrong", [0, 1, 2]).fetchall()
+
+    assert (
+        "Received invalid value `operator=wrong`. Valid values are: ('eq', 'ne', 'gt', 'lt', 'gte',"
+        " 'lte', 'in', 'not_in')"
+        in py_exc.value.args
+    )
+
+    assert total_records - 3 == len(not_in_rows)
 
 
 @pytest.mark.no_load
@@ -1083,6 +1212,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
                     "double_items",
                     "items",
                     "items__children",
+                    "orderable_in_chain",
                 ]
                 + additional_tables
             )
