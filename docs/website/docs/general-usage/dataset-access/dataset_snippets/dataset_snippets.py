@@ -26,6 +26,11 @@ def dataset(pipeline: dlt.Pipeline) -> ReadableDBAPIDataset:
     return pipeline.dataset()
 
 
+@pytest.fixture(scope="function")
+def default_dataset(pipeline: dlt.Pipeline) -> ReadableDBAPIDataset:
+    return pipeline.dataset(dataset_type="default")
+
+
 def quick_start_example_snippet(pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START quick_start_example
     # Assuming you have a Pipeline object named 'pipeline'. You can create one with the dlt cli: dlt init fruitshop duckdb
@@ -154,6 +159,22 @@ def select_columns_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END select_columns
 
 
+def order_by_snippet(default_dataset: ReadableDBAPIDataset) -> None:
+    customers_relation = default_dataset.customers
+    # @@@DLT_SNIPPET_START order_by
+    # Order by 'id'
+    ordered_list = customers_relation.order_by("id").fetchall()
+    # @@@DLT_SNIPPET_END order_by
+
+
+def filter_snippet(default_dataset: ReadableDBAPIDataset) -> None:
+    customers_relation = default_dataset.customers
+    # @@@DLT_SNIPPET_START filter
+    # Filter by 'id'
+    filtered = customers_relation.where("id", "in", [3, 1, 7]).fetchall()
+    # @@@DLT_SNIPPET_END filter
+
+
 def chain_operations_snippet(dataset: ReadableDBAPIDataset) -> None:
     customers_relation = dataset.customers
 
@@ -248,7 +269,8 @@ def custom_sql_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_START custom_sql
     # Join 'customers' and 'purchases' tables
     custom_relation = dataset(
-        "SELECT * FROM customers JOIN purchases ON customers.id = purchases.customer_id"
+        "SELECT customers.id AS customer_id, customers.name, purchases.id AS purchase_id,"
+        " purchases.quantity FROM customers JOIN purchases ON customers.id = purchases.customer_id"
     )
     arrow_table = custom_relation.arrow()
     # @@@DLT_SNIPPET_END custom_sql
