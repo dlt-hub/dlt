@@ -1,10 +1,11 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, overload
 
 import sqlglot
 import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema
 
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.common.typing import TypedDict
 
 
 def normalize_query(
@@ -123,5 +124,135 @@ def build_select_expr(
     ]
 
     select_expr = sge.Select(expressions=columns_expr).from_(table_expr)
+
+    return select_expr
+
+
+def build_stored_state_expr(
+    pipeline_name: str,
+    state_table_name: str,
+    state_table_cols: List[str],
+    loads_table_name: str,
+    c_load_id: str,
+    c_dlt_load_id: str,
+    c_pipeline_name: str,
+    c_status: str,
+) -> sge.Select:
+    """Builds a SQL expression for querying the stored state."""
+    state_table_expr = sge.Table(
+        this=sge.to_identifier(state_table_name, quoted=True),
+        alias=sge.to_identifier("s", quoted=False),
+    )
+
+    loads_table_expr = sge.Table(
+        this=sge.to_identifier(loads_table_name, quoted=True),
+        alias=sge.to_identifier("l", quoted=False),
+    )
+
+    join_condition = sge.EQ(
+        this=sge.Column(
+            this=sge.to_identifier(c_load_id, quoted=True),
+            table=sge.to_identifier("l", quoted=False),
+        ),
+        expression=sge.Column(
+            this=sge.to_identifier(c_dlt_load_id, quoted=True),
+            table=sge.to_identifier("s", quoted=False),
+        ),
+    )
+
+    where_condition = sge.and_(
+        sge.EQ(
+            this=sge.Column(this=sge.to_identifier(c_pipeline_name, quoted=True)),
+            expression=sge.Literal.string(pipeline_name),
+        ),
+        sge.EQ(
+            this=sge.Column(
+                this=sge.to_identifier(c_status, quoted=True),
+                table=sge.to_identifier("l", quoted=False),
+            ),
+            expression=sge.Literal.number(0),
+        ),
+    )
+
+    select_expr = sge.Select(
+        expressions=[
+            sge.Column(this=sge.to_identifier(col, quoted=True)) for col in state_table_cols
+        ]
+    )
+
+    order_expr = sge.Ordered(
+        this=sge.Column(this=sge.to_identifier(c_load_id, quoted=True)),
+        desc=True,
+    )
+
+    select_expr = (
+        select_expr.from_(state_table_expr)
+        .join(loads_table_expr, on=join_condition)
+        .where(where_condition)
+        .order_by(order_expr)
+        .limit(1)
+    )
+    return select_expr
+
+
+@overload
+def build_stored_schema_expr(
+    table_name: str,
+    version_table_schema_columns: List[str],
+    *,
+    schema_name: str,
+    c_inserted_at: str,
+    c_schema_name: str,
+) -> sge.Select: ...
+
+
+@overload
+def build_stored_schema_expr(
+    table_name: str,
+    version_table_schema_columns: List[str],
+    *,
+    version_hash: str,
+    c_version_hash: str,
+) -> sge.Select: ...
+
+
+def build_stored_schema_expr(
+    table_name: str,
+    version_table_schema_columns: List[str],
+    schema_name: Optional[str] = None,
+    c_inserted_at: Optional[str] = None,
+    c_schema_name: Optional[str] = None,
+    version_hash: Optional[str] = None,
+    c_version_hash: Optional[str] = None,
+) -> sge.Select:
+    """Builds a SQL expression for querying the stored schema based on the version hash if provided."""
+    select_expr = build_select_expr(
+        table_name=table_name,
+        selected_columns=version_table_schema_columns,
+        quoted_identifiers=True,
+    )
+
+    if version_hash:
+        where_condition = sge.EQ(
+            this=sge.Column(this=sge.to_identifier(c_version_hash, quoted=True)),
+            expression=sge.Literal.string(version_hash),
+        )
+
+        select_expr = select_expr.where(where_condition).limit(1)
+        return select_expr
+
+    order_expr = sge.Ordered(
+        this=sge.Column(this=sge.to_identifier(c_inserted_at, quoted=True)),
+        desc=True,
+    )
+
+    where_condition = None
+    if schema_name:
+        where_condition = sge.EQ(
+            this=sge.Column(this=sge.to_identifier(c_schema_name, quoted=True)),
+            expression=sge.Literal.string(schema_name),
+        )
+
+    select_expr = select_expr.where(where_condition).order_by(order_expr)
 
     return select_expr
