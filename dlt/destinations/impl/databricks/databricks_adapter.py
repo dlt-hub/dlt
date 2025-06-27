@@ -1,9 +1,5 @@
 from typing import Any, Optional, Literal, Dict, List, Union, cast
 
-from dateutil import parser
-
-from dlt.common.destination import PreparedTableSchema
-from dlt.common.pendulum import timezone
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import TColumnNames
 from dlt.destinations.utils import get_resource_for_adapter
@@ -39,6 +35,11 @@ def databricks_adapter(
         table_tags (List[Union[str, Dict[str, str]]], optional): A list of tags for the Databricks table.
             Can contain a mix of strings and key-value pairs as dictionaries.
             Example: ["production", {"environment": "prod"}, "employees"]
+        column_hints (TTableSchemaColumns, optional): A dictionary of column hints.
+            Each key is a column name, and the value is a dictionary of hints.
+            The supported hints are:
+            - `column_comment` - adds a comment to the column. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax).
+            - `column_tags` - adds tags to the column. Supports a list of strings and/or key-value pairs.
 
     Returns:
         A `DltResource` object that is ready to be loaded into Databricks.
