@@ -138,7 +138,3 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
 
     def __str__(self) -> str:
         return self._ibis_object.__str__()  # type: ignore[no-any-return]
-
-    def ibis(self) -> IbisTable:
-        """Returns an undbound ibis table representing the relation."""
-        return self._ibis_object

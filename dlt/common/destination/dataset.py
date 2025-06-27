@@ -9,6 +9,7 @@ from typing import (
     Protocol,
     Tuple,
     AnyStr,
+    Literal,
     overload,
 )
 
@@ -198,14 +199,6 @@ class SupportsReadableRelation:
         """
         raise NotImplementedError("`select()` method is not supported for this relation")
 
-    def ibis(self) -> IbisTable:
-        """Returns an undbound ibis table representing the relation.
-
-        Returns:
-            IbisTable: The ibis table for the relation
-        """
-        raise NotImplementedError("`ibis()` method is not supported for this relation")
-
     @overload
     def __getitem__(self, column: str) -> Self: ...
 
@@ -297,6 +290,25 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
 
         Returns:
             SupportsReadableRelation: The readable relation for the query
+        """
+
+    @overload
+    def table(self, table_name: str) -> TReadableRelation: ...
+
+    @overload
+    def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
+
+    def table(
+        self, table_name: str, table_type: Literal["relation", "ibis"] = None
+    ) -> Union[TReadableRelation, IbisTable]:
+        """Returns an object representing a table named `table_name`
+
+        Args:
+            table_name (str): The name of the table
+            table_type (Literal["relation", "ibis"], optional): The type of the table. Defaults to "relation" if not specified. If "ibis" is specified, you will get an unbound ibis table.
+
+        Returns:
+            Union[TReadableRelation, IbisTable]: The object representing the table
         """
 
     def __getitem__(self, table: str) -> TReadableRelation:

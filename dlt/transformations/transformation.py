@@ -108,10 +108,8 @@ def make_transformation_resource(
                     relation = datasets[0](unwrapped_item)
             except sqlglot.errors.ParseError:
                 pass
-        # TODO: after merge of sqlglot based readble relation, we want to nativly support ibis expressions in the constructor of the relation
         elif IbisExpr and isinstance(unwrapped_item, IbisExpr):
-            sql_query = compile_ibis_to_sqlglot(unwrapped_item, datasets[0].sqlglot_dialect)
-            relation = datasets[0](sql_query.sql(datasets[0].sqlglot_dialect))
+            relation = datasets[0](unwrapped_item)
 
         # we have something else, so fall back to regular resource behavior
         if not relation:

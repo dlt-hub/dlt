@@ -192,8 +192,8 @@ def test_ibis_unbound_table_transformation(
 
     @dlt.transformation()
     def materializable_sql_model(dataset: SupportsReadableDataset[Any]) -> Any:
-        purchases = dataset.purchases.ibis()
-        customers = dataset.customers.ibis()
+        purchases = dataset.table("purchases", table_type="ibis")
+        customers = dataset.table("customers", table_type="ibis")
         yield purchases.join(customers, purchases.customer_id == customers.id)[
             ["id", "customer_id", "inventory_id", "quantity", "name"]
         ]

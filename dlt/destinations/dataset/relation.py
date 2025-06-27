@@ -36,10 +36,17 @@ from dlt.transformations import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.queries import normalize_query, build_select_expr
 from dlt.extract.hints import WithComputableHints, make_hints, TResourceHints
+from dlt.common.exceptions import MissingDependencyException
+
+try:
+    from dlt.helpers.ibis import Expr as IbisExpr
+    from dlt.helpers.ibis import compile_ibis_to_sqlglot
+except (ImportError, MissingDependencyException):
+    IbisExpr = None
 
 if TYPE_CHECKING:
     from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
-    from dlt.helpers.ibis import Table as IbisTable
+    from dlt.helpers.ibis import Table as IbisTable, Expr as IbisExpr
 else:
     ReadableDBAPIDataset = Any
     IbisTable = Any
@@ -110,11 +117,13 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient, WithCom
         return self._dataset.sql_client_class
 
     def compute_hints(self) -> TResourceHints:
+        """Computes schema hints for this relation"""
         computed_columns, _ = self._compute_columns_schema(
             infer_sqlglot_schema=True,
             allow_anonymous_columns=True,
             allow_partial=True,
         )
+        # TODO: possibly also forward "table level" hints in some cases
         return make_hints(columns=computed_columns)
 
     def query(self, pretty: bool = False) -> str:
@@ -276,7 +285,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         self,
         *,
         readable_dataset: "ReadableDBAPIDataset",
-        query_or_expression: Union[str, sge.Select],
+        query: Union[str, sge.Select],
         query_dialect: Optional[str] = None,
         execute_raw_query: bool = False,
     ) -> None: ...
@@ -293,7 +302,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         self,
         *,
         readable_dataset: "ReadableDBAPIDataset",
-        query_or_expression: Optional[Union[str, sge.Select]] = None,
+        query: Optional[Union[str, sge.Select, IbisExpr]] = None,
         query_dialect: Optional[str] = None,
         table_name: Optional[str] = None,
         execute_raw_query: bool = False,
@@ -302,13 +311,15 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
 
         super().__init__(readable_dataset=readable_dataset, execute_raw_query=execute_raw_query)
 
-        self._provided_query_dialect = query_dialect
-
         self._sqlglot_expression: sge.Select = None
-        if query_or_expression:
+        if IbisExpr and isinstance(query, IbisExpr):
+            self._sqlglot_expression = cast(
+                sge.Select, compile_ibis_to_sqlglot(query, self.query_dialect())
+            )
+        elif query:
             self._sqlglot_expression = maybe_parse(
-                query_or_expression,
-                dialect=self._provided_query_dialect or self.query_dialect(),
+                query,
+                dialect=query_dialect or self.query_dialect(),
             )
         else:
             self._sqlglot_expression = build_select_expr(
@@ -322,8 +333,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
     def __copy__(self) -> Self:
         return self.__class__(
             readable_dataset=self._dataset,
-            query_or_expression=self._sqlglot_expression,
-            query_dialect=self._provided_query_dialect,
+            query=self._sqlglot_expression,
         )
 
     def limit(self, limit: int, **kwargs: Any) -> Self:
@@ -416,13 +426,3 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
 
     def head(self, limit: int = 5) -> Self:
         return self.limit(limit)
-
-    def ibis(self) -> IbisTable:
-        """Returns an undbound ibis table representing the relation."""
-        from dlt.helpers.ibis import create_unbound_ibis_table
-
-        return create_unbound_ibis_table(
-            self._dataset.schema,
-            self._dataset.dataset_name,
-            self._table_name,
-        )
