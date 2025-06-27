@@ -38,6 +38,7 @@ from dlt.common.schema.typing import TColumnType
 from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 from dlt.common.utils import uniq_id
 from dlt.common import logger
+from dlt.common.data_writers.escape import escape_databricks_literal
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
@@ -319,7 +320,8 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
 
         if column.get(COLUMN_COMMENT_HINT) or column.get("description"):
             comment = column.get(COLUMN_COMMENT_HINT) or column.get("description")
-            column_def_sql = f"{column_def_sql} COMMENT '{comment}'"
+            escaped_comment = escape_databricks_literal(comment)
+            column_def_sql = f"{column_def_sql} COMMENT {escaped_comment}"
         return column_def_sql
 
     def create_load_job(
@@ -352,7 +354,7 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         table_name: str,
         new_columns: Sequence[TColumnSchema],
         generate_alter: bool,
-    ) -> List[str]:
+    ) -> str:
         constraints_sql = ""
 
         partial: TTableSchema = {
@@ -390,25 +392,30 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
     ) -> List[str]:
         table = self.prepare_load_table(table_name)
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
+        qualified_name = self.sql_client.make_qualified_table_name(table_name)
 
         cluster_list = [
             self.sql_client.escape_column_name(c["name"]) for c in new_columns if c.get("cluster") or c.get(CLUSTER_HINT, False)
         ]
 
         if cluster_list:
-            sql.append(f"ALTER TABLE {table_name} CLUSTER BY (" + ",".join(cluster_list) + ")")
+            sql.append(f"ALTER TABLE {qualified_name} CLUSTER BY (" + ",".join(cluster_list) + ")")
 
         if table.get(TABLE_COMMENT_HINT) or table.get("description"):
             comment = table.get(TABLE_COMMENT_HINT) or table.get("description")
-            sql.append(f"COMMENT ON TABLE {table_name} IS '{comment}'")
+            escaped_comment = escape_databricks_literal(comment)
+            sql.append(f"COMMENT ON TABLE {qualified_name} IS {escaped_comment}")
 
         if table.get(TABLE_TAGS_HINT):
             for tag in table.get(TABLE_TAGS_HINT):
                 if isinstance(tag, str):
-                    sql.append(f"ALTER TABLE {table_name} SET TAGS ('{tag}')")
+                    escaped_tag = escape_databricks_literal(tag)
+                    sql.append(f"ALTER TABLE {qualified_name} SET TAGS ({escaped_tag})")
                 elif isinstance(tag, dict):
                     (key, value), *rest = tag.items()
-                    sql.append(f"ALTER TABLE {table_name} SET TAGS ('{key}'='{value}')")
+                    escaped_key = escape_databricks_literal(key)
+                    escaped_value = escape_databricks_literal(value)
+                    sql.append(f"ALTER TABLE {qualified_name} SET TAGS ({escaped_key}={escaped_value})")
 
         column_tag_list = [
             (self.sql_client.escape_column_name(c["name"]), c.get(COLUMN_TAGS_HINT)) for c in new_columns if c.get(COLUMN_TAGS_HINT)
@@ -418,10 +425,13 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             for (column_name, column_tags) in column_tag_list:
                 for column_tag in column_tags:
                     if isinstance(column_tag, str):
-                        sql.append(f"ALTER TABLE {table_name} ALTER COLUMN {column_name} SET TAGS ('{column_tag}')")
+                        escaped_tag = escape_databricks_literal(column_tag)
+                        sql.append(f"ALTER TABLE {qualified_name} ALTER COLUMN {column_name} SET TAGS ({escaped_tag})")
                     elif isinstance(column_tag, dict):
                         (key, value), *rest = column_tag.items()
-                        sql.append(f"ALTER TABLE {table_name} ALTER COLUMN {column_name} SET TAGS ('{key}'='{value}')")
+                        escaped_key = escape_databricks_literal(key)
+                        escaped_value = escape_databricks_literal(value)
+                        sql.append(f"ALTER TABLE {qualified_name} ALTER COLUMN {column_name} SET TAGS ({escaped_key}={escaped_value})")
 
         return sql
 
