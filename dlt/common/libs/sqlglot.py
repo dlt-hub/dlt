@@ -1,4 +1,4 @@
-from typing import Optional, Union, Set
+from typing import Optional, Union, Set, Any, Iterable
 
 from dlt.common.utils import without_none
 from dlt.common.exceptions import MissingDependencyException, TerminalValueError
@@ -625,3 +625,28 @@ def query_is_complex(
     ):
         return False
     return True
+
+
+def build_typed_literal(
+    value: Any, sqlglot_type: sge.DataType = None
+) -> Union[sge.Expression, sge.Tuple]:
+    """Create a literal and CAST it to the requested sqlglot DataType."""
+
+    def _literal(v: Any) -> sge.Expression:
+        lit: sge.Expression
+        if v is None:
+            lit = sge.Null()
+        elif isinstance(v, str):
+            lit = sge.Literal.string(v)
+        elif isinstance(v, (int, float)):
+            lit = sge.Literal.number(v)
+        elif isinstance(v, (bytes, bytearray)):
+            lit = sge.Literal.string(v.hex())
+        else:
+            lit = sge.Literal.string(str(v))
+        return sge.Cast(this=lit, to=sqlglot_type.copy()) if sqlglot_type is not None else lit
+
+    if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
+        return sge.Tuple(expressions=[_literal(v) for v in value])
+    else:
+        return _literal(value)
