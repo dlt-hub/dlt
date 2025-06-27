@@ -334,13 +334,15 @@ Databricks supports the following column hints:
 - `cluster` - adds a clustering constraint to the column. This can also be done by using the adapter method `cluster`.
 
 :::note
-If you want to enforce constraints on the tables, you can set the `create_indexes` option to `true`. This will add PRIMARY KEY and FOREIGN KEY constraints to the tables.
+If you want to enforce constraints on the tables, you can set the `create_indexes` option to `true`. This will add PRIMARY KEY and FOREIGN KEY constraints to the tables if the hints primary key and references are set.
 ```toml
 [destination.databricks]
 # Add PRIMARY KEY and FOREIGN KEY constraints to tables
 create_indexes=true
 ```
 :::
+
+For additional hints specific to Databricks, see the [Databricks adapter](#databricks-adapter) section.
 
 ## Staging support
 
@@ -507,8 +509,9 @@ The adapter updates the DltResource with metadata about the destination column a
 
 - `table_comment`: adds a comment to the table. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax).
 - `table_tags`: adds tags to the table. Supports a list of strings and/or key-value pairs.
-- `column_comment`: adds a comment to the column. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax).
-- `column_tags`: adds tags to the column. Supports a list of strings and/or key-value pairs.
+- `column_hints`
+  - `column_comment`: adds a comment to the column. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax).
+  - `column_tags`: adds tags to the column. Supports a list of strings and/or key-value pairs.
 
 ### Use an adapter to apply hints to a resource
 
