@@ -1,3 +1,4 @@
+from textwrap import indent
 from typing import Any, Dict, Generator, Optional, Sequence, Tuple, Type, Union, TYPE_CHECKING
 from contextlib import contextmanager
 
@@ -62,7 +63,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
         return self._dataset.sql_client_class
 
-    def query(self) -> Any:
+    def query(self, pretty: bool = False) -> Any:
         # NOTE: converted from property to method due to:
         #   if this property raises AttributeError, __getattr__ will get called 🤯
         #   this leads to infinite recursion as __getattr_ calls this property
@@ -71,7 +72,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
             return self._query()
 
         return self.normalized_query.sql(
-            dialect=self._dataset.sql_client.capabilities.sqlglot_dialect
+            dialect=self._dataset.sql_client.capabilities.sqlglot_dialect, pretty=pretty
         )
 
     def _query(self) -> Any:
@@ -159,6 +160,8 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
         """
         # TODO: the docstrings above seem not right!
         # NOTE: if we do not have a schema, we cannot compute the columns schema
+        # TODO: it is impossible to not have a schema, new schema will be created if dataset is not
+        #       on the destination. try to remove the condition
         if self._dataset.schema is None or (
             hasattr(self, "_table_name")
             and self._table_name
@@ -201,6 +204,17 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient):
                 self._dataset.sqlglot_schema, self.qualified_query, self._dataset.sql_client
             )
         return self._normalized_query
+
+    def __str__(self) -> str:
+        # TODO: have base table name for each relation is a good idea. consider to have it in the interface
+        # TODO: merge detection of "simple" transformation that preserve table schema
+        table_name = getattr(self, "_table_name", None)
+        msg = ""
+        for column in self.columns_schema.values():
+            # TODO: show x-annotation hints
+            msg += f"{column['name']} {column['data_type']}\n"
+        msg = f"{table_name}:\n{indent(msg, prefix='  ')}" if table_name else msg
+        return msg
 
 
 class ReadableDBAPIRelation(BaseReadableDBAPIRelation):

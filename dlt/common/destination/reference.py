@@ -146,6 +146,9 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         ...
 
     def __repr__(self) -> str:
+        # TODO: consider not showing default values of base SPEC
+        #   consider showing physical location (when implemented) and
+        #   props of the client ie. if it supports state, datasets or open tables
         kwargs = {**self.spec(), **self.config_params}
         return simple_repr(self.destination_type, **without_none(kwargs))
 

@@ -83,6 +83,7 @@ __all__ = [
     "destinations",
     "Dataset",
     "dataset",
+    "transformation",
 ]
 
 # verify that no injection context was created

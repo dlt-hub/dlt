@@ -427,11 +427,17 @@ class WithTableScanners(DuckDbSqlClient):
         self.persist_secrets = persist_secrets
         self._global_config.update(
             {
-                "parquet_metadata_cache": True,
-                # prevents HEAD command by caching parquet metadata
                 "enable_http_metadata_cache": True,
             }
         )
+
+        if semver.Version.parse(duckdb.__version__) >= semver.Version.parse("1.2.0"):
+            self._global_config.update(
+                {
+                    # prevents HEAD command by caching parquet metadata
+                    "parquet_metadata_cache": True,
+                }
+            )
 
     def open_connection(self) -> duckdb.DuckDBPyConnection:
         # we keep the in memory instance around, so if this prop is set, return it

@@ -1,14 +1,12 @@
-from typing import Optional
+from typing import Optional, Union, Set
 
 from dlt.common.utils import without_none
 from dlt.common.exceptions import MissingDependencyException, TerminalValueError
 from dlt.common.schema.typing import TColumnType, TDataType, TColumnSchema
 
-try:
-    import sqlglot.expressions as sge
-    from sqlglot.expressions import DataType, DATA_TYPE
-except ModuleNotFoundError:
-    raise MissingDependencyException("dlt sqlglot helpers", ["sqlglot"])
+import sqlglot.expressions as sge
+from sqlglot.expressions import DataType, DATA_TYPE
+from sqlglot.optimizer.scope import build_scope
 
 
 SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, TDataType] = {
@@ -544,3 +542,86 @@ def _filter_dlt_hints(hints: TColumnSchema) -> TColumnSchema:
             final_hints[k] = v
 
     return final_hints  # type: ignore[return-value]
+
+
+def query_is_complex(
+    parsed_select: Union[sge.Select, sge.Union],
+    columns: Set[str],
+) -> bool:
+    """
+    Return **True** unless the query is provably “simple”.
+    A *simple* query
+    1. references **exactly one** physical table,
+    2. contains no complex constructs (CTEs, sub-queries, derived tables,
+       unions, window functions, GROUP BY, DISTINCT, etc.),
+    3. projects either
+         • a plain/qualified star with only constant literals after it, or
+         • the full, explicit list of *all* columns with only constant
+           literals after it.
+    Anything we cannot *prove* to be simple is conservatively flagged
+    as complex.
+    """
+    root_scope = build_scope(parsed_select)
+    tables: list[sge.Table] = []
+    non_literal_cols: dict[str, int] = {}
+    star_present = False
+    for node in root_scope.walk():
+        if isinstance(node, sge.Table):
+            tables.append(node)
+        if isinstance(node, sge.Window):
+            return True
+        if isinstance(node, sge.SetOperation):
+            return True
+        if isinstance(node, sge.With):
+            return True
+        if isinstance(node, sge.Distinct):
+            return True
+        if isinstance(node, sge.Group):
+            return True
+        if isinstance(node, sge.DPipe):
+            return True
+        # Detect a star in the outermost projection list.
+        # A star can be either “*” or a qualified “t.*”.
+        # In the AST:
+        #   • bare  “*”    Star -> SELECT
+        #   • qual. “t.*”  Star -> Column -> SELECT
+        if isinstance(node, sge.Star) and (
+            node.parent == parsed_select or (node.parent and node.parent.parent == parsed_select)
+        ):
+            star_present = True
+        # Detect plain (aliased) column references that belong to the outermost projection list.
+        if isinstance(node, sge.Column) and not isinstance(node.this, sge.Star):
+            # it's an (aliased) column in our outer select
+            if node.parent == parsed_select or (
+                isinstance(node.parent, sge.Alias) and node.parent_select == parsed_select
+            ):
+                non_literal_cols[node.name] = non_literal_cols.get(node.name, 0) + 1
+        # An aliased expression that is *not* just a column or a
+        # literal disqualifies the query from being “simple
+        if isinstance(node, sge.Alias):
+            if not (isinstance(node.this, sge.Column) or isinstance(node.this, sge.Literal)):
+                return True
+    if len(tables) > 1:
+        return True
+    if star_present and not non_literal_cols:
+        return False
+    non_literal_cols_names = set(non_literal_cols.keys())
+    # if any column is selected twice, it is complex
+    if any(count > 1 for count in non_literal_cols.values()):
+        return True
+    # if selected columns are exactly the same as the table columns, it is simple
+    if non_literal_cols_names == columns:
+        return False
+    # if newly added columns are all exclusively dlt columns, it is simple
+    if (
+        all(col_name.startswith("_dlt_") for col_name in non_literal_cols_names - columns)
+        and non_literal_cols_names - columns != set()
+    ):
+        return False
+    # if missing columns are all exclusively dlt columns, it is simple
+    if (
+        all(col_name.startswith("_dlt_") for col_name in columns - non_literal_cols_names)
+        and columns - non_literal_cols_names != set()
+    ):
+        return False
+    return True

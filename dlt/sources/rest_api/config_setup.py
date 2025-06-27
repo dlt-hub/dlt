@@ -306,7 +306,7 @@ def build_resource_dependency_graph(
         if isinstance(endpoint_resource, DltResource):
             dependency_graph.add(resource_name)
             resolved_param_map[resource_name] = None
-            break
+            continue
         assert isinstance(endpoint_resource["endpoint"], dict)
         # find resolved parameters to connect dependent resources
         resolved_params = _find_resolved_params(endpoint_resource["endpoint"])
@@ -371,7 +371,7 @@ def expand_and_index_resources(
     for resource in resource_list:
         if isinstance(resource, DltResource):
             endpoint_resource_map[resource.name] = resource
-            break
+            continue
         elif isinstance(resource, dict):
             # clone resource here, otherwise it needs to be cloned in several other places
             # note that this clones only dict structure, keeping all instances without deepcopy

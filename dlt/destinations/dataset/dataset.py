@@ -4,7 +4,10 @@ from typing import Any, Type, Union, TYPE_CHECKING, List
 
 from sqlglot.schema import Schema as SQLGlotSchema
 
-from dlt.common.destination.exceptions import OpenTableClientNotAvailable
+from dlt.common.destination.exceptions import (
+    DestinationUndefinedEntity,
+    OpenTableClientNotAvailable,
+)
 from dlt.common.json import json
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination.reference import TDestinationReferenceArg, Destination
@@ -17,6 +20,7 @@ from dlt.common.destination.typing import TDatasetType
 from dlt.common.schema import Schema
 from dlt.common.typing import Self
 from dlt.common.schema.typing import C_DLT_LOAD_ID
+from dlt.common.utils import simple_repr, without_none
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation, BaseReadableDBAPIRelation
@@ -183,8 +187,9 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         # dataset only provides access to tables known in dlt schema, direct query may cirumvent this
         if table_name not in self.schema.tables.keys():
             raise ValueError(
-                f"Table {table_name} not found in schema {self.schema.name} of dataset"
-                f" {self.dataset_name}. Avaible tables are: {self.schema.tables.keys()}"
+                f"Table `{table_name}` not found in schema `{self.schema.name}` of dataset"
+                f" `{self.dataset_name}`. Available table(s):"
+                f" {', '.join(self.schema.tables.keys())}"
             )
 
         # we can create an ibis powered relation if ibis is available
@@ -289,3 +294,35 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
     ) -> None:
         self._opened_sql_client.close_connection()
         self._opened_sql_client = None
+
+    def __repr__(self) -> str:
+        # schema may not be set
+        schema_ = self._schema or self._provided_schema
+        schema_repr = repr(schema_) if schema_ else None
+        kwargs = {
+            "dataset_name": self._dataset_name,
+            "destination": repr(self._destination),
+            "schema": schema_repr,
+        }
+        return simple_repr("dlt.dataset", **without_none(kwargs))
+
+    def __str__(self) -> str:
+        # obtain schema. this eventually loads it from destination (if only name was provided)
+        _schema = self.schema
+        _client = self.destination_client
+        # str(config) provides displayable physical location
+        destination_info = f"{self._destination.destination_name}[{str(_client.config)}]"
+        # new schema is created if dataset is not found or schema.name is not materialized yet
+        if _schema.is_new:
+            schema_info = "\nDataset is not available at the destination.\n"
+        else:
+            schema_info = f"with tables in dlt schema `{self.schema.name}`:\n"
+
+        msg = f"Dataset `{self._dataset_name}` at `{destination_info}` {schema_info}"
+        if _schema:
+            tables = [name for name in self.schema.data_table_names()]
+            if tables:
+                msg += ", ".join(tables)
+            else:
+                msg += "No data tables found in schema."
+        return msg
