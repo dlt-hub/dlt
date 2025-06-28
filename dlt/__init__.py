@@ -24,7 +24,6 @@ from dlt.version import __version__
 from dlt.common.configuration.accessors import config, secrets
 from dlt.common.typing import TSecretValue as _TSecretValue, TSecretStrValue as _TSecretStrValue
 from dlt.common.configuration.specs import CredentialsConfiguration as _CredentialsConfiguration
-from dlt.common.pipeline import source_state as state
 from dlt.common.schema import Schema
 
 from dlt import sources

@@ -19,7 +19,7 @@ from dlt.common.schema.utils import (
     is_nested_table,
 )
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
-from dlt.common.storages.load_package import load_package as current_load_package
+from dlt.common.storages.load_package import load_package_state as current_load_package
 from dlt.common.utils import uniq_id
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import MergeDispositionException
