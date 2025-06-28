@@ -15,6 +15,9 @@ TExecInfoNames = Literal[
     "aws_lambda",
     "gcp_cloud_function",
     "streamlit",
+    "dagster",
+    "prefect",
+    "marimo",
 ]
 
 
