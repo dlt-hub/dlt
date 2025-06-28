@@ -183,6 +183,7 @@ Note: Normally, you don't need to specify this paginator explicitly, as it is us
 - `total_path`: A JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset` and `stop_after_empty_page`.
 - `maximum_offset`: Optional maximum offset value. Limits pagination even without a total count.
 - `stop_after_empty_page`: Whether pagination should stop when a page contains no result items. Defaults to `True`.
+- `has_more_path`: A JSONPath expression for a boolean indicator of whether additional pages exist. Defaults to `None`.
 
 **Example:**
 
@@ -234,7 +235,20 @@ client = RESTClient(
 )
 ```
 
-You can disable automatic stoppage of pagination by setting `stop_after_empty_page = False`. In this case, you must provide either `total_path` or `maximum_offset` to guarantee that the paginator terminates.
+If the API provides a boolean flag when all pages have been returned, you can use `has_more_path` to recognize this indicator and end pagination:
+
+```py
+client = RESTClient(
+    base_url="https://api.example.com",
+    paginator=OffsetPaginator(
+        limit=10,
+        total_path=None,
+        has_more_path="has_more",
+    )
+)
+```
+
+You can disable automatic stoppage of pagination by setting `stop_after_empty_page = False`. In this case, you must provide either `total_path`, `maximum_offset`, or `has_more_path` to guarantee that the paginator terminates.
 
 #### PageNumberPaginator
 

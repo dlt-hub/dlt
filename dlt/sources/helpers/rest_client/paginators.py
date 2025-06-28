@@ -6,6 +6,7 @@ from urllib.parse import urljoin, urlparse
 from requests import Request, Response
 
 from dlt.common import jsonpath
+from dlt.common.utils import str2bool
 
 
 class BasePaginator(ABC):
@@ -343,6 +344,26 @@ class OffsetPaginator(RangePaginator):
         ...
 
     In this case, pagination will stop after fetching 1000 items.
+
+    If the API provides a boolean value indicating whether there are more items
+    to fetch, you can use the `has_more_path` parameter to stop the pagination
+    when there are no more items to fetch. For example:
+
+        {
+            "items": [...],
+            "has_more": false
+        }
+
+        client = RESTClient(
+            base_url="https://api.example.com",
+            paginator=OffsetPaginator(
+                limit=100,
+                has_more_path="has_more"
+            )
+        )
+        ...
+
+    In this case, pagination will stop once the `has_more` value is `false`.
     """
 
     def __init__(
@@ -354,6 +375,7 @@ class OffsetPaginator(RangePaginator):
         total_path: Optional[jsonpath.TJsonPath] = "total",
         maximum_offset: Optional[int] = None,
         stop_after_empty_page: Optional[bool] = True,
+        has_more_path: Optional[jsonpath.TJsonPath] = None,
     ) -> None:
         """
         Args:
@@ -373,11 +395,19 @@ class OffsetPaginator(RangePaginator):
                 maximum range for pagination. Defaults to None.
             stop_after_empty_page (bool): Whether pagination should stop when
               a page contains no result items. Defaults to `True`.
+            has_more_path (jsonpath.TJsonPath): The JSONPath expression for
+                the boolean value indicating whether there are more items to fetch.
+                Defaults to None.
         """
-        if total_path is None and maximum_offset is None and not stop_after_empty_page:
+        if (
+            total_path is None
+            and maximum_offset is None
+            and has_more_path is None
+            and not stop_after_empty_page
+        ):
             raise ValueError(
-                "Either `total_path` or `maximum_offset` or `stop_after_empty_page` must be"
-                " provided."
+                "One of `total_path`, `maximum_offset`, `has_more_path`, or `stop_after_empty_page`"
+                " must be provided."
             )
         super().__init__(
             param_name=offset_param,
@@ -389,10 +419,28 @@ class OffsetPaginator(RangePaginator):
         )
         self.limit_param = limit_param
         self.limit = limit
+        self.has_more_path = has_more_path
 
     def init_request(self, request: Request) -> None:
         super().init_request(request)
         request.params[self.limit_param] = self.limit
+
+    def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
+        super().update_state(response, data)
+        if self.has_more_path:
+            values = jsonpath.find_values(self.has_more_path, response.json())
+            has_more = values[0] if values else None
+            if has_more is None:
+                self._handle_missing_has_more(response.json())
+            elif isinstance(has_more, str):
+                try:
+                    has_more = str2bool(has_more)
+                except ValueError:
+                    self._handle_invalid_has_more(has_more)
+            elif not isinstance(has_more, bool):
+                self._handle_invalid_has_more(has_more)
+
+            self._has_next_page = has_more
 
     def update_request(self, request: Request) -> None:
         super().update_request(request)
@@ -403,7 +451,20 @@ class OffsetPaginator(RangePaginator):
             super().__str__()
             + f": current offset: {self.current_value} offset_param: {self.param_name} limit:"
             f" {self.value_step} total_path: {self.total_path} maximum_value:"
-            f" {self.maximum_value}"
+            f" {self.maximum_value} has_more_path: {self.has_more_path}"
+        )
+
+    def _handle_missing_has_more(self, response_json: Dict[str, Any]) -> None:
+        raise ValueError(
+            f"Has more value not found in the response in `{self.__class__.__name__}`."
+            f"Expected a response with a `{self.has_more_path}` key, got"
+            f" `{response_json}`."
+        )
+
+    def _handle_invalid_has_more(self, has_more: Any) -> None:
+        raise ValueError(
+            f"'{self.has_more_path}' is not a `bool` in the response in"
+            f" `{self.__class__.__name__}`. Expected a boolean, got `{has_more}`"
         )
 
 
