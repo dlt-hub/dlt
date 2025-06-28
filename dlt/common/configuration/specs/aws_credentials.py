@@ -131,6 +131,9 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
         )
 
     def _to_botocore_session(self) -> Any:
+        """Creates a botocore session out of the credentials. profile and region will be applied
+        as config variables.
+        """
         try:
             import botocore.session
         except ModuleNotFoundError:
