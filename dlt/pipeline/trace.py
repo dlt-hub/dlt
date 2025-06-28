@@ -24,10 +24,11 @@ from dlt.common.pipeline import (
     StepMetrics,
     SupportsPipeline,
 )
-from dlt.common.pipeline import get_current_pipe_name
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize
 from dlt.common.utils import uniq_id, get_exception_trace_chain
+
+from dlt.extract.state import get_current_pipe_name
 
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.exceptions import PipelineStepFailed

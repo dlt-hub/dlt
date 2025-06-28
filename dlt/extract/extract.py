@@ -16,7 +16,6 @@ from dlt.common.pipeline import (
     ExtractMetrics,
     SupportsPipeline,
     WithStepInfo,
-    reset_resource_state,
 )
 from dlt.common.typing import TColumnNames, TLoaderFileFormat
 from dlt.common.runtime import signals
@@ -28,7 +27,6 @@ from dlt.common.schema.typing import (
     TTableFormat,
     TWriteDispositionConfig,
 )
-from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages import NormalizeStorageConfiguration, LoadPackageInfo, SchemaStorage
 from dlt.common.storages.load_package import (
     ParsedLoadJobFileName,
@@ -51,6 +49,7 @@ from dlt.extract.reference import SourceReference
 from dlt.extract.resource import DltResource
 from dlt.extract.storage import ExtractStorage
 from dlt.extract.extractors import ObjectExtractor, ArrowExtractor, Extractor, ModelExtractor
+from dlt.extract.state import reset_resource_state
 from dlt.extract.utils import get_data_item_format, make_schema_with_default_name
 
 

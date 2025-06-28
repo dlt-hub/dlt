@@ -18,7 +18,6 @@ from functools import wraps
 
 from dlt.common.data_writers import TDataItemFormat
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.pipeline import reset_resource_state
 from dlt.common.reflection.inspect import isgeneratorfunction
 from dlt.common.schema.typing import TAnySchemaColumns, TTableSchemaColumns
 from dlt.common.schema.utils import normalize_schema_name
@@ -146,13 +145,6 @@ def ensure_table_schema_columns_hint(
         return wrapper
 
     return ensure_table_schema_columns(columns)
-
-
-def reset_pipe_state(pipe: SupportsPipe, source_state_: Optional[DictStrAny] = None) -> None:
-    """Resets the resource state for a `pipe` and all its parent pipes"""
-    if pipe.has_parent:
-        reset_pipe_state(pipe.parent, source_state_)
-    reset_resource_state(pipe.name, source_state_)
 
 
 def simulate_func_call(
