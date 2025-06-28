@@ -262,6 +262,7 @@ You can disable automatic stoppage of pagination by setting `stop_after_empty_pa
 - `total_path`: A JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page` and `stop_after_empty_page`.
 - `maximum_page`: Optional maximum page number. Stops pagination once this page is reached.
 - `stop_after_empty_page`: Whether pagination should stop when a page contains no result items. Defaults to `True`.
+- `has_more_path`: A JSONPath expression for a boolean indicator of whether additional pages exist. Defaults to `None`.
 
 **Example:**
 
@@ -309,7 +310,19 @@ client = RESTClient(
 )
 ```
 
-You can disable automatic stoppage of pagination by setting `stop_after_empty_page = False`. In this case, you must provide either `total_path` or `maximum_page` to guarantee that the paginator terminates.
+If the API provides a boolean flag when all pages have been returned, you can use `has_more_path` to recognize this indicator and end pagination:
+
+```py
+client = RESTClient(
+    base_url="https://api.example.com",
+    paginator=PageNumberPaginator(
+        total_path=None,
+        has_more_path="has_more",
+    )
+)
+```
+
+You can disable automatic stoppage of pagination by setting `stop_after_empty_page = False`. In this case, you must provide `total_path`, `has_more_path`, or `maximum_page` to guarantee that the paginator terminates.
 
 #### JSONResponseCursorPaginator
 

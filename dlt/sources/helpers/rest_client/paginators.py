@@ -99,6 +99,7 @@ class RangePaginator(BasePaginator):
         total_path: Optional[jsonpath.TJsonPath] = None,
         error_message_items: str = "items",
         stop_after_empty_page: Optional[bool] = True,
+        has_more_path: Optional[jsonpath.TJsonPath] = None,
     ):
         """
         Args:
@@ -121,12 +122,20 @@ class RangePaginator(BasePaginator):
                 Defaults to 'items'.
             stop_after_empty_page (bool): Whether pagination should stop when
               a page contains no result items. Defaults to `True`.
+            has_more_path (jsonpath.TJsonPath): The JSONPath expression for
+                the boolean value indicating whether there are more items to fetch.
+                Defaults to None.
         """
         super().__init__()
-        if total_path is None and maximum_value is None and not stop_after_empty_page:
+        if (
+            total_path is None
+            and maximum_value is None
+            and has_more_path is None
+            and not stop_after_empty_page
+        ):
             raise ValueError(
-                "Either `total_path` or `maximum_value` or `stop_after_empty_page` must be"
-                " provided."
+                "One of `total_path`, `maximum_value`, `has_more_path`, or `stop_after_empty_page`"
+                " must be provided."
             )
         self.param_name = param_name
         self.initial_value = initial_value
@@ -137,6 +146,7 @@ class RangePaginator(BasePaginator):
         self.total_path = jsonpath.compile_path(total_path) if total_path else None
         self.error_message_items = error_message_items
         self.stop_after_empty_page = stop_after_empty_page
+        self.has_more_path = has_more_path
 
     def init_request(self, request: Request) -> None:
         self._has_next_page = True
@@ -170,6 +180,22 @@ class RangePaginator(BasePaginator):
             ):
                 self._has_next_page = False
 
+            has_more = None
+            if self.has_more_path:
+                values = jsonpath.find_values(self.has_more_path, response.json())
+                has_more = values[0] if values else None
+                if has_more is None:
+                    self._handle_missing_has_more(response.json())
+                elif isinstance(has_more, str):
+                    try:
+                        has_more = str2bool(has_more)
+                    except ValueError:
+                        self._handle_invalid_has_more(has_more)
+                elif not isinstance(has_more, bool):
+                    self._handle_invalid_has_more(has_more)
+
+                self._has_next_page = has_more
+
     def _stop_after_this_page(self, data: Optional[List[Any]] = None) -> bool:
         return self.stop_after_empty_page and not data
 
@@ -184,6 +210,19 @@ class RangePaginator(BasePaginator):
         raise ValueError(
             f"'{self.total_path}' is not an `int` in the response in `{self.__class__.__name__}`."
             f" Expected an integer, got `{total}`"
+        )
+
+    def _handle_missing_has_more(self, response_json: Dict[str, Any]) -> None:
+        raise ValueError(
+            f"Has more value not found in the response in `{self.__class__.__name__}`."
+            f"Expected a response with a `{self.has_more_path}` key, got"
+            f" `{response_json}`."
+        )
+
+    def _handle_invalid_has_more(self, has_more: Any) -> None:
+        raise ValueError(
+            f"'{self.has_more_path}' is not a `bool` in the response in"
+            f" `{self.__class__.__name__}`. Expected a boolean, got `{has_more}`"
         )
 
     def update_request(self, request: Request) -> None:
@@ -238,6 +277,26 @@ class PageNumberPaginator(RangePaginator):
         ...
 
     In this case, pagination will stop after fetching 5 pages of data.
+
+    If the API provides a boolean value indicating whether there are more items
+    to fetch, you can use the `has_more_path` parameter to stop the pagination
+    when there are no more items to fetch. For example:
+
+        {
+            "items": [...],
+            "has_more": false
+        }
+
+        client = RESTClient(
+            base_url="https://api.example.com",
+            paginator=PageNumberPaginator(
+                total_path=None,
+                has_more_path="has_more"
+            )
+        )
+        ...
+
+    In this case, pagination will stop once the `has_more` value is `false`.
     """
 
     def __init__(
@@ -248,6 +307,7 @@ class PageNumberPaginator(RangePaginator):
         total_path: Optional[jsonpath.TJsonPath] = "total",
         maximum_page: Optional[int] = None,
         stop_after_empty_page: Optional[bool] = True,
+        has_more_path: Optional[jsonpath.TJsonPath] = None,
     ):
         """
         Args:
@@ -267,10 +327,19 @@ class PageNumberPaginator(RangePaginator):
                 of pages for pagination. Defaults to None.
             stop_after_empty_page (bool): Whether pagination should stop when
               a page contains no result items. Defaults to `True`.
+            has_more_path (jsonpath.TJsonPath): The JSONPath expression for
+                the boolean value indicating whether there are more items to fetch.
+                Defaults to None.
         """
-        if total_path is None and maximum_page is None and not stop_after_empty_page:
+        if (
+            total_path is None
+            and maximum_page is None
+            and has_more_path is None
+            and not stop_after_empty_page
+        ):
             raise ValueError(
-                "Either `total_path` or `maximum_page` or `stop_after_empty_page` must be provided."
+                "One of `total_path`, `maximum_page`, `has_more_path`, or `stop_after_empty_page`"
+                " must be provided."
             )
 
         page = page if page is not None else base_page
@@ -284,13 +353,14 @@ class PageNumberPaginator(RangePaginator):
             maximum_value=maximum_page,
             error_message_items="pages",
             stop_after_empty_page=stop_after_empty_page,
+            has_more_path=has_more_path,
         )
 
     def __str__(self) -> str:
         return (
             super().__str__()
             + f": current page: {self.current_value} page_param: {self.param_name} total_path:"
-            f" {self.total_path} maximum_value: {self.maximum_value}"
+            f" {self.total_path} maximum_value: {self.maximum_value} has_more_path: {self.has_more_path}"
         )
 
 
@@ -358,6 +428,7 @@ class OffsetPaginator(RangePaginator):
             base_url="https://api.example.com",
             paginator=OffsetPaginator(
                 limit=100,
+                total_path=None,
                 has_more_path="has_more"
             )
         )
@@ -416,31 +487,14 @@ class OffsetPaginator(RangePaginator):
             value_step=limit,
             maximum_value=maximum_offset,
             stop_after_empty_page=stop_after_empty_page,
+            has_more_path=has_more_path,
         )
         self.limit_param = limit_param
         self.limit = limit
-        self.has_more_path = has_more_path
 
     def init_request(self, request: Request) -> None:
         super().init_request(request)
         request.params[self.limit_param] = self.limit
-
-    def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
-        super().update_state(response, data)
-        if self.has_more_path:
-            values = jsonpath.find_values(self.has_more_path, response.json())
-            has_more = values[0] if values else None
-            if has_more is None:
-                self._handle_missing_has_more(response.json())
-            elif isinstance(has_more, str):
-                try:
-                    has_more = str2bool(has_more)
-                except ValueError:
-                    self._handle_invalid_has_more(has_more)
-            elif not isinstance(has_more, bool):
-                self._handle_invalid_has_more(has_more)
-
-            self._has_next_page = has_more
 
     def update_request(self, request: Request) -> None:
         super().update_request(request)
@@ -452,19 +506,6 @@ class OffsetPaginator(RangePaginator):
             + f": current offset: {self.current_value} offset_param: {self.param_name} limit:"
             f" {self.value_step} total_path: {self.total_path} maximum_value:"
             f" {self.maximum_value} has_more_path: {self.has_more_path}"
-        )
-
-    def _handle_missing_has_more(self, response_json: Dict[str, Any]) -> None:
-        raise ValueError(
-            f"Has more value not found in the response in `{self.__class__.__name__}`."
-            f"Expected a response with a `{self.has_more_path}` key, got"
-            f" `{response_json}`."
-        )
-
-    def _handle_invalid_has_more(self, has_more: Any) -> None:
-        raise ValueError(
-            f"'{self.has_more_path}' is not a `bool` in the response in"
-            f" `{self.__class__.__name__}`. Expected a boolean, got `{has_more}`"
         )
 
 
