@@ -498,25 +498,25 @@ class TestPageNumberPaginator:
             paginator.update_state(response, data=NON_EMPTY_PAGE)
 
     def test_update_state_with_has_more(self):
-        paginator = PageNumberPaginator(base_page=1, page=1, total_path=None, has_more_path="has_more")
+        paginator = PageNumberPaginator(page=1, total_path=None, has_more_path="has_more")
         response = Mock(Response, json=lambda: {"has_more": False})
         paginator.update_state(response, data=NON_EMPTY_PAGE)
         assert paginator.has_next_page is False
 
     def test_update_state_with_string_has_more(self):
-        paginator = PageNumberPaginator(base_page=1, page=1, total_path=None, has_more_path="has_more")
+        paginator = PageNumberPaginator(page=1, total_path=None, has_more_path="has_more")
         response = Mock(Response, json=lambda: {"has_more": "true"})
         paginator.update_state(response, data=NON_EMPTY_PAGE)
         assert paginator.has_next_page is True
 
     def test_update_state_with_invalid_has_more(self):
-        paginator = PageNumberPaginator(base_page=1, page=1, total_path=None, has_more_path="has_more")
+        paginator = PageNumberPaginator(page=1, total_path=None, has_more_path="has_more")
         response = Mock(Response, json=lambda: {"has_more": "invalid"})
         with pytest.raises(ValueError):
             paginator.update_state(response, data=NON_EMPTY_PAGE)
 
     def test_update_state_without_has_more(self):
-        paginator = PageNumberPaginator(base_page=1, page=1, total_path=None, has_more_path="has_more")
+        paginator = PageNumberPaginator(page=1, total_path=None, has_more_path="has_more")
         response = Mock(Response, json=lambda: {})
         with pytest.raises(ValueError):
             paginator.update_state(response, data=NON_EMPTY_PAGE)
