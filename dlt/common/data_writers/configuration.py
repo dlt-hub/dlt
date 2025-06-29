@@ -2,7 +2,7 @@ from typing import ClassVar, Literal, Optional
 from dlt.common.configuration import configspec, known_sections
 from dlt.common.configuration.specs import BaseConfiguration
 
-CsvQuoting = Literal["quote_all", "quote_needed"]
+CsvQuoting = Literal["quote_all", "quote_needed", "quote_minimal", "quote_none"]
 
 
 @configspec

@@ -10,6 +10,7 @@ from dlt.common.jsonpath import compile_path
 from dlt.sources.helpers.rest_client.paginators import (
     JSONLinkPaginator,
     HeaderLinkPaginator,
+    HeaderCursorPaginator,
     JSONResponseCursorPaginator,
     JSONResponsePaginator,
     OffsetPaginator,
@@ -72,6 +73,9 @@ def test_paginator_type_configs(paginator_type_config: PaginatorConfig) -> None:
             assert paginator.next_url_path == compile_path("response.nex_page_link")
         if isinstance(paginator, JSONResponseCursorPaginator):
             assert paginator.cursor_path == compile_path("cursors.next")
+            assert paginator.cursor_param == "cursor"
+        if isinstance(paginator, HeaderCursorPaginator):
+            assert paginator.cursor_key == "X-Next-Cursor"
             assert paginator.cursor_param == "cursor"
 
 

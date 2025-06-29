@@ -134,12 +134,16 @@ def create_table_list(
     """
 
     # get tables and filter as needed
-    tables = list(pipeline.default_schema.tables.values())
+    tables = list(
+        pipeline.default_schema.data_tables(seen_data_only=True, include_incomplete=False)
+    )
     if not show_child_tables:
         tables = [t for t in tables if t.get("parent") is None]
 
-    row_counts = get_row_counts(pipeline) if show_row_counts else {}
+    if show_internals:
+        tables = tables + list(pipeline.default_schema.dlt_tables())
 
+    row_counts = get_row_counts(pipeline) if show_row_counts else {}
     table_list: List[Dict[str, Union[str, int, None]]] = [
         {
             **{prop: table.get(prop, None) for prop in ["name", *c.table_list_fields]},  # type: ignore[misc]
@@ -148,8 +152,7 @@ def create_table_list(
         for table in tables
     ]
     table_list.sort(key=lambda x: str(x["name"]))
-    if not show_internals:
-        table_list = [t for t in table_list if not str(t["name"]).lower().startswith("_dlt")]
+
     return _align_dict_keys(table_list)
 
 
@@ -168,10 +171,10 @@ def create_column_list(
         pipeline_name (str): The name of the pipeline to create the column list for.
         table_name (str): The name of the table to create the column list for.
     """
-    table = pipeline.default_schema.tables[table_name]
-
     column_list: List[Dict[str, Any]] = []
-    for column in table["columns"].values():
+    for column in pipeline.default_schema.get_table_columns(
+        table_name, include_incomplete=False
+    ).values():
         column_dict: Dict[str, Any] = {
             "name": column["name"],
         }
@@ -217,7 +220,7 @@ def clear_query_cache(pipeline: dlt.Pipeline) -> None:
     get_query_result.cache_clear()
     get_loads.cache_clear()
     get_schema_by_version.cache_clear()
-    get_row_counts.cache_clear()
+    # get_row_counts.cache_clear()
 
 
 @functools.cache
@@ -228,7 +231,6 @@ def get_query_result(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
     return pipeline.dataset()(query).df()
 
 
-@functools.cache
 def get_row_counts(pipeline: dlt.Pipeline, load_id: str = None) -> Dict[str, int]:
     """Get the row counts for a pipeline.
 

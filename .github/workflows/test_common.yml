@@ -42,6 +42,12 @@ jobs:
           - os: ubuntu-latest
             python-version: "3.13"
             shell: bash
+
+          # linux test with minimal dependencies
+          - os: ubuntu-latest
+            python-version: "3.11"
+            shell: bash
+            uv_sync_args: '--resolution lowest-direct' # could also be 'direct'
           
           # windows tests
           - os: windows-latest
@@ -83,28 +89,28 @@ jobs:
           activate-environment: true
 
       - name: Install dependencies
-        run: uv sync --group sentry-sdk
+        run: uv sync ${{ matrix.uv_sync_args }} --group sentry-sdk
     
       - name: Run common tests with minimum dependencies
         run: |
           pytest tests/common tests/normalize tests/reflection tests/plugins tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py ${{ matrix.pytest_args }}
   
       - name: Install duckdb dependencies
-        run: uv sync --extra duckdb --group sentry-sdk
+        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --group sentry-sdk
 
       - name: Run pipeline smoke tests with minimum deps
         run: |
           pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py ${{ matrix.pytest_args }}
 
       - name: Install pyarrow
-        run: uv sync --extra duckdb --extra cli --extra parquet --group sentry-sdk
+        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra cli --extra parquet --group sentry-sdk
 
       - name: Run pipeline tests with pyarrow but no pandas installed
         run: |
           pytest tests/pipeline/test_pipeline_extra.py -k arrow ${{ matrix.pytest_args }}
 
       - name: Install pipeline and sources dependencies
-        run: uv sync --extra duckdb --extra cli --extra parquet --extra deltalake --extra sql_database --group sentry-sdk --group pipeline --group sources
+        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra cli --extra parquet --extra deltalake --extra sql_database --group sentry-sdk --group pipeline --group sources
 
       - name: Run extract and pipeline tests
         run: |
@@ -120,7 +126,7 @@ jobs:
 
       # test marimo app, does not work with python 3.13
       - name: Install dlt with duckdb and studio
-        run: uv sync --extra duckdb --group sentry-sdk --group pipeline --group sources --group ibis --group marimo
+        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --group sentry-sdk --group pipeline --group sources --group ibis --group marimo
         if: matrix.python-version != '3.13'
 
       - name: Install playwright
@@ -131,12 +137,12 @@ jobs:
       - name: Run marimo studio unit tests
         run: |
           pytest tests/helpers/studio
-        if: matrix.python-version != '3.13'
+        if: matrix.python-version != '3.13' && matrix.python-version != '3.9'
 
       # Run marimo e2e tests (does not pass with python 3.9, does not pass on windows (playwright does not work somehow), does not pass on python 3.13 (ibis not available))
       - name: Run marimo e2e
         run: |
-          marimo run --headless dlt/helpers/studio/app.py -- -- --pipelines_dir _storage/.dlt/pipelines/ --with_test_identifiers true & pytest --browser chromium tests/e2e
+          marimo run --headless dlt/helpers/studio/dlt_app.py -- -- --pipelines_dir _storage/.dlt/pipelines/ --with_test_identifiers true & pytest --browser chromium tests/e2e
         if: matrix.python-version != '3.13' && matrix.python-version != '3.9' && matrix.os != 'windows-latest'
 
 

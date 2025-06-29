@@ -46,9 +46,6 @@ has-uv:
 dev: has-uv
 	uv sync --all-extras --group docs --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group marimo
 
-shell:
-	source .venv/bin/activate
-
 dev-airflow: has-uv
 	uv sync --all-extras --group docs --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
 	
@@ -126,6 +123,14 @@ build-library: dev
 	uv version
 	uv build
 
+clean-dist:
+	-@rm -r dist/
+
+publish-library: clean-dist build-library
+	ls -l dist/
+	@read -p "Enter PyPI API token: " PYPI_API_TOKEN; echo ; \
+	uv publish --token "$$PYPI_API_TOKEN"
+
 test-build-images: build-library
 	# NOTE: uv export does not work with our many different deps, we install a subset and freeze
 	uv sync --extra gcp --extra redshift --extra duckdb
@@ -161,4 +166,4 @@ test-e2e-studio-headed:
 	uv run pytest --headed --browser chromium tests/e2e
 
 start-dlt-studio-e2e:
-	uv run marimo run --headless dlt/helpers/studio/app.py -- -- --pipelines_dir _storage/.dlt/pipelines --with_test_identifiers true
+	uv run marimo run --headless dlt/helpers/studio/dlt_app.py -- -- --pipelines_dir _storage/.dlt/pipelines --with_test_identifiers true

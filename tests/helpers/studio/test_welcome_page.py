@@ -1,6 +1,6 @@
 import marimo as mo
 
-from dlt.helpers.studio.app import home
+from dlt.helpers.studio.dlt_app import home
 
 
 def test_welcome_cell():

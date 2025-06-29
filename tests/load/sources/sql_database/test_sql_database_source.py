@@ -920,8 +920,9 @@ def test_null_column_warning(
     logger_spy.assert_called()
     assert logger_spy.call_count == 1
     expected_warning = (
-        "The column empty_col in table app_user did not receive any data during this load."
-        " Therefore, its type couldn't be inferred."
+        "columns in table 'app_user' did not receive any data during this load "
+        "and therefore could not have their types inferred:\n"
+        "  - empty_col"
     )
     assert expected_warning in logger_spy.call_args_list[0][0][0]
     assert (
@@ -958,7 +959,7 @@ def test_null_column_warning(
         .add_limit(1)
     )
 
-    logger_spy = mocker.spy(logger, "warning")
+    logger_spy.reset_mock()
     pipeline.run(source)
     assert logger_spy.call_count == 0
     assert (

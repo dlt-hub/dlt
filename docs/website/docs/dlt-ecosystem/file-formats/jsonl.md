@@ -21,7 +21,10 @@ This file format is [compressed](../../reference/performance.md#disabling-and-en
 
 ## Supported destinations
 
-This format is used by default by: **BigQuery**, **Snowflake**, **Filesystem**.
+This format is used by default by:
+- [BigQuery](../destinations/bigquery.md)
+- [Snowflake](../destinations/snowflake.md)
+- [Filesystem](../destinations/filesystem.md)
 
 ## How to configure
 
