@@ -167,7 +167,14 @@ def pipeline_command(
         fmt.echo()
         fmt.echo("Local state:")
         for k, v in state["_local"].items():
-            if not isinstance(v, dict):
+            if isinstance(v, dict):
+                # show run context id
+                if k == "last_run_context":
+                    k = "last_run_context['uri']"
+                    v = v["uri"]
+                else:
+                    v = None
+            if v is not None:
                 fmt.echo("%s: %s" % (fmt.style(k, fg="green"), v))
         fmt.echo()
         if p.default_schema_name is None:
@@ -359,32 +366,25 @@ def pipeline_command(
                     fmt.warning(warning)
             return
 
-        # pipeline has never been run
-        if not p.last_run_context:
+        # drop command will fail if first run but that happens later, so we make sure that last_run_context exists
+        if not p.first_run:
             from dlt.common.runtime import run_context
 
-            settings = run_context.active().settings_dir
-            fmt.warning(
-                fmt.style(
-                    "Unless hardcoded, credentials are loaded from environment variables and/or"
-                    " configuration files. dlt will look for configuration files in the (%s) folder"
-                    " of your current working directory." % (settings),
-                    fg="yellow",
+            active_run_dir = os.path.abspath(run_context.active().run_dir)
+
+            if p.last_run_context["run_dir"] != active_run_dir:
+                fmt.warning(
+                    fmt.style(
+                        "You should run this from the same directory as the pipeline script (%s),"
+                        " where the folder with credentials (%s) is located. Alternatively, you can"
+                        " set the required credentials as environment variables."
+                        % (
+                            p.last_run_context["run_dir"],
+                            p.last_run_context["settings_dir"],
+                        ),
+                        fg="yellow",
+                    )
                 )
-            )
-        elif p.last_run_context.get("local_dir") != os.getcwd():
-            fmt.warning(
-                fmt.style(
-                    "You should run this from the same directory as the pipeline script (%s), where"
-                    " the folder with credentials (%s) is located. Alternatively, you can set the"
-                    " required credentials as environment variables."
-                    % (
-                        p.last_run_context.get("local_dir"),
-                        p.last_run_context.get("settings_dir"),
-                    ),
-                    fg="yellow",
-                )
-            )
 
         fmt.echo(
             "About to drop the following data in dataset %s in destination %s:"

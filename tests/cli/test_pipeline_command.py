@@ -269,7 +269,8 @@ def test_drop_from_wrong_dir(repo_dir: str, project_files: FileStorage) -> None:
     # Running from the correct location should not raise warning
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         pipeline = dlt.attach(pipeline_name="chess_pipeline")
-        pipeline_dir = pipeline.last_run_context.get("local_dir")
+        # when testing local_dir is not run_dir! it is pointing to tests/_storage
+        pipeline_dir = pipeline.last_run_context.get("run_dir")
         with set_working_dir(pipeline_dir):
             pipeline_command.pipeline_command(
                 "drop", "chess_pipeline", None, 0, resources=["players_games"]
