@@ -2,24 +2,12 @@ from contextlib import contextmanager
 import sys
 import os
 import shutil
-import venv
 import types
 import subprocess
-from typing import Any, ClassVar, Generator, Iterator, List, Type, ContextManager
+from typing import Any, ClassVar, Generator, List, Type, ContextManager
 
 from dlt.common import known_env
 from dlt.common.exceptions import CannotInstallDependencies, VenvNotFound
-
-
-class DLTEnvBuilder(venv.EnvBuilder):
-    context: types.SimpleNamespace
-
-    def __init__(self) -> None:
-        # setup pip only if autodetect or explicit pip, skip for uv etc.
-        super().__init__(with_pip=Venv.get_pip_tool() == "pip", clear=True)
-
-    def post_setup(self, context: types.SimpleNamespace) -> None:
-        self.context = context
 
 
 class Venv:
@@ -35,6 +23,18 @@ class Venv:
     @classmethod
     def create(cls, venv_dir: str, dependencies: List[str] = None) -> "Venv":
         """Creates a new Virtual Environment at the location specified in `venv_dir` and installs `dependencies` via pip. Deletes partially created environment on failure."""
+        import venv
+
+        class DLTEnvBuilder(venv.EnvBuilder):
+            context: types.SimpleNamespace
+
+            def __init__(self) -> None:
+                # setup pip only if autodetect or explicit pip, skip for uv etc.
+                super().__init__(with_pip=Venv.get_pip_tool() == "pip", clear=True)
+
+            def post_setup(self, context: types.SimpleNamespace) -> None:
+                self.context = context
+
         b = DLTEnvBuilder()
         try:
             b.create(os.path.abspath(venv_dir))
@@ -49,6 +49,8 @@ class Venv:
     @classmethod
     def restore(cls, venv_dir: str, current: bool = False) -> "Venv":
         """Restores Virtual Environment at `venv_dir`"""
+        import venv
+
         if not os.path.isdir(venv_dir):
             raise VenvNotFound(venv_dir)
         b = venv.EnvBuilder(clear=False, upgrade=False)

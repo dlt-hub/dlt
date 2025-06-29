@@ -46,8 +46,14 @@ def exec_info_names() -> List[TExecInfoNames]:
         names.append("notebook")
     if is_colab():
         names.append("colab")
-    if airflow_info():
+    if is_running_in_airflow_task():
         names.append("airflow")
+    if is_running_in_dagster_task():
+        names.append("dagster")
+    if is_running_in_prefect_flow():
+        names.append("prefect")
+    if is_marimo():
+        names.append("marimo")
     if is_aws_lambda():
         names.append("aws_lambda")
     if is_gcp_cloud_function():
@@ -104,14 +110,41 @@ def is_airflow_installed() -> bool:
 
 
 def is_running_in_airflow_task() -> bool:
-    try:
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            from airflow.operators.python import get_current_context
+    return "AIRFLOW_CTX_TASK_ID" in os.environ
 
-            context = get_current_context()
-            return context is not None and "ti" in context
-    except Exception:
-        return False
+
+def is_running_in_dagster_task() -> bool:
+    # module must be imported in dagster task
+    if dagster_ := sys.modules.get("dagster._core.execution.context.compute"):
+        try:
+            return dagster_.current_execution_context.get() is not None
+        except Exception:
+            pass
+    return False
+
+
+def is_running_in_prefect_flow() -> bool:
+    # check if prefect module is imported must be the case if running in flow
+    if pf := sys.modules.get("prefect"):
+        get_ctx = getattr(getattr(pf, "context", None), "get_run_context", None)
+        if callable(get_ctx):
+            try:
+                get_ctx()
+                return True
+            except Exception:
+                pass
+    return False
+
+
+def is_marimo() -> bool:
+    if marimo_ := sys.modules.get("marimo"):
+        get_ctx = getattr(marimo_, "running_in_notebook", None)
+        if callable(get_ctx):
+            try:
+                return get_ctx()  # type: ignore[no-any-return]
+            except Exception:
+                pass
+    return False
 
 
 def dlt_version_info(pipeline_name: str) -> StrStr:

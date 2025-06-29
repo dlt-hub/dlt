@@ -148,7 +148,7 @@ def test_successful_load(write_disposition: str, layout: str, default_buckets_en
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with (
         mock.patch(
-            "dlt.current.load_package",
+            "dlt.current.load_package_state",
             return_value=mocked_timestamp,
         ),
         perform_load(
@@ -199,7 +199,7 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with (
         mock.patch(
-            "dlt.current.load_package",
+            "dlt.current.load_package_state",
             return_value=mocked_timestamp,
         ),
         perform_load(
@@ -278,7 +278,7 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with (
         mock.patch(
-            "dlt.current.load_package",
+            "dlt.current.load_package_state",
             return_value=mocked_timestamp,
         ),
         perform_load(

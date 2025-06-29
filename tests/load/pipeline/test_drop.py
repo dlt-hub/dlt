@@ -69,7 +69,7 @@ def droppable_source(drop_columns: bool = False) -> List[DltResource]:
     def droppable_d(
         o: dlt.sources.incremental[int] = dlt.sources.incremental("o"),
     ) -> Iterator[List[Dict[str, Any]]]:
-        dlt.state()["data_from_d"] = {"foo1": {"bar": 1}, "foo2": {"bar": 2}}
+        dlt.current.source_state()["data_from_d"] = {"foo1": {"bar": 1}, "foo2": {"bar": 2}}
         yield [dict(o=55), dict(o=22)]
 
     @dlt.resource(selected=True)

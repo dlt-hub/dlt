@@ -981,7 +981,7 @@ def assert_complete_job(
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with (
         mock.patch(
-            "dlt.current.load_package",
+            "dlt.current.load_package_state",
             return_value=mocked_timestamp,
         ),
         patch.object(

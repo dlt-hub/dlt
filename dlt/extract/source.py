@@ -27,7 +27,6 @@ from dlt.common.pipeline import (
     PipelineContext,
     StateInjectableContext,
     SupportsPipelineRun,
-    source_state,
     pipeline_state,
 )
 from dlt.common.utils import (
@@ -39,6 +38,7 @@ from dlt.common.utils import (
 )
 
 from dlt.extract.items import TDecompositionStrategy
+from dlt.extract.state import source_state
 from dlt.extract.pipe_iterator import ManagedPipeIterator
 from dlt.extract.pipe import Pipe
 from dlt.extract.hints import make_hints
