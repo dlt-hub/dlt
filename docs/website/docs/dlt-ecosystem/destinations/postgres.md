@@ -63,7 +63,7 @@ query.options = "-ctimezone=Europe/Paris"
 You can also pass a database connection string similar to the one used by the `psycopg2` library or [SQLAlchemy](https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql). The credentials above will look like this:
 ```toml
 # Keep it at the top of your TOML file, before any section starts
-destination.postgres.credentials="postgresql://loader:<password>@localhost/dlt_data?connect_timeout=15&options=-ctimezone%3dEurope/Paris"
+destination.postgres.credentials="postgresql://loader:<password>@localhost/dlt_data?connect_timeout=15&options=-ctimezone%3DEurope%2FParis"
 ```
 
 To pass credentials directly, use the [explicit instance of the destination](../../general-usage/destination.md#pass-explicit-credentials)
