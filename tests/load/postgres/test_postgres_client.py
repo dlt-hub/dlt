@@ -78,7 +78,7 @@ def test_postgres_query_params() -> None:
     csc.parse_native_representation(dsn)
     assert csc.connect_timeout == 600
     assert csc.client_encoding == "utf-8"
-    assert csc.get_query().get("options") == "-ctimezone%3dEurope/Paris"
+    assert csc.get_query().get("options") == "-ctimezone=Europe/Paris"
     assert csc.to_native_representation() == dsn
 
 
