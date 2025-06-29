@@ -442,10 +442,14 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
 class TLastRunContext(TypedDict, total=False):
     """Stores context from the last successful pipeline run or sync"""
 
+    run_dir: str
+    """Defines the context working directory, defaults to cwd()"""
+    uri: str
+    """Uniquely identifies the context"""
     local_dir: str
-    """Directory of the pipeline script"""
+    """Defines data dir where local relative dirs and files are created, defaults to run_dir"""
     settings_dir: str
-    """Directory where .dlt folder is located"""
+    """Defines where the current settings (secrets and configs) are located"""
 
 
 class TPipelineLocalState(TypedDict, total=False):
@@ -505,6 +509,8 @@ class SupportsPipeline(Protocol):
     """A configurable pipeline secret to be used as a salt or a seed for encryption key"""
     first_run: bool
     """Indicates a first run of the pipeline, where run ends with successful loading of the data"""
+    last_run_context: TLastRunContext
+    """Stores last "good" run context, where run ends with successful loading of the data"""
 
     @property
     def state(self) -> TPipelineState:
@@ -630,6 +636,9 @@ class PipelineContext(ContainerInjectableContext):
         if pipeline == self._pipeline:
             return
         self.deactivate()
+        # TODO: (1) compare run_context in pipeline with currently active context (via uri) and warn if they differ
+        # TODO: (2) activate the right pipeline context. that requires that we should change pluggable run context
+        #       to thread-affine or even contextvar that works in async pools
         pipeline._set_context(True)
         self._pipeline = pipeline
         # store activated pipelines
