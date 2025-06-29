@@ -21,12 +21,18 @@ class SupportsRunContext(Protocol):
         """
 
     @property
+    def uri(self) -> str:
+        """Uniquely identifies the context. By default it is a combination of `run_dir` and `runtime_kwargs`
+        to create file:// uri
+        """
+
+    @property
     def global_dir(self) -> str:
         """Directory in which global settings are stored ie ~/.dlt/"""
 
     @property
     def run_dir(self) -> str:
-        """Defines the current working directory, defaults to cwd()"""
+        """Defines the context working directory, defaults to cwd()"""
 
     @property
     def local_dir(self) -> str:

@@ -63,6 +63,8 @@ def plugin_install():
 def test_example_plugin() -> None:
     context = run_context.active()
     assert context.name == "dlt-test"
+    # run_dir is the module file path and we have profile == dev as runtime kwargs
+    assert context.uri.endswith("/dlt_example_plugin?profile=dev")
     assert context.data_dir == os.path.abspath(TEST_STORAGE_ROOT)
     # top level module info should be present
     assert context.module.__name__ == "dlt_example_plugin"

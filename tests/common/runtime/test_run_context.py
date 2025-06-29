@@ -13,6 +13,7 @@ from dlt.common.runtime.run_context import (
     get_plugin_modules,
     is_folder_writable,
 )
+from dlt.common.storages.configuration import _make_file_url
 from dlt.common.utils import set_working_dir
 
 import tests
@@ -47,6 +48,8 @@ def test_run_context() -> None:
     assert run_context.name == "dlt"
     assert run_context.global_dir == run_context.data_dir
     assert run_context.run_dir == run_context.local_dir
+    assert run_context.uri == _make_file_url(None, run_context.run_dir, None)
+    assert run_context.uri.startswith("file://")
 
     # check config providers
     assert len(run_context.initial_providers()) == 3
