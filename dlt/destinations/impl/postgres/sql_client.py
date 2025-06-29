@@ -11,7 +11,6 @@ else:
 
 from contextlib import contextmanager
 from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence
-from urllib.parse import unquote
 
 from dlt.destinations.exceptions import (
     DatabaseTerminalException,
@@ -46,7 +45,7 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
         self.credentials = credentials
 
     def open_connection(self) -> "psycopg2.connection":
-        query_options = unquote(self.credentials.get_query().get("options", ""))
+        query_options = self.credentials.get_query().get("options", "")
         self._conn = psycopg2.connect(
             dsn=self.credentials.to_native_representation(),
             options=f"{query_options} -csearch_path={self.fully_qualified_dataset_name()},public",
