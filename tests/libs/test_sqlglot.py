@@ -20,7 +20,7 @@ from dlt.common.schema.typing import TDataType, TColumnType
         ("binary", sge.DataType.Type.VARBINARY),
         ("time", sge.DataType.Type.TIME),
         ("decimal", sge.DataType.Type.DECIMAL),
-        ("wei", sge.DataType.Type.UINT256),
+        ("wei", sge.DataType.Type.UINT128),
     ],
 )
 @pytest.mark.parametrize("use_named_type", [True, False])
