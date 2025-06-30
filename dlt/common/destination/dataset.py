@@ -225,7 +225,7 @@ class SupportsReadableRelation:
         Returns:
             Any: The attribute of the relation
         """
-        raise AttributeError("`__getattr__()` method is not supported for this relation")
+        raise AttributeError(f"`__getattr__()` method is not supported for this relation: {attr}")
 
     def __copy__(self) -> Self:
         """create a copy of the relation object

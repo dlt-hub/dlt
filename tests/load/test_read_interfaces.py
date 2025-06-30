@@ -202,17 +202,17 @@ def test_explicit_dataset_type_selection(populated_pipeline: Pipeline):
     ids=lambda x: x.name,
 )
 def test_scalar(populated_pipeline: Pipeline) -> None:
-    assert populated_pipeline.dataset().items.count().scalar() == _total_records(
-        populated_pipeline.destination.destination_type
-    )
+    assert populated_pipeline.dataset(dataset_type="default")(
+        "SELECT COUNT(*) FROM items"
+    ).scalar() == _total_records(populated_pipeline.destination.destination_type)
 
     # test error if more than one row is returned and we use scalar
     with pytest.raises(ValueError) as ex:
-        populated_pipeline.dataset().items.scalar()
+        populated_pipeline.dataset(dataset_type="default").items.scalar()
     assert "got more than one row" in str(ex.value)
 
     with pytest.raises(ValueError) as ex:
-        populated_pipeline.dataset().items.limit(1).scalar()
+        populated_pipeline.dataset(dataset_type="default").items.limit(1).limit(1).scalar()
     assert "got 1 row with 5 columns" in str(ex.value)
 
 
@@ -225,7 +225,7 @@ def test_scalar(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_arrow_access(populated_pipeline: Pipeline) -> None:
-    table_relationship = populated_pipeline.dataset().items
+    table_relationship = populated_pipeline.dataset(dataset_type="default").items
     total_records = _total_records(populated_pipeline.destination.destination_type)
     chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
@@ -262,7 +262,7 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
 )
 def test_dataframe_access(populated_pipeline: Pipeline) -> None:
     # access via key
-    table_relationship = populated_pipeline.dataset()["items"]
+    table_relationship = populated_pipeline.dataset(dataset_type="default")["items"]
     total_records = _total_records(populated_pipeline.destination.destination_type)
     chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
@@ -304,7 +304,7 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
 )
 def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
     # check fetch accessors
-    table_relationship = populated_pipeline.dataset().items
+    table_relationship = populated_pipeline.dataset(dataset_type="default").items
     total_records = _total_records(populated_pipeline.destination.destination_type)
     chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
@@ -374,7 +374,9 @@ def test_loads_table_access(populated_pipeline: Pipeline) -> None:
     # - first source (default schema)
     # - additional schema (digits)
     # - state update send in separate package to default schema
-    loads_table = populated_pipeline.dataset()[populated_pipeline.default_schema.loads_table_name]
+    loads_table = populated_pipeline.dataset(dataset_type="default")[
+        populated_pipeline.default_schema.loads_table_name
+    ]
     assert len(loads_table.fetchall()) == 3
 
 
@@ -389,7 +391,7 @@ def test_loads_table_access(populated_pipeline: Pipeline) -> None:
 def test_row_counts(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
 
-    dataset = populated_pipeline.dataset()
+    dataset = populated_pipeline.dataset(dataset_type="default")
     # default is all data tables
     assert set(dataset.row_counts().df().itertuples(index=False, name=None)) == {
         (
@@ -481,7 +483,9 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
 def test_sql_queries(populated_pipeline: Pipeline) -> None:
     dataset_name = populated_pipeline.dataset_name
     # simple check that query also works
-    query_relationship = populated_pipeline.dataset()("select * from items where id < 20")
+    query_relationship = populated_pipeline.dataset(dataset_type="default")(
+        "select * from items where id < 20"
+    )
 
     # we selected the first 20
     table = query_relationship.arrow()
@@ -492,7 +496,7 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
         "SELECT i.id, di.double_id FROM items as i JOIN double_items as di ON (i.id = di.id) WHERE"
         " i.id < 20 ORDER BY i.id ASC"
     )
-    join_relationship = populated_pipeline.dataset()(query)
+    join_relationship = populated_pipeline.dataset(dataset_type="default")(query)
     table = join_relationship.fetchall()
     assert len(table) == 20
     assert list(table[0]) == [0, 0]
@@ -505,19 +509,19 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
         " as di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
     )
 
-    join_relationship = populated_pipeline.dataset()(query)
+    join_relationship = populated_pipeline.dataset(dataset_type="default")(query)
     table = join_relationship.fetchall()
     assert len(table) == 20
 
     # check statement that is not a select query
     query = f"CREATE TABLE {dataset_name}.test (id bigint)"
     with pytest.raises(LineageFailedException) as exc:
-        populated_pipeline.dataset()(query).df()
+        populated_pipeline.dataset(dataset_type="default")(query).df()
     assert "is not a SELECT statement." in str(exc.value)
 
     # we also get an error in raw query mode
     with pytest.raises(ValueError) as exc2:
-        populated_pipeline.dataset()(query, execute_raw_query=True).df()
+        populated_pipeline.dataset(dataset_type="default")(query, execute_raw_query=True).df()
     assert "Must be an SQL SELECT statement" in str(exc2.value)
 
     # we only test the following for duckdb
@@ -557,7 +561,7 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_limit_and_head(populated_pipeline: Pipeline) -> None:
-    dataset_ = populated_pipeline.dataset()
+    dataset_ = populated_pipeline.dataset(dataset_type="default")
 
     # test sql_client lifecycle
     assert dataset_._opened_sql_client is None
@@ -628,7 +632,7 @@ def test_limit_and_head(populated_pipeline: Pipeline) -> None:
 )
 def test_dataset_client_caching_and_connection_handling(populated_pipeline: Pipeline) -> None:
     # no clients exist yet
-    dataset = populated_pipeline.dataset()
+    dataset = populated_pipeline.dataset(dataset_type="default")
     assert dataset._opened_sql_client is None
     assert dataset._sql_client is None
 
@@ -854,7 +858,7 @@ def test_where(populated_pipeline: Pipeline) -> None:
 )
 def test_unknown_table_access(populated_pipeline: Pipeline) -> None:
     with pytest.raises(ValueError, match="Table `unknown_table` not found in schema"):
-        populated_pipeline.dataset().unknown_table
+        populated_pipeline.dataset(dataset_type="default").unknown_table
 
 
 @pytest.mark.no_load
@@ -899,22 +903,22 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
     """Simple test to ensure schemas may be selected via schema arg"""
 
     # if there is no arg, the default schema is used
-    dataset = populated_pipeline.dataset()
+    dataset = populated_pipeline.dataset(dataset_type="default")
     assert dataset.schema.name == populated_pipeline.default_schema_name
     assert "items" in dataset.schema.tables
 
     # if setting a different schema, default schema with dataset name will be used
-    populated_pipeline.dataset(schema="source")
+    populated_pipeline.dataset(schema="source", dataset_type="default")
     assert dataset.schema.name == "source"
     assert "items" in dataset.schema.tables
 
     # explicit schema object is OK
-    dataset = populated_pipeline.dataset(schema=Schema("unknown_schema"))
+    dataset = populated_pipeline.dataset(schema=Schema("unknown_schema"), dataset_type="default")
     assert dataset.schema.name == "unknown_schema"
     assert "items" not in dataset.schema.tables
 
     # providing the schema name of the right schema will load it
-    dataset = populated_pipeline.dataset(schema="aleph")
+    dataset = populated_pipeline.dataset(schema="aleph", dataset_type="default")
     assert dataset.schema.name == "aleph"
     assert "digits" in dataset.schema.tables
     dataset.digits.fetchall()
@@ -1351,16 +1355,16 @@ def test_read_not_materialized_table(destination_config: DestinationTestConfigur
     pipeline.run(source.table_3, schema=schema, **destination_config.run_kwargs)
 
     with pytest.raises(DestinationUndefinedEntity):
-        pipeline.dataset().table_3.fetchall()
+        pipeline.dataset(dataset_type="default").table_3.fetchall()
 
     # now set table_3 so it has seen data
-    with pipeline.dataset() as dataset_:
+    with pipeline.dataset(dataset_type="default") as dataset_:
         schema = dataset_.schema
         schema.tables["table_3"]["x-normalizer"] = {"seen-data": True}
 
     # forces sql_client to map views. but data does not exist so must raise same exceptions
     with pytest.raises(DestinationUndefinedEntity):
-        pipeline.dataset().table_3.fetchall()
+        pipeline.dataset(dataset_type="default").table_3.fetchall()
 
 
 @pytest.mark.essential
@@ -1383,7 +1387,7 @@ def test_naming_convention_propagation(destination_config: DestinationTestConfig
     s = create_test_source(destination_config.destination_type, destination_config.table_format)
     pipeline.run(s, loader_file_format=destination_config.file_format)
 
-    dataset_ = pipeline.dataset()
+    dataset_ = pipeline.dataset(dataset_type="default")
     df = dataset_.ItemS.df()
     assert df.columns.tolist()[0] == "ID"
     with dataset_.sql_client as client:
