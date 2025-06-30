@@ -76,7 +76,7 @@ def dataset(
             # if ibis is explicitly requested, reraise
             if dataset_type == "ibis":
                 raise
-            dataset_type = "ibis"
+            dataset_type = "default"
 
     if dataset_type == "ibis":
         return ReadableIbisDataset(destination, dataset_name, schema)
