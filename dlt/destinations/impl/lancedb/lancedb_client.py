@@ -167,6 +167,54 @@ class LanceDBTypeMapper(TypeMapperImpl):
         return super().from_db_type(cast(str, db_type), precision, scale)  # type: ignore
 
 
+# Helper to align Arrow table schema to match a target schema
+
+
+def align_schema(records: pa.Table, target_schema: pa.Schema) -> pa.Table:
+    """
+    Aligns the columns and types of `records` to match `target_schema`.
+    - Columns are matched by name (case-insensitive).
+    - Order and types are forced to match target_schema.
+    - Missing columns are filled with NULLs.
+    - Extra columns in records are ignored.
+    - If schemas already match, returns records as-is.
+    """
+    if records.schema == target_schema:
+        return records
+
+    target_columns = [field.name for field in target_schema]
+    source_columns = [field.name for field in records.schema]
+    column_mapping = {}
+    for target_col in target_columns:
+        if target_col in source_columns:
+            column_mapping[target_col] = target_col
+        else:
+            for source_col in source_columns:
+                if target_col.lower() == source_col.lower():
+                    column_mapping[target_col] = source_col
+                    break
+
+    compatible_columns = []
+    for target_col in target_columns:
+        target_field = target_schema.field(target_col)
+        if target_col in column_mapping:
+            source_col = column_mapping[target_col]
+            source_array = records[source_col]
+            if source_array.type != target_field.type:
+                try:
+                    compatible_columns.append(source_array.cast(target_field.type))
+                except Exception:
+                    compatible_columns.append(
+                        pa.array([None] * len(records), type=target_field.type)
+                    )
+            else:
+                compatible_columns.append(source_array)
+        else:
+            compatible_columns.append(pa.array([None] * len(records), type=target_field.type))
+
+    return pa.table(compatible_columns, schema=target_schema)
+
+
 def write_records(
     records: DATA,
     /,
@@ -198,7 +246,7 @@ def write_records(
     try:
         tbl = db_client.open_table(table_name)
         tbl.checkout_latest()
-    except FileNotFoundError as e:
+    except ValueError as e:
         raise DestinationTransientException(
             "Couldn't open lancedb database. Batch WILL BE RETRIED"
         ) from e
@@ -208,9 +256,16 @@ def write_records(
             tbl.add(records)
         elif write_disposition == "merge":
             if remove_orphans:
+                # LanceDB requires identical schemas for when_not_matched_by_source_delete
+                # The source data schema must exactly match the target table schema (column names,
+                # order, and types). Only after 22. does it work with chunks and embeddings
+                target_schema = tbl.schema
+                if not isinstance(records, pa.Table):
+                    records = pa.Table.from_pylist(records)
+                compatible_records = align_schema(records, target_schema)
                 tbl.merge_insert(merge_key).when_not_matched_by_source_delete(
                     filter_condition
-                ).execute(records)
+                ).execute(compatible_records)
             else:
                 tbl.merge_insert(
                     merge_key
@@ -240,13 +295,13 @@ class LanceDBClient(JobClientBase, WithStateSync):
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
         super().__init__(schema, config, capabilities)
+        self.registry = EmbeddingFunctionRegistry.get_instance()
         self.config: LanceDBClientConfiguration = config
         self.db_client: DBConnection = lancedb.connect(
             uri=self.config.lance_uri,
             api_key=self.config.credentials.api_key,
             read_consistency_interval=timedelta(0),
         )
-        self.registry = EmbeddingFunctionRegistry.get_instance()
         self.type_mapper = self.capabilities.get_type_mapper()
         self.sentinel_table_name = config.sentinel_table_name
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
@@ -265,7 +320,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         self.model_func = self.registry.get(embedding_model_provider).create(
             name=self.config.embedding_model,
             max_retries=self.config.options.max_retries,
-            api_key=self.config.credentials.api_key,
+            # actually the model func doesnt need the api-key!
             **({"host": embedding_model_host} if embedding_model_host else {}),
         )
         self.vector_field_name = self.config.vector_field_name
@@ -440,7 +495,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             table: "lancedb.table.Table" = self.db_client.open_table(fq_table_name)
             table.checkout_latest()
             arrow_schema: TArrowSchema = table.schema
-        except FileNotFoundError:
+        except ValueError:
             return False, table_schema
 
         field: TArrowField
