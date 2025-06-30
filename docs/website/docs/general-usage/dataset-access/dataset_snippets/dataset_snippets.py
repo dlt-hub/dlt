@@ -186,50 +186,60 @@ def chain_operations_snippet(dataset: ReadableDBAPIDataset) -> None:
 
 def ibis_expressions_snippet(pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START ibis_expressions
-    # now that ibis is installed, we can get a dataset with ibis relations
+    # now that ibis is installed, we can get ibis unbound tables from the dataset
     dataset = pipeline.dataset()
 
-    # get two relations
-    customers_relation = dataset["customers"]
-    purchases_relation = dataset["purchases"]
+    # get two table expressions
+    customers_expression = dataset.table("customers", table_type="ibis")
+    purchases_expression = dataset.table("purchases", table_type="ibis")
 
     # join them using an ibis expression
-    joined_relation = customers_relation.join(
-        purchases_relation, customers_relation.id == purchases_relation.customer_id
+    join_expression = customers_expression.join(
+        purchases_expression, customers_expression.id == purchases_expression.customer_id
     )
 
     # now we can use the ibis expression to filter the data
-    filtered_relation = joined_relation.filter(purchases_relation.quantity > 1)
+    filtered_expression = join_expression.filter(purchases_expression.quantity > 1)
 
-    # we can inspect the query that will be used to read the data
-    print(filtered_relation.query)
+    # we can pass the expression back to the dataset to get a relation that can be executed
+    relation = dataset(filtered_expression)
+    # and we can inspect the query that will be used to read the data
+    print(relation.query())
 
     # and finally fetch the data as a pandas dataframe, the same way we would do with a normal relation
-    df = filtered_relation.df()
+    print(relation.df())
 
     # a few more examples
 
-    # get all customers from berlin and london
-    customers_relation.filter(customers_relation.city.isin(["berlin", "london"])).df()
+    # get all customers from berlin and london and load them as a dataframe
+    expr = customers_expression.filter(customers_expression.city.isin(["berlin", "london"]))
+    print(dataset(expr).df())
 
-    # limit and offset
-    customers_relation.limit(10, offset=5).arrow()
+    # limit and offset, then load as an arrow table
+    expr = customers_expression.limit(10, offset=5)
+    print(dataset(expr).arrow())
 
     # mutate columns by adding a new colums that always is 10 times the value of the id column
-    customers_relation.mutate(new_id=customers_relation.id * 10).df()
+    expr = customers_expression.mutate(new_id=customers_expression.id * 10)
+    print(dataset(expr).df())
 
     # sort asc and desc
     import ibis
 
-    customers_relation.order_by(ibis.desc("id"), ibis.asc("city")).limit(10)
+    expr = customers_expression.order_by(ibis.desc("id"), ibis.asc("city")).limit(10)
+    print(dataset(expr).df())
 
     # group by and aggregate
-    customers_relation.group_by("city").having(customers_relation.count() >= 3).aggregate(
-        sum_id=customers_relation.id.sum()
-    ).df()
+    expr = (
+        customers_expression.group_by("city")
+        .having(customers_expression.count() >= 3)
+        .aggregate(sum_id=customers_expression.id.sum())
+    )
+    print(dataset(expr).df())
 
     # subqueries
-    customers_relation.filter(customers_relation.city.isin(["berlin", "london"])).df()
+    expr = customers_expression.filter(customers_expression.city.isin(["berlin", "london"]))
+    print(dataset(expr).df())
     # @@@DLT_SNIPPET_END ibis_expressions
 
 

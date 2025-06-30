@@ -932,28 +932,11 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
-def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
-    # NOTE: we could generalize this with a context for certain deps
-    import ibis
-
-    # now we should get the more powerful ibis relation
-    dataset = populated_pipeline.dataset()
-    total_records = _total_records(populated_pipeline.destination.destination_type)
-
+def test_ibis_expression_relation_legacy(populated_pipeline: Pipeline) -> None:
+    """Here we do a basic check that the legacy ibis data set is still working"""
+    dataset = populated_pipeline.dataset(dataset_type="ibis")
     items_table = dataset["items"]
     double_items_table = dataset["double_items"]
-
-    # check full table access
-    df = items_table.df()
-    assert len(df.index) == total_records
-
-    df = double_items_table.df()
-    assert len(df.index) == total_records
-
-    # check limit
-    df = items_table.limit(5).df()
-    assert len(df.index) == 5
-
     # check chained expression with join, column selection, order by and limit
     joined_table = (
         items_table.join(double_items_table, items_table.id == double_items_table.id)[
@@ -968,13 +951,58 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert list(table[5]) == [5, 10]
     assert list(table[10]) == [10, 20]
 
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
+    # NOTE: we could generalize this with a context for certain deps
+    import ibis
+
+    # now we should get the more powerful ibis relation
+    dataset = populated_pipeline.dataset(dataset_type="default")
+    total_records = _total_records(populated_pipeline.destination.destination_type)
+
+    items_table = dataset.table("items", table_type="ibis")
+    double_items_table = dataset.table("double_items", table_type="ibis")
+
+    # check full table access
+    df = dataset(items_table).df()
+    assert len(df.index) == total_records
+
+    df = dataset(double_items_table).df()
+    assert len(df.index) == total_records
+
+    # check limit
+    df = dataset(items_table).limit(5).df()
+    assert len(df.index) == 5
+
+    # check chained expression with join, column selection, order by and limit
+    joined_table = (
+        items_table.join(double_items_table, items_table.id == double_items_table.id)[
+            ["id", "double_id"]
+        ]
+        .order_by("id")
+        .limit(20)
+    )
+    table = dataset(joined_table).fetchall()
+    assert len(table) == 20
+    assert list(table[0]) == [0, 0]
+    assert list(table[5]) == [5, 10]
+    assert list(table[10]) == [10, 20]
+
     # check aggregate of first 20 items
     agg_table = items_table.order_by("id").limit(20).aggregate(sum_id=items_table.id.sum())
-    assert agg_table.fetchone()[0] == reduce(lambda a, b: a + b, range(20))
+    assert dataset(agg_table).fetchone()[0] == reduce(lambda a, b: a + b, range(20))
 
     # check filtering
     filtered_table = items_table.filter(items_table.id < 10)
-    assert len(filtered_table.fetchall()) == 10
+    assert len(dataset(filtered_table).fetchall()) == 10
 
     if populated_pipeline.destination.destination_type != "dlt.destinations.duckdb":
         return
@@ -982,8 +1010,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # we check a bunch of expressions without executing them to see that they produce correct sql
     # also we return the keys of the discovered schema columns
     def sql_from_expr(expr: Any) -> Tuple[str, List[str]]:
-        query = str(expr.query()).replace(populated_pipeline.dataset_name, "dataset")
-        columns = list(expr.columns_schema.keys()) if expr.columns_schema else None
+        relation = dataset(expr)
+        query = str(relation.query()).replace(populated_pipeline.dataset_name, "dataset")
+        columns = list(relation.columns_schema.keys()) if relation.columns_schema else None
         return re.sub(r"\s+", " ", query), columns
 
     # test all functions discussed here: https://ibis-project.org/tutorials/ibis-for-sql-users

@@ -54,7 +54,7 @@ def orders_per_user_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
 
     @dlt.transformation(name="orders_per_user", write_disposition="merge")
     def orders_per_user(dataset: dlt.Dataset) -> Any:
-        purchases = dataset["purchases"]
+        purchases = dataset.table("purchases", table_type="ibis")
         yield purchases.group_by(purchases.customer_id).aggregate(order_count=purchases.id.count())
 
     # @@@DLT_SNIPPET_END orders_per_user
@@ -96,13 +96,13 @@ def multiple_transformations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     def my_transformations(dataset: dlt.Dataset) -> Any:
         @dlt.transformation(write_disposition="append")
         def enriched_purchases(dataset: dlt.Dataset) -> Any:
-            purchases = dataset["purchases"]
-            customers = dataset["customers"]
+            purchases = dataset.table("purchases", table_type="ibis")
+            customers = dataset.table("customers", table_type="ibis")
             yield purchases.join(customers, purchases.customer_id == customers.id)
 
         @dlt.transformation(write_disposition="replace")
         def total_items_sold(dataset: dlt.Dataset) -> Any:
-            purchases = dataset["purchases"]
+            purchases = dataset.table("purchases", table_type="ibis")
             yield purchases.aggregate(total_qty=purchases.quantity.sum())
 
         return enriched_purchases(dataset), total_items_sold(dataset)
@@ -212,10 +212,11 @@ def arrow_dataframe_operations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None
 def computed_schema_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START computed_schema
     # Show the computed schema before the transformation is executed
-    purchases = fruitshop_pipeline.dataset()["purchases"]
-    customers = fruitshop_pipeline.dataset()["customers"]
+    dataset = fruitshop_pipeline.dataset(dataset_type="default")
+    purchases = dataset.table("purchases", table_type="ibis")
+    customers = dataset.table("customers", table_type="ibis")
     enriched_purchases = purchases.join(customers, purchases.customer_id == customers.id)
-    print(enriched_purchases.compute_columns_schema())
+    print(dataset(enriched_purchases).compute_columns_schema())
     # @@@DLT_SNIPPET_END computed_schema
 
 
@@ -270,8 +271,8 @@ def in_transit_transformations_snippet() -> None:
     # load aggregated data to a warehouse destination
     @dlt.transformation()
     def orders_per_store(dataset: dlt.Dataset) -> Any:
-        orders = dataset["orders"]
-        stores = dataset["stores"]
+        orders = dataset.table("orders", table_type="ibis")
+        stores = dataset.table("stores", table_type="ibis")
         yield (
             orders.join(stores, orders.store_id == stores.id)
             .group_by(stores.name)
