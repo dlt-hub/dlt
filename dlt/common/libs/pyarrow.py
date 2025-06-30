@@ -1047,3 +1047,25 @@ class NameNormalizationCollision(ValueError):
     def __init__(self, reason: str) -> None:
         msg = f"Arrow column name collision after input data normalization. {reason}"
         super().__init__(msg)
+
+
+def add_arrow_metadata(
+    item: Union[pyarrow.Table, pyarrow.RecordBatch], metadata: dict[str, Any]
+) -> pyarrow.Table:
+    # Get current metadata or initialize empty
+    schema = item.schema
+    current = schema.metadata or {}
+
+    # Convert new metadata to bytes and merge
+    update = {k.encode("utf-8"): v.encode("utf-8") for k, v in metadata.items()}
+    merged = current.copy()
+    merged.update(update)
+
+    # Apply updated schema
+    new_schema = schema.with_metadata(merged)
+
+    # Rebuild the object with updated schema
+    if isinstance(item, pyarrow.Table):
+        return pyarrow.Table.from_arrays(item.columns, schema=new_schema)
+    else:  # RecordBatch
+        return pyarrow.RecordBatch.from_arrays(item.columns, schema=new_schema)

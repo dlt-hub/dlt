@@ -3,7 +3,7 @@ from functools import lru_cache, partial
 from typing import Set, Dict, Any, Optional, List, Union
 
 from dlt.common.configuration import known_sections, resolve_configuration, with_config
-from dlt.common import logger
+from dlt.common import logger, json
 from dlt.common.configuration.specs import BaseConfiguration, configspec
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.exceptions import MissingDependencyException
@@ -21,7 +21,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.normalizers.json import helpers as normalize_helpers
 
-from dlt.extract.hints import HintsMeta, TResourceHints, WithComputableHints
+from dlt.extract.hints import HintsMeta, TResourceHints, WithComputableHints, DLT_HINTS_METADATA_KEY
 from dlt.extract.resource import DltResource
 from dlt.extract.items import DataItemWithMeta, TableNameMeta
 from dlt.extract.storage import ExtractorItemStorage
@@ -342,6 +342,19 @@ class ArrowExtractor(Extractor):
         )
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
+        items_list = items if isinstance(items, list) else [items]
+
+        # extract resource hints from metadata if available
+        for item in items_list:
+            if (
+                isinstance(item, (pa.Table, pa.RecordBatch))
+                and item.schema
+                and item.schema.metadata
+            ):
+                hints = item.schema.metadata.get(DLT_HINTS_METADATA_KEY.encode("utf-8"))
+                if hints:
+                    resource.merge_hints(json.loads(hints.decode("utf-8")))
+
         static_table_name = self._get_static_table_name(resource, meta)
         items = [
             # 2. remove columns and rows in data contract filters
@@ -353,7 +366,7 @@ class ArrowExtractor(Extractor):
                     if (pandas and isinstance(item, pandas.DataFrame))
                     else item
                 )
-                for item in (items if isinstance(items, list) else [items])
+                for item in items_list
             )
         ]
         super().write_items(resource, items, meta)

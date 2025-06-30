@@ -7,7 +7,7 @@ import sqlglot
 
 from dlt.common.configuration.inject import get_fun_last_config, get_fun_spec
 from dlt.common.typing import TDataItems, TTableHintTemplate
-from dlt.common import logger
+from dlt.common import logger, json
 
 from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
 from dlt.extract.incremental import Incremental
@@ -33,10 +33,10 @@ from dlt.transformations.configuration import TransformationConfiguration
 from dlt.common.utils import get_callable_name
 from dlt.extract.exceptions import CurrentSourceNotAvailable
 from dlt.extract.pipe_iterator import DataItemWithMeta
+from dlt.extract.hints import DLT_HINTS_METADATA_KEY
 
 try:
     from dlt.helpers.ibis import Expr as IbisExpr
-    from dlt.helpers.ibis import compile_ibis_to_sqlglot
 except (ImportError, MissingDependencyException):
     IbisExpr = None
 
@@ -143,7 +143,6 @@ def make_transformation_resource(
             schema_name = dlt.current.source().name
             current_pipeline = dlt.current.pipeline()
             current_pipeline.destination_client()  # raises if destination not configured
-
             should_materialize = not datasets[0].is_same_physical_destination(
                 current_pipeline.dataset(schema=schema_name)
             )
@@ -157,14 +156,24 @@ def make_transformation_resource(
         # respect always materialize config
         should_materialize = should_materialize or config.always_materialize
 
+        # we need to rewrap all items with meta if there was some
         if not should_materialize:
             if meta:
                 yield DataItemWithMeta(meta, relation)
             else:
                 yield relation
         else:
+            from dlt.common.libs.pyarrow import add_arrow_metadata
+
+            serialized_hints = json.dumps(relation.compute_hints())
             for chunk in relation.iter_arrow(chunk_size=config.buffer_max_items):
-                yield dlt.mark.with_hints(chunk, hints=relation.compute_hints())
+                updated_chunk = add_arrow_metadata(
+                    chunk, {DLT_HINTS_METADATA_KEY: serialized_hints}
+                )
+                if meta:
+                    yield DataItemWithMeta(meta, updated_chunk)
+                else:
+                    yield updated_chunk
 
     return dlt.resource(  # type: ignore[return-value]
         name=name,

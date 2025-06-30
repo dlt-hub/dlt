@@ -60,6 +60,9 @@ from dlt.extract.validation import create_item_validator
 import sqlglot
 
 
+DLT_HINTS_METADATA_KEY = "dlt_resource_hints"
+
+
 class TResourceNestedHints(TypedDict, total=False):
     # used to force a parent for rare cases where normalizer skips intermediate tables that
     # do not receive data

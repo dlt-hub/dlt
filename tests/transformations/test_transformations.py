@@ -70,16 +70,16 @@ def test_simple_query_transformations(
     transformation_configs(only_duckdb=True),
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize(
-    "always_materialize", [False]
-)  # , True]) # TODO: reenable once we have figured this out
+@pytest.mark.parametrize("always_materialize", [False, True])
 def test_transformations_with_supplied_hints(
     destination_config: DestinationTestConfiguration, always_materialize: bool
 ) -> None:
     fruit_p, dest_p = setup_transformation_pipelines(destination_config)
 
     s = fruitshop_source()
-    s.inventory.apply_hints(columns={"price": {"precision": 10, "scale": 2}})
+    s.inventory.apply_hints(
+        columns={"price": {"precision": 10, "scale": 2, "x-annotation-important": True}}  # type: ignore
+    )
     fruit_p.run(s)
 
     os.environ["ALWAYS_MATERIALIZE"] = str(always_materialize)
@@ -106,6 +106,13 @@ def test_transformations_with_supplied_hints(
         == 20
     )
     assert dest_p.default_schema.tables["inventory_more_precise"]["columns"]["price"]["scale"] == 2
+    # original hints should also all still be there, so we confirm hints were merged properly
+    assert (
+        dest_p.default_schema.tables["inventory_original"]["columns"]["price"][
+            "x-annotation-important"  # type: ignore
+        ]
+        is True
+    )
 
 
 @pytest.mark.parametrize(
