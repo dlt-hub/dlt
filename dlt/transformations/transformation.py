@@ -144,7 +144,7 @@ def make_transformation_resource(
             current_pipeline = dlt.current.pipeline()
             current_pipeline.destination_client()  # raises if destination not configured
             should_materialize = not datasets[0].is_same_physical_destination(
-                current_pipeline.dataset(schema=schema_name)
+                current_pipeline.dataset(schema=schema_name, dataset_type="default")
             )
         except (PipelineConfigMissing, CurrentSourceNotAvailable):
             logger.info(

@@ -1,12 +1,11 @@
 from types import TracebackType
-from typing import Any, Type, Union, TYPE_CHECKING, List, Literal, cast, overload
+from typing import Any, Type, Union, TYPE_CHECKING, List, Literal, cast, overload, Generic
 
 
 from sqlglot.schema import Schema as SQLGlotSchema
 import sqlglot.expressions as sge
 
 from dlt.common.destination.exceptions import (
-    DestinationUndefinedEntity,
     OpenTableClientNotAvailable,
 )
 from dlt.common.json import json
@@ -16,6 +15,7 @@ from dlt.common.destination.client import JobClientBase, SupportsOpenTables, Wit
 from dlt.common.destination.dataset import (
     SupportsReadableRelation,
     SupportsReadableDataset,
+    TReadableRelation,
 )
 from dlt.common.destination.typing import TDatasetType
 from dlt.common.schema import Schema
@@ -41,7 +41,9 @@ else:
     IbisExpr = Any
 
 
-class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
+class BaseReadableDBAPIDataset(
+    Generic[TReadableRelation], SupportsReadableDataset[TReadableRelation]
+):
     """Access to dataframes and arrow tables in the destination dataset via dbapi"""
 
     def __init__(
@@ -49,7 +51,6 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         destination: TDestinationReferenceArg,
         dataset_name: str,
         schema: Union[Schema, str, None] = None,
-        dataset_type: TDatasetType = "auto",
     ) -> None:
         # provided properties
         self._destination = Destination.from_reference(destination)
@@ -62,18 +63,6 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         self._sql_client: SqlClientBase[Any] = None
         self._opened_sql_client: SqlClientBase[Any] = None
         self._table_client: SupportsOpenTables = None
-
-        # resolve dataset type
-        if dataset_type in ("auto", "ibis"):
-            try:
-                from dlt.helpers.ibis import ibis
-
-                dataset_type = "ibis"
-            except MissingDependencyException:
-                # if ibis is explicitly requested, reraise
-                if dataset_type == "ibis":
-                    raise
-        self._dataset_type: TDatasetType = dataset_type
 
     def ibis(self) -> IbisBackend:
         """return a connected ibis backend"""
@@ -203,14 +192,17 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         )
 
     @overload
-    def table(self, table_name: str) -> ReadableIbisRelation: ...
+    def table(self, table_name: str) -> TReadableRelation: ...
 
     @overload
     def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
 
+    @overload
+    def table(self, table_name: str, table_type: Literal["relation"]) -> TReadableRelation: ...
+
     def table(
         self, table_name: str, table_type: Literal["relation", "ibis"] = None
-    ) -> Union[ReadableIbisRelation, IbisTable]:
+    ) -> Union[TReadableRelation, IbisTable]:
         # dataset only provides access to tables known in dlt schema, direct query may cirumvent this
         if table_name not in self.schema.tables.keys():
             raise ValueError(
@@ -224,26 +216,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
 
             return create_unbound_ibis_table(self.schema, self.dataset_name, table_name)
 
-        # we can create an ibis powered relation if ibis is available
-        relation: BaseReadableDBAPIRelation
-        if self._dataset_type == "ibis":
-            from dlt.helpers.ibis import create_unbound_ibis_table
-            from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
-
-            unbound_table = create_unbound_ibis_table(self.schema, self.dataset_name, table_name)
-            relation = ReadableIbisRelation(
-                readable_dataset=self,
-                ibis_object=unbound_table,
-            )
-
-        else:
-            # fallback to the standard dbapi relation
-            relation = ReadableDBAPIRelation(
-                readable_dataset=self,
-                table_name=table_name,
-            )
-
-        return relation
+        return None
 
     def row_counts(
         self,
@@ -288,11 +261,11 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
 
         return self(query=union_all_expr)
 
-    def __getitem__(self, table_name: str) -> ReadableIbisRelation:
+    def __getitem__(self, table_name: str) -> TReadableRelation:
         """access of table via dict notation"""
         return self.table(table_name)
 
-    def __getattr__(self, table_name: str) -> ReadableIbisRelation:
+    def __getattr__(self, table_name: str) -> TReadableRelation:
         """access of table via property notation"""
         return self.table(table_name)
 
@@ -359,3 +332,36 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
             else:
                 msg += "No data tables found in schema."
         return msg
+
+
+class ReadableDBAPIDataset(BaseReadableDBAPIDataset[ReadableDBAPIRelation]):
+    def table(
+        self, table_name: str, table_type: Literal["relation", "ibis"] = None
+    ) -> Union[ReadableDBAPIRelation, IbisTable]:
+        if table := super().table(table_name, table_type):
+            return table
+
+        # fallback to the standard dbapi relation
+        return ReadableDBAPIRelation(
+            readable_dataset=self,
+            table_name=table_name,
+        )
+
+
+class ReadableIbisDataset(BaseReadableDBAPIDataset[ReadableIbisRelation]):
+    """Access to dataframes and arrow tables in the destination dataset via ibis"""
+
+    def table(
+        self, table_name: str, table_type: Literal["relation", "ibis"] = None
+    ) -> Union[ReadableIbisRelation, IbisTable]:
+        if table := super().table(table_name, table_type):
+            return table
+
+        from dlt.helpers.ibis import create_unbound_ibis_table
+        from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
+
+        unbound_table = create_unbound_ibis_table(self.schema, self.dataset_name, table_name)
+        return ReadableIbisRelation(
+            readable_dataset=self,
+            ibis_object=unbound_table,
+        )

@@ -45,11 +45,12 @@ except (ImportError, MissingDependencyException):
     IbisExpr = None
 
 if TYPE_CHECKING:
-    from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+    from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, BaseReadableDBAPIDataset
     from dlt.helpers.ibis import Table as IbisTable, Expr as IbisExpr
 else:
     ReadableDBAPIDataset = Any
     IbisTable = Any
+    BaseReadableDBAPIDataset = Any
 
 
 OpLiteral = Literal["eq", "ne", "gt", "lt", "gte", "lte", "in", "not_in"]
@@ -82,7 +83,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient, WithCom
     def __init__(
         self,
         *,
-        readable_dataset: "ReadableDBAPIDataset",
+        readable_dataset: "BaseReadableDBAPIDataset[Any]",
         execute_raw_query: bool = False,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
@@ -284,7 +285,7 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
     def __init__(
         self,
         *,
-        readable_dataset: "ReadableDBAPIDataset",
+        readable_dataset: "BaseReadableDBAPIDataset[Any]",
         query: Union[str, sge.Select],
         query_dialect: Optional[str] = None,
         execute_raw_query: bool = False,
@@ -294,14 +295,14 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
     def __init__(
         self,
         *,
-        readable_dataset: "ReadableDBAPIDataset",
+        readable_dataset: "BaseReadableDBAPIDataset[Any]",
         table_name: str,
     ) -> None: ...
 
     def __init__(
         self,
         *,
-        readable_dataset: "ReadableDBAPIDataset",
+        readable_dataset: "BaseReadableDBAPIDataset[Any]",
         query: Optional[Union[str, sge.Select, IbisExpr]] = None,
         query_dialect: Optional[str] = None,
         table_name: Optional[str] = None,

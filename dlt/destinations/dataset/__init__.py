@@ -10,6 +10,7 @@ from dlt.destinations.dataset.utils import (
 __all__ = [
     "dataset",
     "ReadableDBAPIDataset",
+    "BaseReadableDBAPIDataset",
     "get_destination_client_initial_config",
     "get_destination_clients",
 ]

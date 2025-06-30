@@ -14,6 +14,7 @@ from typing import (
 )
 
 from sqlglot.schema import Schema as SQLGlotSchema
+import sqlglot.expressions as sge
 
 from dlt.common.typing import Self, Generic, TypeVar
 from dlt.common.schema.schema import Schema
@@ -23,12 +24,13 @@ from dlt.common.schema.typing import TTableSchemaColumns
 if TYPE_CHECKING:
     from dlt.common.libs.pandas import DataFrame
     from dlt.common.libs.pyarrow import Table as ArrowTable
-    from dlt.helpers.ibis import BaseBackend as IbisBackend, Table as IbisTable
+    from dlt.helpers.ibis import BaseBackend as IbisBackend, Table as IbisTable, Expr as IbisExpr
 else:
     DataFrame = Any
     ArrowTable = Any
     IbisBackend = Any
     IbisTable = Any
+    IbisExpr = Any
 
 
 class SupportsReadableRelation:
@@ -279,7 +281,10 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
         """
 
     def __call__(
-        self, query: str, query_dialect: str = None, execute_raw_query: bool = False
+        self,
+        query: Union[str, sge.Select, IbisExpr],
+        query_dialect: str = None,
+        execute_raw_query: bool = False,
     ) -> SupportsReadableRelation:
         """Returns a readable relation for a given sql query
 

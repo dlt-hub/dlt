@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Union, Sequence
+from typing import TYPE_CHECKING, Any, Union, Sequence, cast
 from functools import partial
 
 import sqlglot
@@ -7,7 +7,7 @@ from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
 
 
 if TYPE_CHECKING:
-    from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+    from dlt.destinations.dataset.dataset import ReadableIbisDataset
     from dlt.helpers.ibis import Table as IbisTable, Expr as IbisEpr
 else:
     IbisTable = object
@@ -18,7 +18,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
     def __init__(
         self,
         *,
-        readable_dataset: "ReadableDBAPIDataset",
+        readable_dataset: "ReadableIbisDataset",
         ibis_object: IbisEpr = None,
     ) -> None:
         """Create a lazy evaluated relation to for the dataset of a destination"""
@@ -52,7 +52,9 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
         result = method(*args, **kwargs)
 
         # If result is an ibis expression, wrap it in a new relation else return raw result
-        return self.__class__(readable_dataset=self._dataset, ibis_object=result)
+        return self.__class__(
+            readable_dataset=cast("ReadableIbisDataset", self._dataset), ibis_object=result
+        )
 
     def __getattr__(self, name: str) -> Any:
         """Wrap all callable attributes of the expression"""
@@ -66,7 +68,9 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
 
         if not callable(attr):
             # NOTE: This case usually is a column
-            return self.__class__(readable_dataset=self._dataset, ibis_object=attr)
+            return self.__class__(
+                readable_dataset=cast("ReadableIbisDataset", self._dataset), ibis_object=attr
+            )
 
         return partial(self._proxy_expression_method, name)
 
@@ -79,7 +83,7 @@ class ReadableIbisRelation(BaseReadableDBAPIRelation):
 
         expr = self._ibis_object[columns]
         return self.__class__(
-            readable_dataset=self._dataset,
+            readable_dataset=cast("ReadableIbisDataset", self._dataset),
             ibis_object=expr,
         )
 

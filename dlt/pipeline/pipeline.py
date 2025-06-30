@@ -112,7 +112,7 @@ from dlt.destinations.dataset import (
     dataset,
     get_destination_clients,
 )
-from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableIbisDataset
 
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
@@ -1798,7 +1798,7 @@ class Pipeline(SupportsPipeline):
         self,
         schema: Union[Schema, str, None] = None,
         dataset_type: Literal["ibis"] = "ibis",
-    ) -> ReadableDBAPIDataset: ...
+    ) -> ReadableIbisDataset: ...
 
     @overload
     def dataset(
@@ -1812,7 +1812,7 @@ class Pipeline(SupportsPipeline):
         self,
         schema: Union[Schema, str, None] = None,
         dataset_type: TDatasetType = "auto",
-    ) -> ReadableDBAPIDataset: ...
+    ) -> ReadableIbisDataset: ...
 
     def dataset(
         self, schema: Union[Schema, str, None] = None, dataset_type: TDatasetType = "auto"

@@ -837,7 +837,7 @@ def test_where(populated_pipeline: Pipeline) -> None:
     assert total_records - 3 == len(not_in_rows)
 
     with pytest.raises(ValueErrorWithKnownValues) as py_exc:
-        not_in_rows = items.filter("id", "wrong", [0, 1, 2]).fetchall()
+        not_in_rows = items.filter("id", "wrong", [0, 1, 2]).fetchall()  # type: ignore
 
     assert (
         "Received invalid value `operator=wrong`. Valid values are: ('eq', 'ne', 'gt', 'lt', 'gte',"
@@ -873,17 +873,17 @@ def test_column_retrieval(populated_pipeline: Pipeline) -> None:
     import ibis
 
     # test non - ibis relation
-    table_relationship = populated_pipeline.dataset(dataset_type="default").items
+    table_relationship_default = populated_pipeline.dataset(dataset_type="default").items
 
     # accessing single column this way is not supported
     with pytest.raises(TypeError):
-        table_relationship["other_decimal"]
+        table_relationship_default["other_decimal"]
 
-    table_relationship = populated_pipeline.dataset(dataset_type="ibis").items
+    table_relationship_ibis = populated_pipeline.dataset(dataset_type="ibis").items
 
     # test different ways of accessing columns
-    decimal_col_get_attr = table_relationship.other_decimal._ibis_object
-    decimal_col_get_item = table_relationship["other_decimal"]._ibis_object
+    decimal_col_get_attr = table_relationship_ibis.other_decimal._ibis_object
+    decimal_col_get_item = table_relationship_ibis["other_decimal"]._ibis_object
 
     # we access the same column with both methods
     assert isinstance(decimal_col_get_attr, ibis.Column)
