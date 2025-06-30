@@ -28,7 +28,7 @@ from dlt.common.destination.dataset import (
     SupportsReadableRelation,
 )
 
-from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal
+from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGlotDialect
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import Self
 from dlt.common.exceptions import ValueErrorWithKnownValues
@@ -143,7 +143,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient, WithCom
 
         return query.sql(dialect=self.query_dialect(), pretty=pretty)
 
-    def query_dialect(self) -> str:
+    def query_dialect(self) -> TSqlGlotDialect:
         return self._dataset.sqlglot_dialect
 
     def _query(self) -> sge.Query:

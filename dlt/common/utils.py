@@ -1,3 +1,4 @@
+from typing import TYPE_CHECKING, Any
 import os
 from pathlib import Path
 import sys
@@ -12,6 +13,11 @@ import traceback
 import zlib
 from importlib.metadata import version as pkg_version
 from packaging.version import Version
+
+if TYPE_CHECKING:
+    from dlt.common.libs.sqlglot import TSqlGlotDialect
+else:
+    TSqlGlotDialect = Any
 
 from typing import (
     Any,
@@ -31,6 +37,7 @@ from typing import (
     Union,
     Iterable,
     IO,
+    cast,
 )
 
 from dlt.common.exceptions import (
@@ -703,8 +710,8 @@ removeprefix = getattr(
 
 def read_dialect_and_sql(
     file_obj: IO[str],
-    fallback_dialect: Optional[str] = None,
-) -> Tuple[str, str]:
+    fallback_dialect: Optional[TSqlGlotDialect] = None,
+) -> Tuple[TSqlGlotDialect, str]:
     """
     Read the first line of a file for the dialect (after the first colon),
     falls back to `fallback_dialect` if not found or empty,
@@ -723,7 +730,7 @@ def read_dialect_and_sql(
     first_line = file_obj.readline()
     # e.g. something like: "dialect: clickhouse\n"
     parts = first_line.split(":", 1)
-    parsed_dialect = parts[1].strip() if len(parts) > 1 else ""
+    parsed_dialect = cast(TSqlGlotDialect, parts[1].strip() if len(parts) > 1 else "")
 
     dialect = parsed_dialect if parsed_dialect else fallback_dialect
 

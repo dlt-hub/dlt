@@ -51,7 +51,7 @@ def dataset(
             " Please use dataset_type 'default' instead. Ibis expressions are still fully"
             " supported, please refer to the dataset documentation at"
             " https://dlthub.com/docs/general-usage/dataset-access/dataset#modifying-queries-with-ibis-expressions"
-            " for more information."
+            " for more information on how to migrate."
         )
 
     if dataset_type == "auto":

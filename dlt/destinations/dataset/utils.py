@@ -1,9 +1,4 @@
-from typing import Tuple, Dict, Any
-
-import sqlglot
-import sqlglot.expressions as sge
-from sqlglot.schema import Schema as SQLGlotSchema
-
+from typing import Tuple
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination import AnyDestination, Destination
 from dlt.common.destination.client import (
@@ -14,8 +9,6 @@ from dlt.common.destination.client import (
     DestinationClientDwhWithStagingConfiguration,
 )
 from dlt.common.schema import Schema
-from dlt.destinations.sql_client import SqlClientBase
-from dlt.common.normalizers.naming import NamingConvention
 
 
 def get_destination_client_initial_config(

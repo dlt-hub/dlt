@@ -2,7 +2,7 @@ import logging
 from typing import Any, Optional, Tuple, cast
 
 import sqlglot.expressions as sge
-from sqlglot.dialects.dialect import DialectType
+
 from sqlglot.errors import ParseError, OptimizeError
 from sqlglot.schema import Schema as SQLGlotSchema, ensure_schema
 from sqlglot.optimizer.annotate_types import annotate_types
@@ -15,6 +15,7 @@ from dlt.common.libs.sqlglot import (
     from_sqlglot_type,
     set_metadata,
     get_metadata,
+    TSqlGlotDialect,
 )
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import (
@@ -30,7 +31,7 @@ logger = logging.getLogger(__file__)
 def create_sqlglot_schema(
     schema: Schema,
     dataset_name: str,
-    dialect: Optional[DialectType] = "duckdb",
+    dialect: TSqlGlotDialect,
 ) -> SQLGlotSchema:
     """Create an SQLGlot schema using a dlt Schema and the destination capabilities.
 
@@ -73,7 +74,7 @@ def create_sqlglot_schema(
 def compute_columns_schema(
     expression: sge.Expression,
     sqlglot_schema: SQLGlotSchema,
-    dialect: Optional[DialectType],
+    dialect: TSqlGlotDialect,
     infer_sqlglot_schema: bool = True,
     allow_anonymous_columns: bool = True,
     allow_partial: bool = True,

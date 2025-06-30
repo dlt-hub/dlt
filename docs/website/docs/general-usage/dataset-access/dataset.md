@@ -125,8 +125,6 @@ If you install the amazing [ibis](https://ibis-project.org/) library, you can us
 pip install ibis-framework
 ```
 
-
-
 dlt will then allow you to get an `ibis.UnboundTable` for each table which you can use to build a query with ibis expressions, which you can then execute on your dataset.
 
 <!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::ibis_expressions-->

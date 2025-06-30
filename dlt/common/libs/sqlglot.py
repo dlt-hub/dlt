@@ -1,13 +1,43 @@
-from typing import Optional, Union, Set, Any, Iterable
+from typing import Optional, Union, Set, Any, Iterable, Literal
 
 from dlt.common.utils import without_none
-from dlt.common.exceptions import MissingDependencyException, TerminalValueError
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema.typing import TColumnType, TDataType, TColumnSchema
 
 import sqlglot.expressions as sge
 from sqlglot.expressions import DataType, DATA_TYPE
 from sqlglot.optimizer.scope import build_scope
 
+
+TSqlGlotDialect = Literal[
+    "athena",
+    "bigquery",
+    "clickhouse",
+    "databricks",
+    "doris",
+    "drill",
+    "druid",
+    "duckdb",
+    "dune",
+    "hive",
+    "materialize",
+    "mysql",
+    "oracle",
+    "postgres",
+    "presto",
+    "prql",
+    "redshift",
+    "risingwave",
+    "snowflake",
+    "spark",
+    "spark2",
+    "sqlite",
+    "starrocks",
+    "tableau",
+    "teradata",
+    "trino",
+    "tsql",
+]
 
 SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, TDataType] = {
     # NESTED_TYPES

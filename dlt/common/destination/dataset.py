@@ -19,6 +19,7 @@ import sqlglot.expressions as sge
 from dlt.common.typing import Self, Generic, TypeVar
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.libs.sqlglot import TSqlGlotDialect
 
 
 if TYPE_CHECKING:
@@ -227,7 +228,9 @@ class SupportsReadableRelation:
         Returns:
             Any: The attribute of the relation
         """
-        raise AttributeError(f"`__getattr__()` method is not supported for this relation: {attr}")
+        raise AttributeError(
+            f"`__getattr__()` method is not supported for this relation. Trying to access `{attr}`."
+        )
 
     def __copy__(self) -> Self:
         """create a copy of the relation object
@@ -283,14 +286,15 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
     def __call__(
         self,
         query: Union[str, sge.Select, IbisExpr],
-        query_dialect: str = None,
+        query_dialect: TSqlGlotDialect = None,
         execute_raw_query: bool = False,
     ) -> SupportsReadableRelation:
         """Returns a readable relation for a given sql query
 
         Args:
             query (Union[str, sge.Select, IbisExpr]): The sql query to base the relation on. Can be a raw sql query, a sqlglot select expression or an ibis expression.
-            query_dialect (str, optional): The dialect of the query. Defaults to the dataset's destination dialect. You can use this to write queries in a different dialect than the destination.
+            query_dialect (TSqlGlotDialect, optional): The dialect of the query. Defaults to the dataset's destination dialect. You can use this to write queries in a different dialect than the destination.
+                This settings will only be user fo the initial parsing of the query. When executing the query, the query will be executed in the underlying destination dialect.
             execute_raw_query (bool, optional): Whether to run the query as is (raw)or perform query normalization and lineage. Experimental.
 
         Returns:

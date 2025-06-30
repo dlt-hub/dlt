@@ -21,6 +21,7 @@ import re
 
 import sqlglot.expressions
 
+from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common import pendulum, logger
 from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.destination.utils import resolve_replace_strategy
@@ -160,7 +161,7 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         sql_client.execute_sql(insert_statement)
 
     def _insert_statement_from_select_statement(
-        self, select_dialect: str, select_statement: str
+        self, select_dialect: TSqlGlotDialect, select_statement: str
     ) -> str:
         """
         Generates an INSERT statement from a SELECT statement using sqlglot.

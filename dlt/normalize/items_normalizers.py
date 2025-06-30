@@ -3,6 +3,7 @@ from abc import abstractmethod
 
 import sqlglot
 
+from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.data_writers.writers import ArrowToObjectAdapter
@@ -74,7 +75,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
             self.schema.naming.normalize_identifier(ident)
         )
 
-    def _uuid_expr_for_dialect(self, dialect: str) -> sqlglot.exp.Expression:
+    def _uuid_expr_for_dialect(self, dialect: TSqlGlotDialect) -> sqlglot.exp.Expression:
         """
         Generates a UUID expression based on the specified dialect.
 
@@ -119,7 +120,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
 
     def _adjust_outer_select_with_dlt_columns(
         self,
-        sql_dialect: str,
+        sql_dialect: TSqlGlotDialect,
         outer_parsed_select: sqlglot.exp.Select,
         root_table_name: str,
     ) -> Optional[TSchemaUpdate]:
@@ -249,7 +250,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
 
     def _build_outer_select_statement(
         self,
-        select_dialect: str,
+        select_dialect: TSqlGlotDialect,
         parsed_select: sqlglot.exp.Select,
         columns: TTableSchemaColumns,
     ) -> Tuple[sqlglot.exp.Select, bool]:

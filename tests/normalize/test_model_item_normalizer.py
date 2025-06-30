@@ -13,7 +13,7 @@ from dlt.common.schema.exceptions import CannotCoerceNullException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema import utils
 from dlt.common.utils import read_dialect_and_sql
-
+from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.extract.extract import ExtractStorage
 from dlt.extract.hints import SqlModel
 
@@ -108,7 +108,7 @@ def extract_normalize_retrieve(
     model: SqlModel,
     schema: Schema,
     table_name: str,
-    fallback_dialect: str,
+    fallback_dialect: TSqlGlotDialect,
 ) -> Tuple[str, str, str]:
     # Extract and normalize the model
     load_id = extract_model(model_normalize.normalize_storage, model, schema, table_name)

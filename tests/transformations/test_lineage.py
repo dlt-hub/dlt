@@ -175,7 +175,7 @@ def test_compute_columns_schema(
             lineage.compute_columns_schema(
                 expression=sqlglot.parse_one(sql_query),
                 sqlglot_schema=sqlglot_schema,
-                dialect=sqlglot_schema.dialect,
+                dialect=sqlglot_schema.dialect,  # type: ignore
                 **config,
             )
     else:
@@ -184,7 +184,7 @@ def test_compute_columns_schema(
             == lineage.compute_columns_schema(
                 expression=sqlglot.parse_one(sql_query),
                 sqlglot_schema=sqlglot_schema,
-                dialect=sqlglot_schema.dialect,
+                dialect=sqlglot_schema.dialect,  # type: ignore
                 **config,
             )[0]
         )

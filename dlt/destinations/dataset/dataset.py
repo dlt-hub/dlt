@@ -8,8 +8,8 @@ import sqlglot.expressions as sge
 from dlt.common.destination.exceptions import (
     OpenTableClientNotAvailable,
 )
+from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common.json import json
-from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination.reference import TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase, SupportsOpenTables, WithStateSync
 from dlt.common.destination.dataset import (
@@ -24,7 +24,7 @@ from dlt.common.schema.typing import C_DLT_LOAD_ID
 from dlt.common.utils import simple_repr, without_none
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
-from dlt.destinations.dataset.relation import ReadableDBAPIRelation, BaseReadableDBAPIRelation
+from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
 from dlt.destinations.queries import build_row_counts_expr
 
@@ -90,7 +90,7 @@ class BaseReadableDBAPIDataset(
         )
 
     @property
-    def sqlglot_dialect(self) -> str:
+    def sqlglot_dialect(self) -> TSqlGlotDialect:
         return self.sql_client.capabilities.sqlglot_dialect
 
     @property
@@ -179,11 +179,9 @@ class BaseReadableDBAPIDataset(
     def __call__(
         self,
         query: Union[str, sge.Select, IbisExpr],
-        query_dialect: str = None,
+        query_dialect: TSqlGlotDialect = None,
         execute_raw_query: bool = False,
     ) -> ReadableDBAPIRelation:
-        # TODO: accept other query types and return a right relation: sqlglot (DBAPI) and ibis (Expr)
-        # TODO: parse query as ibis relation, however ibis will quote that query when compiling to sql
         return ReadableDBAPIRelation(
             readable_dataset=self,
             query=query,
