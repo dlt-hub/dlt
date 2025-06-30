@@ -23,7 +23,7 @@ def pipeline() -> dlt.Pipeline:
 
 @pytest.fixture(scope="function")
 def dataset(pipeline: dlt.Pipeline) -> ReadableDBAPIDataset:
-    return pipeline.dataset()
+    return pipeline.dataset(dataset_type="default")
 
 
 @pytest.fixture(scope="function")
@@ -41,7 +41,7 @@ def quick_start_example_snippet(pipeline: dlt.Pipeline) -> None:
     # - purchases
 
     # Step 1: Get the readable dataset from the pipeline
-    dataset = pipeline.dataset()
+    dataset = pipeline.dataset(dataset_type="default")
 
     # Step 2: Access a table as a ReadableRelation
     customers_relation = dataset.customers  # Or dataset["customers"]
@@ -57,7 +57,7 @@ def quick_start_example_snippet(pipeline: dlt.Pipeline) -> None:
 def getting_started_snippet(pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START getting_started
     # Get the readable dataset from the pipeline
-    dataset = pipeline.dataset()
+    dataset = pipeline.dataset(dataset_type="default")
 
     # print the row counts of all tables in the destination as dataframe
     print(dataset.row_counts().df())
@@ -187,7 +187,7 @@ def chain_operations_snippet(dataset: ReadableDBAPIDataset) -> None:
 def ibis_expressions_snippet(pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START ibis_expressions
     # now that ibis is installed, we can get ibis unbound tables from the dataset
-    dataset = pipeline.dataset()
+    dataset = pipeline.dataset(dataset_type="default")
 
     # get two table expressions
     customers_expression = dataset.table("customers", table_type="ibis")
