@@ -126,7 +126,9 @@ def test_base_transformation_spec() -> None:
     schema = Schema("_data")
     schema.update_table(new_table("table1", columns=[{"name": "col1", "data_type": "text"}]))
     # provide dataset for lineage
-    ds_ = dlt.dataset(dlt.destinations.filesystem("_data"), "dataset_name", schema=schema)
+    ds_ = dlt.dataset(
+        dlt.destinations.filesystem("_data"), "dataset_name", schema=schema, dataset_type="default"
+    )
 
     # we return SQL so we expect a model to be created
     model = list(default_spec(ds_))[0]

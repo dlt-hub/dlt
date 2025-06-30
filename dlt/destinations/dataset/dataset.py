@@ -335,10 +335,19 @@ class BaseReadableDBAPIDataset(
 
 
 class ReadableDBAPIDataset(BaseReadableDBAPIDataset[ReadableDBAPIRelation]):
+    @overload
+    def table(self, table_name: str) -> ReadableDBAPIRelation: ...
+
+    @overload
+    def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
+
+    @overload
+    def table(self, table_name: str, table_type: Literal["relation"]) -> ReadableDBAPIRelation: ...
+
     def table(
         self, table_name: str, table_type: Literal["relation", "ibis"] = None
     ) -> Union[ReadableDBAPIRelation, IbisTable]:
-        if table := super().table(table_name, table_type):
+        if (table := super().table(table_name, table_type)) is not None:
             return table
 
         # fallback to the standard dbapi relation
@@ -351,10 +360,19 @@ class ReadableDBAPIDataset(BaseReadableDBAPIDataset[ReadableDBAPIRelation]):
 class ReadableIbisDataset(BaseReadableDBAPIDataset[ReadableIbisRelation]):
     """Access to dataframes and arrow tables in the destination dataset via ibis"""
 
+    @overload
+    def table(self, table_name: str) -> ReadableIbisRelation: ...
+
+    @overload
+    def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
+
+    @overload
+    def table(self, table_name: str, table_type: Literal["relation"]) -> ReadableIbisRelation: ...
+
     def table(
         self, table_name: str, table_type: Literal["relation", "ibis"] = None
     ) -> Union[ReadableIbisRelation, IbisTable]:
-        if table := super().table(table_name, table_type):
+        if (table := super().table(table_name, table_type)) is not None:
             return table
 
         from dlt.helpers.ibis import create_unbound_ibis_table

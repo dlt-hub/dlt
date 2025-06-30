@@ -40,7 +40,7 @@ def test_simple_query_transformations(destination_config: DestinationTestConfigu
         yield dataset["customers"].limit(5)
 
     # transform into transformed dataset
-    dest_p.run(copied_customers(fruit_p.dataset()))
+    dest_p.run(copied_customers(fruit_p.dataset(dataset_type="default")))
 
     assert load_table_counts(dest_p, "copied_customers") == {
         "copied_customers": 5,
@@ -78,7 +78,7 @@ def test_grouped_transformations(destination_config: DestinationTestConfiguratio
     def transformations(dataset: dlt.Dataset) -> List[Any]:
         return [copied_customers(dataset), copied_customers2(dataset)]
 
-    dest_p.run(transformations(fruit_p.dataset()))
+    dest_p.run(transformations(fruit_p.dataset(dataset_type="default")))
 
     assert load_table_counts(dest_p, "copied_customers", "copied_customers2") == {
         "copied_customers": 5,
@@ -116,7 +116,7 @@ def test_replace_sql_transformations(destination_config: DestinationTestConfigur
         yield dataset["customers"].limit(5)
 
     # transform into same dataset
-    dest_p.run(copied_customers(fruit_p.dataset()))
+    dest_p.run(copied_customers(fruit_p.dataset(dataset_type="default")))
 
     assert load_table_counts(dest_p, "copied_customers") == {
         "copied_customers": 5,
@@ -131,7 +131,7 @@ def test_replace_sql_transformations(destination_config: DestinationTestConfigur
         yield dataset["customers"].limit(3)
 
     # transform into same dataset
-    dest_p.run(copied_customers_updated(fruit_p.dataset()))
+    dest_p.run(copied_customers_updated(fruit_p.dataset(dataset_type="default")))
     assert load_table_counts(dest_p, "copied_customers") == {
         "copied_customers": 3,
     }
@@ -154,7 +154,7 @@ def test_append_sql_transformations(destination_config: DestinationTestConfigura
         yield dataset["customers"].limit(5)
 
     # transform into same dataset
-    dest_p.run(copied_customers(fruit_p.dataset()))
+    dest_p.run(copied_customers(fruit_p.dataset(dataset_type="default")))
 
     assert load_table_counts(dest_p, "copied_customers") == {
         "copied_customers": 5,
@@ -165,7 +165,7 @@ def test_append_sql_transformations(destination_config: DestinationTestConfigura
         yield dataset["customers"].limit(7)
 
     # transform into same dataset
-    dest_p.run(copied_table_updated(fruit_p.dataset()))
+    dest_p.run(copied_table_updated(fruit_p.dataset(dataset_type="default")))
 
     assert load_table_counts(dest_p, "copied_customers") == {
         "copied_customers": 12,
@@ -194,17 +194,19 @@ def test_sql_transformation_with_unknown_column_types(
 
     @dlt.transformation()
     def mutated_purchases(dataset: dlt.Dataset) -> Any:
-        yield dataset["customers"].mutate(new_col=5).limit(5)
+        customers_table = dataset.table("customers", table_type="ibis")
+        yield customers_table.mutate(new_col=5).limit(5)
 
     # problem should already be detected at extraction time
     with pytest.raises(PipelineStepFailed):
-        dest_p.extract(mutated_purchases(fruit_p.dataset()))
+        dest_p.extract(mutated_purchases(fruit_p.dataset(dataset_type="default")))
 
     @dlt.transformation()
     def mutated_purchases_with_hints(dataset: dlt.Dataset) -> Any:
-        yield dataset["customers"].mutate(new_col=5).limit(5)
+        customers_table = dataset.table("customers", table_type="ibis")
+        yield customers_table.mutate(new_col=5).limit(5)
 
-    dest_p.run(mutated_purchases_with_hints(fruit_p.dataset()))
+    dest_p.run(mutated_purchases_with_hints(fruit_p.dataset(dataset_type="default")))
     assert load_table_counts(dest_p, "mutated_purchases_with_hints") == {
         "mutated_purchases_with_hints": 5,
     }

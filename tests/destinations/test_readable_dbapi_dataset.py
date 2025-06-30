@@ -206,7 +206,7 @@ def test_repr_and_str(dataset_type: TDatasetType) -> None:
     # materialized dataset, known schema
     pipeline = dlt.pipeline("test_repr_and_str", destination="duckdb", dataset_name="table_data")
     pipeline.run([1, 2, 3], table_name="digits")
-    ds_ = pipeline.dataset(dataset_type="default")
+    ds_ = pipeline.dataset(dataset_type=dataset_type)
     assert repr(ds_).startswith("<dlt.dataset(dataset_name='table_data'")
     # ends with list of tables
     assert str(ds_).endswith("digits")

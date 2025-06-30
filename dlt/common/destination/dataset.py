@@ -289,7 +289,7 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
         """Returns a readable relation for a given sql query
 
         Args:
-            query (str): The sql query to base the relation on
+            query (Union[str, sge.Select, IbisExpr]): The sql query to base the relation on. Can be a raw sql query, a sqlglot select expression or an ibis expression.
             query_dialect (str, optional): The dialect of the query. Defaults to the dataset's destination dialect. You can use this to write queries in a different dialect than the destination.
             execute_raw_query (bool, optional): Whether to run the query as is (raw)or perform query normalization and lineage. Experimental.
 

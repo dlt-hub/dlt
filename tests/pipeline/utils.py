@@ -302,7 +302,7 @@ def _load_tables_to_dicts_sql(
     """
     result: Dict[str, List[Dict[str, Any]]] = {}
     for table_name in table_names:
-        relation = p.dataset(schema=schema_name)[table_name]
+        relation = p.dataset(schema=schema_name, dataset_type="default")[table_name]
         columns = list(relation.columns_schema.keys())
         for row in relation.fetchall():
             result[table_name] = result.get(table_name, []) + [dict(zip(columns, row))]
@@ -435,11 +435,13 @@ def load_table_counts(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
     if _is_abfss(p):
         table_counts = {}
         for table in table_names:
-            table_counts[table] = p.dataset().row_counts(table_names=[table]).fetchall()[0][1]
+            table_counts[table] = (
+                p.dataset(dataset_type="default").row_counts(table_names=[table]).fetchall()[0][1]
+            )
         return table_counts
 
     # otherwise we can use the dataset row counts
-    counts = p.dataset().row_counts(table_names=list(table_names)).fetchall()
+    counts = p.dataset(dataset_type="default").row_counts(table_names=list(table_names)).fetchall()
     return {row[0]: row[1] for row in counts}
 
 
@@ -517,7 +519,7 @@ def select_data(
     Returns:
         List[Sequence[Any]]: All rows returned by the query.
     """
-    dataset = p.dataset(schema=schema_name)
+    dataset = p.dataset(schema=schema_name, dataset_type="default")
     # a hack to change the dataset name for the purposes of this test
     if dataset_name:
         dataset._dataset_name = dataset_name
@@ -552,7 +554,7 @@ def assert_table_column(
     # select full table
     assert_query_column(
         p,
-        p.dataset(schema=schema_name)[table_name].query(),
+        p.dataset(schema=schema_name, dataset_type="default")[table_name].query(),
         table_data,
         schema_name,
         info,

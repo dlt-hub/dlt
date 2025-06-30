@@ -20,7 +20,7 @@ from dlt.transformations.exceptions import (
 
 from dlt.common.exceptions import MissingDependencyException
 from dlt.pipeline.exceptions import PipelineConfigMissing
-from dlt.destinations.dataset import ReadableDBAPIDataset
+from dlt.destinations.dataset import BaseReadableDBAPIDataset
 from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TWriteDisposition,
@@ -74,8 +74,8 @@ def make_transformation_resource(
     def transformation_function(*args: Any, **kwargs: Any) -> Iterator[TDataItems]:
         # Collect all datasets from args and kwargs
         all_arg_values = list(args) + list(kwargs.values())
-        datasets: List[ReadableDBAPIDataset] = [
-            arg for arg in all_arg_values if isinstance(arg, ReadableDBAPIDataset)
+        datasets: List[BaseReadableDBAPIDataset[Any]] = [
+            arg for arg in all_arg_values if isinstance(arg, BaseReadableDBAPIDataset)
         ]
 
         # get first item from gen and see what we're dealing with
