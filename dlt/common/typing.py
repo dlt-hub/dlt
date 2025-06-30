@@ -2,6 +2,7 @@ from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence, Callab
 from datetime import datetime, date  # noqa: I251
 import inspect
 import os
+import socket
 from re import Pattern as _REPattern
 from types import FunctionType
 from typing import (
@@ -65,6 +66,15 @@ from types import GenericAlias
 
 typingGenericAlias: Tuple[Any, ...] = (_GenericAlias, _SpecialGenericAlias, GenericAlias)
 
+if TYPE_CHECKING:
+    try:
+        from paramiko import Transport
+    except ImportError:
+        Transport = Any  # type: ignore[misc, assignment]
+else:
+    Transport = Any
+
+SFTPTransportFactory: TypeAlias = Callable[[socket.socket], Transport]
 
 from dlt.common.pendulum import timedelta, pendulum
 
@@ -89,6 +99,7 @@ NoneType = type(None)
 DictStrAny: TypeAlias = Dict[str, Any]
 DictStrStr: TypeAlias = Dict[str, str]
 DictStrOptionalStr: TypeAlias = Dict[str, Optional[str]]
+DictStrListStr: TypeAlias = Dict[str, List[str]]
 StrAny: TypeAlias = Mapping[str, Any]  # immutable, covariant entity
 StrStr: TypeAlias = Mapping[str, str]  # immutable, covariant entity
 StrStrStr: TypeAlias = Mapping[str, Mapping[str, str]]  # immutable, covariant entity
