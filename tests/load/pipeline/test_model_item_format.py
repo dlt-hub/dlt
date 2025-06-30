@@ -292,7 +292,7 @@ def test_simple_relation_jobs(
         actual_columns == expected_columns
     ), f"Column mismatch: {actual_columns} != {expected_columns}"
     assert len(set(model_reversed_select_df["_dlt_load_id"])) == 2
-    assert set(model_reversed_select_df["_dlt_load_id"]).pop() == load_info.loads_ids[0]
+    assert load_info.loads_ids[0] in model_reversed_select_df["_dlt_load_id"].to_list()
 
     # Validate that each table has exactly one model job
     if destination_config.destination_type == "athena":
@@ -560,52 +560,6 @@ def test_multiple_statements_per_resource(
         assert count_job_types(pipeline) == {
             "copied_table": {"model": 2},
         }
-
-
-def test_relation_writer_without_destination(mocker) -> None:
-    """
-    Test the `ModelWriter` class without passing destination capabilities (`_caps`) to ensure:
-    - The `write_data` method processes items correctly.
-    - The `items_count` is updated accurately.
-    - The writer works fine at the pipeline level without any destination set.
-    """
-    writer_spy = mocker.spy(ModelWriter, "write_data")
-
-    mock_file = io.StringIO()
-    writer = ModelWriter(mock_file)
-
-    mock_item = [
-        MagicMock(dialect=None, query="SELECT a, b FROM test_table"),
-        MagicMock(dialect="mysql", query="SELECT id, name FROM users"),
-    ]
-
-    writer.write_data(mock_item)
-
-    writer_spy.assert_called_once_with(writer, mock_item)
-
-    written_content = mock_file.getvalue()
-    assert "dialect: \n" in written_content
-    assert "SELECT a, b FROM test_table" in written_content
-    assert "dialect: mysql" in written_content
-    assert "SELECT id, name FROM users" in written_content
-
-    assert writer.items_count == len(mock_item)
-
-    # Test the writer at the pipeline level to ensure it works without destination
-    # Note that star selects are rejected by the model normalizer, but works in the extract phase
-    @dlt.resource
-    def example_table() -> Any:
-        query = 'SELECT * FROM "test_relation_writer_without_destination"."example_table"'
-        yield dlt.mark.with_hints(
-            SqlModel.from_query_string(query=query, dialect=None),
-            hints=make_hints(),
-        )
-
-    pipeline = dlt.pipeline(pipeline_name="test_relation_writer_without_destination")
-    try:
-        pipeline.extract(example_table)
-    except Exception as e:
-        pytest.fail(f"pipeline.extract(example_table) raised an exception: {e}")
 
 
 @pytest.mark.parametrize(

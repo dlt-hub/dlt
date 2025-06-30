@@ -224,6 +224,9 @@ def _from_integer_type(sqlglot_type: sge.DataType) -> TColumnSchema:
 
     else:  # from named type
         precision = SQLGLOT_INT_PRECISION.get(sqlglot_type.this)
+    # special case for wei
+    if precision == 78:
+        return {"data_type": "wei"}
     return {"precision": precision}
 
 

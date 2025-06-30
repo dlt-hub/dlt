@@ -73,7 +73,7 @@ def create_sqlglot_schema(
 def compute_columns_schema(
     expression: sge.Expression,
     sqlglot_schema: SQLGlotSchema,
-    dialect: Optional[DialectType] = None,
+    dialect: Optional[DialectType],
     infer_sqlglot_schema: bool = True,
     allow_anonymous_columns: bool = True,
     allow_partial: bool = True,
