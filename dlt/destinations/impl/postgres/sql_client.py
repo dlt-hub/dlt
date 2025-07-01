@@ -1,4 +1,3 @@
-import re
 import platform
 
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -29,7 +28,6 @@ from dlt.destinations.sql_client import (
 )
 
 from dlt.destinations.impl.postgres.configuration import PostgresCredentials
-from dlt.destinations.queries import replace_placeholders
 
 
 class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
@@ -100,11 +98,8 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
-        assert isinstance(query, str)
         curr: DBApiCursor = None
         db_args = args if args else kwargs if kwargs else None
-        if db_args:
-            query = re.sub(r"\((\s*\?,?[\s\?,]*?)\)", replace_placeholders, query)
         with self._conn.cursor() as curr:
             try:
                 curr.execute(query, db_args)
