@@ -142,7 +142,11 @@ def make_transformation_resource(
                 for chunk in relation.iter_arrow(chunk_size=config.buffer_max_items):
                     yield add_arrow_metadata(chunk, {DLT_HINTS_METADATA_KEY: serialized_hints})
 
-        for item in func(*args, **kwargs):
+        # support both generator and function
+        gen_or_item = func(*args, **kwargs)
+        iteratable_items = gen_or_item if isinstance(gen_or_item, Iterator) else [gen_or_item]
+
+        for item in iteratable_items:
             # unwrap if needed
             meta = None
             if isinstance(item, DataItemWithMeta):

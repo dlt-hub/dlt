@@ -214,3 +214,28 @@ def test_ibis_unbound_table_transformation(
         "name",
     ]
     assert model.arrow().shape == (3, 5)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    transformation_configs(only_duckdb=True),
+    ids=lambda x: x.name,
+)
+def test_transformations_without_generator(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    fruit_p, dest_p = setup_transformation_pipelines(destination_config)
+    fruit_p.run(fruitshop_source())
+
+    @dlt.transformation()
+    def transform_without_generator(dataset: Dataset) -> Any:
+        # return works!
+        return dataset["customers"]
+
+    dest_p.run(transform_without_generator(fruit_p.dataset()))
+
+    assert load_table_counts(dest_p, "transform_without_generator") == {
+        "transform_without_generator": 13,
+    }
+
+    assert get_job_types(dest_p) == {"transform_without_generator": {"model": 1}}
