@@ -1,5 +1,7 @@
 from typing import Dict, Any, List, Optional, overload, Union, Match
 
+import re
+
 import sqlglot
 import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema
@@ -149,6 +151,7 @@ def build_insert_expr(
     columns: List[str],
     quoted_identifiers: bool = True,
 ) -> sge.Insert:
+    """Builds a SQL Insert expression with placeholders."""
     table_expr = sge.Table(this=sge.to_identifier(table_name, quoted=quoted_identifiers))
     columns_expr = [
         sge.Column(this=sge.to_identifier(col, quoted=quoted_identifiers)) for col in columns
@@ -292,8 +295,18 @@ def build_stored_schema_expr(
     return select_expr
 
 
-def replace_placeholders(match: Match[str]) -> str:
-    """Replaces (?, ?, ?, ...) placeholders with (%s, %s, %s, ...)."""
-    content: str = match.group(1)
-    num_questions: int = content.count("?")
-    return f"({', '.join(['%s'] * num_questions)})"
+def replace_placeholders(query: str, dialect: str) -> str:
+    """Replaces (?, ?, ?, ...), as well as ({?: }, {?: }, {?: }, ...) placeholders with (%s, %s, %s, ...)."""
+
+    # Sqlglot creates "{?: }"" placeholders for clickhouse, otherwise just "?""
+    placeholder_pattern = r"\{\?:\s*\}" if dialect == "clickhouse" else r"\?"
+
+    # Only match tuples, not stray ?’s elsewhere
+    base_pattern = rf"\(\s*{placeholder_pattern}\s*(,\s*{placeholder_pattern}\s*)*\)"
+
+    def _convert_to_percents(match: Match[str]) -> str:
+        n = len(re.findall(placeholder_pattern, match.group()))
+        return "(" + ", ".join(["%s"] * n) + ")"
+
+    query = re.sub(base_pattern, _convert_to_percents, query)
+    return query

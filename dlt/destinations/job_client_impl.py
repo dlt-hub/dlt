@@ -81,6 +81,7 @@ from dlt.destinations.queries import (
     build_insert_expr,
     build_stored_state_expr,
     build_stored_schema_expr,
+    replace_placeholders,
 )
 from dlt.transformations.lineage import create_sqlglot_schema
 
@@ -417,7 +418,8 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             table_name=name, columns=list(self.loads_table_schema_columns.keys())
         )
 
-        normalized_query = self._render_sql(insert_expr)
+        normalized_query = self._render_sql(insert_expr, ensure_pystring_placeholders=True)
+
         self.sql_client.execute_sql(
             normalized_query,
             load_id,
@@ -533,9 +535,16 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     ) -> TColumnType:
         pass
 
-    def _render_sql(self, expr: Union[sge.Query, sge.Insert]) -> str:
+    def _render_sql(
+        self, expr: Union[sge.Query, sge.Insert], ensure_pystring_placeholders: bool = False
+    ) -> str:
         """Normalizes sqlglot expression into a raw SQL string using the client's dialect and schema"""
         dialect = self.sql_client.capabilities.sqlglot_dialect
+        if ensure_pystring_placeholders:
+            norm_query = normalize_query(self._sqlglot_schema, expr, self.sql_client).sql(
+                dialect=dialect
+            )
+            return replace_placeholders(norm_query, dialect)
         return normalize_query(self._sqlglot_schema, expr, self.sql_client).sql(dialect=dialect)
 
     def get_stored_schema(self, schema_name: str = None) -> StorageSchemaInfo:
@@ -876,14 +885,17 @@ WHERE """
         self._commit_schema_update(schema, schema_str)
 
     def _commit_schema_update(self, schema: Schema, schema_str: str) -> None:
+        name = self.schema.version_table_name
         now_ts = pendulum.now()
-        name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        version_table_columns = ", ".join(
-            self.sql_client.escape_column_name(col) for col in self.version_table_schema_columns
+
+        insert_expr = build_insert_expr(
+            table_name=name, columns=list(self.version_table_schema_columns.keys())
         )
-        # values =  schema.version_hash, schema.name, schema.version, schema.ENGINE_VERSION, str(now_ts), schema_str
+
+        normalized_query = self._render_sql(insert_expr, ensure_pystring_placeholders=True)
+
         self.sql_client.execute_sql(
-            f"INSERT INTO {name}({version_table_columns}) VALUES (%s, %s, %s, %s, %s, %s);",
+            normalized_query,
             schema.version,
             schema.ENGINE_VERSION,
             now_ts,
