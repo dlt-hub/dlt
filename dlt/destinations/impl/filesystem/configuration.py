@@ -8,9 +8,9 @@ from dlt.common.destination.client import (
     CredentialsConfiguration,
     DestinationClientStagingConfiguration,
 )
+from dlt.common.storages import FilesystemConfigurationWithLocalFiles
 
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
-from dlt.destinations.configuration import FilesystemConfigurationWithLocalFiles
 from dlt.destinations.path_utils import check_layout, get_unused_placeholders
 
 
@@ -28,11 +28,7 @@ class FilesystemDestinationClientConfiguration(FilesystemConfigurationWithLocalF
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
-        # use known credentials or empty credentials for unknown protocol
-        return (
-            self.PROTOCOL_CREDENTIALS.get(self.protocol)
-            or Optional[CredentialsConfiguration]  # type: ignore[return-value]
-        )
+        return super().resolve_credentials_type()
 
     def on_resolved(self) -> None:
         # Validate layout and show unused placeholders

@@ -35,6 +35,7 @@ from dlt.common.destination import (
     TLoaderFileFormat,
     LOADER_FILE_FORMATS,
 )
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.schema.utils import is_nullable_column
@@ -125,7 +126,7 @@ class DataWriter(abc.ABC):
         elif extension in LOADER_FILE_FORMATS:
             return "file"
         else:
-            raise ValueError(f"Cannot figure out data item format for extension {extension}")
+            raise ValueError(f"No `data_item_format` associated with file extension: `{extension}`")
 
     @staticmethod
     def writer_class_from_spec(spec: FileWriterSpec) -> Type["DataWriter"]:
@@ -154,12 +155,12 @@ class ImportFileWriter(DataWriter):
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         raise NotImplementedError(
-            "ImportFileWriter cannot write any files. You have bug in your code."
+            "`ImportFileWriter` cannot write any files. You have a bug in your code."
         )
 
     @classmethod
     def writer_spec(cls) -> FileWriterSpec:
-        raise NotImplementedError("ImportFileWriter has no single spec")
+        raise NotImplementedError("`ImportFileWriter` has no single spec")
 
 
 class JsonlWriter(DataWriter):
@@ -429,9 +430,13 @@ class CsvWriter(DataWriter):
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         self._columns_schema = columns_schema
         if self.quoting == "quote_needed":
-            quoting: Literal[1, 2] = csv.QUOTE_NONNUMERIC
+            quoting: Literal[0, 1, 2, 3] = csv.QUOTE_NONNUMERIC
         elif self.quoting == "quote_all":
             quoting = csv.QUOTE_ALL
+        elif self.quoting == "quote_none":
+            quoting = csv.QUOTE_NONE
+        elif self.quoting == "quote_minimal":
+            quoting = csv.QUOTE_MINIMAL
         else:
             raise ValueError(self.quoting)
 
@@ -470,8 +475,8 @@ class CsvWriter(DataWriter):
                             raise InvalidDataItem(
                                 "csv",
                                 "object",
-                                f"'{key}' contains bytes that cannot be decoded with"
-                                f" {self.bytes_encoding}. Remove binary columns or replace their"
+                                f"'{key}' contains bytes that cannot be decoded with encoding"
+                                f" `{self.bytes_encoding}`. Remove binary columns or replace their"
                                 " content with a hex representation: \\x... while keeping data"
                                 " type as binary.",
                             )
@@ -571,6 +576,8 @@ class ArrowToCsvWriter(DataWriter):
                         quoting = "needed"
                     elif self.quoting == "quote_all":
                         quoting = "all_valid"
+                    elif self.quoting == "quote_none":
+                        quoting = "none"
                     else:
                         raise ValueError(self.quoting)
                     try:
@@ -590,7 +597,7 @@ class ArrowToCsvWriter(DataWriter):
                                 "csv",
                                 "arrow",
                                 "Arrow data contains a column that cannot be written to csv file"
-                                f" ({inv_ex}). Remove nested columns (struct, map) or convert them"
+                                f" `{inv_ex}`. Remove nested columns (struct, map) or convert them"
                                 " to json strings.",
                             )
                         raise
@@ -627,7 +634,7 @@ class ArrowToCsvWriter(DataWriter):
                         )
                     raise
             else:
-                raise ValueError(f"Unsupported type {type(item)}")
+                raise ValueError(f"Unsupported type `{type(item)}`")
             # count rows that got written
             self.items_count += item.num_rows
 
@@ -755,9 +762,10 @@ def resolve_best_writer_spec(
     # check if preferred format has native item_format writer
     if preferred_format:
         if preferred_format not in possible_file_formats:
-            raise ValueError(
-                f"Preferred format {preferred_format} not possible in {possible_file_formats}"
+            raise ValueErrorWithKnownValues(
+                "preferred_format", preferred_format, possible_file_formats
             )
+
         try:
             return DataWriter.class_factory(
                 preferred_format, item_format, native_writers

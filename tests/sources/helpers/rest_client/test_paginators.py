@@ -96,6 +96,30 @@ class TestJSONLinkPaginator:
                     "has_next_page": False,
                 },
             },
+            # Test escaping special characters in JSONPath
+            {
+                "next_url_path": "['@odata.nextLink']",
+                "response_json": {
+                    "@odata.nextLink": "http://example.com/odata-nextlink",
+                    "value": [],
+                },
+                "expected": {
+                    "next_reference": "http://example.com/odata-nextlink",
+                    "has_next_page": True,
+                },
+            },
+            # Test escaping special characters in JSONPath: alternate quotes
+            {
+                "next_url_path": '["@odata.nextLink"]',
+                "response_json": {
+                    "@odata.nextLink": "http://example.com/odata-nextlink",
+                    "value": [],
+                },
+                "expected": {
+                    "next_reference": "http://example.com/odata-nextlink",
+                    "has_next_page": True,
+                },
+            },
         ],
     )
     def test_update_state(self, test_case):

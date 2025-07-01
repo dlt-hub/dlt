@@ -115,7 +115,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             if table_schema_has_type(self._load_table, "json"):
                 file_type += " SERIALIZETOJSON"
         else:
-            raise ValueError(f"Unsupported file type {ext} for Redshift.")
+            raise ValueError(f"Unsupported file type `{ext}` for Redshift.")
 
         with self._sql_client.begin_transaction():
             # TODO: if we ever support csv here remember to add column names to COPY

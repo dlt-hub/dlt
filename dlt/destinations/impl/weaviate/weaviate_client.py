@@ -30,7 +30,12 @@ from dlt.common.pendulum import pendulum
 from dlt.common.typing import StrAny, TFun
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.schema import Schema, TSchemaTables, TTableSchemaColumns
-from dlt.common.schema.typing import C_DLT_LOAD_ID, TColumnSchema, TColumnType
+from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
+    C_DLT_LOADS_TABLE_LOAD_ID,
+    TColumnSchema,
+    TColumnType,
+)
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     loads_table,
@@ -108,12 +113,12 @@ def wrap_grpc_error(f: TFun) -> TFun:
             # TODO: actually put the job in failed/retry state and prepare exception message with full info on failing item
             if "invalid" in message and "property" in message and "on class" in message:
                 raise DestinationTerminalException(
-                    f"Grpc (batch, query) failed {errors} AND WILL **NOT** BE RETRIED"
+                    f"Grpc (batch, query) failed `{errors}` AND WILL **NOT** BE RETRIED"
                 )
             if "conflict for property" in message:
                 raise PropertyNameConflict(message)
             raise DestinationTransientException(
-                f"Grpc (batch, query) failed {errors} AND WILL BE RETRIED"
+                f"Grpc (batch, query) failed `{errors}` AND WILL BE RETRIED"
             )
         except Exception:
             raise DestinationTransientException("Batch failed AND WILL BE RETRIED")
@@ -474,7 +479,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
         """Loads compressed state from destination storage"""
         # normalize properties
-        p_load_id = self.schema.naming.normalize_identifier("load_id")
+        p_load_id = self.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID)
         p_dlt_load_id = self.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
         p_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
         p_status = self.schema.naming.normalize_identifier("status")
@@ -591,7 +596,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         full_class_name = self.make_qualified_class_name(table_name)
         records = response["data"]["Get"][full_class_name]
         if records is None:
-            raise DestinationTransientException(f"Could not obtain records for {full_class_name}")
+            raise DestinationTransientException(f"Could not obtain records for `{full_class_name}`")
         return cast(List[Dict[str, Any]], records)
 
     def make_weaviate_class_schema(self, table_name: str) -> Dict[str, Any]:

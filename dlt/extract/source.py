@@ -172,8 +172,8 @@ class DltResourceDict(Dict[str, DltResource]):
     def __setitem__(self, resource_name: str, resource: DltResource) -> None:
         if resource_name != resource.name:
             raise ValueError(
-                f"The index name {resource_name} does not correspond to resource name"
-                f" {resource.name}"
+                f"The index name `{resource_name}` does not correspond to resource name"
+                f" `{resource.name}`"
             )
         pipe_id = id(resource._pipe)
         # make shallow copy of the resource
@@ -482,9 +482,7 @@ class DltSource(Iterable[TDataItem]):
         try:
             return self._resources[resource_name]
         except KeyError:
-            raise AttributeError(
-                f"Resource with name {resource_name} not found in source {self.name}"
-            )
+            raise AttributeError(f"Resource `{resource_name}` not found in source `{self.name}`")
 
     def __setattr__(self, name: str, value: Any) -> None:
         if isinstance(value, DltResource):

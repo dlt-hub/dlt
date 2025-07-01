@@ -70,7 +70,7 @@ class DremioLoadJob(RunnableLoadJob, HasFollowupJobs):
         )
 
         if not bucket_path:
-            raise RuntimeError("Could not resolve bucket path.")
+            raise RuntimeError("Could not resolve `bucket_path`.")
 
         file_name = (
             FileStorage.get_file_name_from_file_path(bucket_path)

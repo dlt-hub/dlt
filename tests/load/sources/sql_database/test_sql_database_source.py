@@ -231,7 +231,7 @@ def test_named_sql_table_config(sql_source_db: SQLAlchemySourceDB) -> None:
     table = sql_table(table="chat_message", schema=sql_source_db.schema)
     with pytest.raises(ResourceExtractionError) as ext_ex:
         len(list(table))
-    assert "'updated_at_x'" in str(ext_ex.value)
+    assert "`updated_at_x`" in str(ext_ex.value)
 
 
 def test_general_sql_database_config(sql_source_db: SQLAlchemySourceDB) -> None:
@@ -265,7 +265,7 @@ def test_general_sql_database_config(sql_source_db: SQLAlchemySourceDB) -> None:
     table = sql_table(table="chat_message", schema=sql_source_db.schema)
     with pytest.raises(ResourceExtractionError) as ext_ex:
         len(list(table))
-    assert "'updated_at_x'" in str(ext_ex.value)
+    assert "`updated_at_x`" in str(ext_ex.value)
     with pytest.raises(ResourceExtractionError) as ext_ex:
         list(sql_database(schema=sql_source_db.schema).with_resources("chat_message"))
     # other resources will be loaded, incremental is selective
@@ -927,8 +927,9 @@ def test_null_column_warning(
     logger_spy.assert_called()
     assert logger_spy.call_count == 1
     expected_warning = (
-        "The column empty_col in table app_user did not receive any data during this load."
-        " Therefore, its type couldn't be inferred."
+        "columns in table 'app_user' did not receive any data during this load "
+        "and therefore could not have their types inferred:\n"
+        "  - empty_col"
     )
     assert expected_warning in logger_spy.call_args_list[0][0][0]
     assert (
@@ -965,7 +966,7 @@ def test_null_column_warning(
         .add_limit(1)
     )
 
-    logger_spy = mocker.spy(logger, "warning")
+    logger_spy.reset_mock()
     pipeline.run(source)
     assert logger_spy.call_count == 0
     assert (

@@ -4,7 +4,10 @@ from typing import Any, Type, Union, TYPE_CHECKING, List
 
 from sqlglot.schema import Schema as SQLGlotSchema
 
-from dlt.common.destination.exceptions import OpenTableClientNotAvailable
+from dlt.common.destination.exceptions import (
+    DestinationUndefinedEntity,
+    OpenTableClientNotAvailable,
+)
 from dlt.common.json import json
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination.reference import TDestinationReferenceArg, Destination
@@ -17,10 +20,12 @@ from dlt.common.destination.typing import TDatasetType
 from dlt.common.schema import Schema
 from dlt.common.typing import Self
 from dlt.common.schema.typing import C_DLT_LOAD_ID
+from dlt.common.utils import simple_repr, without_none
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation, BaseReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
+from dlt.destinations.queries import build_row_counts_expr
 
 from dlt.transformations import lineage
 
@@ -140,7 +145,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
             return client.sql_client
         else:
             raise Exception(
-                f"Destination {client.config.destination_type} does not support SqlClient."
+                f"Destination `{client.config.destination_type}` does not support `SqlClient`."
             )
 
     def _ensure_schema(self) -> None:
@@ -176,15 +181,16 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
         # TODO: accept other query types and return a right relation: sqlglot (DBAPI) and ibis (Expr)
         # TODO: parse query as ibis relation, however ibis will quote that query when compiling to sql
         return ReadableDBAPIRelation(
-            readable_dataset=self, provided_query=query, normalize_query=normalize_query
+            readable_dataset=self, query_or_expression=query, normalize_query=normalize_query
         )
 
     def table(self, table_name: str) -> ReadableIbisRelation:
         # dataset only provides access to tables known in dlt schema, direct query may cirumvent this
         if table_name not in self.schema.tables.keys():
             raise ValueError(
-                f"Table {table_name} not found in schema {self.schema.name} of dataset"
-                f" {self.dataset_name}. Avaible tables are: {self.schema.tables.keys()}"
+                f"Table `{table_name}` not found in schema `{self.schema.name}` of dataset"
+                f" `{self.dataset_name}`. Available table(s):"
+                f" {', '.join(self.schema.tables.keys())}"
             )
 
         # we can create an ibis powered relation if ibis is available
@@ -227,6 +233,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
                 selected_tables += self.schema.dlt_table_names()
 
         # filter tables so only ones with dlt_load_id column are included
+        dlt_load_id_col = None
         if load_id:
             dlt_load_id_col = self.schema.naming.normalize_identifier(C_DLT_LOAD_ID)
             selected_tables = [
@@ -234,21 +241,21 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
                 for table in selected_tables
                 if dlt_load_id_col in self.schema.tables[table]["columns"].keys()
             ]
-        # Build UNION ALL query to get row counts for all selected tables
-        queries = []
-        for table in selected_tables:
-            query = (
-                f"SELECT '{table}' as table_name, COUNT(1) as row_count FROM"
-                f" {self.sql_client.capabilities.escape_identifier(table)}"
+
+        union_all_expr = None
+
+        for table_name in selected_tables:
+            counts_expr = build_row_counts_expr(
+                table_name=table_name,
+                dlt_load_id_col=dlt_load_id_col,
+                load_id=load_id,
             )
-            if load_id:
-                query += f" WHERE {dlt_load_id_col} = '{load_id}'"
-            queries.append(query)
+            if union_all_expr is None:
+                union_all_expr = counts_expr
+            else:
+                union_all_expr = union_all_expr.union(counts_expr, distinct=False)
 
-        query = " UNION ALL ".join(queries)
-
-        # Execute query and build result dict
-        return self(query)
+        return self(query=union_all_expr)
 
     def __getitem__(self, table_name: str) -> ReadableIbisRelation:
         """access of table via dict notation"""
@@ -289,3 +296,35 @@ class ReadableDBAPIDataset(SupportsReadableDataset[ReadableIbisRelation]):
     ) -> None:
         self._opened_sql_client.close_connection()
         self._opened_sql_client = None
+
+    def __repr__(self) -> str:
+        # schema may not be set
+        schema_ = self._schema or self._provided_schema
+        schema_repr = repr(schema_) if schema_ else None
+        kwargs = {
+            "dataset_name": self._dataset_name,
+            "destination": repr(self._destination),
+            "schema": schema_repr,
+        }
+        return simple_repr("dlt.dataset", **without_none(kwargs))
+
+    def __str__(self) -> str:
+        # obtain schema. this eventually loads it from destination (if only name was provided)
+        _schema = self.schema
+        _client = self.destination_client
+        # str(config) provides displayable physical location
+        destination_info = f"{self._destination.destination_name}[{str(_client.config)}]"
+        # new schema is created if dataset is not found or schema.name is not materialized yet
+        if _schema.is_new:
+            schema_info = "\nDataset is not available at the destination.\n"
+        else:
+            schema_info = f"with tables in dlt schema `{self.schema.name}`:\n"
+
+        msg = f"Dataset `{self._dataset_name}` at `{destination_info}` {schema_info}"
+        if _schema:
+            tables = [name for name in self.schema.data_table_names()]
+            if tables:
+                msg += ", ".join(tables)
+            else:
+                msg += "No data tables found in schema."
+        return msg

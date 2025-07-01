@@ -4,7 +4,6 @@ import base64
 from contextlib import contextmanager
 from types import TracebackType
 from typing import (
-    ContextManager,
     List,
     Type,
     Iterable,
@@ -20,13 +19,13 @@ from typing import (
 )
 from fsspec import AbstractFileSystem
 
-import dlt
 from dlt.common import logger, time, json, pendulum
 from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace_strategy
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.schema.exceptions import TableNotFound
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
+    C_DLT_LOADS_TABLE_LOAD_ID,
     TTableFormat,
     TTableSchemaColumns,
     DLT_NAME_PREFIX,
@@ -288,6 +287,12 @@ class FilesystemClient(
         self.bucket_path = (
             config.make_local_path(config.bucket_url) if self.is_local_filesystem else fs_path
         )
+
+        # NOTE: we need to make checksum validation optional for boto to work with s3 compat mode
+        # https://www.beginswithdata.com/2025/05/14/aws-s3-tools-with-gcs/
+        os.environ["AWS_REQUEST_CHECKSUM_CALCULATION"] = "when_required"
+        os.environ["AWS_RESPONSE_CHECKSUM_VALIDATION"] = "when_required"
+
         # pick local filesystem pathlib or posix for buckets
         self.pathlib = os.path if self.is_local_filesystem else posixpath
 
@@ -637,7 +642,7 @@ class FilesystemClient(
         # write entry to load "table"
         # TODO: this is also duplicate across all destinations. DRY this.
         load_data = {
-            "load_id": load_id,
+            C_DLT_LOADS_TABLE_LOAD_ID: load_id,
             "schema_name": self.schema.name,
             "status": 0,
             "inserted_at": pendulum.now().isoformat(),
@@ -881,7 +886,7 @@ class FilesystemClient(
             return DeltaTable(table_location, storage_options=storage_options)
         else:
             raise NotImplementedError(
-                f"Cannot load tables in {table_format} format in filesystem destination."
+                f"Can't load tables using `{table_format=:}` with `filesystem` destination."
             )
 
     def get_open_table_catalog(self, table_format: TTableFormat, catalog_name: str = None) -> Any:

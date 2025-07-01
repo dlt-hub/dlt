@@ -68,7 +68,8 @@ class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"])
 
         Args:
             credentials (Union[MotherDuckCredentials, str, Dict[str, Any], DuckDBPyConnection], optional): Credentials to connect to the MotherDuck database. Can be an instance of `MotherDuckCredentials` or
-                a connection string in the format `md:///<database_name>?token=<service token>`
+                a connection string in the format `md:///<database_name>?token=<service token>`.
+                Instance of `DuckDbCredentials` allows to pass access token, extensions, configs and pragmas to be set up for connection.
             create_indexes (bool, optional): Should unique indexes be created
             destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
             environment (str, optional): Environment of the destination

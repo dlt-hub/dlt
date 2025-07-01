@@ -188,6 +188,9 @@ class Venv:
                 "--prerelease",
                 "if-necessary-or-explicit",
             ]
+            # on windows we need to copy the dependencies to the venv instead of linking
+            if os.name == "nt":
+                cmd.extend(["--link-mode", "copy"])
         else:
             cmd = [context.env_exe, "-Im", pip_tool, "install"]
 

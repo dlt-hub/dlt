@@ -21,6 +21,7 @@ from requests import Response
 
 from dlt.common import logger
 from dlt.common.configuration import resolve_configuration
+from dlt.common.exceptions import TypeErrorWithKnownTypes, ValueErrorWithKnownValues
 from dlt.common.schema.utils import merge_columns
 from dlt.common.utils import update_dict_nested, exclude_keys
 from dlt.common.typing import add_value_to_literal
@@ -34,6 +35,7 @@ from dlt.sources.helpers.rest_client.paginators import (
     SinglePagePaginator,
     JSONLinkPaginator,
     HeaderLinkPaginator,
+    HeaderCursorPaginator,
     JSONResponseCursorPaginator,
     OffsetPaginator,
     PageNumberPaginator,
@@ -74,6 +76,7 @@ PAGINATOR_MAP: Dict[str, Type[BasePaginator]] = {
         JSONLinkPaginator
     ),  # deprecated. Use json_link instead. Will be removed in upcoming release
     "header_link": HeaderLinkPaginator,
+    "header_cursor": HeaderCursorPaginator,
     "auto": None,
     "single_page": SinglePagePaginator,
     "cursor": JSONResponseCursorPaginator,
@@ -115,8 +118,8 @@ def register_paginator(
 ) -> None:
     if not issubclass(paginator_class, BasePaginator):
         raise ValueError(
-            f"Invalid paginator: {paginator_class.__name__}. "
-            "Your custom paginator has to be a subclass of BasePaginator"
+            f"Invalid paginator: `{paginator_class.__name__}`. "
+            "Your custom paginator has to be a subclass of `BasePaginator`"
         )
     PAGINATOR_MAP[paginator_name] = paginator_class
     add_value_to_literal(PaginatorType, paginator_name)
@@ -126,9 +129,8 @@ def get_paginator_class(paginator_name: str) -> Type[BasePaginator]:
     try:
         return PAGINATOR_MAP[paginator_name]
     except KeyError:
-        available_options = ", ".join(PAGINATOR_MAP.keys())
-        raise ValueError(
-            f"Invalid paginator: {paginator_name}. Available options: {available_options}."
+        raise ValueErrorWithKnownValues(
+            "paginator_name", paginator_name, list(PAGINATOR_MAP.keys())
         )
 
 
@@ -145,8 +147,8 @@ def create_paginator(
             return paginator_class() if paginator_class else None
         except TypeError:
             raise ValueError(
-                f"Paginator {paginator_config} requires arguments to create an instance. Use"
-                f" {paginator_class} instance instead."
+                f"Paginator `{paginator_config}` requires arguments to create an instance. Use"
+                f" `{paginator_class}` instance instead."
             )
 
     if isinstance(paginator_config, dict):
@@ -165,8 +167,8 @@ def register_auth(
 ) -> None:
     if not issubclass(auth_class, AuthConfigBase):
         raise ValueError(
-            f"Invalid auth: {auth_class.__name__}. "
-            "Your custom auth has to be a subclass of AuthConfigBase"
+            f"Invalid auth: `{auth_class.__name__}`. "
+            "Your custom auth has to be a subclass of `AuthConfigBase`"
         )
     AUTH_MAP[auth_name] = auth_class
 
@@ -177,10 +179,7 @@ def get_auth_class(auth_type: str) -> Type[AuthConfigBase]:
     try:
         return AUTH_MAP[auth_type]
     except KeyError:
-        available_options = ", ".join(AUTH_MAP.keys())
-        raise ValueError(
-            f"Invalid authentication: {auth_type}. Available options: {available_options}."
-        )
+        raise ValueErrorWithKnownValues("auth_type", auth_type, list(AUTH_MAP.keys()))
 
 
 def create_auth(auth_config: Optional[AuthConfig]) -> Optional[AuthConfigBase]:
@@ -196,6 +195,12 @@ def create_auth(auth_config: Optional[AuthConfig]) -> Optional[AuthConfigBase]:
         auth_type = auth_config.get("type", "bearer")
         auth_class = get_auth_class(auth_type)
         auth = auth_class.from_init_value(exclude_keys(auth_config, {"type"}))
+
+    if auth_config is not None and auth is None:
+        raise ValueError(
+            f"Incorrect auth object type '{type(auth_config).__name__}'. "
+            "Expected str (auth type), dict (auth config), an instance of AuthConfigBase, or None."
+        )
 
     if auth and not auth.__is_resolved__:
         # TODO: provide explicitly (non-default) values as explicit explicit_value=dict(auth)
@@ -219,27 +224,29 @@ def setup_incremental_object(
             incremental_params.append(param_name)
     if len(incremental_params) > 1:
         raise ValueError(
-            "Only a single incremental parameter is allower per endpoint. Found:"
-            f" {incremental_params}"
+            "Only a single incremental parameter is allower per endpoint. Found parameters: "
+            f"`{incremental_params}`"
         )
     convert: Optional[Callable[..., Any]]
     for param_name, param_config in request_params.items():
         if isinstance(param_config, Incremental):
             if param_config.end_value is not None:
                 raise ValueError(
-                    f"Only initial_value is allowed in the configuration of param: {param_name}. To"
-                    " set end_value too use the incremental configuration at the resource level."
-                    " See"
-                    " https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/basic#incremental-loading"
+                    "Only `initial_value` is allowed in the configuration of param:"
+                    f" `{param_name}`. "
+                    "To set `end_value` too use the incremental configuration at the resource"
+                    " level. "
+                    "See https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/basic#incremental-loading"
                 )
             return param_config, IncrementalParam(start=param_name, end=None), None
         if isinstance(param_config, dict) and param_config.get("type") == "incremental":
             if param_config.get("end_value") or param_config.get("end_param"):
                 raise ValueError(
-                    "Only start_param and initial_value are allowed in the configuration of param:"
-                    f" {param_name}. To set end_value too use the incremental configuration at the"
-                    " resource level. See"
-                    " https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/basic#incremental-loading"
+                    "Only `start_param` and `initial_value` are allowed in the configuration of"
+                    f" param: `{param_name}`. "
+                    "To set `end_value` too use the incremental configuration at the resource"
+                    " level. "
+                    "See https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/basic#incremental-loading"
                 )
             convert = parse_convert_or_deprecated_transform(param_config)
 
@@ -307,7 +314,7 @@ def build_resource_dependency_graph(
         if isinstance(endpoint_resource, DltResource):
             dependency_graph.add(resource_name)
             resolved_param_map[resource_name] = None
-            break
+            continue
         assert isinstance(endpoint_resource["endpoint"], dict)
         # find resolved parameters to connect dependent resources
         resolved_params = _find_resolved_params(endpoint_resource["endpoint"])
@@ -341,15 +348,18 @@ def build_resource_dependency_graph(
         named_resources = {rp.resolve_config["resource"] for rp in resolved_params}
 
         if len(named_resources) > 1:
-            raise ValueError(f"Multiple parent resources for {resource_name}: {resolved_params}")
+            raise ValueError(
+                f"Multiple parent resources for resource `{resource_name}` with params"
+                f" `{resolved_params}`"
+            )
         elif len(named_resources) == 1:
             # validate the first parameter (note the resource is the same for all params)
             first_param = resolved_params[0]
             predecessor = first_param.resolve_config["resource"]
             if predecessor not in endpoint_resource_map:
                 raise ValueError(
-                    f"A dependent resource {resource_name} refers to non existing parent resource"
-                    f" {predecessor} on {first_param}"
+                    f"A dependent resource `{resource_name}` refers to non existing parent resource"
+                    f" `{predecessor}` on param `{first_param}`"
                 )
 
             dependency_graph.add(resource_name, predecessor)
@@ -369,7 +379,7 @@ def expand_and_index_resources(
     for resource in resource_list:
         if isinstance(resource, DltResource):
             endpoint_resource_map[resource.name] = resource
-            break
+            continue
         elif isinstance(resource, dict):
             # clone resource here, otherwise it needs to be cloned in several other places
             # note that this clones only dict structure, keeping all instances without deepcopy
@@ -386,7 +396,7 @@ def expand_and_index_resources(
         ), f"Resource name must be a string, got {type(resource_name)}"
 
         if resource_name in endpoint_resource_map:
-            raise ValueError(f"Resource {resource_name} has already been defined")
+            raise ValueError(f"Resource `{resource_name}` is already defined.")
         endpoint_resource_map[resource_name] = endpoint_resource
 
     return endpoint_resource_map
@@ -477,9 +487,9 @@ def _bind_path_params(resource: EndpointResource) -> None:
             else:
                 # Most likely mistyped placeholder context name
                 raise ValueError(
-                    f"The path '{path}' defined in resource '{resource['name']}' contains a"
-                    f" placeholder '{field_name}'. This placeholder is not a valid name."
-                    " Valid names are: 'resources', 'incremental'."
+                    f"The `{path=:}` defined in resource `{resource['name']}` contains a"
+                    f" placeholder `{field_name}`. This placeholder is not a valid name."
+                    " Valid names are: ['resources', 'incremental']."
                 )
 
         if not isinstance(params[field_name], dict):
@@ -490,16 +500,16 @@ def _bind_path_params(resource: EndpointResource) -> None:
             param_type = params[field_name].get("type")
             if param_type != "resolve":
                 raise ValueError(
-                    f"The path {path} defined in resource {resource['name']} tries to bind"
-                    f" param {field_name} with type {param_type}. Paths can only bind 'resolve'"
+                    f"The path `{path}` defined in resource `{resource['name']}` tries to bind"
+                    f" param `{field_name}` with type `{param_type}`. Paths can only bind 'resolve'"
                     " type params."
                 )
 
     if len(resolve_params) > 0:
         raise ValueError(
-            f"Resource {resource['name']} defines resolve params {resolve_params} that are not"
-            f" bound in path {path}. To reference parent resource in query params use"
-            " resources.<parent_resource>.<field> syntax."
+            f"Resource `{resource['name']}` defines resolve params `{resolve_params}` that are not"
+            f" bound in path `{path}`. To reference parent resource in query params use syntax"
+            " 'resources.<parent_resource>.<field>'"
         )
 
     resource["endpoint"]["path"] = "".join(new_path_segments)
@@ -576,9 +586,8 @@ def _handle_response_action(
         ):
             custom_hooks = response_action
         else:
-            raise ValueError(
-                f"Action {response_action} does not conform to expected type. Expected: str or"
-                f" Callable or List[Callable]. Found: {type(response_action)}"
+            raise TypeErrorWithKnownTypes(
+                "action['action']", response_action, ["str", "Callable", "List[Callable]"]
             )
 
     if status_code is not None and content_substr is not None:
@@ -711,7 +720,7 @@ def _expressions_to_resolved_params(expressions: Set[str]) -> List[ResolvedParam
         parts = expression.strip().split(".", maxsplit=2)
         if len(parts) != 3:
             raise ValueError(
-                f"Invalid definition of {expression}. Expected format:"
+                f"Invalid definition of `{expression}`. Expected format:"
                 " 'resources.<resource>.<field>'"
             )
         resolved_params.append(
@@ -785,7 +794,7 @@ def collect_resolved_values(
     (params_values) and a ResourcesContext that may store `resources.<name>.<field>`.
     """
     if not resolved_params:
-        raise ValueError("Resolved params are required to process parent data item")
+        raise ValueError("`resolved_params` is required to process parent data item")
 
     parent_resource_name = resolved_params[0].resolve_config["resource"]
     params_values: Dict[str, Any] = {}
@@ -795,10 +804,10 @@ def collect_resolved_values(
         if not field_values:
             field_path = resolved_param.resolve_config["field"]
             raise ValueError(
-                f"Resource expects a field '{field_path}' to be present in the incoming data"
-                f" from resource {parent_resource_name} in order to bind it to path param"
-                f" {resolved_param.param_name}. Available parent fields are"
-                f" {', '.join(item.keys())}"
+                f"Resource expects a field `{field_path}` to be present in the incoming data from"
+                f" resource `{parent_resource_name}` in order to bind it to path param:"
+                f" `{resolved_param.param_name}`. Available parent fields are:"
+                f" {list(item.keys())}"
             )
 
         params_values[resolved_param.param_name] = field_values[0]
@@ -891,9 +900,9 @@ def build_parent_record(
         child_key = make_parent_key_name(parent_resource_name, parent_key)
         if parent_key not in item:
             raise ValueError(
-                f"Resource expects a field '{parent_key}' to be present in the incoming data "
-                f"from resource {parent_resource_name} in order to include it in child records"
-                f" under {child_key}. Available parent fields are {', '.join(item.keys())}"
+                f"Resource expects a field `{parent_key}` to be present in the incoming data "
+                f"from resource `{parent_resource_name}` in order to include it in child records"
+                f" under `{child_key}`. Available parent fields are: {list(item.keys())}"
             )
         parent_record[child_key] = item[parent_key]
     return parent_record
@@ -975,8 +984,8 @@ def _raise_if_any_not_in(expressions: Set[str], available_contexts: Set[str], me
     for expression in expressions:
         if not any(expression.startswith(prefix + ".") for prefix in available_contexts):
             raise ValueError(
-                f"Expression '{expression}' defined in {message} is not valid. Valid expressions"
-                f" must start with one of: {', '.join(available_contexts)}. If you need to use"
+                f"Expression `{expression}` defined in `{message}` is not valid. Valid expressions"
+                f" must start with one of: `{available_contexts}`. If you need to use"
                 " literal curly braces in your expression, escape them by doubling them: {{ and"
                 " }}"
             )

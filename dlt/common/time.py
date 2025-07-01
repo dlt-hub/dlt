@@ -68,7 +68,7 @@ def parse_iso_like_datetime(value: Any) -> Union[pendulum.DateTime, pendulum.Dat
     if isinstance(dtv, datetime.datetime):
         return pendulum.instance(dtv, tz=dtv.tzinfo)
     if isinstance(dtv, pendulum.Duration):
-        raise ValueError("Interval ISO 8601 not supported: " + value)
+        raise ValueError(f"Interval ISO 8601 not supported: `{value}`")
     return pendulum.date(dtv.year, dtv.month, dtv.day)  # type: ignore[union-attr]
 
 
@@ -92,11 +92,11 @@ def ensure_pendulum_date(value: TAnyDateTime) -> pendulum.Date:
     elif isinstance(value, (int, float, str)):
         result = _datetime_from_ts_or_iso(value)
         if isinstance(result, datetime.time):
-            raise ValueError(f"Cannot coerce {value} to a pendulum.DateTime object.")
+            raise ValueError(f"Cannot coerce `{value}` to `pendulum.DateTime` object.")
         if isinstance(result, pendulum.DateTime):
             return result.in_tz(UTC).date()
         return pendulum.date(result.year, result.month, result.day)
-    raise TypeError(f"Cannot coerce {value} to a pendulum.DateTime object.")
+    raise TypeError(f"Cannot coerce `{value}` to `pendulum.DateTime` object.")
 
 
 def ensure_pendulum_datetime(value: TAnyDateTime) -> pendulum.DateTime:
@@ -119,11 +119,11 @@ def ensure_pendulum_datetime(value: TAnyDateTime) -> pendulum.DateTime:
     elif isinstance(value, (int, float, str)):
         result = _datetime_from_ts_or_iso(value)
         if isinstance(result, datetime.time):
-            raise ValueError(f"Cannot coerce {value} to a pendulum.DateTime object.")
+            raise ValueError(f"Cannot coerce `{value}` to `pendulum.DateTime` object.")
         if isinstance(result, pendulum.DateTime):
             return result.in_tz(UTC)
         return pendulum.datetime(result.year, result.month, result.day, tz=UTC)
-    raise TypeError(f"Cannot coerce {value} to a pendulum.DateTime object.")
+    raise TypeError(f"Cannot coerce `{value}` to `pendulum.DateTime` object.")
 
 
 def ensure_pendulum_datetime_non_utc(value: TAnyDateTime) -> pendulum.DateTime:
@@ -135,11 +135,11 @@ def ensure_pendulum_datetime_non_utc(value: TAnyDateTime) -> pendulum.DateTime:
     elif isinstance(value, (int, float, str)):
         result = _datetime_from_ts_or_iso(value)
         if isinstance(result, datetime.time):
-            raise ValueError(f"Cannot coerce {value} to a pendulum.DateTime object.")
+            raise ValueError(f"Cannot coerce `{value}` to `pendulum.DateTime` object.")
         if isinstance(result, pendulum.DateTime):
             return result
         return pendulum.datetime(result.year, result.month, result.day)
-    raise TypeError(f"Cannot coerce {value} to a pendulum.DateTime object.")
+    raise TypeError(f"Cannot coerce `{value}` to `pendulum.DateTime` object.")
 
 
 def datatime_obj_to_str(
@@ -153,7 +153,7 @@ def datatime_obj_to_str(
         if timezone_part.startswith(("-", "+")):
             return f"{datetime_str[:-5]}{timezone_part[:3]}:{timezone_part[3:]}"
 
-        raise ValueError(f"Invalid timezone format in datetime string: {datetime_str}")
+        raise ValueError(f"Invalid timezone format in datetime string: `{datetime_str}`")
 
     return datatime.strftime(datetime_format)
 
@@ -176,7 +176,7 @@ def ensure_pendulum_time(value: Union[str, datetime.time]) -> pendulum.Time:
         if isinstance(result, pendulum.Time):
             return result
         else:
-            raise ValueError(f"{value} is not a valid ISO time string.")
+            raise ValueError(f"Invalid ISO time string: `{value}`")
     elif isinstance(value, timedelta):
         # Assume timedelta is seconds passed since midnight. Some drivers (mysqlclient) return time in this format
         return pendulum.time(
@@ -185,7 +185,7 @@ def ensure_pendulum_time(value: Union[str, datetime.time]) -> pendulum.Time:
             value.seconds % 60,
             value.microseconds,
         )
-    raise TypeError(f"Cannot coerce {value} to a pendulum.Time object.")
+    raise TypeError(f"Cannot coerce `{value}` to `pendulum.Time` object.")
 
 
 def detect_datetime_format(value: str) -> Optional[str]:

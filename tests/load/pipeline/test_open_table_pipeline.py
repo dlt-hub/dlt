@@ -12,7 +12,10 @@ import pytest
 
 from dlt.common import json
 from dlt.common import pendulum
-from dlt.common.storages.configuration import FilesystemConfiguration
+from dlt.common.storages.configuration import (
+    FilesystemConfiguration,
+    FilesystemConfigurationWithLocalFiles,
+)
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TWriteDisposition, TTableFormat
@@ -137,7 +140,7 @@ def test_table_format_core(
     assert remote_url.endswith(("data_types", "_dlt_pipeline_state", ""))
     bucket_url = destination_config.bucket_url
     if FilesystemConfiguration.is_local_path(bucket_url):
-        bucket_url = FilesystemConfiguration.make_file_url(bucket_url)
+        bucket_url = FilesystemConfigurationWithLocalFiles.make_file_url(bucket_url)
     assert remote_url.startswith(bucket_url)
 
     # another run should append rows to the table

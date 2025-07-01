@@ -11,26 +11,22 @@ from typing import List
 from functools import reduce
 
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableFormat
-from dlt.common.storages.exceptions import SchemaNotFoundError
-from dlt.common.storages.file_storage import FileStorage
+
 from dlt.extract.source import DltSource
+from dlt.destinations.dataset import dataset as _dataset
+from dlt.transformations.exceptions import LineageFailedException
+
 from tests.load.utils import (
-    FILE_BUCKET,
     destinations_configs,
     DestinationTestConfiguration,
-    GCS_BUCKET,
     SFTP_BUCKET,
     MEMORY_BUCKET,
 )
-from tests.utils import TEST_STORAGE_ROOT, _preserve_environ, clean_test_storage
-from dlt.destinations.dataset.exceptions import (
-    ReadableRelationUnknownColumnException,
-)
+from tests.utils import preserve_module_environ, autouse_module_test_storage, patch_module_home_dir
 from tests.load.utils import drop_pipeline_data
-from dlt.destinations.dataset import dataset as _dataset
-from dlt.transformations.exceptions import LineageFailedException
 
 EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
 
@@ -112,28 +108,32 @@ def create_test_source(destination_type: str, table_format: TTableFormat) -> Dlt
                 for i in range(total_records)
             ]
 
-        return [items, double_items]
+        @dlt.resource(
+            table_format=table_format,
+            write_disposition="replace",
+            columns={"id": {"data_type": "bigint"}, "other_id": {"data_type": "bigint"}},
+        )
+        def orderable_in_chain():
+            yield from [
+                {
+                    "id": int(i / 2),
+                    "other_id": i,
+                }
+                for i in range(total_records)
+            ]
+
+        return [items, double_items, orderable_in_chain]
 
     return source()
 
 
-# this also disables autouse_test_storage on function level which destroys some tests here
-@pytest.fixture(scope="session")
-def autouse_test_storage() -> FileStorage:
-    return clean_test_storage()
-
-
-@pytest.fixture(scope="session")
-def preserve_session_environ() -> Iterator[None]:
-    yield from _preserve_environ()
-
-
-@pytest.fixture(scope="session")
-def populated_pipeline(request, autouse_test_storage, preserve_session_environ) -> Any:
+@pytest.fixture(scope="module")
+def populated_pipeline(
+    request, autouse_module_test_storage, preserve_module_environ, patch_module_home_dir
+) -> Any:
     """fixture that returns a pipeline object populated with the example data"""
 
     destination_config = cast(DestinationTestConfiguration, request.param)
-    print("populated_pipeline", destination_config)
     if (
         destination_config.file_format not in ["parquet", "jsonl"]
         and destination_config.destination_type == "filesystem"
@@ -349,6 +349,8 @@ def test_hint_preservation(populated_pipeline: Pipeline) -> None:
         # bigquery does not allow precision configuration..
         expected_decimal_precision = 38
         expected_decimal_precision_2 = 38
+
+    # NOTE: pyarrow 19 exposes decimal64 type and duckdb 1.3 is using it for low precision decimals
     assert (
         table_relationship.arrow().schema.field("decimal").type.precision
         == expected_decimal_precision
@@ -401,6 +403,10 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
         (
             "items__children",
             total_records * 2,
+        ),
+        (
+            "orderable_in_chain",
+            total_records,
         ),
     }
     # get only one data table
@@ -456,6 +462,10 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
         (
             "items__children",
             total_records * 2,
+        ),
+        (
+            "orderable_in_chain",
+            total_records,
         ),
     }
 
@@ -698,8 +708,114 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
+def test_chained_column_selection(populated_pipeline: Pipeline) -> None:
+    table_relationship = populated_pipeline.dataset(dataset_type="default").items
+
+    columns = ["_dlt_load_id", "other_decimal"]
+    data_frame = table_relationship.select(*columns).head().df()
+    assert list(data_frame.columns.values) == columns
+
+    data_frame = table_relationship.select(*columns).select(*columns).head().df()
+    assert list(data_frame.columns.values) == columns
+
+    data_frame = table_relationship.select(*columns).select(*["other_decimal"]).head().df()
+    assert list(data_frame.columns.values) == ["other_decimal"]
+
+    data_frame = table_relationship.select(*columns).select(*["decimal"]).head().df()
+    assert list(data_frame.columns.values) == ["decimal"]
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_order_by(populated_pipeline: Pipeline) -> None:
+    total_records = _total_records(populated_pipeline.destination.destination_type)
+    table_relationship = populated_pipeline.dataset(dataset_type="default").items
+
+    asc_ids = [row[0] for row in table_relationship.order_by("id", "asc").limit(20).fetchall()]
+    assert asc_ids == list(range(20))
+
+    desc_ids = [row[0] for row in table_relationship.order_by("id", "desc").limit(20).fetchall()]
+    assert desc_ids == list(range(total_records - 1, total_records - 21, -1))
+
+    chained = [row[0] for row in table_relationship.order_by("id").limit(5).select("id").fetchall()]
+    assert chained == list(range(5))
+
+    chained_relation = populated_pipeline.dataset(dataset_type="default").orderable_in_chain
+    chained_order_by = [
+        row
+        for row in chained_relation.order_by("id", "asc")
+        .order_by("other_id", "desc")
+        .limit(5)
+        .fetchall()
+    ]
+
+    assert [row[0] for row in chained_order_by] == [0, 0, 1, 1, 2]
+    assert [row[1] for row in chained_order_by] == [1, 0, 3, 2, 5]
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_where(populated_pipeline: Pipeline) -> None:
+    total_records = _total_records(populated_pipeline.destination.destination_type)
+    items = populated_pipeline.dataset(dataset_type="default").items
+
+    eq_rows = items.where("id", "eq", 10).fetchall()
+    assert len(eq_rows) == 1 and eq_rows[0][0] == 10
+
+    ne_rows = items.filter("id", "ne", 0).fetchall()
+    assert total_records - 1 == len(ne_rows)
+
+    gt_rows = items.where("id", "gt", 2).fetchall()
+    assert total_records - 3 == len(gt_rows)
+
+    lt_rows = items.filter("id", "lt", 5).fetchall()
+    assert 5 == len(lt_rows)
+
+    gte_rows = items.where("id", "gte", 5).fetchall()
+    lte_rows = items.filter("id", "lte", "5").fetchall()
+    assert total_records - 5 == len(gte_rows)
+    assert 6 == len(lte_rows)
+
+    in_ids = [r[0] for r in (items.where("id", "in", [3, 1, 7]).order_by("id").fetchall())]
+    assert in_ids == [1, 3, 7]
+
+    not_in_rows = items.filter("id", "not_in", [0, 1, 2]).fetchall()
+    assert total_records - 3 == len(not_in_rows)
+
+    with pytest.raises(ValueErrorWithKnownValues) as py_exc:
+        not_in_rows = items.filter("id", "wrong", [0, 1, 2]).fetchall()
+
+    assert (
+        "Received invalid value `operator=wrong`. Valid values are: ('eq', 'ne', 'gt', 'lt', 'gte',"
+        " 'lte', 'in', 'not_in')"
+        in py_exc.value.args
+    )
+
+    assert total_records - 3 == len(not_in_rows)
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
 def test_unknown_table_access(populated_pipeline: Pipeline) -> None:
-    with pytest.raises(ValueError, match="Table unknown_table not found in schema"):
+    with pytest.raises(ValueError, match="Table `unknown_table` not found in schema"):
         populated_pipeline.dataset().unknown_table
 
 
@@ -1058,6 +1174,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
                     "double_items",
                     "items",
                     "items__children",
+                    "orderable_in_chain",
                 ]
                 + additional_tables
             )

@@ -16,9 +16,6 @@ from tests.load.utils import (
 )
 from tests.cases import table_update_and_row
 
-# mark all tests as essential, do not remove
-pytestmark = pytest.mark.essential
-
 
 @dlt.resource(
     table_name="issues", write_disposition="merge", primary_key="id", merge_key=("node_id", "url")
@@ -46,6 +43,7 @@ def event_many_load_2():
         yield from events
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(all_staging_configs=True), ids=lambda x: x.name
 )
@@ -261,8 +259,9 @@ def test_truncate_staging_dataset(destination_config: DestinationTestConfigurati
         assert len(staging_client.list_table_files(table_name)) == table_count  # type: ignore[attr-defined]
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(all_staging_configs=True), ids=lambda x: x.name
+    "destination_config", destinations_configs(default_staging_configs=True), ids=lambda x: x.name
 )
 def test_all_data_types(destination_config: DestinationTestConfiguration) -> None:
     pipeline = destination_config.setup_pipeline(

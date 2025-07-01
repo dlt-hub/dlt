@@ -10,8 +10,7 @@ from dlt.common.utils import set_working_dir, uniq_id
 
 from dlt.sources import SourceReference
 
-from dlt.cli import echo
-from dlt.cli.init_command import DEFAULT_VERIFIED_SOURCES_REPO
+from dlt.cli import echo, DEFAULT_VERIFIED_SOURCES_REPO
 
 from tests.utils import TEST_STORAGE_ROOT
 
