@@ -102,15 +102,6 @@ class HintsMeta:
         self.create_table_variant = create_table_variant
 
 
-class WithComputableHints:
-    """
-    A class that can compute a schema from a data item.
-    """
-
-    def compute_hints(self) -> TResourceHints:
-        pass
-
-
 class SqlModel:
     """
     A SqlModel is a named tuple that contains a query and a dialect.

@@ -21,7 +21,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.normalizers.json import helpers as normalize_helpers
 
-from dlt.extract.hints import HintsMeta, TResourceHints, WithComputableHints, DLT_HINTS_METADATA_KEY
+from dlt.extract.hints import HintsMeta, TResourceHints
 from dlt.extract.resource import DltResource
 from dlt.extract.items import DataItemWithMeta, TableNameMeta
 from dlt.extract.storage import ExtractorItemStorage
@@ -129,10 +129,6 @@ class Extractor:
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         """Write `items` to `resource` optionally computing table schemas and revalidating/filtering data"""
-
-        if isinstance(items, WithComputableHints):
-            computed_hints = items.compute_hints()
-            resource.merge_hints(computed_hints)
 
         if isinstance(meta, HintsMeta) and meta.hints:
             # update the resource with new hints, remove all caches so schema is recomputed
@@ -343,17 +339,6 @@ class ArrowExtractor(Extractor):
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         items_list = items if isinstance(items, list) else [items]
-
-        # extract resource hints from metadata if available
-        for item in items_list:
-            if (
-                isinstance(item, (pa.Table, pa.RecordBatch))
-                and item.schema
-                and item.schema.metadata
-            ):
-                hints = item.schema.metadata.get(DLT_HINTS_METADATA_KEY.encode("utf-8"))
-                if hints:
-                    resource.merge_hints(json.loads(hints.decode("utf-8")))
 
         static_table_name = self._get_static_table_name(resource, meta)
         items = [

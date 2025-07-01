@@ -33,7 +33,7 @@ from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.transformations import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.queries import normalize_query, build_select_expr
-from dlt.extract.hints import WithComputableHints, make_hints, TResourceHints
+from dlt.extract.hints import make_hints, TResourceHints
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination.dataset import DataAccess
 
@@ -64,7 +64,7 @@ _FILTER_OP_MAP = {
 }
 
 
-class ReadableDBAPIRelation(Relation, WithSqlClient, WithComputableHints):
+class ReadableDBAPIRelation(Relation, WithSqlClient):
     @overload
     def __init__(
         self,
@@ -186,7 +186,7 @@ class ReadableDBAPIRelation(Relation, WithSqlClient, WithComputableHints):
         return self._dataset.sql_client_class
 
     #
-    # WithComputableHints interface
+    # Computable resource hints helper
     #
     def compute_hints(self) -> TResourceHints:
         """Computes schema hints for this relation"""

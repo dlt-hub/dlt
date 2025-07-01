@@ -1,5 +1,4 @@
 from functools import wraps
-import inspect
 from typing import Callable, Any, Optional, Type, Iterator, List, cast
 
 import dlt
@@ -9,7 +8,6 @@ from dlt.common.configuration.inject import get_fun_last_config, get_fun_spec
 from dlt.common.typing import TDataItems, TTableHintTemplate
 from dlt.common import logger, json
 
-from dlt.extract.incremental import Incremental
 from dlt.extract import DltResource
 from dlt.transformations.typing import TTransformationFunParams
 from dlt.transformations.exceptions import (
@@ -17,6 +15,8 @@ from dlt.transformations.exceptions import (
     IncompatibleDatasetsException,
 )
 from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+from dlt.common.typing import TDataItem
+from dlt.common.schema.typing import TTableSchema
 
 from dlt.common.exceptions import MissingDependencyException
 from dlt.pipeline.exceptions import PipelineConfigMissing
@@ -32,7 +32,7 @@ from dlt.transformations.configuration import TransformationConfiguration
 from dlt.common.utils import get_callable_name
 from dlt.extract.exceptions import CurrentSourceNotAvailable
 from dlt.extract.pipe_iterator import DataItemWithMeta
-from dlt.extract.hints import DLT_HINTS_METADATA_KEY
+from dlt.extract.hints import DLT_HINTS_METADATA_KEY, TResourceHints
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 
 try:
@@ -40,10 +40,40 @@ try:
 except (ImportError, MissingDependencyException):
     IbisExpr = None
 
+try:
+    from dlt.common.libs.pyarrow import pyarrow
+except (ImportError, MissingDependencyException):
+    pyarrow = None
+
 
 class DltTransformationResource(DltResource):
     def __init__(self, *args: Any, **kwds: Any) -> None:
         super().__init__(*args, **kwds)
+
+    def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
+        # if we detect any hints on the item directly, merge them with the existing hints
+        item_hints: TResourceHints = {}
+        original_hints = self._hints
+        if isinstance(item, ReadableDBAPIRelation):
+            item_hints = item.compute_hints()
+
+        # extract resource hints from arrow metadata if available
+        if (
+            pyarrow
+            and isinstance(item, (pyarrow.Table, pyarrow.RecordBatch))
+            and item.schema
+            and item.schema.metadata
+        ):
+            _h = item.schema.metadata.get(DLT_HINTS_METADATA_KEY.encode("utf-8"))
+            if _h:
+                item_hints = json.loads(_h.decode("utf-8"))
+
+        if item_hints:
+            # NOTE: by merging in the original hints again, we ensure that the item hints are the lowest priority
+            self.merge_hints(item_hints)
+            self.merge_hints(original_hints)
+
+        return super().compute_table_schema(item, meta)
 
 
 def make_transformation_resource(
@@ -104,6 +134,9 @@ def make_transformation_resource(
         # respect config setting
         should_materialize = should_materialize or config.always_materialize
 
+        # add check to only allow one transformation to be processed per function
+        transformation_processed = False
+
         def _process_item(item: TDataItems) -> Iterator[TDataItems]:
             # catch the cases where we get a relation from the transformation function
             if isinstance(item, ReadableDBAPIRelation):
@@ -133,6 +166,9 @@ def make_transformation_resource(
                 yield item
                 return
 
+            nonlocal transformation_processed
+            transformation_processed = True
+
             if not should_materialize:
                 yield relation
             else:
@@ -147,6 +183,13 @@ def make_transformation_resource(
         iteratable_items = gen_or_item if isinstance(gen_or_item, Iterator) else [gen_or_item]
 
         for item in iteratable_items:
+            if transformation_processed:
+                raise TransformationException(
+                    resource_name,
+                    "Multiple transformations from a single transformation function are not"
+                    " supported at this time.",
+                )
+
             # unwrap if needed
             meta = None
             if isinstance(item, DataItemWithMeta):

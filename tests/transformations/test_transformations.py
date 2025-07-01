@@ -7,7 +7,6 @@ import dlt, os, sys
 from dlt.common.destination.dataset import Dataset
 from dlt.common.destination.dataset import Relation
 from tests.pipeline.utils import load_table_counts
-from dlt.extract.hints import SqlModel
 
 from tests.load.utils import DestinationTestConfiguration
 from tests.load.transformations.utils import (
@@ -17,6 +16,7 @@ from tests.load.transformations.utils import (
 )
 
 from dlt.extract.hints import make_hints
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 from dlt.sources._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
@@ -71,14 +71,15 @@ def test_simple_query_transformations(
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("always_materialize", [False, True])
+@pytest.mark.parametrize("hint_location", ["meta", "decorator"])
 def test_transformations_with_supplied_hints(
-    destination_config: DestinationTestConfiguration, always_materialize: bool
+    destination_config: DestinationTestConfiguration, always_materialize: bool, hint_location: str
 ) -> None:
     fruit_p, dest_p = setup_transformation_pipelines(destination_config)
 
     s = fruitshop_source()
     s.inventory.apply_hints(
-        columns={"price": {"precision": 10, "scale": 2, "x-annotation-important": True}}  # type: ignore
+        columns={"price": {"precision": 10, "scale": 2, "x-annotation-important": "some_value"}}  # type: ignore
     )
     fruit_p.run(s)
 
@@ -92,10 +93,14 @@ def test_transformations_with_supplied_hints(
     def inventory_original(dataset: Dataset) -> Any:
         yield dataset["inventory"]
 
-    @dlt.transformation()
+    column_hints: Any = [{"name": "price", "precision": 20, "scale": 2}]
+
+    @dlt.transformation(columns=(column_hints if hint_location == "decorator" else None))
     def inventory_more_precise(dataset: Dataset) -> Any:
-        hints = make_hints(columns=[{"name": "price", "precision": 20, "scale": 2}])
-        yield dlt.mark.with_hints(dataset["inventory"], hints=hints)
+        if hint_location == "meta":
+            yield dlt.mark.with_hints(dataset["inventory"], hints=make_hints(columns=column_hints))
+        else:
+            yield dataset["inventory"]
 
     dest_p.run([inventory_original(fruit_p.dataset()), inventory_more_precise(fruit_p.dataset())])
 
@@ -111,7 +116,7 @@ def test_transformations_with_supplied_hints(
         dest_p.default_schema.tables["inventory_original"]["columns"]["price"][
             "x-annotation-important"  # type: ignore
         ]
-        is True
+        == "some_value"
     )
 
 
@@ -239,3 +244,43 @@ def test_transformations_without_generator(
     }
 
     assert get_job_types(dest_p) == {"transform_without_generator": {"model": 1}}
+
+
+# @pytest.mark.skip("TODO: hints are not being merged correctly")
+
+
+# TODO: support multiple transformations in a single function
+@pytest.mark.parametrize(
+    "destination_config",
+    transformation_configs(only_duckdb=True),
+    ids=lambda x: x.name,
+)
+def test_multiple_transformations_in_function(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    fruit_p, dest_p = setup_transformation_pipelines(destination_config)
+    fruit_p.run(fruitshop_source())
+
+    @dlt.transformation()
+    def multiple_transformations(dataset: Dataset) -> Any:
+        yield dataset["customers"]
+        yield dataset["purchases"]
+
+    with pytest.raises(PipelineStepFailed) as excinfo:
+        dest_p.run(multiple_transformations(fruit_p.dataset()))
+
+    assert (
+        "Multiple transformations from a single transformation function are not supported at this"
+        " time."
+        in str(excinfo.value)
+    )
+
+    # assert load_table_counts(dest_p, "multiple_transformations") == {
+    #     "multiple_transformations": 16  # 13 customers + 3 purchases
+    # }
+
+    # print(dest_p.dataset().multiple_transformations.df())
+
+    # assert set(dest_p.default_schema.tables["multiple_transformations"]["columns"].keys()) == {} # should have all columns joined from both tables
+
+    # assert get_job_types(dest_p) == {"multiple_transformations": {"model": 1}}
