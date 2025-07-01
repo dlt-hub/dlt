@@ -82,6 +82,7 @@ from dlt.destinations.queries import (
     build_stored_state_expr,
     build_stored_schema_expr,
     replace_placeholders,
+    build_info_schema_columns_expr,
 )
 from dlt.transformations.lineage import create_sqlglot_schema
 
@@ -536,16 +537,17 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         pass
 
     def _render_sql(
-        self, expr: Union[sge.Query, sge.Insert], ensure_pystring_placeholders: bool = False
+        self,
+        expr: Union[sge.Query, sge.Insert],
+        normalize: bool = True,
+        ensure_pystring_placeholders: bool = False,
     ) -> str:
         """Normalizes sqlglot expression into a raw SQL string using the client's dialect and schema"""
         dialect = self.sql_client.capabilities.sqlglot_dialect
-        if ensure_pystring_placeholders:
-            norm_query = normalize_query(self._sqlglot_schema, expr, self.sql_client).sql(
-                dialect=dialect
-            )
-            return replace_placeholders(norm_query, dialect)
-        return normalize_query(self._sqlglot_schema, expr, self.sql_client).sql(dialect=dialect)
+        if normalize:
+            expr = normalize_query(self._sqlglot_schema, expr, self.sql_client)
+        query = expr.sql(dialect=dialect)
+        return replace_placeholders(query, dialect) if ensure_pystring_placeholders else query
 
     def get_stored_schema(self, schema_name: str = None) -> StorageSchemaInfo:
         table_name = self.schema.version_table_name
@@ -625,24 +627,16 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
 
         Returns: query and list of db_params tuple
         """
-        query = f"""
-SELECT {",".join(self._get_storage_table_query_columns())}
-    FROM INFORMATION_SCHEMA.COLUMNS
-WHERE """
+        schema_cols_expr, db_params = build_info_schema_columns_expr(
+            schema_name=schema_name,
+            storage_table_query_columns=self._get_storage_table_query_columns(),
+            catalog_name=catalog_name,
+            folded_table_names=folded_table_names,
+        )
 
-        db_params = []
-        if catalog_name:
-            db_params.append(catalog_name)
-            query += "table_catalog = %s AND "
-        db_params.append(schema_name)
-        select_tables_clause = ""
-        # look for particular tables only when requested, otherwise return the full schema
-        if folded_table_names:
-            db_params = db_params + folded_table_names
-            # placeholder for each table
-            table_placeholders = ",".join(["%s"] * len(folded_table_names))
-            select_tables_clause = f"AND table_name IN ({table_placeholders})"
-        query += f"table_schema = %s {select_tables_clause} ORDER BY table_name, ordinal_position;"
+        query = self._render_sql(
+            schema_cols_expr, normalize=False, ensure_pystring_placeholders=True
+        )
 
         return query, db_params
 

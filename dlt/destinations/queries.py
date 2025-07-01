@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional, overload, Union, Match
+from typing import Dict, Any, List, Optional, overload, Union, Match, Tuple
 
 import re
 
@@ -295,6 +295,61 @@ def build_stored_schema_expr(
     return select_expr
 
 
+def build_info_schema_columns_expr(
+    schema_name: str,
+    storage_table_query_columns: List[str],
+    catalog_name: Optional[str],
+    folded_table_names: Optional[List[str]],
+) -> Tuple[sge.Select, List[str]]:
+    """Builds a SQL expression for querying the information schema columns table using the catalog name and folded table names if provided."""
+
+    # Base select
+    select_expr = build_select_expr(
+        table_name="INFORMATION_SCHEMA.COLUMNS",
+        selected_columns=storage_table_query_columns,
+        quoted_identifiers=False,
+    )
+
+    db_params: List[str] = []
+
+    # Where condition for catalog if provided
+    where_table_catalog = None
+    if catalog_name:
+        where_table_catalog = sge.EQ(
+            this=sge.to_identifier("table_catalog", quoted=False),
+            expression=sge.Placeholder(),
+        )
+        db_params.append(catalog_name)
+
+    # Always filter by schema
+    where_table_schema = sge.EQ(
+        this=sge.to_identifier("table_schema", quoted=False),
+        expression=sge.Placeholder(),
+    )
+    db_params.append(schema_name)
+
+    # Optional IN clause for filtering by table names
+    where_table_name_in = None
+    if folded_table_names:
+        where_table_name_in = sge.In(
+            this=sge.to_identifier("table_name", quoted=False),
+            expressions=[sge.Placeholder() for _ in enumerate(folded_table_names)],
+        )
+        db_params += folded_table_names
+
+    # Ordering by table name and ordinal position
+    order_by_table_name = sge.Ordered(this=sge.to_identifier("table_name", quoted=False))
+    order_by_ordinal_position = sge.Ordered(
+        this=sge.to_identifier("ordinal_position", quoted=False)
+    )
+
+    select_expr = select_expr.where(
+        where_table_catalog, where_table_schema, where_table_name_in
+    ).order_by(order_by_table_name, order_by_ordinal_position)
+
+    return select_expr, db_params
+
+
 def replace_placeholders(query: str, dialect: str) -> str:
     """Replaces (?, ?, ?, ...), as well as ({?: }, {?: }, {?: }, ...) placeholders with (%s, %s, %s, ...)."""
 
@@ -309,4 +364,8 @@ def replace_placeholders(query: str, dialect: str) -> str:
         return "(" + ", ".join(["%s"] * n) + ")"
 
     query = re.sub(base_pattern, _convert_to_percents, query)
+
+    # Handle standalone placeholders
+    query = re.sub(rf"\s*=\s*{placeholder_pattern}", " = %s", query)
+
     return query
