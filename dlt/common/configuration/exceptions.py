@@ -137,14 +137,14 @@ def get_run_context_warning(main_module_path: str) -> str:
             run_dir = os.path.abspath(run_context.active().run_dir)
             if pipeline_script_dir != run_dir:
                 msg += (
-                    "WARNING: your run dir (%s) is different from directory of your"
+                    "WARNING: Your run dir (%s) is different from directory of your"
                     " pipeline script (%s).\n" % (run_dir, pipeline_script_dir)
                 ) + settings_moved_msg
         else:
             # if no module path (ie. interactive) or it was not a script (ie. `dlt` cli`)
             pass
 
-    if main_module_path.endswith("dlt"):
+    if main_module_path and main_module_path.endswith("dlt"):
         msg += (
             "\nWARNING: When accessing data in the pipeline from the command line `dlt` will not"
             " execute user code and will just attach to the existing pipeline working dir. If you"
