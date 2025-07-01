@@ -119,7 +119,27 @@ class ReadableDBAPIRelation(Relation, WithSqlClient, WithComputableHints):
                 selected_columns=list(self._dataset.schema.get_table_columns(table_name).keys()),
             )
 
-    # wire protocol methods
+    #
+    # forward DataAccess protocol methods
+    #
+    def _wrap_iter(self, func_name: str) -> Any:
+        """wrap Relation generators in cursor context"""
+
+        def _wrap(*args: Any, **kwargs: Any) -> Any:
+            with self.cursor() as cursor:
+                yield from getattr(cursor, func_name)(*args, **kwargs)
+
+        return _wrap
+
+    def _wrap_func(self, func_name: str) -> Any:
+        """wrap Relation functions in cursor context"""
+
+        def _wrap(*args: Any, **kwargs: Any) -> Any:
+            with self.cursor() as cursor:
+                return getattr(cursor, func_name)(*args, **kwargs)
+
+        return _wrap
+
     def df(self, *args: Any, **kwargs: Any) -> Any:
         return self._wrap_func("df")(*args, **kwargs)
 
@@ -144,21 +164,19 @@ class ReadableDBAPIRelation(Relation, WithSqlClient, WithComputableHints):
     def iter_fetch(self, *args: Any, **kwargs: Any) -> Any:
         return self._wrap_iter("iter_fetch")(*args, **kwargs)
 
-    def scalar(self) -> Any:
-        row = self.fetchmany(2)
-        if not row:
-            return None
-        if len(row) != 1:
-            raise ValueError(
-                "Expected scalar result (single row, single column), got more than one row"
-            )
-        if len(row[0]) != 1:
-            raise ValueError(
-                "Expected scalar result (single row, single column), got 1 row with"
-                f" {len(row[0])} columns"
-            )
-        return row[0][0]
+    @property
+    def columns_schema(self) -> TTableSchemaColumns:
+        if self._columns_schema is None:
+            self._columns_schema, self.__qualified_query = self._compute_columns_schema()
+        return self._columns_schema
 
+    @columns_schema.setter
+    def columns_schema(self, new_value: TTableSchemaColumns) -> None:
+        raise NotImplementedError("Columns Schema may not be set")
+
+    #
+    # WithSqlClient interface
+    #
     @property
     def sql_client(self) -> SqlClientBase[Any]:
         return self._dataset.sql_client
@@ -167,6 +185,9 @@ class ReadableDBAPIRelation(Relation, WithSqlClient, WithComputableHints):
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
         return self._dataset.sql_client_class
 
+    #
+    # WithComputableHints interface
+    #
     def compute_hints(self) -> TResourceHints:
         """Computes schema hints for this relation"""
         computed_columns, _ = self._compute_columns_schema(
@@ -177,25 +198,9 @@ class ReadableDBAPIRelation(Relation, WithSqlClient, WithComputableHints):
         # TODO: possibly also forward "table level" hints in some cases
         return make_hints(columns=computed_columns)
 
-    def query(self, pretty: bool = False) -> str:
-        """Returns an executable sql query string in the correct sql dialect for this relation"""
-
-        if self.__execute_raw_query:
-            query = self._sqlglot_expression
-        else:
-            query = self._normalized_query
-
-        if not isinstance(query, sge.Query):
-            raise ValueError(
-                f"Query `{query}` received for `{self.__class__.__name__}`. "
-                "Must be an SQL SELECT statement."
-            )
-
-        return query.sql(dialect=self.query_dialect(), pretty=pretty)
-
-    def query_dialect(self) -> TSqlGlotDialect:
-        return self._dataset.sqlglot_dialect
-
+    #
+    # Cursor Management
+    #
     @contextmanager
     def cursor(self) -> Generator[DataAccess, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
@@ -224,23 +229,27 @@ class ReadableDBAPIRelation(Relation, WithSqlClient, WithComputableHints):
         finally:
             self._opened_sql_client = None
 
-    def _wrap_iter(self, func_name: str) -> Any:
-        """wrap Relation generators in cursor context"""
+    #
+    # Query  / Expression Management
+    #
+    def query(self, pretty: bool = False) -> str:
+        """Returns an executable sql query string in the correct sql dialect for this relation"""
 
-        def _wrap(*args: Any, **kwargs: Any) -> Any:
-            with self.cursor() as cursor:
-                yield from getattr(cursor, func_name)(*args, **kwargs)
+        if self.__execute_raw_query:
+            query = self._sqlglot_expression
+        else:
+            query = self._normalized_query
 
-        return _wrap
+        if not isinstance(query, sge.Query):
+            raise ValueError(
+                f"Query `{query}` received for `{self.__class__.__name__}`. "
+                "Must be an SQL SELECT statement."
+            )
 
-    def _wrap_func(self, func_name: str) -> Any:
-        """wrap Relation functions in cursor context"""
+        return query.sql(dialect=self.query_dialect(), pretty=pretty)
 
-        def _wrap(*args: Any, **kwargs: Any) -> Any:
-            with self.cursor() as cursor:
-                return getattr(cursor, func_name)(*args, **kwargs)
-
-        return _wrap
+    def query_dialect(self) -> TSqlGlotDialect:
+        return self._dataset.sqlglot_dialect
 
     def compute_columns_schema(
         self,
@@ -282,16 +291,6 @@ class ReadableDBAPIRelation(Relation, WithSqlClient, WithComputableHints):
         )
 
     @property
-    def columns_schema(self) -> TTableSchemaColumns:
-        if self._columns_schema is None:
-            self._columns_schema, self.__qualified_query = self._compute_columns_schema()
-        return self._columns_schema
-
-    @columns_schema.setter
-    def columns_schema(self, new_value: TTableSchemaColumns) -> None:
-        raise NotImplementedError("Columns Schema may not be set")
-
-    @property
     def _qualified_query(self) -> sge.Query:
         if self.__qualified_query is None:
             self._columns_schema, self.__qualified_query = self._compute_columns_schema()
@@ -308,24 +307,9 @@ class ReadableDBAPIRelation(Relation, WithSqlClient, WithComputableHints):
             )
         return self.__normalized_query
 
-    def __str__(self) -> str:
-        # TODO: merge detection of "simple" transformation that preserve table schema
-        query_expr = self.__dict__.get("_sqlglot_expression", None)
-        msg = (
-            "Relation"
-            f" query:\n{indent(query_expr.sql(dialect=self.query_dialect(), pretty=True), prefix='  ')}\n"
-        )
-        msg += "Columns:\n"
-        for column in self.columns_schema.values():
-            # TODO: show x-annotation hints
-            msg += f"{indent(column['name'], prefix='  ')} {column['data_type']}\n"
-        return msg
-
-    def __copy__(self) -> Self:
-        return self.__class__(
-            readable_dataset=self._dataset,
-            query=self._sqlglot_expression,
-        )
+    #
+    # Relation protocol methods
+    #
 
     def limit(self, limit: int, **kwargs: Any) -> Self:
         rel = self.__copy__()
@@ -411,6 +395,21 @@ class ReadableDBAPIRelation(Relation, WithSqlClient, WithComputableHints):
     ) -> Self:
         return self.where(column_name=column_name, operator=operator, value=value)
 
+    def scalar(self) -> Any:
+        row = self.fetchmany(2)
+        if not row:
+            return None
+        if len(row) != 1:
+            raise ValueError(
+                "Expected scalar result (single row, single column), got more than one row"
+            )
+        if len(row[0]) != 1:
+            raise ValueError(
+                "Expected scalar result (single row, single column), got 1 row with"
+                f" {len(row[0])} columns"
+            )
+        return row[0][0]
+
     def __getitem__(self, columns: Sequence[str]) -> Self:
         # NOTE remember that `issubclass(str, Sequence) is True`
         if isinstance(columns, str):
@@ -424,4 +423,26 @@ class ReadableDBAPIRelation(Relation, WithSqlClient, WithComputableHints):
         raise TypeError(
             f"Received invalid value `columns={columns}` of type"
             f" {type(columns).__name__}`. Valid types are: ['Sequence[str]']"
+        )
+
+    #
+    # Builtins
+    #
+    def __str__(self) -> str:
+        # TODO: merge detection of "simple" transformation that preserve table schema
+        query_expr = self.__dict__.get("_sqlglot_expression", None)
+        msg = (
+            "Relation"
+            f" query:\n{indent(query_expr.sql(dialect=self.query_dialect(), pretty=True), prefix='  ')}\n"
+        )
+        msg += "Columns:\n"
+        for column in self.columns_schema.values():
+            # TODO: show x-annotation hints
+            msg += f"{indent(column['name'], prefix='  ')} {column['data_type']}\n"
+        return msg
+
+    def __copy__(self) -> Self:
+        return self.__class__(
+            readable_dataset=self._dataset,
+            query=self._sqlglot_expression,
         )
