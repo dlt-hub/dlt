@@ -463,8 +463,14 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
 )
 def test_sql_queries(populated_pipeline: Pipeline) -> None:
     dataset_name = populated_pipeline.dataset_name
+
     # simple check that query also works
     query_relationship = populated_pipeline.dataset()("select * from items where id < 20")
+    query_from_query_function = populated_pipeline.dataset().query(
+        "select * from items where id < 20"
+    )
+
+    assert query_relationship._sqlglot_expression == query_from_query_function._sqlglot_expression  # type: ignore
 
     # we selected the first 20
     table = query_relationship.arrow()

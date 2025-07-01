@@ -171,7 +171,7 @@ class ReadableDBAPIDataset(Dataset):
         if not self._schema:
             self._schema = Schema(self._dataset_name)
 
-    def __call__(
+    def query(
         self,
         query: Union[str, sge.Select, IbisExpr],
         query_dialect: TSqlGlotDialect = None,
@@ -184,6 +184,14 @@ class ReadableDBAPIDataset(Dataset):
             _execute_raw_query=_execute_raw_query,
         )
 
+    def __call__(
+        self,
+        query: Union[str, sge.Select, IbisExpr],
+        query_dialect: TSqlGlotDialect = None,
+        _execute_raw_query: bool = False,
+    ) -> ReadableDBAPIRelation:
+        return self.query(query, query_dialect, _execute_raw_query)
+
     @overload
     def table(self, table_name: str) -> ReadableDBAPIRelation: ...
 
@@ -193,9 +201,7 @@ class ReadableDBAPIDataset(Dataset):
     @overload
     def table(self, table_name: str, table_type: Literal["relation"]) -> ReadableDBAPIRelation: ...
 
-    def table(
-        self, table_name: str, table_type: Literal["relation", "ibis"] = None
-    ) -> Union[ReadableDBAPIRelation, IbisTable]:
+    def table(self, table_name: str, table_type: Literal["relation", "ibis"] = None) -> Any:
         # dataset only provides access to tables known in dlt schema, direct query may cirumvent this
         if table_name not in self.schema.tables.keys():
             raise ValueError(
@@ -256,7 +262,7 @@ class ReadableDBAPIDataset(Dataset):
             else:
                 union_all_expr = union_all_expr.union(counts_expr, distinct=False)
 
-        return self(query=union_all_expr)
+        return self.query(query=union_all_expr)
 
     def __getitem__(self, table_name: str) -> ReadableDBAPIRelation:
         """access of table via dict notation"""

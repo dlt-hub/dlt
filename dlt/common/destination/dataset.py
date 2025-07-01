@@ -306,6 +306,24 @@ class Dataset(Protocol):
             Relation: The readable relation for the query
         """
 
+    def query(
+        self,
+        query: Union[str, sge.Select, IbisExpr],
+        query_dialect: TSqlGlotDialect = None,
+        _execute_raw_query: bool = False,
+    ) -> Relation:
+        """Returns a readable relation for a given sql query
+
+        Args:
+            query (Union[str, sge.Select, IbisExpr]): The sql query to base the relation on. Can be a raw sql query, a sqlglot select expression or an ibis expression.
+            query_dialect (TSqlGlotDialect, optional): The dialect of the query. Defaults to the dataset's destination dialect. You can use this to write queries in a different dialect than the destination.
+                This settings will only be user fo the initial parsing of the query. When executing the query, the query will be executed in the underlying destination dialect.
+            _execute_raw_query (bool, optional): Whether to run the query as is (raw)or perform query normalization and lineage. Experimental.
+
+        Returns:
+            Relation: The readable relation for the query
+        """
+
     @overload
     def table(self, table_name: str) -> Relation: ...
 
