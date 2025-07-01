@@ -42,13 +42,13 @@ def test_simple_query_transformations(
     if transformation_type == "sql":
 
         @dlt.transformation()
-        def copied_purchases(dataset: SupportsReadableDataset[Any]) -> Any:
+        def copied_purchases(dataset: SupportsReadableDataset) -> Any:
             yield """SELECT * FROM purchases LIMIT 3"""
 
     elif transformation_type == "relation":
 
         @dlt.transformation()
-        def copied_purchases(dataset: SupportsReadableDataset[Any]) -> Any:
+        def copied_purchases(dataset: SupportsReadableDataset) -> Any:
             yield dataset["purchases"].limit(3)
 
     # transform into transformed dataset
@@ -89,11 +89,11 @@ def test_transformations_with_supplied_hints(
 
     # we can now transform this table twice, one with changed hints and once with the original hints
     @dlt.transformation()
-    def inventory_original(dataset: SupportsReadableDataset[Any]) -> Any:
+    def inventory_original(dataset: SupportsReadableDataset) -> Any:
         yield dataset["inventory"]
 
     @dlt.transformation()
-    def inventory_more_precise(dataset: SupportsReadableDataset[Any]) -> Any:
+    def inventory_more_precise(dataset: SupportsReadableDataset) -> Any:
         hints = make_hints(columns=[{"name": "price", "precision": 20, "scale": 2}])
         yield dlt.mark.with_hints(dataset["inventory"], hints=hints)
 
@@ -128,7 +128,7 @@ def test_extract_without_source_name_or_pipeline(
     fruit_p.run(fruitshop_source())
 
     @dlt.transformation()
-    def buffer_size_test(dataset: SupportsReadableDataset[Any]) -> Any:
+    def buffer_size_test(dataset: SupportsReadableDataset) -> Any:
         yield dataset["customers"]
 
     # transformations switch to model extraction
@@ -148,7 +148,7 @@ def test_extract_without_destination(destination_config: DestinationTestConfigur
     fruit_p.run(fruitshop_source())
 
     @dlt.transformation()
-    def extract_test(dataset: SupportsReadableDataset[Any]) -> Any:
+    def extract_test(dataset: SupportsReadableDataset) -> Any:
         yield dataset["customers"]
 
     pipeline_no_destination = dlt.pipeline(pipeline_name="no_destination")
@@ -174,7 +174,7 @@ def test_materializable_sql_model(destination_config: DestinationTestConfigurati
     fruit_p.run(fruitshop_source())
 
     @dlt.transformation()
-    def materializable_sql_model(dataset: SupportsReadableDataset[Any]) -> Any:
+    def materializable_sql_model(dataset: SupportsReadableDataset) -> Any:
         yield "SELECT id, name FROM customers"
 
     model = list(materializable_sql_model(fruit_p.dataset()))[0]
@@ -198,7 +198,7 @@ def test_ibis_unbound_table_transformation(
     fruit_p.run(fruitshop_source())
 
     @dlt.transformation()
-    def materializable_sql_model(dataset: SupportsReadableDataset[Any]) -> Any:
+    def materializable_sql_model(dataset: SupportsReadableDataset) -> Any:
         purchases = dataset.table("purchases", table_type="ibis")
         customers = dataset.table("customers", table_type="ibis")
         yield purchases.join(customers, purchases.customer_id == customers.id)[

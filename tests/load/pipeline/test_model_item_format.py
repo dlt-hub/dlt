@@ -92,18 +92,10 @@ def test_simple_incremental(destination_config: DestinationTestConfiguration) ->
     )
     dataset = pipeline.dataset()
 
-    select_dialect = dataset.sql_client.capabilities.sqlglot_dialect
-
-    example_table_columns = dataset.schema.tables["example_table"]["columns"]
-
     # TODO: incremental is not supported for models yet
     @dlt.resource()
     def copied_table(incremental_field=dlt.sources.incremental("a")) -> Any:
-        query = dataset["example_table"].limit(8).query()
-        yield dlt.mark.with_hints(
-            SqlModel.from_query_string(query=query, dialect=select_dialect),
-            hints=make_hints(columns=example_table_columns),
-        )
+        yield dataset["example_table"].limit(8)
 
     with pytest.raises(PipelineStepFailed):
         pipeline.run([copied_table()])
@@ -465,12 +457,12 @@ def test_write_dispositions(
     # In Databricks, Ibis adds a helper column to emulate offset, causing a schema mismatch
     # when the query attempts to insert it. We explicitly select only the expected columns.
     # Note that we also explicitly select "_dlt_id" because its addition is disabled by default
-    relation = (
-        dataset["example_table_2"]
-        .filter(dataset["example_table_2"].a >= 3)
-        .order_by("a")
-        .limit(7)[["a", "_dlt_id"]]
+
+    example_table_2 = dataset.table("example_table_2", table_type="ibis")
+    expression = (
+        example_table_2.filter(example_table_2.a >= 3).order_by("a").limit(7)[["a", "_dlt_id"]]
     )
+    relation = dataset(expression)
 
     @dlt.resource(
         write_disposition=write_disposition,

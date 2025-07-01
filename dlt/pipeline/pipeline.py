@@ -9,7 +9,6 @@ from typing import (
     ClassVar,
     List,
     Iterator,
-    Literal,
     Optional,
     Sequence,
     Tuple,
@@ -17,7 +16,7 @@ from typing import (
     cast,
     ContextManager,
     Union,
-    overload,
+    TYPE_CHECKING,
 )
 
 import dlt
@@ -31,6 +30,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
     ContextDefaultCannotBeCreated,
 )
+from dlt.common.destination.dataset import SupportsReadableDataset
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.destination.exceptions import (
     DestinationIncompatibleLoaderFileFormatException,
@@ -79,7 +79,6 @@ from dlt.common.destination.client import (
     DestinationClientStagingConfiguration,
 )
 from dlt.common.destination.exceptions import SqlClientNotAvailable, FSClientNotAvailable
-from dlt.common.destination.typing import TDatasetType
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.pipeline import (
     ExtractInfo,
@@ -112,7 +111,6 @@ from dlt.destinations.dataset import (
     dataset,
     get_destination_clients,
 )
-from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableIbisDataset
 
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
@@ -149,6 +147,11 @@ from dlt.pipeline.state_sync import (
 )
 from dlt.common.storages.load_package import TLoadPackageState
 from dlt.pipeline.helpers import refresh_source
+
+if TYPE_CHECKING:
+    from dlt import Dataset
+else:
+    Dataset = Any
 
 
 TWithLocalFiles = TypeVar("TWithLocalFiles", bound=WithLocalFiles)
@@ -1793,38 +1796,13 @@ class Pipeline(SupportsPipeline):
     # NOTE: I expect that we'll merge all relations into one. and then we'll be able to get rid
     #  of overload and dataset_type
 
-    @overload
-    def dataset(
-        self,
-        schema: Union[Schema, str, None] = None,
-        dataset_type: Literal["ibis"] = "ibis",
-    ) -> ReadableIbisDataset: ...
-
-    @overload
-    def dataset(
-        self,
-        schema: Union[Schema, str, None] = None,
-        dataset_type: Literal["default"] = "default",
-    ) -> ReadableDBAPIDataset: ...
-
-    @overload
-    def dataset(
-        self,
-        schema: Union[Schema, str, None] = None,
-        dataset_type: TDatasetType = "auto",
-    ) -> ReadableIbisDataset: ...
-
-    def dataset(
-        self, schema: Union[Schema, str, None] = None, dataset_type: TDatasetType = "auto"
-    ) -> Any:
+    def dataset(self, schema: Union[Schema, str, None] = None) -> Dataset:
         """Returns a dataset object for querying the destination data.
 
         Args:
             schema (Union[Schema, str, None]): Schema name or Schema object to use. If None, uses the default schema if set.
-            dataset_type (TDatasetType): Type of dataset interface to return. Defaults to 'auto' which will select ibis if available
-                otherwise it will fallback to the standard dbapi interface.
         Returns:
-            Any: A dataset object that supports querying the destination data.
+            Dataset: A dataset object that supports querying the destination data.
         """
 
         if not self._destination:
@@ -1858,5 +1836,4 @@ class Pipeline(SupportsPipeline):
             self._destination,
             self.dataset_name,
             schema=schema,
-            dataset_type=dataset_type,
         )

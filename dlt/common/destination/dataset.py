@@ -1,3 +1,6 @@
+from types import TracebackType
+
+
 from typing import (
     Optional,
     Sequence,
@@ -11,6 +14,7 @@ from typing import (
     AnyStr,
     Literal,
     overload,
+    Type,
 )
 
 from sqlglot.schema import Schema as SQLGlotSchema
@@ -26,12 +30,17 @@ if TYPE_CHECKING:
     from dlt.common.libs.pandas import DataFrame
     from dlt.common.libs.pyarrow import Table as ArrowTable
     from dlt.helpers.ibis import BaseBackend as IbisBackend, Table as IbisTable, Expr as IbisExpr
+    from dlt.common.destination.client import SupportsOpenTables
 else:
     DataFrame = Any
     ArrowTable = Any
     IbisBackend = Any
     IbisTable = Any
     IbisExpr = Any
+    SupportsOpenTables = Any
+
+
+TFilterOperation = Literal["eq", "ne", "gt", "lt", "gte", "lte", "in", "not_in"]
 
 
 class SupportsReadableRelation:
@@ -41,22 +50,6 @@ class SupportsReadableRelation:
     """Returns the expected columns schema for the result of the relation. Column types are discovered with
     sql glot query analysis and lineage. dlt hints for columns are kept in some cases. Refere to <docs-page> for more details.
     """
-
-    def query(self, pretty: bool = False) -> str:
-        """Returns the sql query that represents the relation. The query will be qualified, quoted and escaped
-           according to a SQL dialect that the destination uses, unless a raw query was provided.
-
-        Args:
-            pretty (bool, optional): Whether to return the query in a pretty format. Defaults to False.
-
-        Returns:
-            str: The qualified sql query that represents the relation
-        """
-        raise NotImplementedError("`query()` method is not supported for this relation")
-
-    def query_dialect(self) -> str:
-        """Returns the dialect of the query that represents the relation"""
-        raise NotImplementedError("`query_dialect()` method is not supported for this relation")
 
     def compute_columns_schema(
         self,
@@ -202,6 +195,51 @@ class SupportsReadableRelation:
         """
         raise NotImplementedError("`select()` method is not supported for this relation")
 
+    def where(
+        self,
+        column_name: str,
+        operator: TFilterOperation,
+        value: Any,
+    ) -> Self:
+        """Returns a new relation with the given where clause applied. Same as .filter().
+
+        Args:
+            column_name (str): The column to filter on.
+            operator (TFilterOperation): The operator to use. Available operations are: eq, ne, gt, lt, gte, lte, in, not_in
+            value (Any): The value to filter on.
+
+        Returns:
+            Self: A copy of the relation with the where clause applied.
+        """
+
+    def filter(  # noqa: A003
+        self,
+        column_name: str,
+        operator: TFilterOperation,
+        value: Any,
+    ) -> Self:
+        """Returns a new relation with the given where clause applied. Same as .where().
+
+        Args:
+            column_name (str): The column to filter on.
+            operator (TFilterOperation): The operator to use. Available operations are: eq, ne, gt, lt, gte, lte, in, not_in
+            value (Any): The value to filter on.
+
+        Returns:
+            Self: A copy of the relation with the where clause applied.
+        """
+
+    def order_by(self, column_name: str, direction: Literal["asc", "desc"] = "asc") -> Self:
+        """Returns a new relation with the given order by clause applied.
+
+        Args:
+            column_name (str): The column to order by.
+            direction (Literal["asc", "desc"], optional): The direction to order by. Defaults to "asc".
+
+        Returns:
+            Self: A copy of the relation with the order by clause applied.
+        """
+
     @overload
     def __getitem__(self, column: str) -> Self: ...
 
@@ -218,19 +256,6 @@ class SupportsReadableRelation:
             Self: The relation with the columns selected.
         """
         raise NotImplementedError("`__getitem__()` method is not supported for this relation")
-
-    def __getattr__(self, attr: str) -> Any:
-        """get an attribute of the relation
-
-        Args:
-            attr (str): The attribute to get.
-
-        Returns:
-            Any: The attribute of the relation
-        """
-        raise AttributeError(
-            f"`__getattr__()` method is not supported for this relation. Trying to access `{attr}`."
-        )
 
     def __copy__(self) -> Self:
         """create a copy of the relation object
@@ -253,10 +278,7 @@ class DBApiCursor(SupportsReadableRelation):
     def close(self) -> None: ...
 
 
-TReadableRelation = TypeVar("TReadableRelation", bound=SupportsReadableRelation, covariant=True)
-
-
-class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
+class SupportsReadableDataset(Protocol):
     """A readable dataset retrieved from a destination, has support for creating readable relations for a query or table"""
 
     @property
@@ -283,11 +305,20 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
             str: The name of the dataset
         """
 
+    @property
+    def open_table_client(self) -> SupportsOpenTables:
+        """Returns the open table client for the dataset
+
+        Returns:
+            SupportsOpenTables: The open table client for the dataset
+        """
+        ...
+
     def __call__(
         self,
         query: Union[str, sge.Select, IbisExpr],
         query_dialect: TSqlGlotDialect = None,
-        execute_raw_query: bool = False,
+        _execute_raw_query: bool = False,
     ) -> SupportsReadableRelation:
         """Returns a readable relation for a given sql query
 
@@ -295,21 +326,21 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
             query (Union[str, sge.Select, IbisExpr]): The sql query to base the relation on. Can be a raw sql query, a sqlglot select expression or an ibis expression.
             query_dialect (TSqlGlotDialect, optional): The dialect of the query. Defaults to the dataset's destination dialect. You can use this to write queries in a different dialect than the destination.
                 This settings will only be user fo the initial parsing of the query. When executing the query, the query will be executed in the underlying destination dialect.
-            execute_raw_query (bool, optional): Whether to run the query as is (raw)or perform query normalization and lineage. Experimental.
+            _execute_raw_query (bool, optional): Whether to run the query as is (raw)or perform query normalization and lineage. Experimental.
 
         Returns:
             SupportsReadableRelation: The readable relation for the query
         """
 
     @overload
-    def table(self, table_name: str) -> TReadableRelation: ...
+    def table(self, table_name: str) -> SupportsReadableRelation: ...
 
     @overload
     def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
 
     def table(
         self, table_name: str, table_type: Literal["relation", "ibis"] = None
-    ) -> Union[TReadableRelation, IbisTable]:
+    ) -> Union[SupportsReadableRelation, IbisTable]:
         """Returns an object representing a table named `table_name`
 
         Args:
@@ -317,28 +348,36 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
             table_type (Literal["relation", "ibis"], optional): The type of the table. Defaults to "relation" if not specified. If "ibis" is specified, you will get an unbound ibis table.
 
         Returns:
-            Union[TReadableRelation, IbisTable]: The object representing the table
+            Union[SupportsReadableRelation, IbisTable]: The object representing the table
         """
 
-    def __getitem__(self, table: str) -> TReadableRelation:
+    def __getitem__(self, table: str) -> SupportsReadableRelation:
         """Returns a readable relation for the table named `table`
 
         Args:
             table (str): The name of the table
 
         Returns:
-            TReadableRelation: The readable relation for the table
+            SupportsReadableRelation: The readable relation for the table
         """
 
-    def __getattr__(self, table: str) -> TReadableRelation:
+    def __getattr__(self, table: str) -> SupportsReadableRelation:
         """Returns a readable relation for the table named `table`
 
         Args:
             table (str): The name of the table
 
         Returns:
-            TReadableRelation: The readable relation for the table
+            SupportsReadableRelation: The readable relation for the table
         """
+
+    def __enter__(self) -> Self:
+        """Context manager to keep the connection to the destination open between queries"""
+
+    def __exit__(
+        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+    ) -> None:
+        """Context manager to keep the connection to the destination open between queries"""
 
     def ibis(self) -> IbisBackend:
         """Returns a connected ibis backend for the dataset. Not implemented for all destinations.

@@ -38,7 +38,7 @@ def test_simple_lineage(
         customers = dataset.table("customers", table_type="ibis")
         yield purchases.join(customers, purchases.customer_id == customers.id)
 
-    dest_p.run(enriched_purchases(fruit_p.dataset(dataset_type="default")))
+    dest_p.run(enriched_purchases(fruit_p.dataset()))
 
     # check the rowcounts in the dest
     assert load_table_counts(dest_p, "enriched_purchases") == {"enriched_purchases": 3}

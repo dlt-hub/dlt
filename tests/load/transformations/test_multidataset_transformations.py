@@ -15,15 +15,11 @@ def test_combine_two_datasets(fruit_p: dlt.Pipeline, private_fruit_p: dlt.Pipeli
             customers_ages_table, customers_table.id == customers_ages_table.id
         )
 
-    fruit_p.run(
-        customers_with_ages(
-            fruit_p.dataset(dataset_type="default"), private_fruit_p.dataset(dataset_type="default")
-        )
-    )
+    fruit_p.run(customers_with_ages(fruit_p.dataset(), private_fruit_p.dataset()))
 
-    assert fruit_p.dataset(dataset_type="default").customers_with_ages.select(
-        "age", "id", "name"
-    ).df().to_dict(orient="records") == [
+    assert fruit_p.dataset().customers_with_ages.select("age", "id", "name").df().to_dict(
+        orient="records"
+    ) == [
         {"age": 25, "id": 1, "name": "andrea"},
         {"age": 30, "id": 2, "name": "violetta"},
         {"age": 35, "id": 3, "name": "marcin"},

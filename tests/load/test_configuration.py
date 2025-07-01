@@ -7,7 +7,7 @@ from dlt.common.destination.dataset import SupportsReadableDataset
 
 def test_transformation_defaults() -> None:
     @dlt.transformation()
-    def my_tf(dataset: SupportsReadableDataset[Any]) -> Any:
+    def my_tf(dataset: SupportsReadableDataset) -> Any:
         yield dataset["example_table"].limit(5)
 
     assert my_tf.write_disposition == "append"

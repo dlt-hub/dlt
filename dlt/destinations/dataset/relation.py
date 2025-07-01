@@ -24,9 +24,7 @@ from sqlglot.optimizer.merge_subqueries import merge_subqueries
 
 import sqlglot.expressions as sge
 
-from dlt.common.destination.dataset import (
-    SupportsReadableRelation,
-)
+from dlt.common.destination.dataset import SupportsReadableRelation, TFilterOperation
 
 from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGlotDialect
 from dlt.common.schema.typing import TTableSchemaColumns
@@ -45,52 +43,59 @@ except (ImportError, MissingDependencyException):
     IbisExpr = None
 
 if TYPE_CHECKING:
-    from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, BaseReadableDBAPIDataset
-    from dlt.helpers.ibis import Table as IbisTable, Expr as IbisExpr
+    from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+    from dlt.helpers.ibis import Expr as IbisExpr
 else:
     ReadableDBAPIDataset = Any
     IbisTable = Any
     BaseReadableDBAPIDataset = Any
 
 
-OpLiteral = Literal["eq", "ne", "gt", "lt", "gte", "lte", "in", "not_in"]
-
-
-class FilterOp(Enum):
-    EQ = auto()
-    NE = auto()
-    GT = auto()
-    LT = auto()
-    GTE = auto()
-    LTE = auto()
-    IN = auto()
-    NOT_IN = auto()
-
-
 _FILTER_OP_MAP = {
-    FilterOp.EQ: sge.EQ,
-    FilterOp.NE: sge.NEQ,
-    FilterOp.GT: sge.GT,
-    FilterOp.LT: sge.LT,
-    FilterOp.GTE: sge.GTE,
-    FilterOp.LTE: sge.LTE,
-    FilterOp.IN: sge.In,
-    FilterOp.NOT_IN: sge.Not,
+    "eq": sge.EQ,
+    "ne": sge.NEQ,
+    "gt": sge.GT,
+    "lt": sge.LT,
+    "gte": sge.GTE,
+    "lte": sge.LTE,
+    "in": sge.In,
+    "not_in": sge.Not,
 }
 
 
-class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient, WithComputableHints):
+class ReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient, WithComputableHints):
+    @overload
     def __init__(
         self,
         *,
-        readable_dataset: "BaseReadableDBAPIDataset[Any]",
-        execute_raw_query: bool = False,
+        readable_dataset: "ReadableDBAPIDataset",
+        query: Union[str, sge.Query],
+        query_dialect: Optional[str] = None,
+        _execute_raw_query: bool = False,
+    ) -> None: ...
+
+    @overload
+    def __init__(
+        self,
+        *,
+        readable_dataset: "ReadableDBAPIDataset",
+        table_name: str,
+    ) -> None: ...
+
+    def __init__(
+        self,
+        *,
+        readable_dataset: "ReadableDBAPIDataset",
+        query: Optional[Union[str, sge.Query, IbisExpr]] = None,
+        query_dialect: Optional[str] = None,
+        table_name: Optional[str] = None,
+        _execute_raw_query: bool = False,
     ) -> None:
-        """Create a lazy evaluated relation to for the dataset of a destination"""
+        """Create a lazy evaluated relation for the dataset of a destination"""
 
         # provided properties
         self._dataset = readable_dataset
-        self._execute_raw_query: bool = execute_raw_query
+        self.__execute_raw_query: bool = _execute_raw_query
 
         # derived / cached properties
         self._opened_sql_client: SqlClientBase[Any] = None
@@ -108,6 +113,21 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient, WithCom
         self.iter_df = self._wrap_iter("iter_df")  # type: ignore
         self.iter_arrow = self._wrap_iter("iter_arrow")  # type: ignore
         self.iter_fetch = self._wrap_iter("iter_fetch")  # type: ignore
+
+        # parse incoming query object
+        self._sqlglot_expression: sge.Query = None
+        if IbisExpr and isinstance(query, IbisExpr):
+            self._sqlglot_expression = compile_ibis_to_sqlglot(query, self.query_dialect())
+        elif query:
+            self._sqlglot_expression = maybe_parse(
+                query,
+                dialect=query_dialect or self.query_dialect(),
+            )
+        else:
+            self._sqlglot_expression = build_select_expr(
+                table_name=table_name,
+                selected_columns=list(self._dataset.schema.get_table_columns(table_name).keys()),
+            )
 
     @property
     def sql_client(self) -> SqlClientBase[Any]:
@@ -130,8 +150,8 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient, WithCom
     def query(self, pretty: bool = False) -> str:
         """Returns an executable sql query string in the correct sql dialect for this relation"""
 
-        if self._execute_raw_query:
-            query = self._query()
+        if self.__execute_raw_query:
+            query = self._sqlglot_expression
         else:
             query = self._normalized_query
 
@@ -146,14 +166,6 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient, WithCom
     def query_dialect(self) -> TSqlGlotDialect:
         return self._dataset.sqlglot_dialect
 
-    def _query(self) -> sge.Query:
-        """Returns a compliant with dlt schema in the relation.
-        1. identifiers are not case folded
-        2. star top level selects are not expanded
-        3. dlt schema compat aliases are not added to top level selects
-        """
-        raise NotImplementedError("No query in ReadableDBAPIRelation")
-
     @contextmanager
     def cursor(self) -> Generator[SupportsReadableRelation, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
@@ -161,7 +173,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient, WithCom
             self._opened_sql_client = self.sql_client
 
             # we only compute the columns schema if we are not executing the raw query
-            if self._execute_raw_query:
+            if self.__execute_raw_query:
                 columns_schema = None
             else:
                 columns_schema = self.columns_schema
@@ -231,7 +243,7 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient, WithCom
 
         return lineage.compute_columns_schema(
             # use dlt schema compliant query so lineage will work correctly on non case folded identifiers
-            self._query(),
+            self._sqlglot_expression,
             self._dataset.sqlglot_schema,
             dialect=self.query_dialect(),
             infer_sqlglot_schema=infer_sqlglot_schema,
@@ -271,65 +283,13 @@ class BaseReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient, WithCom
         query_expr = self.__dict__.get("_sqlglot_expression", None)
         msg = (
             "Relation"
-            f" query:\n{indent(query_expr.sql(dialect=self.query_dialect()), prefix='  ')}\n"
+            f" query:\n{indent(query_expr.sql(dialect=self.query_dialect(), pretty=True), prefix='  ')}\n"
         )
         msg += "Columns:\n"
         for column in self.columns_schema.values():
             # TODO: show x-annotation hints
             msg += f"{indent(column['name'], prefix='  ')} {column['data_type']}\n"
         return msg
-
-
-class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
-    @overload
-    def __init__(
-        self,
-        *,
-        readable_dataset: "BaseReadableDBAPIDataset[Any]",
-        query: Union[str, sge.Select],
-        query_dialect: Optional[str] = None,
-        execute_raw_query: bool = False,
-    ) -> None: ...
-
-    @overload
-    def __init__(
-        self,
-        *,
-        readable_dataset: "BaseReadableDBAPIDataset[Any]",
-        table_name: str,
-    ) -> None: ...
-
-    def __init__(
-        self,
-        *,
-        readable_dataset: "BaseReadableDBAPIDataset[Any]",
-        query: Optional[Union[str, sge.Select, IbisExpr]] = None,
-        query_dialect: Optional[str] = None,
-        table_name: Optional[str] = None,
-        execute_raw_query: bool = False,
-    ) -> None:
-        """Create a lazy evaluated relation for the dataset of a destination"""
-
-        super().__init__(readable_dataset=readable_dataset, execute_raw_query=execute_raw_query)
-
-        self._sqlglot_expression: sge.Select = None
-        if IbisExpr and isinstance(query, IbisExpr):
-            self._sqlglot_expression = cast(
-                sge.Select, compile_ibis_to_sqlglot(query, self.query_dialect())
-            )
-        elif query:
-            self._sqlglot_expression = maybe_parse(
-                query,
-                dialect=query_dialect or self.query_dialect(),
-            )
-        else:
-            self._sqlglot_expression = build_select_expr(
-                table_name=table_name,
-                selected_columns=list(self._dataset.schema.get_table_columns(table_name).keys()),
-            )
-
-    def _query(self) -> sge.Query:
-        return self._sqlglot_expression
 
     def __copy__(self) -> Self:
         return self.__class__(
@@ -365,15 +325,17 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
     def where(
         self,
         column_name: str,
-        operator: Union[OpLiteral, FilterOp],
+        operator: TFilterOperation,
         value: Any,
     ) -> Self:
         if isinstance(operator, str):
             try:
-                operator = FilterOp[operator.upper()]
+                condition_cls = _FILTER_OP_MAP[operator]
             except KeyError:
                 raise ValueErrorWithKnownValues(
-                    key="operator", value_received=operator, valid_values=get_args(OpLiteral)
+                    key="operator",
+                    value_received=operator,
+                    valid_values=list(_FILTER_OP_MAP.keys()),
                 )
 
         sqlgot_type = to_sqlglot_type(
@@ -388,24 +350,30 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
         column = sge.Column(this=sge.to_identifier(column_name, quoted=True))
 
         condition: sge.Expression = None
-        if operator == FilterOp.IN:
+        if operator == "in":
             exprs = value_expr.expressions if isinstance(value_expr, sge.Tuple) else [value_expr]
             condition = sge.In(this=column, expressions=exprs)
-        elif operator == FilterOp.NOT_IN:
+        elif operator == "not_in":
             exprs = value_expr.expressions if isinstance(value_expr, sge.Tuple) else [value_expr]
             condition = sge.Not(this=sge.In(this=column, expressions=exprs))
         else:
-            condition_cls = _FILTER_OP_MAP[operator]
             condition = condition_cls(this=column, expression=value_expr)
 
         rel = self.__copy__()
+
+        if not isinstance(rel._sqlglot_expression, sge.Select):
+            raise ValueError(
+                f"Query `{rel._sqlglot_expression}` received for `{rel.__class__.__name__}`. "
+                "Must be an SQL SELECT statement."
+            )
+
         rel._sqlglot_expression = rel._sqlglot_expression.where(condition)
         return rel
 
     def filter(  # noqa: A003
         self,
         column_name: str,
-        operator: Union[OpLiteral, FilterOp],
+        operator: TFilterOperation,
         value: Any,
     ) -> Self:
         return self.where(column_name=column_name, operator=operator, value=value)
@@ -424,6 +392,3 @@ class ReadableDBAPIRelation(BaseReadableDBAPIRelation):
             f"Received invalid value `columns={columns}` of type"
             f" {type(columns).__name__}`. Valid types are: ['Sequence[str]']"
         )
-
-    def head(self, limit: int = 5) -> Self:
-        return self.limit(limit)

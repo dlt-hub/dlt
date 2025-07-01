@@ -1,8 +1,9 @@
 """Unit tests for readable db api dataset and relation"""
+from typing import cast
+
 import dlt
 import pytest
 
-from dlt.common.destination.typing import TDatasetType
 import dlt.destinations.dataset
 from dlt.destinations.dataset.exceptions import (
     ReadableRelationUnknownColumnException,
@@ -10,10 +11,10 @@ from dlt.destinations.dataset.exceptions import (
 from dlt.transformations.exceptions import LineageFailedException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.utils import new_table
+from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
 
 
-@pytest.mark.parametrize("dataset_type", ("default",))
-def test_query_builder(dataset_type: TDatasetType) -> None:
+def test_query_builder() -> None:
     s = Schema("my_schema")
     t = new_table(
         "my_table",
@@ -24,11 +25,13 @@ def test_query_builder(dataset_type: TDatasetType) -> None:
     )
     s.update_table(t)
 
-    dataset = dlt.destinations.dataset.dataset(
-        dlt.destinations.duckdb(destination_name="duck_db"),
-        "pipeline_dataset",
-        dataset_type=dataset_type,
-        schema=s,
+    dataset = cast(
+        ReadableDBAPIDataset,
+        dlt.destinations.dataset.dataset(
+            dlt.destinations.duckdb(destination_name="duck_db"),
+            "pipeline_dataset",
+            schema=s,
+        ),
     )
 
     # default query for a table
@@ -71,12 +74,13 @@ def test_query_builder(dataset_type: TDatasetType) -> None:
     )
 
 
-@pytest.mark.parametrize("dataset_type", ("default",))
-def test_copy_and_chaining(dataset_type: TDatasetType) -> None:
-    dataset = dlt.destinations.dataset.dataset(
-        dlt.destinations.duckdb(destination_name="duck_db"),
-        "pipeline_dataset",
-        dataset_type=dataset_type,
+def test_copy_and_chaining() -> None:
+    dataset = cast(
+        ReadableDBAPIDataset,
+        dlt.destinations.dataset.dataset(
+            dlt.destinations.duckdb(destination_name="duck_db"),
+            "pipeline_dataset",
+        ),
     )
 
     dataset.schema.tables["items"] = {
@@ -106,12 +110,10 @@ def test_copy_and_chaining(dataset_type: TDatasetType) -> None:
     assert int(literal_expr.this) == 11
 
 
-@pytest.mark.parametrize("dataset_type", ("default",))
-def test_computed_schema_columns(dataset_type: TDatasetType) -> None:
+def test_computed_schema_columns() -> None:
     dataset = dlt.destinations.dataset.dataset(
         dlt.destinations.duckdb(destination_name="duck_db"),
         "pipeline_dataset",
-        dataset_type=dataset_type,
     )
 
     with pytest.raises(ValueError):
@@ -145,8 +147,7 @@ def test_computed_schema_columns(dataset_type: TDatasetType) -> None:
         relation[["unknown_columns"]].compute_columns_schema()
 
 
-@pytest.mark.parametrize("dataset_type", ("default",))
-def test_changing_relation_with_query(dataset_type: TDatasetType) -> None:
+def test_changing_relation_with_query() -> None:
     s = Schema("my_schema")
     t = new_table(
         "something",
@@ -157,11 +158,13 @@ def test_changing_relation_with_query(dataset_type: TDatasetType) -> None:
     )
 
     s.update_table(t)
-    dataset = dlt.destinations.dataset.dataset(
-        dlt.destinations.duckdb(destination_name="duck_db"),
-        "pipeline_dataset",
-        dataset_type=dataset_type,
-        schema=s,
+    dataset = cast(
+        ReadableDBAPIDataset,
+        dlt.destinations.dataset.dataset(
+            dlt.destinations.duckdb(destination_name="duck_db"),
+            "pipeline_dataset",
+            schema=s,
+        ),
     )
 
     relation = dataset("SELECT * FROM something")
@@ -189,10 +192,9 @@ def test_changing_relation_with_query(dataset_type: TDatasetType) -> None:
         relation.select("hello", "hillo").query()
 
 
-@pytest.mark.parametrize("dataset_type", ("default",))
-def test_repr_and_str(dataset_type: TDatasetType) -> None:
+def test_repr_and_str() -> None:
     # dataset not present
-    ds_ = dlt.dataset("duckdb", "test_repr_and_str", dataset_type=dataset_type)
+    ds_ = dlt.dataset("duckdb", "test_repr_and_str")
     # make sure we do not raise on empty dataset
     assert repr(ds_).startswith("<dlt.dataset(dataset_name='test_repr_and_str'")
     assert str(ds_).startswith("Dataset `test_repr_and_str` at `duckdb")
@@ -206,7 +208,7 @@ def test_repr_and_str(dataset_type: TDatasetType) -> None:
     # materialized dataset, known schema
     pipeline = dlt.pipeline("test_repr_and_str", destination="duckdb", dataset_name="table_data")
     pipeline.run([1, 2, 3], table_name="digits")
-    ds_ = pipeline.dataset(dataset_type=dataset_type)
+    ds_ = pipeline.dataset()
     assert repr(ds_).startswith("<dlt.dataset(dataset_name='table_data'")
     # ends with list of tables
     assert str(ds_).endswith("digits")

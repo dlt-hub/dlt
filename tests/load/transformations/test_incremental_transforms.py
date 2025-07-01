@@ -104,22 +104,22 @@ def test_state_based_incremental_transform(
 
     # first round
     inc_p.run(first_load())
-    dataset = inc_p.dataset(dataset_type="default")
+    dataset = inc_p.dataset()
     last_loaded_load_id = dataset(
         dataset.table("_dlt_loads", table_type="ibis").load_id.max()
     ).scalar()
 
-    dest_p.run(transformed_items(inc_p.dataset(dataset_type="default"), last_loaded_load_id))
+    dest_p.run(transformed_items(inc_p.dataset(), last_loaded_load_id))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_FIRST_LOAD)
 
     # second round
     inc_p.run(inc_load())
-    dataset = inc_p.dataset(dataset_type="default")
+    dataset = inc_p.dataset()
     last_loaded_load_id = dataset(
         dataset.table("_dlt_loads", table_type="ibis").load_id.max()
     ).scalar()
 
-    dest_p.run(transformed_items(inc_p.dataset(dataset_type="default"), last_loaded_load_id))
+    dest_p.run(transformed_items(inc_p.dataset(), last_loaded_load_id))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)
 
 
@@ -147,7 +147,7 @@ def test_primary_key_based_incremental_transform(
         # get newest primary key but only if table exists
         max_pimary_key = 0
         try:
-            output_dataset = dlt.current.pipeline().dataset(dataset_type="default")
+            output_dataset = dlt.current.pipeline().dataset()
             if output_dataset.schema.tables.get("transformed_items"):
                 max_pimary_key_expr = output_dataset.table(
                     "transformed_items", table_type="ibis"
@@ -164,12 +164,12 @@ def test_primary_key_based_incremental_transform(
 
     # first round
     inc_p.run(first_load())
-    dest_p.run(transformed_items(inc_p.dataset(dataset_type="default")))
+    dest_p.run(transformed_items(inc_p.dataset()))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_FIRST_LOAD)
 
     # second round
     inc_p.run(inc_load())
-    dest_p.run(transformed_items(inc_p.dataset(dataset_type="default")))
+    dest_p.run(transformed_items(inc_p.dataset()))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)
 
 
@@ -199,7 +199,7 @@ def test_load_id_based_incremental_transform(
             # get newest primary key but only if table exists
             max_load_id = "0"
             try:
-                output_dataset = dlt.current.pipeline().dataset(dataset_type="default")
+                output_dataset = dlt.current.pipeline().dataset()
                 if output_dataset.schema.tables.get("transformed_items"):
                     max_load_id_expr = output_dataset.table(
                         "transformed_items", table_type="ibis"
@@ -219,20 +219,20 @@ def test_load_id_based_incremental_transform(
 
     # first round
     inc_p.run(first_load())
-    dataset = inc_p.dataset(dataset_type="default")
+    dataset = inc_p.dataset()
     os.environ["LAST_LOADED_LOAD_ID"] = dataset(
         dataset.table("_dlt_loads", table_type="ibis").load_id.max()
     ).scalar()
-    dest_p.run(transformation_source(inc_p.dataset(dataset_type="default")))
+    dest_p.run(transformation_source(inc_p.dataset()))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_FIRST_LOAD)
 
     # second round
     inc_p.run(inc_load())
-    dataset = inc_p.dataset(dataset_type="default")
+    dataset = inc_p.dataset()
     os.environ["LAST_LOADED_LOAD_ID"] = dataset(
         dataset.table("_dlt_loads", table_type="ibis").load_id.max()
     ).scalar()
-    dest_p.run(transformation_source(inc_p.dataset(dataset_type="default")))
+    dest_p.run(transformation_source(inc_p.dataset()))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)
 
 
@@ -264,10 +264,10 @@ def test_merge_based_incremental_transform(
 
     # first round
     inc_p.run(first_load())
-    dest_p.run(transformed_items(inc_p.dataset(dataset_type="default")))
+    dest_p.run(transformed_items(inc_p.dataset()))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_FIRST_LOAD)
 
     # second round
     inc_p.run(inc_load())
-    dest_p.run(transformed_items(inc_p.dataset(dataset_type="default")))
+    dest_p.run(transformed_items(inc_p.dataset()))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)

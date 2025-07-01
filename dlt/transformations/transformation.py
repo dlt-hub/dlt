@@ -1,6 +1,6 @@
 from functools import wraps
 import inspect
-from typing import Callable, Any, Optional, Type, Iterator, List
+from typing import Callable, Any, Optional, Type, Iterator, List, cast
 
 import dlt
 import sqlglot
@@ -9,7 +9,6 @@ from dlt.common.configuration.inject import get_fun_last_config, get_fun_spec
 from dlt.common.typing import TDataItems, TTableHintTemplate
 from dlt.common import logger, json
 
-from dlt.destinations.dataset.relation import BaseReadableDBAPIRelation
 from dlt.extract.incremental import Incremental
 from dlt.extract import DltResource
 from dlt.transformations.typing import TTransformationFunParams
@@ -17,10 +16,10 @@ from dlt.transformations.exceptions import (
     TransformationException,
     IncompatibleDatasetsException,
 )
+from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
 
 from dlt.common.exceptions import MissingDependencyException
 from dlt.pipeline.exceptions import PipelineConfigMissing
-from dlt.destinations.dataset import BaseReadableDBAPIDataset
 from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TWriteDisposition,
@@ -34,6 +33,7 @@ from dlt.common.utils import get_callable_name
 from dlt.extract.exceptions import CurrentSourceNotAvailable
 from dlt.extract.pipe_iterator import DataItemWithMeta
 from dlt.extract.hints import DLT_HINTS_METADATA_KEY
+from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 
 try:
     from dlt.helpers.ibis import Expr as IbisExpr
@@ -74,8 +74,8 @@ def make_transformation_resource(
     def transformation_function(*args: Any, **kwargs: Any) -> Iterator[TDataItems]:
         # Collect all datasets from args and kwargs
         all_arg_values = list(args) + list(kwargs.values())
-        datasets: List[BaseReadableDBAPIDataset[Any]] = [
-            arg for arg in all_arg_values if isinstance(arg, BaseReadableDBAPIDataset)
+        datasets: List[ReadableDBAPIDataset] = [
+            arg for arg in all_arg_values if isinstance(arg, ReadableDBAPIDataset)
         ]
 
         # get first item from gen and see what we're dealing with
@@ -92,7 +92,7 @@ def make_transformation_resource(
 
         # catch the two cases where we get a relation from the transformation function
         # NOTE: we only process the first item, all other things that are still in the generator are ignored
-        if isinstance(unwrapped_item, BaseReadableDBAPIRelation):
+        if isinstance(unwrapped_item, ReadableDBAPIRelation):
             relation = unwrapped_item
         # we see if the string is a valid sql query, if so we need a dataset
         elif isinstance(unwrapped_item, str):
@@ -143,9 +143,10 @@ def make_transformation_resource(
             schema_name = dlt.current.source().name
             current_pipeline = dlt.current.pipeline()
             current_pipeline.destination_client()  # raises if destination not configured
-            should_materialize = not datasets[0].is_same_physical_destination(
-                current_pipeline.dataset(schema=schema_name, dataset_type="default")
+            pipeline_dataset = cast(
+                ReadableDBAPIDataset, current_pipeline.dataset(schema=schema_name)
             )
+            should_materialize = not datasets[0].is_same_physical_destination(pipeline_dataset)
         except (PipelineConfigMissing, CurrentSourceNotAvailable):
             logger.info(
                 "Cannot reach destination, defaulting to model extraction for transformation %s",

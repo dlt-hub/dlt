@@ -19,6 +19,7 @@ from dlt.transformations.exceptions import (
 )
 from dlt.extract.exceptions import ResourceExtractionError
 from dlt.common.destination.dataset import SupportsReadableRelation
+from dlt.destinations.dataset.dataset import ReadableDBAPIRelation
 
 
 def test_no_datasets_used() -> None:
@@ -44,7 +45,7 @@ def test_no_datasets_used() -> None:
 def test_iterator_function_as_transform_function() -> None:
     # test that a generator function is used as a regular resource
     @dlt.transformation()
-    def transform(dataset: SupportsReadableDataset[Any]) -> Any:
+    def transform(dataset: SupportsReadableDataset) -> Any:
         yield [{"some": "data"}]
 
     assert list(transform(dlt.dataset("duckdb", "dataset_name"))) == [{"some": "data"}]
@@ -59,7 +60,7 @@ def test_incremental_argument_is_not_supported(caplog: LogCaptureFixture) -> Non
 
             @dlt.transformation()
             def transform_1(
-                dataset: SupportsReadableDataset[Any],
+                dataset: SupportsReadableDataset,
                 incremental_arg=dlt.sources.incremental("col1"),
             ) -> Any:
                 yield "SELECT col1 FROM table1"
@@ -79,7 +80,7 @@ def test_incremental_argument_is_not_supported(caplog: LogCaptureFixture) -> Non
 
             @dlt.transformation()
             def transform_2(
-                dataset: SupportsReadableDataset[Any],
+                dataset: SupportsReadableDataset,
                 # TODO: this may be edge case when we have native value but nevertheless dlt complains that there's no default
                 incremental_arg: Optional[dlt.sources.incremental] = "some_value",  # type: ignore
             ) -> Any:
@@ -99,7 +100,7 @@ def test_incremental_argument_is_not_supported(caplog: LogCaptureFixture) -> Non
         with pytest.raises(ResourceExtractionError):
 
             @dlt.transformation()
-            def transform_3(dataset: SupportsReadableDataset[Any]) -> Any:
+            def transform_3(dataset: SupportsReadableDataset) -> Any:
                 return "SELECT col1 FROM table1"
 
             list(transform_3(dlt.dataset("duckdb", "dataset_name")))
@@ -126,9 +127,7 @@ def test_base_transformation_spec() -> None:
     schema = Schema("_data")
     schema.update_table(new_table("table1", columns=[{"name": "col1", "data_type": "text"}]))
     # provide dataset for lineage
-    ds_ = dlt.dataset(
-        dlt.destinations.filesystem("_data"), "dataset_name", schema=schema, dataset_type="default"
-    )
+    ds_ = dlt.dataset(dlt.destinations.filesystem("_data"), "dataset_name", schema=schema)
 
     # we return SQL so we expect a model to be created
     model = list(default_spec(ds_))[0]
@@ -184,7 +183,7 @@ def test_base_transformation_spec() -> None:
     os.environ["SOURCES__DEFAULT_NAME_OVR__LIMIT"] = "100"
 
     model = list(default_transformation_spec(ds_))[0]
-    assert isinstance(model, SupportsReadableRelation)
+    assert isinstance(model, ReadableDBAPIRelation)
     query = model.query()
     # make sure we have our args in query
     assert "uniq_last_id" in query

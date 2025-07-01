@@ -1,5 +1,5 @@
 from types import TracebackType
-from typing import Any, Type, Union, TYPE_CHECKING, List, Literal, cast, overload, Generic
+from typing import Any, Type, Union, TYPE_CHECKING, List, Literal, overload
 
 
 from sqlglot.schema import Schema as SQLGlotSchema
@@ -15,15 +15,12 @@ from dlt.common.destination.client import JobClientBase, SupportsOpenTables, Wit
 from dlt.common.destination.dataset import (
     SupportsReadableRelation,
     SupportsReadableDataset,
-    TReadableRelation,
 )
-from dlt.common.destination.typing import TDatasetType
 from dlt.common.schema import Schema
 from dlt.common.typing import Self
 from dlt.common.schema.typing import C_DLT_LOAD_ID
 from dlt.common.utils import simple_repr, without_none
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
-from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
 from dlt.destinations.queries import build_row_counts_expr
@@ -41,9 +38,7 @@ else:
     IbisExpr = Any
 
 
-class BaseReadableDBAPIDataset(
-    Generic[TReadableRelation], SupportsReadableDataset[TReadableRelation]
-):
+class ReadableDBAPIDataset(SupportsReadableDataset):
     """Access to dataframes and arrow tables in the destination dataset via dbapi"""
 
     def __init__(
@@ -180,27 +175,27 @@ class BaseReadableDBAPIDataset(
         self,
         query: Union[str, sge.Select, IbisExpr],
         query_dialect: TSqlGlotDialect = None,
-        execute_raw_query: bool = False,
+        _execute_raw_query: bool = False,
     ) -> ReadableDBAPIRelation:
         return ReadableDBAPIRelation(
             readable_dataset=self,
             query=query,
             query_dialect=query_dialect,
-            execute_raw_query=execute_raw_query,
+            _execute_raw_query=_execute_raw_query,
         )
 
     @overload
-    def table(self, table_name: str) -> TReadableRelation: ...
+    def table(self, table_name: str) -> ReadableDBAPIRelation: ...
 
     @overload
     def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
 
     @overload
-    def table(self, table_name: str, table_type: Literal["relation"]) -> TReadableRelation: ...
+    def table(self, table_name: str, table_type: Literal["relation"]) -> ReadableDBAPIRelation: ...
 
     def table(
         self, table_name: str, table_type: Literal["relation", "ibis"] = None
-    ) -> Union[TReadableRelation, IbisTable]:
+    ) -> Union[ReadableDBAPIRelation, IbisTable]:
         # dataset only provides access to tables known in dlt schema, direct query may cirumvent this
         if table_name not in self.schema.tables.keys():
             raise ValueError(
@@ -214,7 +209,11 @@ class BaseReadableDBAPIDataset(
 
             return create_unbound_ibis_table(self.schema, self.dataset_name, table_name)
 
-        return None
+        # fallback to the standard dbapi relation
+        return ReadableDBAPIRelation(
+            readable_dataset=self,
+            table_name=table_name,
+        )
 
     def row_counts(
         self,
@@ -259,11 +258,11 @@ class BaseReadableDBAPIDataset(
 
         return self(query=union_all_expr)
 
-    def __getitem__(self, table_name: str) -> TReadableRelation:
+    def __getitem__(self, table_name: str) -> ReadableDBAPIRelation:
         """access of table via dict notation"""
         return self.table(table_name)
 
-    def __getattr__(self, table_name: str) -> TReadableRelation:
+    def __getattr__(self, table_name: str) -> ReadableDBAPIRelation:
         """access of table via property notation"""
         return self.table(table_name)
 
@@ -330,54 +329,3 @@ class BaseReadableDBAPIDataset(
             else:
                 msg += "No data tables found in schema."
         return msg
-
-
-class ReadableDBAPIDataset(BaseReadableDBAPIDataset[ReadableDBAPIRelation]):
-    @overload
-    def table(self, table_name: str) -> ReadableDBAPIRelation: ...
-
-    @overload
-    def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
-
-    @overload
-    def table(self, table_name: str, table_type: Literal["relation"]) -> ReadableDBAPIRelation: ...
-
-    def table(
-        self, table_name: str, table_type: Literal["relation", "ibis"] = None
-    ) -> Union[ReadableDBAPIRelation, IbisTable]:
-        if (table := super().table(table_name, table_type)) is not None:
-            return table
-
-        # fallback to the standard dbapi relation
-        return ReadableDBAPIRelation(
-            readable_dataset=self,
-            table_name=table_name,
-        )
-
-
-class ReadableIbisDataset(BaseReadableDBAPIDataset[ReadableIbisRelation]):
-    """Access to dataframes and arrow tables in the destination dataset via ibis"""
-
-    @overload
-    def table(self, table_name: str) -> ReadableIbisRelation: ...
-
-    @overload
-    def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
-
-    @overload
-    def table(self, table_name: str, table_type: Literal["relation"]) -> ReadableIbisRelation: ...
-
-    def table(
-        self, table_name: str, table_type: Literal["relation", "ibis"] = None
-    ) -> Union[ReadableIbisRelation, IbisTable]:
-        if (table := super().table(table_name, table_type)) is not None:
-            return table
-
-        from dlt.helpers.ibis import create_unbound_ibis_table
-        from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
-
-        unbound_table = create_unbound_ibis_table(self.schema, self.dataset_name, table_name)
-        return ReadableIbisRelation(
-            readable_dataset=self,
-            ibis_object=unbound_table,
-        )

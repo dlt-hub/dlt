@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Set, Sequence, Generator
+from typing import Any, Dict, List, Set, Sequence, Generator, cast
 import pytest
 import random
 from os import environ
@@ -12,7 +12,7 @@ from dlt.common.pipeline import LoadInfo
 from dlt.common.typing import DictStrAny
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.exceptions import DestinationUndefinedEntity
-
+from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
 from dlt.common.schema.typing import TTableSchema
 
 
@@ -302,7 +302,7 @@ def _load_tables_to_dicts_sql(
     """
     result: Dict[str, List[Dict[str, Any]]] = {}
     for table_name in table_names:
-        relation = p.dataset(schema=schema_name, dataset_type="default")[table_name]
+        relation = p.dataset(schema=schema_name)[table_name]
         columns = list(relation.columns_schema.keys())
         for row in relation.fetchall():
             result[table_name] = result.get(table_name, []) + [dict(zip(columns, row))]
@@ -435,13 +435,11 @@ def load_table_counts(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
     if _is_abfss(p):
         table_counts = {}
         for table in table_names:
-            table_counts[table] = (
-                p.dataset(dataset_type="default").row_counts(table_names=[table]).fetchall()[0][1]
-            )
+            table_counts[table] = p.dataset().row_counts(table_names=[table]).fetchall()[0][1]
         return table_counts
 
     # otherwise we can use the dataset row counts
-    counts = p.dataset(dataset_type="default").row_counts(table_names=list(table_names)).fetchall()
+    counts = p.dataset().row_counts(table_names=list(table_names)).fetchall()
     return {row[0]: row[1] for row in counts}
 
 
@@ -503,7 +501,7 @@ def select_data(
     sql: str,
     schema_name: str = None,
     dataset_name: str = None,
-    execute_raw_query: bool = False,
+    _execute_raw_query: bool = False,
 ) -> List[Sequence[Any]]:
     """Execute *sql* against the pipeline's dataset and return all rows.
 
@@ -514,16 +512,16 @@ def select_data(
         dataset_name (str, optional): Temporary override for the dataset name –
             useful when the test needs to query a different dataset created by
             the same pipeline.
-        execute_raw_query (bool, optional): Whether to run the query as (raw) is or perform query normalization and lineage. Experimental.
+        _execute_raw_query (bool, optional): Whether to run the query as (raw) is or perform query normalization and lineage. Experimental.
 
     Returns:
         List[Sequence[Any]]: All rows returned by the query.
     """
-    dataset = p.dataset(schema=schema_name, dataset_type="default")
+    dataset = p.dataset(schema=schema_name)
     # a hack to change the dataset name for the purposes of this test
     if dataset_name:
-        dataset._dataset_name = dataset_name
-    return list(dataset(sql, execute_raw_query=execute_raw_query).fetchall())
+        dataset._dataset_name = dataset_name  # type: ignore[attr-defined]
+    return list(dataset(sql, _execute_raw_query=_execute_raw_query).fetchall())
 
 
 def assert_table_column(
@@ -551,10 +549,12 @@ def assert_table_column(
         assert table_exists(p, table_name, schema_name)
         return
 
+    dataset = cast(ReadableDBAPIDataset, p.dataset(schema=schema_name))
+
     # select full table
     assert_query_column(
         p,
-        p.dataset(schema=schema_name, dataset_type="default")[table_name].query(),
+        dataset[table_name].query(),
         table_data,
         schema_name,
         info,
@@ -581,7 +581,7 @@ def assert_query_column(
         info (LoadInfo, optional): When provided, the second query column must
             contain only IDs that belong to *info*.
     """
-    rows = select_data(p, sql, schema_name, execute_raw_query=True)
+    rows = select_data(p, sql, schema_name, _execute_raw_query=True)
     assert len(rows) == len(table_data)
 
     # check load id
