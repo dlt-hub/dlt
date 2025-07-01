@@ -30,10 +30,10 @@ from lancedb.embeddings import get_registry  # type: ignore
 from lancedb.pydantic import LanceModel, Vector  # type: ignore
 
 import dlt
-from dlt.common.configuration import configspec
 from dlt.common.schema import TTableSchema
 from dlt.common.typing import TDataItems, TSecretStrValue
 from dlt.sources.helpers import requests
+from dlt.sources.config import configspec
 from dlt.sources.helpers.rest_client import RESTClient, AuthConfigBase
 
 # access secrets to get openai key and instantiate embedding function

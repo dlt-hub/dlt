@@ -640,8 +640,10 @@ For more complex authentication methods, you can implement a [custom authenticat
 You can use the dictionary configuration syntax also for custom authentication classes after registering them as follows:
 
 ```py
+from dlt.sources.config import configspec
 from dlt.sources.rest_api.config_setup import register_auth
 
+@configspec
 class CustomAuth(AuthConfigBase):
     pass
 
