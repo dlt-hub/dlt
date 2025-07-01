@@ -14,9 +14,7 @@ from dlt.common.schema.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.extract.hints import SqlModel
 from dlt.transformations.configuration import TransformationConfiguration
-from dlt.transformations.exceptions import (
-    IncompatibleDatasetsException,
-)
+from dlt.transformations.exceptions import IncompatibleDatasetsException, TransformationException
 from dlt.extract.exceptions import ResourceExtractionError
 from dlt.common.destination.dataset import Relation
 from dlt.destinations.dataset.dataset import ReadableDBAPIRelation
@@ -34,12 +32,15 @@ def test_no_datasets_used() -> None:
 
     assert "No datasets found in transformation function arguments" in str(excinfo.value)
 
-    # invalid sql string without dataset will be interpreted as string item
+    # string that is not a valid sql query will raise
     @dlt.transformation()
     def other_transform() -> Any:
         yield "Hello I am a string"
 
-    assert list(other_transform()) == ["Hello I am a string"]
+    with pytest.raises(TransformationException) as excinfo2:
+        list(other_transform())
+
+    assert "Invalid SQL query in transformation function" in str(excinfo2.value)
 
 
 def test_iterator_function_as_transform_function() -> None:

@@ -78,103 +78,79 @@ def make_transformation_resource(
             arg for arg in all_arg_values if isinstance(arg, ReadableDBAPIDataset)
         ]
 
-        # get first item from gen and see what we're dealing with
-        gen = func(*args, **kwargs)
-        original_first_item = next(gen)
-
-        # unwrap if needed
-        meta = None
-        unwrapped_item = original_first_item
-        relation = None
-        if isinstance(original_first_item, DataItemWithMeta):
-            meta = original_first_item.meta
-            unwrapped_item = original_first_item.data
-
-        # catch the two cases where we get a relation from the transformation function
-        # NOTE: we only process the first item, all other things that are still in the generator are ignored
-        if isinstance(unwrapped_item, ReadableDBAPIRelation):
-            relation = unwrapped_item
-        # we see if the string is a valid sql query, if so we need a dataset
-        elif isinstance(unwrapped_item, str):
-            try:
-                sqlglot.parse_one(unwrapped_item)
-                if len(datasets) == 0:
-                    raise IncompatibleDatasetsException(
-                        resource_name,
-                        "No datasets found in transformation function arguments. Please supply all"
-                        " used datasets via transform function arguments.",
-                    )
-                else:
-                    relation = datasets[0](unwrapped_item)
-            except sqlglot.errors.ParseError:
-                pass
-        elif IbisExpr and isinstance(unwrapped_item, IbisExpr):
-            relation = datasets[0](unwrapped_item)
-
-        # we have something else, so fall back to regular resource behavior
-        if not relation:
-            yield original_first_item
-            yield from gen
-            return
-
+        # resolve config
         config: TransformationConfiguration = (
             get_fun_last_config(func) or get_fun_spec(func)()  # type: ignore[assignment]
         )
 
-        # Warn if Incremental arguments are present
-        for arg_name, param in inspect.signature(func).parameters.items():
-            if param.annotation is Incremental or isinstance(param.default, Incremental):
-                logger.warning(
-                    "Incremental arguments are not supported in transformation functions and will"
-                    " have no effect. Found incremental argument: %s.",
-                    arg_name,
-                )
-
-        if not datasets:
-            raise IncompatibleDatasetsException(
-                resource_name,
-                "No datasets detected in transformation. Please supply all used datasets via"
-                " transform function arguments.",
-            )
-
-        # Determine whether to materialize the model or return it to be materialized in the load stage
+        # Determine whether to materialize the model or return it to be executed as sql in the load stage
         should_materialize = False
-        try:
-            schema_name = dlt.current.source().name
-            current_pipeline = dlt.current.pipeline()
-            current_pipeline.destination_client()  # raises if destination not configured
-            pipeline_dataset = cast(
-                ReadableDBAPIDataset, current_pipeline.dataset(schema=schema_name)
-            )
-            should_materialize = not datasets[0].is_same_physical_destination(pipeline_dataset)
-        except (PipelineConfigMissing, CurrentSourceNotAvailable):
-            logger.info(
-                "Cannot reach destination, defaulting to model extraction for transformation %s",
-                resource_name,
-            )
-            should_materialize = False
-
-        # respect always materialize config
+        if len(datasets) > 0:
+            try:
+                schema_name = dlt.current.source().name
+                current_pipeline = dlt.current.pipeline()
+                current_pipeline.destination_client()  # raises if destination not configured
+                pipeline_dataset = cast(
+                    ReadableDBAPIDataset, current_pipeline.dataset(schema=schema_name)
+                )
+                should_materialize = not datasets[0].is_same_physical_destination(pipeline_dataset)
+            except (PipelineConfigMissing, CurrentSourceNotAvailable):
+                logger.info(
+                    "Cannot reach destination, defaulting to model extraction for"
+                    " transformation %s",
+                    resource_name,
+                )
+                should_materialize = False
+        # respect config setting
         should_materialize = should_materialize or config.always_materialize
 
-        # we need to rewrap all items with meta if there was some
-        if not should_materialize:
-            if meta:
-                yield DataItemWithMeta(meta, relation)
+        def _process_item(item: TDataItems) -> Iterator[TDataItems]:
+            # catch the cases where we get a relation from the transformation function
+            if isinstance(item, ReadableDBAPIRelation):
+                relation = item
+            # we see if the string is a valid sql query, if so we need a dataset
+            elif isinstance(item, str):
+                try:
+                    sqlglot.parse_one(item)
+                    if len(datasets) == 0:
+                        raise IncompatibleDatasetsException(
+                            resource_name,
+                            "No datasets found in transformation function arguments. Please supply"
+                            " all used datasets via transform function arguments.",
+                        )
+                    else:
+                        relation = datasets[0](item)
+                except sqlglot.errors.ParseError as e:
+                    raise TransformationException(
+                        resource_name,
+                        "Invalid SQL query in transformation function. Please supply a valid SQL"
+                        " query via transform function arguments.",
+                    ) from e
+            elif IbisExpr and isinstance(item, IbisExpr):
+                relation = datasets[0](item)
             else:
-                yield relation
-        else:
-            from dlt.common.libs.pyarrow import add_arrow_metadata
+                # no transformation, just yield this item
+                yield item
+                return
 
-            serialized_hints = json.dumps(relation.compute_hints())
-            for chunk in relation.iter_arrow(chunk_size=config.buffer_max_items):
-                updated_chunk = add_arrow_metadata(
-                    chunk, {DLT_HINTS_METADATA_KEY: serialized_hints}
-                )
-                if meta:
-                    yield DataItemWithMeta(meta, updated_chunk)
-                else:
-                    yield updated_chunk
+            if not should_materialize:
+                yield relation
+            else:
+                from dlt.common.libs.pyarrow import add_arrow_metadata
+
+                serialized_hints = json.dumps(relation.compute_hints())
+                for chunk in relation.iter_arrow(chunk_size=config.buffer_max_items):
+                    yield add_arrow_metadata(chunk, {DLT_HINTS_METADATA_KEY: serialized_hints})
+
+        for item in func(*args, **kwargs):
+            # unwrap if needed
+            meta = None
+            if isinstance(item, DataItemWithMeta):
+                meta = item.meta
+                item = item.data
+
+            for processed_item in _process_item(item):
+                yield (DataItemWithMeta(meta, processed_item) if meta else processed_item)
 
     return dlt.resource(  # type: ignore[return-value]
         name=name,
