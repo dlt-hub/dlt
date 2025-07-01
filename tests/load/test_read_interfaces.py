@@ -934,7 +934,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # also we return the keys of the discovered schema columns
     def sql_from_expr(expr: Any) -> Tuple[str, List[str]]:
         relation = dataset(expr)
-        query = str(relation.query()).replace(populated_pipeline.dataset_name, "dataset")  # type: ignore[attr-defined]
+        query = str(relation.to_sql()).replace(populated_pipeline.dataset_name, "dataset")  # type: ignore[attr-defined]
         columns = list(relation.columns_schema.keys()) if relation.columns_schema else None
         return re.sub(r"\s+", " ", query), columns
 

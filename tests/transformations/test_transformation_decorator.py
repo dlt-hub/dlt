@@ -184,7 +184,7 @@ def test_base_transformation_spec() -> None:
 
     model = list(default_transformation_spec(ds_))[0]
     assert isinstance(model, ReadableDBAPIRelation)
-    query = model.query()
+    query = model.to_sql()
     # make sure we have our args in query
     assert "uniq_last_id" in query
     assert "100" in query

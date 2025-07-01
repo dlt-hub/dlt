@@ -36,39 +36,39 @@ def test_query_builder() -> None:
 
     # default query for a table
     assert (
-        dataset.my_table.query().strip()
+        dataset.my_table.to_sql().strip()
         == 'SELECT "my_table"."col1" AS "col1", "my_table"."col2" AS "col2" FROM'
         ' "pipeline_dataset"."my_table" AS "my_table"'
     )
 
     # head query
     assert (
-        dataset.my_table.head().query().strip()
+        dataset.my_table.head().to_sql().strip()
         == 'SELECT "my_table"."col1" AS "col1", "my_table"."col2" AS "col2" FROM'
         ' "pipeline_dataset"."my_table" AS "my_table" LIMIT 5'
     )
 
     # limit query
     assert (
-        dataset.my_table.limit(24).query().strip()
+        dataset.my_table.limit(24).to_sql().strip()
         == 'SELECT "my_table"."col1" AS "col1", "my_table"."col2" AS "col2" FROM'
         ' "pipeline_dataset"."my_table" AS "my_table" LIMIT 24'
     )
 
     # select columns
     assert (
-        dataset.my_table.select("col1").query().strip()
+        dataset.my_table.select("col1").to_sql().strip()
         == 'SELECT "my_table"."col1" AS "col1" FROM "pipeline_dataset"."my_table" AS "my_table"'
     )
     # also indexer notation
     assert (
-        dataset.my_table[["col2"]].query().strip()
+        dataset.my_table[["col2"]].to_sql().strip()
         == 'SELECT "my_table"."col2" AS "col2" FROM "pipeline_dataset"."my_table" AS "my_table"'
     )
 
     # limit and select chained
     assert (
-        dataset.my_table.select("col1").limit(24).query().strip()
+        dataset.my_table.select("col1").limit(24).to_sql().strip()
         == 'SELECT "my_table"."col1" AS "col1" FROM "pipeline_dataset"."my_table" AS "my_table"'
         " LIMIT 24"
     )
@@ -168,28 +168,28 @@ def test_changing_relation_with_query() -> None:
     )
 
     relation = dataset("SELECT * FROM something")
-    query = relation.query()
+    query = relation.to_sql()
     assert (
         'SELECT "something"."this" AS "this", "something"."that" AS "that" FROM'
         ' "pipeline_dataset"."something" AS "something"'
         == query
     )
 
-    query = dataset("SELECT this, that FROM something").limit(5).query()
+    query = dataset("SELECT this, that FROM something").limit(5).to_sql()
     assert (
         'SELECT "something"."this" AS "this", "something"."that" AS "that" FROM'
         ' "pipeline_dataset"."something" AS "something" LIMIT 5'
         == query
     )
 
-    query = relation.select("this").query()
+    query = relation.select("this").to_sql()
     assert (
         'SELECT "something"."this" AS "this" FROM "pipeline_dataset"."something" AS "something"'
         == query
     )
 
     with pytest.raises(LineageFailedException):
-        relation.select("hello", "hillo").query()
+        relation.select("hello", "hillo").to_sql()
 
 
 def test_repr_and_str() -> None:

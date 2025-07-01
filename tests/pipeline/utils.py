@@ -554,7 +554,7 @@ def assert_table_column(
     # select full table
     assert_query_column(
         p,
-        dataset[table_name].query(),
+        dataset[table_name].to_sql(),
         table_data,
         schema_name,
         info,

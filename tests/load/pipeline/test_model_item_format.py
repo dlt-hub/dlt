@@ -137,7 +137,7 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
         # # Wrap the first expression with an alias: "a AS b"
         # parsed.expressions[0] = sqlglot.exp.Alias(this=original_expr, alias="b")
         # # Convert back to an SQL
-        # query = rel.query()
+        # query = rel.to_sql()
         yield rel
 
     pipeline.run(

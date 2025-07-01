@@ -123,7 +123,7 @@ class SqlModel:
         self._query = query
         self._dialect = dialect
 
-    def query(self) -> str:
+    def to_sql(self) -> str:
         return self._query
 
     def query_dialect(self) -> str:

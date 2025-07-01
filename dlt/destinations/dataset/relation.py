@@ -215,14 +215,14 @@ class ReadableDBAPIRelation(Relation, WithSqlClient, WithComputableHints):
 
             # case 1: client is already opened and managed from outside
             if self.sql_client.native_connection:
-                with self.sql_client.execute_query(self.query()) as cursor:
+                with self.sql_client.execute_query(self.to_sql()) as cursor:
                     if columns_schema:
                         cursor.columns_schema = columns_schema
                     yield cursor
             # case 2: client is not opened, we need to manage it
             else:
                 with self.sql_client as client:
-                    with client.execute_query(self.query()) as cursor:
+                    with client.execute_query(self.to_sql()) as cursor:
                         if columns_schema:
                             cursor.columns_schema = columns_schema
                         yield cursor
@@ -232,7 +232,7 @@ class ReadableDBAPIRelation(Relation, WithSqlClient, WithComputableHints):
     #
     # Query  / Expression Management
     #
-    def query(self, pretty: bool = False) -> str:
+    def to_sql(self, pretty: bool = False) -> str:
         """Returns an executable sql query string in the correct sql dialect for this relation"""
 
         if self.__execute_raw_query:

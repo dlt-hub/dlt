@@ -285,7 +285,7 @@ def section_browse_data_table_list(
                 _sql_query = (
                     _dataset.table(_table_name)
                     .limit(1000 if dlt_restrict_to_last_1000.value else None)
-                    .query(pretty=True)
+                    .to_sql(pretty=True)
                 )
 
             dlt_query_editor = mo.ui.code_editor(
