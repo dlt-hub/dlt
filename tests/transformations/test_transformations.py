@@ -4,8 +4,8 @@ from typing import Any
 
 import dlt, os, sys
 
-from dlt.common.destination.dataset import SupportsReadableDataset
-from dlt.common.destination.dataset import SupportsReadableRelation
+from dlt.common.destination.dataset import Dataset
+from dlt.common.destination.dataset import Relation
 from tests.pipeline.utils import load_table_counts
 from dlt.extract.hints import SqlModel
 
@@ -42,13 +42,13 @@ def test_simple_query_transformations(
     if transformation_type == "sql":
 
         @dlt.transformation()
-        def copied_purchases(dataset: SupportsReadableDataset) -> Any:
+        def copied_purchases(dataset: Dataset) -> Any:
             yield """SELECT * FROM purchases LIMIT 3"""
 
     elif transformation_type == "relation":
 
         @dlt.transformation()
-        def copied_purchases(dataset: SupportsReadableDataset) -> Any:
+        def copied_purchases(dataset: Dataset) -> Any:
             yield dataset["purchases"].limit(3)
 
     # transform into transformed dataset
@@ -89,11 +89,11 @@ def test_transformations_with_supplied_hints(
 
     # we can now transform this table twice, one with changed hints and once with the original hints
     @dlt.transformation()
-    def inventory_original(dataset: SupportsReadableDataset) -> Any:
+    def inventory_original(dataset: Dataset) -> Any:
         yield dataset["inventory"]
 
     @dlt.transformation()
-    def inventory_more_precise(dataset: SupportsReadableDataset) -> Any:
+    def inventory_more_precise(dataset: Dataset) -> Any:
         hints = make_hints(columns=[{"name": "price", "precision": 20, "scale": 2}])
         yield dlt.mark.with_hints(dataset["inventory"], hints=hints)
 
@@ -128,14 +128,14 @@ def test_extract_without_source_name_or_pipeline(
     fruit_p.run(fruitshop_source())
 
     @dlt.transformation()
-    def buffer_size_test(dataset: SupportsReadableDataset) -> Any:
+    def buffer_size_test(dataset: Dataset) -> Any:
         yield dataset["customers"]
 
     # transformations switch to model extraction
     fruit_p.deactivate()
     model_rows = list(buffer_size_test(fruit_p.dataset()))
     assert len(model_rows) == 1
-    assert isinstance(model_rows[0], SupportsReadableRelation)
+    assert isinstance(model_rows[0], Relation)
 
 
 @pytest.mark.parametrize(
@@ -148,7 +148,7 @@ def test_extract_without_destination(destination_config: DestinationTestConfigur
     fruit_p.run(fruitshop_source())
 
     @dlt.transformation()
-    def extract_test(dataset: SupportsReadableDataset) -> Any:
+    def extract_test(dataset: Dataset) -> Any:
         yield dataset["customers"]
 
     pipeline_no_destination = dlt.pipeline(pipeline_name="no_destination")
@@ -174,7 +174,7 @@ def test_materializable_sql_model(destination_config: DestinationTestConfigurati
     fruit_p.run(fruitshop_source())
 
     @dlt.transformation()
-    def materializable_sql_model(dataset: SupportsReadableDataset) -> Any:
+    def materializable_sql_model(dataset: Dataset) -> Any:
         yield "SELECT id, name FROM customers"
 
     model = list(materializable_sql_model(fruit_p.dataset()))[0]
@@ -198,7 +198,7 @@ def test_ibis_unbound_table_transformation(
     fruit_p.run(fruitshop_source())
 
     @dlt.transformation()
-    def materializable_sql_model(dataset: SupportsReadableDataset) -> Any:
+    def materializable_sql_model(dataset: Dataset) -> Any:
         purchases = dataset.table("purchases", table_type="ibis")
         customers = dataset.table("customers", table_type="ibis")
         yield purchases.join(customers, purchases.customer_id == customers.id)[

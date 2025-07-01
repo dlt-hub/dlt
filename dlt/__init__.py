@@ -31,10 +31,7 @@ from dlt import sources
 from dlt.extract.decorators import source, resource, transformer, defer
 from dlt.destinations.decorators import destination
 from dlt.transformations.decorators import transformation
-from dlt.common.destination.dataset import (
-    SupportsReadableDataset as Dataset,
-    SupportsReadableRelation as Relation,
-)
+from dlt.common.destination.dataset import Dataset, Relation
 from dlt.destinations.dataset import dataset
 
 from dlt.pipeline import (

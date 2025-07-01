@@ -4,7 +4,7 @@ import os
 from random import randrange, choice
 from typing import Any, Dict, Tuple
 
-from dlt.common.destination.dataset import SupportsReadableDataset
+from dlt.common.destination.dataset import Dataset
 
 from tests.load.utils import (
     FILE_BUCKET,

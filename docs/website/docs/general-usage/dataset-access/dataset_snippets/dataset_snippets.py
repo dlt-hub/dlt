@@ -22,12 +22,12 @@ def pipeline() -> dlt.Pipeline:
 
 
 @pytest.fixture(scope="function")
-def dataset(pipeline: dlt.Pipeline) -> ReadableDBAPIDataset:
+def dataset(pipeline: dlt.Pipeline) -> dlt.Dataset:
     return pipeline.dataset()
 
 
 @pytest.fixture(scope="function")
-def default_dataset(pipeline: dlt.Pipeline) -> ReadableDBAPIDataset:
+def default_dataset(pipeline: dlt.Pipeline) -> dlt.Dataset:
     return pipeline.dataset()
 
 
@@ -64,7 +64,7 @@ def getting_started_snippet(pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_END getting_started
 
 
-def accessing_tables_snippet(dataset: ReadableDBAPIDataset) -> None:
+def accessing_tables_snippet(dataset: dlt.Dataset) -> None:
     # @@@DLT_SNIPPET_START accessing_tables
     # Using attribute access
     customers_relation = dataset.customers
@@ -74,7 +74,7 @@ def accessing_tables_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END accessing_tables
 
 
-def fetch_entire_table_snippet(dataset: ReadableDBAPIDataset) -> None:
+def fetch_entire_table_snippet(dataset: dlt.Dataset) -> None:
     customers_relation = dataset.customers
 
     # @@@DLT_SNIPPET_START fetch_entire_table_df
@@ -90,7 +90,7 @@ def fetch_entire_table_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END fetch_entire_table_fetchall
 
 
-def iterating_chunks_snippet(dataset: ReadableDBAPIDataset) -> None:
+def iterating_chunks_snippet(dataset: dlt.Dataset) -> None:
     customers_relation = dataset.customers
     # @@@DLT_SNIPPET_START iterating_df_chunks
     for df_chunk in customers_relation.iter_df(chunk_size=5):
@@ -111,7 +111,7 @@ def iterating_chunks_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END iterating_fetch_chunks
 
 
-def row_counts_snippet(dataset: ReadableDBAPIDataset) -> None:
+def row_counts_snippet(dataset: dlt.Dataset) -> None:
     # @@@DLT_SNIPPET_START row_counts
     # print the row counts of all tables in the destination as dataframe
     print(dataset.row_counts().df())
@@ -121,7 +121,7 @@ def row_counts_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END row_counts
 
 
-def context_manager_snippet(dataset: ReadableDBAPIDataset) -> None:
+def context_manager_snippet(dataset: dlt.Dataset) -> None:
     # @@@DLT_SNIPPET_START context_manager
 
     # the dataset context manager will keep the connection open
@@ -133,7 +133,7 @@ def context_manager_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END context_manager
 
 
-def limiting_records_snippet(dataset: ReadableDBAPIDataset) -> None:
+def limiting_records_snippet(dataset: dlt.Dataset) -> None:
     customers_relation = dataset.customers
     # @@@DLT_SNIPPET_START limiting_records
     # Get the first 50 items as a PyArrow table
@@ -145,7 +145,7 @@ def limiting_records_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END head_records
 
 
-def select_columns_snippet(dataset: ReadableDBAPIDataset) -> None:
+def select_columns_snippet(dataset: dlt.Dataset) -> None:
     customers_relation = dataset.customers
     # @@@DLT_SNIPPET_START select_columns
     # Select only 'id' and 'name' columns
@@ -159,7 +159,7 @@ def select_columns_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END select_columns
 
 
-def order_by_snippet(default_dataset: ReadableDBAPIDataset) -> None:
+def order_by_snippet(default_dataset: dlt.Dataset) -> None:
     customers_relation = default_dataset.customers
     # @@@DLT_SNIPPET_START order_by
     # Order by 'id'
@@ -167,7 +167,7 @@ def order_by_snippet(default_dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END order_by
 
 
-def filter_snippet(default_dataset: ReadableDBAPIDataset) -> None:
+def filter_snippet(default_dataset: dlt.Dataset) -> None:
     customers_relation = default_dataset.customers
     # @@@DLT_SNIPPET_START filter
     # Filter by 'id'
@@ -175,7 +175,7 @@ def filter_snippet(default_dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END filter
 
 
-def chain_operations_snippet(dataset: ReadableDBAPIDataset) -> None:
+def chain_operations_snippet(dataset: dlt.Dataset) -> None:
     customers_relation = dataset.customers
 
     # @@@DLT_SNIPPET_START chain_operations
@@ -243,21 +243,21 @@ def ibis_expressions_snippet(pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_END ibis_expressions
 
 
-def fetch_one_snippet(dataset: ReadableDBAPIDataset) -> None:
+def fetch_one_snippet(dataset: dlt.Dataset) -> None:
     customers_relation = dataset.customers
     # @@@DLT_SNIPPET_START fetch_one
     record = customers_relation.fetchone()
     # @@@DLT_SNIPPET_END fetch_one
 
 
-def fetch_many_snippet(dataset: ReadableDBAPIDataset) -> None:
+def fetch_many_snippet(dataset: dlt.Dataset) -> None:
     customers_relation = dataset.customers
     # @@@DLT_SNIPPET_START fetch_many
     records = customers_relation.fetchmany(10)
     # @@@DLT_SNIPPET_END fetch_many
 
 
-def iterating_with_limit_and_select_snippet(dataset: ReadableDBAPIDataset) -> None:
+def iterating_with_limit_and_select_snippet(dataset: dlt.Dataset) -> None:
     customers_relation = dataset.customers
     # @@@DLT_SNIPPET_START iterating_with_limit_and_select
     # Dataframes
@@ -275,7 +275,7 @@ def iterating_with_limit_and_select_snippet(dataset: ReadableDBAPIDataset) -> No
     # @@@DLT_SNIPPET_END iterating_with_limit_and_select
 
 
-def custom_sql_snippet(dataset: ReadableDBAPIDataset) -> None:
+def custom_sql_snippet(dataset: dlt.Dataset) -> None:
     # @@@DLT_SNIPPET_START custom_sql
     # Join 'customers' and 'purchases' tables
     custom_relation = dataset(
@@ -285,7 +285,7 @@ def custom_sql_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END custom_sql
 
 
-def loading_to_pipeline_snippet(dataset: ReadableDBAPIDataset) -> None:
+def loading_to_pipeline_snippet(dataset: dlt.Dataset) -> None:
     # @@@DLT_SNIPPET_START loading_to_pipeline
     # Create a readable relation with a limit of 1m rows
     limited_customers_relation = dataset.customers.limit(1_000_000)

@@ -43,7 +43,7 @@ else:
 TFilterOperation = Literal["eq", "ne", "gt", "lt", "gte", "lte", "in", "not_in"]
 
 
-class SupportsReadableRelation:
+class Relation:
     """A readable relation retrieved from a destination that supports it"""
 
     columns_schema: TTableSchemaColumns
@@ -266,7 +266,7 @@ class SupportsReadableRelation:
         raise NotImplementedError("`__copy()__` method is not supported for this relation")
 
 
-class DBApiCursor(SupportsReadableRelation):
+class DBApiCursor(Relation):
     """Protocol for DBAPI cursor"""
 
     description: Tuple[Any, ...]
@@ -278,7 +278,7 @@ class DBApiCursor(SupportsReadableRelation):
     def close(self) -> None: ...
 
 
-class SupportsReadableDataset(Protocol):
+class Dataset(Protocol):
     """A readable dataset retrieved from a destination, has support for creating readable relations for a query or table"""
 
     @property
@@ -319,7 +319,7 @@ class SupportsReadableDataset(Protocol):
         query: Union[str, sge.Select, IbisExpr],
         query_dialect: TSqlGlotDialect = None,
         _execute_raw_query: bool = False,
-    ) -> SupportsReadableRelation:
+    ) -> Relation:
         """Returns a readable relation for a given sql query
 
         Args:
@@ -329,18 +329,18 @@ class SupportsReadableDataset(Protocol):
             _execute_raw_query (bool, optional): Whether to run the query as is (raw)or perform query normalization and lineage. Experimental.
 
         Returns:
-            SupportsReadableRelation: The readable relation for the query
+            Relation: The readable relation for the query
         """
 
     @overload
-    def table(self, table_name: str) -> SupportsReadableRelation: ...
+    def table(self, table_name: str) -> Relation: ...
 
     @overload
     def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
 
     def table(
         self, table_name: str, table_type: Literal["relation", "ibis"] = None
-    ) -> Union[SupportsReadableRelation, IbisTable]:
+    ) -> Union[Relation, IbisTable]:
         """Returns an object representing a table named `table_name`
 
         Args:
@@ -348,27 +348,27 @@ class SupportsReadableDataset(Protocol):
             table_type (Literal["relation", "ibis"], optional): The type of the table. Defaults to "relation" if not specified. If "ibis" is specified, you will get an unbound ibis table.
 
         Returns:
-            Union[SupportsReadableRelation, IbisTable]: The object representing the table
+            Union[Relation, IbisTable]: The object representing the table
         """
 
-    def __getitem__(self, table: str) -> SupportsReadableRelation:
+    def __getitem__(self, table: str) -> Relation:
         """Returns a readable relation for the table named `table`
 
         Args:
             table (str): The name of the table
 
         Returns:
-            SupportsReadableRelation: The readable relation for the table
+            Relation: The readable relation for the table
         """
 
-    def __getattr__(self, table: str) -> SupportsReadableRelation:
+    def __getattr__(self, table: str) -> Relation:
         """Returns a readable relation for the table named `table`
 
         Args:
             table (str): The name of the table
 
         Returns:
-            SupportsReadableRelation: The readable relation for the table
+            Relation: The readable relation for the table
         """
 
     def __enter__(self) -> Self:
@@ -393,7 +393,7 @@ class SupportsReadableDataset(Protocol):
         dlt_tables: bool = False,
         table_names: List[str] = None,
         load_id: str = None,
-    ) -> SupportsReadableRelation:
+    ) -> Relation:
         """Returns the row counts of the dataset
 
         Args:
@@ -402,6 +402,6 @@ class SupportsReadableDataset(Protocol):
             table_names (List[str], optional): The names of the tables to include. Defaults to None. Will override data_tables and dlt_tables if set
             load_id (str, optional): If set, only count rows associated with a given load id. Will exclude tables that do not have a load id.
         Returns:
-            SupportsReadableRelation: The row counts of the dataset as ReadableRelation
+            Relation: The row counts of the dataset as ReadableRelation
         """
         ...

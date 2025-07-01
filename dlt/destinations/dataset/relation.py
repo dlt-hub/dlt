@@ -24,7 +24,7 @@ from sqlglot.optimizer.merge_subqueries import merge_subqueries
 
 import sqlglot.expressions as sge
 
-from dlt.common.destination.dataset import SupportsReadableRelation, TFilterOperation
+from dlt.common.destination.dataset import Relation, TFilterOperation
 
 from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGlotDialect
 from dlt.common.schema.typing import TTableSchemaColumns
@@ -63,7 +63,7 @@ _FILTER_OP_MAP = {
 }
 
 
-class ReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient, WithComputableHints):
+class ReadableDBAPIRelation(Relation, WithSqlClient, WithComputableHints):
     @overload
     def __init__(
         self,
@@ -167,7 +167,7 @@ class ReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient, WithComputa
         return self._dataset.sqlglot_dialect
 
     @contextmanager
-    def cursor(self) -> Generator[SupportsReadableRelation, Any, Any]:
+    def cursor(self) -> Generator[Relation, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
         try:
             self._opened_sql_client = self.sql_client
@@ -195,7 +195,7 @@ class ReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient, WithComputa
             self._opened_sql_client = None
 
     def _wrap_iter(self, func_name: str) -> Any:
-        """wrap SupportsReadableRelation generators in cursor context"""
+        """wrap Relation generators in cursor context"""
 
         def _wrap(*args: Any, **kwargs: Any) -> Any:
             with self.cursor() as cursor:
@@ -204,7 +204,7 @@ class ReadableDBAPIRelation(SupportsReadableRelation, WithSqlClient, WithComputa
         return _wrap
 
     def _wrap_func(self, func_name: str) -> Any:
-        """wrap SupportsReadableRelation functions in cursor context"""
+        """wrap Relation functions in cursor context"""
 
         def _wrap(*args: Any, **kwargs: Any) -> Any:
             with self.cursor() as cursor:

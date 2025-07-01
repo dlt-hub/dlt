@@ -13,8 +13,8 @@ from dlt.common.json import json
 from dlt.common.destination.reference import TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase, SupportsOpenTables, WithStateSync
 from dlt.common.destination.dataset import (
-    SupportsReadableRelation,
-    SupportsReadableDataset,
+    Relation,
+    Dataset,
 )
 from dlt.common.schema import Schema
 from dlt.common.typing import Self
@@ -38,7 +38,7 @@ else:
     IbisExpr = Any
 
 
-class ReadableDBAPIDataset(SupportsReadableDataset):
+class ReadableDBAPIDataset(Dataset):
     """Access to dataframes and arrow tables in the destination dataset via dbapi"""
 
     def __init__(
@@ -222,7 +222,7 @@ class ReadableDBAPIDataset(SupportsReadableDataset):
         dlt_tables: bool = False,
         table_names: List[str] = None,
         load_id: str = None,
-    ) -> SupportsReadableRelation:
+    ) -> Relation:
         """Returns a dictionary of table names and their row counts, returns counts of all data tables by default"""
         """If table_names is provided, only the tables in the list are returned regardless of the data_tables and dlt_tables flags"""
 

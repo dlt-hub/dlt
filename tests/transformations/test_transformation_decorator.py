@@ -9,7 +9,7 @@ from dlt.common import logger
 
 from dlt.common.configuration.inject import get_fun_last_config, get_fun_spec
 from dlt.common.configuration.specs.base_configuration import configspec
-from dlt.common.destination.dataset import SupportsReadableDataset
+from dlt.common.destination.dataset import Dataset
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.extract.hints import SqlModel
@@ -18,7 +18,7 @@ from dlt.transformations.exceptions import (
     IncompatibleDatasetsException,
 )
 from dlt.extract.exceptions import ResourceExtractionError
-from dlt.common.destination.dataset import SupportsReadableRelation
+from dlt.common.destination.dataset import Relation
 from dlt.destinations.dataset.dataset import ReadableDBAPIRelation
 
 
@@ -45,7 +45,7 @@ def test_no_datasets_used() -> None:
 def test_iterator_function_as_transform_function() -> None:
     # test that a generator function is used as a regular resource
     @dlt.transformation()
-    def transform(dataset: SupportsReadableDataset) -> Any:
+    def transform(dataset: Dataset) -> Any:
         yield [{"some": "data"}]
 
     assert list(transform(dlt.dataset("duckdb", "dataset_name"))) == [{"some": "data"}]
@@ -60,7 +60,7 @@ def test_incremental_argument_is_not_supported(caplog: LogCaptureFixture) -> Non
 
             @dlt.transformation()
             def transform_1(
-                dataset: SupportsReadableDataset,
+                dataset: Dataset,
                 incremental_arg=dlt.sources.incremental("col1"),
             ) -> Any:
                 yield "SELECT col1 FROM table1"
@@ -80,7 +80,7 @@ def test_incremental_argument_is_not_supported(caplog: LogCaptureFixture) -> Non
 
             @dlt.transformation()
             def transform_2(
-                dataset: SupportsReadableDataset,
+                dataset: Dataset,
                 # TODO: this may be edge case when we have native value but nevertheless dlt complains that there's no default
                 incremental_arg: Optional[dlt.sources.incremental] = "some_value",  # type: ignore
             ) -> Any:
@@ -100,7 +100,7 @@ def test_incremental_argument_is_not_supported(caplog: LogCaptureFixture) -> Non
         with pytest.raises(ResourceExtractionError):
 
             @dlt.transformation()
-            def transform_3(dataset: SupportsReadableDataset) -> Any:
+            def transform_3(dataset: Dataset) -> Any:
                 return "SELECT col1 FROM table1"
 
             list(transform_3(dlt.dataset("duckdb", "dataset_name")))
@@ -131,7 +131,7 @@ def test_base_transformation_spec() -> None:
 
     # we return SQL so we expect a model to be created
     model = list(default_spec(ds_))[0]
-    assert isinstance(model, SupportsReadableRelation)
+    assert isinstance(model, Relation)
     # TODO: why dialect is not set??
     # assert model.dialect is not None
 
@@ -151,7 +151,7 @@ def test_base_transformation_spec() -> None:
     os.environ["LAST_ID"] = "test_last_id"
 
     model = list(default_transformation_with_args(ds_))[0]
-    assert isinstance(model, SupportsReadableRelation)
+    assert isinstance(model, Relation)
     assert get_fun_last_config(default_transformation_with_args)["last_id"] == "test_last_id"
 
     # test explicit spec
