@@ -216,5 +216,5 @@ def test_repr_and_str() -> None:
     rel_ = ds_("SELECT * FROM digits")
     assert (
         str(rel_)
-        == """Relation query:\n  SELECT * FROM digits\nColumns:\n  value bigint\n  _dlt_load_id text\n  _dlt_id text\n"""
+        == """Relation query:\n  SELECT\n    *\n  FROM digits\nColumns:\n  value bigint\n  _dlt_load_id text\n  _dlt_id text\n"""
     )
