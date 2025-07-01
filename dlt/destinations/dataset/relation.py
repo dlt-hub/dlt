@@ -35,6 +35,7 @@ from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.queries import normalize_query, build_select_expr
 from dlt.extract.hints import WithComputableHints, make_hints, TResourceHints
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.destination.dataset import DataAccess
 
 try:
     from dlt.helpers.ibis import Expr as IbisExpr
@@ -103,17 +104,6 @@ class ReadableDBAPIRelation(Relation, WithSqlClient, WithComputableHints):
         self.__qualified_query: sge.Query = None
         self.__normalized_query: sge.Query = None
 
-        # wire protocol functions
-        self.df = self._wrap_func("df")  # type: ignore
-        self.arrow = self._wrap_func("arrow")  # type: ignore
-        self.fetchall = self._wrap_func("fetchall")  # type: ignore
-        self.fetchmany = self._wrap_func("fetchmany")  # type: ignore
-        self.fetchone = self._wrap_func("fetchone")  # type: ignore
-
-        self.iter_df = self._wrap_iter("iter_df")  # type: ignore
-        self.iter_arrow = self._wrap_iter("iter_arrow")  # type: ignore
-        self.iter_fetch = self._wrap_iter("iter_fetch")  # type: ignore
-
         # parse incoming query object
         self._sqlglot_expression: sge.Query = None
         if IbisExpr and isinstance(query, IbisExpr):
@@ -128,6 +118,46 @@ class ReadableDBAPIRelation(Relation, WithSqlClient, WithComputableHints):
                 table_name=table_name,
                 selected_columns=list(self._dataset.schema.get_table_columns(table_name).keys()),
             )
+
+    # wire protocol methods
+    def df(self, *args: Any, **kwargs: Any) -> Any:
+        return self._wrap_func("df")(*args, **kwargs)
+
+    def arrow(self, *args: Any, **kwargs: Any) -> Any:
+        return self._wrap_func("arrow")(*args, **kwargs)
+
+    def fetchall(self, *args: Any, **kwargs: Any) -> Any:
+        return self._wrap_func("fetchall")(*args, **kwargs)
+
+    def fetchmany(self, *args: Any, **kwargs: Any) -> Any:
+        return self._wrap_func("fetchmany")(*args, **kwargs)
+
+    def fetchone(self, *args: Any, **kwargs: Any) -> Any:
+        return self._wrap_func("fetchone")(*args, **kwargs)
+
+    def iter_df(self, *args: Any, **kwargs: Any) -> Any:
+        return self._wrap_iter("iter_df")(*args, **kwargs)
+
+    def iter_arrow(self, *args: Any, **kwargs: Any) -> Any:
+        return self._wrap_iter("iter_arrow")(*args, **kwargs)
+
+    def iter_fetch(self, *args: Any, **kwargs: Any) -> Any:
+        return self._wrap_iter("iter_fetch")(*args, **kwargs)
+
+    def scalar(self) -> Any:
+        row = self.fetchmany(2)
+        if not row:
+            return None
+        if len(row) != 1:
+            raise ValueError(
+                "Expected scalar result (single row, single column), got more than one row"
+            )
+        if len(row[0]) != 1:
+            raise ValueError(
+                "Expected scalar result (single row, single column), got 1 row with"
+                f" {len(row[0])} columns"
+            )
+        return row[0][0]
 
     @property
     def sql_client(self) -> SqlClientBase[Any]:
@@ -167,7 +197,7 @@ class ReadableDBAPIRelation(Relation, WithSqlClient, WithComputableHints):
         return self._dataset.sqlglot_dialect
 
     @contextmanager
-    def cursor(self) -> Generator[Relation, Any, Any]:
+    def cursor(self) -> Generator[DataAccess, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
         try:
             self._opened_sql_client = self.sql_client
@@ -301,6 +331,9 @@ class ReadableDBAPIRelation(Relation, WithSqlClient, WithComputableHints):
         rel = self.__copy__()
         rel._sqlglot_expression = rel._sqlglot_expression.limit(limit)
         return rel
+
+    def head(self, limit: int = 5) -> Self:
+        return self.limit(limit)
 
     def select(self, *columns: str) -> Self:
         proj = [sge.Column(this=sge.to_identifier(col, quoted=True)) for col in columns]

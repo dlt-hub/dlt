@@ -65,10 +65,6 @@ class SqlaDbApiCursor(DBApiCursorImpl):
         self.native_cursor = curr  # type: ignore[assignment]
         curr.columns
 
-        self.fetchall = curr.fetchall  # type: ignore[assignment]
-        self.fetchone = curr.fetchone  # type: ignore[assignment]
-        self.fetchmany = curr.fetchmany  # type: ignore[assignment]
-
         self._set_default_schema_columns()
 
     def _get_columns(self) -> List[str]:

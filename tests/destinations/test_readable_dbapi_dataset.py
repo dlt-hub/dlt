@@ -144,7 +144,7 @@ def test_computed_schema_columns() -> None:
     import sqlglot
 
     with pytest.raises(LineageFailedException):
-        relation[["unknown_columns"]].compute_columns_schema()
+        relation[["unknown_columns"]].compute_columns_schema()  # type: ignore
 
 
 def test_changing_relation_with_query() -> None:

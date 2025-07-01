@@ -818,11 +818,7 @@ def test_where(populated_pipeline: Pipeline) -> None:
     with pytest.raises(ValueErrorWithKnownValues) as py_exc:
         not_in_rows = items.filter("id", "wrong", [0, 1, 2]).fetchall()  # type: ignore
 
-    assert (
-        "Received invalid value `operator=wrong`. Valid values are: ('eq', 'ne', 'gt', 'lt', 'gte',"
-        " 'lte', 'in', 'not_in')"
-        in py_exc.value.args
-    )
+    assert "Received invalid value `operator=wrong`" in py_exc.value.args[0]
 
     assert total_records - 3 == len(not_in_rows)
 

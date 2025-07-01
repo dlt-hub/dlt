@@ -43,24 +43,13 @@ else:
 TFilterOperation = Literal["eq", "ne", "gt", "lt", "gte", "lte", "in", "not_in"]
 
 
-class Relation:
-    """A readable relation retrieved from a destination that supports it"""
+class DataAccess(Protocol):
+    """Common data access protocol shared between dbapi cursors and relations"""
 
     columns_schema: TTableSchemaColumns
     """Returns the expected columns schema for the result of the relation. Column types are discovered with
     sql glot query analysis and lineage. dlt hints for columns are kept in some cases. Refere to <docs-page> for more details.
     """
-
-    def compute_columns_schema(
-        self,
-        infer_sqlglot_schema: bool = True,
-        allow_anonymous_columns: bool = True,
-        allow_partial: bool = True,
-    ) -> TTableSchemaColumns:
-        """Return the expected dlt schema of the execution result of self.query()"""
-        raise NotImplementedError(
-            "`compute_columns_schema()` method is not supported for this relation"
-        )
 
     def df(self, chunk_size: int = None) -> Optional[DataFrame]:
         """Fetches the results as arrow table. Uses the native pandas implementation of the destination client cursor if available.
@@ -71,7 +60,6 @@ class Relation:
         Returns:
             Optional[DataFrame]: A data frame with query results.
         """
-        raise NotImplementedError("`df()` method is not supported for this relation")
 
     def arrow(self, chunk_size: int = None) -> Optional[ArrowTable]:
         """Fetches the results as arrow table. Uses the native arrow implementation of the destination client cursor if available.
@@ -82,7 +70,6 @@ class Relation:
         Returns:
             Optional[ArrowTable]: An arrow table with query results.
         """
-        raise NotImplementedError("`arrow()` method is not supported for this relation")
 
     def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
         """Iterates over data frames of 'chunk_size' items. Uses the native pandas implementation of the destination client cursor if available.
@@ -93,7 +80,6 @@ class Relation:
         Returns:
             Generator[DataFrame, None, None]: A generator of data frames with query results.
         """
-        raise NotImplementedError("`iter_df()` method is not supported for this relation")
 
     def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
         """Iterates over arrow tables of 'chunk_size' items. Uses the native arrow implementation of the destination client cursor if available.
@@ -104,7 +90,6 @@ class Relation:
         Returns:
             Generator[ArrowTable, None, None]: A generator of arrow tables with query results.
         """
-        raise NotImplementedError("`iter_arrow()` method is not supported for this relation")
 
     def fetchall(self) -> List[Tuple[Any, ...]]:
         """Fetches all items as a list of python tuples. Uses the native dbapi fetchall implementation of the destination client cursor.
@@ -112,7 +97,6 @@ class Relation:
         Returns:
             List[Tuple[Any, ...]]: A list of python tuples w
         """
-        raise NotImplementedError("`fetchall()` method is not supported for this relation")
 
     def fetchmany(self, chunk_size: int) -> List[Tuple[Any, ...]]:
         """Fetches the first 'chunk_size' items as a list of python tuples. Uses the native dbapi fetchmany implementation of the destination client cursor.
@@ -123,7 +107,6 @@ class Relation:
         Returns:
             List[Tuple[Any, ...]]: A list of python tuples with query results.
         """
-        raise NotImplementedError("`fetchmany()` method is not supported for this relation")
 
     def iter_fetch(self, chunk_size: int) -> Generator[List[Tuple[Any, ...]], Any, Any]:
         """Iterates in lists of Python tuples in 'chunk_size' chunks. Uses the native dbapi fetchmany implementation of the destination client cursor.
@@ -134,7 +117,6 @@ class Relation:
         Returns:
             Generator[List[Tuple[Any, ...]], Any, Any]: A generator of lists of python tuples with query results.
         """
-        raise NotImplementedError("`iter_fetch()` method is not supported for this relation")
 
     def fetchone(self) -> Optional[Tuple[Any, ...]]:
         """Fetches the first item as a python tuple. Uses the native dbapi fetchone implementation of the destination client cursor.
@@ -142,23 +124,17 @@ class Relation:
         Returns:
             Optional[Tuple[Any, ...]]: A python tuple with the first item of the query results.
         """
-        raise NotImplementedError("`fetchone()` method is not supported for this relation")
+
+
+class Relation(DataAccess):
+    """A readable relation retrieved from a destination that supports it"""
 
     def scalar(self) -> Any:
-        """fetch first value of first column on first row as python primitive"""
-        row = self.fetchmany(2)
-        if not row:
-            return None
-        if len(row) != 1:
-            raise ValueError(
-                "Expected scalar result (single row, single column), got more than one row"
-            )
-        if len(row[0]) != 1:
-            raise ValueError(
-                "Expected scalar result (single row, single column), got 1 row with"
-                f" {len(row[0])} columns"
-            )
-        return row[0][0]
+        """fetch first value of first column on first row as python primitive
+
+        Returns:
+            Any: The first value of the first column on the first row as a python primitive.
+        """
 
     # modifying access parameters
     def limit(self, limit: int, **kwargs: Any) -> Self:
@@ -171,7 +147,6 @@ class Relation:
         Returns:
             Self: The relation with the limit applied.
         """
-        raise NotImplementedError("`limit()` method is not supported for this relation")
 
     def head(self, limit: int = 5) -> Self:
         """By default returns a relation with the first 5 rows selected.
@@ -182,7 +157,6 @@ class Relation:
         Returns:
             Self: The relation with the limit applied.
         """
-        raise NotImplementedError("`head()` method is not supported for this relation")
 
     def select(self, *columns: str) -> Self:
         """Returns a new relation with the given columns selected.
@@ -193,7 +167,6 @@ class Relation:
         Returns:
             Self: The relation with the columns selected.
         """
-        raise NotImplementedError("`select()` method is not supported for this relation")
 
     def where(
         self,
@@ -255,7 +228,6 @@ class Relation:
         Returns:
             Self: The relation with the columns selected.
         """
-        raise NotImplementedError("`__getitem__()` method is not supported for this relation")
 
     def __copy__(self) -> Self:
         """create a copy of the relation object
@@ -263,19 +235,21 @@ class Relation:
         Returns:
             Self: The copy of the relation object
         """
-        raise NotImplementedError("`__copy()__` method is not supported for this relation")
 
 
-class DBApiCursor(Relation):
-    """Protocol for DBAPI cursor"""
+class DBApiCursor(DataAccess):
+    """Protocol for the DBAPI cursor"""
 
     description: Tuple[Any, ...]
 
     native_cursor: "DBApiCursor"
     """Cursor implementation native to current destination"""
 
-    def execute(self, query: AnyStr, *args: Any, **kwargs: Any) -> None: ...
-    def close(self) -> None: ...
+    def execute(self, query: AnyStr, *args: Any, **kwargs: Any) -> None:
+        """Execute a query on the cursor"""
+
+    def close(self) -> None:
+        """Close the cursor"""
 
 
 class Dataset(Protocol):
