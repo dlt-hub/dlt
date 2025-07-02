@@ -81,5 +81,5 @@ def test_create_dlt_table(client: MsSqlJobClient) -> None:
     # non existing table
     sql = client._get_table_update_sql("_dlt_version", TABLE_UPDATE, False)[0]
     sqlfluff.parse(sql, dialect="tsql")
-    qualified_name = client.sql_client.make_qualified_table_name("_dlt_version")
-    assert f"CREATE TABLE {qualified_name}" in sql
+    dataset_name = client.sql_client.dataset_name
+    assert f"CREATE TABLE [{dataset_name}].[_dlt_version]" in sql
