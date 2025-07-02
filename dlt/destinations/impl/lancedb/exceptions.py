@@ -19,6 +19,7 @@ def lancedb_error(f: TFun) -> TFun:
         try:
             return f(self, *args, **kwargs)
         except (
+            # TODO: this is not selective enough. you must inspect ValueError message to make sure it is unknown table
             ValueError,
             MissingValueError,
             MissingColumnError,
