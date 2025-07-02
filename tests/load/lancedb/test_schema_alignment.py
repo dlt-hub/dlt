@@ -2,9 +2,10 @@ import pytest
 import pyarrow as pa
 import pandas as pd
 
-from dlt.destinations.impl.lancedb.lancedb_client import align_schema
 
-
+# TODO: we do not use class tests
+# 1. makes sense to unit test add_vector_column
+# 2. makes sense to convert tests below into end to end tests for schema evolution (two loads with schema change)
 class TestAlignSchema:
     """Test cases for the align_schema function."""
 

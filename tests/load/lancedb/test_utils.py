@@ -2,7 +2,7 @@ import pyarrow as pa
 import pytest
 
 from dlt.destinations.impl.lancedb.utils import (
-    create_filter_condition,
+    create_in_filter,
     fill_empty_source_column_values_with_placeholder,
 )
 
@@ -37,10 +37,10 @@ def test_fill_empty_source_column_values_with_placeholder() -> None:
 
 def test_create_filter_condition() -> None:
     assert (
-        create_filter_condition("_dlt_load_id", pa.array(["A", "B", "C'c\n"]))
+        create_in_filter("_dlt_load_id", pa.array(["A", "B", "C'c\n"]))
         == "_dlt_load_id IN ('A', 'B', 'C''c\\n')"
     )
     assert (
-        create_filter_condition("_dlt_load_id", pa.array([1.2, 3, 5 / 2]))
+        create_in_filter("_dlt_load_id", pa.array([1.2, 3, 5 / 2]))
         == "_dlt_load_id IN (1.2, 3.0, 2.5)"
     )
