@@ -5,6 +5,7 @@ from dlt.destinations.impl.lancedb.utils import (
     create_in_filter,
     fill_empty_source_column_values_with_placeholder,
 )
+from dlt.destinations.impl.lancedb.exceptions import is_lancedb_not_found_error
 
 
 # Mark all tests as essential, don't remove.
@@ -44,3 +45,12 @@ def test_create_filter_condition() -> None:
         create_in_filter("_dlt_load_id", pa.array([1.2, 3, 5 / 2]))
         == "_dlt_load_id IN (1.2, 3.0, 2.5)"
     )
+
+
+def test_lancedb_exception_parsing() -> None:
+    assert is_lancedb_not_found_error("Unknown table 'test_table'")
+    assert is_lancedb_not_found_error("unknown table 'test_table'")
+    assert is_lancedb_not_found_error("Field 'test_field' not found")
+    assert is_lancedb_not_found_error("Column 'test_column' not found")
+    assert is_lancedb_not_found_error("Missing value for column 'test_column'")
+    assert is_lancedb_not_found_error("Missing column 'test_column'")
