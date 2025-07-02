@@ -83,6 +83,8 @@ from dlt.destinations.queries import (
     build_stored_schema_expr,
     replace_placeholders,
     build_info_schema_columns_expr,
+    build_create_table_expr,
+    build_delete_schema_expr,
 )
 from dlt.transformations.lineage import create_sqlglot_schema
 
@@ -268,9 +270,6 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         self.sql_client = sql_client
         assert isinstance(config, DestinationClientDwhConfiguration)
         self.config: DestinationClientDwhConfiguration = config
-        self._sqlglot_schema = create_sqlglot_schema(
-            self.schema, self.sql_client.dataset_name, self.sql_client.capabilities.sqlglot_dialect
-        )
 
     @property
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
@@ -538,14 +537,19 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
 
     def _render_sql(
         self,
-        expr: Union[sge.Query, sge.Insert],
+        expr: Union[sge.Query, sge.Insert, sge.Create, sge.Delete],
         normalize: bool = True,
         ensure_pystring_placeholders: bool = False,
     ) -> str:
         """Normalizes sqlglot expression into a raw SQL string using the client's dialect and schema"""
         dialect = self.sql_client.capabilities.sqlglot_dialect
         if normalize:
-            expr = normalize_query(self._sqlglot_schema, expr, self.sql_client)
+            sqlglot_schema = create_sqlglot_schema(
+                self.schema,
+                self.sql_client.dataset_name,
+                self.sql_client.capabilities.sqlglot_dialect,
+            )
+            expr = normalize_query(sqlglot_schema, expr, self.sql_client)
         query = expr.sql(dialect=dialect)
         return replace_placeholders(query, dialect) if ensure_pystring_placeholders else query
 
@@ -712,15 +716,18 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         """Make one or more ADD COLUMN sql clauses to be joined in ALTER TABLE statement(s)"""
         return [f"ADD COLUMN {self._get_column_def_sql(c, table)}" for c in new_columns]
 
-    def _make_create_table(self, qualified_name: str, table: PreparedTableSchema) -> str:
+    def _make_create_table(self, table_name: str, table: PreparedTableSchema) -> str:
         """Begins CREATE TABLE statement"""
-        not_exists_clause = " "
-        if (
+        use_if_exists = (
             table["name"] in self.schema.dlt_table_names()
             and self.capabilities.supports_create_table_if_not_exists
-        ):
-            not_exists_clause = " IF NOT EXISTS "
-        return f"CREATE TABLE{not_exists_clause}{qualified_name}"
+        )
+        create_expr = build_create_table_expr(
+            table_name=table_name,
+            use_if_exists=use_if_exists,
+            quoted_identifiers=True,
+        )
+        return self._render_sql(expr=create_expr, normalize=True)
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
@@ -733,7 +740,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         sql_result: List[str] = []
         if not generate_alter:
             # build CREATE
-            sql = self._make_create_table(qualified_name, table) + " (\n"
+            sql = self._make_create_table(table_name, table) + " (\n"
             sql += ",\n".join([self._get_column_def_sql(c, table) for c in new_columns])
             sql += self._get_constraints_sql(table_name, new_columns, generate_alter)
             sql += ")"
@@ -864,9 +871,12 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         Delete all stored versions with the same name as given schema.
         Fails silently if versions table does not exist
         """
-        name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        (c_schema_name,) = self._norm_and_escape_columns("schema_name")
-        self.sql_client.execute_sql(f"DELETE FROM {name} WHERE {c_schema_name} = %s;", schema.name)
+        delete_expr = build_delete_schema_expr(
+            table_name=self.schema.version_table_name,
+            c_schema_name=self.schema.naming.normalize_path("schema_name"),
+        )
+        query = self._render_sql(delete_expr, normalize=True, ensure_pystring_placeholders=True)
+        self.sql_client.execute_sql(query, schema.name)
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
         # get schema string or zip

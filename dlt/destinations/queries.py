@@ -8,6 +8,23 @@ from sqlglot.schema import Schema as SQLGlotSchema
 
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.common.typing import TypedDict
+from dlt.common.destination.client import PreparedTableSchema
+
+
+@overload
+def normalize_query(
+    sqlglot_schema: SQLGlotSchema,
+    qualified_query: sge.Delete,
+    sql_client: SqlClientBase[Any],
+) -> sge.Delete: ...
+
+
+@overload
+def normalize_query(
+    sqlglot_schema: SQLGlotSchema,
+    qualified_query: sge.Create,
+    sql_client: SqlClientBase[Any],
+) -> sge.Create: ...
 
 
 @overload
@@ -28,9 +45,9 @@ def normalize_query(
 
 def normalize_query(
     sqlglot_schema: SQLGlotSchema,
-    qualified_query: Union[sge.Query, sge.Insert],
+    qualified_query: Union[sge.Query, sge.Insert, sge.Create, sge.Delete],
     sql_client: SqlClientBase[Any],
-) -> Union[sge.Query, sge.Insert]:
+) -> Union[sge.Query, sge.Insert, sge.Create, sge.Delete]:
     """Normalizes a qualified query compliant with the dlt schema into the namespace of the source dataset"""
 
     # this function modifies the incoming query
@@ -42,7 +59,7 @@ def normalize_query(
 
     # preserve "column" names in original selects which are done in dlt schema namespace
     orig_selects: Dict[int, str] = None
-    if is_casefolding:
+    if is_casefolding and isinstance(qualified_query, sge.Query):
         orig_selects = {}
         for i, proj in enumerate(qualified_query.selects):
             orig_selects[i] = proj.name or proj.args["alias"].name
@@ -52,7 +69,15 @@ def normalize_query(
         if isinstance(node, sge.Table):
             # expand named of known tables. this is currently clickhouse things where
             # we use dataset.table in queries but render those as dataset___table
-            if sqlglot_schema.column_names(node):
+            # Check if table exists in schema (not just if it has columns)
+            try:
+                column_names = sqlglot_schema.column_names(node)
+                table_exists = (
+                    column_names is not None
+                )  # Returns None if table doesn't exist, [] if no columns
+            except Exception:
+                table_exists = False
+            if table_exists:
                 expanded_path = sql_client.make_qualified_table_name_path(
                     node.name, quote=False, casefold=False
                 )
@@ -73,7 +98,7 @@ def normalize_query(
             node.set("quoted", True)
 
     # add aliases to output selects to stay compatible with dlt schema after the query
-    if orig_selects:
+    if orig_selects and isinstance(qualified_query, sge.Query):
         for i, orig in orig_selects.items():
             case_folded_orig = caps.casefold_identifier(orig)
             if case_folded_orig != orig:
@@ -350,13 +375,44 @@ def build_info_schema_columns_expr(
     return select_expr, db_params
 
 
+def build_create_table_expr(
+    table_name: str,
+    use_if_exists: bool = False,
+    quoted_identifiers: bool = True,
+) -> sge.Create:
+    """Builds a SQL expression with optional IF NOT EXISTS clause to create a table."""
+    table_expr = sge.Table(this=sge.to_identifier(table_name, quoted=quoted_identifiers))
+
+    create_expr = sge.Create(this=table_expr, kind="TABLE", exists=use_if_exists)
+
+    return create_expr
+
+
+def build_delete_schema_expr(
+    table_name: str,
+    c_schema_name: str,
+    quoted_identifiers: bool = True,
+) -> sge.Delete:
+    """Builds a SQL expression to delete a schema."""
+    table_expr = sge.Table(this=sge.to_identifier(table_name, quoted=quoted_identifiers))
+    delete_expr = sge.Delete(
+        this=table_expr,
+    )
+    where_condition = sge.EQ(
+        this=sge.Column(this=sge.to_identifier(c_schema_name, quoted=quoted_identifiers)),
+        expression=sge.Placeholder(),
+    )
+    delete_expr = delete_expr.where(where_condition)
+    return delete_expr
+
+
 def replace_placeholders(query: str, dialect: str) -> str:
     """Replaces (?, ?, ?, ...), as well as ({?: }, {?: }, {?: }, ...) placeholders with (%s, %s, %s, ...)."""
 
     # Sqlglot creates "{?: }"" placeholders for clickhouse, otherwise just "?""
     placeholder_pattern = r"\{\?:\s*\}" if dialect == "clickhouse" else r"\?"
 
-    # Only match tuples, not stray ?’s elsewhere
+    # Only match tuples, not stray ?'s elsewhere
     base_pattern = rf"\(\s*{placeholder_pattern}\s*(,\s*{placeholder_pattern}\s*)*\)"
 
     def _convert_to_percents(match: Match[str]) -> str:
