@@ -153,14 +153,14 @@ def build_insert_expr(
 ) -> sge.Insert:
     """Builds a SQL Insert expression with placeholders."""
     table_expr = sge.Table(this=sge.to_identifier(table_name, quoted=quoted_identifiers))
-    columns_expr = [
-        sge.Column(this=sge.to_identifier(col, quoted=quoted_identifiers)) for col in columns
-    ]
+
+    columns_expr = [sge.to_identifier(col, quoted=quoted_identifiers) for col in columns]
+
     placeholders_expr = sge.Values(
         expressions=[sge.Tuple(expressions=[sge.Placeholder() for _ in enumerate(columns)])]
     )
 
-    insert_expr = sge.Insert(this=table_expr, columns=columns_expr, expression=placeholders_expr)
+    insert_expr = sge.insert(expression=placeholders_expr, into=table_expr, columns=columns_expr)
 
     return insert_expr
 
