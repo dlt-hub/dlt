@@ -176,7 +176,7 @@ class ReadableDBAPIDataset(Dataset):
         query: Union[str, sge.Select, IbisExpr],
         query_dialect: TSqlGlotDialect = None,
         _execute_raw_query: bool = False,
-    ) -> ReadableDBAPIRelation:
+    ) -> Relation:
         return ReadableDBAPIRelation(
             readable_dataset=self,
             query=query,
@@ -189,17 +189,17 @@ class ReadableDBAPIDataset(Dataset):
         query: Union[str, sge.Select, IbisExpr],
         query_dialect: TSqlGlotDialect = None,
         _execute_raw_query: bool = False,
-    ) -> ReadableDBAPIRelation:
+    ) -> Relation:
         return self.query(query, query_dialect, _execute_raw_query)
 
     @overload
-    def table(self, table_name: str) -> ReadableDBAPIRelation: ...
+    def table(self, table_name: str) -> Relation: ...
 
     @overload
     def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
 
     @overload
-    def table(self, table_name: str, table_type: Literal["relation"]) -> ReadableDBAPIRelation: ...
+    def table(self, table_name: str, table_type: Literal["relation"]) -> Relation: ...
 
     def table(self, table_name: str, table_type: Literal["relation", "ibis"] = None) -> Any:
         # dataset only provides access to tables known in dlt schema, direct query may cirumvent this
@@ -264,11 +264,11 @@ class ReadableDBAPIDataset(Dataset):
 
         return self.query(query=union_all_expr)
 
-    def __getitem__(self, table_name: str) -> ReadableDBAPIRelation:
+    def __getitem__(self, table_name: str) -> Relation:
         """access of table via dict notation"""
         return self.table(table_name)
 
-    def __getattr__(self, table_name: str) -> ReadableDBAPIRelation:
+    def __getattr__(self, table_name: str) -> Relation:
         """access of table via property notation"""
         return self.table(table_name)
 

@@ -216,43 +216,21 @@ def create_unbound_ibis_table(schema: Schema, dataset_name: str, table_name: str
 
 def get_compiler_for_dialect(dialect: TSqlGlotDialect) -> SQLGlotCompiler:
     """Get the compiler for a given dialect."""
-    if dialect == "duckdb":
-        compiler = sc.DuckDBCompiler()
 
-    elif dialect == "postgres":
-        compiler = sc.PostgresCompiler()
+    ibis_dialect: str = dialect
+    if dialect == "tsql":
+        ibis_dialect = "mssql"
+    if dialect == "redshift":
+        ibis_dialect = "postgres"
 
-    elif dialect == "clickhouse":
-        compiler = sc.ClickHouseCompiler()
+    try:
+        compiler_provider = getattr(sc, ibis_dialect)
+    except AttributeError:
+        # default is duckdb
+        compiler_provider = sc.duckdb
 
-    elif dialect == "snowflake":
-        compiler = sc.SnowflakeCompiler()
-
-    elif dialect == "databricks":
-        compiler = sc.DatabricksCompiler()
-
-    elif dialect == "tsql":
-        compiler = sc.MSSQLCompiler()
-
-    elif dialect == "bigquery":
-        compiler = sc.BigQueryCompiler()
-
-    elif dialect == "athena":
-        compiler = sc.AthenaCompiler()
-
-    # NOTE Dremio uses a presto/trino-based language
-    elif dialect == "presto":
-        compiler = sc.TrinoCompiler()
-
-    elif dialect == "mysql":
-        compiler = sc.MySQLCompiler()
-
-    elif dialect == "sqlite":
-        compiler = sc.SQLiteCompiler()
-
-    # default is duckdb
-    else:
-        compiler = sc.DuckDBCompiler()
+    if (compiler := getattr(compiler_provider, "compiler", None)) is None:
+        raise NotImplementedError(f"{compiler_provider} is not a SQL backend")
 
     return compiler
 

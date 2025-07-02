@@ -1,4 +1,4 @@
-from typing import Any, cast, Generator, Optional, Sequence, Tuple, Type, TYPE_CHECKING
+from typing import Any, Generator, Optional, Sequence, Tuple, Type, TYPE_CHECKING
 
 from textwrap import indent
 from typing import (
@@ -16,8 +16,7 @@ from typing import (
 )
 from contextlib import contextmanager
 from textwrap import indent
-
-from enum import Enum, auto
+from dlt.common.utils import simple_repr, without_none
 
 from sqlglot import maybe_parse
 from sqlglot.optimizer.merge_subqueries import merge_subqueries
@@ -27,13 +26,12 @@ import sqlglot.expressions as sge
 from dlt.common.destination.dataset import Relation, TFilterOperation
 
 from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGlotDialect
-from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.schema.typing import TTableSchemaColumns, TTableSchema
 from dlt.common.typing import Self
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.transformations import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.queries import normalize_query, build_select_expr
-from dlt.extract.hints import make_hints, TResourceHints
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination.dataset import DataAccess
 
@@ -174,6 +172,19 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
     def columns_schema(self, new_value: TTableSchemaColumns) -> None:
         raise NotImplementedError("Columns Schema may not be set")
 
+    @property
+    def schema(self) -> TTableSchema:
+        computed_columns, _ = self._compute_columns_schema(
+            infer_sqlglot_schema=True,
+            allow_anonymous_columns=True,
+            allow_partial=True,
+        )
+        return {"columns": computed_columns}
+
+    @schema.setter
+    def schema(self, new_value: TTableSchema) -> None:
+        raise NotImplementedError("Schema may not be set")
+
     #
     # WithSqlClient interface
     #
@@ -184,19 +195,6 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
     @property
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
         return self._dataset.sql_client_class
-
-    #
-    # Computable resource hints helper
-    #
-    def compute_hints(self) -> TResourceHints:
-        """Computes schema hints for this relation"""
-        computed_columns, _ = self._compute_columns_schema(
-            infer_sqlglot_schema=True,
-            allow_anonymous_columns=True,
-            allow_partial=True,
-        )
-        # TODO: possibly also forward "table level" hints in some cases
-        return make_hints(columns=computed_columns)
 
     #
     # Cursor Management
@@ -430,16 +428,20 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
     #
     def __str__(self) -> str:
         # TODO: merge detection of "simple" transformation that preserve table schema
-        query_expr = self.__dict__.get("_sqlglot_expression", None)
-        msg = (
-            "Relation"
-            f" query:\n{indent(query_expr.sql(dialect=self.query_dialect(), pretty=True), prefix='  ')}\n"
-        )
+        msg = f"Relation query: \n{indent(self.to_sql(pretty=True), prefix='  ')}\n"
         msg += "Columns:\n"
         for column in self.columns_schema.values():
             # TODO: show x-annotation hints
             msg += f"{indent(column['name'], prefix='  ')} {column['data_type']}\n"
         return msg
+
+    def __repr__(self) -> str:
+        # schema may not be set
+        kwargs = {
+            "dataset": repr(self._dataset),
+            "query": self.to_sql(pretty=True),
+        }
+        return simple_repr("dlt.Relation", **without_none(kwargs))
 
     def __copy__(self) -> Self:
         return self.__class__(

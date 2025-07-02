@@ -32,7 +32,7 @@ from dlt.transformations.configuration import TransformationConfiguration
 from dlt.common.utils import get_callable_name
 from dlt.extract.exceptions import CurrentSourceNotAvailable
 from dlt.extract.pipe_iterator import DataItemWithMeta
-from dlt.extract.hints import DLT_HINTS_METADATA_KEY, TResourceHints
+from dlt.extract.hints import DLT_HINTS_METADATA_KEY, make_hints
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 
 try:
@@ -52,10 +52,10 @@ class DltTransformationResource(DltResource):
 
     def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
         # if we detect any hints on the item directly, merge them with the existing hints
-        item_hints: TResourceHints = {}
+        schema: TTableSchema = {}
         original_hints = self._hints
         if isinstance(item, ReadableDBAPIRelation):
-            item_hints = item.compute_hints()
+            schema = item.schema
 
         # extract resource hints from arrow metadata if available
         if (
@@ -66,11 +66,15 @@ class DltTransformationResource(DltResource):
         ):
             _h = item.schema.metadata.get(DLT_HINTS_METADATA_KEY.encode("utf-8"))
             if _h:
-                item_hints = json.loads(_h.decode("utf-8"))
+                schema = json.loads(_h.decode("utf-8"))
 
-        if item_hints:
+        if schema:
+            # TODO: helper function that does this properly
+            # convert schema to hints
+            hints = make_hints(columns=schema["columns"])
+
             # NOTE: by merging in the original hints again, we ensure that the item hints are the lowest priority
-            self.merge_hints(item_hints)
+            self.merge_hints(hints)
             self.merge_hints(original_hints)
 
         return super().compute_table_schema(item, meta)
@@ -152,7 +156,7 @@ def make_transformation_resource(
                             " all used datasets via transform function arguments.",
                         )
                     else:
-                        relation = datasets[0](item)
+                        relation = cast(ReadableDBAPIRelation, datasets[0](item))
                 except sqlglot.errors.ParseError as e:
                     raise TransformationException(
                         resource_name,
@@ -160,7 +164,7 @@ def make_transformation_resource(
                         " query via transform function arguments.",
                     ) from e
             elif IbisExpr and isinstance(item, IbisExpr):
-                relation = datasets[0](item)
+                relation = cast(ReadableDBAPIRelation, datasets[0](item))
             else:
                 # no transformation, just yield this item
                 yield item
@@ -174,7 +178,7 @@ def make_transformation_resource(
             else:
                 from dlt.common.libs.pyarrow import add_arrow_metadata
 
-                serialized_hints = json.dumps(relation.compute_hints())
+                serialized_hints = json.dumps(relation.schema)
                 for chunk in relation.iter_arrow(chunk_size=config.buffer_max_items):
                     yield add_arrow_metadata(chunk, {DLT_HINTS_METADATA_KEY: serialized_hints})
 

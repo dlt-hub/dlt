@@ -1,3 +1,5 @@
+# flake8: noqa
+
 from typing import Any, cast, Tuple, List
 import re
 import pytest
@@ -552,8 +554,6 @@ def test_limit_and_head(populated_pipeline: Pipeline) -> None:
     assert dataset_._opened_sql_client is None
 
     table_relationship = dataset_.items
-    # ibis relation creates client, default not
-    # assert dataset_._sql_client is None
 
     assert len(table_relationship.head().fetchall()) == 5
     # no client remains
@@ -574,7 +574,7 @@ def test_limit_and_head(populated_pipeline: Pipeline) -> None:
     assert table_relationship.limit(24).arrow().num_rows == 24
     assert dataset_._opened_sql_client is None
 
-    limit_relationship = table_relationship.limit(24)
+    limit_relationship = cast(ReadableDBAPIRelation, table_relationship.limit(24))
     for data_ in limit_relationship.iter_fetch(6):
         assert len(data_) == 6
         # client stays open
@@ -582,7 +582,7 @@ def test_limit_and_head(populated_pipeline: Pipeline) -> None:
 
     # run multiple requests on one connection
     with dataset_ as d_:
-        limit_relationship = table_relationship.limit(24)
+        limit_relationship = cast(ReadableDBAPIRelation, table_relationship.limit(24))
         for _data in limit_relationship.iter_fetch(6):
             # client stays open
             assert limit_relationship._opened_sql_client is not None
@@ -591,7 +591,7 @@ def test_limit_and_head(populated_pipeline: Pipeline) -> None:
                 == d_._opened_sql_client.native_connection
             )
 
-        other_relationship = table_relationship.limit(10)
+        other_relationship = cast(ReadableDBAPIRelation, table_relationship.limit(10))
         for _data in other_relationship.iter_fetch(6):
             assert other_relationship._opened_sql_client is not None
             assert (
@@ -1201,11 +1201,14 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
 
     # check dataset factory
-    dataset = _dataset(
-        destination=populated_pipeline.destination,
-        dataset_name=populated_pipeline.dataset_name,
-        # use name otherwise aleph schema is loaded
-        schema=populated_pipeline.default_schema_name,
+    dataset = cast(
+        ReadableDBAPIDataset,
+        _dataset(
+            destination=populated_pipeline.destination,
+            dataset_name=populated_pipeline.dataset_name,
+            # use name otherwise aleph schema is loaded
+            schema=populated_pipeline.default_schema_name,
+        ),
     )
     # verify that sql client and schema are lazy loaded
     assert not dataset._schema
@@ -1216,18 +1219,24 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     assert dataset.schema.tables["items"]["write_disposition"] == "replace"
 
     # check that schema is not loaded when wrong name given
-    dataset = _dataset(
-        destination=populated_pipeline.destination,
-        dataset_name=populated_pipeline.dataset_name,
-        schema="wrong_schema_name",
+    dataset = cast(
+        ReadableDBAPIDataset,
+        _dataset(
+            destination=populated_pipeline.destination,
+            dataset_name=populated_pipeline.dataset_name,
+            schema="wrong_schema_name",
+        ),
     )
     assert "items" not in dataset.schema.tables
     assert dataset.schema.name == "wrong_schema_name"
 
     # check that schema is loaded if no schema name given
-    dataset = _dataset(
-        destination=populated_pipeline.destination,
-        dataset_name=populated_pipeline.dataset_name,
+    dataset = cast(
+        ReadableDBAPIDataset,
+        _dataset(
+            destination=populated_pipeline.destination,
+            dataset_name=populated_pipeline.dataset_name,
+        ),
     )
     # aleph is a secondary schema in the pipeline but because it was stored second
     # will be retrieved by default
@@ -1235,9 +1244,12 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     assert dataset.schema.tables["digits"]["write_disposition"] == "append"
 
     # check that there is no error when creating dataset without schema table
-    dataset = _dataset(
-        destination=populated_pipeline.destination,
-        dataset_name="unknown_dataset",
+    dataset = cast(
+        ReadableDBAPIDataset,
+        _dataset(
+            destination=populated_pipeline.destination,
+            dataset_name="unknown_dataset",
+        ),
     )
     assert dataset.schema.name == "unknown_dataset"
     assert "items" not in dataset.schema.tables
@@ -1255,9 +1267,12 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     with populated_pipeline.destination_client() as client:
         client.update_stored_schema()
 
-    dataset = _dataset(
-        destination=populated_pipeline.destination,
-        dataset_name=populated_pipeline.dataset_name,
+    dataset = cast(
+        ReadableDBAPIDataset,
+        _dataset(
+            destination=populated_pipeline.destination,
+            dataset_name=populated_pipeline.dataset_name,
+        ),
     )
     assert dataset.schema.name == "some_other_schema"
     assert "other_table" in dataset.schema.tables
@@ -1346,3 +1361,56 @@ def test_naming_convention_propagation(destination_config: DestinationTestConfig
         assert client.dataset_name.startswith("Read_test")
         tables = client.native_connection.sql("SHOW TABLES;")
         assert "ItemS" in str(tables)
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_str_and_repr_on_dataset_and_relation(populated_pipeline: Pipeline) -> None:
+    # no need to test on all destinations
+    if populated_pipeline.destination.destination_type != "dlt.destinations.duckdb":
+        pytest.skip("Only duckdb is supported for this test")
+
+    dataset_ = cast(ReadableDBAPIDataset, populated_pipeline.dataset())
+
+    def _replace_variable_content(s: str) -> str:
+        # replace dataset name
+        s = s.replace(dataset_.dataset_name, "dataset_name")
+        # replace destination config
+        dest_config = str(
+            cast(ReadableDBAPIDataset, populated_pipeline.dataset()).destination_client.config
+        )
+        s = s.replace(dest_config, "<destination_config>")
+        return s
+
+    # dataset
+    assert (
+        _replace_variable_content(str(dataset_))
+        == "Dataset `dataset_name` at `duckdb[<destination_config>]` with tables in dlt schema"
+        " `source`:\nitems, double_items, orderable_in_chain, items__children"
+    )
+
+    dataset_repr = _replace_variable_content(repr(dataset_))
+    assert dataset_repr.startswith("<dlt.dataset(dataset_name='dataset_name',")
+
+    # relation
+    relation = dataset_("SELECT id, decimal FROM items")
+    assert _replace_variable_content(str(relation)) == """Relation query: 
+  SELECT
+    "items"."id" AS "id",
+    "items"."decimal" AS "decimal"
+  FROM "dataset_name"."items" AS "items"
+Columns:
+  id bigint
+  decimal decimal
+"""
+    relation_repr = _replace_variable_content(repr(relation))
+    assert relation_repr.startswith(
+        "<dlt.Relation(dataset='<dlt.dataset(dataset_name=\\'dataset_name\\'"
+    )
+    assert '"items"."decimal" AS "decimal"' in relation_repr

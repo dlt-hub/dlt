@@ -24,7 +24,7 @@ from dlt.common.typing import Self, Generic, TypeVar
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.libs.sqlglot import TSqlGlotDialect
-
+from dlt.common.schema.typing import TTableSchema
 
 if TYPE_CHECKING:
     from dlt.common.libs.pandas import DataFrame
@@ -128,6 +128,9 @@ class DataAccess(Protocol):
 
 class Relation(DataAccess):
     """A readable relation retrieved from a destination that supports it"""
+
+    schema: TTableSchema
+    """The schema of the relation"""
 
     def scalar(self) -> Any:
         """fetch first value of first column on first row as python primitive
@@ -279,15 +282,6 @@ class Dataset(Protocol):
             str: The name of the dataset
         """
 
-    @property
-    def open_table_client(self) -> SupportsOpenTables:
-        """Returns the open table client for the dataset
-
-        Returns:
-            SupportsOpenTables: The open table client for the dataset
-        """
-        ...
-
     def __call__(
         self,
         query: Union[str, sge.Select, IbisExpr],
@@ -396,4 +390,3 @@ class Dataset(Protocol):
         Returns:
             Relation: The row counts of the dataset as ReadableRelation
         """
-        ...

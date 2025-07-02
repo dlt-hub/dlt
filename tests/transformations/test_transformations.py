@@ -184,7 +184,7 @@ def test_materializable_sql_model(destination_config: DestinationTestConfigurati
 
     model = list(materializable_sql_model(fruit_p.dataset()))[0]
     assert model.arrow().column_names == ["id", "name"]
-    assert model.compute_hints()["columns"] == {
+    assert model.schema["columns"] == {
         "id": {"name": "id", "data_type": "bigint", "nullable": False},
         "name": {"name": "name", "x-annotation-pii": True, "data_type": "text", "nullable": True},
     }

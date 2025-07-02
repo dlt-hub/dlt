@@ -34,41 +34,43 @@ def test_query_builder() -> None:
         ),
     )
 
+    relation = cast(ReadableDBAPIRelation, dataset.my_table)
+
     # default query for a table
     assert (
-        dataset.my_table.to_sql().strip()
+        relation.to_sql().strip()
         == 'SELECT "my_table"."col1" AS "col1", "my_table"."col2" AS "col2" FROM'
         ' "pipeline_dataset"."my_table" AS "my_table"'
     )
 
     # head query
     assert (
-        dataset.my_table.head().to_sql().strip()
+        relation.head().to_sql().strip()
         == 'SELECT "my_table"."col1" AS "col1", "my_table"."col2" AS "col2" FROM'
         ' "pipeline_dataset"."my_table" AS "my_table" LIMIT 5'
     )
 
     # limit query
     assert (
-        dataset.my_table.limit(24).to_sql().strip()
+        relation.limit(24).to_sql().strip()
         == 'SELECT "my_table"."col1" AS "col1", "my_table"."col2" AS "col2" FROM'
         ' "pipeline_dataset"."my_table" AS "my_table" LIMIT 24'
     )
 
     # select columns
     assert (
-        dataset.my_table.select("col1").to_sql().strip()
+        relation.select("col1").to_sql().strip()
         == 'SELECT "my_table"."col1" AS "col1" FROM "pipeline_dataset"."my_table" AS "my_table"'
     )
     # also indexer notation
     assert (
-        dataset.my_table[["col2"]].to_sql().strip()
+        relation[["col2"]].to_sql().strip()
         == 'SELECT "my_table"."col2" AS "col2" FROM "pipeline_dataset"."my_table" AS "my_table"'
     )
 
     # limit and select chained
     assert (
-        dataset.my_table.select("col1").limit(24).to_sql().strip()
+        relation.select("col1").limit(24).to_sql().strip()
         == 'SELECT "my_table"."col1" AS "col1" FROM "pipeline_dataset"."my_table" AS "my_table"'
         " LIMIT 24"
     )
@@ -91,7 +93,7 @@ def test_copy_and_chaining() -> None:
     }
 
     # create relation and set some stuff on it
-    relation = dataset.items
+    relation = cast(ReadableDBAPIRelation, dataset.items)
     relation = relation.limit(34)
     relation = relation[["one", "two"]]
 
@@ -167,7 +169,7 @@ def test_changing_relation_with_query() -> None:
         ),
     )
 
-    relation = dataset("SELECT * FROM something")
+    relation = cast(ReadableDBAPIRelation, dataset("SELECT * FROM something"))
     query = relation.to_sql()
     assert (
         'SELECT "something"."this" AS "this", "something"."that" AS "that" FROM'
@@ -175,7 +177,9 @@ def test_changing_relation_with_query() -> None:
         == query
     )
 
-    query = dataset("SELECT this, that FROM something").limit(5).to_sql()
+    query = (
+        cast(ReadableDBAPIRelation, dataset("SELECT this, that FROM something")).limit(5).to_sql()
+    )
     assert (
         'SELECT "something"."this" AS "this", "something"."that" AS "that" FROM'
         ' "pipeline_dataset"."something" AS "something" LIMIT 5'
@@ -190,31 +194,3 @@ def test_changing_relation_with_query() -> None:
 
     with pytest.raises(LineageFailedException):
         relation.select("hello", "hillo").to_sql()
-
-
-def test_repr_and_str() -> None:
-    # dataset not present
-    ds_ = dlt.dataset("duckdb", "test_repr_and_str")
-    # make sure we do not raise on empty dataset
-    assert repr(ds_).startswith("<dlt.dataset(dataset_name='test_repr_and_str'")
-    assert str(ds_).startswith("Dataset `test_repr_and_str` at `duckdb")
-    assert "Dataset is not available" in str(ds_)
-
-    relation = ds_("SELECT something FROM something")
-    with pytest.raises(LineageFailedException):
-        # TODO: maybe we should fallback to super() and not raise?
-        print(str(relation))
-
-    # materialized dataset, known schema
-    pipeline = dlt.pipeline("test_repr_and_str", destination="duckdb", dataset_name="table_data")
-    pipeline.run([1, 2, 3], table_name="digits")
-    ds_ = pipeline.dataset()
-    assert repr(ds_).startswith("<dlt.dataset(dataset_name='table_data'")
-    # ends with list of tables
-    assert str(ds_).endswith("digits")
-    # query (table name not known)
-    rel_ = ds_("SELECT * FROM digits")
-    assert (
-        str(rel_)
-        == """Relation query:\n  SELECT\n    *\n  FROM digits\nColumns:\n  value bigint\n  _dlt_load_id text\n  _dlt_id text\n"""
-    )
