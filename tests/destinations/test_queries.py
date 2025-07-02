@@ -7,6 +7,8 @@ from dlt.destinations.queries import (
     build_stored_state_expr,
     build_stored_schema_expr,
     build_info_schema_columns_expr,
+    build_create_table_expr,
+    build_delete_schema_expr,
     replace_placeholders,
 )
 from dlt.common.schema.typing import C_DLT_LOAD_ID
@@ -191,6 +193,39 @@ def test_build_info_schema_columns_expr(with_catalog_name: bool, with_folded_tab
         expected_params = ["test_catalog", "test_schema"]
     assert stmt.sql() == expected
     assert params == expected_params
+
+
+@pytest.mark.parametrize("use_if_exists", [True, False])
+@pytest.mark.parametrize("quoted_table", [True, False])
+def test_build_create_table_expr(use_if_exists: bool, quoted_table: bool) -> None:
+    # Test with IF NOT EXISTS and quoted identifiers
+    stmt = build_create_table_expr(
+        "my_table", use_if_exists=use_if_exists, quoted_identifiers=quoted_table
+    )
+
+    if use_if_exists and quoted_table:
+        expected = 'CREATE TABLE IF NOT EXISTS "my_table"'
+    elif not use_if_exists and not quoted_table:
+        expected = "CREATE TABLE my_table"
+    elif use_if_exists:
+        expected = "CREATE TABLE IF NOT EXISTS my_table"
+    else:
+        expected = 'CREATE TABLE "my_table"'
+    assert stmt.sql() == expected
+
+
+@pytest.mark.parametrize("quoted", [True, False])
+def test_build_delete_schema_expr(quoted: bool) -> None:
+    stmt = build_delete_schema_expr(
+        "my_table",
+        "schema_name",
+        quoted_identifiers=quoted,
+    )
+    if quoted:
+        expected = 'DELETE FROM "my_table" WHERE "schema_name" = ?'
+    else:
+        expected = "DELETE FROM my_table WHERE schema_name = ?"
+    assert stmt.sql() == expected
 
 
 def test_replace_placeholders() -> None:
