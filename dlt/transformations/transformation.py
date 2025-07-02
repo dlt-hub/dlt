@@ -50,6 +50,14 @@ class DltTransformationResource(DltResource):
     def __init__(self, *args: Any, **kwds: Any) -> None:
         super().__init__(*args, **kwds)
 
+    @property
+    def has_dynamic_hints(self) -> bool:
+        """
+        Tells the extractor wether computed hints may change based on invididual data items
+        Always true for transformations as each yielded items may have a different schema
+        """
+        return True
+
     def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
         # if we detect any hints on the item directly, merge them with the existing hints
         schema: TTableSchema = {}
@@ -187,13 +195,6 @@ def make_transformation_resource(
         iteratable_items = gen_or_item if isinstance(gen_or_item, Iterator) else [gen_or_item]
 
         for item in iteratable_items:
-            if transformation_processed:
-                raise TransformationException(
-                    resource_name,
-                    "Multiple transformations from a single transformation function are not"
-                    " supported at this time.",
-                )
-
             # unwrap if needed
             meta = None
             if isinstance(item, DataItemWithMeta):

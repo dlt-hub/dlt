@@ -266,21 +266,20 @@ def test_multiple_transformations_in_function(
         yield dataset["customers"]
         yield dataset["purchases"]
 
-    with pytest.raises(PipelineStepFailed) as excinfo:
-        dest_p.run(multiple_transformations(fruit_p.dataset()))
+    dest_p.run(multiple_transformations(fruit_p.dataset()))
 
-    assert (
-        "Multiple transformations from a single transformation function are not supported at this"
-        " time."
-        in str(excinfo.value)
-    )
+    assert load_table_counts(dest_p, "multiple_transformations") == {
+        "multiple_transformations": 16  # 13 customers + 3 purchases
+    }
 
-    # assert load_table_counts(dest_p, "multiple_transformations") == {
-    #     "multiple_transformations": 16  # 13 customers + 3 purchases
-    # }
-
-    # print(dest_p.dataset().multiple_transformations.df())
-
-    # assert set(dest_p.default_schema.tables["multiple_transformations"]["columns"].keys()) == {} # should have all columns joined from both tables
-
-    # assert get_job_types(dest_p) == {"multiple_transformations": {"model": 1}}
+    assert set(dest_p.default_schema.tables["multiple_transformations"]["columns"].keys()) == {
+        "customer_id",
+        "quantity",
+        "city",
+        "id",
+        "name",
+        "inventory_id",
+        "_dlt_load_id",
+        "_dlt_id",
+    }
+    assert get_job_types(dest_p) == {"multiple_transformations": {"model": 2}}
