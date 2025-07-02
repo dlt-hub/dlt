@@ -46,6 +46,7 @@ def test_adapter_and_hints() -> None:
         "name": "content",
         "data_type": "text",
         "x-lancedb-embed": True,
+        "nullable": True,  # lancedb will override nullability
     }
 
     lancedb_adapter(
@@ -60,6 +61,7 @@ def test_adapter_and_hints() -> None:
         "name": "content",
         "data_type": "text",
         "x-lancedb-embed": True,
+        "nullable": True,  # lancedb will override nullability
     }
 
     assert some_data.compute_table_schema()["columns"]["content"]["merge_key"] is True
