@@ -123,16 +123,8 @@ def write_records(
         ValueError: If the write disposition is unsupported, or `id_field_name` is not
             provided for update/merge operations.
     """
-
-    try:
-        tbl = db_client.open_table(table_name)
-        tbl.checkout_latest()
-    except ValueError as e:
-        # TODO: why we wrap it? ValueError now means that we miss a table
-        raise DestinationTransientException(
-            "Couldn't open lancedb database. Batch WILL BE RETRIED"
-        ) from e
-
+    tbl = db_client.open_table(table_name)
+    tbl.checkout_latest()
     try:
         if write_disposition in ("append", "skip", "replace"):
             tbl.add(records)
