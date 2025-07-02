@@ -413,6 +413,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         write_records(
             records,
             db_client=self.db_client,
+            config=self.config,
             table_name=fq_version_table_name,
             write_disposition=write_disposition,
         )
@@ -565,6 +566,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         write_records(
             records,
             db_client=self.db_client,
+            config=self.config,
             table_name=fq_loads_table_name,
             write_disposition=write_disposition,
         )

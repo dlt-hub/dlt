@@ -17,7 +17,10 @@ from dlt.common.destination.exceptions import (
 from dlt.common.schema import TTableSchema
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.schema.utils import get_columns_names_with_prop, get_first_column_name_with_prop
-from dlt.destinations.impl.lancedb.configuration import TEmbeddingProvider
+from dlt.destinations.impl.lancedb.configuration import (
+    TEmbeddingProvider,
+    LanceDBClientConfiguration,
+)
 from dlt.destinations.impl.lancedb.schema import add_vector_column
 
 EMPTY_STRING_PLACEHOLDER = "0uEoDNBpQUBwsxKbmxxB"
@@ -97,6 +100,7 @@ def write_records(
     /,
     *,
     db_client: DBConnection,
+    config: LanceDBClientConfiguration,
     table_name: str,
     write_disposition: Optional[TWriteDisposition] = "append",
     merge_key: Optional[str] = None,
@@ -138,8 +142,7 @@ def write_records(
             # order, and types). Only after 22. does it work with chunks and embeddings
 
             target_schema = tbl.schema
-            # TODO: pass config here take vector column name
-            records = add_vector_column(records, target_schema, "vector")
+            records = add_vector_column(records, target_schema, config.vector_field_name)
             if remove_orphans:
                 tbl.merge_insert(merge_key).when_not_matched_by_source_delete(
                     delete_condition

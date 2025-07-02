@@ -2,6 +2,9 @@ from typing import cast
 import pyarrow as pa
 import pyarrow.parquet as pq
 from lancedb import DBConnection  # type: ignore
+from dlt.destinations.impl.lancedb.configuration import (
+    LanceDBClientConfiguration,
+)
 
 from dlt.common.destination.client import (
     RunnableLoadJob,
@@ -72,6 +75,7 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
         write_records(
             arrow_table,
             db_client=db_client,
+            config=self._job_client.config,
             table_name=fq_table_name,
             write_disposition=write_disposition,
             # use deterministic
@@ -154,6 +158,7 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
             write_records(
                 payload_arrow_table,
                 db_client=db_client,
+                config=self._job_client.config,
                 table_name=fq_table_name,
                 write_disposition="merge",
                 merge_key=merge_key,
