@@ -159,10 +159,10 @@ class PipelineTrace(SupportsHumanize, _PipelineTrace):
         return msg
 
     def last_pipeline_step_trace(self, step_name: TPipelineStep) -> PipelineStepTrace:
-        for step in self.steps:
-            if step.step == step_name:
-                return step
-        return None
+        matching_steps = [step for step in self.steps if step.step == step_name]
+        if not matching_steps:
+            return None
+        return max(matching_steps, key=lambda step: step.started_at)
 
     def asdict(self) -> DictStrAny:
         """A dictionary representation of PipelineTrace that can be loaded with `dlt`"""
