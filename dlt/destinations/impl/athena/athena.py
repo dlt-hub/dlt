@@ -310,7 +310,7 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
                 table_properties = self._iceberg_table_properties()
                 logger.info(f"Will create ICEBERG table {table_name} in {location}")
                 # this will fail if the table prefix is not properly defined
-                sql.append(f"""{self._make_create_table(qualified_table_name, table)}
+                sql.append(f"""{self._make_create_table(table_name, table)}
                         ({columns})
                         {partition_clause}
                         LOCATION '{location.rstrip('/')}'
