@@ -241,6 +241,7 @@ dev = [
     "pydoclint>=0.6.5,<0.7",
     # limit the pyarrow version not to test on too new one
     "pyarrow>=16.0.0,<19.0.0",
+    "types-paramiko>=3.5.0.20250516",
 ]
 sources = [
     "connectorx>=0.3.3 ; python_version >= '3.9'",
