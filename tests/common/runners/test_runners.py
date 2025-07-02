@@ -1,4 +1,6 @@
 import pytest
+import os
+import time
 import multiprocessing
 from typing import Type
 
@@ -167,3 +169,40 @@ def test_pool_runner_process_methods_configured(method) -> None:
     runs_count = runner.run_pool(ProcessPoolConfiguration(start_method=method), r)
     assert runs_count == 1
     assert [v[0] for v in r.rv] == list(range(4))
+
+
+import threading
+
+_tls = threading.local()
+
+
+def lock_del_task():
+    """Returns promptly, but its local object's __del__ blocks for 2 s."""
+
+    class Blocker:
+        def __del__(self):
+            time.sleep(2)
+
+    # store blocker in local thread storage so it is garbage collected on thread exit
+    _tls.blocker = Blocker()
+    return "OK"
+
+
+def test_pool_runner_shutdown_timeout() -> None:
+    pool = runner.TimeoutThreadPoolExecutor(max_workers=4, timeout=1.01)
+
+    t0 = time.perf_counter()
+
+    assert pool.submit(lock_del_task).result() == "OK"
+    # was not waiting in submit
+    assert time.perf_counter() - t0 < 0.3
+    # assert that threads were alive
+    pool.shutdown(wait=True)
+    assert pool._is_alive is True
+    # and was waiting 1 second, not 2
+    assert time.perf_counter() - t0 > 1.0
+    assert time.perf_counter() - t0 < 2.0
+
+    # now wait again this time should not be alive
+    pool.shutdown(wait=True)
+    assert pool._is_alive is False

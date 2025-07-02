@@ -4,7 +4,7 @@ import dlt
 from dlt.cli.exceptions import CliCommandInnerException
 
 from dlt.common.json import json
-from dlt.common.pipeline import resource_state, get_dlt_pipelines_dir, TSourceState
+from dlt.common.pipeline import get_dlt_pipelines_dir, TSourceState
 from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
@@ -15,6 +15,8 @@ from dlt.common.schema.utils import (
     remove_defaults,
 )
 from dlt.common.storages import FileStorage, PackageStorage
+
+from dlt.extract.state import resource_state
 from dlt.pipeline.helpers import DropCommand
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 

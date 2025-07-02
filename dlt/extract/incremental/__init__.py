@@ -23,7 +23,6 @@ from dlt.common.typing import (
 )
 from dlt.common.configuration import configspec, ConfigurationValueError
 from dlt.common.configuration.specs import BaseConfiguration
-from dlt.common.pipeline import resource_state
 from dlt.common.data_types.type_helpers import (
     coerce_from_date_types,
     coerce_value,
@@ -45,6 +44,7 @@ from dlt.common.incremental.typing import (
 )
 from dlt.extract.items import SupportsPipe, TTableHintTemplate
 from dlt.extract.items_transform import ItemTransform
+from dlt.extract.state import resource_state
 from dlt.extract.incremental.transform import (
     JsonIncremental,
     ArrowIncremental,
