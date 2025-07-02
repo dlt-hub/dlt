@@ -146,9 +146,6 @@ def make_transformation_resource(
         # respect config setting
         should_materialize = should_materialize or config.always_materialize
 
-        # add check to only allow one transformation to be processed per function
-        transformation_processed = False
-
         def _process_item(item: TDataItems) -> Iterator[TDataItems]:
             # catch the cases where we get a relation from the transformation function
             if isinstance(item, ReadableDBAPIRelation):
@@ -178,9 +175,6 @@ def make_transformation_resource(
                 yield item
                 return
 
-            nonlocal transformation_processed
-            transformation_processed = True
-
             if not should_materialize:
                 yield relation
             else:
@@ -192,9 +186,9 @@ def make_transformation_resource(
 
         # support both generator and function
         gen_or_item = func(*args, **kwargs)
-        iteratable_items = gen_or_item if isinstance(gen_or_item, Iterator) else [gen_or_item]
+        iterable_items = gen_or_item if isinstance(gen_or_item, Iterator) else [gen_or_item]
 
-        for item in iteratable_items:
+        for item in iterable_items:
             # unwrap if needed
             meta = None
             if isinstance(item, DataItemWithMeta):
