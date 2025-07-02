@@ -20,6 +20,7 @@ from dlt.common.utils import simple_repr, without_none
 
 from sqlglot import maybe_parse
 from sqlglot.optimizer.merge_subqueries import merge_subqueries
+from sqlglot.expressions import ExpOrStr as SqlglotExprOrStr
 
 import sqlglot.expressions as sge
 
@@ -337,12 +338,54 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
         rel._sqlglot_expression = rel._sqlglot_expression.order_by(order_expr)
         return rel
 
+    def _apply_agg(self, agg_cls: type[sge.AggFunc]) -> Self:
+        if len(self._sqlglot_expression.selects) != 1:
+            raise ValueError(
+                f"{agg_cls.__name__.lower()}() requires a query with exactly one select expression."
+                " Consider selecting the column you want to aggregate."
+            )
+        selected_col = self._sqlglot_expression.selects[0]
+        expr = agg_cls(this=selected_col.this if hasattr(selected_col, "this") else selected_col)
+        rel = self.__copy__()
+        rel._sqlglot_expression.set("expressions", [expr])
+        return rel
+
+    def max(self) -> Self:  # noqa: A003
+        return self._apply_agg(sge.Max)
+
+    def min(self) -> Self:  # noqa: A003
+        return self._apply_agg(sge.Min)
+
+    @overload
+    def where(self, *, expr_or_str: SqlglotExprOrStr) -> Self: ...
+
+    @overload
     def where(
         self,
         column_name: str,
         operator: TFilterOperation,
         value: Any,
+    ) -> Self: ...
+
+    def where(
+        self,
+        column_name: Optional[str] = None,
+        operator: Optional[TFilterOperation] = None,
+        value: Optional[Any] = None,
+        expr_or_str: Optional[SqlglotExprOrStr] = None,
     ) -> Self:
+        rel = self.__copy__()
+
+        if not isinstance(rel._sqlglot_expression, sge.Select):
+            raise ValueError(
+                f"Query `{rel._sqlglot_expression}` received for `{rel.__class__.__name__}`. "
+                "Must be an SQL SELECT statement."
+            )
+
+        if expr_or_str:
+            rel._sqlglot_expression = rel._sqlglot_expression.where(expr_or_str)
+            return rel
+
         if isinstance(operator, str):
             try:
                 condition_cls = _FILTER_OP_MAP[operator]
@@ -374,22 +417,27 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
         else:
             condition = condition_cls(this=column, expression=value_expr)
 
-        rel = self.__copy__()
-
-        if not isinstance(rel._sqlglot_expression, sge.Select):
-            raise ValueError(
-                f"Query `{rel._sqlglot_expression}` received for `{rel.__class__.__name__}`. "
-                "Must be an SQL SELECT statement."
-            )
-
         rel._sqlglot_expression = rel._sqlglot_expression.where(condition)
         return rel
 
+    @overload
+    def filter(self, *, expr_or_str: SqlglotExprOrStr) -> Self: ...  # noqa: A003
+
+    @overload
     def filter(  # noqa: A003
         self,
         column_name: str,
         operator: TFilterOperation,
         value: Any,
+    ) -> Self: ...
+
+    def filter(  # noqa: A003
+        self,
+        column_name: Optional[str] = None,
+        operator: Optional[TFilterOperation] = None,
+        value: Optional[Any] = None,
+        *,
+        expr_or_str: Optional[SqlglotExprOrStr] = None,
     ) -> Self:
         return self.where(column_name=column_name, operator=operator, value=value)
 

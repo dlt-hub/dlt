@@ -837,6 +837,83 @@ def test_where(populated_pipeline: Pipeline) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
+def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
+    items = populated_pipeline.dataset().items
+    double_items = populated_pipeline.dataset().double_items
+    orderable_in_chain = populated_pipeline.dataset().orderable_in_chain
+
+    filtered_items_sql = items.where(expr_or_str="id < 10").fetchall()
+    assert len(filtered_items_sql) == 10
+    assert all(row[0] < 10 for row in filtered_items_sql)
+
+    filtered_items_range = items.where(expr_or_str="id >= 5 AND id <= 15").fetchall()
+    assert len(filtered_items_range) == 11  # ids 5 through 15 inclusive
+    assert all(5 <= row[0] <= 15 for row in filtered_items_range)
+
+    import sqlglot.expressions as sge
+
+    # Create a sqlglot expression: id = 42
+    expr = sge.EQ(
+        this=sge.Column(this=sge.to_identifier("id", quoted=True)),
+        expression=sge.Literal.number("42"),
+    )
+    filtered_items_expr = items.where(expr_or_str=expr).fetchall()
+    assert len(filtered_items_expr) == 1
+    assert filtered_items_expr[0][0] == 42
+
+    # Test combination with other methods
+    combined_result = items.where(expr_or_str="id < 100").limit(5).fetchall()
+    assert len(combined_result) == 5
+    assert all(row[0] < 100 for row in combined_result)
+
+    combined_result = (
+        orderable_in_chain.where(expr_or_str="id = 1").select("other_id").max().scalar()
+    )
+    assert 3 == combined_result
+
+    combined_result = (
+        orderable_in_chain.where(expr_or_str="id = 1").select("other_id").min().scalar()
+    )
+    assert 2 == combined_result
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_min_max(populated_pipeline: Pipeline) -> None:
+    items = populated_pipeline.dataset().items
+
+    max_id_row = items.select("id").max().fetchall()
+    assert max_id_row == [(2999,)]
+
+    min_id_row = items.select("id").min().fetchall()
+    assert min_id_row == [(0,)]
+
+    max_id = items.select("id").max().scalar()
+    assert max_id == 2999
+
+    min_id = items.select("id").min().scalar()
+    assert min_id == 0
+
+    with pytest.raises(ValueError) as py_exc:
+        min_id = items.select("id", "decimal").min().scalar()
+
+    assert "min() requires a query with exactly one select expression." in py_exc.value.args[0]
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
 def test_unknown_table_access(populated_pipeline: Pipeline) -> None:
     with pytest.raises(ValueError, match="Table `unknown_table` not found in schema"):
         populated_pipeline.dataset().unknown_table
