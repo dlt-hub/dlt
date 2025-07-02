@@ -177,7 +177,7 @@ _tls = threading.local()
 
 
 def lock_del_task():
-    """Returns promptly, but its local object's __del__ blocks for 10 s."""
+    """Returns promptly, but its local object's __del__ blocks for 2 s."""
 
     class Blocker:
         def __del__(self):
