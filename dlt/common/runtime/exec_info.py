@@ -82,7 +82,7 @@ def is_notebook() -> bool:
         return False
 
 
-def is_pyodide() -> True:
+def is_pyodide() -> bool:
     return sys.platform == "emscripten"
 
 
