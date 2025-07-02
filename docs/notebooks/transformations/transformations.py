@@ -1,35 +1,39 @@
 import marimo
 
-__generated_with = "0.14.10-dev0"
+__generated_with = "0.13.15"
 app = marimo.App()
 
 
-@app.cell
-def _():
+with app.setup:
+    import sys
     import marimo as mo
-    return (mo,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""# `dlt` simple transformations""")
+    mo.vstack(
+        [
+            mo.md(r"""# `dlt` simple transformations"""),
+            mo.md(
+                "You can also run this example locally with `uv run marimo edit"
+                " docs/notebooks/transformations/transformations.py` from the dltHub repo root."
+            ),
+        ]
+    )
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 async def _():
     # NOTE: this installs the dependencies for the notebook in WASM mode
-    try:
+    if sys.platform == "emscripten":
         import micropip
+
         await micropip.install("duckdb")
         await micropip.install("sqlite3")
         await micropip.install("pandas")
         await micropip.install("ibis-framework[duckdb]")
         await micropip.install("dlt==1.12.4a0")
-    except ModuleNotFoundError:
-        pass
-
-    return
 
 
 @app.cell
@@ -52,7 +56,7 @@ def _(dlt, random):
     @dlt.resource(table_name="items")
     def foo():
         for i in range(50):
-            yield {"id": i, "name": f"This is item {i}", "random_int": random.randint(0,10)}
+            yield {"id": i, "name": f"This is item {i}", "random_int": random.randint(0, 10)}
 
     pipeline = dlt.pipeline(
         pipeline_name="python_data_example",

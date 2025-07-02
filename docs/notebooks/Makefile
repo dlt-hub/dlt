@@ -5,4 +5,4 @@ build: clear
 	uv run marimo -y export html-wasm transformations/transformations.py -o build/transformations --mode edit
 
 serve: build
-	python -m http.server --directory build
+	python -m http.server 9000 --directory build
