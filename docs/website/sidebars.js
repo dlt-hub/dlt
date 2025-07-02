@@ -540,6 +540,7 @@ for (const item of sidebars.tutorialSidebar) {
   if (item.label === 'Code examples') {
     for (let examplePath of walkSync("./docs_processed/examples")) {
       examplePath = examplePath.replace("docs_processed/", "");
+      examplePath = examplePath.replace(".mdx", "");
       examplePath = examplePath.replace(".md", "");
       item.items.push(examplePath);
     }
