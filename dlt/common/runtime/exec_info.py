@@ -82,6 +82,10 @@ def is_notebook() -> bool:
         return False
 
 
+def is_pyodide() -> True:
+    return sys.platform == "emscripten"
+
+
 def is_colab() -> bool:
     try:
         return "COLAB_RELEASE_TAG" in os.environ or "google.colab" in str(get_ipython())  # type: ignore
