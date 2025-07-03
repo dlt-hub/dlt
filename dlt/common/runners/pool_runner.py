@@ -16,7 +16,7 @@ from dlt.common.runtime import signals
 from dlt.common.runtime.signals import sleep
 from dlt.common.exceptions import SignalReceivedException
 from dlt.common.typing import AnyFun
-
+from dlt.common.runtime.exec_info import platform_supports_threading
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -170,8 +170,18 @@ def run_pool(
         )
 
     # start pool
-    pool = create_pool(config)
-    logger.info(f"Created {config.pool_type} pool with {config.workers or 'default no.'} workers")
+    pool: Executor = None
+    if platform_supports_threading():
+        pool = create_pool(config)
+        logger.info(
+            f"Created {config.pool_type} pool with {config.workers or 'default no.'} workers"
+        )
+    else:
+        pool = NullExecutor()
+        logger.info(
+            "Platform does not support threading, using single-threaded pool for execution."
+        )
+
     runs_count = 1
 
     def _run_func() -> bool:

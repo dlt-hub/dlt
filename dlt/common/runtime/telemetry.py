@@ -8,6 +8,7 @@ from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import TFun
 from dlt.common.configuration import resolve_configuration
+from dlt.common.runtime.exec_info import platform_supports_threading
 from dlt.common.runtime.anon_tracker import (
     TEventCategory,
     init_anon_tracker,
@@ -23,6 +24,10 @@ def start_telemetry(config: RuntimeConfiguration) -> None:
 
     global _TELEMETRY_STARTED
     if _TELEMETRY_STARTED:
+        return
+
+    # telemetry uses threading
+    if not platform_supports_threading():
         return
 
     if config.sentry_dsn:
