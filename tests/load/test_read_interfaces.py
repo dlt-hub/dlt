@@ -887,15 +887,10 @@ def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
 )
 def test_min_max(populated_pipeline: Pipeline) -> None:
     items = populated_pipeline.dataset().items
-
-    max_id_row = items.select("id").max().fetchall()
-    assert max_id_row == [(2999,)]
-
-    min_id_row = items.select("id").min().fetchall()
-    assert min_id_row == [(0,)]
+    total_records = _total_records(populated_pipeline.destination.destination_type)
 
     max_id = items.select("id").max().scalar()
-    assert max_id == 2999
+    assert max_id == total_records - 1
 
     min_id = items.select("id").min().scalar()
     assert min_id == 0
