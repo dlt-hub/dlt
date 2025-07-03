@@ -4,7 +4,7 @@ from typing import Optional, Type, Iterable, cast, List
 from dlt.destinations.job_impl import FinalizedLoadJob
 from dlt.common.destination.client import LoadJob, PreparedTableSchema, JobClientBase
 from dlt.common.typing import AnyFun
-from dlt.common.storages.load_package import destination_state
+from dlt.common.storages.load_package import destination_state, ParsedLoadJobFileName
 from dlt.common.configuration import create_resolved_partial
 
 from dlt.common.schema import Schema, TSchemaTables
@@ -66,7 +66,11 @@ class DestinationClient(JobClientBase):
 
         # save our state in destination name scope
         load_state = destination_state()
-        if file_path.endswith("parquet"):
+
+        parsed_name = ParsedLoadJobFileName.parse(file_path)
+        file_format = parsed_name.file_format
+
+        if file_format == "parquet":
             return DestinationParquetLoadJob(
                 file_path,
                 self.config,
@@ -74,7 +78,7 @@ class DestinationClient(JobClientBase):
                 self.destination_callable,
                 skipped_columns,
             )
-        if file_path.endswith("jsonl"):
+        if file_format == "jsonl":
             return DestinationJsonlLoadJob(
                 file_path,
                 self.config,
