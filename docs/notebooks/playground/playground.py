@@ -13,10 +13,15 @@ with app.setup:
 def _(mo):
     mo.vstack(
         [
-            mo.md(r"""# `dlt` simple transformations"""),
+            mo.md(r"""# `dlt` playground"""),
             mo.md(
-                "You can also run this example locally with `uv run marimo edit"
-                " docs/notebooks/transformations/transformations.py` from the dltHub repo root."
+                "This example marimo notebook demonstrates the basic usage of `dlt` by loading"
+                " python data structures. This notebook is running in WASM mode fully in your"
+                " browser. Some features available in 'real' python are not available in WASM."
+            ),
+            mo.md(
+                "You can run this example locally in 'real' python with `uv run marimo edit"
+                " docs/notebooks/playground/playground.py` from the dltHub repo root."
             ),
         ]
     )
@@ -25,7 +30,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 async def _():
-    # NOTE: this installs the dependencies for the notebook in WASM mode
+    # NOTE: this installs the dependencies for the notebook if run on pyodide
     if sys.platform == "emscripten":
         import micropip
 
@@ -42,21 +47,17 @@ def _():
 
     os.environ["RUNTIME__DLTHUB_TELEMETRY"] = "False"
     os.environ["WORKERS"] = "1"
-
     import dlt
-    import random
 
-    # from dlt.common.runtime import telemetry
-    # telemetry.stop_telemetry()
-    return dlt, random
+    return dlt
 
 
 @app.cell
-def _(dlt, random):
+def _(dlt):
     @dlt.resource(table_name="items")
     def foo():
         for i in range(50):
-            yield {"id": i, "name": f"This is item {i}", "random_int": random.randint(0, 10)}
+            yield {"id": i, "name": f"This is item {i}"}
 
     pipeline = dlt.pipeline(
         pipeline_name="python_data_example",
@@ -70,23 +71,6 @@ def _(dlt, random):
 @app.cell
 def _(pipeline):
     pipeline.dataset(dataset_type="default").items.df()
-    return
-
-
-@app.cell
-def _(dlt, pipeline):
-    @dlt.transformation()
-    def stats(dataset):
-        items_table = dataset.items
-        return items_table.group_by(items_table.random_int).aggregate(count=items_table.count())
-
-    pipeline.run(stats(pipeline.dataset(dataset_type="ibis")))
-    return
-
-
-@app.cell
-def _(pipeline):
-    pipeline.dataset(dataset_type="default").stats.df()
     return
 
 
