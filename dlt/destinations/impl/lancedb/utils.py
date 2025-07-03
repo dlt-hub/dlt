@@ -100,8 +100,8 @@ def write_records(
     /,
     *,
     db_client: DBConnection,
-    config: LanceDBClientConfiguration,
     table_name: str,
+    vector_field_name: str = "vector",
     write_disposition: Optional[TWriteDisposition] = "append",
     merge_key: Optional[str] = None,
     remove_orphans: Optional[bool] = False,
@@ -134,7 +134,7 @@ def write_records(
             # order, and types). Only after 22. does it work with chunks and embeddings
 
             target_schema = tbl.schema
-            records = add_vector_column(records, target_schema, config.vector_field_name)
+            records = add_vector_column(records, target_schema, vector_field_name)
             if remove_orphans:
                 tbl.merge_insert(merge_key).when_not_matched_by_source_delete(
                     delete_condition

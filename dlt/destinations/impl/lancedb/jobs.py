@@ -75,7 +75,7 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
         write_records(
             arrow_table,
             db_client=db_client,
-            config=self._job_client.config,
+            vector_field_name=self._job_client.config.vector_field_name,
             table_name=fq_table_name,
             write_disposition=write_disposition,
             # use deterministic
@@ -158,7 +158,7 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
             write_records(
                 payload_arrow_table,
                 db_client=db_client,
-                config=self._job_client.config,
+                vector_field_name=self._job_client.config.vector_field_name,
                 table_name=fq_table_name,
                 write_disposition="merge",
                 merge_key=merge_key,

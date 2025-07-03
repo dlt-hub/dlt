@@ -124,7 +124,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
             # actually the model func doesnt need the api-key!
             **({"host": embedding_model_host} if embedding_model_host else {}),
         )
-        self.vector_field_name = self.config.vector_field_name
 
     @property
     def sentinel_table(self) -> str:
@@ -319,7 +318,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         table: "lancedb.table.Table" = self.db_client.open_table(table_name)
         table.checkout_latest()
 
-        # will be fillde with null values and nullable by default
+        # will be fillde with null values and column is nullable by default
         table.add_columns(field_schemas)
 
         # Make new columns nullable in the Arrow schema.
@@ -355,7 +354,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                         embedding_fields = get_columns_names_with_prop(
                             self.schema.get_table(table_name=table_name), VECTORIZE_HINT
                         )
-                        vector_field_name = self.vector_field_name
+                        vector_field_name = self.config.vector_field_name
                         embedding_model_func = self.model_func
                         embedding_model_dimensions = self.config.embedding_model_dimensions
                     else:
@@ -404,7 +403,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         write_records(
             records,
             db_client=self.db_client,
-            config=self.config,
+            vector_field_name=self.config.vector_field_name,
             table_name=fq_version_table_name,
             write_disposition=write_disposition,
         )
@@ -557,7 +556,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         write_records(
             records,
             db_client=self.db_client,
-            config=self.config,
+            vector_field_name=self.config.vector_field_name,
             table_name=fq_loads_table_name,
             write_disposition=write_disposition,
         )
