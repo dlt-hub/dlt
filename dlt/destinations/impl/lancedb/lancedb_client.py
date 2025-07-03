@@ -238,15 +238,36 @@ class LanceDBClient(JobClientBase, WithStateSync):
         self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
     ) -> List[PreparedTableSchema]:
         loaded_tables = super().verify_schema(only_tables, new_jobs)
-        # verify merge keys early
+
+        # Verify LanceDB-specific requirements for root tables
         for load_table in loaded_tables:
-            if not is_nested_table(load_table) and not load_table.get(NO_REMOVE_ORPHANS_HINT):
-                if merge_key := get_columns_names_with_prop(load_table, "merge_key"):
-                    if len(merge_key) > 1:
-                        raise DestinationTerminalException(
-                            "You cannot specify multiple merge keys with LanceDB orphan remove"
-                            f" enabled: `{merge_key}`"
-                        )
+            # Skip nested tables as they inherit behavior from parent tables
+            if is_nested_table(load_table):
+                continue
+
+            # Check if this table has orphan removal enabled (either explicitly or via merge strategy)
+            has_orphan_removal = load_table.get(NO_REMOVE_ORPHANS_HINT)
+            # how can i check for the write disposition here?
+            has_merge_key = bool(get_columns_names_with_prop(load_table, "merge_key"))
+
+            # Validate merge key constraints when orphan removal is enabled
+            if has_orphan_removal and has_merge_key:
+                merge_keys = get_columns_names_with_prop(load_table, "merge_key")
+                if len(merge_keys) > 1:
+                    raise DestinationTerminalException(
+                        "Multiple merge keys are not supported when LanceDB orphan removal is"
+                        f" enabled: {merge_keys}"
+                    )
+
+            # Check if _dlt_load_id column is required and present
+            requires_load_id = has_orphan_removal  # or has_merge_key
+            if requires_load_id and "_dlt_load_id" not in load_table["columns"].keys():
+                raise DestinationTerminalException(
+                    "The `_dlt_load_id` column is required for tables with orphan removal or merge"
+                    " keys. Enable this by setting"
+                    " `NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID=TRUE`"
+                )
+
         return loaded_tables
 
     def _create_sentinel_table(self) -> "lancedb.table.Table":

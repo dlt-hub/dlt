@@ -8,9 +8,10 @@ from decimal import Decimal
 import dlt
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
+from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.load.lancedb.utils import assert_table
 from tests.pipeline.utils import assert_load_info
-from tests.cases import arrow_table_all_data_types
+from tests.cases import arrow_table_all_data_types, remove_column_from_data
 from tests.utils import TestDataItemFormat
 
 
@@ -162,8 +163,12 @@ def test_new_column_in_second_load(object_format: TestDataItemFormat) -> None:
 
 # @pytest.mark.skip(reason="not completely understood what should happen")
 # this fails not sure why
+# todo parameterize remove_orphans
+@pytest.mark.parametrize("remove_orphans", [True, False])
 @pytest.mark.parametrize("object_format", ["object", "pandas", "arrow-table"])
-def test_missing_column_in_second_load(object_format: TestDataItemFormat) -> None:
+def test_missing_column_in_second_load(
+    object_format: TestDataItemFormat, remove_orphans: bool
+) -> None:
     """
     Test if same data is loaded with missing column and merge stragegy is present, column
     is removed from lancedb table.
@@ -181,35 +186,57 @@ def test_missing_column_in_second_load(object_format: TestDataItemFormat) -> Non
         primary_key="int",
         merge_key="int",
     )
-    def identity_resource(data: pa.Table) -> Generator[pa.Table, None, None]:
+    def identity_resource_with_orphan_removal(data: pa.Table) -> Generator[pa.Table, None, None]:
         yield data
 
-    arrow_table: pa.Table = None
-    arrow_table, _, _ = arrow_table_all_data_types(
+    @dlt.resource(
+        write_disposition={"disposition": "append"},
+        table_name="all_types_table",
+        primary_key="int",
+    )
+    def identity_resource_without_orphan_removal(data: pa.Table) -> Generator[pa.Table, None, None]:
+        yield data
+
+    resource = (
+        identity_resource_with_orphan_removal
+        if remove_orphans
+        else identity_resource_without_orphan_removal
+    )
+
+    table, _, _ = arrow_table_all_data_types(
         object_format=object_format,
         include_null=False,
         include_json=False,
         num_rows=1,
     )
     # remove columns string_null and float_null
-    arrow_table = arrow_table.drop(["string_null", "float_null"])
+    table = remove_column_from_data(object_format, table, "string_null")
+    table = remove_column_from_data(object_format, table, "float_null")
 
     # do a first run to establish schema
-    info = pipeline.run(identity_resource(arrow_table))
+    info = None
+    if remove_orphans and object_format == "arrow-table":
+        with pytest.raises(PipelineStepFailed) as e:
+            info = pipeline.run(resource(table))
+        assert "_dlt_load_id` column is required" in str(e.value)
+        return
+    else:
+        info = pipeline.run(resource(table))
     assert_load_info(info)
 
+    print("first run compeleted")
     # Remove a column from the data
     removed_column = "bool"
-    next_arrow_table = arrow_table.drop([removed_column])
-    assert removed_column not in next_arrow_table.schema.names
+    next_table = remove_column_from_data(object_format, table, removed_column)
 
     # second load, data with same id, but one less column
-    info = pipeline.run(identity_resource(next_arrow_table))
+    info = pipeline.run(resource(next_table))
     assert_load_info(info)
 
     # schema should no longer have the decimal column
     schema_in_pipeline = pipeline.default_schema
-    assert removed_column not in schema_in_pipeline.tables["all_types_table"]["columns"]
+    if remove_orphans:
+        assert removed_column not in schema_in_pipeline.tables["all_types_table"]["columns"]
 
     # Verify that the column is missing in the actual destination table
     with pipeline.destination_client() as client:
@@ -220,7 +247,8 @@ def test_missing_column_in_second_load(object_format: TestDataItemFormat) -> Non
         actual_columns = set(tbl.schema.names)
 
         # Check that the decimal column is missing
-        assert removed_column not in actual_columns
+        if remove_orphans:
+            assert removed_column not in actual_columns
 
 
 # @pytest.mark.xfail(reason="normalizer issue?")
