@@ -300,7 +300,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         field: TArrowField
         for field in arrow_schema:
-            name = self.schema.naming.normalize_identifier(field.name)
+            name = field.name
             table_schema[name] = {
                 "name": name,
                 **self.type_mapper.from_destination_type(field.type, None, None),
