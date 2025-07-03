@@ -133,12 +133,12 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES='{
 </Tabs>
 
 * **Prerequisites** – Create the S3 Table bucket first and grant the calling IAM principal s3tables:* actions read/write permissions on that bucket.
-* **`warehouse`** – full **bucket ARN** for your S3 Table catalog.
-* **`uri`** – region-specific S3 Table REST endpoint.
-* **`rest.*` flags** – mandatory SigV4 settings for every call.
+* **`warehouse`** – full bucket ARN for your S3 Tables catalog.
+* **`uri`** – region-specific S3 Tables REST endpoint.
+* **`rest.*`** properties – mandatory SigV4 settings for every call.
 
 #### Catalog `[glue-rest]`
-Configure this catalog when you want to publish Iceberg tables directly into an S3 Table bucket via the AWS Glue Iceberg REST API endpoint.
+Configure this catalog when you want to publish Iceberg tables directly into an S3 Tables bucket via the AWS Glue Iceberg REST API endpoint.
 
 To configure a `glue-rest` catalog, rovide the following parameters and replace `<region>`, `<account-id>`, `<s3-table-bucket-name>`, and AWS keys with real values:
 
@@ -205,10 +205,10 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES='{
 ```
 </TabItem> </Tabs>
 
-* **Prerequisites** – create the S3 Table bucket first and follow this AWS documentation to properly configure IAM and other service like Lake Formation: ow-to: [Create an Iceberg catalog for S3 Tables via Glue REST](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-integrating-glue-endpoint.html)
-* **`warehouse`** – `s3tablescatalog` glue catalog arn for your S3 Tables catalog.
-* **`uri`** – region-specific Glue REST endpointt.
-* **`rest.*` flags** – mandatory SigV4 settings for every call.
+* **Prerequisites** – create the S3 Table bucket first and follow this AWS documentation to properly configure IAM, Glue, and Lake Formation: [Create an Iceberg catalog for S3 Tables via Glue REST](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-integrating-glue-endpoint.html)
+* **`warehouse`** – glue catalog arn for your S3 Tables catalog.
+* **`uri`** – region-specific Glue REST endpoint.
+* **`rest.*`** properties – mandatory SigV4 settings for every call.
 
 #### Catalog `[glue]`
 
@@ -224,6 +224,7 @@ Choose this when you simply want to use the Glue Catalog with a normal S3 bucket
 ]}>
 <TabItem value="yml">
 ```yaml
+# we recommend to put sensitive parameters to secrets.toml
 destinations:
   iceberg_lake:
     type: iceberg
@@ -263,8 +264,6 @@ export DESTINATION__ICEBERG__CREDENTIALS__REGION_NAME="<region>"
 * **Prerequisites** – An S3 bucket and an IAM principal allowed to read/write that bucket and access the Glue Data Catalog.
 
 * **bucket_url** – S3 prefix where Iceberg data and metadata files will live.
-
-* **Credentials / region** – IAM principal with Glue and S3 write access.
 
 ### SQL catalog
 
