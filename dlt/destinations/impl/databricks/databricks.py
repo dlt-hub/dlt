@@ -26,6 +26,7 @@ from dlt.common.storages.fsspec_filesystem import (
     S3_PROTOCOLS,
     GCS_PROTOCOLS,
 )
+from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.schema import TColumnSchema, Schema
 from dlt.common.schema.typing import TColumnType
 from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
@@ -218,10 +219,13 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
     def _determine_source_format(
         self, file_name: str, orig_bucket_path: str
     ) -> tuple[str, str, bool]:
-        if file_name.endswith(".parquet"):
+        parsed_name = ParsedLoadJobFileName.parse(file_name)
+        file_format = parsed_name.file_format
+
+        if file_format == "parquet":
             return "PARQUET", "", False
 
-        elif file_name.endswith(".jsonl"):
+        elif file_format == "jsonl":
             if not is_compression_disabled():
                 raise LoadJobTerminalException(
                     self._file_path,
