@@ -78,7 +78,7 @@ jobs:
         run: make preprocess-docs
 
       - name: Install dependencies
-        run: uv sync --extra duckdb --extra weaviate --extra parquet --extra qdrant --extra bigquery --extra postgres --extra lancedb --group docs --group sentry-sdk --group ibis --extra s3
+        run: uv sync --extra duckdb --extra weaviate --extra parquet --extra qdrant --extra bigquery --extra postgres --extra lancedb --group docs --group sentry-sdk --group ibis --extra s3 --group marimo
 
       - name: create secrets.toml for examples
         run: pwd && echo "$DLT_SECRETS_TOML" > docs/examples/.dlt/secrets.toml
