@@ -92,4 +92,7 @@ jobs:
       - name: Run linter and tests on examples
         run: make lint-and-test-examples
 
+      - name: Test notebooks
+        run: cd docs/notebooks && make test
+
 

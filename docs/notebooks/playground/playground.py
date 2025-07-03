@@ -4,32 +4,17 @@ __generated_with = "0.13.15"
 app = marimo.App()
 
 
-with app.setup:
+@app.cell(hide_code=True)
+async def initialize():
     import sys
     import marimo as mo
 
+    # NOTE: the three lines below can be removed after new dlt 1.13 is released
+    import os
 
-@app.cell(hide_code=True)
-def _(mo):
-    mo.vstack(
-        [
-            mo.md(r"""# `dlt` playground"""),
-            mo.md(
-                "This example marimo notebook demonstrates the basic usage of `dlt` by loading"
-                " python data structures. This notebook is running in WASM mode fully in your"
-                " browser. Some features available in 'real' python are not available in WASM."
-            ),
-            mo.md(
-                "You can run this example locally in 'real' python with `uv run marimo edit"
-                " docs/notebooks/playground/playground.py` from the dltHub repo root."
-            ),
-        ]
-    )
-    return
+    os.environ["RUNTIME__DLTHUB_TELEMETRY"] = "False"
+    os.environ["WORKERS"] = "1"
 
-
-@app.cell(hide_code=True)
-async def _():
     # NOTE: this installs the dependencies for the notebook if run on pyodide
     if sys.platform == "emscripten":
         import micropip
@@ -40,20 +25,13 @@ async def _():
         await micropip.install("ibis-framework[duckdb]")
         await micropip.install("dlt==1.12.4a0")
 
+    return sys, mo
+
 
 @app.cell
-def _():
-    import os
-
-    os.environ["RUNTIME__DLTHUB_TELEMETRY"] = "False"
-    os.environ["WORKERS"] = "1"
+def run(dlt):
     import dlt
 
-    return dlt
-
-
-@app.cell
-def _(dlt):
     @dlt.resource(table_name="items")
     def foo():
         for i in range(50):
@@ -62,6 +40,7 @@ def _(dlt):
     pipeline = dlt.pipeline(
         pipeline_name="python_data_example",
         destination="duckdb",
+        dev_mode=True,
     )
 
     load_info = pipeline.run(foo)
@@ -69,14 +48,21 @@ def _(dlt):
 
 
 @app.cell
-def _(pipeline):
+def view(pipeline):
     pipeline.dataset(dataset_type="default").items.df()
     return
 
 
 @app.cell
-def _(pipeline):
+def connect(pipeline):
     con = pipeline.dataset().ibis()
+    return
+
+
+@app.cell(hide_code=True)
+def tests(pipeline):
+    # NOTE: this cell is only needed for testing this notebook on ci
+    assert pipeline.dataset(dataset_type="default").items.df().shape[0] == 50
     return
 
 

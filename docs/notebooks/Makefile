@@ -6,3 +6,6 @@ build: clear
 
 serve: build
 	python -m http.server 9000 --directory build
+
+test:
+	uv run python playground/playground.py
