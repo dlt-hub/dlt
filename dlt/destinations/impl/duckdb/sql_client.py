@@ -516,7 +516,7 @@ class WithTableScanners(DuckDbSqlClient):
                 continue
             schema = table.db
             # add only tables from the dataset schema
-            if schema or schema.lower() != self.dataset_name.lower():
+            if not schema or schema.lower() == self.dataset_name.lower():
                 load_tables[table.name] = table.name
 
         if load_tables:

@@ -232,7 +232,7 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                 parsed_name = ParsedLoadJobFileName.parse(file_path)
                 file_format = parsed_name.file_format
 
-                if file_format == "jsonl":
+                if file_format in ["jsonl", "typed-jsonl"]:
                     job_cls = DestinationJsonlLoadJob
                 elif file_format == "parquet":
                     job_cls = DestinationParquetLoadJob  # type: ignore

@@ -40,7 +40,7 @@ class DuckDbCopyJob(RunnableLoadJob, HasFollowupJobs):
         if file_format == "parquet":
             source_format = "read_parquet"
             options = ", union_by_name=true"
-        elif file_format == "jsonl":
+        elif file_format in ["jsonl", "typed-jsonl"]:
             # NOTE: loading JSON does not work in practice on duckdb: the missing keys fail the load instead of being interpreted as NULL
             source_format = "read_json"  # newline delimited, compression auto
             options = ", COMPRESSION=GZIP" if parsed_name.is_compressed else ""
