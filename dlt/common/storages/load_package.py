@@ -53,6 +53,7 @@ from dlt.common.versioned_state import (
 )
 from dlt.common.time import precise_time
 
+
 TJobFileFormat = Literal["sql", "reference", TLoaderFileFormat]
 """Loader file formats with internal job types"""
 JOB_EXCEPTION_EXTENSION = ".exception"
@@ -729,12 +730,16 @@ class PackageStorage:
         validate_components: bool = True,
         loader_file_format: TLoaderFileFormat = None,
     ) -> str:
+        from dlt.destinations.utils import is_compression_disabled
+
         if validate_components:
             FileStorage.validate_file_name_component(table_name)
         fn = f"{table_name}.{file_id}.{int(retry_count)}"
         if loader_file_format:
             format_spec = DataWriter.writer_spec_from_file_format(loader_file_format, "object")
-            return fn + f".{format_spec.file_extension}"
+            fn += f".{format_spec.file_extension}"
+            if not is_compression_disabled() and format_spec.supports_compression:
+                fn += ".gz"
         return fn
 
     @staticmethod

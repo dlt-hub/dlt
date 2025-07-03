@@ -147,7 +147,11 @@ class BufferedDataWriter(Generic[TWriter]):
         spec = self.writer_spec
         if with_extension:
             spec = self.writer_spec._replace(file_extension=with_extension)
-        with self.alternative_spec(spec):
+
+        # For file imports, we need to temporarily disable compression in the spec
+        # because imported files are not compressed during the import process
+        import_spec = spec._replace(supports_compression=False)
+        with self.alternative_spec(import_spec):
             self._rotate_file()
         try:
             FileStorage.link_hard_with_fallback(file_path, self._file_name)

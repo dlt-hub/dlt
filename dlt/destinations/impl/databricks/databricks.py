@@ -225,7 +225,7 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
         if file_format == "parquet":
             return "PARQUET", "", False
 
-        elif file_format == "jsonl":
+        elif file_format in ["jsonl", "typed-jsonl"]:
             if not is_compression_disabled():
                 raise LoadJobTerminalException(
                     self._file_path,

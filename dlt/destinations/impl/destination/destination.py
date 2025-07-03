@@ -78,7 +78,7 @@ class DestinationClient(JobClientBase):
                 self.destination_callable,
                 skipped_columns,
             )
-        if file_format == "jsonl":
+        if file_format in ["jsonl", "typed-jsonl"]:
             return DestinationJsonlLoadJob(
                 file_path,
                 self.config,
