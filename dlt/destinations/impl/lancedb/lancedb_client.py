@@ -324,13 +324,12 @@ class LanceDBClient(JobClientBase, WithStateSync):
         # Make new columns nullable in the Arrow schema.
         # Necessary because the Datafusion SQL API doesn't set new columns as nullable by default.
         # for field in field_schemas:
-            # todo check if thats needed
-            # print('schema', table.schema)
-            # table.alter_columns({"path": field.name, "nullable": field.nullable})
+        # todo check if thats needed
+        # print('schema', table.schema)
+        # table.alter_columns({"path": field.name, "nullable": field.nullable})
 
-            # TODO: Update method below doesn't work for bulk NULL assignments, raise with LanceDB developers.
-            # table.update(values={field.name: None})
-
+        # TODO: Update method below doesn't work for bulk NULL assignments, raise with LanceDB developers.
+        # table.update(values={field.name: None})
 
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
         for table_name in only_tables or self.schema.tables:
