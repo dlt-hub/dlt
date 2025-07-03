@@ -123,7 +123,6 @@ class FilesystemSqlClient(WithTableScanners):
 
         # discover whether compression is enabled
         compression = "" if is_compression_disabled() else ", compression = 'gzip'"
-
         dlt_table_names = self.remote_client.schema.dlt_table_names()
 
         def _escape_column_name(col_name: str) -> str:

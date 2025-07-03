@@ -177,6 +177,11 @@ class BufferedDataWriter(Generic[TWriter]):
             self._closed = True
 
     @property
+    def _is_compression_enabled(self) -> bool:
+        """Returns True if compression is enabled for this writer"""
+        return self.writer_spec.supports_compression and self.open == gzip.open
+
+    @property
     def closed(self) -> bool:
         return self._closed
 
@@ -228,9 +233,17 @@ class BufferedDataWriter(Generic[TWriter]):
 
     def _rotate_file(self, allow_empty_file: bool = False) -> DataWriterMetrics:
         metrics = self._flush_and_close_file(allow_empty_file)
-        self._file_name = (
-            self.file_name_template % new_file_id() + "." + self.writer_spec.file_extension
-        )
+
+        # Construct base filename
+        base_filename = self.file_name_template % new_file_id()
+        file_extension = self.writer_spec.file_extension
+
+        # Add .gz if compression is enabled
+        if self._is_compression_enabled:
+            self._file_name = f"{base_filename}.{file_extension}.gz"
+        else:
+            self._file_name = f"{base_filename}.{file_extension}"
+
         self._created = time.time()
         return metrics
 
