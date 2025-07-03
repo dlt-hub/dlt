@@ -156,6 +156,7 @@ class ParsedLoadJobFileName(NamedTuple):
     file_id: str
     retry_count: int
     file_format: TJobFileFormat
+    is_compressed: bool = False
 
     def job_id(self) -> str:
         """Unique identifier of the job"""
@@ -163,7 +164,10 @@ class ParsedLoadJobFileName(NamedTuple):
 
     def file_name(self) -> str:
         """A name of the file with the data to be loaded"""
-        return f"{self.table_name}.{self.file_id}.{int(self.retry_count)}.{self.file_format}"
+        base_name = f"{self.table_name}.{self.file_id}.{int(self.retry_count)}.{self.file_format}"
+        if self.is_compressed:
+            return f"{base_name}.gz"
+        return base_name
 
     def with_retry(self) -> "ParsedLoadJobFileName":
         """Returns a job with increased retry count"""
@@ -173,12 +177,19 @@ class ParsedLoadJobFileName(NamedTuple):
     def parse(file_name: str) -> "ParsedLoadJobFileName":
         p = PurePath(file_name)
         parts = p.name.split(".")
-        if len(parts) != 4:
-            raise TerminalValueError(parts)
 
-        return ParsedLoadJobFileName(
-            parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3])
-        )
+        if len(parts) == 4:
+            # Uncompressed: table_name.file_id.retry_count.file_format
+            return ParsedLoadJobFileName(
+                parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3]), False
+            )
+        elif len(parts) == 5 and parts[4] == "gz":
+            # Compressed: table_name.file_id.retry_count.file_format.gz
+            return ParsedLoadJobFileName(
+                parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3]), True
+            )
+        else:
+            raise TerminalValueError(parts)
 
     @staticmethod
     def new_file_id() -> str:
