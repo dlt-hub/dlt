@@ -147,8 +147,8 @@ def test_new_column_in_second_load(object_format: TestDataItemFormat) -> None:
 
     # Verify that the extra column is in the actual destination table
     with pipeline.destination_client() as client:
-        table_name = client.make_qualified_table_name("all_types_table")
-        tbl = client.db_client.open_table(table_name)
+        table_name = client.make_qualified_table_name("all_types_table")  # type: ignore[attr-defined]
+        tbl = client.db_client.open_table(table_name)  # type: ignore[attr-defined]
 
         # Get the actual table schema from the destination
         actual_columns = set(tbl.schema.names)
@@ -199,8 +199,9 @@ def test_missing_column_in_second_load(object_format: TestDataItemFormat) -> Non
     assert_load_info(info)
 
     # Remove a column from the data
-    next_arrow_table = arrow_table.drop(["decimal"])
-    assert "decimal" not in next_arrow_table.schema.names
+    removed_column = "bool"
+    next_arrow_table = arrow_table.drop([removed_column])
+    assert removed_column not in next_arrow_table.schema.names
 
     # second load, data with same id, but one less column
     info = pipeline.run(identity_resource(next_arrow_table))
@@ -208,7 +209,7 @@ def test_missing_column_in_second_load(object_format: TestDataItemFormat) -> Non
 
     # schema should no longer have the decimal column
     schema_in_pipeline = pipeline.default_schema
-    assert "decimal" not in schema_in_pipeline.tables["all_types_table"]["columns"]
+    assert removed_column not in schema_in_pipeline.tables["all_types_table"]["columns"]
 
     # Verify that the column is missing in the actual destination table
     with pipeline.destination_client() as client:
@@ -219,15 +220,15 @@ def test_missing_column_in_second_load(object_format: TestDataItemFormat) -> Non
         actual_columns = set(tbl.schema.names)
 
         # Check that the decimal column is missing
-        assert "decimal" not in actual_columns
+        assert removed_column not in actual_columns
 
 
-@pytest.mark.xfail("normalizer issue?")
+# @pytest.mark.xfail(reason="normalizer issue?")
 def test_json_nesting_evolution() -> None:
     """Test that json nesting evolution is handled correctly."""
     pipeline = dlt.pipeline(
         pipeline_name="test_json_nesting_evolution",
-        destination="duckdb",
+        destination="lancedb",
         dataset_name=f"test_json_nesting_evolution_{uniq_id()}",
         dev_mode=True,
     )
@@ -252,8 +253,8 @@ def test_json_nesting_evolution() -> None:
     assert "json__b__c" in schema_in_pipeline.tables["nesting_table"]["columns"]
 
     with pipeline.destination_client() as client:
-        table_name = client.make_qualified_table_name("nesting_table")
-        tbl = client.db_client.open_table(table_name)
+        table_name = client.make_qualified_table_name("nesting_table")  # type: ignore[attr-defined]
+        tbl = client.db_client.open_table(table_name)  # type: ignore[attr-defined]
         print("tbl.schema.names", tbl.schema.names)
         assert "json__a" in tbl.schema.names
         assert "json__b__c" in tbl.schema.names
@@ -265,7 +266,6 @@ def test_json_nesting_evolution() -> None:
 
     info = pipeline.run(identity_resource(data))
     assert_load_info(info)
-    ["id", "json__a", "json__b__c", "_dlt_load_id", "_dlt_id", "json__b__c__c1", "json__b__d"]
     assert "json__b__c__c1" in schema_in_pipeline.tables["nesting_table"]["columns"]
     assert "json__b__d" in schema_in_pipeline.tables["nesting_table"]["columns"]
     # and json__b__c still be there too
@@ -274,8 +274,8 @@ def test_json_nesting_evolution() -> None:
     # print("both schemas", schema_in_pipeline, pipeline.default_schema)
     # print("schema_in_pipeline.tables", schema_in_pipeline.tables["nesting_table"]["columns"].keys())
     with pipeline.destination_client() as client:
-        table_name = client.make_qualified_table_name("nesting_table")
-        tbl = client.db_client.open_table(table_name)
+        table_name = client.make_qualified_table_name("nesting_table")  # type: ignore[attr-defined]
+        tbl = client.db_client.open_table(table_name)  # type: ignore[attr-defined]
         assert "json__b__c__c1" in tbl.schema.names
         assert "json__b__d" in tbl.schema.names
         assert "json__b__c" in tbl.schema.names
