@@ -247,6 +247,9 @@ pipeline.run(
 Note: While it's possible to omit the `merge_key` for brevity (in which case it is assumed to be the first entry of `primary_key`),
 explicitly specifying both is recommended for clarity.
 
+Note: Orphan removal requires the presence of the `_dlt_id` field. Yet for performance reasons, it is not added to parquet files by default. You must enable it by setting the `add_dlt_id` option to `true` in the [normalize configuration](../../dlt-ecosystem/verified-sources/arrow-pandas#add-_dlt_load_id-and-_dlt_id-to-your-tables).
+
+
 ### Append
 
 This is the default disposition. It will append the data to the existing data in the destination.
