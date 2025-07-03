@@ -111,6 +111,14 @@ def arrow_datatype_to_fusion_datatype(arrow_type: TArrowSchema) -> str:
     if isinstance(arrow_type, pa.TimestampType):
         return "TIMESTAMP"
 
+    if isinstance(arrow_type, pa.Time32Type):
+        # not supported by lancedb
+        return "TIME"
+    
+    if isinstance(arrow_type, pa.Time64Type):
+        # not supported by lancedb
+        return "TIME"
+
     return type_map.get(arrow_type, "UNKNOWN")
 
 

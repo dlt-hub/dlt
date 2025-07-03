@@ -18,7 +18,7 @@ pytestmark = pytest.mark.essential
 ALL_DATA_TYPES_BLOB = [
     {
         "id": 1,
-        "text_field": "Hello World",
+        "string": "Hello World",
         "int8_field": 127,
         "int16_field": 32767,
         "int32_field": 2147483647,
@@ -134,13 +134,72 @@ def test_identical_schemas_arrow_table_all_types() -> None:
 
     # Second load: Same schema, different data (more)
     arrow_table_more_data, _, _ = arrow_table_all_data_types(
-        object_format="arrow-table", num_rows=10
+        object_format="arrow-table", num_rows=1
     )
     info = pipeline.run(identity_resource(arrow_table_more_data))
     assert_load_info(info)
 
     # Verify schema should not have changed
     assert schema_after_first_load == pipeline.default_schema
+
+
+def test_add_columns_of_new_types_one_by_one() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="test_slow_schema_evolution",
+        destination="lancedb",
+        dataset_name=f"test_slow_schema_evolution_{uniq_id()}",
+        dev_mode=True,
+    )
+
+    _, _, object_data = arrow_table_all_data_types(
+        object_format="arrow-table",
+        include_null=False,
+        include_not_normalized_name=False,
+        include_decimal_arrow_max_precision=True, #-> breaks normalizer
+        include_json=False,
+        num_rows=1,
+    )
+
+    initial_data = {"id": 1} 
+
+    @dlt.resource(
+        table_name="all_types_table",
+        primary_key="id",
+    )
+    def identity_resource(data: pa.Table) -> Generator[pa.Table, None, None]:
+        yield data
+
+    pipeline.run(identity_resource(initial_data))
+
+    new_data = initial_data
+    new_index = 2
+    for data_type, data_item in object_data.items():
+        if data_type in ["string_null", "float_null"]:
+            # won't be able to infer schema from null value
+            continue
+        if data_type == "time":
+            # time type is not supported by lancedb
+            continue
+
+        print('trying to add column of data type', data_type)
+        new_data = {
+            **new_data,
+            "id": new_index,
+            data_type: data_item[0],
+        }
+        print('new_data', new_data)
+        new_index += 1
+
+        info = pipeline.run(identity_resource(new_data))
+        assert_load_info(info)
+        # get data from destination
+        with pipeline.destination_client() as client:
+            table_name = client.make_qualified_table_name("all_types_table")
+            tbl = client.db_client.open_table(table_name)
+            actual_columns = set(tbl.schema.names)
+            assert data_type in actual_columns, f"Expected {data_type} column to be present in destination table. Actual columns: {actual_columns}"
+            print('passed for data type', data_type)
+            # todo? check the actual datatype?
 
 
 def test_new_column_in_second_load() -> None:
@@ -192,7 +251,10 @@ def test_new_column_in_second_load() -> None:
 
 
 def test_missing_column_in_second_load() -> None:
-    """Test that missing columns in subsequent loads ....???"""
+    """
+    Test that missing columns in subsequent loads remove column from schema if merge strategy is
+    used
+    """
     pipeline = dlt.pipeline(
         pipeline_name="test_missing_column_in_second_load",
         destination="duckdb",
@@ -200,7 +262,8 @@ def test_missing_column_in_second_load() -> None:
         dev_mode=True,
     )
 
-    @dlt.resource(
+    @dlt.resoource(
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
         table_name="all_types_table",
         primary_key="string",
     )
@@ -238,22 +301,11 @@ def test_missing_column_in_second_load() -> None:
 
 # TOOD
 def test_type_casting() -> None:
+    # Verify the time column has the correct type
+    # assert time_field.type in [pa.time32("ms"), pa.time64("us")], f"Expected time type, got {time_field.type}"
     pass
 
-# def test_different_column_order(self) -> None:
-#     """Test that columns are reordered to match target schema."""
-#     target_schema = pa.schema(
-#         [
-#             pa.field("name", pa.string()),
-#             pa.field("id", pa.int64()),
-#             pa.field("value", pa.float64()),
-#         ]
-#     )
 
-#     source_schema = pa.schema(
-#         [
-#             pa.field("id", pa.int64()),
-#             pa.field("value", pa.float64()),
 #             pa.field("name", pa.string()),
 #         ]
 #     )

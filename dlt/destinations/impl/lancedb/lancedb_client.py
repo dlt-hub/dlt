@@ -319,28 +319,19 @@ class LanceDBClient(JobClientBase, WithStateSync):
         table: "lancedb.table.Table" = self.db_client.open_table(table_name)
         table.checkout_latest()
 
-        try:
-            # Use DataFusion SQL syntax to alter fields without loading data into client memory.
-            # Now, the most efficient way to modify column values is in LanceDB.
-            new_fields = {
-                field.name: f"CAST(NULL AS {arrow_datatype_to_fusion_datatype(field.type)})"
-                for field in field_schemas
-            }
-            table.add_columns(new_fields)
+        # will be fillde with null values and nullable by default
+        table.add_columns(field_schemas)
 
-            # Make new columns nullable in the Arrow schema.
-            # Necessary because the Datafusion SQL API doesn't set new columns as nullable by default.
-            for field in field_schemas:
-                table.alter_columns({"path": field.name, "nullable": field.nullable})
+        # Make new columns nullable in the Arrow schema.
+        # Necessary because the Datafusion SQL API doesn't set new columns as nullable by default.
+        # for field in field_schemas:
+            # todo check if thats needed
+            # print('schema', table.schema)
+            # table.alter_columns({"path": field.name, "nullable": field.nullable})
 
-                # TODO: Update method below doesn't work for bulk NULL assignments, raise with LanceDB developers.
-                # table.update(values={field.name: None})
+            # TODO: Update method below doesn't work for bulk NULL assignments, raise with LanceDB developers.
+            # table.update(values={field.name: None})
 
-        except OSError:
-            # TODO: remove exception handler.
-            raise
-            # # Error occurred while creating the table, skip.
-            # return None
 
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
         for table_name in only_tables or self.schema.tables:
