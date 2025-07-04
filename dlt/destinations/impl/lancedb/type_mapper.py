@@ -35,10 +35,6 @@ class LanceDBTypeMapper(TypeMapperImpl):
                     "LanceDB does not currently support column flags for timezone or precision."
                     f" These flags were used in column '{column_name}'."
                 )
-        if column["data_type"] == "time":
-            # todo raise and catch
-            # raise ValueError("LanceDB does not support time type")
-            pass
         return dt_
 
     def from_destination_type(

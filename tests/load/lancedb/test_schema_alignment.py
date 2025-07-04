@@ -161,9 +161,75 @@ def test_new_column_in_second_load(object_format: TestDataItemFormat) -> None:
         )
 
 
-# @pytest.mark.skip(reason="not completely understood what should happen")
-# this fails not sure why
-# todo parameterize remove_orphans
+def test_arrow_precision_types():
+    # a test that adds arrow columns of different precision types and checks that those are correctly
+    # sent to the destination table
+
+    # create a table with all those types as columns
+    import numpy as np
+    table = pa.table({
+        "int8": pa.array([1, 2, 3], pa.int8()),
+        "int16": pa.array([1, 2, 3], pa.int16()),
+        "int32": pa.array([1, 2, 3], pa.int32()),
+        "int64": pa.array([1, 2, 3], pa.int64()),
+        "uint8": pa.array([1, 2, 3], pa.uint8()),
+        "uint16": pa.array([1, 2, 3], pa.uint16()),
+        "uint32": pa.array([1, 2, 3], pa.uint32()),
+        "uint64": pa.array([1, 2, 3], pa.uint64()),
+        "float16": pa.array([np.float16(1), np.float16(2), np.float16(3)], pa.float16()),
+        "float32": pa.array([np.float32(1), np.float32(2), np.float32(3)], pa.float32()),
+        "float64": pa.array([np.float64(1), np.float64(2), np.float64(3)], pa.float64()),
+    })
+
+    # now run a pipeline with this table
+    pipeline = dlt.pipeline(
+        pipeline_name="test_arrow_precision_types",
+        destination="lancedb",
+        dataset_name=f"test_arrow_precision_types_{uniq_id()}",
+        dev_mode=True,
+    )
+    @dlt.resource(
+        table_name="all_precision_types",
+        primary_key="int8",
+    )
+    def identity_resource(data: pa.Table) -> Generator[pa.Table, None, None]:
+        yield data
+
+    info = pipeline.run(identity_resource(table))
+    assert_load_info(info)
+
+    # check the types of the column in the destination table and in the pipeline schema
+    with pipeline.destination_client() as client:
+        table_name = client.make_qualified_table_name("all_precision_types")  # type: ignore[attr-defined]
+        tbl = client.db_client.open_table(table_name)  # type: ignore[attr-defined]
+        assert tbl.schema.names == ["int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "float16", "float32", "float64"]
+        
+        # Check that all original types are preserved in the destination
+        expected_types = [
+            pa.int8(),
+            pa.int16(),
+            pa.int32(),
+            pa.int64(),
+            pa.uint8(),
+            pa.uint16(),
+            pa.uint32(),
+            pa.uint64(),
+            pa.float16(),
+            pa.float32(),
+            pa.float64(),
+        ]
+        
+        # Print for debugging
+        print("Expected types:", expected_types)
+        print("Actual types:", tbl.schema.types)
+        print('>>>>>>>>>>>>>>>>>>>>>>>')
+        print(tbl.to_pandas().dtypes)
+        
+        # Check each type individually to provide better error messages
+        for i, (expected_type, actual_type) in enumerate(zip(expected_types, tbl.schema.types)):
+            assert expected_type == actual_type, f"Column {tbl.schema.names[i]}: expected {expected_type}, got {actual_type}"
+    
+
 @pytest.mark.parametrize("remove_orphans", [True, False])
 @pytest.mark.parametrize("object_format", ["object", "pandas", "arrow-table"])
 def test_missing_column_in_second_load(
