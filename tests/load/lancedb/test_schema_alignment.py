@@ -61,7 +61,7 @@ def test_add_columns_of_new_types_one_by_one() -> None:
         object_format="object",
         include_null=False,
         include_not_normalized_name=False,
-        # include_decimal_arrow_max_precision=True,  # -> breaks normalizer
+        include_decimal_arrow_max_precision=True,  # -> breaks normalizer
         include_json=False,  # ->  breaks on subsquent loads -> todo:
         num_rows=1,
     )
@@ -79,6 +79,7 @@ def test_add_columns_of_new_types_one_by_one() -> None:
 
     new_data = initial_data
     new_index = 2
+    object_data["decimal_arrow_max_precision"] = [Decimal("9" * 20 + "." + "9" * 18)]
     for data_type, data_item in object_data.items():
         if data_type in ["string_null", "float_null"]:
             # won't be able to infer schema from null value
