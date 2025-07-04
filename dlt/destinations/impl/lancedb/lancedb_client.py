@@ -246,22 +246,20 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 continue
 
             # Check if this table has orphan removal enabled (either explicitly or via merge strategy)
-            has_orphan_removal = load_table.get(NO_REMOVE_ORPHANS_HINT)
-            has_merge_key = bool(get_columns_names_with_prop(load_table, "merge_key"))
+            has_orphan_removal = not load_table.get(NO_REMOVE_ORPHANS_HINT)
+            merge_keys = get_columns_names_with_prop(load_table, "merge_key")
             uses_merge_strategy = load_table.get("write_disposition", "") == "merge"
 
             # Validate merge key constraints when orphan removal is enabled
-            if has_orphan_removal and has_merge_key:
-                merge_keys = get_columns_names_with_prop(load_table, "merge_key")
-                if len(merge_keys) > 1:
-                    raise DestinationTerminalException(
-                        "Multiple merge keys are not supported when LanceDB orphan removal is"
-                        f" enabled: {merge_keys}"
-                    )
+            if has_orphan_removal and len(merge_keys) > 1:
+                raise DestinationTerminalException(
+                    "Multiple merge keys are not supported when LanceDB orphan removal is"
+                    f" enabled: {merge_keys}"
+                )
 
-            # Check if _dlt_load_id column is required and present
-            requires_load_id = has_orphan_removal or uses_merge_strategy
-            if requires_load_id and "_dlt_load_id" not in load_table["columns"].keys():
+            # Check if _dlt_load_id column is required but not present
+            requires_dlt_ids = has_orphan_removal and uses_merge_strategy
+            if requires_dlt_ids and "_dlt_load_id" not in load_table["columns"].keys():
                 raise DestinationTerminalException(
                     "The `_dlt_load_id` column is required for tables with orphan removal or merge"
                     " keys. Enable this by setting"
