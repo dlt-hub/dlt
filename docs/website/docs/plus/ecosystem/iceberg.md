@@ -140,7 +140,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES='{
 #### Catalog `[glue-rest]`
 Configure this catalog when you want to publish Iceberg tables directly into an S3 Tables bucket via the AWS Glue Iceberg REST API endpoint.
 
-To configure a `glue-rest` catalog, rovide the following parameters and replace `<region>`, `<account-id>`, `<s3-table-bucket-name>`, and AWS keys with real values:
+To configure a `glue-rest` catalog, provide the following parameters and replace `<region>`, `<account-id>`, `<s3-table-bucket-name>`, and AWS keys with real values:
 
 <Tabs
   groupId="filesystem-type"
