@@ -13,7 +13,7 @@ from dlt.common.schema.utils import (
     get_active_record_timestamp,
 )
 from dlt.common.time import ensure_pendulum_datetime
-from dlt.common.storages.load_package import load_package as current_load_package
+from dlt.common.storages.load_package import load_package_state as current_load_package
 
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
