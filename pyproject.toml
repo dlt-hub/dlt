@@ -3,7 +3,7 @@ name = "dlt"
 version = "1.12.4a0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
-requires-python = ">=3.9.2, <3.14, !=3.9.7"
+requires-python = ">=3.9.2, <3.14"
 readme = "README.md"
 license = "Apache-2.0"
 maintainers = [
@@ -173,7 +173,7 @@ sqlalchemy = [
     "alembic>1.10.0",
 ]
 pyiceberg = [
-    "pyiceberg>=0.9.1",
+    "pyiceberg>=0.9.1 ; python_version != '3.9.7'",
     "pyarrow>=16.0.0 ; python_version < '3.13'",
     "pyarrow>=18.0.0 ; python_version >= '3.13'",
     "sqlalchemy>=1.4",
