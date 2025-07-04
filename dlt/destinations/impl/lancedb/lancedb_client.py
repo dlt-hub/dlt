@@ -247,8 +247,8 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
             # Check if this table has orphan removal enabled (either explicitly or via merge strategy)
             has_orphan_removal = load_table.get(NO_REMOVE_ORPHANS_HINT)
-            # how can i check for the write disposition here?
             has_merge_key = bool(get_columns_names_with_prop(load_table, "merge_key"))
+            uses_merge_strategy = load_table.get("write_disposition", "") == "merge"
 
             # Validate merge key constraints when orphan removal is enabled
             if has_orphan_removal and has_merge_key:
@@ -260,7 +260,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                     )
 
             # Check if _dlt_load_id column is required and present
-            requires_load_id = has_orphan_removal  # or has_merge_key
+            requires_load_id = has_orphan_removal or uses_merge_strategy
             if requires_load_id and "_dlt_load_id" not in load_table["columns"].keys():
                 raise DestinationTerminalException(
                     "The `_dlt_load_id` column is required for tables with orphan removal or merge"

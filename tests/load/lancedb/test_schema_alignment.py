@@ -1,3 +1,4 @@
+import os
 import pytest
 import pyarrow as pa
 import pandas as pd
@@ -219,7 +220,11 @@ def test_missing_column_in_second_load(
         with pytest.raises(PipelineStepFailed) as e:
             info = pipeline.run(resource(table))
         assert "_dlt_load_id` column is required" in str(e.value)
-        return
+        # with this setting it should work
+        os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "true"
+        os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = "true"
+        pipeline.drop()
+        info = pipeline.run(resource(table))
     else:
         info = pipeline.run(resource(table))
     assert_load_info(info)
@@ -228,6 +233,7 @@ def test_missing_column_in_second_load(
     # Remove a column from the data
     removed_column = "bool"
     next_table = remove_column_from_data(object_format, table, removed_column)
+    print(">>>>>>>>>>>>> next table", next_table)
 
     # second load, data with same id, but one less column
     info = pipeline.run(resource(next_table))
