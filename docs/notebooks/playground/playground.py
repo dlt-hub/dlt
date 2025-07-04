@@ -49,12 +49,14 @@ def run(dlt):
 
 @app.cell
 def view(pipeline):
+    # NOTE: This line displays the data of the items table in a marimo table
     pipeline.dataset(dataset_type="default").items.df()
     return
 
 
 @app.cell
 def connect(pipeline):
+    # NOTE: This line allows your data to be explored in the marimo datasources which is the third item from the top in the left sidebar
     con = pipeline.dataset().ibis()
     return
 
