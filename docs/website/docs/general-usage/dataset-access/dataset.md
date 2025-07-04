@@ -89,7 +89,7 @@ You can use the `row_counts` method to get the row counts of all tables in the d
 
 ## Modifying queries
 
-You can refine your data retrieval by limiting the number of records, selecting specific columns, sorting the results, filtering rows, or chaining these operations.
+You can refine your data retrieval by limiting the number of records, selecting specific columns, sorting the results, filtering rows, aggregating minimum and maximum values on a specific column, or chaining these operations.
 
 ### Limit the number of records
 
@@ -110,6 +110,10 @@ You can refine your data retrieval by limiting the number of records, selecting 
 ### Filter rows
 
 <!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::filter-->
+
+### Aggregate data
+
+<!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::aggregate-->
 
 ### Chain operations
 

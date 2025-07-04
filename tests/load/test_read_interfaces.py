@@ -842,11 +842,11 @@ def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
     double_items = populated_pipeline.dataset().double_items
     orderable_in_chain = populated_pipeline.dataset().orderable_in_chain
 
-    filtered_items_sql = items.where(expr_or_str="id < 10").fetchall()
+    filtered_items_sql = items.where("id < 10").fetchall()
     assert len(filtered_items_sql) == 10
     assert all(row[0] < 10 for row in filtered_items_sql)
 
-    filtered_items_range = items.where(expr_or_str="id >= 5 AND id <= 15").fetchall()
+    filtered_items_range = items.where("id >= 5 AND id <= 15").fetchall()
     assert len(filtered_items_range) == 11  # ids 5 through 15 inclusive
     assert all(5 <= row[0] <= 15 for row in filtered_items_range)
 
@@ -857,23 +857,19 @@ def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
         this=sge.Column(this=sge.to_identifier("id", quoted=True)),
         expression=sge.Literal.number("42"),
     )
-    filtered_items_expr = items.where(expr_or_str=expr).fetchall()
+    filtered_items_expr = items.where(expr).fetchall()
     assert len(filtered_items_expr) == 1
     assert filtered_items_expr[0][0] == 42
 
     # Test combination with other methods
-    combined_result = items.where(expr_or_str="id < 100").limit(5).fetchall()
+    combined_result = items.where("id < 100").limit(5).fetchall()
     assert len(combined_result) == 5
     assert all(row[0] < 100 for row in combined_result)
 
-    combined_result = (
-        orderable_in_chain.where(expr_or_str="id = 1").select("other_id").max().scalar()
-    )
+    combined_result = orderable_in_chain.where("id = 1").select("other_id").max().scalar()
     assert 3 == combined_result
 
-    combined_result = (
-        orderable_in_chain.where(expr_or_str="id = 1").select("other_id").min().scalar()
-    )
+    combined_result = orderable_in_chain.where("id = 1").select("other_id").min().scalar()
     assert 2 == combined_result
 
 

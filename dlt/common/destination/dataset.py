@@ -189,35 +189,28 @@ class Relation(DataAccess):
         """
 
     @overload
-    def where(self, *, expr_or_str: SqlglotExprOrStr) -> Self: ...
+    def where(self, column_or_expr: SqlglotExprOrStr) -> Self: ...
 
     @overload
-    def where(self, column_name: str, operator: TFilterOperation, value: Any) -> Self: ...
+    def where(
+        self,
+        column_or_expr: str,
+        operator: TFilterOperation,
+        value: Any,
+    ) -> Self: ...
 
     def where(
         self,
-        column_name: Optional[str] = None,
+        column_or_expr: SqlglotExprOrStr,
         operator: Optional[TFilterOperation] = None,
         value: Optional[Any] = None,
-        expr_or_str: Optional[SqlglotExprOrStr] = None,
     ) -> Self:
         """Returns a new relation with the given where clause applied. Same as .filter().
 
-        This method supports two mutually exclusive modes:
-
-        1. Column-based filtering:
-            - Provide `column_name`, `operator`, and `value` to filter rows.
-            - Example: `where("status", "eq", "active")`
-
-        2. Expression-based filtering:
-            - Provide `expr_or_str` as a SQL expression or string to define the filter.
-            - Example: `where(expr_or_str="amount > 100")`
-
         Args:
-            column_name (Optional[str]): The column to filter on.
+            column_or_expr (SqlglotExprOrStr): The column to filter on. Alternatively, the SQL expression or string representing a custom WHERE clause.
             operator (Optional[TFilterOperation]): The operator to use. Available operations are: eq, ne, gt, lt, gte, lte, in, not_in
             value (Optional[Any]): The value to filter on.
-            expr_or_str (Optional[SqlglotExprOrStr]): The SQL expression or string representing a custom WHERE clause.
 
         Returns:
             Self: A copy of the relation with the where clause applied.

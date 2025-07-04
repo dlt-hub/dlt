@@ -357,22 +357,21 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
         return self._apply_agg(sge.Min)
 
     @overload
-    def where(self, *, expr_or_str: SqlglotExprOrStr) -> Self: ...
+    def where(self, column_or_expr: SqlglotExprOrStr) -> Self: ...
 
     @overload
     def where(
         self,
-        column_name: str,
+        column_or_expr: str,
         operator: TFilterOperation,
         value: Any,
     ) -> Self: ...
 
     def where(
         self,
-        column_name: Optional[str] = None,
+        column_or_expr: SqlglotExprOrStr,
         operator: Optional[TFilterOperation] = None,
         value: Optional[Any] = None,
-        expr_or_str: Optional[SqlglotExprOrStr] = None,
     ) -> Self:
         rel = self.__copy__()
 
@@ -382,9 +381,12 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
                 "Must be an SQL SELECT statement."
             )
 
-        if expr_or_str:
-            rel._sqlglot_expression = rel._sqlglot_expression.where(expr_or_str)
+        if not operator and not value:
+            rel._sqlglot_expression = rel._sqlglot_expression.where(column_or_expr)
             return rel
+
+        assert isinstance(column_or_expr, str)
+        column_name = column_or_expr
 
         if isinstance(operator, str):
             try:
@@ -421,25 +423,26 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
         return rel
 
     @overload
-    def filter(self, *, expr_or_str: SqlglotExprOrStr) -> Self: ...  # noqa: A003
+    def filter(self, column_or_expr: SqlglotExprOrStr) -> Self: ...  # noqa: A003
 
     @overload
     def filter(  # noqa: A003
         self,
-        column_name: str,
+        column_or_expr: str,
         operator: TFilterOperation,
         value: Any,
     ) -> Self: ...
 
     def filter(  # noqa: A003
         self,
-        column_name: Optional[str] = None,
+        column_or_expr: SqlglotExprOrStr,
         operator: Optional[TFilterOperation] = None,
         value: Optional[Any] = None,
-        *,
-        expr_or_str: Optional[SqlglotExprOrStr] = None,
     ) -> Self:
-        return self.where(column_name=column_name, operator=operator, value=value)
+        if not operator and not value:
+            return self.where(column_or_expr=column_or_expr)
+        assert isinstance(column_or_expr, str)
+        return self.where(column_or_expr=column_or_expr, operator=operator, value=value)
 
     def scalar(self) -> Any:
         row = self.fetchmany(2)

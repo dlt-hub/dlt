@@ -172,7 +172,27 @@ def filter_snippet(default_dataset: dlt.Dataset) -> None:
     # @@@DLT_SNIPPET_START filter
     # Filter by 'id'
     filtered = customers_relation.where("id", "in", [3, 1, 7]).fetchall()
+    # Filter with raw SQL string
+    filtered = customers_relation.where("id = 1").fetchall()
+    # Filter with sqlglot expression
+    import sqlglot.expressions as sge
+
+    expr = sge.EQ(
+        this=sge.Column(this=sge.to_identifier("id", quoted=True)),
+        expression=sge.Literal.number("7"),
+    )
+    filtered = customers_relation.where(expr).fetchall()
     # @@@DLT_SNIPPET_END filter
+
+
+def aggregate_snippet(default_dataset: dlt.Dataset) -> None:
+    customers_relation = default_dataset.customers
+    # @@@DLT_SNIPPET_START aggregate
+    # Get max 'id'
+    max_id = customers_relation.select("id").max().scalar()
+    # Get min 'id'
+    min_id = customers_relation.select("id").min().scalar()
+    # @@@DLT_SNIPPET_END aggregate
 
 
 def chain_operations_snippet(dataset: dlt.Dataset) -> None:
