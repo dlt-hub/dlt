@@ -62,16 +62,6 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
         with open(self._file_path, mode="rb") as f:
             arrow_table: pa.Table = pq.read_table(f)
 
-        # Replace empty strings with placeholder string if OpenAI is used.
-        # https://github.com/lancedb/lancedb/issues/1577#issuecomment-2318104218.
-        if (self._job_client.config.embedding_model_provider == "openai") and (
-            source_columns := get_columns_names_with_prop(self._load_table, VECTORIZE_HINT)
-        ):
-            arrow_table = fill_empty_source_column_values_with_placeholder(
-                arrow_table, source_columns, EMPTY_STRING_PLACEHOLDER
-            )
-
-        # get_first_column_name_with_prop(self._load_table, "row_key"),
         write_records(
             arrow_table,
             db_client=db_client,

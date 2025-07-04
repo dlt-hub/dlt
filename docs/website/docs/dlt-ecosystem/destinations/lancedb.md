@@ -244,11 +244,12 @@ pipeline.run(
 )
 ```
 
-Note: While it's possible to omit the `merge_key` for brevity (in which case it is assumed to be the first entry of `primary_key`),
+While it's possible to omit the `merge_key` for brevity (in which case it is assumed to be the first entry of `primary_key`),
 explicitly specifying both is recommended for clarity.
 
-Note: Orphan removal requires the presence of the `_dlt_id` field. Yet for performance reasons, it is not added to parquet files by default. You must enable it by setting the `add_dlt_id` option to `true` in the [normalize configuration](../../dlt-ecosystem/verified-sources/arrow-pandas#add-_dlt_load_id-and-_dlt_id-to-your-tables).
-
+:::note
+Orphan removal requires the presence of the `_dlt_id` and `_dlt_load_id` fields, which are not included by default when arrow tables are loaded. You must [enable it](../../dlt-ecosystem/verified-sources/arrow-pandas#add-_dlt_load_id-and-_dlt_id-to-your-tables) by setting the `add_dlt_id` option to `true` in the normalize configuration.
+:::
 
 ### Append
 
@@ -277,14 +278,6 @@ This is because PyArrow tables are immutable, so adding fields requires creating
 
 For huge tables, this may impact performance and memory usage since the full table must be loaded into memory to add the new fields.
 Keep these considerations in mind when working with large datasets and monitor memory usage if adding fields to sizable existing tables.
-
-### Null string handling for OpenAI embeddings
-
-OpenAI embedding service doesn't accept empty string bodies. We deal with this by replacing empty strings with a placeholder that should be very semantically dissimilar to 99.9% of queries.
-
-If your source column (column which is embedded) has empty values, it is important to consider the impact of this. There might be a _slight_ chance that semantic queries can hit these empty strings.
-
-We reported this issue to LanceDB: https://github.com/lancedb/lancedb/issues/1577.
 
 <!--@@@DLT_TUBA lancedb-->
 
