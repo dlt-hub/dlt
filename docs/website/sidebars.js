@@ -41,6 +41,20 @@ const sidebars = {
         'tutorial/sql-database',
         'tutorial/filesystem',
         'tutorial/load-data-from-an-api',
+        'tutorial/playground',
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Release highlights',
+      link: {
+        type: 'generated-index',
+        title: 'Release highlights',
+        slug: '/release-highlights',
+        keywords: ['release notes, release highlights'],
+      },
+      items: [
+        'release-notes/1.12.1',
       ]
     },
     {
@@ -527,6 +541,7 @@ for (const item of sidebars.tutorialSidebar) {
   if (item.label === 'Code examples') {
     for (let examplePath of walkSync("./docs_processed/examples")) {
       examplePath = examplePath.replace("docs_processed/", "");
+      examplePath = examplePath.replace(".mdx", "");
       examplePath = examplePath.replace(".md", "");
       item.items.push(examplePath);
     }

@@ -87,6 +87,7 @@ from dlt.common.pipeline import (
     PipelineContext,
     TStepInfo,
     SupportsPipeline,
+    TLastRunContext,
     TPipelineLocalState,
     TPipelineState,
     StateInjectableContext,
@@ -337,10 +338,12 @@ class Pipeline(SupportsPipeline):
         self.first_run = False
         self.dataset_name: str = None
         self.is_active = False
+        self.last_run_context: TLastRunContext = None
 
         self.pipeline_salt = pipeline_salt
         self.config = config
         self.runtime_config = runtime
+        self.run_context = config.pluggable_run_context.context
         self.dev_mode = dev_mode
         self.collector = progress or _NULL_COLLECTOR
         self._destination = None
@@ -365,6 +368,7 @@ class Pipeline(SupportsPipeline):
             self._set_destinations(destination=destination, staging=staging, initializing=True)
             # set the pipeline properties from state, destination and staging will not be set
             self._state_to_props(state)
+            # TODO: compare run_context with last_run_context restored from props. warn on changed uri
             # we overwrite the state with the values from init
             self._set_dataset_name(dataset_name)
 
@@ -596,8 +600,7 @@ class Pipeline(SupportsPipeline):
             with signals.delayed_signals():
                 runner.run_pool(load_step.config, load_step)
             info: LoadInfo = self._get_step_info(load_step)
-
-            self.first_run = False
+            self._update_last_run_context()
             return info
         except Exception as l_ex:
             step_info = self._get_step_info(load_step)
@@ -783,11 +786,9 @@ class Pipeline(SupportsPipeline):
                 remote_state = self._restore_state_from_destination()
 
                 # if remote state is newer or same
-                # print(f'REMOTE STATE: {(remote_state or {}).get("_state_version")} >= {state["_state_version"]}')
                 # TODO: check if remote_state["_state_version"] is not in 10 recent version. then we know remote is newer.
                 if remote_state and remote_state["_state_version"] >= state["_state_version"]:
                     state_changed = remote_state["_version_hash"] != state.get("_version_hash")
-                    # print(f"MERGED STATE: {bool(merged_state)}")
                     if state_changed:
                         # see if state didn't change the pipeline name
                         if state["pipeline_name"] != remote_state["pipeline_name"]:
@@ -807,7 +808,7 @@ class Pipeline(SupportsPipeline):
                                 f"Pipeline {self.pipeline_name} got restored from destination"
                                 " including new version",
                                 "of pipeline state but it has pending load packages that were not"
-                                " yet normalized or loaded. If that packages contain extracted"
+                                " yet normalized or loaded. If those packages contain extracted"
                                 " state or schema migrations - those will not be affected and will"
                                 " still be loaded to destination.",
                             )
@@ -829,9 +830,9 @@ class Pipeline(SupportsPipeline):
                     self._schema_storage.clear_storage()
                 for schema in restored_schemas:
                     self._schema_storage.save_schema(schema)
-                # if the remote state is present then unset first run
+                # if the remote state is present then unset first run and update last run context
                 if remote_state is not None:
-                    self.first_run = False
+                    self._update_last_run_context()
             except DestinationUndefinedEntity:
                 # storage not present. wipe the pipeline if pipeline not new
                 # do it only if pipeline has any data
@@ -1055,6 +1056,19 @@ class Pipeline(SupportsPipeline):
         except ContextDefaultCannotBeCreated:
             state = self._get_state()
         return state["_local"][key]  # type: ignore
+
+    def _update_last_run_context(self) -> None:
+        """
+        Persist the directory context in local state.
+        Safe-no-op if the pipeline is not active or if run_context cannot be resolved.
+        """
+        self.first_run = False
+        self.last_run_context = {
+            "settings_dir": os.path.abspath(self.run_context.settings_dir),
+            "local_dir": os.path.abspath(self.run_context.local_dir),
+            "run_dir": os.path.abspath(self.run_context.run_dir),
+            "uri": self.run_context.uri,
+        }
 
     @with_config_section(sections=(), merge_func=ConfigSectionContext.prefer_existing)
     def sql_client(self, schema_name: str = None) -> SqlClientBase[Any]:

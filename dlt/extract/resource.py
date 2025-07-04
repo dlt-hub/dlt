@@ -36,7 +36,6 @@ from dlt.common.configuration.container import Container
 from dlt.common.pipeline import (
     PipelineContext,
     StateInjectableContext,
-    resource_state,
     pipeline_state,
 )
 from dlt.common.utils import (
@@ -67,6 +66,7 @@ from dlt.extract.items_transform import (
     ItemTransformFunc,
     ItemTransformFunctionWithMeta,
 )
+from dlt.extract.state import resource_state
 from dlt.extract.pipe_iterator import ManagedPipeIterator
 from dlt.extract.pipe import Pipe
 from dlt.extract.hints import DltResourceHints, HintsMeta, TResourceHints

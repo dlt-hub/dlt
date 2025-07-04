@@ -24,11 +24,13 @@ from dlt.common.configuration.specs.base_configuration import (
 )
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum, timedelta
-from dlt.common.pipeline import NormalizeInfo, StateInjectableContext, resource_state
+from dlt.common.pipeline import NormalizeInfo, StateInjectableContext
 from dlt.common.schema.schema import Schema
 from dlt.common.utils import chunks, digest128, uniq_id
+
 from dlt.extract import DltSource
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
+from dlt.extract.state import resource_state
 from dlt.extract.incremental.exceptions import (
     IncrementalCursorInvalidCoercion,
     IncrementalCursorPathHasValueNone,

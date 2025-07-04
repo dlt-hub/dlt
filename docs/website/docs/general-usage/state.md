@@ -60,10 +60,7 @@ the resources as the state writer and all others as state readers. This is exact
 pipeline does. With such a structure, you will still be able to run some of your resources in
 parallel.
 :::
-:::caution
-The `dlt.state()` is a deprecated alias to `dlt.current.source_state()` and will soon be
-removed.
-:::
+
 
 ## Syncing state with destination
 

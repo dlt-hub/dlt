@@ -1,5 +1,6 @@
 import os
 import shutil
+from pytest_mock import MockerFixture
 from typing_extensions import get_type_hints
 import pytest
 
@@ -11,9 +12,8 @@ from dlt.common.exceptions import (
 )
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import pipeline_state_table
-from dlt.common.pipeline import get_current_pipe_name, get_dlt_pipelines_dir
+from dlt.common.pipeline import get_dlt_pipelines_dir
 from dlt.common.storages import FileStorage
-from dlt.common import pipeline as state_module
 from dlt.common.storages.load_package import TPipelineStateDoc
 from dlt.common.utils import uniq_id
 from dlt.common.destination import Destination
@@ -22,6 +22,8 @@ from dlt.common.validation import validate_dict
 
 from dlt.destinations.utils import get_pipeline_state_query_columns
 from dlt.extract.utils import make_schema_with_default_name
+from dlt.extract import state as state_module
+from dlt.extract.state import get_current_pipe, get_current_pipe_name
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state_sync import (
@@ -249,28 +251,30 @@ def test_source_state_iterator():
     assert list(pass_the_state()) == [8, 16, 24]
 
 
-def test_unmanaged_state() -> None:
+def test_unmanaged_state(mocker: MockerFixture) -> None:
+    state_spy = mocker.spy(state_module, "_sources_state")
+
     p = dlt.pipeline(pipeline_name="unmanaged_pipeline")
     # evaluate generator that reads and writes state
     list(some_data())
     # state is not in pipeline
     assert "sources" not in p.state
     # state must be available in default schema name if available - exactly like in pipeline
-    assert state_module._last_full_state["sources"]["unmanaged"]["last_value"] == 1
+    assert state_spy.spy_return["unmanaged"]["last_value"] == 1
     # this state is discarded
     list(some_data())
     # state is not in pipeline
     assert "sources" not in p.state
-    assert state_module._last_full_state["sources"]["unmanaged"]["last_value"] == 1
+    assert state_spy.spy_return["unmanaged"]["last_value"] == 1
 
     # resource without section gets default schema name as source state key
     def _gen_inner():
-        dlt.state()["gen"] = True
+        dlt.current.source_state()["gen"] = True
         yield 1
 
     list(dlt.resource(_gen_inner))
     list(dlt.resource(_gen_inner()))
-    assert state_module._last_full_state["sources"]["unmanaged"]["gen"] is True
+    assert state_spy.spy_return["unmanaged"]["gen"] is True
 
     @dlt.source
     def some_source():
@@ -281,10 +285,10 @@ def test_unmanaged_state() -> None:
 
     s = some_source()
     # this time the source is there
-    assert state_module._last_full_state["sources"][s.name]["last_value"] == 1
+    assert state_spy.spy_return[s.name]["last_value"] == 1
     # but the state is discarded
     some_source()
-    assert state_module._last_full_state["sources"][s.name]["last_value"] == 1
+    assert state_spy.spy_return[s.name]["last_value"] == 1
 
     # but when you run it inside pipeline
     p.extract(some_source())
@@ -293,33 +297,36 @@ def test_unmanaged_state() -> None:
 
     # the unmanaged call later gets the correct pipeline state
     some_source()
-    assert state_module._last_full_state["sources"][s.name]["last_value"] == 2
+    assert state_spy.spy_return[s.name]["last_value"] == 2
     # again - discarded
     sources_state = p.state["sources"]
     assert sources_state[s.name]["last_value"] == 1
 
 
-def test_unmanaged_state_no_pipeline() -> None:
+def test_unmanaged_state_no_pipeline(mocker: MockerFixture) -> None:
+    state_spy = mocker.spy(state_module, "_sources_state")
+
     list(some_data())
-    print(state_module._last_full_state)
-    assert state_module._last_full_state["sources"]["test_pipeline_state"]["last_value"] == 1
+    assert state_spy.spy_return["test_pipeline_state"]["last_value"] == 1
 
     def _gen_inner():
         dlt.current.state()["gen"] = True
         yield 1
 
     list(dlt.resource(_gen_inner()))
-    fk = next(iter(state_module._last_full_state["sources"]))
-    assert state_module._last_full_state["sources"][fk]["gen"] is True
+    fk = next(iter(state_spy.spy_return))
+    assert state_spy.spy_return[fk]["gen"] is True
 
 
-def test_resource_state_write() -> None:
+def test_resource_state_write(mocker: MockerFixture) -> None:
+    state_spy = mocker.spy(state_module, "_sources_state")
+
     r = some_data_resource_state()
     assert list(r) == [1, 2, 3]
     assert (
-        state_module._last_full_state["sources"]["test_pipeline_state"]["resources"][
-            "some_data_resource_state"
-        ]["last_value"]
+        state_spy.spy_return["test_pipeline_state"]["resources"]["some_data_resource_state"][
+            "last_value"
+        ]
         == 1
     )
     with pytest.raises(ResourceNameNotAvailable):
@@ -333,22 +340,26 @@ def test_resource_state_write() -> None:
     r = dlt.resource(_gen_inner(), name="name_ovrd")
     assert list(r) == [1]
     assert (
-        state_module._last_full_state["sources"][make_schema_with_default_name(p.pipeline_name)][
-            "resources"
-        ]["name_ovrd"]["gen"]
+        state_spy.spy_return[make_schema_with_default_name(p.pipeline_name)]["resources"][
+            "name_ovrd"
+        ]["gen"]
         is True
     )
     with pytest.raises(ResourceNameNotAvailable):
         get_current_pipe_name()
 
 
-def test_resource_state_in_pipeline() -> None:
+def test_resource_state_in_pipeline(mocker: MockerFixture) -> None:
+    state_spy = mocker.spy(state_module, "_sources_state")
+
     p = dlt.pipeline()
     r = some_data_resource_state()
     p.extract(r)
     assert r.state["last_value"] == 1
     with pytest.raises(ResourceNameNotAvailable):
         get_current_pipe_name()
+    with pytest.raises(ResourceNameNotAvailable):
+        get_current_pipe()
 
     def _gen_inner(tv="df"):
         dlt.current.resource_state()["gen"] = tv
@@ -357,24 +368,19 @@ def test_resource_state_in_pipeline() -> None:
     r = dlt.resource(_gen_inner("gen_tf"), name="name_ovrd")
     p.extract(r)
     assert r.state["gen"] == "gen_tf"
-    assert (
-        state_module._last_full_state["sources"][p.default_schema_name]["resources"]["name_ovrd"][
-            "gen"
-        ]
-        == "gen_tf"
-    )
+    assert state_spy.spy_return[p.default_schema_name]["resources"]["name_ovrd"]["gen"] == "gen_tf"
     with pytest.raises(ResourceNameNotAvailable):
         get_current_pipe_name()
+
+    # a regular resource but in parallel mode
+    r = dlt.resource(_gen_inner("res_parallel"), name="res_parallel", parallelized=True)
+    p.extract(r)
+    assert r.state["gen"] == "res_parallel"
 
     r = dlt.resource(_gen_inner, name="pure_function")
     p.extract(r)
     assert r.state["gen"] == "df"
-    assert (
-        state_module._last_full_state["sources"][p.default_schema_name]["resources"][
-            "pure_function"
-        ]["gen"]
-        == "df"
-    )
+    assert state_spy.spy_return[p.default_schema_name]["resources"]["pure_function"]["gen"] == "df"
     with pytest.raises(ResourceNameNotAvailable):
         get_current_pipe_name()
 
@@ -388,10 +394,8 @@ def test_resource_state_in_pipeline() -> None:
         yield _run()
 
     r = dlt.resource(_gen_inner_defer, name="defer_function")
-    # you cannot get resource name in `defer` function
-    with pytest.raises(PipelineStepFailed) as pip_ex:
-        p.extract(r)
-    assert isinstance(pip_ex.value.__context__, ResourceNameNotAvailable)
+    p.extract(r)
+    assert r.state["gen"] == "df"
 
     # get resource state in defer explicitly
     def _gen_inner_defer_explicit_name(resource_name, tv="df"):
@@ -406,9 +410,7 @@ def test_resource_state_in_pipeline() -> None:
     p.extract(r("defer_function_explicit", "expl"))
     assert r.state["gen"] == "expl"
     assert (
-        state_module._last_full_state["sources"][p.default_schema_name]["resources"][
-            "defer_function_explicit"
-        ]["gen"]
+        state_spy.spy_return[p.default_schema_name]["resources"]["defer_function_explicit"]["gen"]
         == "expl"
     )
 
@@ -425,28 +427,52 @@ def test_resource_state_in_pipeline() -> None:
     p.extract(r)
     assert r.state["gen"] == "yielding"
     assert (
-        state_module._last_full_state["sources"][p.default_schema_name]["resources"][
-            "defer_function_yielding"
-        ]["gen"]
+        state_spy.spy_return[p.default_schema_name]["resources"]["defer_function_yielding"]["gen"]
         == "yielding"
     )
 
     # get resource state in async function
     def _gen_inner_async(tv="async"):
         async def _run():
-            dlt.current.resource_state()["gen"] = tv
+            dlt.current.resource_state()["agen-i"] = tv
             return 1
 
         yield _run()
 
     r = dlt.resource(_gen_inner_async, name="async_function")
-    # you cannot get resource name in `defer` function
-    with pytest.raises(PipelineStepFailed) as pip_ex:
-        p.extract(r)
-    assert isinstance(pip_ex.value.__context__, ResourceNameNotAvailable)
+    p.extract(r)
+    assert r.state["agen-i"] == "async"
+
+    async def async_generator_from_list(items):
+        for item in items:
+            yield item
+
+    # regular async function
+    async def get_users():
+        dlt.current.resource_state()["u-gen"] = "TV"
+        async for u in async_generator_from_list([1, 2, 3]):
+            yield u
+
+    r = dlt.resource(get_users(), name="get_users")
+    p.extract(r)
+    assert r.state["u-gen"] == "TV"
+
+    # async function with async transformer
+    async def enrich_users(uid):
+        dlt.current.resource_state()["gen"] = "ER"
+        return {"uid": uid, "status": 1}
+
+    r = dlt.resource(get_users, name="get_users_u")
+    t_ = dlt.transformer(enrich_users, name="enrich_users")
+
+    p.extract(r | t_)
+    assert r.state["u-gen"] == "TV"
+    assert t_.state["gen"] == "ER"
 
 
-def test_transformer_state_write() -> None:
+def test_transformer_state_write(mocker: MockerFixture) -> None:
+    state_spy = mocker.spy(state_module, "_sources_state")
+
     r = some_data_resource_state()
 
     # yielding transformer
@@ -458,17 +484,12 @@ def test_transformer_state_write() -> None:
     # p.extract(dlt.transformer(_gen_inner, data_from=r, name="tx_other_name"))
     assert list(dlt.transformer(_gen_inner, data_from=r, name="tx_other_name")) == [2, 4, 6]
     assert (
-        state_module._last_full_state["sources"]["test_pipeline_state"]["resources"][
-            "some_data_resource_state"
-        ]["last_value"]
+        state_spy.spy_return["test_pipeline_state"]["resources"]["some_data_resource_state"][
+            "last_value"
+        ]
         == 1
     )
-    assert (
-        state_module._last_full_state["sources"]["test_pipeline_state"]["resources"][
-            "tx_other_name"
-        ]["gen"]
-        is True
-    )
+    assert state_spy.spy_return["test_pipeline_state"]["resources"]["tx_other_name"]["gen"] is True
 
     # returning transformer
     def _gen_inner_rv(item):
@@ -485,10 +506,7 @@ def test_transformer_state_write() -> None:
         3,
     ]
     assert (
-        state_module._last_full_state["sources"]["test_pipeline_state"]["resources"][
-            "tx_other_name_rv"
-        ]["gen"]
-        is True
+        state_spy.spy_return["test_pipeline_state"]["resources"]["tx_other_name_rv"]["gen"] is True
     )
 
     # deferred transformer
@@ -498,19 +516,22 @@ def test_transformer_state_write() -> None:
         return item
 
     r = some_data_resource_state()
-    # not available because executed in a pool
-    with pytest.raises(ResourceNameNotAvailable):
-        print(list(dlt.transformer(_gen_inner_rv_defer, data_from=r, name="tx_other_name_defer")))
+    tx_ = dlt.transformer(_gen_inner_rv_defer, data_from=r, name="tx_other_name_defer")
+    assert list(tx_) == [1, 2, 3]
+    state_ = state_spy.spy_return["test_pipeline_state"]["resources"]
+    assert state_["some_data_resource_state"]["last_value"] == 1
+    assert state_["tx_other_name_defer"]["gen"] is True
 
     # async transformer
     async def _gen_inner_rv_async(item):
-        dlt.current.resource_state()["gen"] = True
+        dlt.current.resource_state()["agen"] = True
         return item
 
     r = some_data_resource_state()
-    # not available because executed in a pool
-    with pytest.raises(ResourceNameNotAvailable):
-        print(list(dlt.transformer(_gen_inner_rv_async, data_from=r, name="tx_other_name_async")))
+    tx_ = dlt.transformer(_gen_inner_rv_async, data_from=r, name="tx_other_name_async")
+    assert list(tx_) == [1, 2, 3]
+    state_ = state_spy.spy_return["test_pipeline_state"]["resources"]
+    assert state_["tx_other_name_async"]["agen"] is True
 
     # async transformer with explicit resource name
     async def _gen_inner_rv_async_name(item, r_name):
@@ -524,9 +545,7 @@ def test_transformer_state_write() -> None:
         )
     ) == [1, 2, 3]
     assert (
-        state_module._last_full_state["sources"]["test_pipeline_state"]["resources"][
-            "tx_other_name_async"
-        ]["gen"]
+        state_spy.spy_return["test_pipeline_state"]["resources"]["tx_other_name_async"]["gen"]
         is True
     )
 
