@@ -66,7 +66,6 @@ from dlt.destinations.impl.lancedb.schema import (
     TArrowSchema,
     NULL_SCHEMA,
     TArrowField,
-    arrow_datatype_to_fusion_datatype,
 )
 from dlt.destinations.impl.lancedb.utils import (
     set_non_standard_providers_environment_variables,
@@ -340,13 +339,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         # will be fillde with null values and column is nullable by default
         table.add_columns(field_schemas)
-
-        # Make new columns nullable in the Arrow schema.
-        # Necessary because the Datafusion SQL API doesn't set new columns as nullable by default.
-        # for field in field_schemas:
-        # todo check if thats needed
-        # print('schema', table.schema)
-        # table.alter_columns({"path": field.name, "nullable": field.nullable})
 
         # TODO: Update method below doesn't work for bulk NULL assignments, raise with LanceDB developers.
         # table.update(values={field.name: None})

@@ -92,36 +92,6 @@ def make_arrow_table_schema(
     return pa.schema(arrow_schema, metadata=metadata)
 
 
-def arrow_datatype_to_fusion_datatype(arrow_type: TArrowSchema) -> str:
-    # TODO: this is not tested. test add columns for all data types
-    # o3 can generate this function from https://datafusion.apache.org/user-guide/sql/data_types.html
-    # also it may be possible to use readable names of arrow types
-    type_map = {
-        pa.bool_(): "BOOLEAN",
-        pa.int64(): "BIGINT",
-        pa.float64(): "DOUBLE",
-        pa.utf8(): "STRING",
-        pa.binary(): "BYTEA",
-        pa.date32(): "DATE",
-    }
-
-    if isinstance(arrow_type, pa.Decimal128Type):
-        return f"DECIMAL({arrow_type.precision}, {arrow_type.scale})"
-
-    if isinstance(arrow_type, pa.TimestampType):
-        return "TIMESTAMP"
-
-    if isinstance(arrow_type, pa.Time32Type):
-        # not supported by lancedb
-        return "TIME"
-
-    if isinstance(arrow_type, pa.Time64Type):
-        # not supported by lancedb
-        return "TIME"
-
-    return type_map.get(arrow_type, "UNKNOWN")
-
-
 def add_vector_column(records: pa.table, table_schema: pa.schema, vector_column: str) -> pa.table:
     # vector column already there
     if vector_column in records.schema.names or vector_column not in table_schema.names:
