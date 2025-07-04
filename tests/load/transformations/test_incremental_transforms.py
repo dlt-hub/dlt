@@ -105,9 +105,7 @@ def test_state_based_incremental_transform(
     # first round
     inc_p.run(first_load())
     dataset = inc_p.dataset()
-    last_loaded_load_id = dataset(
-        dataset.table("_dlt_loads", table_type="ibis").load_id.max()
-    ).scalar()
+    last_loaded_load_id = dataset._dlt_loads.select("load_id").max().scalar()
 
     dest_p.run(transformed_items(inc_p.dataset(), last_loaded_load_id))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_FIRST_LOAD)
@@ -115,9 +113,7 @@ def test_state_based_incremental_transform(
     # second round
     inc_p.run(inc_load())
     dataset = inc_p.dataset()
-    last_loaded_load_id = dataset(
-        dataset.table("_dlt_loads", table_type="ibis").load_id.max()
-    ).scalar()
+    last_loaded_load_id = dataset._dlt_loads.select("load_id").max().scalar()
 
     dest_p.run(transformed_items(inc_p.dataset(), last_loaded_load_id))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)
@@ -149,10 +145,7 @@ def test_primary_key_based_incremental_transform(
         try:
             output_dataset = dlt.current.pipeline().dataset()
             if output_dataset.schema.tables.get("transformed_items"):
-                max_pimary_key_expr = output_dataset.table(
-                    "transformed_items", table_type="ibis"
-                ).id.max()
-                max_pimary_key = output_dataset(max_pimary_key_expr).scalar()
+                max_pimary_key = output_dataset.transformed_items.select("id").max().scalar()
         except PipelineNeverRan:
             pass
 
@@ -201,10 +194,9 @@ def test_load_id_based_incremental_transform(
             try:
                 output_dataset = dlt.current.pipeline().dataset()
                 if output_dataset.schema.tables.get("transformed_items"):
-                    max_load_id_expr = output_dataset.table(
-                        "transformed_items", table_type="ibis"
-                    )._dlt_load_id.max()
-                    max_load_id = output_dataset(max_load_id_expr).scalar()
+                    max_load_id = (
+                        output_dataset.transformed_items.select("_dlt_load_id").max().scalar()
+                    )
             except PipelineNeverRan:
                 pass
 
@@ -220,18 +212,14 @@ def test_load_id_based_incremental_transform(
     # first round
     inc_p.run(first_load())
     dataset = inc_p.dataset()
-    os.environ["LAST_LOADED_LOAD_ID"] = dataset(
-        dataset.table("_dlt_loads", table_type="ibis").load_id.max()
-    ).scalar()
+    os.environ["LAST_LOADED_LOAD_ID"] = dataset._dlt_loads.select("load_id").max().scalar()
     dest_p.run(transformation_source(inc_p.dataset()))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_FIRST_LOAD)
 
     # second round
     inc_p.run(inc_load())
     dataset = inc_p.dataset()
-    os.environ["LAST_LOADED_LOAD_ID"] = dataset(
-        dataset.table("_dlt_loads", table_type="ibis").load_id.max()
-    ).scalar()
+    os.environ["LAST_LOADED_LOAD_ID"] = dataset._dlt_loads.select("load_id").max().scalar()
     dest_p.run(transformation_source(inc_p.dataset()))
     _assert_transformed_data(dest_p, EXPECTED_TRANSFORMED_DATA_SECOND_LOAD)
 

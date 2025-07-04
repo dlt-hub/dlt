@@ -839,12 +839,16 @@ def test_where(populated_pipeline: Pipeline) -> None:
 )
 def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
     items = populated_pipeline.dataset().items
-    double_items = populated_pipeline.dataset().double_items
     orderable_in_chain = populated_pipeline.dataset().orderable_in_chain
+    total_records = _total_records(populated_pipeline.destination.destination_type)
 
     filtered_items_sql = items.where("id < 10").fetchall()
     assert len(filtered_items_sql) == 10
     assert all(row[0] < 10 for row in filtered_items_sql)
+
+    load_id = items.select("_dlt_load_id").max().scalar()
+    all_items = items.where(f"_dlt_load_id = '{load_id}'").fetchall()
+    assert len(all_items) == total_records
 
     filtered_items_range = items.where("id >= 5 AND id <= 15").fetchall()
     assert len(filtered_items_range) == 11  # ids 5 through 15 inclusive

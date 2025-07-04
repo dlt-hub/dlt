@@ -382,7 +382,9 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
             )
 
         if not operator and not value:
-            rel._sqlglot_expression = rel._sqlglot_expression.where(column_or_expr)
+            rel._sqlglot_expression = rel._sqlglot_expression.where(
+                column_or_expr, dialect=self.query_dialect()
+            )
             return rel
 
         assert isinstance(column_or_expr, str)
