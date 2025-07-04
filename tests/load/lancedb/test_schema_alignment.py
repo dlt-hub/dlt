@@ -26,33 +26,32 @@ def test_identical_schemas_all_types(object_format: TestDataItemFormat) -> None:
         dev_mode=True,
     )
 
-    arrow_table: pa.Table = None
-    arrow_table, _, _ = arrow_table_all_data_types(object_format=object_format)
+    table: pa.Table = None
+    table, _, _ = arrow_table_all_data_types(object_format=object_format)
 
     @dlt.resource(
         table_name="all_types_table",
         primary_key="string",
     )
-    def identity_resource(data: pa.Table) -> Generator[pa.Table, None, None]:
+    def identity_resource(data: Any) -> Generator[Any, None, None]:
         yield data
 
-    info = pipeline.run(identity_resource(arrow_table))
+    info = pipeline.run(identity_resource(table))
     assert_load_info(info)
     schema_after_first_load = pipeline.default_schema
 
     # Second load: Same schema, different data (more)
-    arrow_table_more_data, _, _ = arrow_table_all_data_types(
-        object_format="arrow-table", num_rows=4
+    table_more_data, _, _ = arrow_table_all_data_types(
+        object_format=object_format, num_rows=4
     )
-    info = pipeline.run(identity_resource(arrow_table_more_data))
+    info = pipeline.run(identity_resource(table_more_data))
     assert_load_info(info)
 
     # Verify schema should not have changed
     assert schema_after_first_load == pipeline.default_schema
 
 
-@pytest.mark.parametrize("object_format", ["object", "pandas", "arrow-table"])
-def test_add_columns_of_new_types_one_by_one(object_format: TestDataItemFormat) -> None:
+def test_add_columns_of_new_types_one_by_one() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_slow_schema_evolution",
         destination="lancedb",
@@ -61,7 +60,7 @@ def test_add_columns_of_new_types_one_by_one(object_format: TestDataItemFormat) 
     )
 
     _, _, object_data = arrow_table_all_data_types(
-        object_format=object_format,
+        object_format="object",
         include_null=False,
         include_not_normalized_name=False,
         # include_decimal_arrow_max_precision=True,  # -> breaks normalizer
@@ -86,9 +85,6 @@ def test_add_columns_of_new_types_one_by_one(object_format: TestDataItemFormat) 
         if data_type in ["string_null", "float_null"]:
             # won't be able to infer schema from null value
             continue
-        if data_type == "time":
-            # time type is not supported by lancedb
-            continue
 
         print("trying to add column of data type", data_type)
         new_data = {**new_data, "id": new_index, data_type: data_item[0]}
@@ -110,6 +106,9 @@ def test_add_columns_of_new_types_one_by_one(object_format: TestDataItemFormat) 
             )
             print("passed for data type", data_type)
             # todo? check the actual datatype?
+            # lets print the data
+            actual_data = tbl.to_pandas().sort_values(by="id").reset_index(drop=True)
+            print("actual_data", actual_data)
 
 
 @pytest.mark.parametrize("object_format", ["object", "pandas", "arrow-table"])

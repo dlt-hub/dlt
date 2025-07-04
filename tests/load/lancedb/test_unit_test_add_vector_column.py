@@ -299,3 +299,36 @@ def test_add_vector_column_complex_schema() -> None:
     assert result.num_columns == 10
     assert result.num_rows == 2
     assert result["vector"].null_count == 2
+
+
+def test_arrow_datatype_to_fusion_datatype_time_types() -> None:
+    """Test that arrow_datatype_to_fusion_datatype correctly handles time types."""
+    from dlt.destinations.impl.lancedb.schema import arrow_datatype_to_fusion_datatype
+
+    # Test Time32Type
+    time32_type = pa.time32("ms")
+    result = arrow_datatype_to_fusion_datatype(time32_type)
+    assert result == "TIME", f"Expected 'TIME', got '{result}' for Time32Type"
+
+    # Test Time64Type
+    time64_type = pa.time64("us")
+    result = arrow_datatype_to_fusion_datatype(time64_type)
+    assert result == "TIME", f"Expected 'TIME', got '{result}' for Time64Type"
+
+    # Test other types still work
+    assert arrow_datatype_to_fusion_datatype(pa.bool_()) == "BOOLEAN"
+    assert arrow_datatype_to_fusion_datatype(pa.int64()) == "BIGINT"
+    assert arrow_datatype_to_fusion_datatype(pa.float64()) == "DOUBLE"
+    assert arrow_datatype_to_fusion_datatype(pa.utf8()) == "STRING"
+    assert arrow_datatype_to_fusion_datatype(pa.binary()) == "BYTEA"
+    assert arrow_datatype_to_fusion_datatype(pa.date32()) == "DATE"
+
+    # Test decimal type
+    decimal_type = pa.decimal128(10, 2)
+    result = arrow_datatype_to_fusion_datatype(decimal_type)
+    assert result == "DECIMAL(10, 2)", f"Expected 'DECIMAL(10, 2)', got '{result}'"
+
+    # Test timestamp type
+    timestamp_type = pa.timestamp("us")
+    result = arrow_datatype_to_fusion_datatype(timestamp_type)
+    assert result == "TIMESTAMP", f"Expected 'TIMESTAMP', got '{result}'"
