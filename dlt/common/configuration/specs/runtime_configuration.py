@@ -9,6 +9,7 @@ from dlt.common.utils import encoding_for_mode, main_module_file_path, reveal_ps
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
 from dlt.common.configuration.exceptions import ConfigFileNotFoundException
 from dlt.common.warnings import Dlt100DeprecationWarning
+from dlt.common.runtime.exec_info import platform_supports_threading
 
 
 @configspec
@@ -61,6 +62,10 @@ class RuntimeConfiguration(BaseConfiguration):
             except binascii.Error:
                 # just keep the original value
                 pass
+
+        # telemetry uses threading
+        if not platform_supports_threading():
+            self.dlthub_telemetry = False
 
     def has_configuration_file(self, name: str) -> bool:
         return isfile(self.get_configuration_file_path(name))

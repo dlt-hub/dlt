@@ -3,7 +3,7 @@ import pathlib
 from concurrent.futures import ThreadPoolExecutor
 import itertools
 import logging
-import os
+import os, sys
 import random
 import shutil
 import threading
@@ -3780,3 +3780,11 @@ def test_pipeline_repr() -> None:
     assert getattr(p, "is_active", sentinel) is not sentinel
     assert getattr(p, "pipelines_dir", sentinel) is not sentinel
     assert getattr(p, "working_dir", sentinel) is not sentinel
+
+
+def test_pipeline_with_null_executors(monkeypatch) -> None:
+    # NOTE: emscripten forces null executor, this is tested in test_runners.py
+    monkeypatch.setattr(sys, "platform", "emscripten")
+    p = dlt.pipeline(pipeline_name="null_executor", destination="duckdb")
+    p.run([{"id": 1}], table_name="test_table")
+    assert p.dataset().row_counts().fetchall() == [("test_table", 1)]
