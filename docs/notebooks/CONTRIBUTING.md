@@ -8,6 +8,8 @@ Currently we do not have a fully automated build system that picks up new notebo
 
 Notebooks are deployed to https://dlt-hub.github.io/dlt. There is no index page for now, so for example to see the playground, go to https://dlt-hub.github.io/dlt/playground/. You can also use this url for embedding the notebook in the docs.
 
+Wasm notebooks install dependencies from pypi. This means you can not showcase any features that are unreleased to pypi. If you want to create a new notebook with a brand new feature, you will have to wait until it is release and then update the docs for the next release. In important cases we can consider merging something to master for a quicker notebook release.
+
 ## Available Make commands
 
 * build: will build all notebooks as wasm projects into the build directory
