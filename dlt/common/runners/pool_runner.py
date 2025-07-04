@@ -128,6 +128,15 @@ def get_default_start_method(method_: str) -> str:
 
 
 def create_pool(config: PoolRunnerConfiguration) -> Executor:
+    assert config.pool_type in ["process", "thread", "none", None]
+
+    if not platform_supports_threading():
+        logger.info(
+            "Platform does not support threading, created single-threaded pool for execution."
+        )
+        return NullExecutor()
+
+    executor: Executor = None
     if config.pool_type == "process":
         # import process pool only when needed. not all Python envs support process pools
         from concurrent.futures import ProcessPoolExecutor
@@ -138,25 +147,32 @@ def create_pool(config: PoolRunnerConfiguration) -> Executor:
         )
         if start_method != "fork":
             ctx = Container()[PluggableRunContext]
-            return ProcessPoolExecutor(
+            executor = ProcessPoolExecutor(
                 max_workers=config.workers,
                 initializer=init.restore_run_context,
                 initargs=(ctx.context, ctx.runtime_config),
                 mp_context=multiprocessing.get_context(method=start_method),
             )
         else:
-            return ProcessPoolExecutor(
+            executor = ProcessPoolExecutor(
                 max_workers=config.workers, mp_context=multiprocessing.get_context()
             )
     elif config.pool_type == "thread":
         # wait 2 seconds before bailing out from pool shutdown
-        return TimeoutThreadPoolExecutor(
+        executor = TimeoutThreadPoolExecutor(
             max_workers=config.workers,
             timeout=2.0,
             thread_name_prefix=Container.thread_pool_prefix(),
         )
     # no pool - single threaded
-    return NullExecutor()
+    else:
+        executor = NullExecutor()
+
+    logger.info(
+        f"Created {config.pool_type or 'single-threaded'} pool with"
+        f" {config.workers or 'default no.'} workers"
+    )
+    return executor
 
 
 def run_pool(
@@ -170,18 +186,7 @@ def run_pool(
         )
 
     # start pool
-    pool: Executor = None
-    if platform_supports_threading():
-        pool = create_pool(config)
-        logger.info(
-            f"Created {config.pool_type} pool with {config.workers or 'default no.'} workers"
-        )
-    else:
-        pool = NullExecutor()
-        logger.info(
-            "Platform does not support threading, using single-threaded pool for execution."
-        )
-
+    pool = create_pool(config)
     runs_count = 1
 
     def _run_func() -> bool:

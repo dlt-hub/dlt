@@ -1,5 +1,5 @@
 import pytest
-import os
+import sys
 import time
 import multiprocessing
 from typing import Type
@@ -206,3 +206,30 @@ def test_pool_runner_shutdown_timeout() -> None:
     # now wait again this time should not be alive
     pool.shutdown(wait=True)
     assert pool._is_alive is False
+
+
+def test_use_null_executor_on_non_threading_platform(monkeypatch) -> None:
+    # regular platform
+    config = resolve_configuration(ModPoolRunnerConfiguration())
+    config.pool_type = "process"
+    pool = runner.create_pool(config)
+    assert not isinstance(pool, runner.NullExecutor)
+    config.pool_type = "thread"
+    pool = runner.create_pool(config)
+    assert not isinstance(pool, runner.NullExecutor)
+    config.pool_type = None
+    pool = runner.create_pool(config)
+    assert isinstance(pool, runner.NullExecutor)
+
+    # non-threading platform
+    monkeypatch.setattr(sys, "platform", "emscripten")
+    config = resolve_configuration(ModPoolRunnerConfiguration())
+    config.pool_type = "process"
+    pool = runner.create_pool(config)
+    assert isinstance(pool, runner.NullExecutor)
+    config.pool_type = "thread"
+    pool = runner.create_pool(config)
+    assert isinstance(pool, runner.NullExecutor)
+    config.pool_type = None
+    pool = runner.create_pool(config)
+    assert isinstance(pool, runner.NullExecutor)
