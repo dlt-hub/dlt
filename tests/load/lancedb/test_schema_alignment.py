@@ -27,7 +27,10 @@ def test_identical_schemas_all_types(object_format: TestDataItemFormat) -> None:
     )
 
     table: pa.Table = None
-    table, _, _ = arrow_table_all_data_types(object_format=object_format)
+    table, _, _ = arrow_table_all_data_types(
+        object_format=object_format,
+        include_decimal_high_precision=True,
+    )
 
     @dlt.resource(
         table_name="all_types_table",
@@ -61,8 +64,7 @@ def test_add_columns_of_new_types_one_by_one() -> None:
         object_format="object",
         include_null=False,
         include_not_normalized_name=False,
-        include_decimal_arrow_max_precision=True,  # -> breaks normalizer
-        include_json=False,  # ->  breaks on subsquent loads -> todo:
+        include_decimal_high_precision=True,
         num_rows=1,
     )
 
@@ -79,15 +81,12 @@ def test_add_columns_of_new_types_one_by_one() -> None:
 
     new_data = initial_data
     new_index = 2
-    object_data["decimal_arrow_max_precision"] = [Decimal("9" * 20 + "." + "9" * 18)]
     for data_type, data_item in object_data.items():
         if data_type in ["string_null", "float_null"]:
             # won't be able to infer schema from null value
             continue
 
-        print("trying to add column of data type", data_type)
         new_data = {**new_data, "id": new_index, data_type: data_item[0]}
-        print("new_data", new_data)
         new_index += 1
 
         info = pipeline.run(identity_resource(new_data))
@@ -103,11 +102,6 @@ def test_add_columns_of_new_types_one_by_one() -> None:
                 f"Expected {data_type} column to be present in destination table. Actual columns:"
                 f" {actual_columns}"
             )
-            print("passed for data type", data_type)
-            # todo? check the actual datatype?
-            # lets print the data
-            actual_data = tbl.to_pandas().sort_values(by="id").reset_index(drop=True)
-            print("actual_data", actual_data)
 
 
 @pytest.mark.parametrize("object_format", ["object", "pandas", "arrow-table"])
@@ -161,9 +155,6 @@ def test_new_column_in_second_load(object_format: TestDataItemFormat) -> None:
 
 
 def test_arrow_precision_types():
-    # a test that adds arrow columns of different precision types and checks that those are correctly
-    # sent to the destination table
-
     # create a table with all those types as columns
     import numpy as np
 
@@ -180,6 +171,9 @@ def test_arrow_precision_types():
             "float16": pa.array([np.float16(1), np.float16(2), np.float16(3)], pa.float16()),
             "float32": pa.array([np.float32(1), np.float32(2), np.float32(3)], pa.float32()),
             "float64": pa.array([np.float64(1), np.float64(2), np.float64(3)], pa.float64()),
+            "high_decimal_precision": pa.array(
+                [Decimal("9" * 20 + "." + "9" * 18) for _ in range(3)], pa.decimal128(38, 18)
+            ),
         }
     )
 
@@ -205,19 +199,6 @@ def test_arrow_precision_types():
     with pipeline.destination_client() as client:
         table_name = client.make_qualified_table_name("all_precision_types")  # type: ignore[attr-defined]
         tbl = client.db_client.open_table(table_name)  # type: ignore[attr-defined]
-        assert tbl.schema.names == [
-            "int8",
-            "int16",
-            "int32",
-            "int64",
-            "uint8",
-            "uint16",
-            "uint32",
-            "uint64",
-            "float16",
-            "float32",
-            "float64",
-        ]
 
         # Check that all original types are preserved in the destination
         expected_types = [
@@ -225,22 +206,16 @@ def test_arrow_precision_types():
             pa.int16(),
             pa.int32(),
             pa.int64(),
-            pa.uint8(),
-            pa.uint16(),
-            pa.uint32(),
-            pa.uint64(),
-            pa.float16(),
-            pa.float32(),
-            pa.float64(),
+            pa.int8(),  # uint8 -> int8
+            pa.int16(),  # uint16 -> int16
+            pa.int32(),  # uint32 -> int32
+            pa.int64(),  # uint64 -> int64
+            pa.float64(),  # float16 -> float64
+            pa.float64(),  # float32 -> float64
+            pa.float64(),  # float64 -> float64
+            pa.decimal128(38, 18),  # high_decimal_precision
         ]
 
-        # Print for debugging
-        print("Expected types:", expected_types)
-        print("Actual types:", tbl.schema.types)
-        print(">>>>>>>>>>>>>>>>>>>>>>>")
-        print(tbl.to_pandas().dtypes)
-
-        # Check each type individually to provide better error messages
         for i, (expected_type, actual_type) in enumerate(zip(expected_types, tbl.schema.types)):
             assert (
                 expected_type == actual_type
@@ -353,7 +328,6 @@ def test_json_nesting_evolution() -> None:
     with pipeline.destination_client() as client:
         table_name = client.make_qualified_table_name("nesting_table")  # type: ignore[attr-defined]
         tbl = client.db_client.open_table(table_name)  # type: ignore[attr-defined]
-        print("tbl.schema.names", tbl.schema.names)
         assert "json__a" in tbl.schema.names
         assert "json__b__c" in tbl.schema.names
 

@@ -299,4 +299,3 @@ def test_add_vector_column_complex_schema() -> None:
     assert result.num_columns == 10
     assert result.num_rows == 2
     assert result["vector"].null_count == 2
-

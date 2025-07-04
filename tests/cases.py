@@ -307,6 +307,7 @@ def arrow_table_all_data_types(
     include_decimal: bool = True,
     include_decimal_default_precision: bool = False,
     include_decimal_arrow_max_precision: bool = False,
+    include_decimal_high_precision: bool = False,
     include_date: bool = True,
     include_not_normalized_name: bool = True,
     include_name_clash: bool = False,
@@ -380,6 +381,11 @@ def arrow_table_all_data_types(
         data["decimal_arrow_max_precision"] = [
             Decimal(int("1" * ARROW_DECIMAL_MAX_PRECISION)) for _ in range(num_rows)
         ]
+
+    if include_decimal_high_precision:
+        # Create high precision decimal with native decimal type (38,18)
+        decimal_data = [Decimal("9" * 20 + "." + "9" * 18) for _ in range(num_rows)]
+        data["high_decimal_precision"] = decimal_data
 
     if include_date:
         data["date"] = pd.date_range("2021-01-01", periods=num_rows, tz=tz).date
