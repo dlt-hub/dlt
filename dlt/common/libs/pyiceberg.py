@@ -1,4 +1,5 @@
 import os
+import sys
 from typing import Dict, Any, List, Optional
 
 from fsspec import AbstractFileSystem
@@ -20,6 +21,12 @@ from dlt.common.configuration.specs.mixins import WithPyicebergConfig
 
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
+if sys.version_info[:3] == (3, 9, 7):
+    raise MissingDependencyException(
+        "dlt pycieberg helpers",
+        [f"{version.DLT_PKG_NAME}[pyiceberg]"],
+        "PyIceberg is not compatible with Python 3.9.7. Use a different Python version.",
+    )
 
 try:
     from pyiceberg.table import Table as IcebergTable
