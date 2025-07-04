@@ -147,7 +147,11 @@ class BufferedDataWriter(Generic[TWriter]):
         spec = self.writer_spec
         if with_extension:
             spec = self.writer_spec._replace(file_extension=with_extension)
-        with self.alternative_spec(spec):
+
+        # For file imports, we need to temporarily disable compression in the spec
+        # because imported files are not compressed during the import process
+        import_spec = spec._replace(supports_compression=False)
+        with self.alternative_spec(import_spec):
             self._rotate_file()
         try:
             FileStorage.link_hard_with_fallback(file_path, self._file_name)
@@ -175,6 +179,11 @@ class BufferedDataWriter(Generic[TWriter]):
         if not self._closed:
             self._flush_and_close_file(skip_flush=skip_flush)
             self._closed = True
+
+    @property
+    def _is_compression_enabled(self) -> bool:
+        """Returns True if compression is enabled for this writer"""
+        return self.writer_spec.supports_compression and self.open == gzip.open
 
     @property
     def closed(self) -> bool:
@@ -228,9 +237,17 @@ class BufferedDataWriter(Generic[TWriter]):
 
     def _rotate_file(self, allow_empty_file: bool = False) -> DataWriterMetrics:
         metrics = self._flush_and_close_file(allow_empty_file)
-        self._file_name = (
-            self.file_name_template % new_file_id() + "." + self.writer_spec.file_extension
-        )
+
+        # Construct base filename
+        base_filename = self.file_name_template % new_file_id()
+        file_extension = self.writer_spec.file_extension
+
+        # Add .gz if compression is enabled
+        if self._is_compression_enabled:
+            self._file_name = f"{base_filename}.{file_extension}.gz"
+        else:
+            self._file_name = f"{base_filename}.{file_extension}"
+
         self._created = time.time()
         return metrics
 

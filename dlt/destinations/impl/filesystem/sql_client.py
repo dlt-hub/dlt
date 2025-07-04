@@ -55,7 +55,19 @@ class FilesystemSqlClient(WithTableScanners):
         files = self.remote_client.list_table_files(table_name)
         if len(files) == 0:
             raise DestinationUndefinedEntity(table_name)
-        return os.path.splitext(files[0])[1][1:], files
+
+        # Handle compressed files (.gz extension)
+        filename = files[0]
+        # First check if file is compressed
+        if filename.endswith(".gz"):
+            # Remove .gz extension and get the actual format
+            filename_without_gz = filename[:-3]  # Remove .gz
+            file_format = os.path.splitext(filename_without_gz)[1][1:]
+        else:
+            # No compression, extract format normally
+            file_format = os.path.splitext(filename)[1][1:]
+
+        return file_format, files
 
     def create_secret(
         self,
@@ -123,7 +135,6 @@ class FilesystemSqlClient(WithTableScanners):
 
         # discover whether compression is enabled
         compression = "" if is_compression_disabled() else ", compression = 'gzip'"
-
         dlt_table_names = self.remote_client.schema.dlt_table_names()
 
         def _escape_column_name(col_name: str) -> str:

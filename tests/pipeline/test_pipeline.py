@@ -2906,6 +2906,7 @@ def test_change_naming_convention_column_collision() -> None:
 
 
 def test_import_jsonl_file() -> None:
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     pipeline = dlt.pipeline(
         pipeline_name="test_jsonl_import",
         destination="duckdb",
@@ -3194,6 +3195,7 @@ def test_access_pipeline_in_resource() -> None:
 
 
 def test_exceed_job_file_name_length() -> None:
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     # use very long table name both for parent and for a child
     data = {
         "id": 1,

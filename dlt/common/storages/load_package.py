@@ -53,6 +53,7 @@ from dlt.common.versioned_state import (
 )
 from dlt.common.time import precise_time
 
+
 TJobFileFormat = Literal["sql", "reference", TLoaderFileFormat]
 """Loader file formats with internal job types"""
 JOB_EXCEPTION_EXTENSION = ".exception"
@@ -156,6 +157,7 @@ class ParsedLoadJobFileName(NamedTuple):
     file_id: str
     retry_count: int
     file_format: TJobFileFormat
+    is_compressed: bool = False
 
     def job_id(self) -> str:
         """Unique identifier of the job"""
@@ -163,7 +165,10 @@ class ParsedLoadJobFileName(NamedTuple):
 
     def file_name(self) -> str:
         """A name of the file with the data to be loaded"""
-        return f"{self.table_name}.{self.file_id}.{int(self.retry_count)}.{self.file_format}"
+        base_name = f"{self.table_name}.{self.file_id}.{int(self.retry_count)}.{self.file_format}"
+        if self.is_compressed:
+            return f"{base_name}.gz"
+        return base_name
 
     def with_retry(self) -> "ParsedLoadJobFileName":
         """Returns a job with increased retry count"""
@@ -173,12 +178,19 @@ class ParsedLoadJobFileName(NamedTuple):
     def parse(file_name: str) -> "ParsedLoadJobFileName":
         p = PurePath(file_name)
         parts = p.name.split(".")
-        if len(parts) != 4:
-            raise TerminalValueError(parts)
 
-        return ParsedLoadJobFileName(
-            parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3])
-        )
+        if len(parts) == 4:
+            # Uncompressed: table_name.file_id.retry_count.file_format
+            return ParsedLoadJobFileName(
+                parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3]), False
+            )
+        elif len(parts) == 5 and parts[4] == "gz":
+            # Compressed: table_name.file_id.retry_count.file_format.gz
+            return ParsedLoadJobFileName(
+                parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3]), True
+            )
+        else:
+            raise TerminalValueError(parts)
 
     @staticmethod
     def new_file_id() -> str:
@@ -718,12 +730,16 @@ class PackageStorage:
         validate_components: bool = True,
         loader_file_format: TLoaderFileFormat = None,
     ) -> str:
+        from dlt.destinations.utils import is_compression_disabled
+
         if validate_components:
             FileStorage.validate_file_name_component(table_name)
         fn = f"{table_name}.{file_id}.{int(retry_count)}"
         if loader_file_format:
             format_spec = DataWriter.writer_spec_from_file_format(loader_file_format, "object")
-            return fn + f".{format_spec.file_extension}"
+            fn += f".{format_spec.file_extension}"
+            if not is_compression_disabled() and format_spec.supports_compression:
+                fn += ".gz"
         return fn
 
     @staticmethod

@@ -259,12 +259,12 @@ def test_retry_job(load_storage: LoadStorage) -> None:
 
 def test_build_parse_job_path(load_storage: LoadStorage) -> None:
     file_id = ParsedLoadJobFileName.new_file_id()
-    f_n_t = ParsedLoadJobFileName("test_table", file_id, 0, "jsonl")
+    f_n_t = ParsedLoadJobFileName("test_table", file_id, 0, "jsonl", True)
     job_f_n = PackageStorage.build_job_file_name(
         f_n_t.table_name, file_id, 0, loader_file_format="jsonl"
     )
     # test the exact representation but we should probably not test for that
-    assert job_f_n == f"test_table.{file_id}.0.jsonl"
+    assert job_f_n == f"test_table.{file_id}.0.jsonl.gz"
     assert ParsedLoadJobFileName.parse(job_f_n) == f_n_t
     # also parses full paths correctly
     assert ParsedLoadJobFileName.parse("load_id/" + job_f_n) == f_n_t
