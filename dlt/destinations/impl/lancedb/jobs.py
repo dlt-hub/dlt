@@ -103,8 +103,7 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
         db_client: DBConnection = self._job_client.db_client
         table_lineage: TTableLineage = [
             TableJob(
-                # TODO: prepare table
-                table_schema=self._schema.get_table(
+                table_schema=self._job_client.prepare_load_table(
                     ParsedLoadJobFileName.parse(file_path_).table_name
                 ),
                 table_name=ParsedLoadJobFileName.parse(file_path_).table_name,
