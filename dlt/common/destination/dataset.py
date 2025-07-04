@@ -19,6 +19,7 @@ from typing import (
 
 from sqlglot.schema import Schema as SQLGlotSchema
 import sqlglot.expressions as sge
+from sqlglot.expressions import ExpOrStr as SqlglotExprOrStr
 
 from dlt.common.typing import Self, Generic, TypeVar
 from dlt.common.schema.schema import Schema
@@ -171,18 +172,45 @@ class Relation(DataAccess):
             Self: The relation with the columns selected.
         """
 
+    def max(self) -> Self:  # noqa: A003
+        """Returns a new relation with the MAX aggregate applied.
+        Exactly one column must be selected.
+
+        Returns:
+            Self: The relation with the MAX aggregate expression.
+        """
+
+    def min(self) -> Self:  # noqa: A003
+        """Returns a new relation with the MIN aggregate applied.
+        Exactly one column must be selected.
+
+        Returns:
+            Self: The relation with the MIN aggregate expression.
+        """
+
+    @overload
+    def where(self, column_or_expr: SqlglotExprOrStr) -> Self: ...
+
+    @overload
     def where(
         self,
-        column_name: str,
+        column_or_expr: str,
         operator: TFilterOperation,
         value: Any,
+    ) -> Self: ...
+
+    def where(
+        self,
+        column_or_expr: SqlglotExprOrStr,
+        operator: Optional[TFilterOperation] = None,
+        value: Optional[Any] = None,
     ) -> Self:
         """Returns a new relation with the given where clause applied. Same as .filter().
 
         Args:
-            column_name (str): The column to filter on.
-            operator (TFilterOperation): The operator to use. Available operations are: eq, ne, gt, lt, gte, lte, in, not_in
-            value (Any): The value to filter on.
+            column_or_expr (SqlglotExprOrStr): The column to filter on. Alternatively, the SQL expression or string representing a custom WHERE clause.
+            operator (Optional[TFilterOperation]): The operator to use. Available operations are: eq, ne, gt, lt, gte, lte, in, not_in
+            value (Optional[Any]): The value to filter on.
 
         Returns:
             Self: A copy of the relation with the where clause applied.
