@@ -265,6 +265,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 raise DestinationTerminalException(
                     "The `_dlt_load_id` column is required for tables with orphan removal or merge"
                     " keys. Enable this by setting"
+                    " `NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID=TRUE` and"
                     " `NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID=TRUE`"
                 )
 
