@@ -211,7 +211,11 @@ class Extractor:
             if table_name in self._filtered_tables:
                 continue
             # allow to cache dynamic table hints if only table name is dynamic
-            if table_name not in self._table_contracts or resource._table_has_other_dynamic_hints:
+            if (
+                table_name not in self._table_contracts
+                or resource.has_dynamic_hints
+                or resource._table_has_other_dynamic_hints
+            ):
                 item = self._compute_and_update_tables(
                     resource, table_name, item, TableNameMeta(table_name)
                 )
