@@ -101,7 +101,7 @@ def write_records(
     *,
     db_client: DBConnection,
     table_name: str,
-    vector_field_name: str = "vector",
+    vector_field_name: str,
     write_disposition: Optional[TWriteDisposition] = "append",
     merge_key: Optional[str] = None,
     remove_orphans: Optional[bool] = False,
@@ -132,7 +132,6 @@ def write_records(
             # LanceDB requires identical schemas for when_not_matched_by_source_delete
             # The source data schema must exactly match the target table schema (column names,
             # order, and types). Only after 22. does it work with chunks and embeddings
-
             target_schema = tbl.schema
             records = add_vector_column(records, target_schema, vector_field_name)
             if remove_orphans:

@@ -409,17 +409,17 @@ def arrow_table_all_data_types(
         return arrow_item_from_pandas(df, object_format), rows, data
 
 
-def remove_column_from_data(format: TestDataItemFormat, data: Any, column_name: str) -> Any:
+def remove_column_from_data(object_format: TestDataItemFormat, data: Any, column_name: str) -> Any:
     """drop the column form arrow_table pandas or object data"""
-    if format == "arrow-table":
+    if object_format == "arrow-table":
         return data.drop([column_name])
-    elif format == "pandas":
+    elif object_format == "pandas":
         return data.drop(columns=[column_name])
-    elif format == "object":
+    elif object_format == "object":
         # actually is a list of dicts
         return [{k: v for k, v in row.items() if k != column_name} for row in data]
     else:
-        raise ValueError(f"not supported: {format}")
+        raise ValueError(f"not supported: {object_format}")
 
 
 def prepare_shuffled_tables() -> Tuple[Any, Any, Any]:
