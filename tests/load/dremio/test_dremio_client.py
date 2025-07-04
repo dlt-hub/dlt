@@ -52,7 +52,7 @@ def test_dremio_factory() -> None:
             ],
             False,
             [
-                'CREATE TABLE "test_database"."test_dataset"."event_test_table"'
+                'CREATE TABLE "event_test_table"'
                 ' (\n"foo" VARCHAR  ,\n"bar" BIGINT  ,\n"baz" DOUBLE  NOT NULL)\nPARTITION BY'
                 ' ("foo")\nLOCALSORT BY ("bar")'
             ],
@@ -65,7 +65,7 @@ def test_dremio_factory() -> None:
             ],
             False,
             [
-                'CREATE TABLE "test_database"."test_dataset"."event_test_table"'
+                'CREATE TABLE "event_test_table"'
                 ' (\n"foo" VARCHAR  ,\n"bar" BIGINT  ,\n"baz" DOUBLE  )\nPARTITION BY'
                 ' ("foo","bar")'
             ],
@@ -78,7 +78,7 @@ def test_dremio_factory() -> None:
             ],
             False,
             [
-                'CREATE TABLE "test_database"."test_dataset"."event_test_table"'
+                'CREATE TABLE "event_test_table"'
                 ' (\n"foo" VARCHAR  ,\n"bar" BIGINT  ,\n"baz" DOUBLE  )'
             ],
         ),

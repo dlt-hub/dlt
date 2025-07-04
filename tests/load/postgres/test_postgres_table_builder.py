@@ -68,8 +68,7 @@ def test_create_table(client: PostgresClient) -> None:
     # non existing table
     sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)[0]
     sqlfluff.parse(sql, dialect="postgres")
-    qualified_name = client.sql_client.make_qualified_table_name("event_test_table")
-    assert f"CREATE TABLE {qualified_name}" in sql
+    assert 'CREATE TABLE "event_test_table"' in sql
     assert '"col1" bigint  NOT NULL' in sql
     assert '"col2" double precision  NOT NULL' in sql
     assert '"col3" boolean  NOT NULL' in sql
