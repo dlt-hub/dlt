@@ -4,7 +4,7 @@ from typing import (
     Any,
 )
 
-from lancedb.exceptions import MissingValueError, MissingColumnError  # type: ignore
+from lancedb.exceptions import MissingValueError, MissingColumnError
 
 from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,

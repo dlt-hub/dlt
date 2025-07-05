@@ -12,12 +12,11 @@ from typing import (
     TYPE_CHECKING,
 )
 
-import lancedb  # type: ignore
-import lancedb.table  # type: ignore
+import lancedb
+import lancedb.table
 import pyarrow as pa
-from lancedb import DBConnection
-from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction  # type: ignore
-from lancedb.query import LanceQueryBuilder  # type: ignore
+from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction
+from lancedb.query import LanceQueryBuilder
 from pyarrow import Array, ChunkedArray
 
 from dlt.common import json, pendulum, logger
@@ -36,7 +35,6 @@ from dlt.common.destination.client import (
     LoadJob,
     FollowupJobRequest,
 )
-from dlt.common.pendulum import timedelta
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import (
     C_DLT_LOADS_TABLE_LOAD_ID,
@@ -97,11 +95,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         super().__init__(schema, config, capabilities)
         self.registry = EmbeddingFunctionRegistry.get_instance()
         self.config: LanceDBClientConfiguration = config
-        self.db_client: DBConnection = lancedb.connect(
-            uri=self.config.lance_uri,
-            api_key=self.config.credentials.api_key,
-            read_consistency_interval=timedelta(0),
-        )
+        self.db_client = self.config.credentials.get_conn()
         self.type_mapper = self.capabilities.get_type_mapper()
         self.sentinel_table_name = config.sentinel_table_name
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
@@ -262,8 +256,8 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 raise DestinationTerminalException(
                     "The `_dlt_load_id` column is required for tables with orphan removal or merge"
                     " keys. Enable this by setting"
-                    " `NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID=TRUE` and"
-                    " `NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID=TRUE`"
+                    " `NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID=TRUE` or an equivalent in"
+                    " config.toml."
                 )
 
         return loaded_tables

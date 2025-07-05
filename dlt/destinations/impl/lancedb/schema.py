@@ -6,7 +6,7 @@ from typing import (
     Optional,
 )
 import pyarrow as pa
-from lancedb.embeddings import TextEmbeddingFunction  # type: ignore
+from lancedb.embeddings import TextEmbeddingFunction
 from typing_extensions import TypeAlias
 
 from dlt.common import logger

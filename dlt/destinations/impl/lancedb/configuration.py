@@ -1,27 +1,78 @@
 import os
 import dataclasses
-from typing import Optional, Final, Literal, ClassVar, List
+from typing import TYPE_CHECKING, Any, Dict, Optional, Final, Literal, ClassVar, List
 
+from dlt.common import logger
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs.base_configuration import (
     BaseConfiguration,
     CredentialsConfiguration,
+    NotResolved,
 )
 from dlt.common.destination.client import DestinationClientDwhConfiguration
+from dlt.common.pendulum import timedelta
 from dlt.common.storages.configuration import FilesystemConfiguration, WithLocalFiles
-from dlt.common.typing import TSecretStrValue
+from dlt.common.typing import TSecretStrValue, Annotated
 from dlt.common.utils import digest128
 
 from dlt.destinations.impl.lancedb.warnings import uri_on_credentials_deprecated
 
+if TYPE_CHECKING:
+    from lancedb import DBConnection
+
 
 @configspec
 class LanceDBCredentials(CredentialsConfiguration):
-    uri: Optional[str] = None  # deprecated!
+    uri: Optional[str] = None
     api_key: Optional[TSecretStrValue] = None
     """API key for the remote connections (LanceDB cloud)."""
+    region: Optional[str] = "us-east-1"
+    """Region on LanceDB cloud"""
+    host_override: Optional[str] = None
+    read_consistency_interval: Optional[float] = None
+    """Read consistency in seconds, None disables consistency"""
+    client_config: Optional[Dict[str, Any]] = None
+    storage_options: Optional[Dict[str, Any]] = None
+    """Rust object store credentials"""
+
     embedding_model_provider_api_key: Optional[str] = None
     """API key for the embedding model provider."""
+
+    _conn: Annotated[Optional["DBConnection"], NotResolved()] = None
+
+    # TODO: we should refactor this similarly to duckdb or sqlalchemy: one connection with refcounting
+    #   for all threads. we create separate clients to load each table which is not optimal
+    def get_conn(self) -> "DBConnection":
+        if self._conn:
+            return self._conn
+
+        import lancedb
+
+        return lancedb.connect(
+            uri=self.uri,
+            api_key=self.api_key,
+            region=self.region,
+            host_override=self.host_override,
+            read_consistency_interval=(
+                None
+                if self.read_consistency_interval is None
+                else timedelta(seconds=self.read_consistency_interval)
+            ),
+            client_config=self.client_config,
+            storage_options=self.storage_options,
+        )
+
+    def parse_native_representation(self, native_value: Any) -> None:
+        try:
+            # check if database was passed as explicit connection
+            import lancedb
+
+            if isinstance(native_value, lancedb.DBConnection):
+                self._conn = native_value
+                self.uri = ":external:"
+                return
+        except ImportError:
+            pass
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "api_key",
@@ -110,9 +161,25 @@ class LanceDBClientConfiguration(WithLocalFiles, DestinationClientDwhConfigurati
     ]
 
     def on_resolved(self) -> None:
+        try:
+            from lancedb import DBConnection
+
+            if isinstance(self.credentials, DBConnection):
+                if self.lance_uri:
+                    logger.warning(
+                        "Lance db client was passed directly so `lance_uri` with database location"
+                        " is ignored"
+                    )
+                self.lance_uri = ":external:"
+                return
+        except ImportError:
+            # native client not possible if dependency not found
+            pass
+
         if self.credentials.uri and not self.lance_uri:
             uri_on_credentials_deprecated()
             self.lance_uri = self.credentials.uri
+
         # use local path if uri not provided or relative path
         if (
             not self.lance_uri
@@ -120,6 +187,8 @@ class LanceDBClientConfiguration(WithLocalFiles, DestinationClientDwhConfigurati
             and not os.path.isabs(self.lance_uri)
         ):
             self.lance_uri = self.make_location(self.lance_uri, "%s.lancedb")
+        # TODO: move uri back to credentials to make it more like other connections
+        self.credentials.uri = self.lance_uri
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of a connection string."""
