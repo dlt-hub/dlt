@@ -470,7 +470,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         # Convert Weaviate class schema to dlt table schema
         for prop in class_schema["properties"]:
             schema_c: TColumnSchema = {
-                "name": self.schema.naming.normalize_identifier(prop["name"]),
+                "name": prop["name"],
                 **self._from_db_type(prop["dataType"][0], None, None),
             }
             table_schema[prop["name"]] = schema_c

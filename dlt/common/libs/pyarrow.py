@@ -493,7 +493,7 @@ def normalize_py_arrow_item(
     """Normalize arrow `item` schema according to the `columns`. Note that
     columns must be already normalized.
 
-    0. columns with no data type will be dropeed
+    0. columns with no data type will be dropped
     1. arrow schema field names will be normalized according to `naming`
     2. arrows columns will be reordered according to `columns`
     3. empty columns will be inserted if they are missing, types will be generated using `caps`

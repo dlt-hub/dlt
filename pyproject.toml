@@ -157,7 +157,7 @@ dremio = [
     "pyarrow>=18.0.0 ; python_version >= '3.13'",
 ]
 lancedb = [
-    "lancedb>=0.8.2 ; python_version < '3.13'",
+    "lancedb>=0.22.0 ; python_version < '3.13'",
     "pyarrow>=16.0.0 ; python_version < '3.13'",
     "pyarrow>=18.0.0 ; python_version >= '3.13'",
     "tantivy>= 0.22.0",

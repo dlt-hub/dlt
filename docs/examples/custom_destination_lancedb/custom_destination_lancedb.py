@@ -36,11 +36,18 @@ from dlt.common.typing import TDataItems, TSecretStrValue
 from dlt.sources.helpers import requests
 from dlt.sources.helpers.rest_client import RESTClient, AuthConfigBase
 
-# access secrets to get openai key and instantiate embedding function
+# access secrets to get openai key
 openai_api_key: str = dlt.secrets.get(
     "destination.lancedb.credentials.embedding_model_provider_api_key"
 )
-func = get_registry().get("openai").create(name="text-embedding-3-small", api_key=openai_api_key)
+# store the api key in the registry
+get_registry().set_var("openai_api_key", openai_api_key)
+# create the embedding function
+func = (
+    get_registry()
+    .get("openai")
+    .create(name="text-embedding-3-small", api_key="$var:openai_api_key")
+)
 
 
 class EpisodeSchema(LanceModel):

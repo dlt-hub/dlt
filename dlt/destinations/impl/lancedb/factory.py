@@ -46,6 +46,9 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
 
         caps.supported_merge_strategies = ["upsert"]
 
+        # enable creation of nested types to support own vectors
+        caps.supports_nested_types = True
+
         return caps
 
     @property

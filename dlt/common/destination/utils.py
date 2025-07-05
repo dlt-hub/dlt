@@ -305,7 +305,7 @@ def resolve_merge_strategy(
         if merge_strategy not in supported_strategies:
             raise DestinationCapabilitiesException(
                 f"`{merge_strategy}` merge strategy not supported for table `{table_name}`. "
-                "Available strategies: {supported_strategies}"
+                f"Available strategies: {supported_strategies}"
             )
         return merge_strategy
     return None
