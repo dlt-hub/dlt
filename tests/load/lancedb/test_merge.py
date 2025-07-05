@@ -1,9 +1,9 @@
-from typing import Iterator, List, Generator, Any
+from typing import List, Generator, Any
 
 import numpy as np
 import pandas as pd
 import pytest
-from lancedb.table import Table  # type: ignore
+from lancedb.table import Table
 from pandas import DataFrame
 from pandas.testing import assert_frame_equal
 
