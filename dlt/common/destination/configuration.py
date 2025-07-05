@@ -27,5 +27,6 @@ class ParquetFormatConfiguration(BaseConfiguration):
     row_group_size: Optional[int] = None
     coerce_timestamps: Optional[Literal["s", "ms", "us", "ns"]] = None
     allow_truncated_timestamps: bool = False
+    use_compliant_nested_type: bool = True
 
     __section__: ClassVar[str] = known_sections.DATA_WRITER
