@@ -1,15 +1,4 @@
-from typing import (
-    Optional,
-    Iterator,
-    Any,
-    Sequence,
-    AnyStr,
-    Union,
-    Tuple,
-    List,
-    Dict,
-    Set,
-)
+from typing import Optional, Iterator, Any, Sequence, AnyStr, Union, Tuple, List, Dict, Set, cast
 from contextlib import contextmanager
 from functools import wraps
 import inspect
@@ -76,15 +65,11 @@ class SqlaDbApiCursor(DBApiCursorImpl):
         self.native_cursor = curr  # type: ignore[assignment]
         curr.columns
 
-        self.fetchall = curr.fetchall  # type: ignore[assignment]
-        self.fetchone = curr.fetchone  # type: ignore[assignment]
-        self.fetchmany = curr.fetchmany  # type: ignore[assignment]
-
         self._set_default_schema_columns()
 
     def _get_columns(self) -> List[str]:
         try:
-            return list(self.native_cursor.keys())
+            return list(cast(sa.engine.CursorResult, self.native_cursor).keys())
         except ResourceClosedError:
             # this happens if now rows are returned
             return []
@@ -316,7 +301,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         self, sql: Union[AnyStr, sa.sql.Executable], *args: Any, **kwargs: Any
     ) -> Optional[Sequence[Sequence[Any]]]:
         with self.execute_query(sql, *args, **kwargs) as cursor:
-            if cursor.returns_rows:
+            if cast(sa.engine.CursorResult, cursor).returns_rows:
                 return cursor.fetchall()
             return None
 

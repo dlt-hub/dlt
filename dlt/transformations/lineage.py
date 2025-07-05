@@ -1,9 +1,8 @@
 import logging
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Tuple, cast
 
-import sqlglot
 import sqlglot.expressions as sge
-from sqlglot.dialects.dialect import DialectType
+
 from sqlglot.errors import ParseError, OptimizeError
 from sqlglot.schema import Schema as SQLGlotSchema, ensure_schema
 from sqlglot.optimizer.annotate_types import annotate_types
@@ -16,6 +15,7 @@ from dlt.common.libs.sqlglot import (
     from_sqlglot_type,
     set_metadata,
     get_metadata,
+    TSqlGlotDialect,
 )
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import (
@@ -31,7 +31,7 @@ logger = logging.getLogger(__file__)
 def create_sqlglot_schema(
     schema: Schema,
     dataset_name: str,
-    dialect: Optional[DialectType] = "duckdb",
+    dialect: TSqlGlotDialect,
 ) -> SQLGlotSchema:
     """Create an SQLGlot schema using a dlt Schema and the destination capabilities.
 
@@ -72,9 +72,9 @@ def create_sqlglot_schema(
 
 # NOTE even if `infer_sqlglot_schema=True`, some queries can have undetermined final columns
 def compute_columns_schema(
-    sql_query: str,
+    expression: sge.Expression,
     sqlglot_schema: SQLGlotSchema,
-    dialect: Optional[DialectType] = None,
+    dialect: TSqlGlotDialect,
     infer_sqlglot_schema: bool = True,
     allow_anonymous_columns: bool = True,
     allow_partial: bool = True,
@@ -94,19 +94,8 @@ def compute_columns_schema(
     Returns: tuple of dlt columns schema and qualified `sql_query`
 
     """
-    try:
-        expression: Any = sqlglot.maybe_parse(sql_query, dialect=dialect)
-    except ParseError as e:
-        if allow_partial:
-            logger.debug(
-                "Failed to parse the SQL query. Returning empty table schema because"
-                " `allow_fail=True`"
-            )
-            return {}, None
-
-        raise LineageFailedException(
-            f"Failed to parse the SQL query using dialect `{dialect}`.\nQuery:\n\t{sql_query}",
-        ) from e
+    # make sure we don't modify the original expression
+    expression = expression.copy()
 
     # the only thing we care is a list of selects
     if not isinstance(expression, sge.Query):
@@ -121,19 +110,24 @@ def compute_columns_schema(
             "Parsed SQL query is not a SELECT statement. Received SQL expression of type"
             f" {expression.type}.",
         )
+    else:
+        select_expression = expression
 
     # prevent normalization
-    expression.meta["case_sensitive"] = True
+    select_expression.meta["case_sensitive"] = True
 
     # false-y values `schema={}` or `schema=None` are identical to `infer_schema=True`
     try:
-        expression = qualify(
-            expression,
-            schema=sqlglot_schema,
-            dialect=dialect,
-            infer_schema=infer_sqlglot_schema,
-            quote_identifiers=False,
-            expand_stars=True,
+        select_expression = cast(
+            sge.Query,
+            qualify(
+                select_expression,
+                schema=sqlglot_schema,
+                dialect=dialect,
+                infer_schema=infer_sqlglot_schema,
+                quote_identifiers=False,
+                expand_stars=True,
+            ),
         )
     except OptimizeError as e:
         raise LineageFailedException(
@@ -144,7 +138,7 @@ def compute_columns_schema(
 
     # NOTE: this has to be fixed
     if allow_anonymous_columns is False:
-        for col in expression.selects:
+        for col in select_expression.selects:
             if col.alias_or_name == "" and False:
                 raise LineageFailedException(
                     "Found anonymous column in SELECT statement. Use"
@@ -152,7 +146,7 @@ def compute_columns_schema(
                 )
 
     dlt_table_schema: dict[str, TColumnSchema] = {}
-    for col in expression.selects:
+    for col in select_expression.selects:
         if col.output_name == "*":
             if allow_partial is True:
                 logger.debug(

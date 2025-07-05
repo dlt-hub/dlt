@@ -50,7 +50,7 @@ def run(dlt):
 @app.cell
 def view(pipeline):
     # NOTE: This line displays the data of the items table in a marimo table
-    pipeline.dataset(dataset_type="default").items.df()
+    pipeline.dataset().items.df()
     return
 
 
@@ -64,7 +64,7 @@ def connect(pipeline):
 @app.cell(hide_code=True)
 def tests(pipeline):
     # NOTE: this cell is only needed for testing this notebook on ci
-    assert pipeline.dataset(dataset_type="default").items.df().shape[0] == 50
+    assert pipeline.dataset().items.df().shape[0] == 50
     return
 
 

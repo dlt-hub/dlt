@@ -1,5 +1,7 @@
 from dlt.destinations.dataset.factory import dataset
-from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+from dlt.destinations.dataset.dataset import (
+    ReadableDBAPIDataset,
+)
 
 from dlt.destinations.dataset.utils import (
     get_destination_clients,
@@ -10,6 +12,7 @@ from dlt.destinations.dataset.utils import (
 __all__ = [
     "dataset",
     "ReadableDBAPIDataset",
+    "BaseReadableDBAPIDataset",
     "get_destination_client_initial_config",
     "get_destination_clients",
 ]

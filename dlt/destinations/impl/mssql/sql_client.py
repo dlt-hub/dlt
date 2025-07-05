@@ -147,7 +147,6 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
         assert isinstance(query, str)
-        curr: DBApiCursor = None
         if kwargs:
             raise NotImplementedError("pyodbc does not support named parameters in queries")
         if args:

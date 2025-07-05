@@ -114,7 +114,11 @@ def build_select_expr(
     table_expr = sge.Table(this=sge.to_identifier(table_name, quoted=quoted_identifiers))
 
     columns_expr = [
-        (sge.Star() if col == "*" else sge.to_identifier(col, quoted=quoted_identifiers))
+        (
+            sge.Star()
+            if col == "*"
+            else sge.Column(this=sge.to_identifier(col, quoted=quoted_identifiers))
+        )
         for col in selected_columns
     ]
 

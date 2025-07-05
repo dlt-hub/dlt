@@ -346,14 +346,6 @@ class DBApiCursorImpl(DBApiCursor):
 
     def __init__(self, curr: DBApiCursor) -> None:
         self.native_cursor = curr
-
-        # wire protocol methods
-        self.execute = curr.execute  # type: ignore
-        self.fetchall = curr.fetchall  # type: ignore
-        self.fetchmany = curr.fetchmany  # type: ignore
-        self.fetchone = curr.fetchone  # type: ignore
-        self.close = curr.close  # type: ignore
-
         self._set_default_schema_columns()
 
     def __getattr__(self, name: str) -> Any:
@@ -363,6 +355,22 @@ class DBApiCursorImpl(DBApiCursor):
         if self.native_cursor.description:
             return [c[0] for c in self.native_cursor.description]
         return []
+
+    # wire protocol methods
+    def execute(self, *args: Any, **kwargs: Any) -> None:
+        self.native_cursor.execute(*args, **kwargs)
+
+    def fetchall(self, *args: Any, **kwargs: Any) -> List[Tuple[Any, ...]]:
+        return self.native_cursor.fetchall(*args, **kwargs)
+
+    def fetchmany(self, *args: Any, **kwargs: Any) -> List[Tuple[Any, ...]]:
+        return self.native_cursor.fetchmany(*args, **kwargs)
+
+    def fetchone(self, *args: Any, **kwargs: Any) -> Tuple[Any, ...]:
+        return self.native_cursor.fetchone(*args, **kwargs)
+
+    def close(self, *args: Any, **kwargs: Any) -> None:
+        self.native_cursor.close(*args, **kwargs)
 
     def _set_default_schema_columns(self) -> None:
         self.columns_schema = cast(
