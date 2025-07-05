@@ -5,25 +5,18 @@ import pyarrow as pa
 import pyarrow as pa
 from pyarrow import ArrowInvalid
 from pyarrow import types as pat
-from lancedb import DBConnection  # type: ignore
-from lancedb.common import DATA  # type: ignore
+from lancedb import DBConnection
+from lancedb.common import DATA
 
 from dlt.common import logger
 from dlt.common.data_writers.escape import escape_lancedb_literal
-from dlt.common.destination.exceptions import (
-    DestinationTerminalException,
-    DestinationTransientException,
-)
+from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.schema import TTableSchema
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.schema.utils import get_columns_names_with_prop, get_first_column_name_with_prop
-from dlt.destinations.impl.lancedb.configuration import (
-    TEmbeddingProvider,
-    LanceDBClientConfiguration,
-)
+from dlt.destinations.impl.lancedb.configuration import TEmbeddingProvider
 from dlt.destinations.impl.lancedb.schema import add_vector_column
 
-EMPTY_STRING_PLACEHOLDER = "0uEoDNBpQUBwsxKbmxxB"
 PROVIDER_ENVIRONMENT_VARIABLES_MAP: Dict[TEmbeddingProvider, str] = {
     "cohere": "COHERE_API_KEY",
     "gemini-text": "GOOGLE_API_KEY",
@@ -55,30 +48,6 @@ def get_canonical_vector_database_doc_id_merge_key(
         raise DestinationTerminalException(
             "You must specify at least a primary key in order to perform orphan removal."
         )
-
-
-def fill_empty_source_column_values_with_placeholder(
-    table: pa.Table, source_columns: List[str], placeholder: str
-) -> pa.Table:
-    """
-    Replaces empty strings and null values in the specified source columns of an Arrow table with a placeholder string.
-
-    Args:
-        table (pa.Table): The input Arrow table.
-        source_columns (List[str]): A list of column names to replace empty strings and null values in.
-        placeholder (str): The placeholder string to use for replacement.
-
-    Returns:
-        pa.Table: The modified Arrow table with empty strings and null values replaced in the specified columns.
-    """
-    for col_name in source_columns:
-        column = table[col_name]
-        filled_column = pa.compute.fill_null(column, fill_value=placeholder)
-        new_column = pa.compute.replace_substring_regex(
-            filled_column, pattern=r"^$", replacement=placeholder
-        )
-        table = table.set_column(table.column_names.index(col_name), col_name, new_column)
-    return table
 
 
 def create_in_filter(field_name: str, array: pa.Array) -> str:

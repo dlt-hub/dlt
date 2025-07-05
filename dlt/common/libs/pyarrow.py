@@ -337,20 +337,26 @@ def get_column_type_from_py_arrow(
     elif pyarrow.types.is_decimal(dtype):
         return dict(data_type="decimal", precision=dtype.precision, scale=dtype.scale)
     elif pyarrow.types.is_nested(dtype):
-        dt = dict(data_type="json")
-        if caps.supports_nested_types:
-            dt["x-nested-type"] = serialize_type(dtype)
-        return dt  # type: ignore[return-value]
+        return (
+            get_nested_column_type_from_py_arrow(dtype)
+            if caps.supports_nested_types
+            else dict(data_type="json")
+        )
     elif pyarrow.types.is_dictionary(dtype):
         # Dictionary types are essentially categorical encodings. The underlying value_type
         # dictates the "logical" type. We simply delegate to the underlying value_type.
         return get_column_type_from_py_arrow(dtype.value_type, caps)
     elif pyarrow.types.is_null(dtype):
-        dt: dict[str, Any] = {}  # type: ignore[no-redef]
-        dt["x-normalizer"] = {"seen-null-first": True}  # type: ignore[assignment]
-        return dt  # type: ignore[return-value]
+        return {"x-normalizer": {"seen-null-first": True}}  # type: ignore[typeddict-unknown-key]
     else:
         raise UnsupportedArrowTypeException(arrow_type=dtype)
+
+
+def get_nested_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
+    """Creates `json` dlt data type with nested type structure in `x-nested-type` hint.
+    Currently the only recognized nested type format is arrow-ipc
+    """
+    return {"data_type": "json", "x-nested-type": serialize_type(dtype)}  # type: ignore[typeddict-unknown-key]
 
 
 def serialize_type(dtype: pyarrow.DataType) -> str:
@@ -432,6 +438,30 @@ def rename_columns(item: TAnyArrowItem, new_column_names: Sequence[str]) -> TAny
         return pyarrow.RecordBatch.from_arrays(item.columns, schema=pyarrow.schema(new_fields))
     else:
         raise TypeError(f"Unsupported data item type: `{type(item)}`")
+
+
+def fill_empty_source_column_values_with_placeholder(
+    table: pyarrow.Table, source_columns: List[str], placeholder: str
+) -> pyarrow.Table:
+    """
+    Replaces empty strings and null values in the specified source columns of an Arrow table with a placeholder string.
+
+    Args:
+        table (pa.Table): The input Arrow table.
+        source_columns (List[str]): A list of column names to replace empty strings and null values in.
+        placeholder (str): The placeholder string to use for replacement.
+
+    Returns:
+        pyarrow.Table: The modified Arrow table with empty strings and null values replaced in the specified columns.
+    """
+    for col_name in source_columns:
+        column = table[col_name]
+        filled_column = pyarrow.compute.fill_null(column, fill_value=placeholder)
+        new_column = pyarrow.compute.replace_substring_regex(
+            filled_column, pattern=r"^$", replacement=placeholder
+        )
+        table = table.set_column(table.column_names.index(col_name), col_name, new_column)
+    return table
 
 
 def should_normalize_arrow_schema(
