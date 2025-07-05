@@ -1,10 +1,7 @@
 from typing import cast
 import pyarrow as pa
 import pyarrow.parquet as pq
-from lancedb import DBConnection  # type: ignore
-from dlt.destinations.impl.lancedb.configuration import (
-    LanceDBClientConfiguration,
-)
+from lancedb import DBConnection
 
 from dlt.common.destination.client import (
     RunnableLoadJob,
@@ -14,22 +11,14 @@ from dlt.common.schema.typing import (
     TWriteDisposition,
     TTableSchema,
 )
-from dlt.common.schema.utils import (
-    get_columns_names_with_prop,
-    is_nested_table,
-)
+from dlt.common.schema.utils import is_nested_table
 from dlt.common.storages import ParsedLoadJobFileName
-from dlt.destinations.impl.lancedb.lancedb_adapter import (
-    VECTORIZE_HINT,
-)
 from dlt.destinations.impl.lancedb.schema import (
     TArrowSchema,
     TTableLineage,
     TableJob,
 )
 from dlt.destinations.impl.lancedb.utils import (
-    EMPTY_STRING_PLACEHOLDER,
-    fill_empty_source_column_values_with_placeholder,
     get_canonical_vector_database_doc_id_merge_key,
     create_in_filter,
     write_records,
@@ -59,6 +48,17 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
             TWriteDisposition, self._load_table.get("write_disposition", "append")
         )
 
+        merge_key: str = None
+        if write_disposition == "merge":
+            # use deterministic and unique id as a merge column (to perform classical upsert)
+            # NOTE: upsert strategy generates deterministic row_key both for root and nested tables
+            merge_key = SqlMergeFollowupJob.get_row_key_col(
+                [self._load_table],
+                self._load_table,
+                self._job_client.dataset_name,
+                self._job_client.dataset_name,
+            )
+
         with open(self._file_path, mode="rb") as f:
             arrow_table: pa.Table = pq.read_table(f)
 
@@ -68,13 +68,7 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
             vector_field_name=self._job_client.config.vector_field_name,
             table_name=fq_table_name,
             write_disposition=write_disposition,
-            # use deterministic
-            merge_key=SqlMergeFollowupJob.get_row_key_col(
-                [self._load_table],
-                self._load_table,
-                self._job_client.dataset_name,
-                self._job_client.dataset_name,
-            ),
+            merge_key=merge_key,
         )
 
 
