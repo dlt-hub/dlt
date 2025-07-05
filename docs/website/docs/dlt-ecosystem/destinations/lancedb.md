@@ -11,7 +11,7 @@ This destination helps you load data into LanceDB from [dlt resources](../../gen
 
 ## Setup guide
 
-### Choosing a model provider
+### Choose a model provider
 
 First, you need to decide which embedding model provider to use. You can find all supported providers by visiting the official [LanceDB docs](https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/).
 
@@ -39,7 +39,7 @@ embedding_model = "mxbai-embed-large"
 embedding_model_provider_host = "http://localhost:11434"  # Optional: custom endpoint for providers that support it
 
 [destination.lancedb.credentials]
-api_key = "api_key" # API key to connect to LanceDB Cloud. Leave out if you are using LanceDB OSS.
+api_key = "api_key" # API key to connect to LanceDB Cloud. Comment out if you are using LanceDB OSS.
 embedding_model_provider_api_key = "embedding_model_provider_api_key" # Not needed for providers that don't need authentication (ollama, sentence-transformers).
 ```
 
@@ -76,6 +76,21 @@ Local database name and location:
 3. The `:pipeline:` `lance_uri` will place database file in pipeline working folder
 :::
 
+### Configure cloud destination
+`lance_uri` starting with **db://** schema is interpreted as location on LandeDB cloud. In that case you need to pass `api_key` in order to connect. `dlt` uses [the same names as LanceDB connect() function](https://lancedb.github.io/lancedb/python/python/#connections-synchronous):
+
+```toml
+[destination.lancedb.credentials]
+api_key = "api_key"
+region = "us-east-1"
+read_consistency_interval=2.5
+```
+`read_consistency_interval` is None by default (no read consistency, `dlt` assumes that it is a single writer to particular table.)
+
+:::tip
+You can pass `storage_options` in the credentials collection that allows to [store lancedb data on a bucket](https://lancedb.github.io/lancedb/guides/storage/). You can try this out but we didn't test that.
+:::
+
 ### Define your data source
 
 For example:
@@ -110,7 +125,6 @@ movies = [
 pipeline = dlt.pipeline(
   pipeline_name="movies",
   destination="lancedb",
-  dataset_name="MoviesDataset",
 )
 ```
 
@@ -121,15 +135,30 @@ info = pipeline.run(
   lancedb_adapter(
     movies,
     embed="title",
-  )
+  ),
+  table_name="movies",
 )
 ```
 
 The data is now loaded into LanceDB.
 
-To use **vector search** after loading, you **must specify which fields LanceDB should generate embeddings for**. Do this by wrapping the data (or dlt resource) with the **`lancedb_adapter`** function.
+To use **vector search** after loading, you **must specify which fields LanceDB should generate embeddings for**. Do this by wrapping the data (or dlt resource) with the **`lancedb_adapter`** function. Above we requested the embedding to be created on `title` column using the configured embedding provider and model.
 
-## Using an adapter to specify columns to vectorize
+:::note
+We created `pipeline` without a dataset name. In the example above data is stored in `movies` table as expected. If dataset name is specified, `dlt` follows
+the same pattern as for other schema-less storages: it will prefix all the tables with `database_name`. For example:
+```py
+pipeline = dlt.pipeline(
+  pipeline_name="movies",
+  destination="lancedb",
+  dataset_name="movies_db",
+)
+```
+will name the table `movies_db___movies` where `___` (3 underscores) is a configurable separator.
+
+:::
+
+## Use an adapter to specify columns to vectorize
 
 Out of the box, LanceDB will act as a normal database. To use LanceDB's embedding facilities, you'll need to specify which fields you'd like to embed in your dlt resource.
 
@@ -170,6 +199,75 @@ lancedb_adapter(products_tables.products, embed="description")
 lancedb_adapter(products_tables.customers, embed="bio")
 
 info = pipeline.run(products_tables)
+```
+
+## Load data with Arrow or Pandas
+Both `dlt` and `LanceDB` support Arrow and Pandas natively. You will be able to [ingest data with high performance](../verified-sources/arrow-pandas.md) and without unnecessary rewrites and copies.
+
+If you plan to use `merge` write disposition, remember to [enable load ids](../verified-sources/) tracking for arrow tables.
+
+
+## Access loaded data
+
+You can access the data that got loaded in many ways. You can create lancedb client yourself, pass it to `dlt` pipeline 
+for loading and then use it for querying:
+```py
+import dlt
+import lancedb
+
+db = lancedb.connect("movies.db")
+
+pipeline = dlt.pipeline(
+  pipeline_name="movies",
+  destination=dlt.destinations.lancedb(credentials=db),
+)
+
+...
+
+tbl = db.open_table("movies")
+print(tbl.query("magic dog"))
+```
+
+Alternatively you can get authenticated client from the pipeline:
+```py
+import dlt
+from lancedb import DBConnection
+
+pipeline = dlt.pipeline(
+  pipeline_name="movies",
+  destination="lancedb",
+)
+
+...
+
+with pipeline.destination_client() as job_client:
+  db: DBConnection = job_client.db_client  # type: ignore
+  tbl = db.open_table("movies")
+  tbl.create_scalar_index("id")
+
+```
+
+## Bring your own vectors
+By default `dlt` will add a vector column automatically using the embeddings indicated in `lancedb_adapter`. You can also choose to pass vector data explicitly. Currently this function is available only if
+you yield Arrow tables with properly created schema. Remember to declare your vector as fixed length:
+
+```py
+import pyarrow as pa
+import numpy as np
+import dlt
+
+vector_dim = 5
+vectors = [np.random.rand(vector_dim).tolist() for _ in range(4)]
+table = pa.table(
+    {
+        "id": pa.array(list(range(1, 5)), pa.int32()),
+        "vector": pa.array(
+            vectors, pa.list_(pa.float32(), vector_dim)
+        ),
+    }
+)
+
+print(dlt.run(table, table_name="vectors", destination="lancedb"))
 ```
 
 ## Write disposition
@@ -268,16 +366,6 @@ The LanceDB destination doesn't support dbt integration.
 ## Syncing of `dlt` state
 
 The LanceDB destination supports syncing of the `dlt` state.
-
-## Current limitations
-
-### In-memory tables
-
-Adding new fields to an existing LanceDB table requires loading the entire table data into memory as a PyArrow table.
-This is because PyArrow tables are immutable, so adding fields requires creating a new table with the updated schema.
-
-For huge tables, this may impact performance and memory usage since the full table must be loaded into memory to add the new fields.
-Keep these considerations in mind when working with large datasets and monitor memory usage if adding fields to sizable existing tables.
 
 <!--@@@DLT_TUBA lancedb-->
 
