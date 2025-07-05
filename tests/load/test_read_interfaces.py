@@ -180,6 +180,59 @@ configs = destinations_configs(
 
 
 @pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_str_and_repr_on_dataset_and_relation(populated_pipeline: Pipeline) -> None:
+    # no need to test on all destinations
+    if populated_pipeline.destination.destination_type != "dlt.destinations.duckdb":
+        pytest.skip("Only duckdb is supported for this test")
+
+    dataset_ = cast(ReadableDBAPIDataset, populated_pipeline.dataset())
+
+    def _replace_variable_content(s: str) -> str:
+        # replace dataset name
+        s = s.replace(dataset_.dataset_name, "dataset_name")
+        # replace destination config
+        dest_config = str(
+            cast(ReadableDBAPIDataset, populated_pipeline.dataset()).destination_client.config
+        )
+        s = s.replace(dest_config, "<destination_config>")
+        return s
+
+    # dataset
+    assert (
+        _replace_variable_content(str(dataset_))
+        == "Dataset `dataset_name` at `duckdb[<destination_config>]` with tables in dlt schema"
+        " `source`:\nitems, double_items, orderable_in_chain, items__children"
+    )
+
+    dataset_repr = _replace_variable_content(repr(dataset_))
+    assert dataset_repr.startswith("<dlt.dataset(dataset_name='dataset_name',")
+
+    # relation
+    relation = dataset_("SELECT id, decimal FROM items")
+    assert _replace_variable_content(str(relation)) == """Relation query: 
+  SELECT
+    "items"."id" AS "id",
+    "items"."decimal" AS "decimal"
+  FROM "dataset_name"."items" AS "items"
+Columns:
+  id bigint
+  decimal decimal
+"""
+    relation_repr = _replace_variable_content(repr(relation))
+    assert relation_repr.startswith(
+        "<dlt.Relation(dataset='<dlt.dataset(dataset_name=\\'dataset_name\\'"
+    )
+    assert '"items"."decimal" AS "decimal"' in relation_repr
+
+
+@pytest.mark.no_load
 @pytest.mark.parametrize(
     "populated_pipeline",
     configs,
@@ -1433,56 +1486,3 @@ def test_naming_convention_propagation(destination_config: DestinationTestConfig
         assert client.dataset_name.startswith("Read_test")
         tables = client.native_connection.sql("SHOW TABLES;")
         assert "ItemS" in str(tables)
-
-
-@pytest.mark.no_load
-@pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
-def test_str_and_repr_on_dataset_and_relation(populated_pipeline: Pipeline) -> None:
-    # no need to test on all destinations
-    if populated_pipeline.destination.destination_type != "dlt.destinations.duckdb":
-        pytest.skip("Only duckdb is supported for this test")
-
-    dataset_ = cast(ReadableDBAPIDataset, populated_pipeline.dataset())
-
-    def _replace_variable_content(s: str) -> str:
-        # replace dataset name
-        s = s.replace(dataset_.dataset_name, "dataset_name")
-        # replace destination config
-        dest_config = str(
-            cast(ReadableDBAPIDataset, populated_pipeline.dataset()).destination_client.config
-        )
-        s = s.replace(dest_config, "<destination_config>")
-        return s
-
-    # dataset
-    assert (
-        _replace_variable_content(str(dataset_))
-        == "Dataset `dataset_name` at `duckdb[<destination_config>]` with tables in dlt schema"
-        " `source`:\nitems, double_items, orderable_in_chain, items__children"
-    )
-
-    dataset_repr = _replace_variable_content(repr(dataset_))
-    assert dataset_repr.startswith("<dlt.dataset(dataset_name='dataset_name',")
-
-    # relation
-    relation = dataset_("SELECT id, decimal FROM items")
-    assert _replace_variable_content(str(relation)) == """Relation query: 
-  SELECT
-    "items"."id" AS "id",
-    "items"."decimal" AS "decimal"
-  FROM "dataset_name"."items" AS "items"
-Columns:
-  id bigint
-  decimal decimal
-"""
-    relation_repr = _replace_variable_content(repr(relation))
-    assert relation_repr.startswith(
-        "<dlt.Relation(dataset='<dlt.dataset(dataset_name=\\'dataset_name\\'"
-    )
-    assert '"items"."decimal" AS "decimal"' in relation_repr
