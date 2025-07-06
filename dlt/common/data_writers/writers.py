@@ -333,8 +333,8 @@ class ParquetDataWriter(DataWriter):
         self.schema: Optional[pyarrow.Schema] = None
         self.nested_indices: List[str] = None
         # merge parquet format
-        if caps.parquet_format is not None:
-            self.parquet_format = caps.parquet_format.copy()
+        if self._caps.parquet_format is not None:
+            self.parquet_format = self._caps.parquet_format.copy()
             self.parquet_format.update(_format.as_dict_nondefault())
         else:
             self.parquet_format = _format
