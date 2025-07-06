@@ -219,8 +219,9 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
     def _determine_source_format(
         self, file_name: str, orig_bucket_path: str
     ) -> tuple[str, str, bool]:
-        parsed_name = ParsedLoadJobFileName.parse(file_name)
-        file_format = parsed_name.file_format
+        file_format = os.path.splitext(file_name)[1][1:]
+        if file_format == "gz":
+            file_format = os.path.splitext(os.path.splitext(file_name)[0])[1][1:]
 
         if file_format == "parquet":
             return "PARQUET", "", False
