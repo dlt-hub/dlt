@@ -62,7 +62,7 @@ def test_load_csv(
     )
     assert_load_info(load_info)
     job = load_info.load_packages[0].jobs["completed_jobs"][0].file_path
-    assert job.endswith("csv")
+    assert job.endswith("csv.gz")
     assert_table_counts(pipeline, {"table": 5432 * 3})
     load_tables_to_dicts(pipeline, "table")
 
@@ -122,7 +122,7 @@ def test_custom_csv_no_header(
     # we should have twp files loaded
     jobs = info.load_packages[0].jobs["completed_jobs"]
     assert len(jobs) == 2
-    job_extensions = [os.path.splitext(job.job_file_info.file_name())[1] for job in jobs]
+    job_extensions = [f".{job.job_file_info.file_format}" for job in jobs]
     assert ".csv" in job_extensions
     # we allow state to be saved to make sure it is not in csv format (which would broke)
     # the loading. state is always saved in destination preferred format
@@ -182,7 +182,7 @@ def test_empty_csv_from_arrow(destination_config: DestinationTestConfiguration) 
     assert_load_info(load_info)
     assert len(load_info.load_packages[0].jobs["completed_jobs"]) == 1
     job = load_info.load_packages[0].jobs["completed_jobs"][0].file_path
-    assert job.endswith("csv")
+    assert job.endswith("csv.gz")
     assert_table_counts(pipeline, {"arrow_table": 0})
     with pipeline.sql_client() as client:
         with client.execute_query("SELECT * FROM arrow_table") as cur:

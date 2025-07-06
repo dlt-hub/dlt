@@ -92,6 +92,8 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             )
         # get format
         ext = os.path.splitext(self._bucket_path)[1][1:]
+        if ext == "gz":
+            ext = os.path.splitext(os.path.splitext(self._bucket_path)[0])[1][1:]
         file_type = ""
         dateformat = ""
         compression = ""
