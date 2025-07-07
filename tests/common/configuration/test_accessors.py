@@ -1,8 +1,8 @@
 import datetime  # noqa: 251
-import toml
 from typing import Any
 
 import pytest
+import tomlkit
 import dlt
 from dlt.common import json
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
@@ -317,10 +317,10 @@ def test_explicit_get_resolution_order(tmp_path):
     dlt_dir.joinpath("secrets.toml").write_text(secrets_toml_content)
 
     # validate the TOML files on disk before main test logic
-    loaded_config = toml.loads(config_toml_content)
-    loaded_secrets = toml.loads(secrets_toml_content)
-    assert loaded_config["sources"]["d365"] == expected_config
-    assert loaded_secrets["sources"]["d365"] == expected_secrets
+    loaded_config = tomlkit.loads(config_toml_content)
+    loaded_secrets = tomlkit.loads(secrets_toml_content)
+    assert loaded_config["sources"]["d365"] == expected_config  # type: ignore[index]
+    assert loaded_secrets["sources"]["d365"] == expected_secrets  # type: ignore[index]
 
     # patch the `.dlt` to use the `tmp_path/.dlt` instead of the `tests/.dlt` loaded when
     # launching the pytest run
