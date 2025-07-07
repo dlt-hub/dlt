@@ -34,13 +34,13 @@ Check out [dlt+](../../../plus/ecosystem/ms-sql.md) for support of change tracki
 We support all [SQLAlchemy dialects](https://docs.sqlalchemy.org/en/20/dialects/), which include, but are not limited to, the following database engines:
 
 
-* [PostgreSQL](./troubleshooting#postgres--mssql)
-* [MySQL](./troubleshooting#mysql)
+* [PostgreSQL](./sql_database/troubleshooting#postgres--mssql)
+* [MySQL](./sql_database/troubleshooting#mysql)
 * SQLite
-* [Oracle](./troubleshooting#oracle)
-* [Microsoft SQL Server](./troubleshooting#postgres--mssql)
+* [Oracle](./sql_database/troubleshooting#oracle)
+* [Microsoft SQL Server](./sql_database/troubleshooting#postgres--mssql)
 * MariaDB
-* [IBM DB2 and Informix](./troubleshooting#db2)
+* [IBM DB2 and Informix](./sql_database/troubleshooting#db2)
 * Google BigQuery
 * Snowflake
 * Redshift
