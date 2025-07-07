@@ -542,7 +542,23 @@ For more information, refer to the [Lakekeeper section above](#lakekeeper-catalo
 
 ### Unity Catalog
 
-[Unity Catalog](https://www.databricks.com/product/unity-catalog) provides a REST API for Iceberg that allows external clients to access Delta Lake tables. To use Unity Catalog with the Iceberg destination, you need to [configure external data access and permissions](https://learn.microsoft.com/en-us/azure/databricks/external-access/iceberg).
+[Unity Catalog](https://www.databricks.com/product/unity-catalog) provides a REST API for Iceberg that allows external clients to access Databricks tables.
+
+#### Prerequisites
+
+Before using Unity Catalog with the Iceberg destination, ensure you have:
+
+1. Unity Catalog enabled in your workspace
+2. External data access enabled for your metastore
+3. EXTERNAL USE SCHEMA privilege granted to your principal:
+   ```sql
+   GRANT EXTERNAL USE SCHEMA ON CATALOG <catalog_name> TO `user@company.com`;
+   ```
+   Where `<catalog_name>` is the name of the catalog you want to grant access to.
+
+For detailed setup instructions, see [Configure external data access and permissions](https://learn.microsoft.com/en-us/azure/databricks/external-access/iceberg).
+
+#### Configuration
 
 <Tabs
   groupId="filesystem-type"
@@ -573,14 +589,14 @@ destinations:
 <TabItem value="toml">
 
 ```toml
-[destination.iceberg_unity_catalog]
+[destination.iceberg]
 catalog_type = "rest"
 
-[destination.iceberg_unity_catalog.credentials]
+[destination.iceberg.credentials]
 uri = "https://<workspace-url>/api/2.1/unity-catalog/iceberg-rest"
 warehouse = "dlt_ci"
 
-[destination.iceberg_unity_catalog.credentials.properties]
+[destination.iceberg.credentials.properties]
 token = "please set me up!"
 ```
 </TabItem>
@@ -588,25 +604,21 @@ token = "please set me up!"
 <TabItem value="env">
 
 ```sh
-export DESTINATION__ICEBERG_UNITY_CATALOG__CATALOG_TYPE=rest
-export DESTINATION__ICEBERG_UNITY_CATALOG__CREDENTIALS__URI=https://<workspace-url>/api/2.1/unity-catalog/iceberg-rest
-export DESTINATION__ICEBERG_UNITY_CATALOG__CREDENTIALS__WAREHOUSE=dlt_ci
-export DESTINATION__ICEBERG_UNITY_CATALOG__CREDENTIALS__PROPERTIES__TOKEN=please set me up!
+export DESTINATION__ICEBERG__CATALOG_TYPE=rest
+export DESTINATION__ICEBERG__CREDENTIALS__URI=https://<workspace-url>/api/2.1/unity-catalog/iceberg-rest
+export DESTINATION__ICEBERG__CREDENTIALS__WAREHOUSE=dlt_ci
+export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES__TOKEN=please set me up!
 ```
 </TabItem>
 
 </Tabs>
 
-Before using Unity Catalog, ensure you have [granted the necessary permissions](https://learn.microsoft.com/en-us/azure/databricks/external-access/admin#external-schema):
+#### Configuration Parameters
 
-```sql
-GRANT EXTERNAL USE SCHEMA ON CATALOG catalog_name TO `user@company.com`;
-```
-
-* `catalog_type=rest` - specifies the REST catalog implementation.
-* `credentials.uri` - the Unity Catalog Iceberg REST API endpoint (format: `https://<workspace-url>/api/2.1/unity-catalog/iceberg-rest`).
-* `credentials.warehouse` - the warehouse name configured in Unity Catalog.
-* `credentials.properties.token` - your Databricks personal access token for authentication.
+* `catalog_type=rest` - specifies the REST catalog implementation
+* `credentials.uri` - the Unity Catalog Iceberg REST API endpoint (format: `https://<workspace-url>/api/2.1/unity-catalog/iceberg-rest`)
+* `credentials.warehouse` - the catalog name in Unity Catalog containing your tables
+* `credentials.properties.token` - your Databricks personal access token for authentication
 
 ## Write dispositions
 
