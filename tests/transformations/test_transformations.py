@@ -174,7 +174,7 @@ def test_extract_without_destination(destination_config: DestinationTestConfigur
     transformation_configs(only_duckdb=True),
     ids=lambda x: x.name,
 )
-def test_materializable_sql_model(destination_config: DestinationTestConfiguration) -> None:
+def test_enumerate_and_access_relation(destination_config: DestinationTestConfiguration) -> None:
     fruit_p, dest_p = setup_transformation_pipelines(destination_config)
     fruit_p.run(fruitshop_source())
 
@@ -246,25 +246,30 @@ def test_transformations_without_generator(
     assert get_job_types(dest_p) == {"transform_without_generator": {"model": 1}}
 
 
-# @pytest.mark.skip("TODO: hints are not being merged correctly")
-
-
-# TODO: support multiple transformations in a single function
 @pytest.mark.parametrize(
     "destination_config",
     transformation_configs(only_duckdb=True),
     ids=lambda x: x.name,
 )
+@pytest.mark.parametrize("transformation_type", ["sql", "relation", "mixed"])
 def test_multiple_transformations_in_function(
     destination_config: DestinationTestConfiguration,
+    transformation_type: str,
 ) -> None:
     fruit_p, dest_p = setup_transformation_pipelines(destination_config)
     fruit_p.run(fruitshop_source())
 
     @dlt.transformation()
     def multiple_transformations(dataset: Dataset) -> Any:
-        yield dataset["customers"]
-        yield dataset["purchases"]
+        if transformation_type in ["sql", "mixed"]:
+            yield dataset["customers"]
+        else:
+            yield from dataset["customers"].iter_arrow(chunk_size=1)
+
+        if transformation_type in ["sql"]:
+            yield dataset["purchases"]
+        else:
+            yield from dataset["purchases"].iter_arrow(chunk_size=1)
 
     dest_p.run(multiple_transformations(fruit_p.dataset()))
 
@@ -282,4 +287,11 @@ def test_multiple_transformations_in_function(
         "_dlt_load_id",
         "_dlt_id",
     }
-    assert get_job_types(dest_p) == {"multiple_transformations": {"model": 2}}
+
+    job_types = get_job_types(dest_p)
+    if transformation_type == "relation":
+        assert job_types == {"multiple_transformations": {"parquet": 2}}
+    elif transformation_type == "sql":
+        assert job_types == {"multiple_transformations": {"model": 2}}
+    elif transformation_type == "mixed":
+        assert job_types == {"multiple_transformations": {"model": 1, "parquet": 1}}
