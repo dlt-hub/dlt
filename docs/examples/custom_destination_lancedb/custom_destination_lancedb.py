@@ -127,7 +127,7 @@ def lancedb_destination(items: TDataItems, table: TTableSchema) -> None:
         item["description"] = item["description"][0:8000]
     try:
         tbl = db.open_table(table["name"])
-    except FileNotFoundError:
+    except ValueError:
         tbl = db.create_table(table["name"], schema=EpisodeSchema)
     tbl.add(items)
 
