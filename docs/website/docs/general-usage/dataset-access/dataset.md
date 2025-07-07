@@ -16,9 +16,9 @@ Here's a full example of how to retrieve data from a pipeline and load it into a
 
 ## Getting started
 
-Assuming you have a `Pipeline` object (let's call it `pipeline`), you can obtain a `ReadableDataset` and access your tables as `ReadableRelation` objects.
+Assuming you have a `Pipeline` object (let's call it `pipeline`), you can obtain a `Dataset` which is contains the crendentials and schema to your destination dataset. You can run construct a query and execute it on the dataset to retrieve a `Relation` which you may use to retrieve data from the `Dataset`.
 
-**Note:** The `ReadableDataset` and `ReadableRelation` objects are **lazy-loading**. They will only query and retrieve data when you perform an action that requires it, such as fetching data into a DataFrame or iterating over the data. This means that simply creating these objects does not load data into memory, making your code more efficient.
+**Note:** The `Dataset` and `Relation` objects are **lazy-loading**. They will only query and retrieve data when you perform an action that requires it, such as fetching data into a DataFrame or iterating over the data. This means that simply creating these objects does not load data into memory, making your code more efficient.
 
 
 ### Access the dataset
@@ -27,13 +27,17 @@ Assuming you have a `Pipeline` object (let's call it `pipeline`), you can obtain
 
 ### Access tables as dataset
 
-You can access tables in your dataset using either attribute access or item access.
+The simplest way of getting a Relation from a Dataset is to get a full table relation:
 
 <!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::accessing_tables-->
 
+### Creating relations with sql query strings
+
+<!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::custom_sql-->
+
 ## Reading data
 
-Once you have a `ReadableRelation`, you can read data in various formats and sizes.
+Once you have a `Relation`, you can read data in various formats and sizes.
 
 ### Fetch the entire table
 
@@ -55,7 +59,7 @@ Loading full tables into memory without limiting or iterating over them can cons
 
 ## Lazy loading behavior
 
-The `ReadableDataset` and `ReadableRelation` objects are **lazy-loading**. This means that they do not immediately fetch data when you create them. Data is only retrieved when you perform an action that requires it, such as calling `.df()`, `.arrow()`, or iterating over the data. This approach optimizes performance and reduces unnecessary data loading.
+The `Dataset` and `Relation` objects are **lazy-loading**. This means that they do not immediately fetch data when you create them. Data is only retrieved when you perform an action that requires it, such as calling `.df()`, `.arrow()`, or iterating over the data. This approach optimizes performance and reduces unnecessary data loading.
 
 ## Iterating over data in chunks
 
@@ -73,7 +77,7 @@ To handle large datasets efficiently, you can process data in smaller chunks.
 
 <!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::iterating_fetch_chunks-->
 
-The methods available on the ReadableRelation correspond to the methods available on the cursor returned by the SQL client. Please refer to the [SQL client](./sql-client.md#supported-methods-on-the-cursor) guide for more information.
+The methods available on the Relation correspond to the methods available on the cursor returned by the SQL client. Please refer to the [SQL client](./sql-client.md#supported-methods-on-the-cursor) guide for more information.
 
 ## Connection Handling
 
@@ -171,20 +175,9 @@ Note: `delta` tables are by default on autorefresh which is implemented by delta
 
 ## Advanced usage
 
-### Using custom SQL queries to create `ReadableRelations`
+### Loading a `Relation` into a pipeline table
 
-You can use custom SQL queries directly on the dataset to create a `ReadableRelation`:
-
-<!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::custom_sql-->
-
-:::note
-When using custom SQL queries with `dataset()`, methods like `limit` and `select` won't work. Include any filtering or column selection directly in your SQL query.
-:::
-
-
-### Loading a `ReadableRelation` into a pipeline table
-
-Since the `iter_arrow` and `iter_df` methods are generators that iterate over the full `ReadableRelation` in chunks, you can use them as a resource for another (or even the same) `dlt` pipeline:
+Since the `iter_arrow` and `iter_df` methods are generators that iterate over the full `Relation` in chunks, you can use them as a resource for another (or even the same) `dlt` pipeline:
 
 <!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::loading_to_pipeline-->
 
@@ -198,7 +191,7 @@ Visit the [Native Ibis integration](./ibis-backend.md) guide to learn more.
 
 - **Memory usage:** Loading full tables into memory without iterating or limiting can consume significant memory, potentially leading to crashes if the dataset is large. Always consider using limits or chunked iteration.
 
-- **Lazy evaluation:** `ReadableDataset` and `ReadableRelation` objects delay data retrieval until necessary. This design improves performance and resource utilization.
+- **Lazy evaluation:** `Dataset` and `Relation` objects delay data retrieval until necessary. This design improves performance and resource utilization.
 
 - **Custom SQL queries:** When executing custom SQL queries, remember that additional methods like `limit()` or `select()` won't modify the query. Include all necessary clauses directly in your SQL statement.
 

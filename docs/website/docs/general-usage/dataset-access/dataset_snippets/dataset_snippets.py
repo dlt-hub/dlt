@@ -47,7 +47,7 @@ def quick_start_example_snippet(pipeline: dlt.Pipeline) -> None:
     customers_relation = dataset.customers  # Or dataset["customers"]
 
     # Step 3: Fetch the entire table as a Pandas DataFrame
-    df = customers_relation.df()
+    df = customers_relation.df()  # or customers_relation.df(chunk_size=50)
 
     # Alternatively, fetch as a PyArrow Table
     arrow_table = customers_relation.arrow()
@@ -172,8 +172,10 @@ def filter_snippet(default_dataset: dlt.Dataset) -> None:
     # @@@DLT_SNIPPET_START filter
     # Filter by 'id'
     filtered = customers_relation.where("id", "in", [3, 1, 7]).fetchall()
+
     # Filter with raw SQL string
     filtered = customers_relation.where("id = 1").fetchall()
+
     # Filter with sqlglot expression
     import sqlglot.expressions as sge
 
@@ -188,10 +190,13 @@ def filter_snippet(default_dataset: dlt.Dataset) -> None:
 def aggregate_snippet(default_dataset: dlt.Dataset) -> None:
     customers_relation = default_dataset.customers
     # @@@DLT_SNIPPET_START aggregate
+
     # Get max 'id'
     max_id = customers_relation.select("id").max().scalar()
+
     # Get min 'id'
     min_id = customers_relation.select("id").min().scalar()
+
     # @@@DLT_SNIPPET_END aggregate
 
 
@@ -297,11 +302,15 @@ def iterating_with_limit_and_select_snippet(dataset: dlt.Dataset) -> None:
 
 def custom_sql_snippet(dataset: dlt.Dataset) -> None:
     # @@@DLT_SNIPPET_START custom_sql
-    # Join 'customers' and 'purchases' tables
-    custom_relation = dataset(
-        "SELECT * FROM customers JOIN purchases ON customers.id = purchases.customer_id"
-    )
-    arrow_table = custom_relation.arrow()
+    # Join 'customers' and 'purchases' tables and filter by quantity
+    query = """
+    SELECT *  
+        FROM customers 
+    JOIN purchases 
+        ON customers.id = purchases.customer_id
+    WHERE purchases.quantity > 1
+    """
+    joined_relation = dataset(query)
     # @@@DLT_SNIPPET_END custom_sql
 
 

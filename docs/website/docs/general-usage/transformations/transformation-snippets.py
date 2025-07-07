@@ -2,7 +2,6 @@ import pytest
 import dlt
 
 from typing import Any
-from dlt.destinations import duckdb
 
 
 from tests.pipeline.utils import load_table_counts
@@ -14,6 +13,7 @@ def fruitshop_pipeline() -> dlt.Pipeline:
 
     # @@@DLT_SNIPPET_START quick_start_example
 
+    from dlt.destinations import duckdb
     from dlt.sources._single_file_templates.fruitshop_pipeline import (
         fruitshop as fruitshop_source,
     )
@@ -32,7 +32,6 @@ def basic_transformation_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
 
     @dlt.transformation()
     def copied_customers(dataset: dlt.Dataset) -> Any:
-        # Ibis expression: sort by name and keep first 5 rows
         customers_table = dataset["customers"]
         yield customers_table.order_by("name").limit(5)
 
@@ -63,6 +62,7 @@ def orders_per_user_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
 def loading_to_other_datasets_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START loading_to_other_datasets
     import dlt
+    from dlt.destinations import duckdb
 
     @dlt.transformation()
     def copied_customers(dataset: dlt.Dataset) -> Any:
@@ -113,6 +113,33 @@ def multiple_transformations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     }
 
 
+def multiple_transformation_instructions_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
+    # @@@DLT_SNIPPET_START multiple_transformation_instructions
+    import dlt
+
+    # this (probably nonsensical) transformation will create a union of the customers and purchases tables
+    @dlt.transformation(write_disposition="append")
+    def union_of_tables(dataset: dlt.Dataset) -> Any:
+        yield dataset.customers
+        yield dataset.purchases
+
+    # @@@DLT_SNIPPET_END multiple_transformation_instructions
+
+
+def supply_hints_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
+    # @@@DLT_SNIPPET_START supply_hints
+    import dlt
+
+    # change precision and scale of the price column
+    @dlt.transformation(
+        write_disposition="append", columns={"price": {"precision": 10, "scale": 2}}
+    )
+    def precision_change(dataset: dlt.Dataset) -> Any:
+        yield dataset.inventory
+
+    # @@@DLT_SNIPPET_END supply_hints
+
+
 def dataset_inspection_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START dataset_inspection
     # Show row counts for every table
@@ -126,7 +153,12 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # Convert the transformation above that selected the first 5 customers to a sql query
     @dlt.transformation()
     def copied_customers(dataset: dlt.Dataset) -> Any:
-        customers_table = dataset("SELECT * FROM customers LIMIT 5 ORDER BY name")
+        customers_table = dataset("""
+            SELECT *
+            FROM customers
+            ORDER BY name
+            LIMIT 5
+        """)
         yield customers_table
 
     # @@@DLT_SNIPPET_END sql_queries_short
@@ -134,10 +166,12 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # Joins and other more complex queries are also possible of course
     @dlt.transformation()
     def enriched_purchases(dataset: dlt.Dataset) -> Any:
-        enriched_purchases = dataset(
-            "SELECT customers.name, purchases.quantity FROM purchases JOIN customers ON"
-            " purchases.customer_id = customers.id"
-        )
+        enriched_purchases = dataset("""
+            SELECT customers.name, purchases.quantity
+            FROM purchases
+            JOIN customers
+                ON purchases.customer_id = customers.id
+            """)
         yield enriched_purchases
 
     # You can even use a different dialect than the one used by the destination by supplying the dialect parameter
@@ -145,8 +179,12 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     @dlt.transformation()
     def enriched_purchases_postgres(dataset: dlt.Dataset) -> Any:
         enriched_purchases = dataset(
-            "SELECT customers.name, purchases.quantity FROM purchases JOIN customers ON"
-            " purchases.customer_id = customers.id",
+            """
+            SELECT customers.name, purchases.quantity
+            FROM purchases
+            JOIN customers
+                ON purchases.customer_id = customers.id
+            """,
             query_dialect="duckdb",
         )
         yield enriched_purchases
@@ -222,10 +260,12 @@ def column_level_lineage_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START column_level_lineage
     @dlt.transformation()
     def enriched_purchases(dataset: dlt.Dataset) -> Any:
-        enriched_purchases = dataset(
-            "SELECT customers.name, purchases.quantity FROM purchases JOIN customers ON"
-            " purchases.customer_id = customers.id"
-        )
+        enriched_purchases = dataset("""
+            SELECT customers.name, purchases.quantity
+            FROM purchases
+            JOIN customers
+                ON purchases.customer_id = customers.id
+            """)
         yield enriched_purchases
 
     # Let's run the transformation and see that the name column in the NEW table is also marked as PII
@@ -235,7 +275,7 @@ def column_level_lineage_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
 
 
 def in_transit_transformations_snippet() -> None:
-    # @@@DLT_SNIPPET_START in_transit_transformations
+    # @@@DLT_SNIPPET_START in_transit_transformations multiple transformations in a sou
     from dlt.sources.rest_api import (
         rest_api_source,
     )
