@@ -53,7 +53,6 @@ from dlt.common.versioned_state import (
 )
 from dlt.common.time import precise_time
 
-
 TJobFileFormat = Literal["sql", "reference", TLoaderFileFormat]
 """Loader file formats with internal job types"""
 JOB_EXCEPTION_EXTENSION = ".exception"

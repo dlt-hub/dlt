@@ -62,7 +62,10 @@ def test_load_csv(
     )
     assert_load_info(load_info)
     job = load_info.load_packages[0].jobs["completed_jobs"][0].file_path
-    assert job.endswith("csv.gz")
+    if destination_config.destination_type == "filesystem":
+        assert job.endswith("csv")
+    else:
+        assert job.endswith("csv.gz")
     assert_table_counts(pipeline, {"table": 5432 * 3})
     load_tables_to_dicts(pipeline, "table")
 
