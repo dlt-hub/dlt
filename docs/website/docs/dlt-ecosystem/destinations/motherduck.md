@@ -90,6 +90,16 @@ CREATE SECRET my_secret IN MOTHERDUCK (
   REGION 'my-bucket-region'
 );
 ```
+
+**3. Configure `secrets.toml` in your dlt project**
+Your `secrets.toml` only needs to reference the DuckLake database and your service token:
+```toml
+[destination.motherduck.credentials]
+database = "my_ducklake"
+password = "<your token here>"
+```
+As long as the DuckLake database and the corresponding S3 secret have been set up in MotherDuck, dlt can load data into it without requiring direct access to the S3 credentials.
+
 With this setup, you can now load data into DuckLake tables using dlt, just like with any DuckDB destination through MotherDuck.
 
 ### Motherduck connection identifier
