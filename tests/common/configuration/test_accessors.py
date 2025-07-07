@@ -1,7 +1,8 @@
 import datetime  # noqa: 251
+import toml
 from typing import Any
-import pytest
 
+import pytest
 import dlt
 from dlt.common import json
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
@@ -27,7 +28,7 @@ from dlt.common.runners.configuration import PoolRunnerConfiguration
 from dlt.common.typing import AnyType, ConfigValue, SecretValue, TSecretValue
 
 
-from tests.utils import preserve_environ
+from tests.utils import preserve_environ, reset_providers
 from tests.common.configuration.utils import environment, toml_providers
 
 
@@ -287,3 +288,57 @@ def test_config_accessor_repr() -> None:
 
     # check that properties used by `__repr__` exist
     assert getattr(dlt.config, "config_providers", sentinel) is not sentinel
+
+
+# TODO dlt==2.0: fully fix issue #2782, see last assert statements
+def test_explicit_get_resolution_order(tmp_path):
+    """Ensure proper resolution when using `dlt.secrets.get()` and `dlt.config.get()`
+    explicitly
+
+    See issue #2782 for details: https://github.com/dlt-hub/dlt/issues/2782
+    """
+    config_toml_content = """\
+    [sources.d365]
+    tenant_id = "test-tenant-id"
+    api_url = "https://example.com/api"
+    """
+    secrets_toml_content = """\
+    [sources.d365]
+    client_id = "secret-client-id"
+    client_secret = "secret-client-secret"
+    """
+    expected_config = {"tenant_id": "test-tenant-id", "api_url": "https://example.com/api"}
+    expected_secrets = {"client_id": "secret-client-id", "client_secret": "secret-client-secret"}
+
+    dlt_dir = tmp_path.joinpath(".dlt")
+    dlt_dir.mkdir()
+
+    dlt_dir.joinpath("config.toml").write_text(config_toml_content)
+    dlt_dir.joinpath("secrets.toml").write_text(secrets_toml_content)
+
+    # validate the TOML files on disk before main test logic
+    loaded_config = toml.loads(config_toml_content)
+    loaded_secrets = toml.loads(secrets_toml_content)
+    assert loaded_config["sources"]["d365"] == expected_config
+    assert loaded_secrets["sources"]["d365"] == expected_secrets
+
+    # patch the `.dlt` to use the `tmp_path/.dlt` instead of the `tests/.dlt` loaded when
+    # launching the pytest run
+    with reset_providers(str(dlt_dir)):
+        assert dlt.config.get("sources.d365") == expected_config
+        assert dlt.secrets.get("sources.d365") == expected_secrets
+
+        assert dlt.config.get("sources") == {"d365": expected_config}
+        assert dlt.secrets.get("sources") == {"d365": expected_secrets}
+
+        # TODO dlt==2.0; dlt.config.get() current allows to retrieve secrets
+        # this behavior is undesirable, but this would be a breaking change
+        assert dlt.secrets.get("sources.d365.client_id") == expected_secrets["client_id"]
+        assert dlt.config.get("sources.d365.client_id") == expected_secrets["client_id"]
+
+        assert dlt.secrets.get("sources.d365.client_secret") == expected_secrets["client_secret"]
+        assert dlt.config.get("sources.d365.client_secret") == expected_secrets["client_secret"]
+
+        # `dlt.secrets.get()` cannot access config value
+        assert dlt.config.get("sources.d365.tenant_id") == expected_config["tenant_id"]
+        assert dlt.secrets.get("sources.d365.tenant_id") is None
