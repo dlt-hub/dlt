@@ -1,6 +1,6 @@
 version = 1
 revision = 1
-requires-python = ">=3.9.2, !=3.9.7, <3.14"
+requires-python = ">=3.9.2, <3.14"
 resolution-markers = [
     "python_full_version >= '3.13' and platform_python_implementation == 'emscripten' and sys_platform != 'emscripten'",
     "python_full_version >= '3.13' and platform_python_implementation == 'emscripten' and sys_platform == 'emscripten'",
@@ -1986,7 +1986,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.12.4a0"
+version = "1.13.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
