@@ -495,8 +495,8 @@ Selectively drop columns from specified tables.
 
 **Usage**
 ```sh
-dlt pipeline [pipeline_name] drop-columns [-h] [--from [FROM_RESOURCES ...]]
-    [--columns [COLUMNS ...]]
+dlt pipeline [pipeline_name] drop-columns [-h] [--from-resources [FROM_RESOURCES
+    ...]] [--from-tables [FROM_TABLES ...]] [--columns [COLUMNS ...]]
 ```
 
 **Description**
@@ -520,8 +520,9 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--from [FROM_RESOURCES ...]` - (with --columns) resource names to drop columns from.
-* `--columns [COLUMNS ...]` - (with --from) column names to drop from the specified resources.
+* `--from-resources [FROM_RESOURCES ...]` - Resource names to drop columns from.
+* `--from-tables [FROM_TABLES ...]` - Table names to drop columns from.
+* `--columns [COLUMNS ...]` - Column names to drop from the specified resources.
 
 </details>
 
