@@ -5,17 +5,17 @@ import marimo as _mo
 
 # Reusable string parts
 _credentials_info = (
-    "Have you run your pipeline and are your credentials available to dltHub Studio?"
+    "Have you run your pipeline and are your credentials available to the dltHub marimo app?"
 )
 
 #
 # App general
 #
 app_title = """
-# Welcome to dltHub Studio...
+# Welcome to the dltHub marimo app...
 """
 app_intro = """
-<p align="center">...the hackable data platform for `dlt` developers. Learn how to modify this app and create your personal platform at <a href="https://dlthub.com/docs/studio/overview">dlthub.com</a>.</p>
+<p align="center">...the hackable data platform for `dlt` developers.</p>
 """
 app_pipeline_select_label = "Pipeline:"
 app_no_pipeline_selected = "No pipeline selected"
@@ -32,27 +32,27 @@ home_quick_start_title = """
 """
 
 home_basics_text = """
-## dltHub Studio basics
+## dltHub marimo app basics
 
-`dlt studio` has found `{}` pipelines in local directory `{}`. When you select a pipeline to inspect, you will be able to:
+We have found `{}` pipelines in local directory `{}`. When you select a pipeline to inspect, you will be able to:
 
 * See the current pipeline schema
 * See the pipeline state
 * Browse information about past loads and traces
-* Browse the data in the pipeline's dataset (requires credentials available to dltHub Studio)
+* Browse the data in the pipeline's dataset (requires credentials available to the dltHub marimo app)
 
-To sync the current schema and state from the destination dataset or inspect data in the destination dataset, your destination credentials need to be available to dltHub Studio. Either provide them as environment variables or start dltHub Studio from the directory containing your `.dlt` folder where the credentials are stored.
+To sync the current schema and state from the destination dataset or inspect data in the destination dataset, your destination credentials need to be available to the dltHub marimo app. Either provide them as environment variables or start the dltHub marimo app from the directory containing your `.dlt` folder where the credentials are stored.
 
-If dltHub Studio can't connect to the destination, you will receive a warning and can browse the locally stored information about the pipeline.
+If the dltHub marimo app can't connect to the destination, you will receive a warning and can browse the locally stored information about the pipeline.
 
-## dltHub Studio CLI commands
+## dltHub marimo app CLI commands
 
-* `dlt studio` - Start the studio (takes you to this page)
+* `dlt pipeline <pipeline_name> show --marimo` - Start the marimo app for the selected pipeline
+* `dlt pipeline <pipeline_name> show --marimo --edit` - Start a local copy of the marimo app for the selected pipeline in edit mode
 
 ## Learn more
 
-* [marimo docs](https://docs.marimo.io/) - Learn all about marimo, the amazing framework that powers dltHub Studio
-* [dltHub Studio docs](https://dlthub.com/docs/studio/overview) - Learn all about dltHub Studio, the hackable data platform for `dlt` developers
+* [marimo docs](https://docs.marimo.io/) - Learn all about marimo, the amazing framework that powers the dltHub marimo app
 
 <small>
 2025 [dltHub](https://dlthub.com)
