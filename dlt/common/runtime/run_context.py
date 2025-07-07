@@ -23,6 +23,17 @@ from dlt.common.configuration.specs.pluggable_run_context import (
 DOT_DLT = os.environ.get(known_env.DLT_CONFIG_FOLDER, ".dlt")
 
 
+def get_default_initial_providers(
+    settings_dir: str, global_dir: Optional[str] = None
+) -> list[ConfigProvider]:
+    providers = [
+        EnvironProvider(),
+        ConfigTomlProvider(settings_dir, global_dir),
+        SecretsTomlProvider(settings_dir, global_dir),
+    ]
+    return providers
+
+
 class RunContext(SupportsRunContext):
     """A default run context used by dlt"""
 
@@ -70,12 +81,7 @@ class RunContext(SupportsRunContext):
         return global_dir()
 
     def initial_providers(self) -> List[ConfigProvider]:
-        providers = [
-            EnvironProvider(),
-            SecretsTomlProvider(self.settings_dir, self.global_dir),
-            ConfigTomlProvider(self.settings_dir, self.global_dir),
-        ]
-        return providers
+        return get_default_initial_providers(self.settings_dir, self.global_dir)
 
     @property
     def module(self) -> Optional[ModuleType]:

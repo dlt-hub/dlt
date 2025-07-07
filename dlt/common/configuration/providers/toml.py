@@ -2,7 +2,7 @@ import os
 import tomlkit
 import tomlkit.exceptions
 import tomlkit.items
-from typing import Any, Optional, List
+from typing import Any, Optional, List, Union
 
 from dlt.common.utils import update_dict_nested
 from dlt.common.configuration.exceptions import ConfigProviderException
@@ -45,7 +45,7 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
         name: str,
         supports_secrets: bool,
         file_name: str,
-        resolvable_dirs: List[str],
+        resolvable_dirs: List[Union[str, None]],
     ) -> None:
         """Creates config provider from a `toml` file
 
@@ -213,7 +213,7 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
 
 
 class ConfigTomlProvider(SettingsTomlProvider):
-    def __init__(self, settings_dir: str, global_dir: str = None) -> None:
+    def __init__(self, settings_dir: str, global_dir: Optional[str] = None) -> None:
         super().__init__(CONFIG_TOML, False, CONFIG_TOML, [settings_dir, global_dir])
 
     @property
@@ -222,7 +222,7 @@ class ConfigTomlProvider(SettingsTomlProvider):
 
 
 class SecretsTomlProvider(SettingsTomlProvider):
-    def __init__(self, settings_dir: str, global_dir: str = None) -> None:
+    def __init__(self, settings_dir: str, global_dir: Optional[str] = None) -> None:
         super().__init__(SECRETS_TOML, True, SECRETS_TOML, [settings_dir, global_dir])
 
     @property
