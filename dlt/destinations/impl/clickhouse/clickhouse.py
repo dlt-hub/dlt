@@ -75,17 +75,18 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
         client = self._job_client.sql_client
 
         bucket_path = None
+        file_name = self._file_name
 
         if ReferenceFollowupJobRequest.is_reference_job(self._file_path):
             bucket_path = ReferenceFollowupJobRequest.resolve_reference(self._file_path)
+            file_name = FileStorage.get_file_name_from_file_path(bucket_path)
             bucket_url = urlparse(bucket_path)
             bucket_scheme = bucket_url.scheme
 
-        # Use the file format from ParsedLoadJobFileName instead of parsing the extension
-        # This correctly handles compressed files that have .gz extensions
-        ext = os.path.splitext(bucket_path)[1][1:]
-        if ext == "gz":
-            ext = os.path.splitext(os.path.splitext(bucket_path)[0])[1][1:]
+        root, ext = os.path.splitext(file_name)
+        if ext.lower() == ".gz":
+            _, ext = os.path.splitext(root)
+        ext = ext.lstrip(".").lower()
         clickhouse_format: str = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[
             cast(SUPPORTED_FILE_FORMATS, ext)
         ]
