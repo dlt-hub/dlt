@@ -45,7 +45,7 @@ def test_lancedb_follows_local_dir() -> None:
     # db path is relative
     assert c.lance_uri.endswith(db_path)
     assert c.lance_uri == os.path.abspath(db_path)
-    assert c.credentials.uri is None
+    assert c.credentials.uri == c.lance_uri
 
     # check named destination
     c = resolve_configuration(

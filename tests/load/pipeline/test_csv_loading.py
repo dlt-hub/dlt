@@ -3,7 +3,7 @@ from typing import List
 import pytest
 
 import dlt
-from dlt.common.data_writers.configuration import CsvFormatConfiguration
+from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.schema.typing import TColumnSchema
 from dlt.common.typing import TLoaderFileFormat
 from dlt.common.utils import uniq_id

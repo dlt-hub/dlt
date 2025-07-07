@@ -13,6 +13,7 @@ from typing import (
     Type,
 )
 from dlt.common.data_types import TDataType
+from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.normalizers.typing import TNamingConventionReferenceArg
 from dlt.common.typing import TLoaderFileFormat, get_args
@@ -204,6 +205,9 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
 
     sqlglot_dialect: Optional[str] = None
     """The SQL dialect used by sqlglot to transpile a query to match the destination syntax."""
+
+    parquet_format: Optional[ParquetFormatConfiguration] = None
+    """Parquet format preferred by this destination"""
 
     def generates_case_sensitive_identifiers(self) -> bool:
         """Tells if capabilities as currently adjusted, will generate case sensitive identifiers"""
