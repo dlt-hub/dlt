@@ -2,6 +2,7 @@ import os
 import sys
 import pytest
 import yaml
+import dataclasses
 from typing import Any, Dict, Type
 import datetime  # noqa: I251
 from unittest.mock import Mock
@@ -11,7 +12,7 @@ from dlt.common import pendulum, json
 from dlt.common.configuration import configspec, ConfigFieldMissingException, resolve
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import with_config
-from dlt.common.configuration.exceptions import LookupTrace
+from dlt.common.configuration.exceptions import LookupTrace, ValueNotSecretException
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.known_env import DLT_DATA_DIR, DLT_PROJECT_DIR
 from dlt.common.configuration.providers.toml import (
@@ -95,7 +96,9 @@ def test_config_provider_order(toml_providers: ConfigProvidersContainer, environ
     def single_val(port=None):
         return port
 
+    # TODO there's a problem here
     # secrets have api.port=1023 and this will be used
+    assert dlt.secrets.get("api.port") == 1023
     assert single_val(dlt.secrets.value) == 1023
 
     # env will make it string, also section is optional
@@ -395,26 +398,42 @@ def test_write_value(toml_providers: ConfigProvidersContainer) -> None:
         assert provider._config_doc["new_pipeline"]["runner_config"] == expected_pool
 
 
-def test_set_spec_value(toml_providers: ConfigProvidersContainer) -> None:
-    provider: BaseDocProvider
-    for provider in toml_providers.providers:  # type: ignore[assignment]
-        if not provider.is_writable:
-            continue
-        provider._config_doc = {}
-        # dict creates only shallow dict so embedded credentials will fail
-        creds = WithCredentialsConfiguration()
-        credentials = SecretCredentials(secret_value=TSecretValue("***** ***"))
-        creds.credentials = credentials
+def test_set_spec_value_on_secret_provider(toml_providers: ConfigProvidersContainer) -> None:
+    """Secrets can be set on SecretProvider"""
+    creds = WithCredentialsConfiguration()
+    key = "written_creds"
+    secret_value: TSecretValue = "***** ***"  # type annotation seems to do nothing
+    # using the type `SecretCredentials` should trigger `ValueNotSecretException`
+    credentials = SecretCredentials(secret_value=secret_value)
+    creds.credentials = credentials
 
-        # use dataclass to dict to recursively convert base config to dict
-        import dataclasses
+    provider: SecretsTomlProvider = toml_providers.providers[2]
+    provider._config_doc = {}
+    provider.set_value(key, dataclasses.asdict(creds), None)
+    resolved_config = resolve.resolve_configuration(
+        WithCredentialsConfiguration(), sections=(key,)
+    )
 
-        provider.set_value("written_creds", dataclasses.asdict(creds), None)
-        # resolve config
-        resolved_config = resolve.resolve_configuration(
+    assert resolved_config.credentials.secret_value == secret_value
+
+
+def test_set_spec_value_on_config_provider(toml_providers: ConfigProvidersContainer) -> None:
+    """Secrets can't be set on ConfigProvider"""
+    creds = WithCredentialsConfiguration()
+    key = "written_creds"
+    secret_value: TSecretValue = "***** ***"  # type annotation seems to do nothing
+    # using the type `SecretCredentials` should trigger `ValueNotSecretException`
+    credentials = SecretCredentials(secret_value=secret_value)
+    creds.credentials = credentials
+
+    provider: ConfigTomlProvider = toml_providers.providers[1]
+    provider._config_doc = {}
+    provider.set_value(key, dataclasses.asdict(creds), None)
+
+    with pytest.raises(ValueNotSecretException):
+        resolve.resolve_configuration(
             WithCredentialsConfiguration(), sections=("written_creds",)
         )
-        assert resolved_config.credentials.secret_value == "***** ***"
 
 
 def test_set_fragment(toml_providers: ConfigProvidersContainer) -> None:

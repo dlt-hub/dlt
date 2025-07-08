@@ -1401,28 +1401,29 @@ def test_extract_inner_hint() -> None:
     assert resolve.extract_inner_hint(TAnnoLit, preserve_literal=False) is str  # type: ignore[arg-type]
 
 
-def test_is_secret_hint() -> None:
-    assert resolve.is_secret_hint(GcpServiceAccountCredentialsWithoutDefaults) is True
-    assert resolve.is_secret_hint(Optional[GcpServiceAccountCredentialsWithoutDefaults]) is True  # type: ignore[arg-type]
-    assert resolve.is_secret_hint(TSecretValue) is True
-    assert resolve.is_secret_hint(TSecretStrValue) is True
-    assert resolve.is_secret_hint(Optional[TSecretValue]) is True  # type: ignore[arg-type]
-    assert resolve.is_secret_hint(InstrumentedConfiguration) is False
-    # do not recognize new types
-    TTestSecretNt = NewType("TTestSecretNt", GcpServiceAccountCredentialsWithoutDefaults)
-    assert resolve.is_secret_hint(TTestSecretNt) is False
-    # recognize unions with credentials
-    assert resolve.is_secret_hint(Union[GcpServiceAccountCredentialsWithoutDefaults, StrAny, str]) is True  # type: ignore[arg-type]
-    # we do not recognize unions if they do not contain configuration types
-    assert resolve.is_secret_hint(Union[TSecretValue, StrAny, str]) is False  # type: ignore[arg-type]
-    assert resolve.is_secret_hint(Optional[str]) is False  # type: ignore[arg-type]
-    assert resolve.is_secret_hint(str) is False
-    assert resolve.is_secret_hint(AnyType) is False
-
-
-def test_is_secret_hint_custom_type() -> None:
-    # any type annotated with SecretSentinel is secret
-    assert resolve.is_secret_hint(Annotated[int, SecretSentinel]) is True  # type: ignore[arg-type]
+@pytest.mark.parametrize(
+    "hint,expected_result",
+    (
+        (GcpServiceAccountCredentialsWithoutDefaults, True),
+        (Optional[GcpServiceAccountCredentialsWithoutDefaults], True),
+        (TSecretValue, True),
+        (TSecretStrValue, True),
+        (Optional[TSecretValue], True),
+        (InstrumentedConfiguration, False),
+        # do not recognize new types
+        (NewType("TTestSecretNt", GcpServiceAccountCredentialsWithoutDefaults), False),
+        # recognize unions with credentials
+        (Union[GcpServiceAccountCredentialsWithoutDefaults, StrAny, str], True),
+        # we do not recognize unions if they do not contain configuration types
+        (Union[TSecretValue, StrAny, str], False),
+        (Optional[str], False),
+        (AnyType, False),
+        # any type annotated with SecretSentinel is secret
+        (Annotated[int, SecretSentinel], True),
+    )
+)
+def test_is_secret_hint(hint, expected_result: bool) -> None:
+    assert resolve.is_secret_hint(hint) is expected_result
 
 
 def coerce_single_value(key: str, value: str, hint: Type[Any]) -> Any:

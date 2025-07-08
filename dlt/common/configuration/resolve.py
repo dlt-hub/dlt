@@ -499,6 +499,13 @@ def _resolve_single_value(
     return value, traces
 
 
+def provider_can_hold_value(provider: ConfigProvider, hint: Type[Any]) -> bool:
+    """A secret provider can hold secrets (TSecretValue).
+    A config provider can't hold secrets.
+    """
+    return not provider.supports_secrets and is_secret_hint(hint)
+
+
 def resolve_single_provider_value(
     provider: ConfigProvider,
     key: str,
@@ -533,7 +540,7 @@ def resolve_single_provider_value(
             full_ns = ns
         value, ns_key = provider.get_value(key, hint, pipeline_name, *full_ns)
         # if secret is obtained from non secret provider, we must fail
-        cant_hold_it: bool = not provider.supports_secrets and is_secret_hint(hint)
+        cant_hold_it: bool = provider_can_hold_value(provider, hint)
         if value is not None and cant_hold_it:
             raise ValueNotSecretException(provider.name, ns_key)
 
