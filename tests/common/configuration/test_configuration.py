@@ -1420,7 +1420,7 @@ def test_extract_inner_hint() -> None:
         (AnyType, False),
         # any type annotated with SecretSentinel is secret
         (Annotated[int, SecretSentinel], True),
-    )
+    ),
 )
 def test_is_secret_hint(hint, expected_result: bool) -> None:
     assert resolve.is_secret_hint(hint) is expected_result

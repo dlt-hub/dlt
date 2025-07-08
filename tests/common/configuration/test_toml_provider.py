@@ -407,12 +407,10 @@ def test_set_spec_value_on_secret_provider(toml_providers: ConfigProvidersContai
     credentials = SecretCredentials(secret_value=secret_value)
     creds.credentials = credentials
 
-    provider: SecretsTomlProvider = toml_providers.providers[2]
+    provider: SecretsTomlProvider = toml_providers.providers[2]  # type: ignore[assignment]
     provider._config_doc = {}
     provider.set_value(key, dataclasses.asdict(creds), None)
-    resolved_config = resolve.resolve_configuration(
-        WithCredentialsConfiguration(), sections=(key,)
-    )
+    resolved_config = resolve.resolve_configuration(WithCredentialsConfiguration(), sections=(key,))
 
     assert resolved_config.credentials.secret_value == secret_value
 
@@ -426,14 +424,12 @@ def test_set_spec_value_on_config_provider(toml_providers: ConfigProvidersContai
     credentials = SecretCredentials(secret_value=secret_value)
     creds.credentials = credentials
 
-    provider: ConfigTomlProvider = toml_providers.providers[1]
+    provider: ConfigTomlProvider = toml_providers.providers[1]  # type: ignore[assignment]
     provider._config_doc = {}
     provider.set_value(key, dataclasses.asdict(creds), None)
 
     with pytest.raises(ValueNotSecretException):
-        resolve.resolve_configuration(
-            WithCredentialsConfiguration(), sections=("written_creds",)
-        )
+        resolve.resolve_configuration(WithCredentialsConfiguration(), sections=("written_creds",))
 
 
 def test_set_fragment(toml_providers: ConfigProvidersContainer) -> None:
