@@ -13,7 +13,7 @@ This Databricks destination will load your data into Databricks Delta tables usi
 
 There are two options to run dlt pipelines and load data:
 
-* Run dlt pipelines any environment by providing credentials for both Databricks and your cloud storage.
+* Run dlt pipelines in any environment by providing credentials for both Databricks and your cloud storage.
 * Run dlt pipelines directly within [Databricks notebooks](#direct-load-databricks-managed-volumes) without explicitly providing credentials.
 
 :::note
