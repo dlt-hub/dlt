@@ -556,7 +556,7 @@ Before using Unity Catalog with the Iceberg destination, ensure you have:
    ```
    Where `<catalog_name>` is the name of the catalog you want to grant access to.
 
-For detailed setup instructions, see [Configure external data access and permissions](https://learn.microsoft.com/en-us/azure/databricks/external-access/iceberg).
+For detailed setup instructions, see Databricks guide on [accessing tables from Apache Iceberg clients](https://learn.microsoft.com/en-us/azure/databricks/external-access/iceberg).
 
 #### Configuration
 
