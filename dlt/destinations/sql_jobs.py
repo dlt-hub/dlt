@@ -19,7 +19,7 @@ from dlt.common.schema.utils import (
     is_nested_table,
 )
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
-from dlt.common.storages.load_package import load_package as current_load_package
+from dlt.common.storages.load_package import load_package_state as current_load_package
 from dlt.common.utils import uniq_id
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import MergeDispositionException
@@ -441,11 +441,12 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         return (col, cond)
 
     @classmethod
-    def _get_row_key_col(
+    def get_row_key_col(
         cls,
         table_chain: Sequence[PreparedTableSchema],
-        sql_client: SqlClientBase[Any],
         table: PreparedTableSchema,
+        dataset_name: str,
+        staging_dataset_name: str,
     ) -> str:
         """Returns name of first column in `table` with `row_key` property. If not found first `unique` hint will be used.
         If no `unique` columns exist, will attempt to use a single primary key column.
@@ -470,27 +471,28 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             return primary_key_cols[0]
         elif len(primary_key_cols) > 1:
             raise MergeDispositionException(
-                sql_client.fully_qualified_dataset_name(),
-                sql_client.fully_qualified_dataset_name(staging=True),
+                dataset_name,
+                staging_dataset_name,
                 [t["name"] for t in table_chain],
                 f"Multiple primary key columns found in table `{table['name']}`. "
                 "Cannot use as `row_key`.",
             )
 
         raise MergeDispositionException(
-            sql_client.fully_qualified_dataset_name(),
-            sql_client.fully_qualified_dataset_name(staging=True),
+            dataset_name,
+            staging_dataset_name,
             [t["name"] for t in table_chain],
             "No `row_key`, `unique`, or single primary key column (e.g. `_dlt_id`) "
             f"in table `{table['name']}`.",
         )
 
     @classmethod
-    def _get_root_key_col(
+    def get_root_key_col(
         cls,
         table_chain: Sequence[PreparedTableSchema],
-        sql_client: SqlClientBase[Any],
         table: PreparedTableSchema,
+        dataset_name: str,
+        staging_dataset_name: str,
     ) -> str:
         """Returns name of first column in `table` with `root_key` property.
 
@@ -500,8 +502,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             table,
             "root_key",
             MergeDispositionException(
-                sql_client.fully_qualified_dataset_name(),
-                sql_client.fully_qualified_dataset_name(staging=True),
+                dataset_name,
+                staging_dataset_name,
                 [t["name"] for t in table_chain],
                 f"No `root_key` column (e.g. `_dlt_root_id`) in table `{table['name']}`.",
             ),
@@ -582,7 +584,12 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 )
                 # use row_key or unique hint to create temp table with all identifiers to delete
                 row_key_column = escape_column_id(
-                    cls._get_row_key_col(table_chain, sql_client, root_table)
+                    cls.get_row_key_col(
+                        table_chain,
+                        root_table,
+                        sql_client.fully_qualified_dataset_name(),
+                        sql_client.fully_qualified_dataset_name(staging=True),
+                    )
                 )
                 create_delete_temp_table_sql, delete_temp_table_name = (
                     cls.gen_delete_temp_table_sql(
@@ -596,7 +603,12 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 for table in table_chain[1:]:
                     table_name = sql_client.make_qualified_table_name(table["name"])
                     root_key_column = escape_column_id(
-                        cls._get_root_key_col(table_chain, sql_client, table)
+                        cls.get_root_key_col(
+                            table_chain,
+                            table,
+                            sql_client.fully_qualified_dataset_name(),
+                            sql_client.fully_qualified_dataset_name(staging=True),
+                        )
                     )
                     sql.append(
                         cls.gen_delete_from_sql(
@@ -722,14 +734,29 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         nested_tables = table_chain[1:]
         if nested_tables:
             root_row_key_column = escape_column_id(
-                cls._get_row_key_col(table_chain, sql_client, root_table)
+                cls.get_row_key_col(
+                    table_chain,
+                    root_table,
+                    sql_client.fully_qualified_dataset_name(),
+                    sql_client.fully_qualified_dataset_name(staging=True),
+                )
             )
             for table in nested_tables:
                 nested_row_key_column = escape_column_id(
-                    cls._get_row_key_col(table_chain, sql_client, table)
+                    cls.get_row_key_col(
+                        table_chain,
+                        table,
+                        sql_client.fully_qualified_dataset_name(),
+                        sql_client.fully_qualified_dataset_name(staging=True),
+                    )
                 )
                 root_key_column = escape_column_id(
-                    cls._get_root_key_col(table_chain, sql_client, table)
+                    cls.get_root_key_col(
+                        table_chain,
+                        table,
+                        sql_client.fully_qualified_dataset_name(),
+                        sql_client.fully_qualified_dataset_name(staging=True),
+                    )
                 )
                 table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
 
@@ -862,7 +889,12 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             # - this write disposition is way more similar to regular merge (how root tables are handled is different, other tables handled same)
             for table in nested_tables:
                 row_key_column = escape_column_id(
-                    cls._get_row_key_col(table_chain, sql_client, table)
+                    cls.get_row_key_col(
+                        table_chain,
+                        table,
+                        sql_client.fully_qualified_dataset_name(),
+                        sql_client.fully_qualified_dataset_name(staging=True),
+                    )
                 )
                 table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
                 sql.append(f"""

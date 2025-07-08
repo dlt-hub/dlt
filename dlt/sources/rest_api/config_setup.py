@@ -35,6 +35,7 @@ from dlt.sources.helpers.rest_client.paginators import (
     SinglePagePaginator,
     JSONLinkPaginator,
     HeaderLinkPaginator,
+    HeaderCursorPaginator,
     JSONResponseCursorPaginator,
     OffsetPaginator,
     PageNumberPaginator,
@@ -75,6 +76,7 @@ PAGINATOR_MAP: Dict[str, Type[BasePaginator]] = {
         JSONLinkPaginator
     ),  # deprecated. Use json_link instead. Will be removed in upcoming release
     "header_link": HeaderLinkPaginator,
+    "header_cursor": HeaderCursorPaginator,
     "auto": None,
     "single_page": SinglePagePaginator,
     "cursor": JSONResponseCursorPaginator,
@@ -193,6 +195,12 @@ def create_auth(auth_config: Optional[AuthConfig]) -> Optional[AuthConfigBase]:
         auth_type = auth_config.get("type", "bearer")
         auth_class = get_auth_class(auth_type)
         auth = auth_class.from_init_value(exclude_keys(auth_config, {"type"}))
+
+    if auth_config is not None and auth is None:
+        raise ValueError(
+            f"Incorrect auth object type '{type(auth_config).__name__}'. "
+            "Expected str (auth type), dict (auth config), an instance of AuthConfigBase, or None."
+        )
 
     if auth and not auth.__is_resolved__:
         # TODO: provide explicitly (non-default) values as explicit explicit_value=dict(auth)

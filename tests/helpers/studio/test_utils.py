@@ -195,11 +195,17 @@ def test_create_table_list(test_pipeline):
 
     # Should exclude _dlt_loads by default
     table_names = {table["name"] for table in result}
-    assert table_names == {"inventory", "purchases", "customers"}
+    assert table_names == {"inventory", "purchases", "customers", "inventory_categories"}
 
     result = create_table_list(config, test_pipeline, show_child_tables=True)
     table_names = {table["name"] for table in result}
-    assert table_names == {"inventory", "purchases", "customers", "purchases__child"}
+    assert table_names == {
+        "inventory",
+        "purchases",
+        "customers",
+        "purchases__child",
+        "inventory_categories",
+    }
 
     result = create_table_list(config, test_pipeline, show_internals=True, show_child_tables=False)
     table_names = {table["name"] for table in result}
@@ -210,6 +216,7 @@ def test_create_table_list(test_pipeline):
         "_dlt_pipeline_state",
         "inventory",
         "_dlt_version",
+        "inventory_categories",
     }
 
 
@@ -220,7 +227,7 @@ def test_create_column_list_basic(test_pipeline):
     # Should exclude _dlt columns by default, will also not show incomplete columns
     result = create_column_list(config, test_pipeline, "purchases")
     column_names = {col["name"] for col in result}
-    assert column_names == {"customer_id", "quantity", "id", "inventory_id"}
+    assert column_names == {"customer_id", "quantity", "id", "inventory_id", "date"}
 
     result = create_column_list(config, test_pipeline, "purchases", show_internals=True)
     column_names = {col["name"] for col in result}
@@ -231,6 +238,7 @@ def test_create_column_list_basic(test_pipeline):
         "id",
         "inventory_id",
         "_dlt_id",
+        "date",
     }
 
 
@@ -254,7 +262,7 @@ def test_get_query_result(test_pipeline):
 
     assert isinstance(result, pd.DataFrame)
     assert len(result) == 1
-    assert result.iloc[0]["count"] == 3
+    assert result.iloc[0]["count"] == 100
 
 
 def test_get_row_counts_real(test_pipeline):
@@ -262,9 +270,10 @@ def test_get_row_counts_real(test_pipeline):
     result = get_row_counts(test_pipeline)
     assert result == {
         "customers": 13,
-        "inventory": 3,
-        "purchases": 3,
+        "inventory": 6,
+        "purchases": 100,
         "purchases__child": 3,
+        "inventory_categories": 3,
         "_dlt_version": 2,
         "_dlt_loads": 2,
         "_dlt_pipeline_state": 1,

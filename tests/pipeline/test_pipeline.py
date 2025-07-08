@@ -3,7 +3,7 @@ import pathlib
 from concurrent.futures import ThreadPoolExecutor
 import itertools
 import logging
-import os
+import os, sys
 import random
 import shutil
 import threading
@@ -1277,6 +1277,13 @@ def test_set_get_local_value() -> None:
 
     p.extract(_w_local_state)
     assert p.state["_local"][new_val] == new_val  # type: ignore[literal-required]
+
+
+def test_update_last_run_context() -> None:
+    p = dlt.pipeline(destination="dummy", dev_mode=True)
+    p._update_last_run_context()
+    assert p.last_run_context["local_dir"] == os.path.join(os.getcwd(), "_storage")
+    assert p.last_run_context["settings_dir"] == os.path.join(os.getcwd(), ".dlt")
 
 
 def test_changed_write_disposition() -> None:
@@ -3773,3 +3780,11 @@ def test_pipeline_repr() -> None:
     assert getattr(p, "is_active", sentinel) is not sentinel
     assert getattr(p, "pipelines_dir", sentinel) is not sentinel
     assert getattr(p, "working_dir", sentinel) is not sentinel
+
+
+def test_pipeline_with_null_executors(monkeypatch) -> None:
+    # NOTE: emscripten forces null executor, this is tested in test_runners.py
+    monkeypatch.setattr(sys, "platform", "emscripten")
+    p = dlt.pipeline(pipeline_name="null_executor", destination="duckdb")
+    p.run([{"id": 1}], table_name="test_table")
+    assert p.dataset().row_counts().fetchall() == [("test_table", 1)]

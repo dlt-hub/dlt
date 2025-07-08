@@ -25,9 +25,9 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
 
-import lancedb  # type: ignore
-from lancedb.embeddings import get_registry  # type: ignore
-from lancedb.pydantic import LanceModel, Vector  # type: ignore
+import lancedb
+from lancedb.embeddings import get_registry
+from lancedb.pydantic import LanceModel, Vector
 
 import dlt
 from dlt.common.configuration import configspec
@@ -36,11 +36,18 @@ from dlt.common.typing import TDataItems, TSecretStrValue
 from dlt.sources.helpers import requests
 from dlt.sources.helpers.rest_client import RESTClient, AuthConfigBase
 
-# access secrets to get openai key and instantiate embedding function
+# access secrets to get openai key
 openai_api_key: str = dlt.secrets.get(
     "destination.lancedb.credentials.embedding_model_provider_api_key"
 )
-func = get_registry().get("openai").create(name="text-embedding-3-small", api_key=openai_api_key)
+# store the api key in the registry
+get_registry().set_var("openai_api_key", openai_api_key)
+# create the embedding function
+func = (
+    get_registry()
+    .get("openai")
+    .create(name="text-embedding-3-small", api_key="$var:openai_api_key")
+)
 
 
 class EpisodeSchema(LanceModel):
@@ -120,7 +127,7 @@ def lancedb_destination(items: TDataItems, table: TTableSchema) -> None:
         item["description"] = item["description"][0:8000]
     try:
         tbl = db.open_table(table["name"])
-    except FileNotFoundError:
+    except ValueError:
         tbl = db.create_table(table["name"], schema=EpisodeSchema)
     tbl.add(items)
 

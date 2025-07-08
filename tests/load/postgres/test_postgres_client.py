@@ -73,11 +73,12 @@ def test_postgres_credentials_native_value(environment) -> None:
 
 def test_postgres_query_params() -> None:
     # test postgres timeout
-    dsn = "postgres://loader:pass@localhost:5432/dlt_data?client_encoding=utf-8&connect_timeout=600"
+    dsn = "postgres://loader:pass@localhost:5432/dlt_data?client_encoding=utf-8&connect_timeout=600&options=-ctimezone%3DEurope%2FParis"
     csc = PostgresCredentials()
     csc.parse_native_representation(dsn)
     assert csc.connect_timeout == 600
     assert csc.client_encoding == "utf-8"
+    assert csc.get_query().get("options") == "-ctimezone=Europe/Paris"
     assert csc.to_native_representation() == dsn
 
 

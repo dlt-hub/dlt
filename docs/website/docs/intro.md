@@ -164,7 +164,8 @@ Check out the [Python data structures tutorial](./tutorial/load-data-from-an-api
 </Tabs>
 
 :::tip
-If you'd like to try out dlt without installing it on your machine, check out the [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing).
+If you'd like to try out dlt without installing it on your machine, check out the [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing) or 
+use our simple [marimo / wasm based playground](./tutorial/playground) on this docs page.
 :::
 
 ## Join the dlt community

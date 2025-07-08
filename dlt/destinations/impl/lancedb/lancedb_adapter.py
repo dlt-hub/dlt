@@ -55,10 +55,12 @@ def lancedb_adapter(
             )
         column_hints = {}
 
+        # TODO: warn if hint exists and we override nullable
         for column_name in embed:
             column_hints[column_name] = {
                 "name": column_name,
                 VECTORIZE_HINT: True,  # type: ignore[misc]
+                "nullable": True,  # must be nullable because lance will override it anyway
             }
 
     additional_table_hints[NO_REMOVE_ORPHANS_HINT] = no_remove_orphans

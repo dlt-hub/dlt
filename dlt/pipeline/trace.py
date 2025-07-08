@@ -24,10 +24,11 @@ from dlt.common.pipeline import (
     StepMetrics,
     SupportsPipeline,
 )
-from dlt.common.pipeline import get_current_pipe_name
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize
 from dlt.common.utils import uniq_id, get_exception_trace_chain
+
+from dlt.extract.state import get_current_pipe_name
 
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -159,10 +160,10 @@ class PipelineTrace(SupportsHumanize, _PipelineTrace):
         return msg
 
     def last_pipeline_step_trace(self, step_name: TPipelineStep) -> PipelineStepTrace:
-        for step in self.steps:
-            if step.step == step_name:
-                return step
-        return None
+        matching_steps = [step for step in self.steps if step.step == step_name]
+        if not matching_steps:
+            return None
+        return max(matching_steps, key=lambda step: step.started_at)
 
     def asdict(self) -> DictStrAny:
         """A dictionary representation of PipelineTrace that can be loaded with `dlt`"""
