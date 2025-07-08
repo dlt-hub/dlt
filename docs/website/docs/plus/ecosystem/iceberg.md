@@ -42,17 +42,15 @@ Currently, the Iceberg destination supports two catalog types:
 
 ### AWS Iceberg Catalogs
 
-DLT supports **three** AWS-backed Iceberg catalog.
+dlt supports three AWS-backed Iceberg catalogs.
 Their names correspond to the `catalog_type` value you pass in your destination block:
 
 | `catalog_type`      | What it talks to under the hood |
 | ------------------- | ----------------------------------------------------------------------------------- |
-| **`s3tables-rest`** | Accessing tables using the AWS S3 Tables Iceberg REST API endpoint, and S3 table buckets |
-| **`glue-rest`**     | Accessing tables using the AWS Glue Iceberg REST API endpoint, Lake Formation, and S3 table buckets |
-| **`glue`**          | Accessing tables using the AWS Glue Catalog, and normal S3 buckets |
+| **`s3tables-rest`** | Uses the AWS S3 Tables Iceberg REST API endpoint, and S3 table buckets |
+| **`glue-rest`**     | Uses the AWS Glue Iceberg REST API endpoint, Lake Formation, and S3 table buckets |
+| **`glue`**          | Uses the AWS Glue Catalog, and normal S3 buckets |
 
-> **Disclaimer**
-> `glue-rest` involves the most complex IAM/Lake Formation setup.
 
 #### Catalog `[s3tables-rest]`
 
@@ -132,14 +130,19 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES='{
 
 </Tabs>
 
-* **Prerequisites** – Create the S3 Table bucket first and grant the calling IAM principal s3tables:* actions read/write permissions on that bucket.
-* **`warehouse`** – full bucket ARN for your S3 Tables catalog.
-* **`uri`** – region-specific S3 Tables REST endpoint.
-* **`rest.*`** properties – mandatory SigV4 settings for every call.
+##### Prerequisites
+
+Create the S3 Table bucket first and grant the calling IAM principal s3tables:* actions read/write permissions on that bucket.
+* `warehouse` – full bucket ARN for your S3 Tables catalog.
+* `uri` – region-specific S3 Tables REST endpoint.
+* `rest.*` properties – mandatory SigV4 settings for every call.
 
 #### Catalog `[glue-rest]`
 Configure this catalog when you want to publish Iceberg tables directly into an S3 Tables bucket via the AWS Glue Iceberg REST API endpoint.
 
+:::note
+`glue-rest` catalog involves the most complex IAM/Lake Formation setup.
+:::
 To configure a `glue-rest` catalog, provide the following parameters and replace `<region>`, `<account-id>`, `<s3-table-bucket-name>`, and AWS keys with real values:
 
 <Tabs
@@ -205,10 +208,11 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES='{
 ```
 </TabItem> </Tabs>
 
-* **Prerequisites** – create the S3 Table bucket first and follow this AWS documentation to properly configure IAM, Glue, and Lake Formation: [Create an Iceberg catalog for S3 Tables via Glue REST](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-integrating-glue-endpoint.html)
-* **`warehouse`** – glue catalog arn for your S3 Tables catalog.
-* **`uri`** – region-specific Glue REST endpoint.
-* **`rest.*`** properties – mandatory SigV4 settings for every call.
+##### Prerequisites
+Сreate the S3 Table bucket first and follow this AWS documentation to properly configure IAM, Glue, and Lake Formation: [Create an Iceberg catalog for S3 Tables via Glue REST](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-integrating-glue-endpoint.html)
+* `warehouse` – glue catalog arn for your S3 Tables catalog.
+* `uri` – region-specific Glue REST endpoint.
+* `rest.*` properties – mandatory SigV4 settings for every call.
 
 #### Catalog `[glue]`
 
@@ -261,9 +265,10 @@ export DESTINATION__ICEBERG__CREDENTIALS__REGION_NAME="<region>"
 ```
 </TabItem> </Tabs>
 
-* **Prerequisites** – An S3 bucket and an IAM principal allowed to read/write that bucket and access the Glue Data Catalog.
+##### Prerequisites
+An S3 bucket and an IAM principal allowed to read/write that bucket and access the Glue Data Catalog.
 
-* **bucket_url** – S3 prefix where Iceberg data and metadata files will live.
+* `bucket_url` – S3 prefix where Iceberg data and metadata files will live.
 
 ### SQL catalog
 
