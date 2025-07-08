@@ -9,6 +9,17 @@ keywords: [Databricks, destination, data warehouse]
 # Databricks
 *Big thanks to Evan Phillips and [swishbi.com](https://swishbi.com/) for contributing code, time, and a test environment.*
 
+This Databricks destination will load your data into Databricks Delta tables using one of the supported [cloud storage options](#staging-support). You can access your data using Unity Catalog.
+
+There are two options to run dlt pipelines and load data:
+
+* Run dlt pipelines in any environment by providing credentials for both Databricks and your cloud storage.
+* Run dlt pipelines directly within [Databricks notebooks](#direct-load-databricks-managed-volumes) without explicitly providing credentials.
+
+:::note
+If you'd like to load data to Databricks Managed Iceberg tables, use [dlt+ Iceberg destination](../../plus/ecosystem/iceberg#unity-catalog)
+:::
+
 ## Install dlt with Databricks
 
 **To install the dlt library with Databricks dependencies:**
