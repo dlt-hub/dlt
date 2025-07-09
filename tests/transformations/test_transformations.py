@@ -16,7 +16,6 @@ from tests.load.transformations.utils import (
 )
 
 from dlt.extract.hints import make_hints
-from dlt.pipeline.exceptions import PipelineStepFailed
 
 from dlt.sources._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
@@ -218,7 +217,7 @@ def test_ibis_unbound_table_transformation(
         "quantity",
         "name",
     ]
-    assert model.arrow().shape == (3, 5)
+    assert model.arrow().shape == (100, 5)
 
 
 @pytest.mark.parametrize(
@@ -274,18 +273,19 @@ def test_multiple_transformations_in_function(
     dest_p.run(multiple_transformations(fruit_p.dataset()))
 
     assert load_table_counts(dest_p, "multiple_transformations") == {
-        "multiple_transformations": 16  # 13 customers + 3 purchases
+        "multiple_transformations": 113  # 13 customers + 100 purchases
     }
 
     assert set(dest_p.default_schema.tables["multiple_transformations"]["columns"].keys()) == {
-        "customer_id",
+        "name",
+        "date",
+        "_dlt_load_id",
         "quantity",
+        "_dlt_id",
+        "inventory_id",
+        "customer_id",
         "city",
         "id",
-        "name",
-        "inventory_id",
-        "_dlt_load_id",
-        "_dlt_id",
     }
 
     job_types = get_job_types(dest_p)
