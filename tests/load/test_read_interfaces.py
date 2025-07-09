@@ -28,7 +28,11 @@ from tests.load.utils import (
     SFTP_BUCKET,
     MEMORY_BUCKET,
 )
-from tests.utils import preserve_module_environ, autouse_module_test_storage, patch_module_home_dir
+from tests.utils import (
+    preserve_module_environ,
+    autouse_module_test_storage,
+    patch_module_home_dir,
+)
 from tests.load.utils import drop_pipeline_data
 
 EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
@@ -114,7 +118,10 @@ def create_test_source(destination_type: str, table_format: TTableFormat) -> Dlt
         @dlt.resource(
             table_format=table_format,
             write_disposition="replace",
-            columns={"id": {"data_type": "bigint"}, "other_id": {"data_type": "bigint"}},
+            columns={
+                "id": {"data_type": "bigint"},
+                "other_id": {"data_type": "bigint"},
+            },
         )
         def orderable_in_chain():
             yield from [
@@ -151,7 +158,9 @@ def populated_pipeline(
     )
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "700"
     # run source
-    s = create_test_source(pipeline.destination.destination_type, destination_config.table_format)
+    s = create_test_source(
+        pipeline.destination.destination_type, destination_config.table_format
+    )
     pipeline.run(s, loader_file_format=destination_config.file_format)
     print(pipeline.last_trace.last_normalize_info)
     # create a second schema in the pipeline
@@ -199,7 +208,9 @@ def test_str_and_repr_on_dataset_and_relation(populated_pipeline: Pipeline) -> N
         s = s.replace(dataset_.dataset_name, "dataset_name")
         # replace destination config
         dest_config = str(
-            cast(ReadableDBAPIDataset, populated_pipeline.dataset()).destination_client.config
+            cast(
+                ReadableDBAPIDataset, populated_pipeline.dataset()
+            ).destination_client.config
         )
         s = s.replace(dest_config, "<destination_config>")
         return s
@@ -216,7 +227,9 @@ def test_str_and_repr_on_dataset_and_relation(populated_pipeline: Pipeline) -> N
 
     # relation
     relation = dataset_("SELECT id, decimal FROM items")
-    assert _replace_variable_content(str(relation)) == """Relation query: 
+    assert (
+        _replace_variable_content(str(relation))
+        == """Relation query: 
   SELECT
     "items"."id" AS "id",
     "items"."decimal" AS "decimal"
@@ -225,6 +238,7 @@ Columns:
   id bigint
   decimal decimal
 """
+    )
     relation_repr = _replace_variable_content(repr(relation))
     assert relation_repr.startswith(
         "<dlt.Relation(dataset='<dlt.dataset(dataset_name=\\'dataset_name\\'"
@@ -240,9 +254,9 @@ Columns:
     ids=lambda x: x.name,
 )
 def test_scalar(populated_pipeline: Pipeline) -> None:
-    assert populated_pipeline.dataset()("SELECT COUNT(*) FROM items").scalar() == _total_records(
-        populated_pipeline.destination.destination_type
-    )
+    assert populated_pipeline.dataset()(
+        "SELECT COUNT(*) FROM items"
+    ).scalar() == _total_records(populated_pipeline.destination.destination_type)
 
     # test error if more than one row is returned and we use scalar
     with pytest.raises(ValueError) as ex:
@@ -286,7 +300,9 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
         assert [t.num_rows for t in tables] == expected_chunk_counts
 
     # check all items are present, this MUST also be true for snowflake
-    ids = reduce(lambda a, b: a + b, [t.column(EXPECTED_COLUMNS[0]).to_pylist() for t in tables])
+    ids = reduce(
+        lambda a, b: a + b, [t.column(EXPECTED_COLUMNS[0]).to_pylist() for t in tables]
+    )
     assert set(ids) == set(range(total_records))
 
 
@@ -412,7 +428,9 @@ def test_loads_table_access(populated_pipeline: Pipeline) -> None:
     # - first source (default schema)
     # - additional schema (digits)
     # - state update send in separate package to default schema
-    loads_table = populated_pipeline.dataset()[populated_pipeline.default_schema.loads_table_name]
+    loads_table = populated_pipeline.dataset()[
+        populated_pipeline.default_schema.loads_table_name
+    ]
     assert len(loads_table.fetchall()) == 3
 
 
@@ -449,7 +467,9 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
     }
     # get only one data table
     assert set(
-        dataset.row_counts(table_names=["items"]).df().itertuples(index=False, name=None)
+        dataset.row_counts(table_names=["items"])
+        .df()
+        .itertuples(index=False, name=None)
     ) == {
         (
             "items",
@@ -476,7 +496,9 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
         ),
     }
     # get them all
-    assert set(dataset.row_counts(dlt_tables=True).df().itertuples(index=False, name=None)) == {
+    assert set(
+        dataset.row_counts(dlt_tables=True).df().itertuples(index=False, name=None)
+    ) == {
         (
             "_dlt_version",
             2,
@@ -520,12 +542,17 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
     dataset_name = populated_pipeline.dataset_name
 
     # simple check that query also works
-    query_relationship = populated_pipeline.dataset()("select * from items where id < 20")
+    query_relationship = populated_pipeline.dataset()(
+        "select * from items where id < 20"
+    )
     query_from_query_function = populated_pipeline.dataset().query(
         "select * from items where id < 20"
     )
 
-    assert query_relationship._sqlglot_expression == query_from_query_function._sqlglot_expression  # type: ignore
+    assert (
+        query_relationship._sqlglot_expression
+        == query_from_query_function._sqlglot_expression
+    )  # type: ignore
 
     # we selected the first 20
     table = query_relationship.arrow()
@@ -571,21 +598,27 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
     # test various query stages
     # raw query has no aliases
     assert (
-        join_relationship._sqlglot_expression.sql("duckdb").replace(dataset_name, "dataset_name")
+        join_relationship._sqlglot_expression.sql("duckdb").replace(
+            dataset_name, "dataset_name"
+        )
         == "SELECT i.id, di.double_id FROM dataset_name.items AS i JOIN dataset_name.double_items"
         " AS di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
     )
 
     # qualified query has aliases
     assert (
-        join_relationship._qualified_query.sql("duckdb").replace(dataset_name, "dataset_name")
+        join_relationship._qualified_query.sql("duckdb").replace(
+            dataset_name, "dataset_name"
+        )
         == "SELECT i.id AS id, di.double_id AS double_id FROM dataset_name.items AS i JOIN"
         " dataset_name.double_items AS di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
     )
 
     # normalized has quoted indentifiers
     assert (
-        join_relationship._normalized_query.sql("duckdb").replace(dataset_name, "dataset_name")
+        join_relationship._normalized_query.sql("duckdb").replace(
+            dataset_name, "dataset_name"
+        )
         == 'SELECT "i"."id" AS "id", "di"."double_id" AS "double_id" FROM "dataset_name"."items" AS'
         ' "i" JOIN "dataset_name"."double_items" AS "di" ON ("i"."id" = "di"."id") WHERE'
         ' "i"."id" < 20 ORDER BY "i"."id" ASC'
@@ -668,7 +701,9 @@ def test_limit_and_head(populated_pipeline: Pipeline) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
-def test_dataset_client_caching_and_connection_handling(populated_pipeline: Pipeline) -> None:
+def test_dataset_client_caching_and_connection_handling(
+    populated_pipeline: Pipeline,
+) -> None:
     # no clients exist yet
     dataset = cast(ReadableDBAPIDataset, populated_pipeline.dataset())
     assert dataset._opened_sql_client is None
@@ -771,10 +806,17 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
         expected_decimal_scale = 9
 
     assert arrow_table.schema.field("decimal").type.scale == expected_decimal_scale
-    assert arrow_table.schema.field("other_decimal").type.scale == expected_decimal_scale
+    assert (
+        arrow_table.schema.field("other_decimal").type.scale == expected_decimal_scale
+    )
 
-    assert arrow_table.schema.field("decimal").type.precision == expected_decimal_precision
-    assert arrow_table.schema.field("other_decimal").type.precision == expected_decimal_precision_2
+    assert (
+        arrow_table.schema.field("decimal").type.precision == expected_decimal_precision
+    )
+    assert (
+        arrow_table.schema.field("other_decimal").type.precision
+        == expected_decimal_precision_2
+    )
 
     with pytest.raises(LineageFailedException):
         arrow_table = table_relationship.select("unknown_column").head().arrow()
@@ -798,7 +840,9 @@ def test_chained_column_selection(populated_pipeline: Pipeline) -> None:
     data_frame = table_relationship.select(*columns).select(*columns).head().df()
     assert list(data_frame.columns.values) == columns
 
-    data_frame = table_relationship.select(*columns).select(*["other_decimal"]).head().df()
+    data_frame = (
+        table_relationship.select(*columns).select(*["other_decimal"]).head().df()
+    )
     assert list(data_frame.columns.values) == ["other_decimal"]
 
     data_frame = table_relationship.select(*columns).select(*["decimal"]).head().df()
@@ -817,13 +861,20 @@ def test_order_by(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
     table_relationship = populated_pipeline.dataset().items
 
-    asc_ids = [row[0] for row in table_relationship.order_by("id", "asc").limit(20).fetchall()]
+    asc_ids = [
+        row[0] for row in table_relationship.order_by("id", "asc").limit(20).fetchall()
+    ]
     assert asc_ids == list(range(20))
 
-    desc_ids = [row[0] for row in table_relationship.order_by("id", "desc").limit(20).fetchall()]
+    desc_ids = [
+        row[0] for row in table_relationship.order_by("id", "desc").limit(20).fetchall()
+    ]
     assert desc_ids == list(range(total_records - 1, total_records - 21, -1))
 
-    chained = [row[0] for row in table_relationship.order_by("id").limit(5).select("id").fetchall()]
+    chained = [
+        row[0]
+        for row in table_relationship.order_by("id").limit(5).select("id").fetchall()
+    ]
     assert chained == list(range(5))
 
     chained_relation = populated_pipeline.dataset().orderable_in_chain
@@ -868,7 +919,9 @@ def test_where(populated_pipeline: Pipeline) -> None:
     assert total_records - 5 == len(gte_rows)
     assert 6 == len(lte_rows)
 
-    in_ids = [r[0] for r in (items.where("id", "in", [3, 1, 7]).order_by("id").fetchall())]
+    in_ids = [
+        r[0] for r in (items.where("id", "in", [3, 1, 7]).order_by("id").fetchall())
+    ]
     assert in_ids == [1, 3, 7]
 
     not_in_rows = items.filter("id", "not_in", [0, 1, 2]).fetchall()
@@ -880,6 +933,128 @@ def test_where(populated_pipeline: Pipeline) -> None:
     assert "Received invalid value `operator=wrong`" in py_exc.value.args[0]
 
     assert total_records - 3 == len(not_in_rows)
+
+
+def test_join_on_child_parent_relation():
+    @dlt.resource(primary_key="id", columns={"name": {"x-annotation-pii": True}})  # type: ignore[typeddict-unknown-key]
+    def purchases():
+        yield from [
+            {
+                "id": 1,
+                "name": "simon",
+                "city": "berlin",
+                "items": [
+                    {"name": "item1", "price": 10},
+                    {"name": "item2", "price": 20},
+                ],
+            },
+            {
+                "id": 2,
+                "name": "violet",
+                "city": "montreal",
+                "items": [
+                    {"name": "item3", "price": 30},
+                    {"name": "item1", "price": 10},
+                ],
+            },
+            {
+                "id": 3,
+                "name": "tammo",
+                "city": "new york",
+                "items": [
+                    {"name": "item2", "price": 20},
+                    {"name": "item3", "price": 30},
+                ],
+            },
+        ]
+
+    pipeline = dlt.pipeline("parent_child_relation", destination="duckdb")
+    pipeline.run([purchases])
+
+    schema = pipeline.default_schema
+    assert "purchases" in schema.tables
+    assert "purchases__items" in schema.tables
+    assert schema.tables["purchases"].get("references") is None
+
+    dataset = pipeline.dataset()
+    purchases_rel = dataset.table("purchases")
+
+    joined_rel = purchases_rel.join_child("purchases__items")
+    df = dataset(joined_rel._sqlglot_expression.sql()).df()
+
+    assert False
+
+
+def test_join_on_references():
+    import random
+    from datetime import datetime, timedelta
+
+    references = [
+        dict(
+            columns=["customer_id"],
+            referenced_table="customers",
+            referenced_columns=["id"],
+        )
+    ]
+
+    @dlt.resource(primary_key="id", columns={"name": {"x-annotation-pii": True}})  # type: ignore[typeddict-unknown-key]
+    def customers():
+        """Load customer data from three cities from a simple python list."""
+        yield from [
+            {"id": 1, "name": "simon", "city": "berlin"},
+            {"id": 2, "name": "violet", "city": "montreal"},
+            {"id": 3, "name": "tammo", "city": "new york"},
+            {"id": 4, "name": "dave", "city": "berlin"},
+            {"id": 5, "name": "andrea", "city": "montreal"},
+            {"id": 6, "name": "marcin", "city": "new york"},
+            {"id": 7, "name": "sarah", "city": "berlin"},
+            {"id": 8, "name": "miguel", "city": "new york"},
+            {"id": 9, "name": "yuki", "city": "montreal"},
+            {"id": 10, "name": "olivia", "city": "berlin"},
+            {"id": 11, "name": "raj", "city": "montreal"},
+            {"id": 12, "name": "sofia", "city": "new york"},
+            {"id": 13, "name": "chen", "city": "berlin"},
+        ]
+
+    @dlt.resource(
+        primary_key="id",
+        references=references,
+    )
+    def purchases():
+        """Generate 100 seeded random purchases between Mon. Oct 1 and Sun. Oct 14, 2018."""
+        random.seed(42)
+        start_date = datetime(2018, 10, 1)
+        customers_ids = list(range(1, 14))  # 13 customers
+        inventory_ids = list(range(1, 7))  # 6 inventory items
+
+        yield from [
+            {
+                "id": i + 1,
+                "customer_id": random.choice(customers_ids),
+                "inventory_id": random.choice(inventory_ids),
+                "quantity": random.randint(1, 5),
+                "date": (start_date + timedelta(days=random.randint(0, 13))).strftime(
+                    "%Y-%m-%d"
+                ),
+            }
+            for i in range(100)
+        ]
+
+    pipeline = dlt.pipeline("fruit_with_ref", destination="duckdb")
+    pipeline.run([customers, purchases])
+
+    schema = pipeline.default_schema
+    assert schema.tables["purchases"].get("references") == references
+    assert schema.tables["customers"].get("references") is None
+
+    dataset = pipeline.dataset()
+
+    purchases_rel = dataset.table("purchases")
+    customers_rel = dataset.table("customers")
+
+    joined_rel = purchases_rel.join(customers_rel)
+
+    assert False
 
 
 @pytest.mark.no_load
@@ -923,10 +1098,14 @@ def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
     assert len(combined_result) == 5
     assert all(row[0] < 100 for row in combined_result)
 
-    combined_result = orderable_in_chain.where("id = 1").select("other_id").max().scalar()
+    combined_result = (
+        orderable_in_chain.where("id = 1").select("other_id").max().scalar()
+    )
     assert 3 == combined_result
 
-    combined_result = orderable_in_chain.where("id = 1").select("other_id").min().scalar()
+    combined_result = (
+        orderable_in_chain.where("id = 1").select("other_id").min().scalar()
+    )
     assert 2 == combined_result
 
 
@@ -951,7 +1130,10 @@ def test_min_max(populated_pipeline: Pipeline) -> None:
     with pytest.raises(ValueError) as py_exc:
         min_id = items.select("id", "decimal").min().scalar()
 
-    assert "min() requires a query with exactly one select expression." in py_exc.value.args[0]
+    assert (
+        "min() requires a query with exactly one select expression."
+        in py_exc.value.args[0]
+    )
 
 
 @pytest.mark.no_load
@@ -1045,7 +1227,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert list(table[10]) == [10, 20]
 
     # check aggregate of first 20 items
-    agg_table = items_table.order_by("id").limit(20).aggregate(sum_id=items_table.id.sum())
+    agg_table = (
+        items_table.order_by("id").limit(20).aggregate(sum_id=items_table.id.sum())
+    )
     assert dataset(agg_table).fetchone()[0] == reduce(lambda a, b: a + b, range(20))
 
     # check filtering
@@ -1059,8 +1243,12 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # also we return the keys of the discovered schema columns
     def sql_from_expr(expr: Any) -> Tuple[str, List[str]]:
         relation = dataset(expr)
-        query = str(relation.to_sql()).replace(populated_pipeline.dataset_name, "dataset")  # type: ignore[attr-defined]
-        columns = list(relation.columns_schema.keys()) if relation.columns_schema else None
+        query = str(relation.to_sql()).replace(
+            populated_pipeline.dataset_name, "dataset"
+        )  # type: ignore[attr-defined]
+        columns = (
+            list(relation.columns_schema.keys()) if relation.columns_schema else None
+        )
         return re.sub(r"\s+", " ", query), columns
 
     # test all functions discussed here: https://ibis-project.org/tutorials/ibis-for-sql-users
@@ -1132,7 +1320,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     )
 
     # check filter "and" condition
-    assert sql_from_expr(items_table.filter(items_table.id < 10).filter(items_table.id > 5)) == (
+    assert sql_from_expr(
+        items_table.filter(items_table.id < 10).filter(items_table.id > 5)
+    ) == (
         (
             'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
             ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
@@ -1142,7 +1332,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     )
 
     # check filter "or" condition
-    assert sql_from_expr(items_table.filter((items_table.id < 10) | (items_table.id > 5))) == (
+    assert sql_from_expr(
+        items_table.filter((items_table.id < 10) | (items_table.id > 5))
+    ) == (
         (
             'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
             ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
@@ -1176,7 +1368,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     )
 
     # sort desc and asc
-    assert sql_from_expr(items_table.order_by(ibis.desc("id"), ibis.asc("decimal")).limit(10)) == (
+    assert sql_from_expr(
+        items_table.order_by(ibis.desc("id"), ibis.asc("decimal")).limit(10)
+    ) == (
         (
             'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
             ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
@@ -1257,7 +1451,10 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
         total_records = _total_records(populated_pipeline.destination.destination_type)
 
         map_i = lambda x: x
-        if populated_pipeline.destination.destination_type == "dlt.destinations.snowflake":
+        if (
+            populated_pipeline.destination.destination_type
+            == "dlt.destinations.snowflake"
+        ):
             map_i = lambda x: x.upper()
 
         dataset_name = map_i(populated_pipeline.dataset_name)
@@ -1266,7 +1463,10 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
         additional_tables = []
 
         # clickhouse has no datasets, but table prefixes and a sentinel table
-        if populated_pipeline.destination.destination_type == "dlt.destinations.clickhouse":
+        if (
+            populated_pipeline.destination.destination_type
+            == "dlt.destinations.clickhouse"
+        ):
             table_like_statement = dataset_name + "."
             table_name_prefix = dataset_name + "___"
             dataset_name = None
@@ -1274,7 +1474,10 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
 
         # filesystem uses duckdb and views to map know tables. for other ibis will list
         # all available tables so both schemas tables are visible
-        if populated_pipeline.destination.destination_type != "dlt.destinations.filesystem":
+        if (
+            populated_pipeline.destination.destination_type
+            != "dlt.destinations.filesystem"
+        ):
             # from aleph schema
             additional_tables += ["digits"]
 
@@ -1282,7 +1485,9 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
 
         # just do a basic check to see wether ibis can connect
         assert set(
-            ibis_connection.list_tables(database=dataset_name, like=table_like_statement)
+            ibis_connection.list_tables(
+                database=dataset_name, like=table_like_statement
+            )
         ) == {
             add_table_prefix(map_i(x))
             for x in (
@@ -1308,7 +1513,9 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
             items_table = ibis_connection.tables[table_name]
             assert items_table.count().to_pandas() == total_records
         except KeyError:
-            if populated_pipeline.destination.destination_type not in ["dlt.destinations.mssql"]:
+            if populated_pipeline.destination.destination_type not in [
+                "dlt.destinations.mssql"
+            ]:
                 raise
     finally:
         ibis_connection.disconnect()
@@ -1413,7 +1620,14 @@ def test_read_not_materialized_table(destination_config: DestinationTestConfigur
     @dlt.source
     def two_tables():
         @dlt.resource(
-            columns=[{"name": "id", "data_type": "bigint", "nullable": True, "primary_key": True}],
+            columns=[
+                {
+                    "name": "id",
+                    "data_type": "bigint",
+                    "nullable": True,
+                    "primary_key": True,
+                }
+            ],
             write_disposition="append",
             table_format=destination_config.table_format,
         )
@@ -1467,16 +1681,23 @@ def test_read_not_materialized_table(destination_config: DestinationTestConfigur
     ),
     ids=lambda x: x.name,
 )
-def test_naming_convention_propagation(destination_config: DestinationTestConfiguration):
+def test_naming_convention_propagation(
+    destination_config: DestinationTestConfiguration,
+):
     destination_ = destination_config.destination_factory(
         naming_convention="tests.common.cases.normalizers.title_case"
     )
 
     pipeline = destination_config.setup_pipeline(
-        "read_pipeline", dataset_name="Read_test", dev_mode=True, destination=destination_
+        "read_pipeline",
+        dataset_name="Read_test",
+        dev_mode=True,
+        destination=destination_,
     )
 
-    s = create_test_source(destination_config.destination_type, destination_config.table_format)
+    s = create_test_source(
+        destination_config.destination_type, destination_config.table_format
+    )
     pipeline.run(s, loader_file_format=destination_config.file_format)
 
     dataset_ = pipeline.dataset()
