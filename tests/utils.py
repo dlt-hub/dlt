@@ -29,7 +29,7 @@ from dlt.common.configuration.specs.pluggable_run_context import (
     SupportsRunContext,
 )
 from dlt.common.pipeline import LoadInfo, PipelineContext, SupportsPipeline
-from dlt.common.runtime.run_context import DOT_DLT, RunContext
+from dlt.common.runtime.run_context import DOT_DLT, RunContext, get_default_initial_providers
 from dlt.common.runtime.telemetry import start_telemetry, stop_telemetry
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableFormat
@@ -340,11 +340,31 @@ def setup_secret_providers_to_current_module(request):
 
     # inject provider context so the original providers are restored at the end
     def _initial_providers(self):
-        return [
-            EnvironProvider(),
-            SecretsTomlProvider(settings_dir=secret_dir),
-            ConfigTomlProvider(settings_dir=config_dir),
-        ]
+        # ensure the `mock_providers` match the order of default providers
+        # Typically, all providers use the same `settings_dir` value (i.e., path to `.dlt/`)
+        # but this fixture sets different paths for `secrets_dir` and `config_dir`
+        default_initial_providers: list[ConfigProvider] = get_default_initial_providers(
+            "MOCK_VALUE"
+        )
+        mock_providers: list[ConfigProvider] = []
+        for provider in default_initial_providers:
+            if isinstance(provider, EnvironProvider):
+                mock_providers.append(EnvironProvider())
+            elif isinstance(provider, ConfigTomlProvider):
+                mock_providers.append(ConfigTomlProvider(settings_dir=config_dir))
+            elif isinstance(provider, SecretsTomlProvider):
+                mock_providers.append(SecretsTomlProvider(settings_dir=secret_dir))
+            else:
+                raise RuntimeError(
+                    f"Didn't expect a default provider of type `{provider.__class__}`"
+                    " If you see this error, you should update the test fixture."
+                )
+
+        assert len(default_initial_providers) == len(mock_providers)
+        for default_provider, mock_provider in zip(default_initial_providers, mock_providers):
+            assert type(default_provider) is type(mock_provider)
+
+        return mock_providers
 
     with (
         set_working_dir(dname),
@@ -546,13 +566,8 @@ def reset_providers(settings_dir: str) -> Iterator[ConfigProvidersContainer]:
 
 
 def _reset_providers(settings_dir: str) -> Iterator[ConfigProvidersContainer]:
-    yield from _inject_providers(
-        [
-            EnvironProvider(),
-            SecretsTomlProvider(settings_dir=settings_dir),
-            ConfigTomlProvider(settings_dir=settings_dir),
-        ]
-    )
+    default_providers = get_default_initial_providers(settings_dir)
+    yield from _inject_providers(default_providers)
 
 
 @contextlib.contextmanager
