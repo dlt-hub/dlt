@@ -6,7 +6,7 @@ from dlt.common.configuration.specs import (
     AwsCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
-from dlt.common.data_writers.configuration import CsvFormatConfiguration
+from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.storages import FilesystemConfiguration
 from dlt.common.storages.configuration import ensure_canonical_az_url
 from dlt.common.storages.fsspec_filesystem import (

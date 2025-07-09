@@ -56,7 +56,7 @@ def orders_per_user_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
 
     # @@@DLT_SNIPPET_END orders_per_user
     fruitshop_pipeline.run(orders_per_user(fruitshop_pipeline.dataset()))
-    assert load_table_counts(fruitshop_pipeline, "orders_per_user") == {"orders_per_user": 2}
+    assert load_table_counts(fruitshop_pipeline, "orders_per_user") == {"orders_per_user": 13}
 
 
 def loading_to_other_datasets_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
@@ -108,7 +108,7 @@ def multiple_transformations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     fruitshop_pipeline.run(my_transformations(fruitshop_pipeline.dataset()))
     # @@@DLT_SNIPPET_END multiple_transformations
     assert load_table_counts(fruitshop_pipeline, "enriched_purchases", "total_items_sold") == {
-        "enriched_purchases": 3,
+        "enriched_purchases": 100,
         "total_items_sold": 1,
     }
 
@@ -199,7 +199,7 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     )
     assert load_table_counts(fruitshop_pipeline, "copied_customers", "enriched_purchases") == {
         "copied_customers": 5,
-        "enriched_purchases": 3,
+        "enriched_purchases": 100,
     }
 
 
@@ -241,7 +241,7 @@ def arrow_dataframe_operations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None
     )
     assert load_table_counts(fruitshop_pipeline, "copied_customers", "enriched_purchases") == {
         "copied_customers": 5,
-        "enriched_purchases": 3,
+        "enriched_purchases": 100,
     }
 
 

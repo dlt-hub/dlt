@@ -7,7 +7,7 @@ import pyarrow.csv as acsv
 import pyarrow.parquet as pq
 
 from dlt.common import json
-from dlt.common.data_writers.configuration import CsvQuoting
+from dlt.common.destination.configuration import CsvQuoting
 from dlt.common.data_writers.exceptions import InvalidDataItem
 from dlt.common.data_writers.writers import (
     ArrowToCsvWriter,

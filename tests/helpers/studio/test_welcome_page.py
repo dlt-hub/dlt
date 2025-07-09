@@ -14,7 +14,4 @@ def test_welcome_cell():
         dlt_pipelines_dir="some_dir",
     )
 
-    assert (
-        "<code>dlt studio</code> has found <code>3</code> pipelines in local directory"
-        in output.text
-    )
+    assert "We have found <code>3</code> pipelines in local directory" in output.text

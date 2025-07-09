@@ -9,21 +9,16 @@ async def initialize():
     import sys
     import marimo as mo
 
-    # NOTE: the three lines below can be removed after new dlt 1.13 is released
-    import os
-
-    os.environ["RUNTIME__DLTHUB_TELEMETRY"] = "False"
-    os.environ["WORKERS"] = "1"
-
     # NOTE: this installs the dependencies for the notebook if run on pyodide
     if sys.platform == "emscripten":
         import micropip
 
-        await micropip.install("duckdb")
-        await micropip.install("sqlite3")
+        # dependencies needed for dlt
+        await micropip.install("dlt[duckdb]")
         await micropip.install("pandas")
+        # dependencies needed for ibis
+        await micropip.install("sqlite3")
         await micropip.install("ibis-framework[duckdb]")
-        await micropip.install("dlt==1.12.4a0")
 
     return sys, mo
 
