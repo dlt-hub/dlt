@@ -507,7 +507,7 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
         _, _, child_table_part = child_table_name.removeprefix(parent_table_name).partition("__")
         child_cols_aliases = []
         for col in child_table_schema["columns"]:
-            if col in [child_parent_key, "_dlt_list_idx"]:
+            if col in [child_parent_key, "_dlt_list_idx", "_dlt_id"]:
                 continue
 
             alias = f"{child_table_name}.{col} AS {child_table_part}__{col}"
