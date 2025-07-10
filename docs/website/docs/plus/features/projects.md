@@ -37,26 +37,45 @@ The main component of a dlt+ Project is the dlt manifest file (`dlt.yml`). It ma
 ### Sources
 
 This section lets you define sources either declaratively or by referencing an implementation from a Python module inside `sources/`. In the example below, two sources are declared:
-1. a dlt REST API source whose parameters are passed within the manifest
-2. a GitHub source defined in a function `source` whose source code inside `sources/github.py` is referenced
+1. a GitHub source defined in a function `source` whose source code inside `sources/github.py` is referenced
+2. a dlt REST API source whose parameters are passed within the manifest
 
 ```yaml
 sources:
-  pokemon:
-    type: rest_api
+  github:
+    type: github.github_reactions
+
+  pokemon_api:
+    type: dlt.sources.rest_api.rest_api
     client:
       base_url: https://pokeapi.co/api/v2/
-    resource_defaults:
-      endpoint:
-        params:
-          limit: 1000
+      paginator: auto
     resources:
       - pokemon
       - berry
-
-  github:
-    type: github.source
+      - name: encounter_conditions
+        endpoint:
+          path: encounter-condition
+          params:
+            offset:
+              type: incremental
+              cursor_path: name
+        write_disposition: append
 ```
+
+* `type: dlt.sources.rest_api.rest_api` specifies the use of the built-in REST API source.
+* `client.base_url` sets the root URL for all API requests.
+* `paginator: auto` enables automatic detection and handling of pagination.
+Each item in `resources`defines an endpoint to extract:
+* Simple entries like `pokemon`and `berry`will fetch from /pokemon and /berry, respectively.
+* The `encounter-condition` resource uses an advanced configuration:
+  * `path`: Point to the `/encounter-condition`endpoint.
+  * `params.offset`: Enables incremental loading using the name field as the cursor.
+  * `write_disposition`: append ensures new data is appended rather than overwriting previous loads.
+
+This setup provides a flexible, zero-code way to work with REST APIs and manage data extraction across multiple endpoints in a single source block.
+
+
 :::tip
 Source **type** is used to refer to the location in Python code where the `@dlt.source` decorated function is present. You can
 always use a full path to a function name in a Python module, but we also support shorthand and relative notations. For example:
@@ -66,6 +85,8 @@ always use a full path to a function name in a Python module, but we also suppor
 If the **type** cannot be resolved, dlt+ will provide you with a detailed list of all candidate types that were looked up
 so you can make required corrections.
 :::
+
+
 
 ### Destinations
 
