@@ -1,15 +1,22 @@
-from typing import Union, Iterable, Optional, List, Dict, Any, Tuple
+from typing import Union, Iterable, Optional, List, Dict, Tuple
 from itertools import chain
 from dataclasses import dataclass
 
 from dlt.common.schema import Schema
 from dlt.common.typing import TypedDict
-from dlt.common.schema.typing import TSimpleRegex, TTableSchema
+
+from dlt.common.schema.typing import (
+    TSimpleRegex,
+    TTableSchema,
+    TColumnSchema,
+    DLT_NAME_PREFIX,
+)
 from dlt.common.schema.utils import (
     group_tables_by_resource,
     compile_simple_regexes,
     compile_simple_regex,
     has_table_seen_data,
+    is_nullable_column,
 )
 from dlt.common import jsonpath
 from dlt.common.typing import REPattern
@@ -34,14 +41,21 @@ class _DropInfo(TypedDict):
     drop_all: bool
     resource_pattern: Optional[REPattern]
     warnings: List[str]
+    drop_columns: bool
+
+
+class _FromTableDropCols(TypedDict):
+    from_table: str
+    drop_columns: List[str]
 
 
 @dataclass
 class _DropResult:
     schema: Schema
-    state: TPipelineState
     info: _DropInfo
     modified_tables: List[TTableSchema]
+    state: Optional[TPipelineState] = None
+    from_tables_drop_cols: Optional[List[_FromTableDropCols]] = None
 
 
 def _create_modified_state(
@@ -61,6 +75,7 @@ def _create_modified_state(
             for key in _get_matching_resources(resource_pattern, source_state):
                 info["resource_states"].append(key)
                 reset_resource_state(key, source_state)
+
         # drop additional state paths
         # Don't drop 'resources' key if jsonpath is wildcard
         resolved_paths = [
@@ -98,8 +113,12 @@ def drop_resources(
             If not set all source states will be modified according to `state_paths` and `resources`
 
     Returns:
-        A 3 part tuple containing the new schema, the new pipeline state, and a dictionary
-        containing information about the drop operation.
+        A _DropResult containing:
+            - schema: The modified schema object.
+            - info: A dictionary with details about the drop operation (tables, state changes, warnings, etc.).
+            - modified_tables: A list of table schemas that were selected for modification.
+            - state: The modified pipeline state.
+            - from_tables_drop_cols: Always None for this function, indicating no column-level drop was performed.
     """
 
     if isinstance(resources, str):
@@ -152,6 +171,7 @@ def drop_resources(
         drop_all=drop_all,
         resource_pattern=resource_pattern,
         warnings=[],
+        drop_columns=False,
     )
 
     new_state, info = _create_modified_state(
@@ -169,4 +189,166 @@ def drop_resources(
     if not state_only:
         # drop only the selected tables
         schema.drop_tables(tables_to_drop_from_schema_names)
-    return _DropResult(schema, new_state, info, tables_to_drop_from_dest)
+    return _DropResult(schema, info, tables_to_drop_from_dest, new_state, None)
+
+
+DISQUALIFYING_HINTS = {
+    "parition",
+    "cluster",
+    "unique",
+    "sort",
+    "primary_key",
+    "row_key",
+    "parent_key",
+    "root_key",
+    "merge_key",
+    "variant",
+    "hard_delete",
+    "dedup_sort",
+    "incremental",
+}
+
+
+def _get_matched_droppable_columns(
+    table_columns: Dict[str, TColumnSchema], columns_pattern: REPattern
+) -> Tuple[List[str], bool]:
+    """
+    Identify columns in a table schema that are safe to drop and matched, based on nullability and disqualifying hints.
+
+    Args:
+        table_columns: Dictionary of column names and their schemas.
+        columns_pattern: A compiled regex pattern to match column names.
+
+    Returns:
+        A tuple containint:
+            - A list of column names that can be dropped and are matched.
+            - Whether it's safe to drop these columns without leaving only internal dlt columns.
+    """
+    droppable_cols = [
+        col_name
+        for col_name, col_schema in table_columns.items()
+        if is_nullable_column(col_schema)
+        and not any(col_schema.get(hint, False) for hint in DISQUALIFYING_HINTS)
+    ]
+    matched_droppable_cols = [
+        col_name for col_name in droppable_cols if columns_pattern.match(col_name)
+    ]
+
+    remaining_cols = set(table_columns) - set(matched_droppable_cols)
+    can_drop = not (
+        remaining_cols and all(col.startswith(DLT_NAME_PREFIX) for col in remaining_cols)
+    )
+
+    return matched_droppable_cols, can_drop
+
+
+def drop_columns(
+    schema: Schema,
+    from_resources: Union[Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]] = (),
+    from_tables: Union[Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]] = (),
+    columns: Union[Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]] = (),
+) -> _DropResult:
+    """Generate a new schema and pipeline state with the requested columns removed.
+
+    Args:
+        schema: The schema to modify. Note that schema is changed in place.
+        from_resources: Resources to drop columns from.
+        columns: Columns to drop from the specified resources.
+
+    Returns:
+        A _DropResult containing:
+            - schema: The modified schema object.
+            - info: A dictionary with details about the drop operation (tables, state changes, warnings, etc.).
+            - modified_tables: A list of table schemas that were selected for modification.
+            - state: Always None for this function, indicating no changes are made to the state.
+            - from_tables_drop_cols: A list of _FromTableDropCols representing columns to drop, grouped by table.
+    """
+    from_resources = set(from_resources or [])
+    if from_resources:
+        resource_pattern = compile_simple_regexes(TSimpleRegex(r) for r in from_resources)
+    else:
+        # Match all
+        resource_pattern = compile_simple_regex(TSimpleRegex("re:.*"))
+
+    non_dlt_tables = {t["name"]: t for t in schema.data_tables(include_incomplete=True)}
+    tables_by_resource = group_tables_by_resource(non_dlt_tables, pattern=resource_pattern)
+    potentially_affected_schema_tables = list(chain.from_iterable(tables_by_resource.values()))
+    # So that we process child tables first
+    potentially_affected_schema_tables.reverse()
+    potentially_affected_data_tables = [
+        t for t in potentially_affected_schema_tables if has_table_seen_data(t)
+    ]
+
+    from_tables = set(from_tables or [])
+    if from_tables:
+        table_pattern = compile_simple_regexes(TSimpleRegex(r) for r in from_tables)
+    else:
+        # Match all
+        table_pattern = compile_simple_regex(TSimpleRegex("re:.*"))
+
+    columns = set(columns or [])
+    if columns:
+        columns_pattern = compile_simple_regexes(TSimpleRegex(r) for r in columns)
+    else:
+        # Match nothing
+        columns_pattern = compile_simple_regex(TSimpleRegex("re:.*"))
+
+    # Collect columns to drop grouped by table
+    warnings: List[str] = []
+    from_tables_drop_cols: List[_FromTableDropCols] = []
+    affected_schema_table_names: List[str] = []
+
+    for table in potentially_affected_data_tables:
+        table_name = table["name"]
+        if table_pattern.match(table_name):
+            table_columns = table["columns"]
+            matched_droppable_cols, can_drop = _get_matched_droppable_columns(
+                table_columns, columns_pattern
+            )
+
+            if not can_drop and len(matched_droppable_cols) > 0:
+                warning = (
+                    f"""After dropping matched droppable columns {matched_droppable_cols} from table '{table_name}'"""
+                    " only internal dlt columns will remain. This is not allowed."
+                )
+                warnings.append(warning)
+                continue
+
+            drop_cols = [
+                schema.tables[table_name]["columns"].pop(col)["name"]
+                for col in matched_droppable_cols
+            ]
+
+            if drop_cols:
+                from_tables_drop_cols.append({"from_table": table_name, "drop_columns": drop_cols})
+                affected_schema_table_names.append(table_name)
+
+    affected_data_table_names = [item["from_table"] for item in from_tables_drop_cols]
+    affected_data_tables = [
+        schema.get_table(table_name) for table_name in affected_data_table_names
+    ]
+    affected_resource_names = list(
+        set(
+            [
+                affected_table["resource"]
+                for affected_table in affected_data_tables
+                if "resource" in affected_table  # This means it's a child table
+            ]
+        )
+    )
+    drop_columns = bool(from_tables_drop_cols)
+
+    info: _DropInfo = dict(
+        tables=affected_schema_table_names,
+        tables_with_data=affected_data_table_names,
+        resource_states=[],
+        state_paths=[],
+        resource_names=affected_resource_names,
+        schema_name=schema.name,
+        drop_all=False,
+        resource_pattern=resource_pattern,
+        warnings=warnings,
+        drop_columns=drop_columns,
+    )
+
+    return _DropResult(schema, info, affected_data_tables, None, from_tables_drop_cols)

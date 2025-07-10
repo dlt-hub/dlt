@@ -9,6 +9,7 @@ from typing import (
     List,
     Dict,
     Set,
+    cast,
 )
 from contextlib import contextmanager
 from functools import wraps
@@ -311,6 +312,23 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         for table in tables:
             tbl = sa.Table(table, self.metadata, schema=self.dataset_name, keep_existing=True)
             self.execute_sql(sa.schema.DropTable(tbl, if_exists=True))
+
+    def drop_columns(self, from_tables_drop_cols: List[Dict[str, Union[str, List[str]]]]) -> None:
+        for from_table_drop_cols in from_tables_drop_cols:
+            table_name = cast(str, from_table_drop_cols["from_table"])
+            drop_columns = from_table_drop_cols["drop_columns"]
+
+            # Reflect current table definition to fetch existing columns
+            tbl = self.reflect_table(table_name)
+            existing_cols = {col.name for col in tbl.columns}
+
+            for column in drop_columns:
+                if column in existing_cols:
+                    ddl = (
+                        f"ALTER TABLE {self.make_qualified_table_name(table_name)} "
+                        f"DROP COLUMN {self.escape_column_name(column)}"
+                    )
+                    self.execute_sql(ddl)
 
     def execute_sql(
         self, sql: Union[AnyStr, sa.sql.Executable], *args: Any, **kwargs: Any
