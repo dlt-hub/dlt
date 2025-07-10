@@ -26,11 +26,12 @@ from typing_extensions import NotRequired
 from dlt.common.typing import TypedDict, get_args, DictStrAny, SupportsHumanize
 from dlt.common.pendulum import pendulum
 from dlt.common.json import json
-from dlt.common.configuration import configspec
+from dlt.common.configuration import configspec, with_config
 from dlt.common.configuration.specs import ContainerInjectableContext
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.container import Container
 from dlt.common.data_writers import DataWriter, new_file_id
+from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema, TSchemaTables
@@ -722,22 +723,27 @@ class PackageStorage:
         return json.loads(self.storage.load(schema_path))  # type: ignore[no-any-return]
 
     @staticmethod
+    @with_config(spec=BufferedDataWriterConfiguration, sections=("normalize",))
     def build_job_file_name(
         table_name: str,
         file_id: str,
         retry_count: int = 0,
         validate_components: bool = True,
         loader_file_format: TLoaderFileFormat = None,
+        disable_compression: Optional[bool] = None,
+        disable_extension: Optional[bool] = None,
     ) -> str:
-        from dlt.destinations.utils import is_compression_disabled
-
         if validate_components:
             FileStorage.validate_file_name_component(table_name)
         fn = f"{table_name}.{file_id}.{int(retry_count)}"
         if loader_file_format:
             format_spec = DataWriter.writer_spec_from_file_format(loader_file_format, "object")
             fn += f".{format_spec.file_extension}"
-            if not is_compression_disabled() and format_spec.supports_compression:
+            if (
+                format_spec.supports_compression
+                and (disable_compression in [None, False])
+                and (disable_extension not in [None, True])
+            ):
                 fn += ".gz"
         return fn
 

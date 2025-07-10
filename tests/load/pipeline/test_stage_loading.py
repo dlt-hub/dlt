@@ -60,7 +60,7 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
         remote_url = job_metrics.remote_url
         job_ext = os.path.splitext(job_metrics.job_id)[1]
         if job_ext not in (".reference", ".sql"):
-            assert remote_url.endswith(job_ext) or remote_url.endswith(job_ext + ".gz")
+            assert remote_url.endswith(job_ext)
             bucket_uri = destination_config.bucket_url
             if FilesystemConfiguration.is_local_path(bucket_uri):
                 bucket_uri = FilesystemConfiguration.make_file_url(bucket_uri)
