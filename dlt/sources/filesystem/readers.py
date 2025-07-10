@@ -7,6 +7,8 @@ from dlt.sources.filesystem import FileItemDict
 
 from .helpers import fetch_arrow, fetch_json
 
+__source_name__ = "filesystem"
+
 
 def _read_csv(
     items: Iterator[FileItemDict], chunksize: int = 10000, **pandas_kwargs: Any
