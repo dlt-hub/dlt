@@ -6,9 +6,10 @@ import dlt
 from typing import Union, List, Any, overload, Iterator
 
 from dlt.common.storages.fsspec_filesystem import FileItemDict
-from dlt.extract import DltResource
 from dlt.common.pipeline import SupportsPipeline
 from dlt.common.utils import custom_environ
+
+from dlt.extract import DltResource
 
 
 @dlt.transformer()
@@ -16,19 +17,38 @@ def import_transformer(items: Iterator[FileItemDict], temp_dir: str) -> Any:
     for item in items:
         if isinstance(item, FileItemDict):
             url = urlparse(item["file_url"])
-            ext = url.path.split(".")[-1]
             # local files can be imported directly
             if url.scheme == "file":
-                yield dlt.mark.with_file_import(item.local_file_path, ext, 0)  # type: ignore[arg-type]
+                local_file_path = item.local_file_path
             else:
                 # remote files need to be downloaded to a temp directory
-                local_path = os.path.join(temp_dir, os.path.basename(item["file_url"]))
-                with open(local_path, "wb") as f:
-                    f.write(item.read_bytes())
-                yield dlt.mark.with_file_import(local_path, ext, 0)  # type: ignore[arg-type]
+                local_file_path = os.path.join(temp_dir, os.path.basename(item["file_url"]))
+                with open(local_file_path, "wb") as f:
+                    if file_content := item.get("file_content", None):
+                        f.write(file_content)
+                    else:
+                        f.write(item.read_bytes())
         elif isinstance(item, str):
-            ext = os.path.splitext(item)[1][1:]
-            yield dlt.mark.with_file_import(item, ext, 0)
+            local_file_path = item
+
+        print("ITERATE")
+        print(local_file_path)
+
+        ext = os.path.splitext(local_file_path)[1][1:]
+        if ext not in [
+            "jsonl",
+            "typed-jsonl",
+            "insert_values",
+            "parquet",
+            "csv",
+            "reference",
+            "model",
+        ]:
+            continue
+
+        print(local_file_path)
+
+        yield dlt.mark.with_file_import(local_file_path, ext, 0)  # type: ignore[arg-type]
 
 
 @overload
@@ -63,7 +83,7 @@ def copy_files(  # type: ignore[misc]
         run_kwargs: The kwargs to pass to the pipeline.run method.
     """
 
-    if not pipeline.destination.destination_type != "dlt.destinations.filesystem":
+    if pipeline.destination.destination_type != "dlt.destinations.filesystem":
         raise ValueError(
             "Filecopy pipeline must have a filesystem destination attached. Found: "
             + pipeline.destination.destination_type
@@ -77,7 +97,10 @@ def copy_files(  # type: ignore[misc]
 
     # add import transformer to the resource
     if isinstance(items, DltResource):
+        # pipe through transformer and forward table name
+        table_name = items.table_name
         items = items | import_transformer(temp_dir)
+        items = items.with_name(table_name)
     else:
         raise ValueError("Invalid resource parameter type: " + type(items))
 

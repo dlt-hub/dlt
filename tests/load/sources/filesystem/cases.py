@@ -8,6 +8,19 @@ TESTS_BUCKET_URLS = [
     if not bucket_url.startswith("memory")
 ]
 
+CSV_GLOB_RESULT = {
+    "glob": "**/*.csv",
+    "relative_paths": [
+        "csv/freshman_kgs.csv",
+        "csv/freshman_lbs.csv",
+        "csv/mlb_players.csv",
+        "csv/mlb_teams_2012.csv",
+        "met_csv/A801/A881_20230920.csv",
+        "met_csv/A803/A803_20230919.csv",
+        "met_csv/A803/A803_20230920.csv",
+    ],
+}
+
 GLOB_RESULTS = [
     {
         "glob": None,
@@ -25,18 +38,7 @@ GLOB_RESULTS = [
             "parquet/mlb_players.parquet",
         ],
     },
-    {
-        "glob": "**/*.csv",
-        "relative_paths": [
-            "csv/freshman_kgs.csv",
-            "csv/freshman_lbs.csv",
-            "csv/mlb_players.csv",
-            "csv/mlb_teams_2012.csv",
-            "met_csv/A801/A881_20230920.csv",
-            "met_csv/A803/A803_20230919.csv",
-            "met_csv/A803/A803_20230920.csv",
-        ],
-    },
+    CSV_GLOB_RESULT,
     {
         "glob": "*/*.csv",
         "relative_paths": [
