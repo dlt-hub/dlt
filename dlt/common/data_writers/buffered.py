@@ -24,17 +24,19 @@ def new_file_id() -> str:
     return uniq_id(5)
 
 
+@configspec
+class BufferedDataWriterConfiguration(BaseConfiguration):
+    buffer_max_items: int = 5000
+    file_max_items: Optional[int] = None
+    file_max_bytes: Optional[int] = None
+    disable_compression: Optional[bool] = None
+    disable_extension: Optional[bool] = None
+    _caps: Optional[DestinationCapabilitiesContext] = None
+
+    __section__: ClassVar[str] = known_sections.DATA_WRITER
+
+
 class BufferedDataWriter(Generic[TWriter]):
-    @configspec
-    class BufferedDataWriterConfiguration(BaseConfiguration):
-        buffer_max_items: int = 5000
-        file_max_items: Optional[int] = None
-        file_max_bytes: Optional[int] = None
-        disable_compression: bool = False
-        _caps: Optional[DestinationCapabilitiesContext] = None
-
-        __section__: ClassVar[str] = known_sections.DATA_WRITER
-
     @with_config(spec=BufferedDataWriterConfiguration)
     def __init__(
         self,
@@ -44,7 +46,8 @@ class BufferedDataWriter(Generic[TWriter]):
         buffer_max_items: int = 5000,
         file_max_items: int = None,
         file_max_bytes: int = None,
-        disable_compression: bool = False,
+        disable_compression: Optional[bool] = None,
+        disable_extension: Optional[bool] = None,
         _caps: DestinationCapabilitiesContext = None,
     ):
         self.writer_spec = writer_spec
@@ -65,8 +68,11 @@ class BufferedDataWriter(Generic[TWriter]):
         self.file_max_items = file_max_items
         # the open function is either gzip.open or open
         self.open = (
-            gzip.open if self.writer_spec.supports_compression and not disable_compression else open
+            gzip.open
+            if self.writer_spec.supports_compression and disable_compression in [None, False]
+            else open
         )
+        self.disable_extension = True if disable_extension in [None, True] else False
 
         self._current_columns: TTableSchemaColumns = None
         self._file_name: str = None
@@ -181,11 +187,6 @@ class BufferedDataWriter(Generic[TWriter]):
             self._closed = True
 
     @property
-    def _is_compression_enabled(self) -> bool:
-        """Returns True if compression is enabled for this writer"""
-        return self.writer_spec.supports_compression and self.open == gzip.open
-
-    @property
     def closed(self) -> bool:
         return self._closed
 
@@ -242,8 +243,8 @@ class BufferedDataWriter(Generic[TWriter]):
         base_filename = self.file_name_template % new_file_id()
         file_extension = self.writer_spec.file_extension
 
-        # Add .gz if compression is enabled
-        if self._is_compression_enabled:
+        # Add .gz if compression and extension is enabled
+        if self.open == gzip.open and not self.disable_extension:
             self._file_name = f"{base_filename}.{file_extension}.gz"
         else:
             self._file_name = f"{base_filename}.{file_extension}"

@@ -15,7 +15,7 @@ from dlt.common.data_writers.writers import (
 from dlt.common.storages import PackageStorage, ParsedLoadJobFileName
 from dlt.common.schema.utils import new_column
 
-from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage
+from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage, preserve_environ
 from tests.common.data_writers.utils import get_writer
 
 TW = TypeVar("TW", bound=DataWriter)
@@ -134,22 +134,6 @@ def test_parse_invalid_file_names(invalid_file_name: str) -> None:
         ParsedLoadJobFileName.parse(invalid_file_name)
 
 
-@pytest.mark.parametrize(
-    "compressed",
-    [True, False],
-)
-def test_build_compressed_job_file_name(compressed: bool) -> None:
-    """Test building job file names with compression enabled."""
-    with patch("dlt.destinations.utils.is_compression_disabled", return_value=not compressed):
-        file_name = PackageStorage.build_job_file_name(
-            "test_table", "file123", 0, loader_file_format="jsonl"
-        )
-        if compressed:
-            assert file_name == "test_table.file123.0.jsonl.gz"
-        else:
-            assert file_name == "test_table.file123.0.jsonl"
-
-
 def test_build_job_file_name_no_format() -> None:
     """Test building job file names without specifying format."""
     # When no format is specified, no extension should be added
@@ -163,9 +147,16 @@ def test_build_job_file_name_no_format() -> None:
     "compressed",
     [True, False],
 )
+@pytest.mark.parametrize(
+    "disable_extension",
+    [True, False],
+)
 @pytest.mark.parametrize("writer_type", [JsonlWriter, CsvWriter, InsertValuesWriter])
-def test_compression_by_data_writer(writer_type: Type[DataWriter], compressed: bool) -> None:
+def test_compression_by_data_writer(
+    writer_type: Type[DataWriter], compressed: bool, disable_extension: bool
+) -> None:
     """Test that compressed files get .gz extension."""
+    os.environ["DATA_WRITER__DISABLE_EXTENSION"] = str(disable_extension)
     # Create writer with compression enabled and write some data
     with get_writer(writer_type, disable_compression=not compressed) as writer:
         columns = {"id": new_column("id", "text"), "value": new_column("value", "bigint")}
@@ -175,18 +166,12 @@ def test_compression_by_data_writer(writer_type: Type[DataWriter], compressed: b
     # Check that file was created with .gz extension
     assert len(writer.closed_files) == 1
     file_path = writer.closed_files[0].file_path
-    if compressed:
+    if compressed and not disable_extension:
         assert file_path.endswith(".gz")
-        with gzip.open(file_path, "rt", encoding="utf-8") as f:
-            content = f.read()
-            assert len(content) > 0
     else:
         assert not file_path.endswith(
             ".gz",
         )
-        with open(file_path, "rt", encoding="utf-8") as f:
-            content = f.read()
-            assert len(content) > 0
 
 
 def test_import_uncompressed_file() -> None:

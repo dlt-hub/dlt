@@ -292,3 +292,20 @@ def get_table_prefix_layout(
         )
 
     return prefix
+
+
+def get_file_format_compression(file_path: str) -> Tuple[str, bool]:
+    """Return file format and whether an explicit .gz compression extension is present."""
+    root, ext = os.path.splitext(file_path)
+
+    file_format: str = None
+    compression_ext: bool = False
+
+    if ext == ".gz":
+        compression_ext = True
+        _, ext = os.path.splitext(root)
+        file_format = ext[1:]  # remove the dot
+    else:
+        file_format = ext[1:]  # remove the dot
+
+    return file_format, compression_ext

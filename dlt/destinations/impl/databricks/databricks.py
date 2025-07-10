@@ -14,11 +14,13 @@ from dlt.common.destination.client import (
     SupportsStagingDestination,
     LoadJob,
 )
+from dlt.common.configuration import with_config
 from dlt.common.configuration.specs import (
     AwsCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
 from dlt.common.exceptions import TerminalValueError
+from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration
 from dlt.common.storages.configuration import ensure_canonical_az_url
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.storages.fsspec_filesystem import (
@@ -26,7 +28,6 @@ from dlt.common.storages.fsspec_filesystem import (
     S3_PROTOCOLS,
     GCS_PROTOCOLS,
 )
-from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.schema import TColumnSchema, Schema
 from dlt.common.schema.typing import TColumnType
 from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
@@ -38,19 +39,23 @@ from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.utils import is_compression_disabled
+from dlt.destinations.path_utils import get_file_format_compression
 
 SUPPORTED_BLOB_STORAGE_PROTOCOLS = AZURE_BLOB_STORAGE_PROTOCOLS + S3_PROTOCOLS + GCS_PROTOCOLS
 
 
 class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
+    @with_config(spec=BufferedDataWriterConfiguration, sections=("normalize",))
     def __init__(
         self,
         file_path: str,
         staging_config: FilesystemConfiguration,
+        disable_compression: Optional[bool] = None,
     ) -> None:
         super().__init__(file_path)
         self._staging_config = staging_config
         self._job_client: "DatabricksClient" = None
+        self._disable_compression = disable_compression
 
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client
@@ -219,15 +224,15 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
     def _determine_source_format(
         self, file_name: str, orig_bucket_path: str
     ) -> tuple[str, str, bool]:
-        file_format = os.path.splitext(file_name)[1][1:]
-        if file_format == "gz":
-            file_format = os.path.splitext(os.path.splitext(file_name)[0])[1][1:]
+        file_format, compression_ext = get_file_format_compression(file_name)
 
         if file_format == "parquet":
             return "PARQUET", "", False
 
         elif file_format in ["jsonl", "typed-jsonl"]:
-            if not is_compression_disabled():
+            # NOTE: compression might be enabled without compression extension,
+            # so we check if disable_compression is explicitly set to False
+            if compression_ext or self._disable_compression is False:
                 raise LoadJobTerminalException(
                     self._file_path,
                     "Databricks loader does not support gzip compressed JSON files. "
