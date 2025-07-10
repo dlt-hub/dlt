@@ -77,6 +77,11 @@ class ReadableDBAPIDataset(Dataset):
         return self._schema
 
     @property
+    def tables(self) -> list[str]:
+        self._ensure_schema()
+        return list(self._schema.tables.keys())
+
+    @property
     def sqlglot_schema(self) -> SQLGlotSchema:
         # NOTE: no cache for now, it is probably more expensive to compute the current schema hash
         # to see wether this is stale than to compute a new sqlglot schema
@@ -271,6 +276,9 @@ class ReadableDBAPIDataset(Dataset):
     def __getattr__(self, table_name: str) -> Relation:
         """access of table via property notation"""
         return self.table(table_name)
+
+    def _ipython_key_completions_(self) -> list[str]:
+        return self.tables
 
     def __enter__(self) -> Self:
         """Context manager used to open and close sql client and internal connection"""

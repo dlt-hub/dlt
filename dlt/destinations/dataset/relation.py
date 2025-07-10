@@ -164,6 +164,10 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
         return self._wrap_iter("iter_fetch")(*args, **kwargs)
 
     @property
+    def columns(self) -> list[str]:
+        return list(self.columns_schema.keys())
+
+    @property
     def columns_schema(self) -> TTableSchemaColumns:
         if self._columns_schema is None:
             self._columns_schema, self.__qualified_query = self._compute_columns_schema()
@@ -471,10 +475,9 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
         elif isinstance(columns, Sequence):
             return self.select(*columns)
 
-        raise TypeError(
-            f"Received invalid value `columns={columns}` of type"
-            f" {type(columns).__name__}`. Valid types are: ['Sequence[str]']"
-        )
+
+    def _ipython_key_completions_(self) -> list[str]:
+        return self.columns
 
     #
     # Builtins
