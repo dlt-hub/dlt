@@ -1,4 +1,4 @@
-from typing import Any, List, Dict
+from typing import Any, List, Dict, Union
 from contextlib import nullcontext as does_not_raise
 import pytest
 
@@ -10,10 +10,81 @@ from dlt.common.schema.utils import (
     compile_simple_regexes,
 )
 from dlt.common.schema.typing import TSimpleRegex, DLT_NAME_PREFIX
+from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from tests.load.pipeline.test_drop import droppable_source
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.pipeline.utils import assert_load_info, load_table_counts
+from dlt.pipeline.drop import _FromTableDropCols
+
+
+def assert_dropped_columns(pipeline: Pipeline, must_drop_infos: List[_FromTableDropCols]):
+    # Verify requested columns are dropped from destination
+    client: SqlJobClientBase
+    with pipeline.destination_client(pipeline.default_schema_name) as client:  # type: ignore
+        assert client.is_storage_initialized()
+        for must_drop_info in must_drop_infos:
+            from_table = must_drop_info["from_table"]
+            dropped_columns = must_drop_info["drop_columns"]
+
+            physical_columns: Union[Any] = None
+
+            # Check if this is a filesystem client with open table support
+            if hasattr(client, "is_open_table") and hasattr(client, "load_open_table"):
+                if client.is_open_table("iceberg", from_table):
+                    ice_tbl = client.load_open_table("iceberg", from_table)
+                    physical_columns = [field.name for field in ice_tbl.schema().fields]
+                elif client.is_open_table("delta", from_table):
+                    delta_tbl = client.load_open_table("delta", from_table)
+                    physical_columns = [f.name for f in delta_tbl.schema().fields]
+                else:
+                    # For regular filesystem tables, verify by reading actual data files
+                    if hasattr(client, "list_table_files"):
+                        table_files = client.list_table_files(from_table)
+                        physical_columns = _get_columns_from_data_files(client, table_files)
+            else:
+                # Fallback: information schema coming from destination
+                col_schema = list(client.get_storage_tables([from_table]))[0][1]
+                physical_columns = (
+                    list(col_schema.keys()) if isinstance(col_schema, dict) else list(col_schema)
+                )
+
+            assert all(dropped_col not in physical_columns for dropped_col in dropped_columns)
+
+
+def _get_columns_from_data_files(client: Any, table_files: List[str]) -> List[str]:
+    """Get actual columns from data files by reading the first file."""
+    import os
+
+    if not table_files:
+        return []
+
+    # Use the first file to get column names
+    first_file = table_files[0]
+    file_ext = os.path.splitext(first_file)[1].lower()
+
+    if file_ext == ".parquet":
+        from dlt.common.libs.pyarrow import pyarrow as pa
+
+        table = pa.parquet.read_table(client.make_remote_url(first_file))
+        return list(table.column_names)
+
+    elif file_ext == ".jsonl":
+        content = client.fs_client.read_text(first_file, encoding="utf-8")
+        lines = content.strip().split("\n")
+        if lines and lines[0].strip():
+            import json
+
+            record = json.loads(lines[0])
+            return list(record.keys())
+
+    elif file_ext == ".csv":
+        from dlt.common.libs.pyarrow import pyarrow as pa
+
+        table = pa.csv.read_csv(client.make_remote_url(first_file))
+        return list(table.column_names)
+
+    return []
 
 
 @pytest.mark.parametrize(
@@ -28,11 +99,6 @@ from tests.pipeline.utils import assert_load_info, load_table_counts
 )
 def test_drop_column_command_resources(destination_config: DestinationTestConfiguration) -> None:
     """Test the drop command with resource and verify correct data is deleted from destination"""
-    if (
-        destination_config.destination_type == "athena"
-        and destination_config.table_format != "iceberg"
-    ):
-        pytest.skip()
     source: Any = droppable_source()
 
     pipeline = destination_config.setup_pipeline(
@@ -90,6 +156,8 @@ def test_drop_column_command_resources(destination_config: DestinationTestConfig
         for dropped_col in must_drop_info["drop_columns"]:
             assert dropped_col not in remaining_cols
 
+    assert_dropped_columns(pipeline, must_drop_infos)
+
 
 @pytest.mark.parametrize(
     "destination_config",
@@ -123,3 +191,4 @@ def test_drop_column_from_child_table(destination_config: DestinationTestConfigu
 
     assert "m" not in pipeline.default_schema.get_table_columns("droppable_b__items")
     assert original_parent_tbl_cols == pipeline.default_schema.get_table_columns("droppable_b")
+    assert_dropped_columns(pipeline, must_drop_infos)

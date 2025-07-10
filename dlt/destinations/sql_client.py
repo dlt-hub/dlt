@@ -150,7 +150,7 @@ SELECT 1
             table = cast(str, from_table_drop_cols["from_table"])
             for column in from_table_drop_cols["drop_columns"]:
                 statements.append(
-                    f"ALTER TABLE {self.make_qualified_table_name(table)} DROP COLUMN IF EXISTS"
+                    f"ALTER TABLE {self.make_qualified_table_name(table)} DROP COLUMN"
                     f" {self.escape_column_name(column)};"
                 )
 

@@ -1,17 +1,5 @@
 from contextlib import contextmanager, suppress
-from typing import (
-    Any,
-    AnyStr,
-    ClassVar,
-    Iterator,
-    Optional,
-    Sequence,
-    List,
-    Tuple,
-    cast,
-    Dict,
-    Union,
-)
+from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, List, Tuple
 
 import pyarrow
 
@@ -101,20 +89,6 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
         # Multi statement exec is safe and the error can be ignored since all tables are in the same schema.
         with suppress(DatabaseUndefinedRelation):
             super().drop_tables(*tables)
-
-    def drop_columns(self, from_tables_drop_cols: List[Dict[str, Union[str, List[str]]]]) -> None:
-        """Drops specified columns from specified tables if they exist"""
-
-        statements = []
-        for from_table_drop_cols in from_tables_drop_cols:
-            table = cast(str, from_table_drop_cols["from_table"])
-            for column in from_table_drop_cols["drop_columns"]:
-                statements.append(
-                    f"ALTER TABLE {self.make_qualified_table_name(table)} DROP COLUMN "
-                    f" {self.escape_column_name(column)};"
-                )
-
-        self.execute_many(statements)
 
     def execute_sql(
         self, sql: AnyStr, *args: Any, **kwargs: Any

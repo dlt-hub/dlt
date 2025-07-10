@@ -185,7 +185,7 @@ def _init_dataset_and_update_schema(
                 f"Client for {job_client.config.destination_type} will drop columns"
                 f" from tables {table_names} {staging_text}"
             )
-            job_client.drop_columns(from_tables_drop_cols, delete_schema=True)
+            job_client.drop_columns(from_tables_drop_cols, update_schema=True)
         else:
             logger.warning(
                 f"Client for {job_client.config.destination_type} does not implement drop columns."

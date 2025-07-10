@@ -333,7 +333,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     def drop_columns(
         self,
         from_tables_drop_cols: List[Dict[str, Union[str, List[str]]]],
-        delete_schema: bool = True,
+        update_schema: bool = True,
     ) -> None:
         """Drop columns in destination database and optionally delete the stored schema as well.
         Clients that support ddl transactions will have both operations performed in a single transaction.
@@ -345,8 +345,8 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         """
         with self.maybe_ddl_transaction():
             self.sql_client.drop_columns(from_tables_drop_cols)
-            if delete_schema:
-                self._delete_schema_in_storage(self.schema)
+            if update_schema:
+                self._update_schema_in_storage(self.schema)
 
     @contextlib.contextmanager
     def maybe_ddl_transaction(self) -> Iterator[None]:
