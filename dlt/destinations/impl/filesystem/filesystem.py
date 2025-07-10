@@ -449,8 +449,8 @@ class FilesystemClient(
         dirs_to_create = self.get_table_dirs(table_names)
         for tables_name, directory in zip(table_names, dirs_to_create):
             is_dlt_table = tables_name in self.schema.dlt_table_names()
-            # skip dlt table folders if experimental_exclude_dlt_tables is set
-            if is_dlt_table and self.config.experimental_exclude_dlt_tables:
+            # skip dlt table folders if _experimental_exclude_dlt_tables is set
+            if is_dlt_table and self.config._experimental_exclude_dlt_tables:
                 continue
 
             self.fs_client.makedirs(directory, exist_ok=True)
@@ -458,10 +458,10 @@ class FilesystemClient(
             if is_dlt_table:
                 self.fs_client.touch(self.pathlib.join(directory, INIT_FILE_NAME))
 
-        # don't store schema when used as staging or when experimental_exclude_dlt_tables is set
+        # don't store schema when used as staging or when _experimental_exclude_dlt_tables is set
         if (
             not self.config.as_staging_destination
-            and not self.config.experimental_exclude_dlt_tables
+            and not self.config._experimental_exclude_dlt_tables
         ):
             # check if schema with hash exists
             current_hash = self.schema.stored_version_hash
@@ -649,7 +649,7 @@ class FilesystemClient(
     def _store_load(self, load_id: str) -> None:
         # write entry to load "table"
         # TODO: this is also duplicate across all destinations. DRY this.
-        if self.config.experimental_exclude_dlt_tables:
+        if self.config._experimental_exclude_dlt_tables:
             return
         load_data = {
             C_DLT_LOADS_TABLE_LOAD_ID: load_id,
@@ -708,7 +708,7 @@ class FilesystemClient(
 
     def _store_current_state(self, load_id: str) -> None:
         # don't save the state this way when used as staging
-        if self.config.as_staging_destination or self.config.experimental_exclude_dlt_tables:
+        if self.config.as_staging_destination or self.config._experimental_exclude_dlt_tables:
             return
 
         # get state doc from current pipeline
