@@ -5,9 +5,11 @@ import os
 
 import dlt
 from dlt.common import pendulum
+from dlt.common.libs.sql_alchemy import Table
+
 from dlt.sources.credentials import ConnectionStringCredentials
 
-from dlt.sources.sql_database import sql_database, sql_table, Table
+from dlt.sources.sql_database import sql_database, sql_table
 
 from sqlalchemy.sql.sqltypes import TypeEngine
 import sqlalchemy as sa
