@@ -258,7 +258,7 @@ class FileItemDict(DictStrAny):
             IOBase: The fsspec file.
         """
         if compression == "auto":
-            compression_arg = "gzip" if self["encoding"] == "gzip" else None
+            compression_arg = "gzip" if self.get("encoding") == "gzip" else None
         elif compression == "enable":
             compression_arg = "gzip"
         elif compression == "disable":

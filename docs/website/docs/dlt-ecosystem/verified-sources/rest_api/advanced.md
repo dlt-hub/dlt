@@ -151,7 +151,7 @@ This is an experimental feature and may change in future releases.
   - a list of callables, each accepting and returning the response object.
 
 
-#### Example A
+### Example A
 
 ```py
 {
@@ -166,7 +166,7 @@ This is an experimental feature and may change in future releases.
 
 In this example, the source will ignore responses with a status code of 404, responses with the content "Not found", and responses with a status code of 200 _and_ content "some text".
 
-#### Example B
+### Example B
 
 ```py
 from requests.models import Response
@@ -213,7 +213,7 @@ source_config = {
 
 In this example, the resource will set the correct encoding for all responses first. Thereafter, for all responses that have the status code 200, we will add a field `custom_field` and remove the field `email`.
 
-#### Example C
+### Example C
 
 ```py
 def set_encoding(response, *args, **kwargs):
@@ -241,3 +241,22 @@ source_config = {
 
 In this example, the resource will set the correct encoding for all responses. More callables can be added to the list of response_actions.
 
+
+## Setup timeouts and retry strategies
+`rest_api` uses `dlt` [custom sessions](../../../general-usage/http/requests.md) and [`RESTClient`](../../../general-usage/http/rest-client.md) to access http(s) endpoints. You can use them to configure timeout, retries and other aspects. For example:
+```py
+from dlt.sources.helpers import requests
+
+source_config = {
+    "client": {
+        "session": requests.Client(request_timeout=(1.0, 1.0), request_max_attempts=0)
+    },
+}
+```
+will set-up all endpoints to use a short connect and read timeouts with no retries.
+Most settings [can be configured](../../../general-usage/http/requests.md#customizing-retry-settings) using `toml` files or environment variables.
+
+:::note
+By default, we set connection timeout and read timeout to 60 seconds, with
+5 retry attempts without backoff.
+:::

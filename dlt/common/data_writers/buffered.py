@@ -11,7 +11,7 @@ from dlt.common.data_writers.exceptions import (
     FileImportNotFound,
     InvalidFileNameTemplateException,
 )
-from dlt.common.data_writers.writers import TWriter, DataWriter, FileWriterSpec
+from dlt.common.data_writers.writers import TWriter, DataWriter, FileWriterSpec, count_rows_in_items
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.configuration import with_config, known_sections, configspec
 from dlt.common.configuration.specs import BaseConfiguration
@@ -100,7 +100,12 @@ class BufferedDataWriter(Generic[TWriter]):
         if columns is not None:
             self._current_columns = dict(columns)
         # add item to buffer and count new rows
-        new_rows_count = self._buffer_items_with_row_count(item)
+        new_rows_count = count_rows_in_items(item)
+        if isinstance(item, list):
+            # items coming in a single list will be written together, no matter how many there are
+            self._buffered_items.extend(item)
+        else:
+            self._buffered_items.append(item)
         self._buffered_items_count += new_rows_count
         # set last modification date
         self._last_modified = time.time()
@@ -205,26 +210,6 @@ class BufferedDataWriter(Generic[TWriter]):
             # raise the on close exception if we are not handling another exception
             if not in_exception:
                 raise
-
-    def _buffer_items_with_row_count(self, item: TDataItems) -> int:
-        """Adds `item` to in-memory buffer and counts new rows, depending in item type"""
-        new_rows_count: int
-        if isinstance(item, List):
-            # update row count, if item supports "num_rows" it will be used to count items
-            if len(item) > 0 and hasattr(item[0], "num_rows"):
-                new_rows_count = sum(tbl.num_rows for tbl in item)
-            else:
-                new_rows_count = len(item)
-            # items coming in a single list will be written together, no matter how many there are
-            self._buffered_items.extend(item)
-        else:
-            self._buffered_items.append(item)
-            # update row count, if item supports "num_rows" it will be used to count items
-            if hasattr(item, "num_rows"):
-                new_rows_count = item.num_rows
-            else:
-                new_rows_count = 1
-        return new_rows_count
 
     def _rotate_file(self, allow_empty_file: bool = False) -> DataWriterMetrics:
         metrics = self._flush_and_close_file(allow_empty_file)
