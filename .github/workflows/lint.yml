@@ -56,6 +56,7 @@ jobs:
           filesizelimit: 50000
           exclusionPatterns: |
             **/*.py
+            **/*.md
 
   matrix_job_required_check:
     name: lint | code & tests
