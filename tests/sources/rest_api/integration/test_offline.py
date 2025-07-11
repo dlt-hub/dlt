@@ -1510,3 +1510,98 @@ def test_client_headers_are_not_interpolated(mock_api_server):
     assert request_call.headers["X-Static-Header"] == "static-value"
     assert request_call.headers["X-Not-Interpolated"] == "{resources.posts.id}"
     assert request_call.headers["X-Escaped"] == "{{literal_braces}}"
+
+
+def test_secret_redaction_in_logs_and_errors(mock_api_server, mocker):
+    from dlt.sources.helpers.rest_client.client import RESTClient
+
+    mock_api_server.get("https://api.example.com/data", json=[{"id": 1, "data": "test"}])
+
+    # Mock logger
+    log_messages = []
+    original_log = RESTClient._send_request.__globals__["logger"].info
+
+    def capture_log(msg, *args):
+        log_messages.append(msg % args if args else msg)
+        original_log(msg, *args)
+
+    mocker.patch.object(
+        RESTClient._send_request.__globals__["logger"], "info", side_effect=capture_log
+    )
+
+    # API keys in URL should be redacted in logs
+    source = rest_api_source(
+        {
+            "client": {
+                "base_url": "https://api.example.com",
+            },
+            "resources": [
+                {
+                    "name": "protected_resource",
+                    "endpoint": {
+                        "path": "data",
+                        "params": {
+                            "api_key": "super_secret_key_12345",
+                            "token": "another_secret_token",
+                            "public_param": "visible_value",
+                        },
+                    },
+                }
+            ],
+        }
+    )
+
+    list(source.with_resources("protected_resource").add_limit(1))
+
+    assert any("api_key=***" in msg for msg in log_messages)
+    assert any("token=***" in msg for msg in log_messages)
+    assert any("public_param=visible_value" in msg for msg in log_messages)
+
+    assert not any("super_secret_key_12345" in msg for msg in log_messages)
+    assert not any("another_secret_token" in msg for msg in log_messages)
+
+
+def test_secret_redaction_in_http_errors(mock_api_server):
+    mock_api_server.get(
+        "https://api.example.com/missing", status_code=404, text="Resource not found"
+    )
+
+    source = rest_api_source(
+        {
+            "client": {
+                "base_url": "https://api.example.com",
+            },
+            "resources": [
+                {
+                    "name": "error_resource",
+                    "endpoint": {
+                        "path": "missing",
+                        "params": {
+                            "api_key": "secret_api_key_xyz",
+                            "access_token": "secret_token_abc",
+                            "normal_param": "public_value",
+                        },
+                    },
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(PipelineStepFailed) as exc_info:
+        pipeline = dlt.pipeline(
+            pipeline_name="test_pipeline",
+            destination="duckdb",
+        )
+        pipeline.run(source.with_resources("error_resource").add_limit(1))
+
+    error_str = str(exc_info.value)
+    assert "api_key=***" in error_str
+    assert "access_token=***" in error_str
+    assert "normal_param=public_value" in error_str
+
+    # Check that actual secrets are not exposed
+    assert "secret_api_key_xyz" not in error_str
+    assert "secret_token_abc" not in error_str
+
+    assert "404" in error_str
+    assert "Resource not found" in error_str
