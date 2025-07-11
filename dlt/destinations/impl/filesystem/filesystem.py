@@ -12,8 +12,6 @@ from typing import (
     Tuple,
     Sequence,
     cast,
-    Generator,
-    Literal,
     Any,
     Dict,
 )
@@ -28,7 +26,6 @@ from dlt.common.schema.typing import (
     C_DLT_LOADS_TABLE_LOAD_ID,
     TTableFormat,
     TTableSchemaColumns,
-    DLT_NAME_PREFIX,
 )
 from dlt.common.storages.exceptions import CurrentLoadPackageStateNotAvailable
 from dlt.common.storages.fsspec_filesystem import glob_files
@@ -96,7 +93,6 @@ class FilesystemLoadJob(RunnableLoadJob):
         # deeply nested directory will not exist before writing a file.
         # It `auto_mkdir` is disabled by default in fsspec so we made some
         # trade offs between different options and decided on this.
-        # remote_path = f"{client.config.protocol}://{posixpath.join(dataset_path, destination_file_name)}"
         remote_path = self.make_remote_path()
         if self.__is_local_filesystem:
             # use os.path for local file name
@@ -124,7 +120,7 @@ class FilesystemLoadJob(RunnableLoadJob):
         # pick local filesystem pathlib or posix for buckets
         pathlib = self._job_client.config.pathlib
         # path.join does not normalize separators and available
-        # normalization functions are very invasive and may string the trailing separator
+        # normalization functions are very invasive and may strip the trailing separator
         return pathlib.join(  # type: ignore[no-any-return]
             self._job_client.dataset_path,
             path_utils.normalize_path_sep(pathlib, destination_file_name),
@@ -287,12 +283,6 @@ class FilesystemClient(
         self.bucket_path = (
             config.make_local_path(config.bucket_url) if self.is_local_filesystem else fs_path
         )
-
-        # NOTE: we need to make checksum validation optional for boto to work with s3 compat mode
-        # https://www.beginswithdata.com/2025/05/14/aws-s3-tools-with-gcs/
-        os.environ["AWS_REQUEST_CHECKSUM_CALCULATION"] = "when_required"
-        os.environ["AWS_RESPONSE_CHECKSUM_VALIDATION"] = "when_required"
-
         # pick local filesystem pathlib or posix for buckets
         self.pathlib = os.path if self.is_local_filesystem else posixpath
 
@@ -374,8 +364,7 @@ class FilesystemClient(
         for table_name in table_names:
             table_dir = self.get_table_dir(table_name)
             if self.fs_client.exists(table_dir) and (
-                self.fs_client.exists(self.pathlib.join(table_dir, INIT_FILE_NAME))
-                or len(self.list_table_files(table_name)) > 0
+                self.is_dlt_table(table_name) or len(self.list_table_files(table_name)) > 0
             ):
                 if table_name in self.schema.tables:
                     yield (table_name, self.schema.get_table_columns(table_name))
@@ -444,14 +433,6 @@ class FilesystemClient(
         expected_update: TSchemaTables = None,
     ) -> TSchemaTables:
         applied_update = super().update_stored_schema(only_tables, expected_update)
-        # create destination dirs for all tables
-        table_names = only_tables or self.schema.tables.keys()
-        dirs_to_create = self.get_table_dirs(table_names)
-        for tables_name, directory in zip(table_names, dirs_to_create):
-            self.fs_client.makedirs(directory, exist_ok=True)
-            # we need to mark the folders of the data tables as initialized
-            if tables_name in self.schema.dlt_table_names():
-                self.fs_client.touch(self.pathlib.join(directory, INIT_FILE_NAME))
 
         # don't store schema when used as staging
         if not self.config.as_staging_destination:
@@ -462,6 +443,12 @@ class FilesystemClient(
                     f"Schema with hash {self.schema.stored_version_hash} not found in the storage."
                     " upgrading"
                 )
+                # create destination dirs for all tables
+                # TODO: find only tables with changes
+                table_names = only_tables or self.schema.tables.keys()
+                dirs_to_create = self.get_table_dirs(table_names)
+                for _, directory in zip(table_names, dirs_to_create):
+                    self.fs_client.makedirs(directory, exist_ok=True)
                 self._update_schema_in_storage(self.schema)
 
         # we assume that expected_update == applied_update so table schemas in dest were not
@@ -487,7 +474,7 @@ class FilesystemClient(
             )
             assert replace_strategy, f"Must be able to get replace strategy for {table_name}"
             table["x-replace-strategy"] = replace_strategy  # type: ignore[typeddict-unknown-key]
-        if table["name"].startswith(DLT_NAME_PREFIX):
+        if self.is_dlt_table(table["name"]):
             table.pop("table_format", None)
         return table
 
@@ -505,7 +492,7 @@ class FilesystemClient(
     def get_table_prefix(self, table_name: str) -> str:
         """For table prefixes that are folders, trailing separator will be preserved"""
         # dlt tables do not respect layout (for now)
-        if table_name.startswith(self.schema._dlt_tables_prefix):
+        if self.is_dlt_table(table_name):
             # dlt tables get layout where each tables is a folder
             # it is crucial to append and keep "/" at the end
             table_prefix = self.pathlib.join(table_name, "")
@@ -516,6 +503,9 @@ class FilesystemClient(
         return self.pathlib.join(  # type: ignore[no-any-return]
             self.dataset_path, path_utils.normalize_path_sep(self.pathlib, table_prefix)
         )
+
+    def is_dlt_table(self, table_name: str) -> bool:
+        return table_name.startswith(self.schema._dlt_tables_prefix)
 
     def get_table_dirs(self, table_names: Iterable[str], remote: bool = False) -> List[str]:
         """Gets directories where table data is stored."""
@@ -540,7 +530,7 @@ class FilesystemClient(
         for details in glob_files(self.fs_client, self.make_remote_url(table_dir), "**"):
             file = details["file_name"]
             filepath = self.pathlib.join(table_dir, details["relative_path"])
-            # skip INIT files
+            # skip INIT files, do not remove: backward compat
             if file == INIT_FILE_NAME:
                 continue
             for p in prefixes:
@@ -614,9 +604,6 @@ class FilesystemClient(
     #
 
     def _write_to_json_file(self, filepath: str, data: DictStrAny) -> None:
-        dirname = self.pathlib.dirname(filepath)
-        if not self.fs_client.isdir(dirname):
-            return
         self.fs_client.write_text(filepath, json.dumps(data), encoding="utf-8")
 
     def _to_path_safe_string(self, s: str) -> str:
@@ -627,9 +614,10 @@ class FilesystemClient(
         self, table_name: str, pipeline_name: str = None
     ) -> Iterator[Tuple[str, List[str]]]:
         dirname = self.get_table_dir(table_name)
-        if not self.fs_client.exists(self.pathlib.join(dirname, INIT_FILE_NAME)):
+        if not self.is_storage_initialized():
             raise DestinationUndefinedEntity({"dir": dirname})
-        for filepath in self.list_table_files(table_name):
+        all_files = self.list_table_files(table_name)
+        for filepath in all_files:
             filename = os.path.splitext(os.path.basename(filepath))[0]
             fileparts = filename.split(FILENAME_SEPARATOR)
             if len(fileparts) != 3:
@@ -861,8 +849,6 @@ class FilesystemClient(
 
         if table_format == "iceberg":
             catalog = self.get_open_table_catalog("iceberg")
-            # TODO: move all the fs related code (metadata search, path conversion) to here
-            # TODO: if table is not in the catalog, load the static table
             from dlt.common.libs.pyiceberg import evolve_table, NoSuchTableError
 
             table_id = f"{self.dataset_name}.{table_name}"

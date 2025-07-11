@@ -41,6 +41,13 @@ class AwsCredentialsWithoutDefaults(
         )
         if self.region_name:
             credentials["client_kwargs"] = {"region_name": self.region_name}
+        if self.endpoint_url:
+            # NOTE: we need to make checksum validation optional for boto to work with s3 compat mode
+            # https://www.beginswithdata.com/2025/05/14/aws-s3-tools-with-gcs/
+            credentials["config_kwargs"] = {
+                "response_checksum_validation": "when_required",
+                "request_checksum_calculation": "when_required",
+            }
         return credentials
 
     def to_native_representation(self) -> Dict[str, Optional[str]]:
@@ -100,8 +107,6 @@ class AwsCredentialsWithoutDefaults(
         credentials.aws_session_token = file_io.get("s3.session-token")
         credentials.region_name = file_io.get("s3.region")
         credentials.endpoint_url = file_io.get("s3.endpoint")
-        # if not credentials.is_partial():
-        #     credentials.resolve()
         return credentials
 
 
@@ -136,6 +141,7 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
         """
         try:
             import botocore.session
+            from botocore.config import Config
         except ModuleNotFoundError:
             raise MissingDependencyException(
                 self.__class__.__name__, [f"{version.DLT_PKG_NAME}[s3]"]
@@ -152,6 +158,13 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
             )
         if self.region_name is not None:
             session.set_config_variable("region", self.region_name)
+
+        if self.endpoint_url:
+            cfg = Config(
+                request_checksum_calculation="when_required",
+                response_checksum_validation="when_required",
+            )
+            session.set_default_client_config(cfg)
         return session
 
     def _from_session(self, session: Any) -> Any:

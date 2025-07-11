@@ -108,6 +108,7 @@ def fsspec_filesystem(
     credentials: FileSystemCredentials = None,
     kwargs: Optional[DictStrAny] = None,
     client_kwargs: Optional[DictStrAny] = None,
+    config_kwargs: Optional[DictStrAny] = None,
 ) -> Tuple[AbstractFileSystem, str]:
     """Instantiates an authenticated fsspec `FileSystem` for a given `protocol` and credentials.
 
@@ -120,7 +121,13 @@ def fsspec_filesystem(
     also see filesystem_from_config
     """
     return fsspec_from_config(
-        FilesystemConfiguration(protocol, credentials, kwargs=kwargs, client_kwargs=client_kwargs)
+        FilesystemConfiguration(
+            protocol,
+            credentials,
+            kwargs=kwargs,
+            client_kwargs=client_kwargs,
+            config_kwargs=config_kwargs,
+        )
     )
 
 
@@ -159,6 +166,9 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
 
     if "client_kwargs" in fs_kwargs and "client_kwargs" in credentials:
         fs_kwargs["client_kwargs"].update(credentials.pop("client_kwargs"))
+
+    if "config_kwargs" in fs_kwargs and "config_kwargs" in credentials:
+        fs_kwargs["config_kwargs"].update(credentials.pop("config_kwargs"))
 
     fs_kwargs.update(without_none(credentials))
     return fs_kwargs
