@@ -18,6 +18,7 @@ with app.setup:
     from dlt.common.json import json
     from dlt.helpers.studio import strings, utils, ui_elements as ui
     from dlt.helpers.studio.config import StudioConfiguration
+    from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
 
 
 @app.cell(hide_code=True)
@@ -105,7 +106,7 @@ def section_sync_status(
         with mo.status.spinner(title=strings.sync_status_spinner_text):
             try:
                 dlt_pipeline.sync_destination()
-                _credentials = str(dlt_pipeline.dataset().destination_client.config.credentials)
+                _credentials = str(utils.get_destination_config(dlt_pipeline).credentials)
                 _result.append(
                     mo.callout(
                         mo.vstack([mo.md(strings.sync_status_success_text.format(_credentials))]),
@@ -264,7 +265,7 @@ def section_browse_data_table_list(
     if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_data_table_list is not None:
         try:
             # try to connect to the dataset
-            dlt_pipeline.dataset().destination_client.config.credentials
+            utils.get_destination_config(dlt_pipeline)
             _result.append(
                 mo.hstack(
                     [
@@ -280,11 +281,11 @@ def section_browse_data_table_list(
             _sql_query = ""
             if dlt_data_table_list.value:
                 _table_name = dlt_data_table_list.value[0]["name"]  # type: ignore[index,unused-ignore]
+                _dataset = cast(ReadableDBAPIDataset, dlt_pipeline.dataset())
                 _sql_query = (
-                    dlt_pipeline.dataset()
-                    .table(_table_name)
+                    cast(ReadableDBAPIRelation, _dataset.table(_table_name))
                     .limit(1000 if dlt_restrict_to_last_1000.value else None)
-                    .query(pretty=True)
+                    .to_sql(pretty=True)
                 )
 
             dlt_query_editor = mo.ui.code_editor(

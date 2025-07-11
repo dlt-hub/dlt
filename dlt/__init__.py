@@ -30,7 +30,8 @@ from dlt import sources
 from dlt.extract.decorators import source, resource, transformer, defer
 from dlt.destinations.decorators import destination
 from dlt.transformations.decorators import transformation
-from dlt.destinations.dataset import dataset, ReadableDBAPIDataset as Dataset
+from dlt.common.destination.dataset import Dataset, Relation
+from dlt.destinations.dataset import dataset
 
 from dlt.pipeline import (
     pipeline as _pipeline,
@@ -81,6 +82,7 @@ __all__ = [
     "sources",
     "destinations",
     "Dataset",
+    "Relation",
     "dataset",
     "transformation",
 ]
