@@ -3,7 +3,7 @@ from typing import Dict, Iterable, List, Optional, Sequence
 
 from dlt.common import logger
 from dlt.common.configuration import with_config
-from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration
+from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration, FileImportContext
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnHint, Schema
 from dlt.common.destination.client import (
@@ -40,6 +40,12 @@ class DuckDbCopyJob(RunnableLoadJob, HasFollowupJobs):
         self._disable_compression = disable_compression
 
     def run(self) -> None:
+        from dlt.common.configuration.container import Container
+
+        file_import_context = Container().get(FileImportContext)
+        is_imported_file = file_import_context.is_imported_file
+        file_import_context.unset_imported()
+
         self._sql_client = self._job_client.sql_client
 
         qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
@@ -51,7 +57,11 @@ class DuckDbCopyJob(RunnableLoadJob, HasFollowupJobs):
         elif file_format in ["jsonl", "typed-jsonl"]:
             # NOTE: loading JSON does not work in practice on duckdb: the missing keys fail the load instead of being interpreted as NULL
             source_format = "read_json"  # newline delimited, compression auto
-            options = ", COMPRESSION=GZIP" if not self._disable_compression else ""
+            options = (
+                ", COMPRESSION=GZIP"
+                if not self._disable_compression and not is_imported_file
+                else ""
+            )
         else:
             raise ValueError(self._file_path)
 

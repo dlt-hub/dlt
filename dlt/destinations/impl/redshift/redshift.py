@@ -26,7 +26,7 @@ from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.schema.typing import TColumnType
 from dlt.common.configuration import with_config
 from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
-from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration
+from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration, FileImportContext
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
@@ -78,6 +78,12 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         self._disable_compression = disable_compression
 
     def run(self) -> None:
+        from dlt.common.configuration.container import Container
+
+        file_import_context = Container().get(FileImportContext)
+        is_imported_file = file_import_context.is_imported_file
+        file_import_context.unset_imported()
+
         self._sql_client = self._job_client.sql_client
         # we assume s3 credentials where provided for the staging
         aws_region = (
@@ -97,14 +103,14 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
                 f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
             )
         # get format
-        file_format, compression_ext = get_file_format_compression(self._bucket_path)
+        file_format, _ = get_file_format_compression(self._bucket_path)
         file_type = ""
         dateformat = ""
         compression = ""
         if file_format == "jsonl":
             file_type = "FORMAT AS JSON 'auto'"
             dateformat = "dateformat 'auto' timeformat 'auto'"
-            if not self._disable_compression:
+            if not self._disable_compression and not is_imported_file:
                 compression = "GZIP"
         elif file_format == "parquet":
             # Redshift doesn't support copying across regions for columnar data formats

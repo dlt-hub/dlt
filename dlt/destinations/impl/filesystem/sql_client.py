@@ -4,7 +4,7 @@ import duckdb
 
 from dlt.common import logger
 from dlt.common.configuration import with_config
-from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration
+from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration, FileImportContext
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema.utils import is_nullable_column
@@ -122,6 +122,12 @@ class FilesystemSqlClient(WithTableScanners):
 
     @raise_database_error
     def create_view(self, view_name: str, table_schema: PreparedTableSchema) -> None:
+        from dlt.common.configuration.container import Container
+
+        file_import_context = Container().get(FileImportContext)
+        is_imported_file = file_import_context.is_imported_file
+        file_import_context.unset_imported()
+
         # NOTE: data freshness
         # iceberg - currently we glob the most recent snapshot (via built in duckdb mechanism) so data is fresh
         #           (but not very efficient)
@@ -133,7 +139,11 @@ class FilesystemSqlClient(WithTableScanners):
         table_location = self.remote_client.get_open_table_location(table_format, table_name)
 
         # discover whether compression is enabled
-        compression = ", compression = 'gzip'" if not self._disable_compression else ""
+        compression = (
+            ", compression = 'gzip'"
+            if not self._disable_compression and not is_imported_file
+            else ""
+        )
         dlt_table_names = self.remote_client.schema.dlt_table_names()
 
         def _escape_column_name(col_name: str) -> str:

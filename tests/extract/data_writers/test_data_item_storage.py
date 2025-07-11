@@ -9,7 +9,7 @@ from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.utils import new_column
 from dlt.common.storages.data_item_storage import DataItemStorage
 
-from tests.utils import TEST_STORAGE_ROOT, preserve_environ
+from tests.utils import TEST_STORAGE_ROOT
 from tests.common.data_writers.utils import ALL_OBJECT_WRITERS
 
 
@@ -20,7 +20,6 @@ class ItemTestStorage(DataItemStorage):
 
 @pytest.mark.parametrize("writer_type", ALL_OBJECT_WRITERS)
 def test_write_items(writer_type: Type[DataWriter]) -> None:
-    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     writer_spec = writer_type.writer_spec()
     with Container().injectable_context(
         DestinationCapabilitiesContext.generic_capabilities(writer_spec.file_format)

@@ -257,17 +257,41 @@ def test_retry_job(load_storage: LoadStorage) -> None:
     assert ParsedLoadJobFileName.parse(new_fp).retry_count == 2
 
 
-def test_build_parse_job_path(load_storage: LoadStorage) -> None:
+@pytest.mark.parametrize(
+    "disable_compression", [True, False], ids=["no_compression", "compression"]
+)
+@pytest.mark.parametrize("disable_extension", [True, False], ids=["no_compr_ext", "compr_ext"])
+def test_build_parse_job_path(
+    disable_compression: bool, disable_extension: bool, load_storage: LoadStorage
+) -> None:
     file_id = ParsedLoadJobFileName.new_file_id()
-    f_n_t = ParsedLoadJobFileName("test_table", file_id, 0, "jsonl")
     job_f_n = PackageStorage.build_job_file_name(
-        f_n_t.table_name, file_id, 0, loader_file_format="jsonl"
+        "test_table",
+        file_id,
+        0,
+        loader_file_format="jsonl",
+        disable_compression=disable_compression,
+        disable_extension=disable_extension,
     )
     # test the exact representation but we should probably not test for that
-    assert job_f_n == f"test_table.{file_id}.0.jsonl"
-    assert ParsedLoadJobFileName.parse(job_f_n) == f_n_t
-    # also parses full paths correctly
-    assert ParsedLoadJobFileName.parse("load_id/" + job_f_n) == f_n_t
+    if not disable_compression and not disable_extension:
+        assert job_f_n == f"test_table.{file_id}.0.jsonl.gz"
+        assert ParsedLoadJobFileName.parse(job_f_n) == ParsedLoadJobFileName(
+            "test_table", file_id, 0, "jsonl", True
+        )
+        # also parses full paths correctly
+        assert ParsedLoadJobFileName.parse("load_id/" + job_f_n) == ParsedLoadJobFileName(
+            "test_table", file_id, 0, "jsonl", True
+        )
+
+    else:
+        assert job_f_n == f"test_table.{file_id}.0.jsonl"
+        assert ParsedLoadJobFileName.parse(job_f_n) == ParsedLoadJobFileName(
+            "test_table", file_id, 0, "jsonl", False
+        )
+        assert ParsedLoadJobFileName.parse("load_id/" + job_f_n) == ParsedLoadJobFileName(
+            "test_table", file_id, 0, "jsonl", False
+        )
 
     # parts cannot contain dots
     with pytest.raises(ValueError):

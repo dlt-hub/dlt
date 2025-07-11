@@ -10,12 +10,11 @@ from dlt.common.data_writers.exceptions import (
     DestinationCapabilitiesRequired,
     FileImportNotFound,
     InvalidFileNameTemplateException,
-    CompressionConfigMismatchException,
 )
 from dlt.common.data_writers.writers import TWriter, DataWriter, FileWriterSpec
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.configuration import with_config, known_sections, configspec
-from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.configuration.specs import BaseConfiguration, ContainerInjectableContext
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.utils import uniq_id
 
@@ -23,6 +22,17 @@ from dlt.common.utils import uniq_id
 def new_file_id() -> str:
     """Creates new file id which is globally unique within table_name scope"""
     return uniq_id(5)
+
+
+@configspec
+class FileImportContext(ContainerInjectableContext):
+    is_imported_file: bool = False
+
+    def set_imported(self) -> None:
+        self.is_imported_file = True
+
+    def unset_imported(self) -> None:
+        self.is_imported_file = False
 
 
 @configspec
@@ -146,23 +156,18 @@ class BufferedDataWriter(Generic[TWriter]):
         """
         # TODO: we should separate file storage from other storages. this creates circular deps
         from dlt.common.storages import FileStorage
+        from dlt.common.configuration.container import Container
+
+        file_import_context = Container().get(FileImportContext)
+        file_import_context.set_imported()
 
         # import file with alternative extension
         spec = self.writer_spec
         if with_extension:
             spec = self.writer_spec._replace(file_extension=with_extension)
         with self.alternative_spec(spec):
-            self._rotate_file()
+            self._rotate_file(is_imported_file=True)
         try:
-            # The imported file should already be in the correct format
-            # since import_file bypasses the normal writing process
-            is_file_compressed = FileStorage.is_gzipped(file_path)
-            if (not is_file_compressed and self.should_compress) or (
-                is_file_compressed and not self.should_compress
-            ):
-                raise CompressionConfigMismatchException(
-                    file_path, is_file_compressed, self.should_compress
-                )
             FileStorage.link_hard_with_fallback(file_path, self._file_name)
         except FileNotFoundError as f_ex:
             raise FileImportNotFound(file_path, self._file_name) from f_ex
@@ -239,7 +244,9 @@ class BufferedDataWriter(Generic[TWriter]):
                 new_rows_count = 1
         return new_rows_count
 
-    def _rotate_file(self, allow_empty_file: bool = False) -> DataWriterMetrics:
+    def _rotate_file(
+        self, allow_empty_file: bool = False, is_imported_file: bool = False
+    ) -> DataWriterMetrics:
         metrics = self._flush_and_close_file(allow_empty_file)
 
         # Construct base filename
@@ -247,7 +254,7 @@ class BufferedDataWriter(Generic[TWriter]):
         file_extension = self.writer_spec.file_extension
 
         # Add .gz if compression and extension is enabled
-        if self.should_compress and not self.disable_extension:
+        if self.should_compress and not self.disable_extension and not is_imported_file:
             self._file_name = f"{base_filename}.{file_extension}.gz"
         else:
             self._file_name = f"{base_filename}.{file_extension}"

@@ -4,6 +4,7 @@ from tests.utils import (
     patch_home_dir,
     wipe_pipeline,
     test_storage,
+    reset_file_import_context,
 )
 from tests.common.configuration.utils import environment, toml_providers
 from tests.pipeline.utils import drop_dataset_from_env

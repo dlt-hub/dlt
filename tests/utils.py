@@ -330,6 +330,19 @@ def wipe_pipeline(preserve_environ) -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
+def reset_file_import_context() -> Iterator[None]:
+    """Resets the FileImportContext between tests to ensure test isolation"""
+    from dlt.common.data_writers.buffered import FileImportContext
+
+    container = Container()
+    if FileImportContext in container:
+        container[FileImportContext].unset_imported()
+    yield
+    if FileImportContext in container:
+        container[FileImportContext].unset_imported()
+
+
+@pytest.fixture(autouse=True)
 def setup_secret_providers_to_current_module(request):
     """Creates set of config providers where secrets are loaded from cwd()/.dlt and
     configs are loaded from the .dlt/ in the same folder as module being tested

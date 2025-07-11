@@ -20,7 +20,7 @@ from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
 )
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration
+from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration, FileImportContext
 from dlt.common.storages.configuration import ensure_canonical_az_url
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.storages.fsspec_filesystem import (
@@ -223,13 +223,21 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
     def _determine_source_format(
         self, file_name: str, orig_bucket_path: str
     ) -> tuple[str, str, bool]:
+        from dlt.common.configuration.container import Container
+
+        file_import_context = Container().get(FileImportContext)
+        is_imported_file = file_import_context.is_imported_file
+        file_import_context.unset_imported()
+
         file_format, _ = get_file_format_compression(file_name)
 
         if file_format == "parquet":
             return "PARQUET", "", False
 
         elif file_format in ["jsonl", "typed-jsonl"]:
-            if self._disable_compression is not True:  # Unless explicitly set to True
+            if (
+                self._disable_compression is not True and not is_imported_file
+            ):  # Unless explicitly set to True
                 raise LoadJobTerminalException(
                     self._file_path,
                     "Databricks loader does not support gzip compressed JSON files. "

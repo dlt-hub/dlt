@@ -13,7 +13,7 @@ from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
     AwsCredentialsWithoutDefaults,
 )
-from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration
+from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration, FileImportContext
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.client import (
     PreparedTableSchema,
@@ -80,6 +80,12 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._disable_compression = disable_compression
 
     def run(self) -> None:
+        from dlt.common.configuration.container import Container
+
+        file_import_context = Container().get(FileImportContext)
+        is_imported_file = file_import_context.is_imported_file
+        file_import_context.unset_imported()
+
         client = self._job_client.sql_client
 
         bucket_path = None
@@ -100,7 +106,7 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         if file_format == "jsonl":
             # Auto does not work for jsonl. So we set it to 'none',
-            compression = "gz" if not self._disable_compression else "none"
+            compression = "gz" if not self._disable_compression and not is_imported_file else "none"
 
         # Don't use the DBAPI driver for local files.
         if not bucket_path or bucket_scheme == "file":

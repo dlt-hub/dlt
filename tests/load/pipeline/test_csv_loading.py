@@ -22,7 +22,7 @@ from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
 )
-from tests.utils import TestDataItemFormat, preserve_environ
+from tests.utils import TestDataItemFormat
 
 
 @pytest.mark.parametrize(
@@ -40,8 +40,9 @@ def test_load_csv(
     destination_config: DestinationTestConfiguration, item_type: TestDataItemFormat
 ) -> None:
     # filter only default and parquet file formats not to run the same test case several times
-    pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), dev_mode=True)
+
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
+    pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), dev_mode=True)
     # do not save state so the state job is not created
     pipeline.config.restore_from_destination = False
 
@@ -82,20 +83,16 @@ def test_load_csv(
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("file_format", (None, "csv"))
-@pytest.mark.parametrize(
-    "disable_compression",
-    [True, False],
-    ids=["no_compression", "compression"],
-)
+@pytest.mark.parametrize("compression", (True, False))
 def test_custom_csv_no_header(
     destination_config: DestinationTestConfiguration,
     file_format: TLoaderFileFormat,
-    disable_compression: bool,
+    compression: bool,
 ) -> None:
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = str(not compression)
     csv_format = CsvFormatConfiguration(delimiter="|", include_header=False)
     # apply to collected config
     pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), dev_mode=True)
-    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = str(disable_compression)
     # this will apply this to config when client instance is created
     pipeline.destination.config_params["csv_format"] = csv_format
     # verify
@@ -111,7 +108,7 @@ def test_custom_csv_no_header(
     ]
     hints = dlt.mark.make_hints(columns=columns)
     import_file = "tests/load/cases/loading/csv_no_header.csv"
-    if not disable_compression:
+    if compression:
         import_file += ".gz"
     info = pipeline.run(
         [dlt.mark.with_file_import(import_file, "csv", 2, hints=hints)],
@@ -119,9 +116,7 @@ def test_custom_csv_no_header(
         loader_file_format=file_format,
     )
     print(info)
-    assert_only_table_columns(
-        pipeline, "no_header", [col.get("name") for col in columns if col.get("name")]
-    )
+    assert_only_table_columns(pipeline, "no_header", [col["name"] for col in columns])
     rows = load_tables_to_dicts(pipeline, "no_header")
     assert len(rows["no_header"]) == 2
     # we should have twp files loaded
@@ -146,7 +141,6 @@ def test_custom_wrong_header(destination_config: DestinationTestConfiguration) -
     csv_format = CsvFormatConfiguration(delimiter="|", include_header=True)
     # apply to collected config
     pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), dev_mode=True)
-    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "true"
     # this will apply this to config when client instance is created
     pipeline.destination.config_params["csv_format"] = csv_format
     # verify

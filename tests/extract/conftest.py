@@ -3,4 +3,5 @@ from tests.utils import (
     preserve_environ,
     patch_home_dir,
     wipe_pipeline,
+    reset_file_import_context,
 )
