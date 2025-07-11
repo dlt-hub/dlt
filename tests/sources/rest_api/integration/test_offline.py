@@ -1604,4 +1604,4 @@ def test_secret_redaction_in_http_errors(mock_api_server):
     assert "secret_token_abc" not in error_str
 
     assert "404" in error_str
-    assert "Resource not found" in error_str
+    assert "Resource not found" not in error_str
