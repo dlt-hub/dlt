@@ -15,6 +15,8 @@ from requests import Response, Request, HTTPError
 from requests.auth import AuthBase
 
 from dlt.common import jsonpath, logger
+from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.specs.runtime_configuration import RuntimeConfiguration
 
 from .typing import HTTPMethodBasic, HTTPMethod, Hooks
 from .paginators import BasePaginator
@@ -336,16 +338,32 @@ def _dlt_raise_for_status(response: Response, *args: Any, **kwargs: Any) -> None
     """
     if response.status_code >= 400:
         safe_url = sanitize_url(response.url)
-        body = ""
-        if response.text:
-            max_len = 512
-            body = response.text[:max_len]
-            if len(response.text) > max_len:
-                body += "..."
-        msg = f"{response.status_code} {response.reason} for url: {safe_url}"
-        if body:
-            msg += f". Response: {body}"
+
+        config = resolve_configuration(RuntimeConfiguration())
+        body_text = ""
+
+        if config.http_show_error_body and response.text:
+            body_text = response.text
+            if len(body_text) > config.http_max_error_body_length:
+                body_text = body_text[: config.http_max_error_body_length] + "… (truncated)"
+
+        reason = _decode_reason(response.reason)
+        error_type_string = "Client" if response.status_code < 500 else "Server"
+
+        msg = f"{response.status_code} {error_type_string} Error: {reason} for url: {safe_url}"
+        if body_text:
+            msg += f"\nResponse: {body_text}"
+
         raise HTTPError(msg, response=response)
+
+
+def _decode_reason(reason: Any) -> Any:
+    if isinstance(reason, bytes):
+        try:
+            return reason.decode("utf-8")
+        except UnicodeDecodeError:
+            return reason.decode("iso-8859-1")
+    return reason
 
 
 def raise_for_status(response: Response, *args: Any, **kwargs: Any) -> None:
