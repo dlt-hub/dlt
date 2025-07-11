@@ -1305,7 +1305,31 @@ If you encounter issues while running the pipeline, enable [logging](../../../ru
 RUNTIME__LOG_LEVEL=INFO python my_script.py
 ```
 
-This also provides details on the HTTP requests.
+This also provides details on the HTTP requests. If you want to see even more details, you can enable the HTTP error response bodies.
+
+### Viewing HTTP error response bodies
+
+By default, HTTP error response bodies are not included in error messages to keep logs concise. However, during development or debugging, you may want to see the full error response from the API.
+
+To enable error response bodies in logs and exceptions in your `config.toml` file:
+
+```toml
+[runtime]
+http_show_error_body = true
+```
+
+Or set via environment variables:
+```sh
+export RUNTIME__HTTP_SHOW_ERROR_BODY=true
+```
+
+### Automatic secret redaction in logs
+
+The REST API source automatically redacts sensitive query parameters in URLs when logging or raising errors. The following parameter names are automatically considered sensitive and will be replaced with `***`:
+
+- `api_key`, `token`, `key`, `access_token`, `apikey`, `api-key`, `access-token`
+- `secret`, `password`, `pwd`, `client_secret`
+- `username`, `client_id`
 
 ### Configuration issues
 
