@@ -2,6 +2,8 @@ from copy import copy
 from typing import Dict, Iterable, List, Optional, Sequence
 
 from dlt.common import logger
+from dlt.common.configuration import with_config
+from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnHint, Schema
 from dlt.common.destination.client import (
@@ -13,37 +15,43 @@ from dlt.common.destination.client import (
 from dlt.common.schema.typing import TColumnSchema, TColumnType, TTableFormat
 from dlt.common.schema.utils import has_default_column_prop_value
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.storages.load_package import ParsedLoadJobFileName
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
+from dlt.destinations.path_utils import get_file_format_compression
 
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
 
 
 class DuckDbCopyJob(RunnableLoadJob, HasFollowupJobs):
-    def __init__(self, file_path: str) -> None:
+    @with_config(
+        spec=BufferedDataWriterConfiguration, sections=("normalize",), include_defaults=False
+    )
+    def __init__(
+        self,
+        file_path: str,
+        disable_compression: Optional[bool] = None,
+    ) -> None:
         super().__init__(file_path)
         self._job_client: "DuckDbClient" = None
+        self._disable_compression = disable_compression
 
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client
 
         qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
 
-        parsed_name = ParsedLoadJobFileName.parse(self._file_path)
-        file_format = parsed_name.file_format
-
+        file_format, _ = get_file_format_compression(self._file_path)
         if file_format == "parquet":
             source_format = "read_parquet"
             options = ", union_by_name=true"
         elif file_format in ["jsonl", "typed-jsonl"]:
             # NOTE: loading JSON does not work in practice on duckdb: the missing keys fail the load instead of being interpreted as NULL
             source_format = "read_json"  # newline delimited, compression auto
-            options = ", COMPRESSION=GZIP" if parsed_name.is_compressed else ""
+            options = ", COMPRESSION=GZIP" if not self._disable_compression else ""
         else:
             raise ValueError(self._file_path)
 

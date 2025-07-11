@@ -2,8 +2,6 @@ import platform
 import os
 from dlt.common import logger
 
-from dlt.destinations.utils import is_compression_disabled
-
 if platform.python_implementation() == "PyPy":
     import psycopg2cffi as psycopg2
 
@@ -26,7 +24,9 @@ from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.schema.typing import TColumnType
+from dlt.common.configuration import with_config
 from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
+from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
@@ -35,6 +35,7 @@ from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.redshift.configuration import RedshiftClientConfiguration
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
+from dlt.destinations.path_utils import get_file_format_compression
 
 
 HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
@@ -61,15 +62,20 @@ class RedshiftSqlClient(Psycopg2SqlClient):
 
 
 class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
+    @with_config(
+        spec=BufferedDataWriterConfiguration, sections=("normalize",), include_defaults=False
+    )
     def __init__(
         self,
         file_path: str,
         staging_credentials: Optional[CredentialsConfiguration] = None,
         staging_iam_role: str = None,
+        disable_compression: Optional[bool] = None,
     ) -> None:
         super().__init__(file_path, staging_credentials)
         self._staging_iam_role = staging_iam_role
         self._job_client: "RedshiftClient" = None
+        self._disable_compression = disable_compression
 
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client
@@ -91,17 +97,16 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
                 f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
             )
         # get format
-        ext = os.path.splitext(self._bucket_path)[1][1:]
-        if ext == "gz":
-            ext = os.path.splitext(os.path.splitext(self._bucket_path)[0])[1][1:]
+        file_format, compression_ext = get_file_format_compression(self._bucket_path)
         file_type = ""
         dateformat = ""
         compression = ""
-        if ext == "jsonl":
+        if file_format == "jsonl":
             file_type = "FORMAT AS JSON 'auto'"
             dateformat = "dateformat 'auto' timeformat 'auto'"
-            compression = "" if is_compression_disabled() else "GZIP"
-        elif ext == "parquet":
+            if not self._disable_compression:
+                compression = "GZIP"
+        elif file_format == "parquet":
             # Redshift doesn't support copying across regions for columnar data formats
             # https://docs.aws.amazon.com/redshift/latest/dg/copy-usage_notes-copy-from-columnar.html  # noqa: E501
             if region:
@@ -117,7 +122,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             if table_schema_has_type(self._load_table, "json"):
                 file_type += " SERIALIZETOJSON"
         else:
-            raise ValueError(f"Unsupported file type `{ext}` for Redshift.")
+            raise ValueError(f"Unsupported file type `{file_format}` for Redshift.")
 
         with self._sql_client.begin_transaction():
             # TODO: if we ever support csv here remember to add column names to COPY

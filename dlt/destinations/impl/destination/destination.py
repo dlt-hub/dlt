@@ -4,7 +4,7 @@ from typing import Optional, Type, Iterable, cast, List
 from dlt.destinations.job_impl import FinalizedLoadJob
 from dlt.common.destination.client import LoadJob, PreparedTableSchema, JobClientBase
 from dlt.common.typing import AnyFun
-from dlt.common.storages.load_package import destination_state, ParsedLoadJobFileName
+from dlt.common.storages.load_package import destination_state
 from dlt.common.configuration import create_resolved_partial
 
 from dlt.common.schema import Schema, TSchemaTables
@@ -15,6 +15,7 @@ from dlt.destinations.job_impl import (
     DestinationJsonlLoadJob,
     DestinationParquetLoadJob,
 )
+from dlt.destinations.path_utils import get_file_format_compression
 
 
 class DestinationClient(JobClientBase):
@@ -66,10 +67,7 @@ class DestinationClient(JobClientBase):
 
         # save our state in destination name scope
         load_state = destination_state()
-
-        parsed_name = ParsedLoadJobFileName.parse(file_path)
-        file_format = parsed_name.file_format
-
+        file_format, _ = get_file_format_compression(file_path)
         if file_format == "parquet":
             return DestinationParquetLoadJob(
                 file_path,

@@ -21,6 +21,7 @@ def get_writer(
     file_max_items: Optional[int] = 10,
     file_max_bytes: Optional[int] = None,
     disable_compression: bool = False,
+    disable_extension: bool = True,
     caps: DestinationCapabilitiesContext = None,
 ) -> BufferedDataWriter[TWriter]:
     caps = caps or DestinationCapabilitiesContext.generic_capabilities()
@@ -34,5 +35,6 @@ def get_writer(
         file_max_items=file_max_items,
         file_max_bytes=file_max_bytes,
         disable_compression=disable_compression,
+        disable_extension=disable_extension,
         _caps=caps,
     )

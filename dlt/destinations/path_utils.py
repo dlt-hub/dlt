@@ -139,7 +139,7 @@ def prepare_params(
     if job_info:
         table_name = job_info.table_name
         file_id = job_info.file_id
-        if job_info.is_compressed:
+        if job_info.has_compression_ext:
             ext = f"{job_info.file_format}.gz"
         else:
             ext = job_info.file_format
@@ -244,7 +244,7 @@ def create_path(
 
     # if extension is not defined, we append it at the end
     if "ext" not in placeholders:
-        if job_info.is_compressed:
+        if job_info.has_compression_ext:
             path += f".{job_info.file_format}.gz"
         else:
             path += f".{job_info.file_format}"

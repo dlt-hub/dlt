@@ -4,13 +4,18 @@ import time
 from typing import Iterator, Type
 from uuid import uuid4
 
-from dlt.common.data_writers.exceptions import BufferedDataWriterClosed
+from dlt.common.data_writers.exceptions import (
+    BufferedDataWriterClosed,
+    CompressionConfigMismatchException,
+)
 from dlt.common.data_writers.writers import (
     DataWriter,
     InsertValuesWriter,
     JsonlWriter,
     ALL_WRITERS,
+    TWriter,
 )
+from dlt.common.data_writers.buffered import BufferedDataWriter
 from dlt.common.destination.capabilities import TLoaderFileFormat, DestinationCapabilitiesContext
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.utils import new_column
@@ -19,6 +24,7 @@ from dlt.common.storages.file_storage import FileStorage
 from dlt.common.typing import DictStrAny
 
 from tests.common.data_writers.utils import get_writer, ALL_OBJECT_WRITERS
+from tests.utils import preserve_environ
 
 
 @pytest.mark.parametrize("writer_type", ALL_WRITERS)
@@ -35,7 +41,10 @@ def test_write_no_item(writer_type: Type[DataWriter]) -> None:
 @pytest.mark.parametrize(
     "disable_compression", [True, False], ids=["no_compression", "compression"]
 )
-def test_rotation_with_buffer_on_schema_change(disable_compression: bool) -> None:
+@pytest.mark.parametrize("disable_extension", [True, False], ids=["no_compr_ext", "compr_ext"])
+def test_rotation_with_buffer_on_schema_change(
+    disable_compression: bool, disable_extension: bool
+) -> None:
     c1 = new_column("col1", "bigint")
     c2 = new_column("col2", "bigint")
     c3 = new_column("col3", "text")
@@ -55,7 +64,10 @@ def test_rotation_with_buffer_on_schema_change(disable_compression: bool) -> Non
 
     # change schema before file first flush
     with get_writer(
-        InsertValuesWriter, file_max_items=100, disable_compression=disable_compression
+        InsertValuesWriter,
+        file_max_items=100,
+        disable_compression=disable_compression,
+        disable_extension=disable_extension,
     ) as writer:
         writer.write_data_item(list(c1_doc(8)), t1)
         assert writer._current_columns == t1
@@ -64,6 +76,10 @@ def test_rotation_with_buffer_on_schema_change(disable_compression: bool) -> Non
         writer.write_data_item(list(c2_doc(1)), t2)
         # file name is there
         assert writer._file_name is not None
+        if not disable_compression and not disable_extension:
+            assert writer._file_name.endswith(".gz")
+        else:
+            assert writer._file_name.endswith(".insert_values")
         # no file is open
         assert writer._file is None
     # writer is closed and data was written
@@ -134,7 +150,8 @@ def test_rotation_with_buffer_on_schema_change(disable_compression: bool) -> Non
 @pytest.mark.parametrize(
     "disable_compression", [False, True], ids=["no_compression", "compression"]
 )
-def test_rotation_on_schema_change(disable_compression: bool) -> None:
+@pytest.mark.parametrize("disable_extension", [True, False], ids=["no_compr_ext", "compr_ext"])
+def test_rotation_on_schema_change(disable_compression: bool, disable_extension: bool) -> None:
     c1 = new_column("col1", "bigint")
     c2 = new_column("col2", "bigint")
 
@@ -149,7 +166,10 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
 
     # change schema before file first flush
     with get_writer(
-        writer=JsonlWriter, file_max_items=100, disable_compression=disable_compression
+        writer=JsonlWriter,
+        file_max_items=100,
+        disable_compression=disable_compression,
+        disable_extension=disable_extension,
     ) as writer:
         # mock spec
         writer._supports_schema_changes = "False"
@@ -158,6 +178,10 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
         writer.write_data_item(list(c1_doc(1)), t1)
         # in buffer
         assert writer._file is None
+        if not disable_compression and not disable_extension:
+            assert writer._file_name.endswith(".gz")
+        else:
+            assert writer._file_name.endswith(".jsonl")
         assert len(writer._buffered_items) == 1
         writer.write_data_item(list(c2_doc(1)), t2)
         # flushed because we force rotation with buffer flush
@@ -248,41 +272,102 @@ def test_write_empty_file(disable_compression: bool, writer_type: Type[DataWrite
 
 
 @pytest.mark.parametrize("writer_type", ALL_WRITERS)
-def test_import_file(writer_type: Type[DataWriter]) -> None:
+@pytest.mark.parametrize(
+    "disable_compression",
+    [True, False],
+    ids=["no_compression", "compression"],
+)
+def test_import_file(writer_type: Type[DataWriter], disable_compression: bool) -> None:
     now = time.time()
-    with get_writer(writer_type) as writer:
+    with get_writer(writer_type, disable_compression=disable_compression) as writer:
         # won't destroy the original
-        metrics = writer.import_file(
-            "tests/extract/cases/imported.any", DataWriterMetrics("", 1, 231, 0, 0)
-        )
-        assert len(writer.closed_files) == 1
-        assert os.path.isfile(metrics.file_path)
-        assert writer.closed_files[0] == metrics
-        assert metrics.created <= metrics.last_modified
-        assert metrics.created >= now
-        assert metrics.items_count == 1
-        assert metrics.file_size == 231
+        if disable_compression or not writer.writer_spec.supports_compression:
+            metrics = writer.import_file(
+                "tests/extract/cases/imported.any", DataWriterMetrics("", 1, 231, 0, 0)
+            )
+            assert len(writer.closed_files) == 1
+            assert os.path.isfile(metrics.file_path)
+            assert writer.closed_files[0] == metrics
+            assert metrics.created <= metrics.last_modified
+            assert metrics.created >= now
+            assert metrics.items_count == 1
+            assert metrics.file_size == 231
+        else:
+            with pytest.raises(CompressionConfigMismatchException):
+                writer.import_file(
+                    "tests/extract/cases/imported.any", DataWriterMetrics("", 1, 231, 0, 0)
+                )
+            metrics = writer.import_file(
+                "tests/extract/cases/imported_compr.any.gz", DataWriterMetrics("", 1, 231, 0, 0)
+            )
+            other_metrics = writer.import_file(
+                "tests/extract/cases/imported_compr_no_ext.any", DataWriterMetrics("", 1, 231, 0, 0)
+            )
+            assert len(writer.closed_files) == 2
+            assert os.path.isfile(metrics.file_path)
+            assert os.path.isfile(other_metrics.file_path)
+            assert writer.closed_files[:2] == [metrics, other_metrics]
+            for m in (metrics, other_metrics):
+                assert m.created <= m.last_modified
+                assert m.created >= now
+                assert m.items_count == 1
+                assert m.file_size == 231
 
 
 @pytest.mark.parametrize("writer_type", ALL_WRITERS)
-def test_import_file_with_extension(writer_type: Type[DataWriter]) -> None:
+@pytest.mark.parametrize(
+    "disable_compression",
+    [True, False],
+    ids=["no_compression", "compression"],
+)
+def test_import_file_with_extension(
+    writer_type: Type[DataWriter], disable_compression: bool
+) -> None:
     now = time.time()
-    with get_writer(writer_type) as writer:
+    with get_writer(writer_type, disable_compression=disable_compression) as writer:
         # won't destroy the original
-        metrics = writer.import_file(
-            "tests/extract/cases/imported.any",
-            DataWriterMetrics("", 1, 231, 0, 0),
-            with_extension="any",
-        )
-        assert len(writer.closed_files) == 1
-        assert os.path.isfile(metrics.file_path)
-        # extension is correctly set
-        assert metrics.file_path.endswith(".any")
-        assert writer.closed_files[0] == metrics
-        assert metrics.created <= metrics.last_modified
-        assert metrics.created >= now
-        assert metrics.items_count == 1
-        assert metrics.file_size == 231
+        if disable_compression or not writer.writer_spec.supports_compression:
+            metrics = writer.import_file(
+                "tests/extract/cases/imported.any",
+                DataWriterMetrics("", 1, 231, 0, 0),
+                with_extension="any",
+            )
+            assert len(writer.closed_files) == 1
+            assert os.path.isfile(metrics.file_path)
+            # extension is correctly set
+            assert metrics.file_path.endswith(".any")
+            assert writer.closed_files[0] == metrics
+            assert metrics.created <= metrics.last_modified
+            assert metrics.created >= now
+            assert metrics.items_count == 1
+            assert metrics.file_size == 231
+        else:
+            with pytest.raises(CompressionConfigMismatchException):
+                writer.import_file(
+                    "tests/extract/cases/imported.any",
+                    DataWriterMetrics("", 1, 231, 0, 0),
+                    with_extension="any",
+                )
+            metrics = writer.import_file(
+                "tests/extract/cases/imported_compr.any.gz",
+                DataWriterMetrics("", 1, 231, 0, 0),
+                with_extension="any",
+            )
+            other_metrics = writer.import_file(
+                "tests/extract/cases/imported_compr_no_ext.any",
+                DataWriterMetrics("", 1, 231, 0, 0),
+                with_extension="any",
+            )
+            assert len(writer.closed_files) == 2
+            assert os.path.isfile(metrics.file_path)
+            assert os.path.isfile(other_metrics.file_path)
+            assert writer.closed_files[:2] == [metrics, other_metrics]
+            for m in (metrics, other_metrics):
+                assert m.file_path.endswith(".any")
+                assert m.created <= m.last_modified
+                assert m.created >= now
+                assert m.items_count == 1
+                assert m.file_size == 231
 
 
 @pytest.mark.parametrize(
@@ -341,6 +426,12 @@ def test_special_write_rotates(disable_compression: bool, writer_type: Type[Data
 
         # also import rotates
         assert writer.write_data_item({"col1": 182812}, t1) == 1
+        if not disable_compression and writer.writer_spec.supports_compression:
+            with pytest.raises(CompressionConfigMismatchException):
+                writer.import_file(
+                    "tests/extract/cases/imported.any", DataWriterMetrics("", 1, 231, 0, 0)
+                )
+            return
         metrics = writer.import_file(
             "tests/extract/cases/imported.any", DataWriterMetrics("", 1, 231, 0, 0)
         )

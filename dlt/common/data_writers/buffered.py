@@ -10,6 +10,7 @@ from dlt.common.data_writers.exceptions import (
     DestinationCapabilitiesRequired,
     FileImportNotFound,
     InvalidFileNameTemplateException,
+    CompressionConfigMismatchException,
 )
 from dlt.common.data_writers.writers import TWriter, DataWriter, FileWriterSpec
 from dlt.common.schema.typing import TTableSchemaColumns
@@ -66,13 +67,10 @@ class BufferedDataWriter(Generic[TWriter]):
         if self.file_max_bytes is None and _caps:
             self.file_max_bytes = _caps.recommended_file_size
         self.file_max_items = file_max_items
+        self.should_compress = self.writer_spec.supports_compression and not disable_compression
+        self.disable_extension = disable_extension is not False
         # the open function is either gzip.open or open
-        self.open = (
-            gzip.open
-            if self.writer_spec.supports_compression and disable_compression in [None, False]
-            else open
-        )
-        self.disable_extension = True if disable_extension in [None, True] else False
+        self.open = gzip.open if self.should_compress else open
 
         self._current_columns: TTableSchemaColumns = None
         self._file_name: str = None
@@ -153,13 +151,18 @@ class BufferedDataWriter(Generic[TWriter]):
         spec = self.writer_spec
         if with_extension:
             spec = self.writer_spec._replace(file_extension=with_extension)
-
-        # For file imports, we need to temporarily disable compression in the spec
-        # because imported files are not compressed during the import process
-        import_spec = spec._replace(supports_compression=False)
-        with self.alternative_spec(import_spec):
+        with self.alternative_spec(spec):
             self._rotate_file()
         try:
+            # The imported file should already be in the correct format
+            # since import_file bypasses the normal writing process
+            is_file_compressed = FileStorage.is_gzipped(file_path)
+            if (not is_file_compressed and self.should_compress) or (
+                is_file_compressed and not self.should_compress
+            ):
+                raise CompressionConfigMismatchException(
+                    file_path, is_file_compressed, self.should_compress
+                )
             FileStorage.link_hard_with_fallback(file_path, self._file_name)
         except FileNotFoundError as f_ex:
             raise FileImportNotFound(file_path, self._file_name) from f_ex
@@ -244,7 +247,7 @@ class BufferedDataWriter(Generic[TWriter]):
         file_extension = self.writer_spec.file_extension
 
         # Add .gz if compression and extension is enabled
-        if self.open == gzip.open and not self.disable_extension:
+        if self.should_compress and not self.disable_extension:
             self._file_name = f"{base_filename}.{file_extension}.gz"
         else:
             self._file_name = f"{base_filename}.{file_extension}"
