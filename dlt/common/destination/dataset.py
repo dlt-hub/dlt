@@ -47,10 +47,12 @@ TFilterOperation = Literal["eq", "ne", "gt", "lt", "gte", "lte", "in", "not_in"]
 class DataAccess(Protocol):
     """Common data access protocol shared between dbapi cursors and relations"""
 
-    columns_schema: TTableSchemaColumns
-    """Returns the expected columns schema for the result of the relation. Column types are discovered with
-    sql glot query analysis and lineage. dlt hints for columns are kept in some cases. Refere to <docs-page> for more details.
-    """
+    @property
+    def columns_schema(self) -> TTableSchemaColumns:
+        """
+        Returns the expected columns schema for the result of the relation. Column types are discovered with
+        sql glot query analysis and lineage. dlt hints for columns are kept in some cases. Refere to <docs-page> for more details.
+        """
 
     def df(self, chunk_size: int = None) -> Optional[DataFrame]:
         """Fetches the results as arrow table. Uses the native pandas implementation of the destination client cursor if available.
@@ -275,6 +277,18 @@ class DBApiCursor(DataAccess):
 
     native_cursor: "DBApiCursor"
     """Cursor implementation native to current destination"""
+
+    @property
+    def columns_schema(self) -> TTableSchemaColumns:
+        return self._columns_schema
+
+    @columns_schema.setter
+    def columns_schema(self, value: TTableSchemaColumns) -> None:
+        self._columns_schema = value
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._columns_schema = None
 
     def execute(self, query: AnyStr, *args: Any, **kwargs: Any) -> None:
         """Execute a query on the cursor"""

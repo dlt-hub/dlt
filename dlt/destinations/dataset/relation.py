@@ -169,10 +169,6 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
             self._columns_schema, self.__qualified_query = self._compute_columns_schema()
         return self._columns_schema
 
-    @columns_schema.setter
-    def columns_schema(self, new_value: TTableSchemaColumns) -> None:
-        raise NotImplementedError("Columns Schema may not be set")
-
     @property
     def schema(self) -> TTableSchema:
         computed_columns, _ = self._compute_columns_schema(
