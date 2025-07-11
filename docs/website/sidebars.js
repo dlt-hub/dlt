@@ -59,19 +59,6 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'Release highlights',
-      link: {
-        type: 'generated-index',
-        title: 'Release highlights',
-        slug: '/release-highlights',
-        keywords: ['release notes, release highlights'],
-      },
-      items: [
-        'release-notes/1.12.1',
-      ]
-    },
-    {
-      type: 'category',
       label: 'Core concepts',
       items: [
         'reference/explainers/how-dlt-works',
