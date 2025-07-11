@@ -15,6 +15,8 @@ from dlt.common.pendulum import pendulum
 from dlt.common.pipeline import get_dlt_pipelines_dir
 from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage
+from dlt.common.destination.client import DestinationClientConfiguration
+
 from dlt.helpers.studio import ui_elements as ui
 from dlt.helpers.studio.config import StudioConfiguration
 
@@ -86,12 +88,18 @@ def get_pipeline(pipeline_name: str, pipelines_dir: str) -> dlt.Pipeline:
 #
 
 
+def get_destination_config(pipeline: dlt.Pipeline) -> DestinationClientConfiguration:
+    """Get the destination config of a pipeline."""
+    # NOTE: this uses internal interfaces for now...
+    return cast(DestinationClientConfiguration, pipeline.dataset().destination_client.config)  # type: ignore[attr-defined]
+
+
 def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
     """
     Get the details of a pipeline.
     """
     try:
-        credentials = str(pipeline.dataset().destination_client.config.credentials)
+        credentials = str(get_destination_config(pipeline).credentials)
     except Exception:
         credentials = "Could not resolve credentials"
 
@@ -134,12 +142,16 @@ def create_table_list(
     """
 
     # get tables and filter as needed
-    tables = list(pipeline.default_schema.tables.values())
+    tables = list(
+        pipeline.default_schema.data_tables(seen_data_only=True, include_incomplete=False)
+    )
     if not show_child_tables:
         tables = [t for t in tables if t.get("parent") is None]
 
-    row_counts = get_row_counts(pipeline) if show_row_counts else {}
+    if show_internals:
+        tables = tables + list(pipeline.default_schema.dlt_tables())
 
+    row_counts = get_row_counts(pipeline) if show_row_counts else {}
     table_list: List[Dict[str, Union[str, int, None]]] = [
         {
             **{prop: table.get(prop, None) for prop in ["name", *c.table_list_fields]},  # type: ignore[misc]
@@ -148,8 +160,7 @@ def create_table_list(
         for table in tables
     ]
     table_list.sort(key=lambda x: str(x["name"]))
-    if not show_internals:
-        table_list = [t for t in table_list if not str(t["name"]).lower().startswith("_dlt")]
+
     return _align_dict_keys(table_list)
 
 
@@ -168,10 +179,10 @@ def create_column_list(
         pipeline_name (str): The name of the pipeline to create the column list for.
         table_name (str): The name of the table to create the column list for.
     """
-    table = pipeline.default_schema.tables[table_name]
-
     column_list: List[Dict[str, Any]] = []
-    for column in table["columns"].values():
+    for column in pipeline.default_schema.get_table_columns(
+        table_name, include_incomplete=False
+    ).values():
         column_dict: Dict[str, Any] = {
             "name": column["name"],
         }
@@ -217,7 +228,7 @@ def clear_query_cache(pipeline: dlt.Pipeline) -> None:
     get_query_result.cache_clear()
     get_loads.cache_clear()
     get_schema_by_version.cache_clear()
-    get_row_counts.cache_clear()
+    # get_row_counts.cache_clear()
 
 
 @functools.cache
@@ -228,7 +239,6 @@ def get_query_result(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
     return pipeline.dataset()(query).df()
 
 
-@functools.cache
 def get_row_counts(pipeline: dlt.Pipeline, load_id: str = None) -> Dict[str, int]:
     """Get the row counts for a pipeline.
 
@@ -253,7 +263,8 @@ def get_loads(c: StudioConfiguration, pipeline: dlt.Pipeline, limit: int = 100) 
     loads = pipeline.dataset()._dlt_loads
     if limit:
         loads = loads.limit(limit)
-    loads = loads.order_by(loads.inserted_at.desc())
+    loads = loads.order_by("inserted_at", "desc")
+
     loads_list = loads.df().to_dict(orient="records")
 
     loads_list = [_humanize_datetime_values(c, load) for load in loads_list]

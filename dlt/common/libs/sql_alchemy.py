@@ -13,8 +13,8 @@ except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt sql_database helpers ",
         [f"{version.DLT_PKG_NAME}[sql_database]"],
-        "Install the sql_database helpers for loading from sql_database sources. Note that you may"
-        " need to install additional SQLAlchemy dialects for your source database.",
+        "Install the `sql_database` helpers for loading from `sql_database` sources. Note that you"
+        " may need to install additional SQLAlchemy dialects for your source database.",
     )
 
 # TODO: maybe use sa.__version__?

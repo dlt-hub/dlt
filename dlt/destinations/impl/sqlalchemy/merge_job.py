@@ -13,7 +13,7 @@ from dlt.common.schema.utils import (
     get_active_record_timestamp,
 )
 from dlt.common.time import ensure_pendulum_datetime
-from dlt.common.storages.load_package import load_package as current_load_package
+from dlt.common.storages.load_package import load_package_state as current_load_package
 
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
@@ -69,7 +69,12 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                 )
                 sqla_statements.append(delete_statement)
             else:
-                row_key_col_name = cls._get_row_key_col(table_chain, sql_client, root_table)
+                row_key_col_name = cls.get_row_key_col(
+                    table_chain,
+                    root_table,
+                    sql_client.fully_qualified_dataset_name(),
+                    sql_client.fully_qualified_dataset_name(staging=True),
+                )
                 row_key_col = root_table_obj.c[row_key_col_name]
                 # Use a real table cause sqlalchemy doesn't have TEMPORARY TABLE abstractions
                 delete_temp_table = sa.Table(
@@ -98,7 +103,12 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
 
                 for table in table_chain[1:]:
                     chain_table_obj = sql_client.get_existing_table(table["name"])
-                    root_key_name = cls._get_root_key_col(table_chain, sql_client, table)
+                    root_key_name = cls.get_root_key_col(
+                        table_chain,
+                        table,
+                        sql_client.fully_qualified_dataset_name(),
+                        sql_client.fully_qualified_dataset_name(staging=True),
+                    )
                     root_key_col = chain_table_obj.c[root_key_name]
 
                     delete_statement = chain_table_obj.delete().where(
@@ -120,6 +130,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
         )
 
         dedup_sort = get_dedup_sort_tuple(root_table)  # column_name, 'asc' | 'desc'
+        skip_dedup = root_table.get("x-stage-data-deduplicated", False)
 
         if len(table_chain) > 1 and (primary_key_names or hard_delete_col_name is not None):
             condition_column_names = (
@@ -151,7 +162,8 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
 
             inner_cols = [staging_row_key_col]
 
-            if primary_key_names:
+            if primary_key_names and not skip_dedup:
+                # deduplicate if primary key present
                 if dedup_sort is not None:
                     order_by_col = staging_root_table_obj.c[dedup_sort[0]]
                     order_dir_func = sa.asc if dedup_sort[1] == "asc" else sa.desc
@@ -188,7 +200,10 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                     staging_root_table_obj,
                     invert=True,
                 )
-                select_for_temp_insert = sa.select(staging_row_key_col).where(not_delete_cond)
+
+                select_for_temp_insert = sa.select(staging_row_key_col)
+                if not_delete_cond is not None:
+                    select_for_temp_insert = select_for_temp_insert.where(not_delete_cond)
 
             insert_into_temp_table = insert_temp_table.insert().from_select(
                 [row_key_col_name], select_for_temp_insert
@@ -217,7 +232,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                         ).subquery()
                     )
                 )
-            elif primary_key_names and len(table_chain) == 1:
+            elif primary_key_names and len(table_chain) == 1 and not skip_dedup:
                 staging_primary_key_cols = [
                     staging_table_obj.c[col_name] for col_name in primary_key_names
                 ]
@@ -418,7 +433,12 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
 
         nested_tables = table_chain[1:]
         for table in nested_tables:
-            row_key_column = cls._get_root_key_col(table_chain, sql_client, table)
+            row_key_column = cls.get_root_key_col(
+                table_chain,
+                table,
+                sql_client.fully_qualified_dataset_name(),
+                sql_client.fully_qualified_dataset_name(staging=True),
+            )
 
             table_obj = sql_client.get_existing_table(table["name"])
             staging_table_obj = table_obj.to_metadata(

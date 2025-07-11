@@ -116,7 +116,7 @@ def sql_database(
 
     if defer_table_reflect:
         if not table_names:
-            raise ValueError("You must pass table names to defer table reflection")
+            raise ValueError("You must pass `table_names` to defer table reflection")
         table_infos = [(schema, table) for table in table_names]
     else:
         # reflect tables
@@ -280,7 +280,7 @@ def sql_table(
         name=str(table),
         write_disposition=write_disposition,
         merge_key=merge_key,
-        **hints
+        **hints,
     )(
         engine,
         table_obj if table_obj is not None else table,  # Pass table name if reflection deferred

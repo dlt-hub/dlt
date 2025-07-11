@@ -110,13 +110,20 @@ If you set the [`replace` strategy](../../general-usage/full-loading.md) to `sta
 recreated with an `ALTER SCHEMA ... TRANSFER`. The operation is atomic: MSSQL supports DDL transactions.
 
 ## Data loading
-Data is loaded via INSERT statements by default. MSSQL has a limit of 1000 rows per INSERT, and this is what we use. We split batches into
-SQL statements and execute each in a single server call. We observed that driver locks otherwise (we could not find any reason on the server itself - 
-no database locks were present). You can revert this behavior by:
+Data is loaded via INSERT statements by default. MSSQL has a limit of 1000 rows per INSERT, and this is what we use. We send multiple
+sql statements in a single batch. In case you observe odbc driver locking (ie. when connection with open transaction leaks into the pool) you can:
+
+1. disable `pyodbc` connection pool.
 ```py
-dlt.destinations.mssql("mssql://loader:<password>@loader.database.windows.net/dlt_data?connect_timeout=15", supports_multiple_statements=True)
+import pyodbc
+pyodbc.pooling = False
 ```
-this may marginally speed up merge operations but we think it is not worth the risk.
+
+2. disable batchning of multiple statements in `dlt`
+```py
+dlt.destinations.mssql("mssql://loader:<password>@loader.database.windows.net/dlt_data?connect_timeout=15", supports_multiple_statements=False)
+```
+
 
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default

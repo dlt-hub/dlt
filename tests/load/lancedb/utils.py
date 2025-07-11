@@ -1,7 +1,7 @@
 from typing import Union, List, Any, Dict
 
 import numpy as np
-from lancedb.embeddings import TextEmbeddingFunction  # type: ignore
+from lancedb.embeddings import TextEmbeddingFunction
 
 import dlt
 from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient

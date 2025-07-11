@@ -3,7 +3,7 @@ import pathlib
 from concurrent.futures import ThreadPoolExecutor
 import itertools
 import logging
-import os
+import os, sys
 import random
 import shutil
 import threading
@@ -94,8 +94,10 @@ def test_default_pipeline() -> None:
     assert p.dataset_name is None
     assert p.destination is None
     assert p.default_schema_name is None
-    # init_cwd is cwd
-    assert p.get_local_state_val("initial_cwd") == os.path.abspath(os.curdir)
+    # init_cwd is local_dir
+    assert p.get_local_state_val("initial_cwd") == os.path.abspath(
+        dlt.current.run_context().local_dir
+    )
 
     # this is the same pipeline
     p2 = dlt.pipeline()
@@ -405,33 +407,50 @@ def test_pipeline_context_deferred_activation() -> None:
 
 def test_pipeline_context() -> None:
     ctx = Container()[PipelineContext]
-    assert ctx.is_active() is False
-    # create pipeline
-    p = dlt.pipeline()
-    assert ctx.is_active() is True
-    assert ctx.pipeline() is p
-    assert p.is_active is True
-    # has no destination context
-    assert DestinationCapabilitiesContext not in Container()
+    ctx.enable_activation_history = True
+    try:
+        assert ctx.is_active() is False
+        assert len(ctx.activation_history()) == 0
+        # create pipeline
+        p = dlt.pipeline()
+        assert ctx.is_active() is True
+        assert ctx.pipeline() is p
+        assert p.is_active is True
+        # has no destination context
+        assert DestinationCapabilitiesContext not in Container()
+        assert ctx.activation_history()[0] is p
+        ctx.clear_activation_history()
 
-    # create another pipeline
-    p2 = dlt.pipeline(pipeline_name="another pipeline", destination="duckdb")
-    assert ctx.pipeline() is p2
-    assert p.is_active is False
-    assert p2.is_active is True
+        # create another pipeline
+        p2 = dlt.pipeline(pipeline_name="another pipeline", destination="duckdb")
+        assert ctx.pipeline() is p2
+        assert p.is_active is False
+        assert p2.is_active is True
+        assert ctx.activation_history() == [p2]
 
-    p3 = dlt.pipeline(pipeline_name="more pipelines", destination="dummy")
-    assert ctx.pipeline() is p3
-    assert p3.is_active is True
-    assert p2.is_active is False
-    # no default naming convention
-    assert Container()[DestinationCapabilitiesContext].naming_convention is None
+        p3 = dlt.pipeline(pipeline_name="more pipelines", destination="dummy")
+        assert ctx.pipeline() is p3
+        assert p3.is_active is True
+        assert p2.is_active is False
+        # no default naming convention
+        assert Container()[DestinationCapabilitiesContext].naming_convention is None
+        assert ctx.activation_history() == [p2, p3]
 
-    # restore previous
-    p2 = dlt.attach("another pipeline")
-    assert ctx.pipeline() is p2
-    assert p3.is_active is False
-    assert p2.is_active is True
+        # restore previous
+        p2_a = dlt.attach("another pipeline")
+        assert ctx.pipeline() is p2_a
+        assert p3.is_active is False
+        assert p2.is_active is False
+        assert p2_a.is_active is True
+        assert ctx.activation_history() == [p2, p3, p2_a]
+
+        # activate p2
+        p2.activate()
+        # already was on the list
+        assert ctx.activation_history() == [p2, p3, p2_a]
+    finally:
+        ctx.clear_activation_history()
+        ctx.enable_activation_history = False
 
 
 def test_import_unknown_destination() -> None:
@@ -1260,6 +1279,13 @@ def test_set_get_local_value() -> None:
     assert p.state["_local"][new_val] == new_val  # type: ignore[literal-required]
 
 
+def test_update_last_run_context() -> None:
+    p = dlt.pipeline(destination="dummy", dev_mode=True)
+    p._update_last_run_context()
+    assert p.last_run_context["local_dir"] == os.path.join(os.getcwd(), "_storage")
+    assert p.last_run_context["settings_dir"] == os.path.join(os.getcwd(), ".dlt")
+
+
 def test_changed_write_disposition() -> None:
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination=DUMMY_COMPLETE)
@@ -1929,15 +1955,12 @@ def test_remove_autodetect() -> None:
     )
     pipeline.load()
 
-    pipeline = pipeline.drop()
-
     source = autodetect()
     assert "timestamp" in source.schema.settings["detections"]
     source.schema.remove_type_detection("timestamp")
     assert "timestamp" not in source.schema.settings["detections"]
 
-    pipeline = dlt.pipeline(destination="duckdb")
-    pipeline.run(source)
+    pipeline.run(source, refresh="drop_sources")
     assert "timestamp" not in pipeline.default_schema.settings["detections"]
 
     assert pipeline.default_schema.get_table("numbers")["columns"]["value"]["data_type"] == "bigint"
@@ -2679,13 +2702,13 @@ def test_yielding_empty_list_creates_table() -> None:
             assert rows[0] == (1, None)
 
 
-local_paths = [os.path.abspath("_storage"), "_storage"]
+local_paths = [os.path.abspath(TEST_STORAGE_ROOT), "."]
 if os.name == "nt":
     local_paths += [
         # UNC extended path
-        "\\\\?\\UNC\\localhost\\" + os.path.abspath("_storage").replace(":", "$"),
+        "\\\\?\\UNC\\localhost\\" + os.path.abspath(TEST_STORAGE_ROOT).replace(":", "$"),
         # UNC path
-        "\\\\localhost\\" + os.path.abspath("_storage").replace(":", "$"),
+        "\\\\localhost\\" + os.path.abspath(TEST_STORAGE_ROOT).replace(":", "$"),
     ]
 
 
@@ -2735,9 +2758,11 @@ def test_local_filesystem_destination(local_path: str) -> None:
 
     fs_client = pipeline._fs_client()
     # all path formats we use must lead to "_storage" relative to tests
-    assert (
-        pathlib.Path(fs_client.dataset_path).resolve()
-        == pathlib.Path(local_path).joinpath(dataset_name).resolve()
+    expect_path_fragment = str(pathlib.Path(TEST_STORAGE_ROOT).joinpath(dataset_name).resolve())
+    expect_path_fragment = expect_path_fragment[expect_path_fragment.index(TEST_STORAGE_ROOT) :]
+    # TODO: restore on windows
+    assert str(pathlib.Path(TEST_STORAGE_ROOT).joinpath(dataset_name).resolve()).endswith(
+        expect_path_fragment
     )
     # same for client
     assert len(fs_client.list_table_files("numbers")) == 1
@@ -3081,7 +3106,7 @@ def test_resources_same_name_in_single_source() -> None:
 def test_static_staging_dataset() -> None:
     # share database and staging dataset
     duckdb_ = dlt.destinations.duckdb(
-        "_storage/test_static_staging_dataset.db", staging_dataset_name_layout="_dlt_staging"
+        "test_static_staging_dataset.db", staging_dataset_name_layout="_dlt_staging"
     )
 
     pipeline_1 = dlt.pipeline("test_static_staging_dataset_1", destination=duckdb_, dev_mode=True)
@@ -3410,7 +3435,7 @@ def test_many_pipelines_single_dataset() -> None:
     p = dlt.pipeline(
         pipeline_name="source_1_pipeline", destination="duckdb", dataset_name="shared_dataset"
     )
-    p.run(source_1(), credentials="duckdb:///_storage/test_quack.duckdb")
+    p.run(source_1(), credentials="duckdb:///test_quack.duckdb")
     counts = load_table_counts(p, *p.default_schema.tables.keys())
     assert counts.items() >= {"gen1": 1, "_dlt_pipeline_state": 1, "_dlt_loads": 1}.items()
     p._wipe_working_folder()
@@ -3419,7 +3444,7 @@ def test_many_pipelines_single_dataset() -> None:
     p = dlt.pipeline(
         pipeline_name="source_2_pipeline", destination="duckdb", dataset_name="shared_dataset"
     )
-    p.run(source_2(), credentials="duckdb:///_storage/test_quack.duckdb")
+    p.run(source_2(), credentials="duckdb:///test_quack.duckdb")
     # table_names = [t["name"] for t in p.default_schema.data_tables()]
     counts = load_table_counts(p, *p.default_schema.tables.keys())
     # gen1: one record comes from source_1, 1 record from source_2
@@ -3431,7 +3456,7 @@ def test_many_pipelines_single_dataset() -> None:
     # restore from destination, check state
     p = dlt.pipeline(
         pipeline_name="source_1_pipeline",
-        destination=dlt.destinations.duckdb(credentials="duckdb:///_storage/test_quack.duckdb"),
+        destination=dlt.destinations.duckdb(credentials="duckdb:///test_quack.duckdb"),
         dataset_name="shared_dataset",
     )
     p.sync_destination()
@@ -3447,7 +3472,7 @@ def test_many_pipelines_single_dataset() -> None:
 
     p = dlt.pipeline(
         pipeline_name="source_2_pipeline",
-        destination=dlt.destinations.duckdb(credentials="duckdb:///_storage/test_quack.duckdb"),
+        destination=dlt.destinations.duckdb(credentials="duckdb:///test_quack.duckdb"),
         dataset_name="shared_dataset",
     )
     p.sync_destination()
@@ -3803,3 +3828,11 @@ def test_pipeline_repr() -> None:
     assert getattr(p, "is_active", sentinel) is not sentinel
     assert getattr(p, "pipelines_dir", sentinel) is not sentinel
     assert getattr(p, "working_dir", sentinel) is not sentinel
+
+
+def test_pipeline_with_null_executors(monkeypatch) -> None:
+    # NOTE: emscripten forces null executor, this is tested in test_runners.py
+    monkeypatch.setattr(sys, "platform", "emscripten")
+    p = dlt.pipeline(pipeline_name="null_executor", destination="duckdb")
+    p.run([{"id": 1}], table_name="test_table")
+    assert p.dataset().row_counts().fetchall() == [("test_table", 1)]

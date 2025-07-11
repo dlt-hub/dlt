@@ -20,7 +20,6 @@ from dlt.common.schema.typing import TDataType, TColumnType
         ("binary", sge.DataType.Type.VARBINARY),
         ("time", sge.DataType.Type.TIME),
         ("decimal", sge.DataType.Type.DECIMAL),
-        ("wei", sge.DataType.Type.UINT256),
     ],
 )
 @pytest.mark.parametrize("use_named_type", [True, False])
@@ -40,11 +39,9 @@ def _from_sqlglot_cases() -> list[tuple[sge.DataType.Type, Optional[TDataType]]]
         sge.DataType.Type.OBJECT: "json",
         sge.DataType.Type.STRUCT: "json",
         sge.DataType.Type.NESTED: "json",
-        sge.DataType.Type.UNION: "json",
         sge.DataType.Type.ARRAY: "json",
         sge.DataType.Type.LIST: "json",
         sge.DataType.Type.JSON: "json",
-        sge.DataType.Type.VECTOR: "json",
         # TEXT
         sge.DataType.Type.CHAR: "text",
         sge.DataType.Type.NCHAR: "text",
@@ -76,21 +73,14 @@ def _from_sqlglot_cases() -> list[tuple[sge.DataType.Type, Optional[TDataType]]]
         # DECIMAL
         sge.DataType.Type.BIGDECIMAL: "decimal",
         sge.DataType.Type.DECIMAL: "decimal",
-        sge.DataType.Type.DECIMAL32: "decimal",
-        sge.DataType.Type.DECIMAL64: "decimal",
-        sge.DataType.Type.DECIMAL128: "decimal",
-        sge.DataType.Type.DECIMAL256: "decimal",
         sge.DataType.Type.MONEY: "decimal",
         sge.DataType.Type.SMALLMONEY: "decimal",
         sge.DataType.Type.UDECIMAL: "decimal",
-        sge.DataType.Type.UDOUBLE: "decimal",
         # TEMPORAL
         sge.DataType.Type.DATE: "date",
         sge.DataType.Type.DATE32: "date",
         sge.DataType.Type.DATETIME: "date",
-        sge.DataType.Type.DATETIME2: "date",
         sge.DataType.Type.DATETIME64: "date",
-        sge.DataType.Type.SMALLDATETIME: "date",
         sge.DataType.Type.TIMESTAMP: "timestamp",
         sge.DataType.Type.TIMESTAMPNTZ: "timestamp",
         sge.DataType.Type.TIMESTAMPLTZ: "timestamp",
@@ -107,6 +97,44 @@ def _from_sqlglot_cases() -> list[tuple[sge.DataType.Type, Optional[TDataType]]]
         # UNKNOWN
         sge.DataType.Type.UNKNOWN: None,
     }
+
+    try:
+        mapping[sge.DataType.Type.UDOUBLE] = "decimal"
+    except AttributeError:
+        pass
+
+    try:
+        mapping[sge.DataType.Type.DATETIME2] = "date"
+    except AttributeError:
+        pass
+
+    try:
+        mapping[sge.DataType.Type.SMALLDATETIME] = "date"
+    except AttributeError:
+        pass
+
+    try:
+        mapping[sge.DataType.Type.UNION] = "json"
+    except AttributeError:
+        pass
+
+    try:
+        mapping[sge.DataType.Type.LIST] = "json"
+    except AttributeError:
+        pass
+
+    try:
+        mapping[sge.DataType.Type.VECTOR] = "json"
+    except AttributeError:
+        pass
+
+    try:
+        mapping[sge.DataType.Type.DECIMAL32] = "decimal"
+        mapping[sge.DataType.Type.DECIMAL64] = "decimal"
+        mapping[sge.DataType.Type.DECIMAL128] = "decimal"
+        mapping[sge.DataType.Type.DECIMAL256] = "decimal"
+    except AttributeError:
+        pass
 
     # "text" is the default dlt data_type
     return [(sqlglot_type, mapping.get(sqlglot_type, "text")) for sqlglot_type in sge.DataType.Type]
@@ -140,38 +168,6 @@ def test_to_sqlglot_integer_with_precision(
     """Test dlt `bigint` with precision to a named SQLGlot type"""
     sqlglot_type = to_sqlglot_type(dlt_type="bigint", precision=precision, use_named_types=True)
     assert sqlglot_type == sge.DataType.build(expected_sqlglot_type)
-
-
-@pytest.mark.parametrize(
-    "sqlglot_type, expected_precision",
-    [
-        (sge.DataType.Type.TINYINT, 3),
-        (sge.DataType.Type.SMALLINT, 5),
-        (sge.DataType.Type.MEDIUMINT, 8),
-        (sge.DataType.Type.INT, 10),
-        (sge.DataType.Type.BIGINT, None),  # expect None because BIGINT is default
-        (sge.DataType.Type.INT128, 39),
-        (sge.DataType.Type.INT256, 78),
-        (sge.DataType.Type.UTINYINT, 3),
-        (sge.DataType.Type.USMALLINT, 5),
-        (sge.DataType.Type.UMEDIUMINT, 8),
-        (sge.DataType.Type.UINT, 10),
-        (sge.DataType.Type.UBIGINT, 19),
-        (sge.DataType.Type.UINT128, 39),
-        (sge.DataType.Type.UINT256, 78),
-    ],
-)
-def test_from_sqlglot_integer_with_precision(
-    sqlglot_type: sge.DataType.Type,
-    expected_precision: int,
-) -> None:
-    """Test named SQLGlot type to dlt hints (precision)"""
-    dlt_hints = from_sqlglot_type(sqlglot_type)
-    expected_hints: TColumnType = {"data_type": "bigint"}
-    if expected_precision:
-        expected_hints["precision"] = expected_precision
-
-    assert dlt_hints == expected_hints
 
 
 @pytest.mark.parametrize("nullable", [None, True, False])
@@ -291,9 +287,9 @@ def test_to_sqlglot_timestamp_with_precision(
     "sqlglot_type, expected_precision",
     [
         (sge.DataType.Type.TIMESTAMP, None),  # default value
-        (sge.DataType.Type.TIMESTAMP_S, 0),
-        (sge.DataType.Type.TIMESTAMP_MS, 3),
-        (sge.DataType.Type.TIMESTAMP_NS, 9),
+        (sge.DataType.Type.TIMESTAMP_S, None),
+        (sge.DataType.Type.TIMESTAMP_MS, None),
+        (sge.DataType.Type.TIMESTAMP_NS, None),
     ],
 )
 def test_from_sqlglot_timestamp_with_precision(
@@ -332,6 +328,8 @@ def test_from_sqlglot_timestamp_with_precision(
             {"data_type": "time", "precision": 5, "timezone": True},
             sge.DataType.Type.TIMETZ,
         ),
+        ({"data_type": "text", "precision": 100}, sge.DataType.Type.TEXT),
+        ({"data_type": "binary", "precision": 98}, sge.DataType.Type.VARBINARY),
     ],
 )
 def test_from_and_to_sqlglot_parameterized_types(

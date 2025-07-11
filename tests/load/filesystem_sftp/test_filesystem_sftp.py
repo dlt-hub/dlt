@@ -1,7 +1,9 @@
 import os
 import pytest
 import fsspec
+import socket
 import dlt
+from dlt.common.configuration.specs import SFTPCredentials
 
 from dlt.common.json import json
 from dlt.common.configuration.inject import with_config
@@ -26,9 +28,10 @@ def get_key_path(user: str = "foo") -> str:
 
 def files_are_equal(file1_path, file2_path):
     try:
-        with open(file1_path, "r", encoding="utf-8") as f1, open(
-            file2_path, "r", encoding="utf-8"
-        ) as f2:
+        with (
+            open(file1_path, "r", encoding="utf-8") as f1,
+            open(file2_path, "r", encoding="utf-8") as f2,
+        ):
             return f1.read() == f2.read()
     except FileNotFoundError:
         return False
@@ -123,7 +126,7 @@ def test_filesystem_sftp_pipeline(sftp_filesystem):
         assert sorted(result_states) == sorted(expected_states)
 
 
-def run_sftp_auth(user, password=None, key=None, passphrase=None):
+def run_sftp_auth(user, password=None, key=None, passphrase=None, sock=None):
     env_vars = {
         "SOURCES__FILESYSTEM__BUCKET_URL": "sftp://localhost",
         "SOURCES__FILESYSTEM__CREDENTIALS__SFTP_PORT": "2222",
@@ -140,6 +143,10 @@ def run_sftp_auth(user, password=None, key=None, passphrase=None):
     os.environ.update(env_vars)
 
     config = get_config()
+
+    if sock:
+        config.credentials.sftp_sock = sock  # type: ignore[union-attr]
+
     fs, _ = fsspec_from_config(config)
     assert len(fs.ls("/data/standard_source/samples")) > 0
 
@@ -172,3 +179,14 @@ def test_filesystem_sftp_auth_private_ssh_agent():
 def test_filesystem_sftp_auth_ca_signed_pub_key():
     # billy_rsa-cert.pub is automatically loaded too
     run_sftp_auth("billy", key=get_key_path("billy"))
+
+
+def test_filesystem_sftp_with_socket():
+    # Create socket and use in combination with auth
+    sock = socket.create_connection(("localhost", 2222), timeout=5)
+    run_sftp_auth("billy", key=get_key_path("billy"), sock=sock)
+
+    # Close socket now to ensure socket was being used
+    sock.close()
+    with pytest.raises(OSError):
+        run_sftp_auth("billy", key=get_key_path("billy"), sock=sock)

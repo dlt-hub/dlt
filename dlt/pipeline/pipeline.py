@@ -9,26 +9,28 @@ from typing import (
     ClassVar,
     List,
     Iterator,
-    Literal,
     Optional,
     Sequence,
     Tuple,
+    TypeVar,
     cast,
     ContextManager,
     Union,
-    overload,
+    TYPE_CHECKING,
 )
 
 import dlt
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.configuration import inject_section, known_sections
 from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
     ContextDefaultCannotBeCreated,
 )
+from dlt.common.destination.dataset import Dataset
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.destination.exceptions import (
     DestinationIncompatibleLoaderFileFormatException,
@@ -59,6 +61,7 @@ from dlt.common.storages import (
     PackageStorage,
     LoadJobInfo,
     LoadPackageInfo,
+    WithLocalFiles,
 )
 from dlt.common.destination import (
     Destination,
@@ -76,7 +79,6 @@ from dlt.common.destination.client import (
     DestinationClientStagingConfiguration,
 )
 from dlt.common.destination.exceptions import SqlClientNotAvailable, FSClientNotAvailable
-from dlt.common.destination.typing import TDatasetType
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.pipeline import (
     ExtractInfo,
@@ -85,6 +87,7 @@ from dlt.common.pipeline import (
     PipelineContext,
     TStepInfo,
     SupportsPipeline,
+    TLastRunContext,
     TPipelineLocalState,
     TPipelineState,
     StateInjectableContext,
@@ -97,7 +100,6 @@ from dlt.common.utils import is_interactive, simple_repr, without_none
 from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
-from dlt.destinations.configuration import WithLocalFiles
 from dlt.extract import DltSource
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import Extract, data_to_sources
@@ -110,7 +112,6 @@ from dlt.destinations.dataset import (
     dataset,
     get_destination_clients,
 )
-from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
 
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
@@ -147,6 +148,14 @@ from dlt.pipeline.state_sync import (
 )
 from dlt.common.storages.load_package import TLoadPackageState
 from dlt.pipeline.helpers import refresh_source
+
+if TYPE_CHECKING:
+    from dlt import Dataset
+else:
+    Dataset = Any
+
+
+TWithLocalFiles = TypeVar("TWithLocalFiles", bound=WithLocalFiles)
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -329,10 +338,12 @@ class Pipeline(SupportsPipeline):
         self.first_run = False
         self.dataset_name: str = None
         self.is_active = False
+        self.last_run_context: TLastRunContext = None
 
         self.pipeline_salt = pipeline_salt
         self.config = config
         self.runtime_config = runtime
+        self.run_context = config.pluggable_run_context.context
         self.dev_mode = dev_mode
         self.collector = progress or _NULL_COLLECTOR
         self._destination = None
@@ -357,6 +368,7 @@ class Pipeline(SupportsPipeline):
             self._set_destinations(destination=destination, staging=staging, initializing=True)
             # set the pipeline properties from state, destination and staging will not be set
             self._state_to_props(state)
+            # TODO: compare run_context with last_run_context restored from props. warn on changed uri
             # we overwrite the state with the values from init
             self._set_dataset_name(dataset_name)
 
@@ -434,7 +446,10 @@ class Pipeline(SupportsPipeline):
     ) -> ExtractInfo:
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
         if loader_file_format and loader_file_format not in LOADER_FILE_FORMATS:
-            raise ValueError(f"{loader_file_format} is unknown.")
+            raise ValueErrorWithKnownValues(
+                "loader_file_format", loader_file_format, LOADER_FILE_FORMATS
+            )
+
         with self._maybe_destination_capabilities() as caps:
             if caps:
                 self._verify_destination_capabilities(caps, loader_file_format)
@@ -585,8 +600,7 @@ class Pipeline(SupportsPipeline):
             with signals.delayed_signals():
                 runner.run_pool(load_step.config, load_step)
             info: LoadInfo = self._get_step_info(load_step)
-
-            self.first_run = False
+            self._update_last_run_context()
             return info
         except Exception as l_ex:
             step_info = self._get_step_info(load_step)
@@ -772,11 +786,9 @@ class Pipeline(SupportsPipeline):
                 remote_state = self._restore_state_from_destination()
 
                 # if remote state is newer or same
-                # print(f'REMOTE STATE: {(remote_state or {}).get("_state_version")} >= {state["_state_version"]}')
                 # TODO: check if remote_state["_state_version"] is not in 10 recent version. then we know remote is newer.
                 if remote_state and remote_state["_state_version"] >= state["_state_version"]:
                     state_changed = remote_state["_version_hash"] != state.get("_version_hash")
-                    # print(f"MERGED STATE: {bool(merged_state)}")
                     if state_changed:
                         # see if state didn't change the pipeline name
                         if state["pipeline_name"] != remote_state["pipeline_name"]:
@@ -796,7 +808,7 @@ class Pipeline(SupportsPipeline):
                                 f"Pipeline {self.pipeline_name} got restored from destination"
                                 " including new version",
                                 "of pipeline state but it has pending load packages that were not"
-                                " yet normalized or loaded. If that packages contain extracted"
+                                " yet normalized or loaded. If those packages contain extracted"
                                 " state or schema migrations - those will not be affected and will"
                                 " still be loaded to destination.",
                             )
@@ -818,9 +830,9 @@ class Pipeline(SupportsPipeline):
                     self._schema_storage.clear_storage()
                 for schema in restored_schemas:
                     self._schema_storage.save_schema(schema)
-                # if the remote state is present then unset first run
+                # if the remote state is present then unset first run and update last run context
                 if remote_state is not None:
-                    self.first_run = False
+                    self._update_last_run_context()
             except DestinationUndefinedEntity:
                 # storage not present. wipe the pipeline if pipeline not new
                 # do it only if pipeline has any data
@@ -1045,6 +1057,19 @@ class Pipeline(SupportsPipeline):
             state = self._get_state()
         return state["_local"][key]  # type: ignore
 
+    def _update_last_run_context(self) -> None:
+        """
+        Persist the directory context in local state.
+        Safe-no-op if the pipeline is not active or if run_context cannot be resolved.
+        """
+        self.first_run = False
+        self.last_run_context = {
+            "settings_dir": os.path.abspath(self.run_context.settings_dir),
+            "local_dir": os.path.abspath(self.run_context.local_dir),
+            "run_dir": os.path.abspath(self.run_context.run_dir),
+            "uri": self.run_context.uri,
+        }
+
     @with_config_section(sections=(), merge_func=ConfigSectionContext.prefer_existing)
     def sql_client(self, schema_name: str = None) -> SqlClientBase[Any]:
         """Returns a sql client configured to query/change the destination and dataset that were used to load the data.
@@ -1128,12 +1153,25 @@ class Pipeline(SupportsPipeline):
             )
 
     def _on_set_destination(self, new_value: AnyDestination) -> None:
+        """Called when destination changes"""
         if issubclass(new_value.spec, WithLocalFiles):
             config = WithLocalFiles()
-            config._bind_local_files(self)
+            config = self._bind_local_files(config)
             # bind config fields with pipeline context so local files are created at deterministic location
             for field in WithLocalFiles.__annotations__:
-                new_value.config_params[field] = config[field]
+                if config[field] is not None:
+                    new_value.config_params[field] = config[field]
+
+    def _bind_local_files(self, local_files: TWithLocalFiles) -> TWithLocalFiles:
+        # get context for local files from pipeline
+        local_files.pipeline_working_dir = self.working_dir
+        try:
+            local_files.legacy_db_path = self.get_local_state_val("duckdb_database")
+        except KeyError:
+            pass
+        local_files.local_dir = self.get_local_state_val("initial_cwd")
+        local_files.pipeline_name = self.pipeline_name
+        return local_files
 
     def _get_schema_or_create(self, schema_name: str = None) -> Schema:
         if schema_name:
@@ -1293,7 +1331,7 @@ class Pipeline(SupportsPipeline):
                 "destination",
                 "load",
                 "Please provide `destination` argument to `pipeline`, `run` or `load` method"
-                " directly or via .dlt config.toml file or environment variable.",
+                " directly or via .dlt/config.toml file or environment variable.",
             )
 
         destination_client, staging_client = get_destination_clients(
@@ -1314,8 +1352,8 @@ class Pipeline(SupportsPipeline):
         if isinstance(destination_client.config, DestinationClientStagingConfiguration):
             if not self.dataset_name and self.dev_mode:
                 logger.warning(
-                    "Dev mode may not work if dataset name is not set. Please set the"
-                    " dataset_name argument in dlt.pipeline or run method"
+                    "`dev_mode=True` may not work if `dataset_name` is not set. "
+                    "Please set `dataset_name` in `dlt.pipeline(...)` or `Pipeline.run(...)`."
                 )
 
         return destination_client, staging_client
@@ -1327,7 +1365,7 @@ class Pipeline(SupportsPipeline):
                 "destination",
                 "normalize",
                 "Please provide `destination` argument to `pipeline`, `run` or `load` method"
-                " directly or via .dlt config.toml file or environment variable.",
+                " directly or via .dlt/config.toml file or environment variable.",
             )
 
         # check if default schema is present
@@ -1772,38 +1810,13 @@ class Pipeline(SupportsPipeline):
     # NOTE: I expect that we'll merge all relations into one. and then we'll be able to get rid
     #  of overload and dataset_type
 
-    @overload
-    def dataset(
-        self,
-        schema: Union[Schema, str, None] = None,
-        dataset_type: Literal["ibis"] = "ibis",
-    ) -> ReadableDBAPIDataset: ...
-
-    @overload
-    def dataset(
-        self,
-        schema: Union[Schema, str, None] = None,
-        dataset_type: Literal["default"] = "default",
-    ) -> ReadableDBAPIDataset: ...
-
-    @overload
-    def dataset(
-        self,
-        schema: Union[Schema, str, None] = None,
-        dataset_type: TDatasetType = "auto",
-    ) -> ReadableDBAPIDataset: ...
-
-    def dataset(
-        self, schema: Union[Schema, str, None] = None, dataset_type: TDatasetType = "auto"
-    ) -> Any:
+    def dataset(self, schema: Union[Schema, str, None] = None) -> Dataset:
         """Returns a dataset object for querying the destination data.
 
         Args:
             schema (Union[Schema, str, None]): Schema name or Schema object to use. If None, uses the default schema if set.
-            dataset_type (TDatasetType): Type of dataset interface to return. Defaults to 'auto' which will select ibis if available
-                otherwise it will fallback to the standard dbapi interface.
         Returns:
-            Any: A dataset object that supports querying the destination data.
+            Dataset: A dataset object that supports querying the destination data.
         """
 
         if not self._destination:
@@ -1837,5 +1850,4 @@ class Pipeline(SupportsPipeline):
             self._destination,
             self.dataset_name,
             schema=schema,
-            dataset_type=dataset_type,
         )

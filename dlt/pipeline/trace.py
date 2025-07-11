@@ -10,7 +10,7 @@ from dlt.common.pendulum import pendulum
 from dlt.common.configuration import is_secret_hint
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.configuration.utils import _RESOLVED_TRACES, ResolvedValueTrace
+from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.configuration.container import Container
 from dlt.common.exceptions import ExceptionTrace, ResourceNameNotAvailable
 from dlt.common.logger import suppress_and_warn
@@ -24,10 +24,11 @@ from dlt.common.pipeline import (
     StepMetrics,
     SupportsPipeline,
 )
-from dlt.common.pipeline import get_current_pipe_name
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize
 from dlt.common.utils import uniq_id, get_exception_trace_chain
+
+from dlt.extract.state import get_current_pipe_name
 
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -159,10 +160,10 @@ class PipelineTrace(SupportsHumanize, _PipelineTrace):
         return msg
 
     def last_pipeline_step_trace(self, step_name: TPipelineStep) -> PipelineStepTrace:
-        for step in self.steps:
-            if step.step == step_name:
-                return step
-        return None
+        matching_steps = [step for step in self.steps if step.step == step_name]
+        if not matching_steps:
+            return None
+        return max(matching_steps, key=lambda step: step.started_at)
 
     def asdict(self) -> DictStrAny:
         """A dictionary representation of PipelineTrace that can be loaded with `dlt`"""
@@ -277,6 +278,8 @@ def end_trace_step(
         exception_traces=exception_traces,
         step_info=step_info,
     )
+
+    # this will collect traces from the last clear (happens at the end of trace)
     resolved_values = map(
         lambda v: SerializableResolvedValueTrace(
             v.key,
@@ -287,9 +290,8 @@ def end_trace_step(
             v.provider_name,
             str(type(v.config).__qualname__),
         ),
-        _RESOLVED_TRACES.values(),
+        get_resolved_traces().resolved_traces,
     )
-
     trace.resolved_config_values[:] = list(resolved_values)
     trace.steps.append(step)
     for module in TRACKING_MODULES:
@@ -307,6 +309,8 @@ def end_trace(
     for module in TRACKING_MODULES:
         with suppress_and_warn(f"end_trace on module {module} failed"):
             module.on_end_trace(trace, pipeline, send_state)
+    # clear collected config resolver traces
+    get_resolved_traces().clear()
     return trace
 
 

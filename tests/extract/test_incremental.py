@@ -24,11 +24,13 @@ from dlt.common.configuration.specs.base_configuration import (
 )
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum, timedelta
-from dlt.common.pipeline import NormalizeInfo, StateInjectableContext, resource_state
+from dlt.common.pipeline import NormalizeInfo, StateInjectableContext
 from dlt.common.schema.schema import Schema
 from dlt.common.utils import chunks, digest128, uniq_id
+
 from dlt.extract import DltSource
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
+from dlt.extract.state import resource_state
 from dlt.extract.incremental.exceptions import (
     IncrementalCursorInvalidCoercion,
     IncrementalCursorPathHasValueNone,
@@ -2061,15 +2063,13 @@ def test_end_value_initial_value_errors(item_type: TestDataItemFormat) -> None:
     with pytest.raises(ConfigurationValueError) as ex:
         list(some_data(updated_at=dlt.sources.incremental(end_value=22)))
 
-    assert str(ex.value).startswith("Incremental 'end_value' was specified without 'initial_value'")
+    assert str(ex.value).startswith("Incremental `end_value` was specified without `initial_value`")
 
     # max function and end_value lower than initial_value
     with pytest.raises(ConfigurationValueError) as ex:
         list(some_data(updated_at=dlt.sources.incremental(initial_value=42, end_value=22)))
 
-    assert str(ex.value).startswith(
-        "Incremental 'initial_value' (42) is higher than 'end_value` (22)"
-    )
+    assert str(ex.value).startswith("Incremental `initial_value=42` is higher than `end_value=22`")
 
     # max function and end_value higher than initial_value
     with pytest.raises(ConfigurationValueError) as ex:
@@ -2081,9 +2081,7 @@ def test_end_value_initial_value_errors(item_type: TestDataItemFormat) -> None:
             )
         )
 
-    assert str(ex.value).startswith(
-        "Incremental 'initial_value' (22) is lower than 'end_value` (42)."
-    )
+    assert str(ex.value).startswith("Incremental `initial_value=22` is lower than `end_value=42`.")
 
     def custom_last_value(items):
         return max(items)
@@ -2099,7 +2097,7 @@ def test_end_value_initial_value_errors(item_type: TestDataItemFormat) -> None:
         )
 
     assert (
-        "The result of 'custom_last_value([end_value, initial_value])' must equal 'end_value'"
+        "The result of `custom_last_value([end_value, initial_value])` must equal `end_value`"
         in str(ex.value)
     )
 

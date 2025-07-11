@@ -5,17 +5,17 @@ import marimo as _mo
 
 # Reusable string parts
 _credentials_info = (
-    "Have you run your pipeline and are your credentials available to dltHub Studio?"
+    "Have you run your pipeline and are your credentials available to the dltHub marimo app?"
 )
 
 #
 # App general
 #
 app_title = """
-# Welcome to dltHub Studio...
+# Welcome to the dltHub marimo app...
 """
 app_intro = """
-<p align="center">...the hackable data platform for `dlt` developers. Learn how to modify this app and create your personal platform at <a href="https://dlthub.com/docs/studio/overview">dlthub.com</a>.</p>
+<p align="center">...the hackable data platform for `dlt` developers.</p>
 """
 app_pipeline_select_label = "Pipeline:"
 app_no_pipeline_selected = "No pipeline selected"
@@ -32,27 +32,27 @@ home_quick_start_title = """
 """
 
 home_basics_text = """
-## dltHub Studio basics
+## dltHub marimo app basics
 
-`dlt studio` has found `{}` pipelines in local directory `{}`. When you select a pipeline to inspect, you will be able to:
+We have found `{}` pipelines in local directory `{}`. When you select a pipeline to inspect, you will be able to:
 
 * See the current pipeline schema
 * See the pipeline state
 * Browse information about past loads and traces
-* Browse the data in the pipeline's dataset (requires credentials available to dltHub Studio)
+* Browse the data in the pipeline's dataset (requires credentials available to the dltHub marimo app)
 
-To sync the current schema and state from the destination dataset or inspect data in the destination dataset, your destination credentials need to be available to dltHub Studio. Either provide them as environment variables or start dltHub Studio from the directory containing your `.dlt` folder where the credentials are stored.
+To sync the current schema and state from the destination dataset or inspect data in the destination dataset, your destination credentials need to be available to the dltHub marimo app. Either provide them as environment variables or start the dltHub marimo app from the directory containing your `.dlt` folder where the credentials are stored.
 
-If dltHub Studio can't connect to the destination, you will receive a warning and can browse the locally stored information about the pipeline.
+If the dltHub marimo app can't connect to the destination, you will receive a warning and can browse the locally stored information about the pipeline.
 
-## dltHub Studio CLI commands
+## dltHub marimo app CLI commands
 
-* `dlt studio` - Start the studio (takes you to this page)
+* `dlt pipeline <pipeline_name> show --marimo` - Start the marimo app for the selected pipeline
+* `dlt pipeline <pipeline_name> show --marimo --edit` - Start a local copy of the marimo app for the selected pipeline in edit mode
 
 ## Learn more
 
-* [marimo docs](https://docs.marimo.io/) - Learn all about marimo, the amazing framework that powers dltHub Studio
-* [dltHub Studio docs](https://dlthub.com/docs/studio/overview) - Learn all about dltHub Studio, the hackable data platform for `dlt` developers
+* [marimo docs](https://docs.marimo.io/) - Learn all about marimo, the amazing framework that powers the dltHub marimo app
 
 <small>
 2025 [dltHub](https://dlthub.com)
@@ -105,12 +105,12 @@ schema_show_raw_yaml_text = "Show raw schema as YAML"
 # Schema UI controls
 ui_show_dlt_tables = "Show `_dlt` tables"
 ui_show_child_tables = "Show child tables"
-ui_show_row_counts = "Show row counts"
+ui_load_row_counts = "Load row counts"
 ui_show_dlt_columns = "Show `_dlt` columns"
 ui_show_type_hints = "Show type hints"
 ui_show_other_hints = "Show other hints"
 ui_show_custom_hints = "Show custom hints (x-)"
-ui_cache_query_results = "Cache query results"
+ui_clear_cache = "Clear cache"
 ui_limit_to_1000_rows = "Limit to 1000 rows"
 
 #
@@ -120,24 +120,22 @@ browse_data_title = "Browse Pipeline Data"
 browse_data_subtitle = "Browse data from the current pipeline."
 browse_data_subtitle_long = (
     "Browse data from the current pipeline. Select a table from the list to start or write a SQL"
-    " query in the text area below. Toggling row counts will load the row counts for all tables"
-    " from the destination. To reload, toggle the switch again."
+    " query in the text area below. Clicking the row counts button will load the row counts for all"
+    " tables from the destination. To reload the row count, just click the button again."
 )
 
 browse_data_error_text = f"Error connecting to destination. {_credentials_info}"
 
 browse_data_explorer_title = """
-<small>Select a table above or write a SQL query in the text area below to explore the data in the destination. The query will be executed on the destination and the results will be displayed in a table. If you disable query caching, all cached queries will be purged.</small>
+<small>Select a table above or write a SQL query in the text area below to explore the data in the destination. The query will be executed on the destination and the results will be displayed in a table. All queries are cached, please clear the cache if you need to refresh the results for a query.</small>
 """
 
 browse_data_query_result_title = "Query Result"
 
 browse_data_query_history_title = "Query History"
 browse_data_query_history_subtitle = (
-    "The following list shows all queries that have been executed on the destination and are may be"
-    " present in the cache. Select one or more to see the results again below and compare.If you"
-    " have purged or disabled the cache inbetween, selecting a query will load the result from the"
-    " destination."
+    "The following list shows all queries that have been executed on the destination and are"
+    " present in the cache. Select one or more to see the results again below and compare."
 )
 
 browse_data_query_error = "Error executing SQL query:"

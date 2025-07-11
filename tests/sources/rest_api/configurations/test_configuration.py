@@ -1,5 +1,5 @@
 from copy import copy
-from typing import cast, Dict, Any
+from typing import cast, Dict, Any, Optional, Union, Type
 from unittest.mock import patch
 
 import pytest
@@ -12,6 +12,7 @@ from dlt.common.utils import update_dict_nested
 from dlt.sources.helpers.rest_client.paginators import (
     HeaderLinkPaginator,
     SinglePagePaginator,
+    JSONLinkPaginator,
 )
 from dlt.sources.rest_api import (
     rest_api_resources,
@@ -34,6 +35,17 @@ from .source_configs import (
     INVALID_CONFIGS,
     VALID_CONFIGS,
 )
+
+
+def _replace_paginators(cfg: Any, paginators: Dict[str, Any]) -> Any:
+    """Recursively replace paginator string placeholders with actual paginator objects."""
+    if isinstance(cfg, dict):
+        return {k: _replace_paginators(v, paginators) for k, v in cfg.items()}
+    if isinstance(cfg, list):
+        return [_replace_paginators(v, paginators) for v in cfg]
+    if isinstance(cfg, str) and cfg in paginators:
+        return paginators[cfg]
+    return cfg
 
 
 @pytest.mark.parametrize("expected_message, exception, invalid_config", INVALID_CONFIGS)
@@ -397,6 +409,26 @@ def test_resource_defaults_params_no_resource_params() -> None:
     assert merged_resource["endpoint"]["params"]["per_page"] == 30  # type: ignore[index]
 
 
+def test_resource_overrides_with_explicit_none() -> None:
+    resource_defaults: EndpointResourceBase = {
+        "primary_key": "id",
+        "write_disposition": "merge",
+        "endpoint": {
+            "path": "issues",
+            "paginator": "json_link",
+        },
+    }
+
+    resource: EndpointResource = {
+        "endpoint": {
+            "paginator": None,
+        },
+    }
+
+    merged_resource = _merge_resource_endpoints(resource_defaults, resource)
+    assert merged_resource["endpoint"]["paginator"] is None  # type: ignore[index]
+
+
 def test_resource_defaults_no_params() -> None:
     resource_defaults: EndpointResourceBase = {
         "primary_key": "id",
@@ -497,3 +529,522 @@ def test_resource_defaults_dont_apply_to_DltResource() -> None:
         "DltResource defined outside of the RESTAPIConfig object is influenced by the content of"
         " the RESTAPIConfig"
     )
+
+
+def test_multiple_dlt_resources() -> None:
+    @dlt.resource
+    def first_resource():
+        yield [{"id": 1, "name": "first"}]
+
+    @dlt.resource
+    def second_resource():
+        yield [{"id": 2, "name": "second"}]
+
+    config: RESTAPIConfig = {
+        "client": {"base_url": "https://api.example.com"},
+        "resources": [
+            {
+                "name": "endpoint_resource",
+                "endpoint": {
+                    "path": "items",
+                    "method": "GET",
+                },
+            },
+            first_resource(),
+            second_resource(),
+        ],
+    }
+
+    source = rest_api_source(config)
+    resource_names = list(source.resources.keys())
+
+    assert (
+        len(resource_names) == 3
+    ), f"Expected 3 resources, got {len(resource_names)}: {resource_names}"
+    assert "endpoint_resource" in resource_names
+    assert "first_resource" in resource_names
+    assert "second_resource" in resource_names
+
+
+@pytest.mark.parametrize(
+    "config, expected_client_paginator, expected_endpoint_paginator",
+    [
+        # client_paginator: no
+        # defaults_paginator: no
+        # endpoint_paginator: no
+        (
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resources": [
+                    {
+                        "name": "users",
+                        "endpoint": {"path": "users"},
+                    },
+                ],
+            },
+            None,
+            None,
+        ),
+        # client_paginator: yes
+        # defaults_paginator: no
+        # endpoint_paginator: no
+        (
+            {
+                "client": {
+                    "base_url": "https://api.example.com",
+                    "paginator": "__client_paginator__",
+                },
+                "resources": [
+                    {
+                        "name": "users",
+                        "endpoint": {"path": "users"},
+                    },
+                ],
+            },
+            "__client_paginator__",
+            None,
+        ),
+        # client_paginator: no
+        # defaults_paginator: yes
+        # endpoint_paginator: no
+        (
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resource_defaults": {
+                    "endpoint": {"paginator": "__defaults_paginator__"},
+                },
+                "resources": [
+                    {
+                        "name": "users",
+                        "endpoint": {"path": "users"},
+                    },
+                ],
+            },
+            None,
+            "__defaults_paginator__",
+        ),
+        # client_paginator: no
+        # defaults_paginator: no
+        # endpoint_paginator: yes
+        (
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resources": [
+                    {
+                        "name": "users",
+                        "endpoint": {
+                            "path": "users",
+                            "paginator": "__endpoint_paginator__",
+                        },
+                    },
+                ],
+            },
+            None,
+            "__endpoint_paginator__",
+        ),
+        # client_paginator: yes
+        # defaults_paginator: yes
+        # endpoint_paginator: no
+        (
+            {
+                "client": {
+                    "base_url": "https://api.example.com",
+                    "paginator": "__client_paginator__",
+                },
+                "resource_defaults": {
+                    "endpoint": {"paginator": "__defaults_paginator__"},
+                },
+                "resources": [
+                    {
+                        "name": "users",
+                        "endpoint": {"path": "users"},
+                    },
+                ],
+            },
+            "__client_paginator__",
+            "__defaults_paginator__",
+        ),
+        # client_paginator: yes
+        # defaults_paginator: no
+        # endpoint_paginator: yes
+        (
+            {
+                "client": {
+                    "base_url": "https://api.example.com",
+                    "paginator": "__client_paginator__",
+                },
+                "resources": [
+                    {
+                        "name": "users",
+                        "endpoint": {
+                            "path": "users",
+                            "paginator": "__endpoint_paginator__",
+                        },
+                    },
+                ],
+            },
+            "__client_paginator__",
+            "__endpoint_paginator__",
+        ),
+        # client_paginator: no
+        # defaults_paginator: yes
+        # endpoint_paginator: yes
+        (
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resource_defaults": {
+                    "endpoint": {"paginator": "__defaults_paginator__"},
+                },
+                "resources": [
+                    {
+                        "name": "users",
+                        "endpoint": {
+                            "path": "users",
+                            "paginator": "__endpoint_paginator__",
+                        },
+                    },
+                ],
+            },
+            None,
+            "__endpoint_paginator__",
+        ),
+        # client_paginator: yes
+        # defaults_paginator: yes
+        # endpoint_paginator: yes
+        (
+            {
+                "client": {
+                    "base_url": "https://api.example.com",
+                    "paginator": "__client_paginator__",
+                },
+                "resource_defaults": {
+                    "endpoint": {"paginator": "__defaults_paginator__"},
+                },
+                "resources": [
+                    {
+                        "name": "users",
+                        "endpoint": {
+                            "path": "users",
+                            "paginator": "__endpoint_paginator__",
+                        },
+                    },
+                ],
+            },
+            "__client_paginator__",
+            "__endpoint_paginator__",
+        ),
+        # client_paginator: yes
+        # defaults_paginator: no
+        # endpoint_paginator: None
+        (
+            {
+                "client": {
+                    "base_url": "https://api.example.com",
+                    "paginator": "__client_paginator__",
+                },
+                "resources": [
+                    {
+                        "name": "users",
+                        "endpoint": {"path": "users", "paginator": None},
+                    },
+                ],
+            },
+            "__client_paginator__",
+            None,
+        ),
+        # client_paginator: no
+        # defaults_paginator: no
+        # endpoint_paginator: None
+        (
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resources": [
+                    {
+                        "name": "users",
+                        "endpoint": {"path": "users", "paginator": None},
+                    },
+                ],
+            },
+            None,
+            None,
+        ),
+        # client_paginator: no
+        # defaults_paginator: yes
+        # endpoint_paginator: None
+        (
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resource_defaults": {
+                    "endpoint": {"paginator": "__defaults_paginator__"},
+                },
+                "resources": [
+                    {
+                        "name": "users",
+                        "endpoint": {"path": "users", "paginator": None},
+                    },
+                ],
+            },
+            None,
+            None,
+        ),
+        # client_paginator: yes
+        # defaults_paginator: yes
+        # endpoint_paginator: None
+        (
+            {
+                "client": {
+                    "base_url": "https://api.example.com",
+                    "paginator": "__client_paginator__",
+                },
+                "resource_defaults": {
+                    "endpoint": {"paginator": "__defaults_paginator__"},
+                },
+                "resources": [
+                    {
+                        "name": "users",
+                        "endpoint": {"path": "users", "paginator": None},
+                    },
+                ],
+            },
+            "__client_paginator__",
+            None,
+        ),
+    ],
+)
+def test_paginator_overrides(
+    config: RESTAPIConfig,
+    expected_client_paginator: Optional[str],
+    expected_endpoint_paginator: Optional[str],
+) -> None:
+    paginators = {
+        "__client_paginator__": JSONLinkPaginator(),
+        "__defaults_paginator__": JSONLinkPaginator(),
+        "__endpoint_paginator__": JSONLinkPaginator(),
+    }
+
+    config = _replace_paginators(config, paginators)
+
+    captured_paginators = []
+
+    def mock_client_paginate(self, *args, **kwargs):
+        captured_paginators.append(
+            {
+                "client_paginator": self.paginator,
+                "endpoint_paginator": kwargs.get("paginator"),
+            }
+        )
+        yield [{"id": 1, "name": "test"}]
+
+    with patch(
+        "dlt.sources.helpers.rest_client.client.RESTClient.paginate", new=mock_client_paginate
+    ):
+        resources = rest_api_resources(config)
+        list(resources[0])
+
+    assert len(captured_paginators) == 1
+    captured = captured_paginators[0]
+
+    expected_client = paginators.get(expected_client_paginator)
+    expected_endpoint = paginators.get(expected_endpoint_paginator)
+
+    assert captured["client_paginator"] is expected_client
+    assert captured["endpoint_paginator"] is expected_endpoint
+
+
+@pytest.mark.parametrize(
+    "config, expected_client_paginator, expected_endpoint_paginator_type",
+    [
+        # client_paginator: no
+        # defaults_paginator: no
+        # endpoint_paginator: no (should become SinglePagePaginator)
+        (
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resources": [
+                    "users",
+                    {
+                        "name": "user",
+                        "endpoint": {"path": "user/{resources.users.id}"},
+                    },
+                ],
+            },
+            None,
+            SinglePagePaginator,
+        ),
+        # client_paginator: yes
+        # defaults_paginator: no
+        # endpoint_paginator: no (should become SinglePagePaginator)
+        (
+            {
+                "client": {
+                    "base_url": "https://api.example.com",
+                    "paginator": "__client_paginator__",
+                },
+                "resources": [
+                    "users",
+                    {
+                        "name": "user",
+                        "endpoint": {"path": "user/{resources.users.id}"},
+                    },
+                ],
+            },
+            "__client_paginator__",
+            SinglePagePaginator,
+        ),
+        # client_paginator: no
+        # defaults_paginator: yes
+        # endpoint_paginator: no (should become __defaults_paginator__)
+        (
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resource_defaults": {
+                    "endpoint": {"paginator": "__defaults_paginator__"},
+                },
+                "resources": [
+                    "users",
+                    {
+                        "name": "user",
+                        "endpoint": {"path": "user/{resources.users.id}"},
+                    },
+                ],
+            },
+            None,
+            "__defaults_paginator__",
+        ),
+        # client_paginator: no
+        # defaults_paginator: no
+        # endpoint_paginator: None (should become SinglePagePaginator)
+        (
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resources": [
+                    "users",
+                    {
+                        "name": "user",
+                        "endpoint": {"path": "user/{resources.users.id}", "paginator": None},
+                    },
+                ],
+            },
+            None,
+            SinglePagePaginator,
+        ),
+        # client_paginator: yes
+        # defaults_paginator: yes
+        # endpoint_paginator: None (should become SinglePagePaginator)
+        (
+            {
+                "client": {
+                    "base_url": "https://api.example.com",
+                    "paginator": "__client_paginator__",
+                },
+                "resource_defaults": {
+                    "endpoint": {"paginator": "__defaults_paginator__"},
+                },
+                "resources": [
+                    "users",
+                    {
+                        "name": "user",
+                        "endpoint": {"path": "user/{resources.users.id}", "paginator": None},
+                    },
+                ],
+            },
+            "__client_paginator__",
+            SinglePagePaginator,
+        ),
+        # client_paginator: yes
+        # defaults_paginator: yes
+        # endpoint_paginator: no (should become __defaults_paginator__)
+        (
+            {
+                "client": {
+                    "base_url": "https://api.example.com",
+                    "paginator": "__client_paginator__",
+                },
+                "resource_defaults": {
+                    "endpoint": {"paginator": "__defaults_paginator__"},
+                },
+                "resources": [
+                    "users",
+                    {
+                        "name": "user",
+                        "endpoint": {"path": "user/{resources.users.id}"},
+                    },
+                ],
+            },
+            "__client_paginator__",
+            "__defaults_paginator__",
+        ),
+        # client_paginator: no
+        # defaults_paginator: no
+        # endpoint_paginator: yes (explicit paginator should be kept as is)
+        (
+            {
+                "client": {"base_url": "https://api.example.com"},
+                "resources": [
+                    "users",
+                    {
+                        "name": "user",
+                        "endpoint": {
+                            "path": "user/{resources.users.id}",
+                            "paginator": "__endpoint_paginator__",
+                        },
+                    },
+                ],
+            },
+            None,
+            "__endpoint_paginator__",
+        ),
+    ],
+)
+def test_paginator_overrides_single_entity_paths(
+    config: RESTAPIConfig,
+    expected_client_paginator: Optional[str],
+    expected_endpoint_paginator_type: Union[str, Type[SinglePagePaginator]],
+) -> None:
+    """
+    Single entity paths (like 'user/{id}') have special behavior:
+    - If endpoint paginator is None, it gets set to SinglePagePaginator
+    - This happens after merging defaults but before final paginator selection
+    """
+    paginators = {
+        "__client_paginator__": JSONLinkPaginator(),
+        "__defaults_paginator__": JSONLinkPaginator(),
+        "__endpoint_paginator__": JSONLinkPaginator(),
+    }
+
+    config = _replace_paginators(config, paginators)
+
+    captured_paginators = []
+
+    def mock_client_paginate(self, *args, **kwargs):
+        if kwargs.get("path") == "users":
+            yield [{"id": 1, "name": "test"}]
+            return
+
+        captured_paginators.append(
+            {
+                "client_paginator": self.paginator,
+                "endpoint_paginator": kwargs.get("paginator"),
+            }
+        )
+        yield {"id": 1, "name": "dependent resource"}
+
+    with patch(
+        "dlt.sources.helpers.rest_client.client.RESTClient.paginate", new=mock_client_paginate
+    ):
+        resources = rest_api_resources(config)
+        list(resources[1])
+
+    assert len(captured_paginators) == 1
+    captured = captured_paginators[0]
+
+    expected_client = paginators.get(expected_client_paginator)
+    assert captured["client_paginator"] is expected_client
+
+    if expected_endpoint_paginator_type == SinglePagePaginator:
+        assert isinstance(captured["endpoint_paginator"], SinglePagePaginator)
+    elif isinstance(expected_endpoint_paginator_type, str):
+        expected_endpoint = paginators.get(expected_endpoint_paginator_type)
+        assert captured["endpoint_paginator"] is expected_endpoint
+    else:
+        assert captured["endpoint_paginator"] is None

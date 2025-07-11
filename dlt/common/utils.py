@@ -1,3 +1,4 @@
+from typing import TYPE_CHECKING, Any
 import os
 from pathlib import Path
 import sys
@@ -12,6 +13,11 @@ import traceback
 import zlib
 from importlib.metadata import version as pkg_version
 from packaging.version import Version
+
+if TYPE_CHECKING:
+    from dlt.common.libs.sqlglot import TSqlGlotDialect
+else:
+    TSqlGlotDialect = Any
 
 from typing import (
     Any,
@@ -31,6 +37,7 @@ from typing import (
     Union,
     Iterable,
     IO,
+    cast,
 )
 
 from dlt.common.exceptions import (
@@ -38,6 +45,7 @@ from dlt.common.exceptions import (
     ExceptionTrace,
     TerminalException,
     DependencyVersionException,
+    ValueErrorWithKnownValues,
 )
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun, Generic
 
@@ -117,7 +125,9 @@ def str2bool(v: str) -> bool:
     elif v.lower() in ("no", "false", "f", "n", "0"):
         return False
     else:
-        raise ValueError("Boolean value expected.")
+        raise ValueErrorWithKnownValues(
+            "v", v, [True, "yes", "true", "t", "y", 1, False, "no", "false", "f", "n", "0"]
+        )
 
 
 # def flatten_list_of_dicts(dicts: Sequence[StrAny]) -> StrAny:
@@ -142,12 +152,12 @@ def flatten_list_of_str_or_dicts(seq: Sequence[Union[StrAny, str]]) -> DictStrAn
         if isinstance(e, dict):
             for k, v in e.items():
                 if k in o:
-                    raise KeyError(f"Cannot flatten with duplicate key {k}")
+                    raise KeyError(f"Failed to flatten because of duplicate key `{k}`")
                 o[k] = v
         else:
             key = str(e)
             if key in o:
-                raise KeyError(f"Cannot flatten with duplicate key {key}")
+                raise KeyError(f"Failed to flatten because of duplicate key `{key}`")
             o[key] = None
     return o
 
@@ -700,8 +710,8 @@ removeprefix = getattr(
 
 def read_dialect_and_sql(
     file_obj: IO[str],
-    fallback_dialect: Optional[str] = None,
-) -> Tuple[str, str]:
+    fallback_dialect: Optional[TSqlGlotDialect] = None,
+) -> Tuple[TSqlGlotDialect, str]:
     """
     Read the first line of a file for the dialect (after the first colon),
     falls back to `fallback_dialect` if not found or empty,
@@ -720,7 +730,7 @@ def read_dialect_and_sql(
     first_line = file_obj.readline()
     # e.g. something like: "dialect: clickhouse\n"
     parts = first_line.split(":", 1)
-    parsed_dialect = parts[1].strip() if len(parts) > 1 else ""
+    parsed_dialect = cast(TSqlGlotDialect, parts[1].strip() if len(parts) > 1 else "")
 
     dialect = parsed_dialect if parsed_dialect else fallback_dialect
 

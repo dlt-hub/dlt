@@ -36,7 +36,7 @@ def test_secrets_management(
 
     pipeline = destination_config.setup_pipeline(
         "read_pipeline",
-        dataset_name="read_test",
+        dataset_name="test_secrets_management",
     )
 
     import duckdb

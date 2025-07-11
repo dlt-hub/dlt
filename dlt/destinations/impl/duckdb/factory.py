@@ -76,7 +76,7 @@ class DuckDbTypeMapper(TypeMapperImpl):
         elif precision <= 128:
             return "HUGEINT"
         raise TerminalValueError(
-            f"bigint with {precision} bits precision cannot be mapped into duckdb integer type"
+            f"bigint with `{precision=:}` can't be mapped to DuckDB integer type"
         )
 
     def to_db_datetime_type(
@@ -110,8 +110,8 @@ class DuckDbTypeMapper(TypeMapperImpl):
             return "TIMESTAMP_NS"
 
         raise TerminalValueError(
-            f"DuckDB does not support precision '{precision}' for '{column_name}' in table"
-            f" '{table_name}'"
+            f"DuckDB doesn't support `{precision=:}` for datetime column `{column_name}` in table"
+            f" `{table_name}`"
         )
 
     def from_destination_type(
@@ -176,13 +176,14 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
 
         Args:
             credentials (Union[DuckDbCredentials, Dict[str, Any], str, DuckDBPyConnection], optional): Credentials to connect to the duckdb database. Can be an instance of `DuckDbCredentials` or
-                a path to a database file. Use :pipeline: to create a duckdb
-                in the working folder of the pipeline
+                a path to a database file. Use :pipeline: to create a duckdb in the working folder of the pipeline.
+                Instance of `DuckDbCredentials` allows to pass extensions, configs and pragmas to be set up for connection.
             create_indexes (bool, optional): Should unique indexes be created, defaults to False
             destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
             environment (str, optional): Environment of the destination
             **kwargs (Any): Additional arguments passed to the destination config
         """
+
         super().__init__(
             credentials=credentials,
             create_indexes=create_indexes,

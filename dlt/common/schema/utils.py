@@ -254,7 +254,8 @@ def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
     if t is TSimpleRegex:
         if not isinstance(pv, str):
             raise DictValidationException(
-                f"field {pk} value {pv} has invalid type {type(pv).__name__} while str is expected",
+                f"field `{pk}` value `{pv}` has invalid type `{type(pv).__name__}` while `str` is"
+                " expected",
                 path,
                 t,
                 pk,
@@ -266,7 +267,7 @@ def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
                 re.compile(pv[3:])
             except Exception as e:
                 raise DictValidationException(
-                    f"field {pk} value {pv[3:]} does not compile as regex: {str(e)}",
+                    f"field `{pk}` value `{pv[3:]}` does not compile as regex: `{str(e)}`",
                     path,
                     t,
                     pk,
@@ -275,7 +276,7 @@ def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
         else:
             if RE_NON_ALPHANUMERIC_UNDERSCORE.match(pv):
                 raise DictValidationException(
-                    f"field {pk} value {pv} looks like a regex, please prefix with re:",
+                    f"field `{pk}` value `{pv}` looks like a regex, please prefix with `re:`",
                     path,
                     t,
                     pk,
@@ -293,8 +294,8 @@ def column_name_validator(naming: NamingConvention) -> TCustomValidator:
         if t is TColumnName:
             if not isinstance(pv, str):
                 raise DictValidationException(
-                    f"field {pk} value {pv} has invalid type {type(pv).__name__} while"
-                    " str is expected",
+                    f"field `{pk}` value `{pv}` has invalid type `{type(pv).__name__}` while"
+                    " `str` is expected",
                     path,
                     t,
                     pk,
@@ -303,11 +304,11 @@ def column_name_validator(naming: NamingConvention) -> TCustomValidator:
             try:
                 if naming.normalize_path(pv) != pv:
                     raise DictValidationException(
-                        f"field {pk}: {pv} is not a valid column name", path, t, pk, pv
+                        f"field `{pk}` value `{pv}` is not a valid column name", path, t, pk, pv
                     )
             except ValueError:
                 raise DictValidationException(
-                    f"field {pk}: {pv} is not a valid column name", path, t, pk, pv
+                    f"field `{pk}` value `{pv}` is not a valid column name", path, t, pk, pv
                 )
             return True
         else:
@@ -442,7 +443,7 @@ def merge_columns(
     * incomplete columns in `columns_a` that got completed in `columns_b` are removed to preserve order
     """
     if columns_partial is False:
-        raise NotImplementedError("columns_partial must be False for merge_columns")
+        raise NotImplementedError("Using `merge_columns()` requires `columns_partial=False`")
 
     # remove incomplete columns in table that are complete in diff table
     for col_name, column_b in columns_b.items():
@@ -806,7 +807,7 @@ def get_inherited_table_hint(
         return None
 
     raise ValueError(
-        f"No table hint '{table_hint_name} found in the chain of tables for '{table_name}'."
+        f"No table hint `{table_hint_name}` found in the chain of tables for table `{table_name}`."
     )
 
 

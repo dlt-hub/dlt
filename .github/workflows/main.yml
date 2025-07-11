@@ -1,0 +1,105 @@
+name: dlt
+
+on:
+  pull_request:
+    branches: [ master, devel ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # checks wether anything outside docs has changed, if not, most of the tests can be skipped
+  # lint will check this and if lint is not run, no other tests will be run
+  get_docs_changes:
+    name: docs changes
+    uses: ./.github/workflows/get_docs_changes.yml
+
+  # if the PR is from a fork, we need to authorize the secrets access and remote destinations run with a lable
+  authorize_run_from_fork:
+    name: check if fork and if so wether secrets are available
+    # run when label is assigned OR when we are not a fork
+    if: ${{ github.event.label.name == 'ci from fork' || (github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'opened' || github.event.action == 'synchronize'))}}
+    runs-on: ubuntu-latest
+    steps:
+      - run: true
+
+  # testing and linting of docs snippets is always run to catch problems in the docs
+  # NOTE: we could splint linting and testing of docs so linter can also always run for fork PRs
+  test_docs_snippets:
+    name: test snippets in docs
+    uses: ./.github/workflows/test_docs_snippets.yml
+    secrets: inherit
+  
+  lint:
+    name: lint on all python versions
+    needs: get_docs_changes
+    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
+    uses: ./.github/workflows/lint.yml
+
+  test_common:
+    name: run common tests on all python versions and OSes
+    needs: lint
+    uses: ./.github/workflows/test_common.yml
+
+  #
+  # Destination and Sources local tests, do not provide secrets
+  # Other tests that do not require remote connections
+  #
+  test_destinations_local:
+    name: run local destination tests without secrets
+    needs: test_common
+    uses: ./.github/workflows/test_destinations_local.yml
+
+  test_sources_local:
+    name: run local source tests without secrets
+    needs: test_common
+    uses: ./.github/workflows/test_sources_local.yml
+
+  test_plus:
+    name: test dlt+ connection
+    needs: lint
+    uses: ./.github/workflows/test_plus.yml
+
+  test_tools_airflow:
+    name: test airflow helpers
+    needs: lint
+    uses: ./.github/workflows/test_tools_airflow.yml
+
+  test_tools_build_images:
+    name: test build images
+    needs: lint
+    uses: ./.github/workflows/test_tools_build_images.yml
+
+  #
+  # Remote destination tests and docs snippets, needs secrets, 
+  # so we depend on authorize and forward secrets
+  #
+
+
+  test_destinations_remote:
+    name: test remote destinations with secrets
+    needs: [authorize_run_from_fork, test_common]
+    uses: ./.github/workflows/test_destinations_remote.yml
+    secrets: inherit
+    with:
+      run_full_test_suite: ${{ contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule'}}
+
+  #
+  # Other tools and tests that require secrets
+  #
+  test_tools_dbt_runner:
+    name: test dbt runner
+    needs: [test_common, authorize_run_from_fork]
+    uses: ./.github/workflows/test_tools_dbt_runner.yml
+    secrets: inherit
+  
+  # dbt cloud tests currently are disabled, TODO: explain why
+  # test_tools_dbt_cloud:
+  #   needs: [test_common, authorize_run_from_fork]
+  #   uses: ./.github/workflows/test_tools_dbt_cloud.yml
+  #   secrets: inherit
+
+
+

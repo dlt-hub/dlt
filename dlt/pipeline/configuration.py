@@ -1,11 +1,11 @@
 from typing import Any, Optional
 
-import dlt
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import RuntimeConfiguration, BaseConfiguration
+from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from dlt.common.typing import AnyFun, TSecretStrValue
 from dlt.common.utils import digest256
-from dlt.common.destination import TLoaderFileFormat, TDestinationReferenceArg
+from dlt.common.destination import TDestinationReferenceArg
 from dlt.common.pipeline import TRefreshMode
 from dlt.common.configuration.exceptions import ConfigurationValueError
 
@@ -42,6 +42,8 @@ class PipelineConfiguration(BaseConfiguration):
     runtime: RuntimeConfiguration = None
     refresh: Optional[TRefreshMode] = None
     """Refresh mode for the pipeline to fully or partially reset a source during run. See docstring of `dlt.pipeline` for more details."""
+    pluggable_run_context: PluggableRunContext = None
+    """Pluggable run context with current run context"""
 
     def on_resolved(self) -> None:
         if not self.pipeline_name:
@@ -60,4 +62,4 @@ class PipelineConfiguration(BaseConfiguration):
 def ensure_correct_pipeline_kwargs(f: AnyFun, **kwargs: Any) -> None:
     for arg_name in kwargs:
         if not hasattr(PipelineConfiguration, arg_name) and not arg_name.startswith("_dlt"):
-            raise TypeError(f"{f.__name__} got an unexpected keyword argument '{arg_name}'")
+            raise TypeError(f"`{f.__name__}` got an unexpected keyword argument `{arg_name}`")

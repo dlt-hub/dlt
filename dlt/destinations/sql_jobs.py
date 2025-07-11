@@ -19,7 +19,7 @@ from dlt.common.schema.utils import (
     is_nested_table,
 )
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
-from dlt.common.storages.load_package import load_package as current_load_package
+from dlt.common.storages.load_package import load_package_state as current_load_package
 from dlt.common.utils import uniq_id
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import MergeDispositionException
@@ -257,6 +257,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         dedup_sort: Tuple[str, TSortOrder] = None,
         condition: str = None,
         condition_columns: Sequence[str] = None,
+        skip_dedup: bool = False,
     ) -> str:
         """Returns SELECT FROM SQL statement.
 
@@ -271,9 +272,9 @@ class SqlMergeFollowupJob(SqlFollowupJob):
               key of the table. Is used to deduplicate the table.
             columns: Sequence of column names that will be selected from
               the table.
-            sort_column: Name of a column to sort the records by within a
+            dedup_sort: Name of a column and sort order tuple to sort the records by within a
               primary key. Values in the column are sorted in descending order,
-              so the record with the highest value in `sort_column` remains
+              so the record with the highest value in `dedup_sort` remains
               after deduplication. No sorting is done if a None value is provided,
               leading to arbitrary deduplication.
             condition: String used as a WHERE clause in the SQL statement to
@@ -285,6 +286,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
               argument. These column names will be selected in the inner subquery
               to make them accessible to the outer WHERE clause. This argument
               should only be used in combination with the `condition` argument.
+            skip_dedup: Skips deduplication if data declared deduplicated
 
         Returns:
             A string representing a SELECT FROM SQL statement where the FROM
@@ -294,21 +296,25 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             1) To select the values for an INSERT INTO statement.
             2) To select the values for a temporary table used for inserts.
         """
-        order_by = cls.default_order_by()
-        if dedup_sort is not None:
-            order_by = f"{dedup_sort[0]} {dedup_sort[1].upper()}"
         if condition is None:
             condition = "1 = 1"
         col_str = ", ".join(columns)
         inner_col_str = col_str
         if condition_columns is not None:
             inner_col_str += ", " + ", ".join(condition_columns)
-        return f"""
-            SELECT {col_str}
-                FROM (
-                    SELECT ROW_NUMBER() OVER (partition BY {", ".join(primary_keys)} ORDER BY {order_by}) AS _dlt_dedup_rn, {inner_col_str}
-                    FROM {table_name}
-                ) AS _dlt_dedup_numbered WHERE _dlt_dedup_rn = 1 AND ({condition})
+        if skip_dedup:
+            return f"SELECT {col_str} FROM {table_name} WHERE {condition}"
+        else:
+            order_by = cls.default_order_by()
+            if dedup_sort is not None:
+                order_by = f"{dedup_sort[0]} {dedup_sort[1].upper()}"
+            return f"""
+                SELECT {col_str}
+                    FROM (
+                        SELECT ROW_NUMBER() OVER (partition BY {", ".join(primary_keys)} ORDER BY {order_by}) AS _dlt_dedup_rn, {inner_col_str}
+                        FROM {table_name}
+                    ) AS _dlt_dedup_numbered WHERE _dlt_dedup_rn = 1 AND ({condition})
+
         """
 
     @classmethod
@@ -326,6 +332,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         dedup_sort: Tuple[str, TSortOrder] = None,
         condition: str = None,
         condition_columns: Sequence[str] = None,
+        skip_dedup: bool = False,
     ) -> Tuple[List[str], str]:
         temp_table_name = cls._new_temp_table_name(table_name, "insert", sql_client)
         if len(primary_keys) > 0:
@@ -337,6 +344,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 dedup_sort,
                 condition,
                 condition_columns,
+                skip_dedup,
             )
         else:
             # don't deduplicate
@@ -433,11 +441,12 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         return (col, cond)
 
     @classmethod
-    def _get_row_key_col(
+    def get_row_key_col(
         cls,
         table_chain: Sequence[PreparedTableSchema],
-        sql_client: SqlClientBase[Any],
         table: PreparedTableSchema,
+        dataset_name: str,
+        staging_dataset_name: str,
     ) -> str:
         """Returns name of first column in `table` with `row_key` property. If not found first `unique` hint will be used.
         If no `unique` columns exist, will attempt to use a single primary key column.
@@ -462,27 +471,28 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             return primary_key_cols[0]
         elif len(primary_key_cols) > 1:
             raise MergeDispositionException(
-                sql_client.fully_qualified_dataset_name(),
-                sql_client.fully_qualified_dataset_name(staging=True),
+                dataset_name,
+                staging_dataset_name,
                 [t["name"] for t in table_chain],
                 f"Multiple primary key columns found in table `{table['name']}`. "
-                "Cannot use as row_key.",
+                "Cannot use as `row_key`.",
             )
 
         raise MergeDispositionException(
-            sql_client.fully_qualified_dataset_name(),
-            sql_client.fully_qualified_dataset_name(staging=True),
+            dataset_name,
+            staging_dataset_name,
             [t["name"] for t in table_chain],
             "No `row_key`, `unique`, or single primary key column (e.g. `_dlt_id`) "
             f"in table `{table['name']}`.",
         )
 
     @classmethod
-    def _get_root_key_col(
+    def get_root_key_col(
         cls,
         table_chain: Sequence[PreparedTableSchema],
-        sql_client: SqlClientBase[Any],
         table: PreparedTableSchema,
+        dataset_name: str,
+        staging_dataset_name: str,
     ) -> str:
         """Returns name of first column in `table` with `root_key` property.
 
@@ -493,8 +503,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 table,
                 "root_key",
                 MergeDispositionException(
-                    sql_client.fully_qualified_dataset_name(),
-                    sql_client.fully_qualified_dataset_name(staging=True),
+                    dataset_name,
+                    staging_dataset_name,
                     [t["name"] for t in table_chain],
                     f"No `root_key` column (e.g. `_dlt_root_id`) in table `{table['name']}`.",
                 ),
@@ -592,7 +602,12 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 )
                 # use row_key or unique hint to create temp table with all identifiers to delete
                 row_key_column = escape_column_id(
-                    cls._get_row_key_col(table_chain, sql_client, root_table)
+                    cls.get_row_key_col(
+                        table_chain,
+                        root_table,
+                        sql_client.fully_qualified_dataset_name(),
+                        sql_client.fully_qualified_dataset_name(staging=True),
+                    )
                 )
                 create_delete_temp_table_sql, delete_temp_table_name = (
                     cls.gen_delete_temp_table_sql(
@@ -606,7 +621,12 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 for table in table_chain[1:]:
                     table_name = sql_client.make_qualified_table_name(table["name"])
                     root_key_column = escape_column_id(
-                        cls._get_root_key_col(table_chain, sql_client, table)
+                        cls.get_root_key_col(
+                            table_chain,
+                            table,
+                            sql_client.fully_qualified_dataset_name(),
+                            sql_client.fully_qualified_dataset_name(staging=True),
+                        )
                     )
                     sql.append(
                         cls.gen_delete_from_sql(
@@ -631,6 +651,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
         # get dedup sort information
         dedup_sort = get_dedup_sort_tuple(root_table)
+        skip_dedup: bool = root_table.get("x-stage-data-deduplicated", False)  # type: ignore[assignment]
 
         insert_temp_table_name: str = None
         if len(table_chain) > 1:
@@ -649,6 +670,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     dedup_sort,
                     not_deleted_cond,
                     condition_columns,
+                    skip_dedup=skip_dedup,
                 )
                 sql.extend(create_insert_temp_table_sql)
 
@@ -671,7 +693,12 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             if len(primary_keys) > 0 and len(table_chain) == 1:
                 # without nested tables we deduplicate inside the query instead of using a temp table
                 select_sql = cls.gen_select_from_dedup_sql(
-                    staging_table_name, primary_keys, columns, dedup_sort, insert_cond
+                    staging_table_name,
+                    primary_keys,
+                    columns,
+                    dedup_sort,
+                    insert_cond,
+                    skip_dedup=skip_dedup,
                 )
 
             sql.append(f"INSERT INTO {table_name}({col_str}) {select_sql};")
@@ -725,14 +752,29 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         nested_tables = table_chain[1:]
         if nested_tables:
             root_row_key_column = escape_column_id(
-                cls._get_row_key_col(table_chain, sql_client, root_table)
+                cls.get_row_key_col(
+                    table_chain,
+                    root_table,
+                    sql_client.fully_qualified_dataset_name(),
+                    sql_client.fully_qualified_dataset_name(staging=True),
+                )
             )
             for table in nested_tables:
                 nested_row_key_column = escape_column_id(
-                    cls._get_row_key_col(table_chain, sql_client, table)
+                    cls.get_row_key_col(
+                        table_chain,
+                        table,
+                        sql_client.fully_qualified_dataset_name(),
+                        sql_client.fully_qualified_dataset_name(staging=True),
+                    )
                 )
                 root_key_column = escape_column_id(
-                    cls._get_root_key_col(table_chain, sql_client, table)
+                    cls.get_root_key_col(
+                        table_chain,
+                        table,
+                        sql_client.fully_qualified_dataset_name(),
+                        sql_client.fully_qualified_dataset_name(staging=True),
+                    )
                 )
                 table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
 
@@ -865,7 +907,12 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             # - this write disposition is way more similar to regular merge (how root tables are handled is different, other tables handled same)
             for table in nested_tables:
                 row_key_column = escape_column_id(
-                    cls._get_row_key_col(table_chain, sql_client, table)
+                    cls.get_row_key_col(
+                        table_chain,
+                        table,
+                        sql_client.fully_qualified_dataset_name(),
+                        sql_client.fully_qualified_dataset_name(staging=True),
+                    )
                 )
                 table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
                 sql.append(f"""

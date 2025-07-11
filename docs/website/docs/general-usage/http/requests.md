@@ -114,3 +114,16 @@ http_client = Client(
 :::tip
 `requests.Client` is thread safe. We recommend to share sessions across threads for better performance.
 :::
+
+
+## Handling API Rate Limits
+
+HTTP 429 errors indicate you've hit API rate limits. The dlt requests client retries these automatically and respects `Retry-After` headers. If rate limits persist, consider additional mitigation strategies.
+
+- **Check authentication**: Properly authenticated requests often have higher rate limits
+- **Review API documentation**: Look for rate limit guidelines and `Retry-After` header usage
+- **Add delays**: Use `time.sleep()` or `ratelimiter` to space out requests
+- **Implement backoff**: Increase wait times after failures (exponential backoff)
+- **Reduce calls**: Batch requests or cache results when possible
+
+> 💡 The dlt requests client already handles basic `429` retries with exponential backoff and respects `Retry-After` headers.

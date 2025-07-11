@@ -18,7 +18,6 @@ from tests.load.utils import (
     assert_all_data_types_row,
     destinations_configs,
     DestinationTestConfiguration,
-    drop_active_pipeline_data,
 )
 from tests.cases import TABLE_ROW_ALL_DATA_TYPES_DATETIMES
 
@@ -109,8 +108,6 @@ def test_snowflake_custom_stage(destination_config: DestinationTestConfiguration
         pipeline.run(data(), **destination_config.run_kwargs)
     assert isinstance(f_jobs.value.__cause__, LoadClientJobFailed)
     assert "MY_NON_EXISTING_STAGE" in f_jobs.value.__cause__.failed_message
-
-    drop_active_pipeline_data()
 
     # NOTE: this stage must be created in DLT_DATA database for this test to pass!
     # CREATE STAGE MY_CUSTOM_LOCAL_STAGE;
@@ -317,3 +314,121 @@ def test_snowflake_use_vectorized_scanner(
             parse_json_strings=True,
             timestamp_precision=6,
         )
+
+
+@pytest.mark.skip(reason="perf test for merge")
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        subset=["snowflake"],
+    ),
+    ids=lambda x: x.name,
+)
+def test_snowflake_merge_time(destination_config):
+    import pyarrow as pa
+    import numpy as np
+    import time
+    from datetime import date, timedelta
+
+    # create a unique dataset name for this test
+    dataset_name = f"merge_performance_{uniq_id()}"
+    pipeline = destination_config.setup_pipeline(
+        "test_snowflake_merge_time", dataset_name=dataset_name
+    )
+
+    # define the number of rows and date range
+    num_rows = 1_000_000
+    base_date = date(2023, 1, 1)
+    days = 5
+
+    # generate data for 5 different days
+    all_data = []
+
+    # create column data
+    user_ids = np.random.randint(1, 10000, num_rows)
+    product_ids = np.random.randint(1, 1000, num_rows)
+    values = np.random.random(num_rows) * 1000
+
+    # create data for each day
+    for day_offset in range(days):
+        current_date = base_date + timedelta(days=day_offset)
+        dates = np.array([current_date] * num_rows)
+
+        table = pa.Table.from_arrays(
+            [pa.array(user_ids), pa.array(product_ids), pa.array(dates), pa.array(values)],
+            names=["user_id", "product_id", "event_date", "value"],
+        )
+        all_data.append(table)
+
+    combined_table = pa.concat_tables(all_data)
+
+    @dlt.resource(
+        table_name="merge_test",
+        primary_key=["user_id", "product_id"],
+        merge_key="event_date",
+        write_disposition="merge",
+    )
+    def initial_data():
+        yield combined_table
+
+    # Load initial data
+    print(f"Loading {len(combined_table)} rows of initial data...")
+    start_time = time.time()
+    info = pipeline.run(initial_data(), **destination_config.run_kwargs)
+    initial_load_time = time.time() - start_time
+    print(f"Initial data load completed in {initial_load_time:.2f} seconds")
+    assert_load_info(info)
+
+    # generate overlap data (2 days overlapping with initial data)
+    overlap_days = 2
+    new_days = 3
+    all_new_data = []
+
+    # create data for overlapping days (modify some values)
+    for day_offset in range(overlap_days):
+        current_date = base_date + timedelta(days=day_offset)
+        dates = np.array([current_date] * num_rows)
+
+        # use same IDs but different values for the overlapping data
+        new_values = np.random.random(num_rows) * 2000
+
+        table = pa.Table.from_arrays(
+            [pa.array(user_ids), pa.array(product_ids), pa.array(dates), pa.array(new_values)],
+            names=["user_id", "product_id", "event_date", "value"],
+        )
+        all_new_data.append(table)
+
+    # create data for new days
+    for day_offset in range(days, days + new_days):
+        current_date = base_date + timedelta(days=day_offset)
+        dates = np.array([current_date] * num_rows)
+
+        # different user IDs for completely new data
+        new_user_ids = np.random.randint(10000, 20000, num_rows)
+        new_values = np.random.random(num_rows) * 1500
+
+        table = pa.Table.from_arrays(
+            [pa.array(new_user_ids), pa.array(product_ids), pa.array(dates), pa.array(new_values)],
+            names=["user_id", "product_id", "event_date", "value"],
+        )
+        all_new_data.append(table)
+
+    new_combined_table = pa.concat_tables(all_new_data)
+
+    # define merge resource
+    @dlt.resource(
+        table_name="merge_test",
+        primary_key=["user_id", "product_id"],
+        merge_key="event_date",
+        write_disposition="merge",
+    )
+    def merge_data():
+        yield new_combined_table
+
+    print(f"Merging {len(new_combined_table)} rows of data with {overlap_days} days overlap...")
+    start_time = time.time()
+    merge_info = pipeline.run(merge_data(), **destination_config.run_kwargs)
+    merge_time = time.time() - start_time
+    print(f"Merge operation completed in {merge_time:.2f} seconds")
+    assert_load_info(merge_info)

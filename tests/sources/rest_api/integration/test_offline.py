@@ -672,9 +672,9 @@ def test_raises_error_for_unused_resolve_params(mock_api_server):
         )
 
     assert (
-        "Resource post_details defines resolve params ['post_id'] that are not bound in path posts."
-        " To reference parent resource in query params use resources.<parent_resource>.<field>"
-        " syntax."
+        "Resource `post_details` defines resolve params `['post_id']` that are not bound in path"
+        " `posts`. To reference parent resource in query params use syntax"
+        " 'resources.<parent_resource>.<field>'"
         in str(exc_info.value)
     )
 
@@ -723,10 +723,9 @@ def test_raises_error_for_incorrect_interpolation(mock_api_server, config, locat
     with pytest.raises(ValueError) as exc_info:
         rest_api_source(config)
 
-    assert (
-        f"Expression 'unknown.posts.id' defined in {location} is not valid. Valid expressions must"
-        " start with one of: resources"
-        in str(exc_info.value)
+    assert exc_info.match(
+        f"Expression `unknown.posts.id` defined in `{location}` is not valid. Valid expressions"
+        " must start with one of: `{'resources'}`"
     )
 
 
@@ -1481,3 +1480,33 @@ def test_headers_with_incremental_values(mock_api_server):
     assert request_call.headers["X-Start-Value"] == "1600000000"
     assert request_call.headers["X-End-Value"] == "1700000000"
     assert request_call.headers["X-Escaped"] == "{not_this}"
+
+
+def test_client_headers_are_not_interpolated(mock_api_server):
+    source = rest_api_source(
+        {
+            "client": {
+                "base_url": "https://api.example.com",
+                "headers": {
+                    "X-Static-Header": "static-value",
+                    "X-Not-Interpolated": (
+                        "{resources.posts.id}"
+                    ),  # Should remain as a literal string
+                    "X-Escaped": "{{literal_braces}}",  # Should remain as a literal string
+                },
+            },
+            "resources": [
+                "posts",
+            ],
+        }
+    )
+
+    list(source.with_resources("posts").add_limit(1))
+
+    history = mock_api_server.request_history
+    assert len(history) == 1
+    request_call = history[0]
+
+    assert request_call.headers["X-Static-Header"] == "static-value"
+    assert request_call.headers["X-Not-Interpolated"] == "{resources.posts.id}"
+    assert request_call.headers["X-Escaped"] == "{{literal_braces}}"

@@ -5,6 +5,7 @@ from dlt.common.destination import TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase
 from dlt.common.schema import Schema
 from dlt.common.storages.configuration import FilesystemConfiguration
+from dlt.common.libs.sqlglot import TSqlGlotDialect
 
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
@@ -22,7 +23,9 @@ try:
     import ibis
     import sqlglot
     from ibis import BaseBackend, Expr, Table
-except ModuleNotFoundError:
+    import ibis.backends.sql.compilers as sc
+    from ibis.backends.sql.compilers.base import SQLGlotCompiler
+except ImportError:
     raise MissingDependencyException("dlt ibis helpers", ["ibis-framework"])
 
 
@@ -58,12 +61,12 @@ def create_ibis_backend(
         import duckdb
 
         assert isinstance(client, DuckDbClient)
-        duck = duckdb.connect(
-            database=client.config.credentials._conn_str(),
-            read_only=client.config.credentials.read_only,
-            config=client.config.credentials._get_conn_config(),
-        )
-        con = ibis.duckdb.from_connection(duck)
+        # open connection, apply all settings and pragmas
+        duck_conn = client.config.credentials.borrow_conn()
+        # move main connection ownership to ibis
+        con = ibis.duckdb.from_connection(client.config.credentials.move_conn())
+        client.config.credentials.return_conn(duck_conn)
+
         # make sure we can access tables from current dataset without qualification
         dataset_name = client.sql_client.fully_qualified_dataset_name()
         con.raw_sql(f"SET search_path = '{dataset_name}';")
@@ -186,8 +189,8 @@ def create_ibis_backend(
         # https://github.com/ibis-project/ibis/issues/7682 connecting with aws credentials
         # does not work yet.
         raise NotImplementedError(
-            f"Destination of type {Destination.from_reference(destination).destination_type} not"
-            " supported by ibis."
+            f"Destination type `{Destination.from_reference(destination).destination_type}` is not"
+            " supported."
         )
 
     return con
@@ -209,3 +212,30 @@ def create_unbound_ibis_table(schema: Schema, dataset_name: str, table_name: str
     unbound_table = ibis.table(schema=ibis_schema, name=table_name, database=dataset_name)
 
     return unbound_table
+
+
+def get_compiler_for_dialect(dialect: TSqlGlotDialect) -> SQLGlotCompiler:
+    """Get the compiler for a given dialect."""
+
+    ibis_dialect: str = dialect
+    if dialect == "tsql":
+        ibis_dialect = "mssql"
+    if dialect == "redshift":
+        ibis_dialect = "postgres"
+
+    try:
+        compiler_provider = getattr(sc, ibis_dialect)
+    except AttributeError:
+        # default is duckdb
+        compiler_provider = sc.duckdb
+
+    if (compiler := getattr(compiler_provider, "compiler", None)) is None:
+        raise NotImplementedError(f"{compiler_provider} is not a SQL backend")
+
+    return compiler
+
+
+def compile_ibis_to_sqlglot(ibis_expr: Expr, dialect: TSqlGlotDialect) -> sqlglot.expressions.Query:
+    """Compile an ibis expression to a sqlglot query."""
+    compiler = get_compiler_for_dialect(dialect)
+    return cast(sqlglot.expressions.Query, compiler.to_sqlglot(ibis_expr))

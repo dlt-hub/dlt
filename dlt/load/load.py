@@ -19,7 +19,7 @@ from dlt.common.storages.load_storage import (
 )
 from dlt.common.storages.load_package import (
     LoadPackageStateInjectableContext,
-    load_package as current_load_package,
+    load_package_state as current_load_package,
 )
 from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
@@ -287,7 +287,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # list all files that were started but not yet completed
         started_jobs = self.load_storage.normalized_packages.list_started_jobs(load_id)
 
-        logger.info(f"Found {len(started_jobs)} that are already started and should be continued")
+        logger.info(f"{len(started_jobs)} started jobs found, which should be continued")
         if len(started_jobs) == 0:
             return jobs
 

@@ -1,102 +1,61 @@
 from typing import (
     Optional,
-    ClassVar,
-    Iterator,
     Any,
-    AnyStr,
     Sequence,
     Tuple,
     List,
     Dict,
-    Callable,
     Iterable,
-    Type,
+    Union,
     cast,
+    TYPE_CHECKING,
 )
-from copy import deepcopy
-import re
 
-from contextlib import contextmanager
-from pendulum.datetime import DateTime, Date
-from datetime import datetime  # noqa: I251
+if TYPE_CHECKING:
+    from mypy_boto3_lakeformation import LakeFormationClient
+    from mypy_boto3_lakeformation.type_defs import (
+        AddLFTagsToResourceResponseTypeDef,
+        GetResourceLFTagsResponseTypeDef,
+        RemoveLFTagsFromResourceResponseTypeDef,
+        ResourceTypeDef,
+    )
+else:
+    LakeFormationClient = Any
+    AddLFTagsToResourceResponseTypeDef = Any
+    GetResourceLFTagsResponseTypeDef = Any
+    RemoveLFTagsFromResourceResponseTypeDef = Any
+    ResourceTypeDef = Any
 
-import pyathena
-from pyathena import connect
-from pyathena.connection import Connection
-from pyathena.error import OperationalError, DatabaseError, ProgrammingError, IntegrityError, Error
-from pyathena.formatter import (
-    DefaultParameterFormatter,
-    _DEFAULT_FORMATTERS,
-    Formatter,
-    _format_date,
-)
+from threading import Lock
 
 from dlt.common import logger
 from dlt.common.utils import uniq_id
 from dlt.common.schema import TColumnSchema, Schema
 from dlt.common.schema.typing import (
     TColumnType,
-    TTableFormat,
+    TSchemaTables,
     TSortOrder,
 )
 from dlt.common.destination import DestinationCapabilitiesContext, PreparedTableSchema
 from dlt.common.destination.client import FollowupJobRequest, SupportsStagingDestination, LoadJob
-from dlt.common.destination.dataset import DBApiCursor
-from dlt.common.data_writers.escape import escape_hive_identifier
 from dlt.destinations.sql_jobs import (
     SqlStagingCopyFollowupJob,
     SqlStagingReplaceFollowupJob,
     SqlMergeFollowupJob,
 )
 
-from dlt.destinations.typing import DBApi, DBTransaction
-from dlt.destinations.exceptions import (
-    DatabaseTerminalException,
-    DatabaseTransientException,
-    DatabaseUndefinedRelation,
-)
-from dlt.destinations.sql_client import (
-    SqlClientBase,
-    DBApiCursorImpl,
-    raise_database_error,
-    raise_open_connection_error,
-)
+from dlt.destinations import path_utils
+from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.utils import get_deterministic_temp_table_name
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs, FinalizedLoadJob
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
-from dlt.destinations import path_utils
 from dlt.destinations.impl.athena.athena_adapter import PARTITION_HINT
-from dlt.destinations.utils import get_deterministic_temp_table_name
+from dlt.destinations.impl.athena.configuration import LakeformationConfig
+from dlt.destinations.impl.athena.sql_client import AthenaSQLClient
 
 
-# add a formatter for pendulum to be used by pyathen dbapi
-def _format_pendulum_datetime(formatter: Formatter, escaper: Callable[[str], str], val: Any) -> Any:
-    # copied from https://github.com/laughingman7743/PyAthena/blob/f4b21a0b0f501f5c3504698e25081f491a541d4e/pyathena/formatter.py#L114
-    # https://docs.aws.amazon.com/athena/latest/ug/engine-versions-reference-0003.html#engine-versions-reference-0003-timestamp-changes
-    # ICEBERG tables have TIMESTAMP(6), other tables have TIMESTAMP(3), we always generate TIMESTAMP(6)
-    # it is up to the user to cut the microsecond part
-    val_string = val.strftime("%Y-%m-%d %H:%M:%S.%f")
-    return f"""TIMESTAMP '{val_string}'"""
-
-
-class DLTAthenaFormatter(DefaultParameterFormatter):
-    _INSTANCE: ClassVar["DLTAthenaFormatter"] = None
-
-    def __new__(cls: Type["DLTAthenaFormatter"]) -> "DLTAthenaFormatter":
-        if cls._INSTANCE:
-            return cls._INSTANCE
-        return super().__new__(cls)
-
-    def __init__(self) -> None:
-        if DLTAthenaFormatter._INSTANCE:
-            return
-        formatters = deepcopy(_DEFAULT_FORMATTERS)
-        formatters[DateTime] = _format_pendulum_datetime
-        formatters[datetime] = _format_pendulum_datetime
-        formatters[Date] = _format_date
-
-        super(DefaultParameterFormatter, self).__init__(mappings=formatters, default=None)
-        DLTAthenaFormatter._INSTANCE = self
+boto3_client_lock = Lock()
 
 
 class AthenaMergeJob(SqlMergeFollowupJob):
@@ -126,6 +85,7 @@ class AthenaMergeJob(SqlMergeFollowupJob):
         dedup_sort: Tuple[str, TSortOrder] = None,
         condition: str = None,
         condition_columns: Sequence[str] = None,
+        skip_dedup: bool = False,
     ) -> Tuple[List[str], str]:
         sql, temp_table_name = super().gen_insert_temp_table_sql(
             table_name,
@@ -136,6 +96,7 @@ class AthenaMergeJob(SqlMergeFollowupJob):
             dedup_sort,
             condition,
             condition_columns,
+            skip_dedup,
         )
         # DROP needs backtick as escape identifier
         sql.insert(0, f"""DROP TABLE IF EXISTS {temp_table_name.replace('"', '`')};""")
@@ -167,155 +128,67 @@ class AthenaMergeJob(SqlMergeFollowupJob):
         return True
 
 
-class AthenaSQLClient(SqlClientBase[Connection]):
-    dbapi: ClassVar[DBApi] = pyathena
+class LfTagsManager:
+    """Class used to manage lakeformation tags on glue/athena database.
+
+    Heavily inspired by dbt-athena implementation:
+    https://github.com/dbt-labs/dbt-athena/blob/main/dbt-athena/src/dbt/adapters/athena/lakeformation.py
+    """
 
     def __init__(
         self,
-        dataset_name: str,
-        staging_dataset_name: str,
-        config: AthenaClientConfiguration,
-        capabilities: DestinationCapabilitiesContext,
+        lf_client: LakeFormationClient,
+        lf_config: LakeformationConfig,
+        dataset: str,
+        table: Optional[str] = None,
+    ):
+        self.lf_client = lf_client
+        self.database = dataset
+        self.table = table
+        self.enabled = lf_config.enabled
+        self.lf_tags = lf_config.tags
+
+    def process_lf_tags_database(self) -> None:
+        """Add or remove lf tags from athena database."""
+        database_resource: ResourceTypeDef = {"Database": {"Name": self.database}}
+        if self.enabled and self.lf_tags:
+            add_response = self.lf_client.add_lf_tags_to_resource(
+                Resource={"Database": {"Name": self.database}},
+                LFTags=[{"TagKey": k, "TagValues": [v]} for k, v in self.lf_tags.items()],
+            )
+            self._parse_and_log_lf_response(add_response, None, self.lf_tags)
+        elif not self.enabled:
+            get_response: GetResourceLFTagsResponseTypeDef = self.lf_client.get_resource_lf_tags(
+                Resource=database_resource
+            )
+            if "LFTagOnDatabase" not in get_response:
+                return
+            tags = get_response["LFTagOnDatabase"]
+            self.lf_client.remove_lf_tags_from_resource(Resource=database_resource, LFTags=tags)
+
+        else:
+            logger.debug("Lakeformation is enabled but no tags are set")
+
+    def _parse_and_log_lf_response(
+        self,
+        response: Union[
+            AddLFTagsToResourceResponseTypeDef, RemoveLFTagsFromResourceResponseTypeDef
+        ],
+        columns: Optional[List[str]] = None,
+        lf_tags: Optional[Dict[str, str]] = None,
+        verb: str = "add",
     ) -> None:
-        super().__init__(None, dataset_name, staging_dataset_name, capabilities)
-        self._conn: Connection = None
-        self.config = config
-        self.credentials = config.credentials
-
-    @raise_open_connection_error
-    def open_connection(self) -> Connection:
-        self._conn = connect(schema_name=self.dataset_name, **self.config.to_connector_params())
-        return self._conn
-
-    def close_connection(self) -> None:
-        self._conn.close()
-        self._conn = None
-
-    @property
-    def native_connection(self) -> Connection:
-        return self._conn
-
-    def escape_ddl_identifier(self, v: str) -> str:
-        # https://docs.aws.amazon.com/athena/latest/ug/tables-databases-columns-names.html
-        # Athena uses HIVE to create tables but for querying it uses PRESTO (so normal escaping)
-        if not v:
-            return v
-        v = self.capabilities.casefold_identifier(v)
-        # athena uses hive escaping
-        return escape_hive_identifier(v)
-
-    def fully_qualified_ddl_dataset_name(self) -> str:
-        return self.escape_ddl_identifier(self.dataset_name)
-
-    def make_qualified_ddl_table_name(self, table_name: str) -> str:
-        table_name = self.escape_ddl_identifier(table_name)
-        return f"{self.fully_qualified_ddl_dataset_name()}.{table_name}"
-
-    def create_dataset(self) -> None:
-        db_location_clause = (
-            f" LOCATION '{self.config.db_location}'" if self.config.db_location else ""
-        )
-        # HIVE escaping for DDL
-        self.execute_sql(
-            f"CREATE DATABASE {self.fully_qualified_ddl_dataset_name()}{db_location_clause};"
-        )
-
-    def drop_dataset(self) -> None:
-        self.execute_sql(f"DROP DATABASE {self.fully_qualified_ddl_dataset_name()} CASCADE;")
-
-    def drop_tables(self, *tables: str) -> None:
-        if not tables:
-            return
-        statements = [
-            f"DROP TABLE IF EXISTS {self.make_qualified_ddl_table_name(table)};" for table in tables
-        ]
-        self.execute_many(statements)
-
-    @contextmanager
-    @raise_database_error
-    def begin_transaction(self) -> Iterator[DBTransaction]:
-        logger.warning(
-            "Athena does not support transactions! Each SQL statement is auto-committed separately."
-        )
-        yield self
-
-    @raise_database_error
-    def commit_transaction(self) -> None:
-        pass
-
-    @raise_database_error
-    def rollback_transaction(self) -> None:
-        raise NotImplementedError("You cannot rollback Athena SQL statements.")
-
-    @staticmethod
-    def _make_database_exception(ex: Exception) -> Exception:
-        if isinstance(ex, OperationalError):
-            if "TABLE_NOT_FOUND" in str(ex):
-                return DatabaseUndefinedRelation(ex)
-            elif "SCHEMA_NOT_FOUND" in str(ex):
-                return DatabaseUndefinedRelation(ex)
-            elif "Table" in str(ex) and " not found" in str(ex):
-                return DatabaseUndefinedRelation(ex)
-            elif "Database does not exist" in str(ex):
-                return DatabaseUndefinedRelation(ex)
-            return DatabaseTerminalException(ex)
-        elif isinstance(ex, (ProgrammingError, IntegrityError)):
-            return DatabaseTerminalException(ex)
-        if isinstance(ex, DatabaseError):
-            return DatabaseTransientException(ex)
-        return ex
-
-    def execute_sql(
-        self, sql: AnyStr, *args: Any, **kwargs: Any
-    ) -> Optional[Sequence[Sequence[Any]]]:
-        with self.execute_query(sql, *args, **kwargs) as curr:
-            if curr.description is None:
-                return None
-            else:
-                f = curr.fetchall()
-                return f
-
-    @staticmethod
-    def _convert_to_old_pyformat(
-        new_style_string: str, args: Tuple[Any, ...]
-    ) -> Tuple[str, Dict[str, Any]]:
-        # create a list of keys
-        keys = ["arg" + str(i) for i, _ in enumerate(args)]
-        # create an old style string and replace placeholders
-        old_style_string, count = re.subn(
-            r"%s", lambda _: "%(" + keys.pop(0) + ")s", new_style_string
-        )
-        # create a dictionary mapping keys to args
-        mapping = dict(zip(["arg" + str(i) for i, _ in enumerate(args)], args))
-        # raise if there is a mismatch between args and string
-        if count != len(args):
-            raise DatabaseTransientException(OperationalError())
-        return old_style_string, mapping
-
-    @contextmanager
-    @raise_database_error
-    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
-        assert isinstance(query, str)
-        db_args = kwargs
-        # convert sql and params to PyFormat, as athena does not support anything else
-        if args:
-            query, db_args = self._convert_to_old_pyformat(query, args)
-            if kwargs:
-                db_args.update(kwargs)
-
-        with self._conn.cursor(formatter=DLTAthenaFormatter()) as cursor:
-            for query_line in query.split(";"):
-                if query_line.strip():
-                    try:
-                        cursor.execute(query_line, db_args)
-                    # catch key error only here, this will show up if we have a missing parameter
-                    except KeyError:
-                        raise DatabaseTransientException(OperationalError())
-
-            # TODO: (important) allow to use PandasCursor and ArrowCursor to get fast data access
-            #    the problem: you need to set the cursor type upfront. so if user uses wrong cursor
-            #    we won't be able to dynamically change it.
-            yield DBApiCursorImpl(cursor)
+        table_appendix = f".{self.table}" if self.table else ""
+        columns_appendix = f" for columns {columns}" if columns else ""
+        resource_msg = self.database + table_appendix + columns_appendix
+        if failures := response.get("Failures", []):
+            base_msg = f"Failed to {verb} LF tags: {lf_tags} to " + resource_msg
+            for failure in failures:
+                tag = failure.get("LFTag", {}).get("TagKey")
+                error = failure.get("Error", {}).get("ErrorMessage")
+                logger.error(f"Failed to {verb} {tag} for " + resource_msg + f" - {error}")
+            raise RuntimeError(base_msg)
+        logger.debug(f"Success: {verb} LF tags {lf_tags} to " + resource_msg)
 
 
 class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
@@ -379,6 +252,27 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         table_properties.update(mandatory_properties)
         return ", ".join([f"'{k}'='{v}'" for k, v in table_properties.items()])
 
+    def manage_lf_tags(self) -> None:
+        """Manage Lakeformation tags on the glue database."""
+        lf_config = self.config.lakeformation_config
+
+        with boto3_client_lock:
+            lf_client = self.config.credentials._to_botocore_session().create_client(
+                "lakeformation"
+            )
+
+        manager = LfTagsManager(
+            lf_client,
+            lf_config=lf_config,
+            dataset=self.sql_client.dataset_name,
+            table=None,
+        )
+        try:
+            manager.process_lf_tags_database()
+        except Exception as e:
+            logger.error(f"Failed to manage lakeformation tags: {e}")
+            raise e
+
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
@@ -435,6 +329,18 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
                         STORED AS PARQUET
                         LOCATION '{location}';""")
         return sql
+
+    def update_stored_schema(
+        self,
+        only_tables: Iterable[str] = None,
+        expected_update: TSchemaTables = None,
+    ) -> Optional[TSchemaTables]:
+        applied_update = super().update_stored_schema(only_tables, expected_update=expected_update)
+        # here we could apply tags only if any migration happened, right now we do it on each run
+        # NOTE: tags are applied before any data is loaded
+        if self.config.lakeformation_config is not None:
+            self.manage_lf_tags()
+        return applied_update
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
@@ -502,4 +408,6 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
 
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
+        from pyathena.error import Error
+
         return isinstance(ex, Error)

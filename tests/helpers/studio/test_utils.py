@@ -1,695 +1,504 @@
 import os
 import tempfile
+import shutil
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List
+
 import pytest
 import pandas as pd
-from unittest.mock import Mock, patch
+
+from dlt.sources._single_file_templates.fruitshop_pipeline import (
+    fruitshop as fruitshop_source,
+)
+import pendulum
 
 
 import dlt
+from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.specs import known_sections
+from dlt.common.destination.client import WithStateSync
+from dlt.common.json import json
+from dlt.common.pendulum import pendulum as dlt_pendulum
+from dlt.common.pipeline import get_dlt_pipelines_dir
 from dlt.common.schema import Schema
+from dlt.common.storages import FileStorage
 from dlt.helpers.studio.config import StudioConfiguration
 from dlt.helpers.studio import utils
-from dlt.sources._single_file_templates.fruitshop_pipeline import fruitshop as fruitshop_source
-
-
-pytest.skip(allow_module_level=True)
-
-
-@pytest.fixture
-def temp_dir():
-    """Create a temporary directory for test pipelines"""
-    temp_dir = tempfile.mkdtemp()
-    yield temp_dir
-    # Cleanup
-    import shutil
-
-    shutil.rmtree(temp_dir, ignore_errors=True)
-
-
-@pytest.fixture
-def pipelines_dir(temp_dir):
-    """Create pipelines directory"""
-    pipelines_dir = os.path.join(temp_dir, "pipelines")
-    os.makedirs(pipelines_dir, exist_ok=True)
-    return pipelines_dir
-
-
-@pytest.fixture
-def simple_pipeline(pipelines_dir):
-    """Create a simple test pipeline"""
-    pipeline = dlt.pipeline(
-        pipeline_name="test_simple", destination="duckdb", pipelines_dir=pipelines_dir
-    )
-    pipeline.run([1, 2, 3], table_name="numbers")
-    return pipeline
+from dlt.helpers.studio.utils import (
+    PICKLE_TRACE_FILE,
+    resolve_studio_config,
+    get_local_pipelines,
+    get_pipeline,
+    pipeline_details,
+    create_table_list,
+    create_column_list,
+    clear_query_cache,
+    get_query_result,
+    get_row_counts,
+    get_loads,
+    get_schema_by_version,
+    trace_overview,
+    trace_execution_context,
+    trace_steps_overview,
+    trace_resolved_config_values,
+    trace_step_details,
+    style_cell,
+    _without_none_or_empty_string,
+    _align_dict_keys,
+    _humanize_datetime_values,
+    _dict_to_table_items,
+)
 
 
 @pytest.fixture
-def fruit_pipeline(pipelines_dir):
-    """Create a fruit shop test pipeline"""
-    pipeline = dlt.pipeline(
-        pipeline_name="test_fruit", destination="duckdb", pipelines_dir=pipelines_dir
-    )
-    pipeline.run(fruitshop_source())
-    return pipeline
+def temp_pipelines_dir():
+    """Create a temporary directory structure for testing pipelines"""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        pipelines_dir = Path(temp_dir) / "pipelines"
+        pipelines_dir.mkdir()
+
+        # Create some test pipeline directories
+        (pipelines_dir / "test_pipeline_1").mkdir()
+        (pipelines_dir / "test_pipeline_2").mkdir()
+        (pipelines_dir / "_dlt_internal").mkdir()
+
+        # Create trace files with different timestamps
+        trace_file_1 = pipelines_dir / "test_pipeline_1" / PICKLE_TRACE_FILE
+        trace_file_1.touch()
+        # Set modification time to 2 days ago
+        os.utime(trace_file_1, (1000000, 1000000))
+
+        trace_file_2 = pipelines_dir / "test_pipeline_2" / PICKLE_TRACE_FILE
+        trace_file_2.touch()
+        # Set modification time to 1 day ago (more recent)
+        os.utime(trace_file_2, (2000000, 2000000))
+
+        yield str(pipelines_dir)
 
 
-@pytest.fixture
-def never_run_pipeline(pipelines_dir):
-    """Create a pipeline that was never run"""
-    return dlt.pipeline(
-        pipeline_name="test_never_run", destination="duckdb", pipelines_dir=pipelines_dir
-    )
+@pytest.fixture(scope="session")
+def test_pipeline():
+    """Create a test pipeline with in memory duckdb destination in temp folder"""
+    import duckdb
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        pipeline = dlt.pipeline(
+            pipeline_name="test_pipeline",
+            pipelines_dir=temp_dir,
+            destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+            dataset_name="test_dataset",
+            dev_mode=True,
+        )
+
+        pipeline.run(fruitshop_source())
+
+        # we overwrite the purchases table to have a child table and an incomplete column
+        @dlt.resource(primary_key="id", write_disposition="merge", columns={"incomplete": {}})
+        def purchases():
+            """Load purchases data from a simple python list."""
+            yield [
+                {"id": 1, "customer_id": 1, "inventory_id": 1, "quantity": 1, "child": [1, 2, 3]},
+                {"id": 2, "customer_id": 1, "inventory_id": 2, "quantity": 2},
+                {"id": 3, "customer_id": 2, "inventory_id": 3, "quantity": 3},
+            ]
+
+        pipeline.run(purchases())
+
+        yield pipeline
 
 
-@pytest.fixture
-def no_dest_pipeline(pipelines_dir):
-    """Create a pipeline with no destination"""
-    pipeline = dlt.pipeline(pipeline_name="test_no_dest", pipelines_dir=pipelines_dir)
-    pipeline.extract(fruitshop_source())
-    return pipeline
+def test_resolve_studio_config(test_pipeline):
+    """Test resolving studio config with a real pipeline"""
 
+    os.environ["STUDIO__TEST_PIPELINE__DATETIME_FORMAT"] = "some format"
+    os.environ["STUDIO__DATETIME_FORMAT"] = "other format"
 
-@pytest.fixture
-def studio_config():
-    """Create a StudioConfiguration instance"""
-    return StudioConfiguration()
+    config = resolve_studio_config(test_pipeline)
 
-
-def test_resolve_studio_config(simple_pipeline):
-    """Test resolve_studio_config function"""
-    # Test with valid pipeline
-    config = utils.resolve_studio_config(simple_pipeline)
     assert isinstance(config, StudioConfiguration)
-    assert hasattr(config, "table_list_fields")
-    assert hasattr(config, "column_type_hints")
-    assert hasattr(config, "datetime_format")
+    assert isinstance(config.datetime_format, str)
+    assert config.datetime_format == "some format"
 
-    # Test with None pipeline
-    config_none = utils.resolve_studio_config(None)
-    assert isinstance(config_none, StudioConfiguration)
+    other_pipeline = dlt.pipeline(pipeline_name="other_pipeline", destination="duckdb")
+    config = resolve_studio_config(other_pipeline)
+    assert config.datetime_format == "other format"
 
 
-@pytest.mark.parametrize("sort_by_trace", [True, False])
-def test_get_local_pipelines(
-    pipelines_dir,
-    simple_pipeline,
-    fruit_pipeline,
-    never_run_pipeline,
-    no_dest_pipeline,
-    sort_by_trace,
-):
-    """Test get_local_pipelines function with different sorting options"""
-    pipelines_dir_result, pipelines = utils.get_local_pipelines(
-        pipelines_dir, sort_by_trace=sort_by_trace
-    )
+def test_get_local_pipelines_with_temp_dir(temp_pipelines_dir):
+    """Test getting local pipelines with temporary directory"""
+    pipelines_dir, pipelines = get_local_pipelines(temp_pipelines_dir)
 
-    assert pipelines_dir_result == pipelines_dir
-    assert isinstance(pipelines, list)
-    assert len(pipelines) >= 4  # At least our test pipelines
+    assert pipelines_dir == temp_pipelines_dir
+    assert len(pipelines) == 3  # test_pipeline_1, test_pipeline_2, _dlt_internal
 
-    # Check structure of pipeline entries
+    # Should be sorted by timestamp (descending)
+    pipeline_names = [p["name"] for p in pipelines]
+    assert "test_pipeline_2" in pipeline_names
+    assert "test_pipeline_1" in pipeline_names
+    assert "_dlt_internal" in pipeline_names
+
+    # Check timestamps are present
     for pipeline in pipelines:
-        assert isinstance(pipeline, dict)
-        assert "name" in pipeline
         assert "timestamp" in pipeline
         assert isinstance(pipeline["timestamp"], (int, float))
 
-    # Check sorting
-    if sort_by_trace and len(pipelines) > 1:
-        timestamps = [p["timestamp"] for p in pipelines]
-        assert timestamps == sorted(timestamps, reverse=True)
+
+def test_get_local_pipelines_empty_dir():
+    """Test getting local pipelines from empty directory"""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        pipelines_dir, pipelines = get_local_pipelines(temp_dir)
+
+        assert pipelines_dir == temp_dir
+        assert pipelines == []
 
 
 def test_get_local_pipelines_nonexistent_dir():
-    """Test get_local_pipelines with non-existent directory"""
-    nonexistent_dir = "/path/that/does/not/exist"
-    pipelines_dir, pipelines = utils.get_local_pipelines(nonexistent_dir)
+    """Test getting local pipelines from nonexistent directory"""
+    nonexistent_dir = "/nonexistent/directory"
+    pipelines_dir, pipelines = get_local_pipelines(nonexistent_dir)
 
     assert pipelines_dir == nonexistent_dir
-    assert isinstance(pipelines, list)
-    assert len(pipelines) == 0
+    assert pipelines == []
 
 
-def test_get_local_pipelines_default_dir(pipelines_dir):
-    """Test get_local_pipelines with default directory"""
-    with patch("dlt.common.pipeline.get_dlt_pipelines_dir") as mock_get_dir:
-        mock_get_dir.return_value = pipelines_dir
-        pipelines_dir_result, pipelines = utils.get_local_pipelines()
-        assert pipelines_dir_result == pipelines_dir
+def test_get_pipeline(test_pipeline):
+    """Test getting a real pipeline by name"""
+    pipeline = get_pipeline(test_pipeline.pipeline_name, test_pipeline.pipelines_dir)
+
+    assert pipeline.pipeline_name == test_pipeline.pipeline_name
+    assert pipeline.dataset_name == test_pipeline.dataset_name
 
 
-def test_get_pipeline(pipelines_dir, simple_pipeline):
-    """Test get_pipeline function"""
-    pipeline = utils.get_pipeline("test_simple", pipelines_dir)
-    assert isinstance(pipeline, dlt.Pipeline)
-    assert pipeline.pipeline_name == "test_simple"
+def test_pipeline_details(test_pipeline):
+    """Test getting pipeline details from a real pipeline"""
+    result = pipeline_details(test_pipeline)
 
-
-def test_pipeline_details(simple_pipeline):
-    """Test pipeline_details function"""
-    details = utils.pipeline_details(simple_pipeline)
-
-    assert isinstance(details, list)
-    assert len(details) > 0
+    assert isinstance(result, list)
+    assert len(result) == 6
 
     # Convert to dict for easier testing
-    details_dict = {item["name"]: item["value"] for item in details}
+    details_dict = {item["name"]: item["value"] for item in result}
 
-    assert "pipeline_name" in details_dict
-    assert details_dict["pipeline_name"] == "test_simple"
-    assert "destination" in details_dict
-    assert "dataset_name" in details_dict
-    assert "working_dir" in details_dict
-
-
-def test_pipeline_details_no_destination(no_dest_pipeline):
-    """Test pipeline_details with pipeline that has no destination"""
-    details = utils.pipeline_details(no_dest_pipeline)
-    details_dict = {item["name"]: item["value"] for item in details}
-
-    assert "destination" in details_dict
-    assert details_dict["destination"] == "No destination set"
+    assert details_dict["pipeline_name"] == "test_pipeline"
+    assert details_dict["destination"] == "duckdb (dlt.destinations.duckdb)"
+    assert details_dict["dataset_name"] == test_pipeline.dataset_name
+    assert details_dict["schema"] == "fruitshop"
+    assert details_dict["working_dir"].endswith(test_pipeline.pipeline_name)
 
 
-@pytest.mark.parametrize("show_internals", [True, False])
-@pytest.mark.parametrize("show_child_tables", [True, False])
-@pytest.mark.parametrize("show_row_counts", [True, False])
-def test_create_table_list(
-    studio_config, simple_pipeline, show_internals, show_child_tables, show_row_counts
-):
-    """Test create_table_list function with different parameters"""
-    with patch.object(utils, "get_row_counts") as mock_get_row_counts:
-        mock_get_row_counts.return_value = {"numbers": 3, "_dlt_loads": 1}
+def test_create_table_list(test_pipeline):
+    """Test creating a basic table list with real schema"""
+    config = StudioConfiguration()
 
-        table_list = utils.create_table_list(
-            studio_config,
-            simple_pipeline,
-            show_internals=show_internals,
-            show_child_tables=show_child_tables,
-            show_row_counts=show_row_counts,
-        )
+    result = create_table_list(config, test_pipeline, show_child_tables=False)
 
-        assert isinstance(table_list, list)
-        assert len(table_list) > 0
+    # Should exclude _dlt_loads by default
+    table_names = {table["name"] for table in result}
+    assert table_names == {"inventory", "purchases", "customers", "inventory_categories"}
 
-        # Check structure
-        for table in table_list:
-            assert isinstance(table, dict)
-            assert "name" in table
+    result = create_table_list(config, test_pipeline, show_child_tables=True)
+    table_names = {table["name"] for table in result}
+    assert table_names == {
+        "inventory",
+        "purchases",
+        "customers",
+        "purchases__child",
+        "inventory_categories",
+    }
 
-            if show_row_counts:
-                assert "row_count" in table
-
-        # Check internal tables filtering
-        table_names = [t["name"] for t in table_list]
-        if show_internals:
-            # Should include _dlt tables
-            assert any(name.startswith("_dlt") for name in table_names)
-        else:
-            # Should not include _dlt tables
-            assert not any(name.startswith("_dlt") for name in table_names)
+    result = create_table_list(config, test_pipeline, show_internals=True, show_child_tables=False)
+    table_names = {table["name"] for table in result}
+    assert table_names == {
+        "customers",
+        "purchases",
+        "_dlt_loads",
+        "_dlt_pipeline_state",
+        "inventory",
+        "_dlt_version",
+        "inventory_categories",
+    }
 
 
-@pytest.mark.parametrize("show_internals", [True, False])
-@pytest.mark.parametrize("show_type_hints", [True, False])
-@pytest.mark.parametrize("show_other_hints", [True, False])
-@pytest.mark.parametrize("show_custom_hints", [True, False])
-def test_create_column_list(
-    studio_config,
-    fruit_pipeline,
-    show_internals,
-    show_type_hints,
-    show_other_hints,
-    show_custom_hints,
-):
-    """Test create_column_list function with different parameters"""
-    # Use fruit pipeline as it has more complex schema
-    table_name = "customers"
+def test_create_column_list_basic(test_pipeline):
+    """Test creating a basic column list with real schema"""
+    config = StudioConfiguration()
 
-    column_list = utils.create_column_list(
-        studio_config,
-        fruit_pipeline,
-        table_name,
-        show_internals=show_internals,
-        show_type_hints=show_type_hints,
-        show_other_hints=show_other_hints,
-        show_custom_hints=show_custom_hints,
-    )
+    # Should exclude _dlt columns by default, will also not show incomplete columns
+    result = create_column_list(config, test_pipeline, "purchases")
+    column_names = {col["name"] for col in result}
+    assert column_names == {"customer_id", "quantity", "id", "inventory_id", "date"}
 
-    assert isinstance(column_list, list)
-    assert len(column_list) > 0
-
-    # Check structure
-    for column in column_list:
-        assert isinstance(column, dict)
-        assert "name" in column
-
-        if show_type_hints:
-            # Should have type hint fields
-            for hint in studio_config.column_type_hints:
-                assert hint in column
-
-        if show_other_hints:
-            # Should have other hint fields
-            for hint in studio_config.column_other_hints:
-                assert hint in column
-
-    # Check internal columns filtering
-    column_names = [c["name"] for c in column_list]
-    if show_internals:
-        # Should include _dlt columns
-        assert any(name.startswith("_dlt") for name in column_names)
-    else:
-        # Should not include _dlt columns
-        assert not any(name.startswith("_dlt") for name in column_names)
+    result = create_column_list(config, test_pipeline, "purchases", show_internals=True)
+    column_names = {col["name"] for col in result}
+    assert column_names == {
+        "_dlt_load_id",
+        "customer_id",
+        "quantity",
+        "id",
+        "inventory_id",
+        "_dlt_id",
+        "date",
+    }
 
 
-def test_create_column_list_invalid_table(studio_config, simple_pipeline):
-    """Test create_column_list with invalid table name"""
-    with pytest.raises(KeyError):
-        utils.create_column_list(studio_config, simple_pipeline, "nonexistent_table")
+def test_create_column_list_type_hints(test_pipeline):
+    """Test creating column list with type hints"""
+    config = StudioConfiguration()
+    result = create_column_list(config, test_pipeline, "purchases", show_type_hints=True)
+
+    # Find the id column
+    id_column = next(col for col in result if col["name"] == "id")
+    assert id_column["data_type"] == "bigint"
+    assert id_column["nullable"] is False
 
 
-def test_clear_query_cache(simple_pipeline):
-    """Test clear_query_cache function"""
-    # This function clears caches, so we just test it doesn't raise
-    utils.clear_query_cache(simple_pipeline)
+def test_get_query_result(test_pipeline):
+    """Test getting query result from real pipeline"""
+    # Clear cache first
+    get_query_result.cache_clear()
 
-    # Verify caches are cleared by checking they're empty
-    assert (
-        not hasattr(utils.get_query_result, "cache_info")
-        or utils.get_query_result.cache_info().currsize == 0
-    )
-
-
-def test_get_query_result(simple_pipeline):
-    """Test get_query_result function"""
-    query = "SELECT COUNT(*) as count FROM numbers"
-
-    result = utils.get_query_result(simple_pipeline, query)
+    result = get_query_result(test_pipeline, "SELECT COUNT(*) as count FROM purchases")
 
     assert isinstance(result, pd.DataFrame)
-    assert len(result) > 0
-    assert "count" in result.columns
+    assert len(result) == 1
+    assert result.iloc[0]["count"] == 100
 
 
-def test_get_query_result_invalid_query(simple_pipeline):
-    """Test get_query_result with invalid SQL"""
-    with pytest.raises(Exception):
-        utils.get_query_result(simple_pipeline, "INVALID SQL QUERY")
-
-
-def test_get_row_counts(simple_pipeline):
-    """Test get_row_counts function"""
-    row_counts = utils.get_row_counts(simple_pipeline)
-
-    assert isinstance(row_counts, dict)
-    assert "numbers" in row_counts
-    assert isinstance(row_counts["numbers"], int)
-    assert row_counts["numbers"] >= 0
-
-
-def test_get_row_counts_with_load_id(simple_pipeline):
-    """Test get_row_counts with specific load_id"""
-    # Get a load_id from the pipeline
-    loads = simple_pipeline.dataset()._dlt_loads.df()
-    if len(loads) > 0:
-        load_id = loads.iloc[0]["load_id"]
-        row_counts = utils.get_row_counts(simple_pipeline, load_id)
-        assert isinstance(row_counts, dict)
-
-
-def test_get_loads(studio_config, simple_pipeline):
-    """Test get_loads function"""
-    loads = utils.get_loads(studio_config, simple_pipeline)
-
-    assert isinstance(loads, list)
-    assert len(loads) > 0
-
-    # Check structure of load entries
-    for load in loads:
-        assert isinstance(load, dict)
-        # Should have humanized datetime fields
-        if "inserted_at" in load:
-            assert isinstance(load["inserted_at"], str)
-
-
-@pytest.mark.parametrize("limit", [None, 10, 100])
-def test_get_loads_with_limit(studio_config, simple_pipeline, limit):
-    """Test get_loads function with different limits"""
-    loads = utils.get_loads(studio_config, simple_pipeline, limit=limit)
-
-    assert isinstance(loads, list)
-    if limit is not None:
-        assert len(loads) <= limit
-
-
-def test_get_schema_by_version(simple_pipeline):
-    """Test get_schema_by_version function"""
-    # Get current schema version hash
-    version_hash = simple_pipeline.default_schema.version_hash
-
-    schema = utils.get_schema_by_version(simple_pipeline, version_hash)
-
-    if schema is not None:  # May be None if destination doesn't support state sync
-        assert isinstance(schema, Schema)
-        assert schema.version_hash == version_hash
-
-
-def test_get_schema_by_version_invalid_hash(simple_pipeline):
-    """Test get_schema_by_version with invalid hash"""
-    schema = utils.get_schema_by_version(simple_pipeline, "invalid_hash")
-    assert schema is None
-
-
-def test_trace_overview(studio_config, fruit_pipeline):
-    """Test trace_overview function"""
-    # Create mock trace data
-    overview = utils.trace_overview(studio_config, fruit_pipeline.last_trace.asdict())
-
-    assert isinstance(overview, list)
-    assert len(overview) == 5  # Only the 4 expected fields
-
-    # Convert to dict for easier testing
-    overview_dict = {item["name"]: item["value"] for item in overview}
-    assert "transaction_id" in overview_dict
-    assert "pipeline_name" in overview_dict
-    assert "started_at" in overview_dict
-    assert "finished_at" in overview_dict
-    assert "extra_field" not in overview_dict
-
-
-def test_trace_execution_context(studio_config):
-    """Test trace_execution_context function"""
-    trace_data = {"execution_context": {"user": "test_user", "environment": "test"}}
-
-    context = utils.trace_execution_context(studio_config, trace_data)
-
-    assert isinstance(context, list)
-    assert len(context) == 2
-
-    context_dict = {item["name"]: item["value"] for item in context}
-    assert "user" in context_dict
-    assert "environment" in context_dict
-
-
-def test_trace_execution_context_empty(studio_config):
-    """Test trace_execution_context with empty context"""
-    trace_data = {}
-
-    context = utils.trace_execution_context(studio_config, trace_data)
-
-    assert isinstance(context, list)
-    assert len(context) == 0
-
-
-def test_trace_steps_overview(studio_config):
-    """Test trace_steps_overview function"""
-    trace_data = {
-        "steps": [
-            {
-                "step": "extract",
-                "started_at": "2024-01-01T10:00:00Z",
-                "finished_at": "2024-01-01T10:02:00Z",
-                "extra_field": "should_be_ignored",
-            },
-            {
-                "step": "normalize",
-                "started_at": "2024-01-01T10:02:00Z",
-                "finished_at": "2024-01-01T10:03:00Z",
-            },
-        ]
+def test_get_row_counts_real(test_pipeline):
+    """Test getting row counts from real pipeline"""
+    result = get_row_counts(test_pipeline)
+    assert result == {
+        "customers": 13,
+        "inventory": 6,
+        "purchases": 100,
+        "purchases__child": 3,
+        "inventory_categories": 3,
+        "_dlt_version": 2,
+        "_dlt_loads": 2,
+        "_dlt_pipeline_state": 1,
     }
 
-    steps = utils.trace_steps_overview(studio_config, trace_data)
 
-    assert isinstance(steps, list)
-    assert len(steps) == 2
+def test_get_loads(test_pipeline):
+    """Test getting loads from real pipeline"""
+    config = StudioConfiguration()
 
-    # Check first step
-    step1 = steps[0]
-    assert "step" in step1
-    assert step1["step"] == "extract"
-    assert "started_at" in step1
-    assert "finished_at" in step1
-    assert "duration" in step1  # Should be added by humanize function
-    assert "extra_field" not in step1
+    # Clear cache first
+    get_loads.cache_clear()
+    result = get_loads(config, test_pipeline, limit=100)
 
+    assert isinstance(result, list)
+    assert len(result) >= 1  # Should have at least one load
 
-def test_trace_resolved_config_values(studio_config):
-    """Test trace_resolved_config_values function"""
-    # Mock config value objects
-    mock_config_value = Mock()
-    mock_config_value.asdict.return_value = {"key": "value", "section": "test"}
-
-    trace_data = {"resolved_config_values": [mock_config_value]}
-
-    config_values = utils.trace_resolved_config_values(studio_config, trace_data)
-
-    assert isinstance(config_values, list)
-    assert len(config_values) == 1
-    assert config_values[0] == {"key": "value", "section": "test"}
+    if result:
+        load = result[0]
+        assert "load_id" in load
 
 
-def test_trace_step_details(studio_config):
-    """Test trace_step_details function"""
-    trace_data = {
-        "steps": [
-            {
-                "step": "load",
-                "load_info": {
-                    "table_metrics": [{"table_name": "test_table", "rows": 100}],
-                    "job_metrics": [{"table_name": "test_table", "jobs": 1}],
-                },
-            }
-        ]
+def test_trace(test_pipeline):
+    """Test trace overview with real trace data"""
+    config = StudioConfiguration()
+    trace = test_pipeline.last_trace.asdict()
+
+    # overview
+    result = trace_overview(config, trace)
+    assert {item["name"] for item in result} == {
+        "pipeline_name",
+        "started_at",
+        "finished_at",
+        "transaction_id",
+        "duration",
+    }
+    values_dict = {item["name"]: item["value"] for item in result}
+    assert values_dict["pipeline_name"] == "test_pipeline"
+
+    # execution context
+    result = trace_execution_context(config, trace)
+    assert len(result) == 7
+    assert {item["name"] for item in result} == {
+        "cpu",
+        "os",
+        "library",
+        "run_context",
+        "python",
+        "ci_run",
+        "exec_info",
     }
 
-    details = utils.trace_step_details(studio_config, trace_data, "load")
+    # steps overview
+    result = trace_steps_overview(config, trace)
 
-    assert isinstance(details, list)
-    # Should contain title elements and table elements
-    assert len(details) > 0
+    assert len(result) == 3
+    assert result[0]["step"] == "extract"
+    assert result[1]["step"] == "normalize"
+    assert result[2]["step"] == "load"
 
-
-def test_trace_step_details_no_step(studio_config):
-    """Test trace_step_details with non-existent step"""
-    trace_data = {"steps": []}
-
-    details = utils.trace_step_details(studio_config, trace_data, "nonexistent")
-
-    assert isinstance(details, list)
-    assert len(details) == 0
+    # TODO: deeper test...
 
 
-@pytest.mark.parametrize(
-    "row_id,name,expected_bg",
-    [
-        ("0", "name", "white"),
-        ("1", "name", "#f4f4f9"),
-        ("2", "other", "white"),
-        ("3", "other", "#f4f4f9"),
-    ],
-)
-def test_style_cell(row_id, name, expected_bg):
-    """Test style_cell function"""
-    style = utils.style_cell(row_id, name, "dummy_value")
+def test_style_cell():
+    """Test style cell function"""
+    # Even row
+    result = style_cell("0", "test_col", "test_value")
+    assert result["background-color"] == "white"
 
-    assert isinstance(style, dict)
-    assert "background-color" in style
-    assert style["background-color"] == expected_bg
+    # Odd row
+    result = style_cell("1", "test_col", "test_value")
+    assert result["background-color"] == "#f4f4f9"
 
-    if name.lower() == "name":
-        assert "font-weight" in style
-        assert style["font-weight"] == "bold"
+    # Name column (case insensitive)
+    result = style_cell("0", "name", "test_value")
+    assert result["font-weight"] == "bold"
+
+    result = style_cell("0", "NAME", "test_value")
+    assert result["font-weight"] == "bold"
 
 
 def test_without_none_or_empty_string():
-    """Test _without_none_or_empty_string function"""
+    """Test removing None and empty string values"""
     input_dict = {
-        "valid": "value",
-        "none_value": None,
-        "empty_string": "",
-        "zero": 0,
-        "false": False,
+        "key1": "value1",
+        "key2": None,
+        "key3": "",
+        "key4": "value4",
+        "key5": 0,  # Should be kept
+        "key6": False,  # Should be kept
+        "key7": [],  # Should be kept
     }
 
-    result = utils._without_none_or_empty_string(input_dict)
+    result = _without_none_or_empty_string(input_dict)
 
-    assert "valid" in result
-    assert "zero" in result
-    assert "false" in result
-    assert "none_value" not in result
-    assert "empty_string" not in result
+    expected = {"key1": "value1", "key4": "value4", "key5": 0, "key6": False, "key7": []}
+    assert result == expected
 
 
 def test_align_dict_keys():
-    """Test _align_dict_keys function"""
-    input_list = [{"a": 1, "b": 2}, {"a": 3, "c": 4}, {"b": 5, "d": 6}]
+    """Test aligning dictionary keys"""
+    items = [
+        {"key1": "value1", "key2": "value2"},
+        {"key1": "value3", "key3": "value4"},
+        {"key2": "value5", "key4": "value6"},
+    ]
 
-    result = utils._align_dict_keys(input_list)
+    result = _align_dict_keys(items)
 
-    assert len(result) == 3
-
-    # All dicts should have the same keys
-    all_keys = {"a", "b", "c", "d"}
+    # All items should have all keys
+    expected_keys = {"key1", "key2", "key3", "key4"}
     for item in result:
-        assert set(item.keys()) == all_keys
+        assert set(item.keys()) == expected_keys
 
-    # Missing values should be "-"
-    assert result[0]["c"] == "-"
-    assert result[0]["d"] == "-"
-    assert result[1]["b"] == "-"
-    assert result[1]["d"] == "-"
+    # Missing keys should be filled with "-"
+    assert result[0]["key3"] == "-"
+    assert result[0]["key4"] == "-"
+    assert result[1]["key2"] == "-"
+    assert result[1]["key4"] == "-"
+    assert result[2]["key1"] == "-"
+    assert result[2]["key3"] == "-"
 
 
-@pytest.mark.parametrize(
-    "dt_input,expected_type",
-    [
-        ("2024-01-01T10:00:00Z", str),
-        (1704110400, str),  # Unix timestamp
-        (1704110400.0, str),  # Float timestamp
-        ("1704110400", str),  # String timestamp
-    ],
-)
-def test_humanize_datetime_values(studio_config, dt_input, expected_type):
-    """Test _humanize_datetime_values function"""
-    input_dict = {"started_at": dt_input, "finished_at": dt_input, "other_field": "unchanged"}
+def test_align_dict_keys_with_none_values():
+    """Test aligning dictionary keys with None values filtered out"""
+    items = [
+        {"key1": "value1", "key2": None, "key3": ""},
+        {"key1": None, "key2": "value2", "key4": "value4"},
+    ]
 
-    result = utils._humanize_datetime_values(studio_config, input_dict)
+    result = _align_dict_keys(items)
 
-    assert isinstance(result["started_at"], expected_type)
-    assert isinstance(result["finished_at"], expected_type)
+    # None and empty string values should be removed before alignment
+    assert "key3" not in result[0]  # Was empty string
+
+    # Missing keys should be filled with "-"
+    assert result[0]["key4"] == "-"
+    assert result[0]["key2"] == "-"
+    assert result[1]["key1"] == "-"
+
+
+def test_humanize_datetime_values():
+    """Test humanizing datetime values"""
+    config = StudioConfiguration()
+    config.datetime_format = "YYYY-MM-DD HH:mm:ss Z"
+
+    input_dict = {
+        "started_at": pendulum.parse("2023-01-01T12:00:00"),
+        "finished_at": pendulum.parse("2023-01-01T12:30:00"),
+        "created": 1672574400,  # Unix timestamp
+        "last_modified": "1672574400.123",  # String timestamp
+        "inserted_at": datetime(2023, 1, 1, 12, 0, 0),
+        "load_id": 1672574400,  # Unix timestamp for 2023-01-01T12:00:00
+        "other_field": "unchanged",
+        "numeric_field": 42,
+    }
+
+    result = _humanize_datetime_values(config, input_dict)
+
+    # Should have duration calculated
+    assert "duration" in result
+
+    # Original non-datetime fields should be preserved
     assert result["other_field"] == "unchanged"
-    assert "duration" in result  # Should be added when both start and end are present
+    assert result["numeric_field"] == 42
 
-
-def test_humanize_datetime_values_invalid_datetime(studio_config):
-    """Test _humanize_datetime_values with invalid datetime"""
-    input_dict = {"started_at": "invalid_datetime"}
-
-    with pytest.raises(Exception):
-        utils._humanize_datetime_values(studio_config, input_dict)
+    assert result["created"] == "2023-01-01 12:00:00 +00:00"
+    assert result["last_modified"] == "2023-01-01 12:00:00 +00:00"
+    assert result["inserted_at"] == "2023-01-01 12:00:00 +00:00"
+    assert result["load_package_created_at"] == "2023-01-01 12:00:00 +00:00"
 
 
 def test_dict_to_table_items():
-    """Test _dict_to_table_items function"""
-    input_dict = {"key1": "value1", "key2": "value2", "key3": 123}
+    """Test converting dict to table items"""
+    input_dict = {"pipeline_name": "test_pipeline", "destination": "duckdb", "status": "completed"}
 
-    result = utils._dict_to_table_items(input_dict)
+    result = _dict_to_table_items(input_dict)
 
-    assert isinstance(result, list)
-    assert len(result) == 3
+    expected = [
+        {"name": "pipeline_name", "value": "test_pipeline"},
+        {"name": "destination", "value": "duckdb"},
+        {"name": "status", "value": "completed"},
+    ]
 
-    # Check structure
-    for item in result:
-        assert isinstance(item, dict)
-        assert "name" in item
-        assert "value" in item
+    # Sort both by name for comparison since dict order may vary
+    result_sorted = sorted(result, key=lambda x: x["name"])
+    expected_sorted = sorted(expected, key=lambda x: x["name"])
 
-    # Check content
-    names = [item["name"] for item in result]
-    values = [item["value"] for item in result]
-
-    assert "key1" in names
-    assert "key2" in names
-    assert "key3" in names
-    assert "value1" in values
-    assert "value2" in values
-    assert 123 in values
+    assert result_sorted == expected_sorted
 
 
-def test_caching_behavior(simple_pipeline):
-    """Test that cached functions work correctly"""
-    # Test get_query_result caching
-    query = "SELECT 1 as test"
-    result1 = utils.get_query_result(simple_pipeline, query)
-    result2 = utils.get_query_result(simple_pipeline, query)
+def test_integration_get_local_pipelines_with_sorting(temp_pipelines_dir):
+    """Test integration scenario with multiple pipelines sorted by timestamp"""
+    pipelines_dir, pipelines = get_local_pipelines(temp_pipelines_dir, sort_by_trace=True)
 
-    # Results should be identical (cached)
-    pd.testing.assert_frame_equal(result1, result2)
+    assert pipelines_dir == temp_pipelines_dir
+    assert len(pipelines) == 3
 
-    # Clear cache and test again
-    utils.clear_query_cache(simple_pipeline)
-    result3 = utils.get_query_result(simple_pipeline, query)
-    pd.testing.assert_frame_equal(result1, result3)
+    # Should be sorted by timestamp (descending - most recent first)
+    timestamps = [p["timestamp"] for p in pipelines]
+    assert timestamps == sorted(timestamps, reverse=True)
+
+    # Verify the most recent pipeline is first
+    most_recent = pipelines[0]
+    assert most_recent["name"] == "test_pipeline_2"
+    assert most_recent["timestamp"] == 2000000
 
 
-def test_error_handling_pipeline_details():
-    """Test error handling in pipeline_details"""
-    # Create a mock pipeline that raises an exception when accessing credentials
-    mock_pipeline = Mock()
-    mock_pipeline.pipeline_name = "test"
-    mock_pipeline.destination = None
-    mock_pipeline.dataset_name = "test_dataset"
-    mock_pipeline.default_schema_name = "test_schema"
-    mock_pipeline.working_dir = "/test/dir"
-
-    # Mock dataset to raise exception
-    mock_dataset = Mock()
-    mock_dataset.destination_client.config.credentials = Mock(
-        side_effect=Exception("Connection error")
-    )
-    mock_pipeline.dataset.return_value = mock_dataset
-
-    details = utils.pipeline_details(mock_pipeline)
-
-    # Should handle the exception gracefully
+def test_integration_pipeline_workflow(test_pipeline):
+    """Test integration scenario with complete pipeline workflow"""
+    # Test pipeline details
+    details = pipeline_details(test_pipeline)
     details_dict = {item["name"]: item["value"] for item in details}
-    assert details_dict["credentials"] == "Could not resolve credentials"
+    assert details_dict["pipeline_name"] == "test_pipeline"
 
+    # Test row counts
+    row_counts = get_row_counts(test_pipeline)
+    assert row_counts["customers"] == 13
 
-def test_integration_with_real_pipeline_trace(studio_config, simple_pipeline):
-    """Test functions with real pipeline trace data"""
-    if simple_pipeline.last_trace:
-        trace_dict = simple_pipeline.last_trace.asdict()
+    # Test query execution
+    query_result = get_query_result(test_pipeline, "SELECT name FROM customers ORDER BY id")
+    assert len(query_result) == 13
+    assert query_result.iloc[0]["name"] == "simon"
 
-        # Test trace functions with real data
-        overview = utils.trace_overview(studio_config, trace_dict)
-        assert isinstance(overview, list)
-
-        context = utils.trace_execution_context(studio_config, trace_dict)
-        assert isinstance(context, list)
-
-        steps = utils.trace_steps_overview(studio_config, trace_dict)
-        assert isinstance(steps, list)
-
-        config_values = utils.trace_resolved_config_values(studio_config, trace_dict)
-        assert isinstance(config_values, list)
-
-
-def test_studio_configuration_hash():
-    """Test that StudioConfiguration is hashable (needed for caching)"""
-    config1 = StudioConfiguration()
-    config2 = StudioConfiguration()
-
-    # Should be hashable
-    hash1 = hash(config1)
-    hash2 = hash(config2)
-
-    assert isinstance(hash1, int)
-    assert isinstance(hash2, int)
-    assert hash1 == hash2  # Same default config should have same hash
-
-
-@pytest.mark.parametrize(
-    "pipeline_fixture_name",
-    ["simple_pipeline", "fruit_pipeline", "never_run_pipeline", "no_dest_pipeline"],
-)
-def test_functions_with_different_pipelines(studio_config, request, pipeline_fixture_name):
-    """Test key functions work with different types of pipelines"""
-    pipeline = request.getfixturevalue(pipeline_fixture_name)
-
-    # Test resolve_studio_config
-    config = utils.resolve_studio_config(pipeline)
-    assert isinstance(config, StudioConfiguration)
-
-    # Test pipeline_details
-    details = utils.pipeline_details(pipeline)
-    assert isinstance(details, list)
-
-    # Test create_table_list (only for pipelines with schemas)
-    if pipeline.default_schema_name:
-        table_list = utils.create_table_list(studio_config, pipeline)
-        assert isinstance(table_list, list)
+    # Test loads
+    config = StudioConfiguration()
+    loads = get_loads(config, test_pipeline)
+    assert len(loads) >= 1

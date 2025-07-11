@@ -4,7 +4,10 @@ import os
 from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, Type, TypeVar
 
 from dlt.common import logger
-from dlt.common.configuration.providers.provider import ConfigProvider
+from dlt.common.configuration.providers.provider import (
+    ConfigProvider,
+    EXPLICIT_VALUES_PROVIDER_NAME,
+)
 from dlt.common.configuration.const import TYPE_EXAMPLES
 from dlt.common.typing import (
     AnyType,
@@ -58,6 +61,7 @@ def resolve_configuration(
     # allows, for example, to store connection string or service.json in their native form in single env variable or under single vault key
     # this happens only when explicit value for the configuration was not provided
     # TODO: we can move it into _resolve_configuration and also remove similar code in _resolve_config_field
+    # TODO: also allow when explicit_value is dict so we can parse initial value and merge with it
     if config.__section__ and explicit_value is None:
         initial_hint = TSecretValue if isinstance(config, CredentialsConfiguration) else AnyType
         initial_value, traces = _resolve_single_value(
@@ -145,11 +149,11 @@ def _maybe_parse_native_value(
             # parse native value and convert it into dict, extract the diff and use it as exact value
             # explicit_value may not be complete ie. may be a connection string without password
             # we want the resolve to still fill missing values
-            default_value = config.__class__()
             native_value = {
                 k: v
-                for k, v in config.__class__.from_init_value(native_value).items()
-                if default_value[k] != v
+                for k, v in config.__class__.from_init_value(native_value)
+                .as_dict_nondefault()
+                .items()
             }
         except (ValueError, NotImplementedError) as v_err:
             raise InvalidNativeValue(type(config), type(native_value), embedded_sections, v_err)
@@ -241,7 +245,9 @@ def _resolve_config_fields(
             # do not resolve not resolvable, but allow for explicit values to be passed
             if not explicit_none:
                 current_value = default_value if explicit_value is None else explicit_value
-            traces = [LookupTrace("ExplicitValues", None, key, current_value)]
+            traces = [
+                LookupTrace(EXPLICIT_VALUES_PROVIDER_NAME, embedded_sections, key, current_value)
+            ]
             _set_field()
             continue
 
@@ -306,7 +312,7 @@ def _resolve_config_fields(
                     )
         else:
             # set the trace for explicit none
-            traces = [LookupTrace("ExplicitValues", None, key, None)]
+            traces = [LookupTrace(EXPLICIT_VALUES_PROVIDER_NAME, embedded_sections, key, None)]
 
         _set_field()
 
@@ -337,7 +343,11 @@ def _resolve_config_field(
     inner_hint = extract_inner_hint(hint, preserve_literal=True)
     if explicit_value is not None:
         value = explicit_value
-        traces: List[LookupTrace] = []
+        # TODO: consider logging explicit values, currently initial values taken from configuration
+        #  are passed as explicit values so that needs to be fixed first
+        traces: List[LookupTrace] = [
+            LookupTrace(EXPLICIT_VALUES_PROVIDER_NAME, embedded_sections, key, value)
+        ]
     else:
         # resolve key value via active providers passing the original hint ie. to preserve TSecretValue
         # NOTE: if inner_hint is an embedded config, it won't be resolved and value is None
@@ -367,6 +377,7 @@ def _resolve_config_field(
                 embedded_config = inner_hint()
             # only config with sections may look for initial values
             # TODO: all this code can be moved into _resolve_configuration
+            # TODO: also allow when explicit_value is dict so we can parse initial value and merge with it
             if embedded_config.__section__ and explicit_value is None:
                 # config section becomes the key if the key does not start with, otherwise it keeps its original value
                 initial_key, initial_embedded = _apply_embedded_sections_to_config_sections(

@@ -88,8 +88,7 @@ class synapse(Destination[SynapseClientConfiguration, "SynapseClient"]):
         caps.supports_create_table_if_not_exists = (
             False  # IF NOT EXISTS on CREATE TABLE not supported
         )
-        # multiple statements are not supported in practice - see mssql comment
-        caps.supports_multiple_statements = False
+        caps.supports_multiple_statements = True
 
         # Synapse throws "Some part of your SQL statement is nested too deeply. Rewrite the query or break it up into smaller queries."
         # if number of records exceeds a certain number. Which exact number that is seems not deterministic:

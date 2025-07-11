@@ -9,7 +9,6 @@ from tests.utils import (
     patch_home_dir,
     autouse_test_storage,
     preserve_environ,
-    # duckdb_pipeline_location, #  using this will break the e2e tests
     wipe_pipeline,
 )
 
@@ -75,11 +74,11 @@ def test_page_loads(page: Page):
     _go_home(page)
 
     # check title
-    expect(page).to_have_title("dlt studio")
+    expect(page).to_have_title("dlt marimo app")
 
     # check top heading
-    expect(page.get_by_role("heading", name="Welcome to dltHub Studio...")).to_contain_text(
-        "Welcome to dltHub Studio..."
+    expect(page.get_by_role("heading", name="Welcome to the dltHub marimo app...")).to_contain_text(
+        "Welcome to the dltHub marimo app..."
     )
 
     #

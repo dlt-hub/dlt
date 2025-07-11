@@ -13,3 +13,7 @@ class TransformationConfiguration(BaseConfiguration):
     The chunk size to use for the transformation. If not provided, the chunk size
     will be inferred from the transformations.
     """
+    always_materialize: Optional[bool] = False
+    """
+    If True, the transformation will always be materialized and not executed as a query
+    """
