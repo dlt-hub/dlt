@@ -296,6 +296,30 @@ class TestOffsetPaginator:
         with pytest.raises(ValueError):
             paginator.update_state(response, data=NON_EMPTY_PAGE)
 
+    def test_update_state_with_has_more(self):
+        paginator = OffsetPaginator(0, 10, total_path=None, has_more_path="has_more")
+        response = Mock(Response, json=lambda: {"has_more": False})
+        paginator.update_state(response, data=NON_EMPTY_PAGE)
+        assert paginator.has_next_page is False
+
+    def test_update_state_with_string_has_more(self):
+        paginator = OffsetPaginator(0, 10, total_path=None, has_more_path="has_more")
+        response = Mock(Response, json=lambda: {"has_more": "true"})
+        paginator.update_state(response, data=NON_EMPTY_PAGE)
+        assert paginator.has_next_page is True
+
+    def test_update_state_with_invalid_has_more(self):
+        paginator = OffsetPaginator(0, 10, total_path=None, has_more_path="has_more")
+        response = Mock(Response, json=lambda: {"has_more": "invalid"})
+        with pytest.raises(ValueError):
+            paginator.update_state(response, data=NON_EMPTY_PAGE)
+
+    def test_update_state_without_has_more(self):
+        paginator = OffsetPaginator(0, 10, total_path=None, has_more_path="has_more")
+        response = Mock(Response, json=lambda: {})
+        with pytest.raises(ValueError):
+            paginator.update_state(response, data=NON_EMPTY_PAGE)
+
     def test_init_request(self):
         paginator = OffsetPaginator(offset=123, limit=42)
         request = Mock(Request)
@@ -366,6 +390,13 @@ class TestOffsetPaginator:
             stop_after_empty_page=False,
         )
 
+        OffsetPaginator(
+            limit=10,
+            total_path=None,
+            has_more_path="has_more",
+            stop_after_empty_page=False,
+        )
+
         with pytest.raises(ValueError) as e:
             OffsetPaginator(
                 limit=10,
@@ -373,7 +404,8 @@ class TestOffsetPaginator:
                 stop_after_empty_page=False,
             )
         assert e.match(
-            "`total_path` or `maximum_offset` or `stop_after_empty_page` must be provided"
+            "`total_path`, `maximum_offset`, `has_more_path`, or `stop_after_empty_page`"
+            " must be provided"
         )
 
         with pytest.raises(ValueError) as e:
@@ -384,7 +416,21 @@ class TestOffsetPaginator:
                 maximum_offset=None,
             )
         assert e.match(
-            "`total_path` or `maximum_offset` or `stop_after_empty_page` must be provided"
+            "`total_path`, `maximum_offset`, `has_more_path`, or `stop_after_empty_page`"
+            " must be provided"
+        )
+
+        with pytest.raises(ValueError) as e:
+            OffsetPaginator(
+                limit=10,
+                total_path=None,
+                stop_after_empty_page=False,
+                maximum_offset=None,
+                has_more_path=None,
+            )
+        assert e.match(
+            "`total_path`, `maximum_offset`, `has_more_path`, or `stop_after_empty_page`"
+            " must be provided"
         )
 
 
@@ -447,6 +493,30 @@ class TestPageNumberPaginator:
 
     def test_update_state_without_total_pages(self):
         paginator = PageNumberPaginator(base_page=1, page=1)
+        response = Mock(Response, json=lambda: {})
+        with pytest.raises(ValueError):
+            paginator.update_state(response, data=NON_EMPTY_PAGE)
+
+    def test_update_state_with_has_more(self):
+        paginator = PageNumberPaginator(page=1, total_path=None, has_more_path="has_more")
+        response = Mock(Response, json=lambda: {"has_more": False})
+        paginator.update_state(response, data=NON_EMPTY_PAGE)
+        assert paginator.has_next_page is False
+
+    def test_update_state_with_string_has_more(self):
+        paginator = PageNumberPaginator(page=1, total_path=None, has_more_path="has_more")
+        response = Mock(Response, json=lambda: {"has_more": "true"})
+        paginator.update_state(response, data=NON_EMPTY_PAGE)
+        assert paginator.has_next_page is True
+
+    def test_update_state_with_invalid_has_more(self):
+        paginator = PageNumberPaginator(page=1, total_path=None, has_more_path="has_more")
+        response = Mock(Response, json=lambda: {"has_more": "invalid"})
+        with pytest.raises(ValueError):
+            paginator.update_state(response, data=NON_EMPTY_PAGE)
+
+    def test_update_state_without_has_more(self):
+        paginator = PageNumberPaginator(page=1, total_path=None, has_more_path="has_more")
         response = Mock(Response, json=lambda: {})
         with pytest.raises(ValueError):
             paginator.update_state(response, data=NON_EMPTY_PAGE)
@@ -535,7 +605,10 @@ class TestPageNumberPaginator:
                 total_path=None,
                 stop_after_empty_page=False,
             )
-        assert e.match("`total_path` or `maximum_page` or `stop_after_empty_page` must be provided")
+        assert e.match(
+            "`total_path`, `maximum_page`, `has_more_path`, or `stop_after_empty_page`"
+            " must be provided"
+        )
 
         with pytest.raises(ValueError) as e:
             PageNumberPaginator(
@@ -543,7 +616,22 @@ class TestPageNumberPaginator:
                 stop_after_empty_page=False,
                 maximum_page=None,
             )
-        assert e.match("`total_path` or `maximum_page` or `stop_after_empty_page` must be provided")
+        assert e.match(
+            "`total_path`, `maximum_page`, `has_more_path`, or `stop_after_empty_page`"
+            " must be provided"
+        )
+
+        with pytest.raises(ValueError) as e:
+            PageNumberPaginator(
+                total_path=None,
+                stop_after_empty_page=False,
+                maximum_page=None,
+                has_more_path=None,
+            )
+        assert e.match(
+            "`total_path`, `maximum_page`, `has_more_path`, or `stop_after_empty_page`"
+            " must be provided"
+        )
 
 
 @pytest.mark.usefixtures("mock_api_server")
