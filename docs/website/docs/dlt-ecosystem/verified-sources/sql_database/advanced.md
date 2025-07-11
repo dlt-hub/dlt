@@ -140,6 +140,26 @@ print(read_table.compute_table_schema())
 
 You can call `remove_nullability_adapter` from your custom table adapter if you need to combine both.
 
+### Selecting a subset of columns
+
+You can use `table_adapter_callback` to select only specific columns from a table by removing unwanted columns from the table definition.
+
+```py
+from dlt.sources.sql_database import sql_database
+
+def table_adapter_callback(table):
+    if table.name == 'my_table':
+        columns_to_keep = ['id', 'name', 'email']
+        for col in list(table._columns):
+            if col.name not in columns_to_keep:
+                table._columns.remove(col)
+    return table
+
+source = sql_database(
+    table_names=["my_table"],
+    table_adapter_callback=table_adapter_callback
+)
+```
 
 ## Configuring with TOML or environment variables
 You can set most of the arguments of `sql_database()` and `sql_table()` directly in the TOML files or as environment variables. `dlt` automatically injects these values into the pipeline script.
