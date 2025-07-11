@@ -12,7 +12,6 @@ from dlt.common.data_writers.writers import (
     FileWriterSpec,
     InsertValuesWriter,
 )
-from dlt.common.data_writers.exceptions import CompressionConfigMismatchException
 from dlt.common.storages import PackageStorage, ParsedLoadJobFileName
 from dlt.common.schema.utils import new_column
 

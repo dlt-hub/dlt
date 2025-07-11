@@ -31,7 +31,7 @@ from dlt.common.configuration.specs import ContainerInjectableContext
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.container import Container
 from dlt.common.data_writers import DataWriter, new_file_id
-from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration
+from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration, FileImportContext
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema, TSchemaTables
@@ -733,6 +733,11 @@ class PackageStorage:
         disable_compression: Optional[bool] = None,
         disable_extension: Optional[bool] = None,
     ) -> str:
+        from dlt.common.configuration.container import Container
+
+        file_import_context = Container().get(FileImportContext)
+        is_imported_file = file_import_context.is_imported_file
+
         if validate_components:
             FileStorage.validate_file_name_component(table_name)
         fn = f"{table_name}.{file_id}.{int(retry_count)}"
@@ -743,6 +748,7 @@ class PackageStorage:
                 format_spec.supports_compression
                 and not disable_compression  # Unset or set to False
                 and disable_extension is False  # Explicitly set to False
+                and not is_imported_file  # Is not an imported file
             ):
                 fn += ".gz"
         return fn

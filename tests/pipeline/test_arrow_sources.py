@@ -23,7 +23,6 @@ from tests.utils import (
     TPythonTableFormat,
     arrow_item_from_pandas,
     arrow_item_from_table,
-    preserve_environ,
 )
 
 
@@ -524,7 +523,6 @@ def test_empty_arrow(item_type: TPythonTableFormat) -> None:
 
 
 def test_import_file_with_arrow_schema() -> None:
-    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     pipeline = dlt.pipeline(
         pipeline_name="test_jsonl_import",
         destination="duckdb",

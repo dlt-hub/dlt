@@ -89,22 +89,3 @@ class InvalidDataItem(DataWriterException):
             f"A data item of type {data_item_format=:} cannot be written as `{file_format}:"
             f" {details}`"
         )
-
-
-class CompressionConfigMismatchException(DataWriterException):
-    def __init__(self, file_path: str, is_file_compressed: bool, should_compress: bool):
-        self.file_path = file_path
-        file_state = "compressed" if is_file_compressed else "uncompressed"
-        writer_state = "compressed" if should_compress else "uncompressed"
-        suggested_value = "False" if is_file_compressed else "True"
-
-        super().__init__(
-            f"Compression-configuration mismatch while importing '{file_path}'.\n"
-            f"• Source file: {file_state}\n"
-            f"• Writer expects: {writer_state}\n\n"
-            "Fix one of the following:\n"
-            f"  • In your `config.toml`, set `disable_compression = {suggested_value}` "
-            "under the [data_writer] section, **or**\n"
-            "  • Set the environment variable "
-            f"`DATA_WRITER__DISABLE_COMPRESSION={suggested_value}`.\n"
-        )
