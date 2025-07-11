@@ -15,6 +15,8 @@ from dlt.common.pendulum import pendulum
 from dlt.common.pipeline import get_dlt_pipelines_dir
 from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage
+from dlt.common.destination.client import DestinationClientConfiguration
+
 from dlt.helpers.studio import ui_elements as ui
 from dlt.helpers.studio.config import StudioConfiguration
 
@@ -86,12 +88,18 @@ def get_pipeline(pipeline_name: str, pipelines_dir: str) -> dlt.Pipeline:
 #
 
 
+def get_destination_config(pipeline: dlt.Pipeline) -> DestinationClientConfiguration:
+    """Get the destination config of a pipeline."""
+    # NOTE: this uses internal interfaces for now...
+    return cast(DestinationClientConfiguration, pipeline.dataset().destination_client.config)  # type: ignore[attr-defined]
+
+
 def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
     """
     Get the details of a pipeline.
     """
     try:
-        credentials = str(pipeline.dataset().destination_client.config.credentials)
+        credentials = str(get_destination_config(pipeline).credentials)
     except Exception:
         credentials = "Could not resolve credentials"
 
@@ -255,7 +263,8 @@ def get_loads(c: StudioConfiguration, pipeline: dlt.Pipeline, limit: int = 100) 
     loads = pipeline.dataset()._dlt_loads
     if limit:
         loads = loads.limit(limit)
-    loads = loads.order_by(loads.inserted_at.desc())
+    loads = loads.order_by("inserted_at", "desc")
+
     loads_list = loads.df().to_dict(orient="records")
 
     loads_list = [_humanize_datetime_values(c, load) for load in loads_list]
