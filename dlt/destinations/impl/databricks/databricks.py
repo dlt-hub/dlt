@@ -14,11 +14,13 @@ from dlt.common.destination.client import (
     SupportsStagingDestination,
     LoadJob,
 )
+from dlt.common.configuration import with_config
 from dlt.common.configuration.specs import (
     AwsCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
 from dlt.common.exceptions import TerminalValueError
+from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration, FileImportContext
 from dlt.common.storages.configuration import ensure_canonical_az_url
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.storages.fsspec_filesystem import (
@@ -36,20 +38,23 @@ from dlt.destinations.impl.databricks.configuration import DatabricksClientConfi
 from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
-from dlt.destinations.utils import is_compression_disabled
+from dlt.destinations.path_utils import get_file_format_compression
 
 SUPPORTED_BLOB_STORAGE_PROTOCOLS = AZURE_BLOB_STORAGE_PROTOCOLS + S3_PROTOCOLS + GCS_PROTOCOLS
 
 
 class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
+    @with_config(spec=BufferedDataWriterConfiguration, sections=("normalize",))
     def __init__(
         self,
         file_path: str,
         staging_config: FilesystemConfiguration,
+        disable_compression: Optional[bool] = None,
     ) -> None:
         super().__init__(file_path)
         self._staging_config = staging_config
         self._job_client: "DatabricksClient" = None
+        self._disable_compression = disable_compression
 
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client
@@ -218,11 +223,20 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
     def _determine_source_format(
         self, file_name: str, orig_bucket_path: str
     ) -> tuple[str, str, bool]:
-        if file_name.endswith(".parquet"):
+        from dlt.common.configuration.container import Container
+
+        file_import_context = Container().get(FileImportContext)
+        is_imported_file = file_import_context.is_imported_file
+
+        file_format, _ = get_file_format_compression(file_name)
+
+        if file_format == "parquet":
             return "PARQUET", "", False
 
-        elif file_name.endswith(".jsonl"):
-            if not is_compression_disabled():
+        elif file_format in ["jsonl", "typed-jsonl"]:
+            if (
+                self._disable_compression is not True and not is_imported_file
+            ):  # Unless explicitly set to True
                 raise LoadJobTerminalException(
                     self._file_path,
                     "Databricks loader does not support gzip compressed JSON files. "

@@ -7,11 +7,13 @@ from urllib.parse import urlparse
 import clickhouse_connect
 from clickhouse_connect.driver.tools import insert_file
 
+from dlt.common.configuration import with_config
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
     AzureCredentialsWithoutDefaults,
     AwsCredentialsWithoutDefaults,
 )
+from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration, FileImportContext
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.client import (
     PreparedTableSchema,
@@ -56,22 +58,33 @@ from dlt.destinations.job_client_impl import (
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest, FinalizedLoadJobWithFollowupJobs
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
-from dlt.destinations.utils import get_deterministic_temp_table_name, is_compression_disabled
+from dlt.destinations.utils import get_deterministic_temp_table_name
+from dlt.destinations.path_utils import get_file_format_compression
 
 
 class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
+    @with_config(
+        spec=BufferedDataWriterConfiguration, sections=("normalize",), include_defaults=False
+    )
     def __init__(
         self,
         file_path: str,
         config: ClickHouseClientConfiguration,
         staging_credentials: Optional[CredentialsConfiguration] = None,
+        disable_compression: Optional[bool] = None,
     ) -> None:
         super().__init__(file_path)
         self._job_client: "ClickHouseClient" = None
         self._staging_credentials = staging_credentials
         self._config = config
+        self._disable_compression = disable_compression
 
     def run(self) -> None:
+        from dlt.common.configuration.container import Container
+
+        file_import_context = Container().get(FileImportContext)
+        is_imported_file = file_import_context.is_imported_file
+
         client = self._job_client.sql_client
 
         bucket_path = None
@@ -83,10 +96,16 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
             bucket_url = urlparse(bucket_path)
             bucket_scheme = bucket_url.scheme
 
-        ext = cast(SUPPORTED_FILE_FORMATS, os.path.splitext(file_name)[1][1:].lower())
-        clickhouse_format: str = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[ext]
-
         compression = "auto"
+
+        file_format, _ = get_file_format_compression(file_name)
+        clickhouse_format: str = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[
+            cast(SUPPORTED_FILE_FORMATS, file_format)
+        ]
+
+        if file_format == "jsonl":
+            # Auto does not work for jsonl. So we set it to 'none',
+            compression = "gz" if not self._disable_compression and not is_imported_file else "none"
 
         # Don't use the DBAPI driver for local files.
         if not bucket_path or bucket_scheme == "file":
@@ -95,9 +114,6 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                 if not bucket_path
                 else FilesystemConfiguration.make_local_path(bucket_path)
             )
-            # Local filesystem.
-            if ext == "jsonl":
-                compression = "gz" if FileStorage.is_gzipped(file_path) else "none"
             try:
                 client.insert_file(file_path, self.load_table_name, clickhouse_format, compression)
             except clickhouse_connect.driver.exceptions.Error as e:
@@ -108,12 +124,6 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
             return
 
         qualified_table_name = client.make_qualified_table_name(self.load_table_name)
-
-        # Auto does not work for jsonl, get info from config for buckets
-        # NOTE: we should not really be accessing the config this way, but for
-        # now it is ok...
-        if ext == "jsonl":
-            compression = "none" if is_compression_disabled() else "gz"
 
         if bucket_scheme in ("s3", "gs", "gcs"):
             if not isinstance(self._staging_credentials, AwsCredentialsWithoutDefaults):

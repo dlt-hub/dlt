@@ -35,7 +35,10 @@ def test_write_no_item(writer_type: Type[DataWriter]) -> None:
 @pytest.mark.parametrize(
     "disable_compression", [True, False], ids=["no_compression", "compression"]
 )
-def test_rotation_with_buffer_on_schema_change(disable_compression: bool) -> None:
+@pytest.mark.parametrize("disable_extension", [True, False], ids=["no_compr_ext", "compr_ext"])
+def test_rotation_with_buffer_on_schema_change(
+    disable_compression: bool, disable_extension: bool
+) -> None:
     c1 = new_column("col1", "bigint")
     c2 = new_column("col2", "bigint")
     c3 = new_column("col3", "text")
@@ -55,7 +58,10 @@ def test_rotation_with_buffer_on_schema_change(disable_compression: bool) -> Non
 
     # change schema before file first flush
     with get_writer(
-        InsertValuesWriter, file_max_items=100, disable_compression=disable_compression
+        InsertValuesWriter,
+        file_max_items=100,
+        disable_compression=disable_compression,
+        disable_extension=disable_extension,
     ) as writer:
         writer.write_data_item(list(c1_doc(8)), t1)
         assert writer._current_columns == t1
@@ -64,6 +70,10 @@ def test_rotation_with_buffer_on_schema_change(disable_compression: bool) -> Non
         writer.write_data_item(list(c2_doc(1)), t2)
         # file name is there
         assert writer._file_name is not None
+        if not disable_compression and not disable_extension:
+            assert writer._file_name.endswith(".gz")
+        else:
+            assert writer._file_name.endswith(".insert_values")
         # no file is open
         assert writer._file is None
     # writer is closed and data was written
@@ -134,7 +144,8 @@ def test_rotation_with_buffer_on_schema_change(disable_compression: bool) -> Non
 @pytest.mark.parametrize(
     "disable_compression", [False, True], ids=["no_compression", "compression"]
 )
-def test_rotation_on_schema_change(disable_compression: bool) -> None:
+@pytest.mark.parametrize("disable_extension", [True, False], ids=["no_compr_ext", "compr_ext"])
+def test_rotation_on_schema_change(disable_compression: bool, disable_extension: bool) -> None:
     c1 = new_column("col1", "bigint")
     c2 = new_column("col2", "bigint")
 
@@ -149,7 +160,10 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
 
     # change schema before file first flush
     with get_writer(
-        writer=JsonlWriter, file_max_items=100, disable_compression=disable_compression
+        writer=JsonlWriter,
+        file_max_items=100,
+        disable_compression=disable_compression,
+        disable_extension=disable_extension,
     ) as writer:
         # mock spec
         writer._supports_schema_changes = "False"
@@ -158,6 +172,10 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
         writer.write_data_item(list(c1_doc(1)), t1)
         # in buffer
         assert writer._file is None
+        if not disable_compression and not disable_extension:
+            assert writer._file_name.endswith(".gz")
+        else:
+            assert writer._file_name.endswith(".jsonl")
         assert len(writer._buffered_items) == 1
         writer.write_data_item(list(c2_doc(1)), t2)
         # flushed because we force rotation with buffer flush

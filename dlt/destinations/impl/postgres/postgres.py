@@ -22,6 +22,7 @@ from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.sql_jobs import SqlStagingReplaceFollowupJob
+from dlt.destinations.path_utils import get_file_format_compression
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
 
@@ -190,9 +191,10 @@ class PostgresClient(InsertValuesJobClient):
     ) -> LoadJob:
         job = super().create_load_job(table, file_path, load_id, restore)
         if not job:
-            if file_path.endswith("csv"):
+            file_format, _ = get_file_format_compression(file_path)
+            if file_format == "csv":
                 job = PostgresCsvCopyJob(file_path)
-            elif file_path.endswith("parquet"):
+            elif file_format == "parquet":
                 job = PostgresParquetCopyJob(file_path)
         return job
 

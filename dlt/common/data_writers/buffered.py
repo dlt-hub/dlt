@@ -14,7 +14,7 @@ from dlt.common.data_writers.exceptions import (
 from dlt.common.data_writers.writers import TWriter, DataWriter, FileWriterSpec
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.configuration import with_config, known_sections, configspec
-from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.configuration.specs import BaseConfiguration, ContainerInjectableContext
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.utils import uniq_id
 
@@ -24,17 +24,27 @@ def new_file_id() -> str:
     return uniq_id(5)
 
 
+@configspec
+class FileImportContext(ContainerInjectableContext):
+    is_imported_file: bool = False
+
+    def set_imported(self) -> None:
+        self.is_imported_file = True
+
+
+@configspec
+class BufferedDataWriterConfiguration(BaseConfiguration):
+    buffer_max_items: int = 5000
+    file_max_items: Optional[int] = None
+    file_max_bytes: Optional[int] = None
+    disable_compression: Optional[bool] = None
+    disable_extension: Optional[bool] = None
+    _caps: Optional[DestinationCapabilitiesContext] = None
+
+    __section__: ClassVar[str] = known_sections.DATA_WRITER
+
+
 class BufferedDataWriter(Generic[TWriter]):
-    @configspec
-    class BufferedDataWriterConfiguration(BaseConfiguration):
-        buffer_max_items: int = 5000
-        file_max_items: Optional[int] = None
-        file_max_bytes: Optional[int] = None
-        disable_compression: bool = False
-        _caps: Optional[DestinationCapabilitiesContext] = None
-
-        __section__: ClassVar[str] = known_sections.DATA_WRITER
-
     @with_config(spec=BufferedDataWriterConfiguration)
     def __init__(
         self,
@@ -44,7 +54,8 @@ class BufferedDataWriter(Generic[TWriter]):
         buffer_max_items: int = 5000,
         file_max_items: int = None,
         file_max_bytes: int = None,
-        disable_compression: bool = False,
+        disable_compression: Optional[bool] = None,
+        disable_extension: Optional[bool] = None,
         _caps: DestinationCapabilitiesContext = None,
     ):
         self.writer_spec = writer_spec
@@ -63,10 +74,10 @@ class BufferedDataWriter(Generic[TWriter]):
         if self.file_max_bytes is None and _caps:
             self.file_max_bytes = _caps.recommended_file_size
         self.file_max_items = file_max_items
+        self.should_compress = self.writer_spec.supports_compression and not disable_compression
+        self.disable_extension = disable_extension is not False
         # the open function is either gzip.open or open
-        self.open = (
-            gzip.open if self.writer_spec.supports_compression and not disable_compression else open
-        )
+        self.open = gzip.open if self.should_compress else open
 
         self._current_columns: TTableSchemaColumns = None
         self._file_name: str = None
@@ -142,13 +153,17 @@ class BufferedDataWriter(Generic[TWriter]):
         """
         # TODO: we should separate file storage from other storages. this creates circular deps
         from dlt.common.storages import FileStorage
+        from dlt.common.configuration.container import Container
+
+        file_import_context = Container().get(FileImportContext)
+        file_import_context.set_imported()
 
         # import file with alternative extension
         spec = self.writer_spec
         if with_extension:
             spec = self.writer_spec._replace(file_extension=with_extension)
         with self.alternative_spec(spec):
-            self._rotate_file()
+            self._rotate_file(is_imported_file=True)
         try:
             FileStorage.link_hard_with_fallback(file_path, self._file_name)
         except FileNotFoundError as f_ex:
@@ -226,11 +241,21 @@ class BufferedDataWriter(Generic[TWriter]):
                 new_rows_count = 1
         return new_rows_count
 
-    def _rotate_file(self, allow_empty_file: bool = False) -> DataWriterMetrics:
+    def _rotate_file(
+        self, allow_empty_file: bool = False, is_imported_file: bool = False
+    ) -> DataWriterMetrics:
         metrics = self._flush_and_close_file(allow_empty_file)
-        self._file_name = (
-            self.file_name_template % new_file_id() + "." + self.writer_spec.file_extension
-        )
+
+        # Construct base filename
+        base_filename = self.file_name_template % new_file_id()
+        file_extension = self.writer_spec.file_extension
+
+        # Add .gz if compression and extension is enabled
+        if self.should_compress and not self.disable_extension and not is_imported_file:
+            self._file_name = f"{base_filename}.{file_extension}.gz"
+        else:
+            self._file_name = f"{base_filename}.{file_extension}"
+
         self._created = time.time()
         return metrics
 
@@ -242,7 +267,10 @@ class BufferedDataWriter(Generic[TWriter]):
                 if self.writer_spec.is_binary_format:
                     self._file = self.open(self._file_name, "wb")  # type: ignore
                 else:
-                    self._file = self.open(self._file_name, "wt", encoding="utf-8", newline="")
+                    if self.should_compress:
+                        self._file = self.open(self._file_name, "wt", encoding="utf-8")
+                    else:
+                        self._file = self.open(self._file_name, "wt", encoding="utf-8", newline="")
                 self._writer = self.writer_cls(self._file, caps=self._caps)  # type: ignore[assignment]
                 self._writer.write_header(self._current_columns)
             # write buffer

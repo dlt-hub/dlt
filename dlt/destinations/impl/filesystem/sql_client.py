@@ -1,8 +1,10 @@
-from typing import Any, TYPE_CHECKING, Tuple, List
+from typing import Any, TYPE_CHECKING, Tuple, List, Optional
 import os
 import duckdb
 
 from dlt.common import logger
+from dlt.common.configuration import with_config
+from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration, FileImportContext
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema.utils import is_nullable_column
@@ -13,7 +15,7 @@ from dlt.destinations.sql_client import raise_database_error
 from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
 from dlt.destinations.impl.duckdb.factory import DuckDbCredentials
 
-from dlt.destinations.utils import is_compression_disabled
+from dlt.destinations.path_utils import get_file_format_compression
 
 SUPPORTED_PROTOCOLS = ["gs", "gcs", "s3", "file", "memory", "az", "abfss"]
 
@@ -24,12 +26,16 @@ else:
 
 
 class FilesystemSqlClient(WithTableScanners):
+    @with_config(
+        spec=BufferedDataWriterConfiguration, sections=("normalize",), include_defaults=False
+    )
     def __init__(
         self,
         remote_client: FilesystemClient,
         dataset_name: str,
         cache_db: DuckDbCredentials = None,
         persist_secrets: bool = False,
+        disable_compression: Optional[bool] = None,
     ) -> None:
         if remote_client.config.protocol not in SUPPORTED_PROTOCOLS:
             raise NotImplementedError(
@@ -43,6 +49,7 @@ class FilesystemSqlClient(WithTableScanners):
         self.iceberg_initialized = False
         if self.is_abfss:
             self._global_config["azure_transport_option_type"] = "curl"
+        self._disable_compression = disable_compression
 
     def can_create_view(self, table_schema: PreparedTableSchema) -> bool:
         if table_schema.get("table_format") in ("delta", "iceberg"):
@@ -55,7 +62,11 @@ class FilesystemSqlClient(WithTableScanners):
         files = self.remote_client.list_table_files(table_name)
         if len(files) == 0:
             raise DestinationUndefinedEntity(table_name)
-        return os.path.splitext(files[0])[1][1:], files
+
+        file_name = files[0]
+        file_format, _ = get_file_format_compression(file_name)
+
+        return file_format, files
 
     def create_secret(
         self,
@@ -111,6 +122,11 @@ class FilesystemSqlClient(WithTableScanners):
 
     @raise_database_error
     def create_view(self, view_name: str, table_schema: PreparedTableSchema) -> None:
+        from dlt.common.configuration.container import Container
+
+        file_import_context = Container().get(FileImportContext)
+        is_imported_file = file_import_context.is_imported_file
+
         # NOTE: data freshness
         # iceberg - currently we glob the most recent snapshot (via built in duckdb mechanism) so data is fresh
         #           (but not very efficient)
@@ -122,8 +138,11 @@ class FilesystemSqlClient(WithTableScanners):
         table_location = self.remote_client.get_open_table_location(table_format, table_name)
 
         # discover whether compression is enabled
-        compression = "" if is_compression_disabled() else ", compression = 'gzip'"
-
+        compression = (
+            ", compression = 'gzip'"
+            if not self._disable_compression and not is_imported_file
+            else ""
+        )
         dlt_table_names = self.remote_client.schema.dlt_table_names()
 
         def _escape_column_name(col_name: str) -> str:

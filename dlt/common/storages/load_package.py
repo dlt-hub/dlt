@@ -26,11 +26,12 @@ from typing_extensions import NotRequired
 from dlt.common.typing import TypedDict, get_args, DictStrAny, SupportsHumanize
 from dlt.common.pendulum import pendulum
 from dlt.common.json import json
-from dlt.common.configuration import configspec
+from dlt.common.configuration import configspec, with_config
 from dlt.common.configuration.specs import ContainerInjectableContext
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.container import Container
 from dlt.common.data_writers import DataWriter, new_file_id
+from dlt.common.data_writers.buffered import BufferedDataWriterConfiguration, FileImportContext
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema, TSchemaTables
@@ -156,6 +157,7 @@ class ParsedLoadJobFileName(NamedTuple):
     file_id: str
     retry_count: int
     file_format: TJobFileFormat
+    has_compression_ext: bool = False
 
     def job_id(self) -> str:
         """Unique identifier of the job"""
@@ -163,7 +165,10 @@ class ParsedLoadJobFileName(NamedTuple):
 
     def file_name(self) -> str:
         """A name of the file with the data to be loaded"""
-        return f"{self.table_name}.{self.file_id}.{int(self.retry_count)}.{self.file_format}"
+        base_name = f"{self.table_name}.{self.file_id}.{int(self.retry_count)}.{self.file_format}"
+        if self.has_compression_ext:
+            return f"{base_name}.gz"
+        return base_name
 
     def with_retry(self) -> "ParsedLoadJobFileName":
         """Returns a job with increased retry count"""
@@ -173,12 +178,19 @@ class ParsedLoadJobFileName(NamedTuple):
     def parse(file_name: str) -> "ParsedLoadJobFileName":
         p = PurePath(file_name)
         parts = p.name.split(".")
-        if len(parts) != 4:
-            raise TerminalValueError(parts)
 
-        return ParsedLoadJobFileName(
-            parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3])
-        )
+        if len(parts) == 4:
+            # No compression extension: table_name.file_id.retry_count.file_format
+            return ParsedLoadJobFileName(
+                parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3]), False
+            )
+        elif len(parts) == 5 and parts[4] == "gz":
+            # With compression extension: table_name.file_id.retry_count.file_format.gz
+            return ParsedLoadJobFileName(
+                parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3]), True
+            )
+        else:
+            raise TerminalValueError(parts)
 
     @staticmethod
     def new_file_id() -> str:
@@ -711,19 +723,34 @@ class PackageStorage:
         return json.loads(self.storage.load(schema_path))  # type: ignore[no-any-return]
 
     @staticmethod
+    @with_config(spec=BufferedDataWriterConfiguration, sections=("normalize",))
     def build_job_file_name(
         table_name: str,
         file_id: str,
         retry_count: int = 0,
         validate_components: bool = True,
         loader_file_format: TLoaderFileFormat = None,
+        disable_compression: Optional[bool] = None,
+        disable_extension: Optional[bool] = None,
     ) -> str:
+        from dlt.common.configuration.container import Container
+
+        file_import_context = Container().get(FileImportContext)
+        is_imported_file = file_import_context.is_imported_file
+
         if validate_components:
             FileStorage.validate_file_name_component(table_name)
         fn = f"{table_name}.{file_id}.{int(retry_count)}"
         if loader_file_format:
             format_spec = DataWriter.writer_spec_from_file_format(loader_file_format, "object")
-            return fn + f".{format_spec.file_extension}"
+            fn += f".{format_spec.file_extension}"
+            if (
+                format_spec.supports_compression
+                and not disable_compression  # Unset or set to False
+                and disable_extension is False  # Explicitly set to False
+                and not is_imported_file  # Is not an imported file
+            ):
+                fn += ".gz"
         return fn
 
     @staticmethod
