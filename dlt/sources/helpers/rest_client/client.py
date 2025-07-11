@@ -11,7 +11,7 @@ from typing import (
 import copy
 from urllib.parse import urlparse
 from requests import Session as BaseSession  # noqa: I251
-from requests import Response, Request
+from requests import Response, Request, HTTPError
 from requests.auth import AuthBase
 
 from dlt.common import jsonpath, logger
@@ -20,7 +20,7 @@ from .typing import HTTPMethodBasic, HTTPMethod, Hooks
 from .paginators import BasePaginator
 from .detector import PaginatorFactory, find_response_page_data
 from .exceptions import IgnoreResponseException, PaginatorNotFound
-
+from .redaction import sanitize_url
 from .utils import join_url
 
 
@@ -124,13 +124,14 @@ class RESTClient:
         )
 
     def _send_request(self, request: Request, **kwargs: Any) -> Response:
+        prepared_request = self.session.prepare_request(request)
+
+        # Sanitize the prepared URL which includes query parameters
+        sanitized_url = sanitize_url(prepared_request.url)
         logger.info(
-            f"Making {request.method.upper()} request to {request.url}"
-            f" with params={request.params}, json={request.json}"
+            f"Making {request.method.upper()} request to {sanitized_url}"
             f" with headers={request.headers}"
         )
-
-        prepared_request = self.session.prepare_request(request)
 
         send_kwargs = self.session.merge_environment_settings(
             prepared_request.url,
@@ -218,7 +219,7 @@ class RESTClient:
         # HTTP error status codes. This is a fallback to handle errors
         # unless explicitly overridden in the provided hooks.
         if "response" not in hooks:
-            hooks["response"] = [raise_for_status]
+            hooks["response"] = [_dlt_raise_for_status]
 
         request = self._create_request(
             path_or_url=path,
@@ -322,6 +323,29 @@ class RESTClient:
                 " instance of the paginator as some settings may not be guessed correctly."
             )
         return paginator
+
+
+def _dlt_raise_for_status(response: Response, *args: Any, **kwargs: Any) -> None:
+    """Custom raise_for_status that sanitizes URLs and includes response body.
+
+    Args:
+        response: The response object to check
+
+    Raises:
+        HTTPError: If the response status code indicates an error
+    """
+    if response.status_code >= 400:
+        safe_url = sanitize_url(response.url)
+        body = ""
+        if response.text:
+            max_len = 512
+            body = response.text[:max_len]
+            if len(response.text) > max_len:
+                body += "..."
+        msg = f"{response.status_code} {response.reason} for url: {safe_url}"
+        if body:
+            msg += f". Response: {body}"
+        raise HTTPError(msg, response=response)
 
 
 def raise_for_status(response: Response, *args: Any, **kwargs: Any) -> None:
