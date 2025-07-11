@@ -157,6 +157,7 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
         destination_name: str = None,
         environment: str = None,
         staging_volume_name: str = None,
+        create_indexes: bool = False,
         **kwargs: Any,
     ) -> None:
         """Configure the Databricks destination to use in a pipeline.
@@ -171,6 +172,7 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
             destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
             environment (str, optional): Environment of the destination
             staging_volume_name (str, optional): Name of the staging volume to use
+            create_indexes (bool, optional): Whether PRIMARY KEY or FOREIGN KEY constrains should be created
             **kwargs (Any): Additional arguments passed to the destination config
         """
         super().__init__(
@@ -180,6 +182,7 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
             destination_name=destination_name,
             environment=environment,
             staging_volume_name=staging_volume_name,
+            create_indexes=create_indexes,
             **kwargs,
         )
 
