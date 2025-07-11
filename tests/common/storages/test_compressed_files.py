@@ -12,6 +12,7 @@ from dlt.common.data_writers.writers import (
     FileWriterSpec,
     InsertValuesWriter,
 )
+from dlt.common.data_writers.exceptions import CompressionConfigMismatchException
 from dlt.common.storages import PackageStorage, ParsedLoadJobFileName
 from dlt.common.schema.utils import new_column
 
@@ -86,7 +87,7 @@ def test_parse_file_names(compressed: bool) -> None:
     assert parsed.file_id == "file123"
     assert parsed.retry_count == 0
     assert parsed.file_format == "jsonl"
-    assert compressed == parsed.is_compressed
+    assert compressed == parsed.has_compression_ext
 
 
 @pytest.mark.parametrize(
@@ -109,14 +110,14 @@ def test_with_retry_preserves_compression():
     parsed = ParsedLoadJobFileName("table", "file123", 0, "jsonl", True)
     retried = parsed.with_retry()
     assert retried.retry_count == 1
-    assert retried.is_compressed is True
+    assert retried.has_compression_ext is True
     assert retried.file_name() == "table.file123.1.jsonl.gz"
 
     # Test uncompressed file retry
     parsed = ParsedLoadJobFileName("table", "file123", 0, "jsonl", False)
     retried = parsed.with_retry()
     assert retried.retry_count == 1
-    assert retried.is_compressed is False
+    assert retried.has_compression_ext is False
     assert retried.file_name() == "table.file123.1.jsonl"
 
 
@@ -141,53 +142,3 @@ def test_build_job_file_name_no_format() -> None:
         "test_table", "file123", 0, loader_file_format=None
     )
     assert file_name == "test_table.file123.0"
-
-
-@pytest.mark.parametrize(
-    "compressed",
-    [True, False],
-)
-@pytest.mark.parametrize(
-    "disable_extension",
-    [True, False],
-)
-@pytest.mark.parametrize("writer_type", [JsonlWriter, CsvWriter, InsertValuesWriter])
-def test_compression_by_data_writer(
-    writer_type: Type[DataWriter], compressed: bool, disable_extension: bool
-) -> None:
-    """Test that compressed files get .gz extension."""
-    os.environ["DATA_WRITER__DISABLE_EXTENSION"] = str(disable_extension)
-    # Create writer with compression enabled and write some data
-    with get_writer(writer_type, disable_compression=not compressed) as writer:
-        columns = {"id": new_column("id", "text"), "value": new_column("value", "bigint")}
-        data = [{"id": "1", "value": 100}, {"id": "2", "value": 200}]
-        writer.write_data_item(data, columns)
-
-    # Check that file was created with .gz extension
-    assert len(writer.closed_files) == 1
-    file_path = writer.closed_files[0].file_path
-    if compressed and not disable_extension:
-        assert file_path.endswith(".gz")
-    else:
-        assert not file_path.endswith(
-            ".gz",
-        )
-
-
-def test_import_uncompressed_file() -> None:
-    """Test importing uncompressed files with compression handling."""
-    # Create a test file to import
-    test_file = os.path.join(TEST_STORAGE_ROOT, "test_import.jsonl")
-    with open(test_file, "w", encoding="utf-8") as f:
-        f.write('{"id": 1, "value": "test"}\n')
-
-    # Create writer with compression enabled
-    with get_writer(JsonlWriter, disable_compression=False) as writer:
-        # Import the file
-        from dlt.common.metrics import DataWriterMetrics
-
-        metrics = writer.import_file(test_file, DataWriterMetrics("", 1, 100, 0, 0))
-        # Check that imported file doesn't have .gz extension (imports are not compressed)
-        assert not metrics.file_path.endswith(".gz")
-
-    os.remove(test_file)

@@ -309,7 +309,7 @@ class FilesystemClient(
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
         from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
 
-        return FilesystemSqlClient
+        return cast(Type[SqlClientBase[Any]], FilesystemSqlClient)
 
     @property
     def sql_client(self) -> SqlClientBase[Any]:

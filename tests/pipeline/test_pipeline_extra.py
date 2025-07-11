@@ -657,7 +657,7 @@ def test_pick_matching_file_format(test_storage: FileStorage) -> None:
     assert files[0].endswith("parquet")
     files = test_storage.list_folder_files("user_data/object")
     assert len(files) == 1
-    assert files[0].endswith("jsonl.gz")
+    assert files[0].endswith("jsonl")
 
     # load as csv
     info = dlt.run(
@@ -672,10 +672,10 @@ def test_pick_matching_file_format(test_storage: FileStorage) -> None:
     assert_load_info(info)
     files = test_storage.list_folder_files("user_data_csv/arrow")
     assert len(files) == 1
-    assert files[0].endswith("csv.gz")
+    assert files[0].endswith("csv")
     files = test_storage.list_folder_files("user_data_csv/object")
     assert len(files) == 1
-    assert files[0].endswith("csv.gz")
+    assert files[0].endswith("csv")
 
 
 def test_filesystem_column_hint_timezone() -> None:

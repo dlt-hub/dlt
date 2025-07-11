@@ -157,7 +157,7 @@ class ParsedLoadJobFileName(NamedTuple):
     file_id: str
     retry_count: int
     file_format: TJobFileFormat
-    is_compressed: bool = False
+    has_compression_ext: bool = False
 
     def job_id(self) -> str:
         """Unique identifier of the job"""
@@ -166,7 +166,7 @@ class ParsedLoadJobFileName(NamedTuple):
     def file_name(self) -> str:
         """A name of the file with the data to be loaded"""
         base_name = f"{self.table_name}.{self.file_id}.{int(self.retry_count)}.{self.file_format}"
-        if self.is_compressed:
+        if self.has_compression_ext:
             return f"{base_name}.gz"
         return base_name
 
@@ -180,12 +180,12 @@ class ParsedLoadJobFileName(NamedTuple):
         parts = p.name.split(".")
 
         if len(parts) == 4:
-            # Uncompressed: table_name.file_id.retry_count.file_format
+            # No compression extension: table_name.file_id.retry_count.file_format
             return ParsedLoadJobFileName(
                 parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3]), False
             )
         elif len(parts) == 5 and parts[4] == "gz":
-            # Compressed: table_name.file_id.retry_count.file_format.gz
+            # With compression extension: table_name.file_id.retry_count.file_format.gz
             return ParsedLoadJobFileName(
                 parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3]), True
             )
@@ -741,8 +741,8 @@ class PackageStorage:
             fn += f".{format_spec.file_extension}"
             if (
                 format_spec.supports_compression
-                and (disable_compression in [None, False])
-                and (disable_extension not in [None, True])
+                and not disable_compression  # Unset or set to False
+                and disable_extension is False  # Explicitly set to False
             ):
                 fn += ".gz"
         return fn

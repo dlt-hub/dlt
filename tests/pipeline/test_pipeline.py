@@ -19,7 +19,11 @@ import dlt
 from dlt.common import json, pendulum, Decimal
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, InvalidNativeValue
-from dlt.common.data_writers.exceptions import FileImportNotFound, SpecLookupFailed
+from dlt.common.data_writers.exceptions import (
+    FileImportNotFound,
+    SpecLookupFailed,
+    CompressionConfigMismatchException,
+)
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.client import WithStateSync
 from dlt.common.destination.exceptions import (
@@ -64,7 +68,7 @@ from dlt.pipeline.helpers import retry_load
 
 from dlt.pipeline.pipeline import Pipeline
 from tests.common.utils import TEST_SENTRY_DSN
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import TEST_STORAGE_ROOT, preserve_environ
 from tests.pipeline.utils import assert_load_info, load_table_counts
 
 from tests.extract.utils import expect_extracted_file
@@ -2905,8 +2909,9 @@ def test_change_naming_convention_column_collision() -> None:
     assert isinstance(pip_ex.value.__cause__, TableIdentifiersFrozen)
 
 
-def test_import_jsonl_file() -> None:
-    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
+@pytest.mark.parametrize("disable_compression", [True, False])
+def test_import_jsonl_file(disable_compression: bool) -> None:
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = str(disable_compression)
     pipeline = dlt.pipeline(
         pipeline_name="test_jsonl_import",
         destination="duckdb",
@@ -2920,6 +2925,16 @@ def test_import_jsonl_file() -> None:
         {"name": "price", "data_type": "decimal"},
     ]
     import_file = "tests/load/cases/loading/header.jsonl"
+    if disable_compression is False:
+        with pytest.raises(PipelineStepFailed) as py_exc:
+            info = pipeline.run(
+                [dlt.mark.with_file_import(import_file, "jsonl", 2)],
+                table_name="no_header",
+                loader_file_format="jsonl",
+                columns=columns,
+            )
+        assert isinstance(py_exc.value.__context__, CompressionConfigMismatchException)
+        return
     info = pipeline.run(
         [dlt.mark.with_file_import(import_file, "jsonl", 2)],
         table_name="no_header",
@@ -2939,6 +2954,7 @@ def test_import_jsonl_file() -> None:
 
 
 def test_import_file_without_sniff_schema() -> None:
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "true"
     os.environ["RAISE_ON_FAILED_JOBS"] = "false"
 
     pipeline = dlt.pipeline(
@@ -2958,6 +2974,7 @@ def test_import_file_without_sniff_schema() -> None:
 
 
 def test_import_non_existing_file() -> None:
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "true"
     pipeline = dlt.pipeline(
         pipeline_name="test_jsonl_import",
         destination="duckdb",
@@ -2976,6 +2993,7 @@ def test_import_non_existing_file() -> None:
 
 
 def test_import_unsupported_file_format() -> None:
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "true"
     pipeline = dlt.pipeline(
         pipeline_name="test_jsonl_import",
         destination="duckdb",
@@ -2994,6 +3012,7 @@ def test_import_unsupported_file_format() -> None:
 
 
 def test_import_unknown_file_format() -> None:
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "true"
     pipeline = dlt.pipeline(
         pipeline_name="test_jsonl_import",
         destination="duckdb",
@@ -3195,7 +3214,6 @@ def test_access_pipeline_in_resource() -> None:
 
 
 def test_exceed_job_file_name_length() -> None:
-    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     # use very long table name both for parent and for a child
     data = {
         "id": 1,

@@ -274,15 +274,6 @@ def _convert_to_old_pyformat(
     return old_style_string, mapping
 
 
-def is_compression_disabled() -> bool:
-    from dlt import config
-
-    key_ = "normalize.data_writer.disable_compression"
-    if key_ not in config:
-        key_ = "data_writer.disable_compression"
-    return config.get(key_, bool)
-
-
 def get_deterministic_temp_table_name(table_name: str, op: str) -> str:
     """Returns table name suitable for deterministic temp table. Such table will survive
     disconnects and is supposed to be dropped before being filled again so we need

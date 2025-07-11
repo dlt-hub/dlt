@@ -2,6 +2,7 @@ import pytest
 import contextlib
 import codecs
 import os
+import gzip
 from typing import (
     Any,
     AnyStr,
@@ -838,6 +839,7 @@ def expect_load_file(
     table_name: str,
     status="completed",
     file_format: TLoaderFileFormat = None,
+    disable_compression: bool = False,
 ) -> LoadJob:
     # recover spec used to write file
     spec = DataWriter.writer_spec_from_file_format(
@@ -852,6 +854,9 @@ def expect_load_file(
     full_path = file_storage.make_full_path(file_name)
     if isinstance(query, str):
         query = query.encode("utf-8")  # type: ignore[assignment]
+    # Files are compressed by default
+    if not disable_compression and spec.supports_compression:
+        query = gzip.compress(query)  # type: ignore[assignment, arg-type]
     file_storage.save(file_name, query)
     table = client.prepare_load_table(table_name)
     load_id = create_load_id()

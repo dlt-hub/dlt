@@ -38,7 +38,6 @@ from dlt.destinations.impl.databricks.configuration import DatabricksClientConfi
 from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
-from dlt.destinations.utils import is_compression_disabled
 from dlt.destinations.path_utils import get_file_format_compression
 
 SUPPORTED_BLOB_STORAGE_PROTOCOLS = AZURE_BLOB_STORAGE_PROTOCOLS + S3_PROTOCOLS + GCS_PROTOCOLS
@@ -224,15 +223,13 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
     def _determine_source_format(
         self, file_name: str, orig_bucket_path: str
     ) -> tuple[str, str, bool]:
-        file_format, compression_ext = get_file_format_compression(file_name)
+        file_format, _ = get_file_format_compression(file_name)
 
         if file_format == "parquet":
             return "PARQUET", "", False
 
         elif file_format in ["jsonl", "typed-jsonl"]:
-            # NOTE: compression might be enabled without compression extension,
-            # so we check if disable_compression is explicitly set to False
-            if compression_ext or self._disable_compression is False:
+            if self._disable_compression is not True:  # Unless explicitly set to True
                 raise LoadJobTerminalException(
                     self._file_path,
                     "Databricks loader does not support gzip compressed JSON files. "

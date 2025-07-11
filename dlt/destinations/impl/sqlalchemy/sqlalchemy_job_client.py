@@ -29,7 +29,6 @@ from dlt.common.schema.utils import (
     is_complete_column,
     get_columns_names_with_prop,
 )
-from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
 from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyClientConfiguration
@@ -39,6 +38,7 @@ from dlt.destinations.impl.sqlalchemy.load_jobs import (
     SqlalchemyReplaceJob,
     SqlalchemyMergeFollowupJob,
 )
+from dlt.destinations.path_utils import get_file_format_compression
 
 
 class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
@@ -129,8 +129,7 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
         job = super().create_load_job(table, file_path, load_id, restore)
         if job is not None:
             return job
-        parsed_name = ParsedLoadJobFileName.parse(file_path)
-        file_format = parsed_name.file_format
+        file_format, _ = get_file_format_compression(file_path)
         if file_format == "typed-jsonl":
             table_obj = self._to_table_object(table)
             return SqlalchemyJsonLInsertJob(file_path, table_obj)

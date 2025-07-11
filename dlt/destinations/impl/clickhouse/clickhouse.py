@@ -72,14 +72,12 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
         config: ClickHouseClientConfiguration,
         staging_credentials: Optional[CredentialsConfiguration] = None,
         disable_compression: Optional[bool] = None,
-        disable_extension: Optional[bool] = None,
     ) -> None:
         super().__init__(file_path)
         self._job_client: "ClickHouseClient" = None
         self._staging_credentials = staging_credentials
         self._config = config
         self._disable_compression = disable_compression
-        self._disable_extension = disable_extension
 
     def run(self) -> None:
         client = self._job_client.sql_client
@@ -95,25 +93,14 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         compression = "auto"
 
-        file_format, compression_ext = get_file_format_compression(file_name)
-        if compression_ext:
-            compression = "gz"
-        elif file_format == "jsonl":
-            # NOTE: compression might be enabled without compression extension,
-            # so we check we check if disable_compression is None (False by default), or explicitly set to False
-            # and if disable_extension is None (True by default), or explicitly set to True
-            if self._disable_compression in [None, False] and self._disable_extension in [
-                None,
-                True,
-            ]:
-                compression = "gz"
-            else:
-                # Auto does not work for jsonl. So we set it to 'none',
-                compression = "auto"
-
+        file_format, _ = get_file_format_compression(file_name)
         clickhouse_format: str = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[
             cast(SUPPORTED_FILE_FORMATS, file_format)
         ]
+
+        if file_format == "jsonl":
+            # Auto does not work for jsonl. So we set it to 'none',
+            compression = "gz" if not self._disable_compression else "none"
 
         # Don't use the DBAPI driver for local files.
         if not bucket_path or bucket_scheme == "file":
