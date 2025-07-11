@@ -1627,6 +1627,9 @@ def test_apply_dynamic_hints() -> None:
     assert empty_r._table_name_hint_fun is not None
     assert empty_r._table_has_other_dynamic_hints is True
 
+    assert empty_r.has_dynamic_table_name is True
+    assert empty_r.has_other_dynamic_hints is True
+
     with pytest.raises(DataItemRequiredForDynamicTableHints):
         empty_r.compute_table_schema()
     table = empty_r.compute_table_schema({"t": "table", "p": "parent"})

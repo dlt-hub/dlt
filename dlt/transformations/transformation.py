@@ -51,11 +51,11 @@ class DltTransformationResource(DltResource):
         super().__init__(*args, **kwds)
 
     @property
-    def has_dynamic_hints(self) -> bool:
-        """
-        Tells the extractor wether computed hints may change based on invididual data items
-        Always true for transformations as each yielded items may have a different schema
-        """
+    def has_dynamic_table_name(self) -> bool:
+        return True
+
+    @property
+    def has_other_dynamic_hints(self) -> bool:
         return True
 
     def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:

@@ -190,7 +190,7 @@ class ModelWriter(DataWriter):
     def write_data(self, items: Sequence[TDataItem]) -> None:
         super().write_data(items)
         for item in items:
-            dialect = item.query_dialect() or (self._caps.sqlglot_dialect if self._caps else None)
+            dialect = item.query_dialect()
             query = item.to_sql()
             self._f.write("dialect: " + (dialect or "") + "\n" + query + "\n")
 

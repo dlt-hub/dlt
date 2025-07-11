@@ -140,7 +140,7 @@ class Extractor:
                 meta = TableNameMeta(meta.hints["table_name"])  # type: ignore[arg-type]
             self._reset_contracts_cache()
 
-        if resource.has_dynamic_hints:
+        if resource.has_dynamic_table_name:
             # table has name or other hints depending on data items
             self._write_to_dynamic_table(resource, items, meta)
         else:
@@ -211,11 +211,7 @@ class Extractor:
             if table_name in self._filtered_tables:
                 continue
             # allow to cache dynamic table hints if only table name is dynamic
-            if (
-                table_name not in self._table_contracts
-                or resource.has_dynamic_hints
-                or resource._table_has_other_dynamic_hints
-            ):
+            if table_name not in self._table_contracts or resource.has_other_dynamic_hints:
                 item = self._compute_and_update_tables(
                     resource, table_name, item, TableNameMeta(table_name)
                 )

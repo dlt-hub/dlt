@@ -256,9 +256,14 @@ class DltResourceHints:
         self.apply_hints(table_name=value)
 
     @property
-    def has_dynamic_hints(self) -> bool:
-        """Tells the extractor wether computed hints may change based on invididual data items"""
+    def has_dynamic_table_name(self) -> bool:
+        """Tells the extractor wether computed table name may change based on invididual data items"""
         return self._table_name_hint_fun is not None
+
+    @property
+    def has_other_dynamic_hints(self) -> bool:
+        """Tells the extractor wether computed hints may change based on invididual data items"""
+        return self._table_has_other_dynamic_hints
 
     @property
     def write_disposition(self) -> TTableHintTemplate[TWriteDispositionConfig]:
