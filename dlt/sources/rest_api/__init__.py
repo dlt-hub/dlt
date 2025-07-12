@@ -25,6 +25,7 @@ from dlt.sources.helpers.rest_client.auth import (
     OAuth2ClientCredentials,
 )
 from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
+from dlt.sources.helpers.rest_client.redaction import SENSITIVE_PARAMS
 from .typing import (
     AuthConfig,
     ClientConfig,
@@ -55,15 +56,7 @@ from .utils import check_connection  # noqa: F401
 
 PARAM_TYPES: List[ParamBindType] = ["incremental", "resolve"]
 MIN_SECRET_MASKING_LENGTH = 3
-SENSITIVE_KEYS: List[str] = [
-    "token",
-    "api_key",
-    "username",
-    "password",
-    "access_token",
-    "client_id",
-    "client_secret",
-]
+SENSITIVE_KEYS: List[str] = list(SENSITIVE_PARAMS) + ["username", "client_id"]
 
 
 @decorators.source
