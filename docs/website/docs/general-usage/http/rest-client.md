@@ -720,7 +720,7 @@ http_max_error_body_length = 8192  # Maximum characters (default: 8192)
 ```
 
 Example error with response body enabled:
-```
+```text
 HTTPError: 400 Client Error: Bad Request for url: https://api.example.com/data?api_key=***
 Response body: {"error": "Invalid date format", "code": "INVALID_DATE", "field": "start_date"}
 ```
