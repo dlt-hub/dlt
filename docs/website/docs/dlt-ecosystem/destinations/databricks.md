@@ -525,7 +525,8 @@ After the cluster starts, Databricks may partially import its built-in Delta Liv
 
 To ensure a clean environment, add the following code at the top of your notebook:
 ```py
-import sys, types
+import sys
+import types
 
 # 1 Drop Databricks' post-import hook
 sys.meta_path = [h for h in sys.meta_path if 'PostImportHook' not in repr(h)]
