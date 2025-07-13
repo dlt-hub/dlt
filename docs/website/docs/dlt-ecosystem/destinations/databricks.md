@@ -320,7 +320,12 @@ print(pipeline.dataset().pokemon.df())
 - **For production**, explicitly setting *staging_volume_name* is recommended.
 - The volume is used as a **temporary location** to store files before loading.
 
-:::tip::
+:::caution Module conflict
+When using dlt within Databricks Notebooks, you may encounter naming conflicts with Databricks' built-in Delta Live Tables (DLT) module.  
+To avoid these conflicts, follow the steps in the [Troubleshooting section](#troubleshooting) below.
+:::
+
+:::tip
 You can delete staged files **immediately** after loading by setting the following config option:
 ```toml
 [destination.databricks]
@@ -482,6 +487,64 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 ### Databricks user agent
 We enable Databricks to identify that the connection is created by `dlt`.
 Databricks will use this user agent identifier to better understand the usage patterns associated with dlt integration. The connection identifier is `dltHub_dlt`.
+
+## Troubleshooting
+Use the following steps to avoid conflicts with Databricks' built-in Delta Live Tables (DLT) module and enable dltHub integration.
+
+### 1. Add an `init` script
+To ensure compatibility with the dltHub's dlt package in Databricks, add an `init` script that runs at cluster startup. This script installs the dlt package from dltHub, renames Databricks’ built-in DLT module to avoid naming conflicts, and updates internal references to allow continued use under the alias `dlt_dbricks`.
+
+1. In your Databricks workspace directory, create a new file named `init.sh` and add the following content:
+```sh
+#! /bin/bash
+
+# move Databricks' dlt package to a different folder name
+mv /databricks/spark/python/dlt/ /databricks/spark/python/dlt_dbricks
+
+# Replace all mentions of `dlt` with `dlt_dbricks` so that Databricks' dlt 
+# can be used as `dlt_dbricks` in the notebook instead
+find /databricks/spark/python/dlt_dbricks/ -type f -exec sed -i 's/from dlt/from dlt_dbricks/g' {} \;
+
+# Replace mentions of `dlt` with `dlt_dbricks` in DeltaLiveTablesHook.py to
+# avoid import errors
+sed -i "s/'dlt'/'dlt_dbricks'/g" /databricks/python_shell/dbruntime/DeltaLiveTablesHook.py
+sed -i "s/from dlt/from dlt_dbricks/g" /databricks/python_shell/dbruntime/DeltaLiveTablesHook.py
+
+# Install dltHub dlt
+pip install dlt
+```
+
+2. Go to your cluster, click Edit, scroll down to Advanced Options, and open the Init Scripts tab.
+
+3. Under Source, choose Workspace, then browse to your `init.sh` file and click Add.
+
+4. Click Confirm to apply the change. The cluster will restart automatically.
+
+### 2. Remove preloaded databricks modules in the notebook
+After the cluster starts, Databricks may partially import its built-in Delta Live Tables (DLT) modules, which can interfere with the dlt package from dltHub.
+
+To ensure a clean environment, add the following code at the top of your notebook:
+```py
+import sys, types
+
+# 1 Drop Databricks' post-import hook
+sys.meta_path = [h for h in sys.meta_path if 'PostImportHook' not in repr(h)]
+
+# 2️ Purge half-initialized Delta-Live-Tables modules
+for name, module in list(sys.modules.items()):
+    if not isinstance(module, types.ModuleType):
+        continue
+    if getattr(module, '__file__', '').startswith('/databricks/spark/python/dlt'):
+        del sys.modules[name]
+```
+This ensures the dlt package from dltHub is used instead of the built-in Databricks DLT module.
+
+:::caution
+It is best practice to use an `init.sh` script.
+
+Modifying `sys.meta_path` or `sys.modules` is fragile and may break after Databricks updates, potentially causing unexpected issues. 
+If this workaround is necessary, validate your setup after each platform upgrade.
+:::
 
 <!--@@@DLT_TUBA databricks-->
 
