@@ -28,7 +28,7 @@ from dlt.common.destination.dataset import Relation, TFilterOperation
 
 from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGlotDialect
 from dlt.common.schema.typing import TTableSchemaColumns, TTableSchema
-from dlt.common.typing import Self
+from dlt.common.typing import Self, TSortOrder
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.transformations import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
@@ -323,7 +323,11 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
         rel.compute_columns_schema()
         return rel
 
-    def order_by(self, column_name: str, direction: Literal["asc", "desc"] = "asc") -> Self:
+    def order_by(self, column_name: str, direction: TSortOrder = "asc") -> Self:
+        if direction not in ["asc", "desc"]:
+            raise ValueError(
+                f"`{direction}` is an invalid sort order, allowed values are: `asc` and `desc`"
+            )
         order_expr = sge.Ordered(
             this=sge.Column(
                 this=sge.to_identifier(column_name, quoted=True),
