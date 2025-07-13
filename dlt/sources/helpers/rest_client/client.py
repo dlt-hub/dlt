@@ -1,3 +1,4 @@
+import logging
 from typing import (
     Iterator,
     Optional,
@@ -128,12 +129,7 @@ class RESTClient:
     def _send_request(self, request: Request, **kwargs: Any) -> Response:
         prepared_request = self.session.prepare_request(request)
 
-        # Sanitize the prepared URL which includes query parameters
-        sanitized_url = sanitize_url(prepared_request.url)
-        logger.info(
-            f"Making {request.method.upper()} request to {sanitized_url}"
-            f" with headers={request.headers}"
-        )
+        self._log_request(request, prepared_request.url)
 
         send_kwargs = self.session.merge_environment_settings(
             prepared_request.url,
@@ -145,6 +141,18 @@ class RESTClient:
 
         send_kwargs.update(**kwargs)  #  type: ignore[call-arg]
         return self.session.send(prepared_request, **send_kwargs)
+
+    def _log_request(self, request: Request, prepared_url: str) -> None:
+        # XXX: Use logger.isEnabledFor(logging.DEBUG) once dlt logger is fixed
+        if logger.log_level() == "DEBUG":
+            logger.debug(
+                f"Making {request.method.upper()} request to {request.url}"
+                f" with params={request.params}, json={request.json},"
+                f" headers={request.headers}"
+            )
+        else:
+            sanitized_url = sanitize_url(prepared_url)
+            logger.info(f"Making {request.method.upper()} request to {sanitized_url}")
 
     def request(self, path: str = "", method: HTTPMethod = "GET", **kwargs: Any) -> Response:
         prepared_request = self._create_request(
