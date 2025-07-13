@@ -22,10 +22,12 @@ from dlt.common.configuration.specs.base_configuration import (
     BaseConfiguration,
     configspec,
 )
+from dlt.common.incremental.typing import TIncrementalRange
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.pipeline import NormalizeInfo, StateInjectableContext
 from dlt.common.schema.schema import Schema
+from dlt.common.typing import TSortOrder
 from dlt.common.utils import chunks, digest128, uniq_id
 
 from dlt.extract import DltSource
@@ -3894,27 +3896,41 @@ def test_incremental_column_hint_cursor_is_not_column(use_dict: bool):
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 @pytest.mark.parametrize("last_value_func", [min, max])
-def test_start_range_open(item_type: TestDataItemFormat, last_value_func: Any) -> None:
+@pytest.mark.parametrize("row_order", [True, False])
+@pytest.mark.parametrize("range_start", ["open", "closed"])
+def test_start_range(
+    item_type: TestDataItemFormat,
+    last_value_func: Any,
+    row_order: bool,
+    range_start: TIncrementalRange,
+) -> None:
     data_range: Iterable[int] = range(1, 12)
     if last_value_func == max:
         initial_value = 5
-        # Only items higher than inital extracted
-        expected_items = list(range(6, 12))
-        order_dir = "ASC"
+        if range_start == "open":
+            # Only items higher than initial extracted
+            expected_items = list(range(6, 12))
+        else:
+            expected_items = list(range(5, 12))
+        order_dir: TSortOrder = "asc"
     elif last_value_func == min:
         data_range = reversed(data_range)  # type: ignore[call-overload]
         initial_value = 5
-        # Only items lower than inital extracted
-        expected_items = list(reversed(range(1, 5)))
-        order_dir = "DESC"
+        if range_start == "open":
+            # Only items lower than initial extracted
+            expected_items = list(reversed(range(1, 5)))
+        else:
+            expected_items = list(reversed(range(1, 6)))
+        order_dir = "desc"
 
     @dlt.resource
     def some_data(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at",
             initial_value=initial_value,
-            range_start="open",
+            range_start=range_start,
             last_value_func=last_value_func,
+            row_order="asc" if row_order else None,
         ),
     ) -> Any:
         data = [{"updated_at": i} for i in data_range]
@@ -3923,15 +3939,99 @@ def test_start_range_open(item_type: TestDataItemFormat, last_value_func: Any) -
     pipeline = dlt.pipeline(pipeline_name=uniq_id(), destination="duckdb")
     pipeline.run(some_data())
 
-    with pipeline.sql_client() as client:
-        items = [
-            row[0]
-            for row in client.execute_sql(
-                f"SELECT updated_at FROM some_data ORDER BY updated_at {order_dir}"
-            )
-        ]
-
+    items = [
+        row[0]
+        for row in pipeline.dataset()
+        .some_data.order_by("updated_at", order_dir)
+        .select("updated_at")
+        .fetchall()
+    ]
     assert items == expected_items
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("last_value_func", [min, max])
+@pytest.mark.parametrize("row_order", [True, False])
+@pytest.mark.parametrize("range_start", ["open", "closed"])
+def test_start_range_monotonic(
+    item_type: TestDataItemFormat,
+    last_value_func: Any,
+    row_order: bool,
+    range_start: TIncrementalRange,
+) -> None:
+    data_range: Iterable[int] = [0, 0, 1, 1, 1, 1, 2, 2]
+    if last_value_func == max:
+        initial_value = 0
+        if range_start == "open":
+            # all equal items must be included
+            expected_items: Iterable[int] = [1, 1, 1, 1, 2, 2]
+        else:
+            expected_items = data_range
+        order_dir: TSortOrder = "asc"
+    elif last_value_func == min:
+        data_range = list(reversed(data_range))  # type: ignore[call-overload]
+        initial_value = 2
+        if range_start == "open":
+            expected_items = [1, 1, 1, 1, 0, 0]
+        else:
+            expected_items = data_range
+        order_dir = "desc"
+
+    @dlt.resource
+    def some_data(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at",
+            initial_value=initial_value,
+            range_start=range_start,
+            last_value_func=last_value_func,
+            row_order="asc" if row_order else None,
+        ),
+    ) -> Any:
+        data = [{"updated_at": i} for i in data_range]
+        yield data_to_item_format(item_type, data)
+
+    pipeline = dlt.pipeline(pipeline_name=uniq_id(), destination="duckdb")
+    pipeline.run(some_data())
+
+    items = [
+        row[0]
+        for row in pipeline.dataset()
+        .some_data.order_by("updated_at", order_dir)
+        .select("updated_at")
+        .fetchall()
+    ]
+    assert items == expected_items
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("last_value_func", [min, max])
+@pytest.mark.parametrize("row_order", [True, False])
+def test_start_range_equal_values(
+    item_type: TestDataItemFormat, last_value_func: Any, row_order: bool
+) -> None:
+    data_range: Iterable[int] = [1, 1, 1, 1]
+    if last_value_func == max:
+        initial_value = 1
+    elif last_value_func == min:
+        initial_value = 1
+
+    @dlt.resource
+    def some_data(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at",
+            initial_value=initial_value,
+            range_start="open",
+            last_value_func=last_value_func,
+            row_order="asc" if row_order else None,
+        ),
+    ) -> Any:
+        data = [{"updated_at": i} for i in data_range]
+        yield data_to_item_format(item_type, data)
+
+    pipeline = dlt.pipeline(pipeline_name=uniq_id(), destination="duckdb")
+    pipeline.run(some_data())
+    # no rows loaded
+    assert "some_data" not in pipeline.last_trace.last_normalize_info.row_counts
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
@@ -3962,15 +4062,29 @@ def test_start_range_open_no_deduplication(item_type: TestDataItemFormat) -> Non
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 @pytest.mark.parametrize("last_value_func", [min, max])
-def test_end_range_closed(item_type: TestDataItemFormat, last_value_func: Any) -> None:
+@pytest.mark.parametrize("row_order", [True, False])
+@pytest.mark.parametrize("range_end", ["open", "closed"])
+def test_end_range(
+    item_type: TestDataItemFormat,
+    last_value_func: Any,
+    row_order: bool,
+    range_end: TIncrementalRange,
+) -> None:
     values = [5, 10]
-    expected_items = list(range(5, 11))
     if last_value_func == max:
-        order_dir = "ASC"
+        order_dir: TSortOrder = "asc"
+        if range_end == "open":
+            expected_items = list(range(5, 10))
+        else:
+            expected_items = list(range(5, 11))
     elif last_value_func == min:
         values = list(reversed(values))
-        expected_items = list(reversed(expected_items))
-        order_dir = "DESC"
+        if range_end == "open":
+            expected_items = list(range(10, 5, -1))
+        else:
+            expected_items = list(range(10, 4, -1))
+        # expected_items = list(reversed(expected_items))
+        order_dir = "desc"
 
     @dlt.resource
     def some_data(
@@ -3978,8 +4092,9 @@ def test_end_range_closed(item_type: TestDataItemFormat, last_value_func: Any) -
             "updated_at",
             initial_value=values[0],
             end_value=values[1],
-            range_end="closed",
+            range_end=range_end,
             last_value_func=last_value_func,
+            row_order="asc" if row_order else None,
         ),
     ) -> Any:
         data = [{"updated_at": i} for i in range(1, 12)]
@@ -3988,15 +4103,74 @@ def test_end_range_closed(item_type: TestDataItemFormat, last_value_func: Any) -
     pipeline = dlt.pipeline(pipeline_name=uniq_id(), destination="duckdb")
     pipeline.run(some_data())
 
-    with pipeline.sql_client() as client:
-        items = [
-            row[0]
-            for row in client.execute_sql(
-                f"SELECT updated_at FROM some_data ORDER BY updated_at {order_dir}"
-            )
-        ]
+    items = [
+        row[0]
+        for row in pipeline.dataset()
+        .some_data.order_by("updated_at", order_dir)
+        .select("updated_at")
+        .fetchall()
+    ]
+    assert items == expected_items
 
-    # Includes values 5-10 inclusive
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("last_value_func", [min, max])
+@pytest.mark.parametrize("row_order", [True, False])
+@pytest.mark.parametrize("range_end", ["open", "closed"])
+def test_end_range_monotonic(
+    item_type: TestDataItemFormat,
+    last_value_func: Any,
+    row_order: bool,
+    range_end: TIncrementalRange,
+) -> None:
+    values = [0.0, 2.0]
+    # insert 2.1 to simulate unordered source
+    data_range: Iterable[float] = [0.0, 0.0, 1.0, 1.0, 2.1, 1.5, 1.5, 2.0, 2.0]
+    # random.shuffle(data_range)
+    if last_value_func == max:
+        order_dir: TSortOrder = "asc"
+        if range_end == "open":
+            expected_items = [0.0, 0.0, 1.0, 1.0, 1.5, 1.5]
+        else:
+            expected_items = sorted(data_range)[:-1]
+    elif last_value_func == min:
+        values = list(reversed(values))
+        if range_end == "open":
+            expected_items = [2.0, 2.0, 1.5, 1.5, 1.0, 1.0]
+        else:
+            expected_items = list(reversed(sorted(data_range)[:-1]))
+        order_dir = "desc"
+
+    @dlt.resource
+    def some_data(
+        updated_at: dlt.sources.incremental[float] = dlt.sources.incremental(
+            "updated_at",
+            initial_value=values[0],
+            end_value=values[1],
+            range_end=range_end,
+            last_value_func=last_value_func,
+            row_order="asc" if row_order else None,
+        ),
+    ) -> Any:
+        range_ = data_range
+        # order source when needed
+        if row_order:
+            range_ = sorted(range_, reverse=last_value_func == min)
+        # yield item by item
+        for i in range_:
+            data = {"updated_at": i}
+            yield data_to_item_format(item_type, [data])
+
+    pipeline = dlt.pipeline(pipeline_name=uniq_id(), destination="duckdb")
+    pipeline.run(some_data())
+
+    items = [
+        row[0]
+        for row in pipeline.dataset()
+        .some_data.order_by("updated_at", order_dir)
+        .select("updated_at")
+        .fetchall()
+    ]
     assert items == expected_items
 
 

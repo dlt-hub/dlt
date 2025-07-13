@@ -201,7 +201,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self._primary_key = value
         if self._transformers:
             for transform in self._transformers.values():
-                transform.primary_key = value
+                transform._primary_key = value
 
     @classmethod
     def from_existing_state(
@@ -576,7 +576,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         # writing back state
         self._cached_state["last_value"] = transformer.last_value
 
-        if not transformer.deduplication_disabled:
+        if transformer.boundary_deduplication:
             # compute hashes for new last rows
             # NOTE: object transform uses last_rows to pass rows to dedup, arrow computes
             #  hashes directly
