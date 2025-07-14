@@ -50,13 +50,14 @@ sources:
     client:
       base_url: https://pokeapi.co/api/v2/
       paginator: auto
-    resource_defaults:
-      primary_key: name
+      
     resources:
-      - pokemon
-      - berry
-      - 
-        name: encounter_conditions
+      - name: pokemon
+        primary_key: name
+      - name: berry
+        primary_key: name
+      - name: encounter_conditions
+        primary_key: name
         endpoint:
           path: encounter-condition
           params:
