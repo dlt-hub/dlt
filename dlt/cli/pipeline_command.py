@@ -117,7 +117,7 @@ def pipeline_command(
     fmt.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
 
     if operation == "show":
-        if command_kwargs.get("marimo"):
+        if command_kwargs.get("dashboard"):
             from dlt.common.utils import custom_environ
             from dlt.common.known_env import DLT_DATA_DIR
 

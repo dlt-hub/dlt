@@ -187,7 +187,7 @@ Generates and launches Streamlit app with the loading status and dataset explore
 
 **Usage**
 ```sh
-dlt pipeline [pipeline_name] show [-h] [--marimo] [--edit]
+dlt pipeline [pipeline_name] show [-h] [--dashboard] [--edit]
 ```
 
 **Description**
@@ -196,7 +196,7 @@ Generates and launches Streamlit (https://streamlit.io/) app with the loading st
 
 This is a simple app that you can use to inspect the schemas and data in the destination as well as your pipeline state and loading status/stats. It should be executed from the same folder from which you ran the pipeline script to access destination credentials.
 
-Requires `streamlit` to be installed in the current environment: `pip install streamlit`. Using --marimo flag to launch marimo app preview instead of streamlit.
+Requires `streamlit` to be installed in the current environment: `pip install streamlit`. Using --dashboard flag to launch pipeline dashboard preview instead of streamlit.
 
 <details>
 
@@ -206,8 +206,8 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--marimo` - Launch marimo app instead of streamlit. will launch editable version of app (created with the --edit flag) if it exists in the current directory.
-* `--edit` - Creates editable version of marimo app in current directory if it does not exist there yet and launches it in edit mode. only works when using the marimo app (--marimo flag).
+* `--dashboard` - Launch pipeline dashboard instead of streamlit. will launch editable version of app (created with the --edit flag) if it exists in the current directory.
+* `--edit` - Creates editable version of pipeline dashboard in current directory if it does not exist there yet and launches it in edit mode. only works when using the pipeline dashboard (--dashboard flag).
 
 </details>
 
