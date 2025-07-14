@@ -16,8 +16,8 @@ with app.setup:
 
     import dlt
     from dlt.common.json import json
-    from dlt.helpers.studio import strings, utils, ui_elements as ui
-    from dlt.helpers.studio.config import StudioConfiguration
+    from dlt.helpers.dashboard import strings, utils, ui_elements as ui
+    from dlt.helpers.dashboard.config import StudioConfiguration
     from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
 
 

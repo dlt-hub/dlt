@@ -7,7 +7,7 @@ import traceback
 
 from dlt.common.pendulum import pendulum
 
-from dlt.helpers.studio.config import StudioConfiguration
+from dlt.helpers.dashboard.config import StudioConfiguration
 
 
 def build_error_callout(message: str, code: str = None) -> Any:

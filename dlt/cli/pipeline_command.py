@@ -121,7 +121,7 @@ def pipeline_command(
             from dlt.common.utils import custom_environ
             from dlt.common.known_env import DLT_DATA_DIR
 
-            from dlt.helpers.studio.runner import run_studio
+            from dlt.helpers.dashboard.runner import run_studio
 
             with custom_environ({DLT_DATA_DIR: os.path.dirname(p.pipelines_dir)}):
                 run_studio(pipeline_name, edit=command_kwargs.get("edit"))

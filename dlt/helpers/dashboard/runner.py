@@ -24,7 +24,7 @@ STYLE_FILE_NAME = "dlt_app_styles.css"
 
 
 def run_studio(pipeline_name: str = None, edit: bool = False) -> None:
-    from dlt.helpers.studio import dlt_app
+    from dlt.helpers.dashboard import dlt_app
 
     ejected_app_path = os.path.join(os.getcwd(), EJECTED_APP_FILE_NAME)
     ejected_css_path = os.path.join(os.getcwd(), STYLE_FILE_NAME)
@@ -36,7 +36,7 @@ def run_studio(pipeline_name: str = None, edit: bool = False) -> None:
             app_code = f.read()
         with open(ejected_app_path, "w", encoding="utf-8") as f:
             f.write(app_code)
-        css_file_path = Path(files("dlt.helpers.studio") / STYLE_FILE_NAME)  # type: ignore
+        css_file_path = Path(files("dlt.helpers.dashboard") / STYLE_FILE_NAME)  # type: ignore
         with open(css_file_path, "r", encoding="utf-8") as f:
             css_content = f.read()
         with open(os.path.join(os.getcwd(), ejected_css_path), "w", encoding="utf-8") as f:

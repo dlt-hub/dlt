@@ -16,7 +16,7 @@ from dlt.sources._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
 )
 
-from dlt.helpers.studio import strings as app_strings
+from dlt.helpers.dashboard import strings as app_strings
 
 
 @pytest.fixture(autouse=True)

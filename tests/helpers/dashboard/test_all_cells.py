@@ -1,6 +1,6 @@
 from typing import List
 
-from dlt.helpers.studio import dlt_app
+from dlt.helpers.dashboard import dlt_app
 
 from marimo._ast.cell import Cell
 import marimo as mo

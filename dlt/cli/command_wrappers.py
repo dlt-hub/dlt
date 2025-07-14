@@ -148,7 +148,7 @@ def schema_command_wrapper(file_path: str, format_: str, remove_defaults: bool) 
 
 @utils.track_command("studio", True)
 def studio_command_wrapper() -> None:
-    from dlt.helpers.studio.runner import run_studio
+    from dlt.helpers.dashboard.runner import run_studio
 
     run_studio()
 

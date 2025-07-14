@@ -23,9 +23,9 @@ from dlt.common.pendulum import pendulum as dlt_pendulum
 from dlt.common.pipeline import get_dlt_pipelines_dir
 from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage
-from dlt.helpers.studio.config import StudioConfiguration
-from dlt.helpers.studio import utils
-from dlt.helpers.studio.utils import (
+from dlt.helpers.dashboard.config import StudioConfiguration
+from dlt.helpers.dashboard import utils
+from dlt.helpers.dashboard.utils import (
     PICKLE_TRACE_FILE,
     resolve_studio_config,
     get_local_pipelines,

@@ -17,8 +17,8 @@ from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage
 from dlt.common.destination.client import DestinationClientConfiguration
 
-from dlt.helpers.studio import ui_elements as ui
-from dlt.helpers.studio.config import StudioConfiguration
+from dlt.helpers.dashboard import ui_elements as ui
+from dlt.helpers.dashboard.config import StudioConfiguration
 
 PICKLE_TRACE_FILE = "trace.pickle"
 
