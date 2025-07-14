@@ -50,6 +50,8 @@ sources:
     client:
       base_url: https://pokeapi.co/api/v2/
       paginator: auto
+    resource_defaults:
+      primary_key: name
     resources:
       - pokemon
       - berry
@@ -62,13 +64,15 @@ sources:
               type: incremental
               cursor_path: name
         write_disposition: append
+     
+
 ```
 
 * `type: dlt.sources.rest_api.rest_api` specifies the use of the built-in REST API source.
 * `client.base_url` sets the root URL for all API requests.
 * `paginator: auto` enables automatic detection and handling of pagination.
-Each item in `resources`defines an endpoint to extract:
-* Simple entries like `pokemon`and `berry`will fetch from `/pokemon` and `/berry`, respectively.
+* `resource_defaults`: Contains the default values to configure the dlt resources. This configuration is applied to all resources unless overridden by the resource-specific configuration.
+* Each item in `resources`defines an endpoint to extract. Simple entries like `pokemon`and `berry`will fetch from `/pokemon` and `/berry`, respectively.
 * The `encounter-condition` resource uses an advanced configuration:
   * `path`: Point to the `/encounter-condition`endpoint.
   * `params.offset`: Enables incremental loading using the `name` field as the cursor.
