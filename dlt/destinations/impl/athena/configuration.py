@@ -14,6 +14,8 @@ class LakeformationConfig:
 
 @configspec
 class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
+    """Configuration for the Athena destination"""
+
     destination_type: Final[str] = dataclasses.field(default="athena", init=False, repr=False, compare=False)  # type: ignore[misc]
     query_result_bucket: str = None
     credentials: AwsCredentials = None
