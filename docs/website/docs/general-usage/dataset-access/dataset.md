@@ -136,7 +136,7 @@ pip install ibis-framework
 dlt will then allow you to get an `ibis.UnboundTable` for each table which you can use to build a query with ibis expressions, which you can then execute on your dataset.
 
 :::warning
-A previous version of dlt allowed to use ibis expressions in a slightly different way, allowing users to directly execute and retrieve data on ibis Unbound tables. This method does not work anymore. See the migration guide below for instruction on how to update your code.
+A previous version of dlt allowed to use ibis expressions in a slightly different way, allowing users to directly execute and retrieve data on ibis Unbound tables. This method does not work anymore. See the migration guide below for instructions on how to update your code.
 :::
 
 <!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::ibis_expressions-->
