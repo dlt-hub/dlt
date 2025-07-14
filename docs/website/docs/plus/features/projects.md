@@ -46,7 +46,7 @@ sources:
     type: github.github_reactions
 
   pokemon_api:
-    type: dlt.sources.rest_api.rest_api
+    type: rest_api
     client:
       base_url: https://pokeapi.co/api/v2/
       paginator: auto
@@ -68,7 +68,7 @@ sources:
 
 ```
 
-* `type: dlt.sources.rest_api.rest_api` specifies the use of the built-in REST API source.
+* `type: rest_api` specifies the use of the built-in REST API source.
 * `client.base_url` sets the root URL for all API requests.
 * `paginator: auto` enables automatic detection and handling of pagination.
 * `resource_defaults`: Contains the default values to configure the dlt resources. This configuration is applied to all resources unless overridden by the resource-specific configuration.
