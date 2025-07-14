@@ -135,13 +135,58 @@ pip install ibis-framework
 
 dlt will then allow you to get an `ibis.UnboundTable` for each table which you can use to build a query with ibis expressions, which you can then execute on your dataset.
 
-<!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::ibis_expressions-->
-
 :::warning
-A previous version of dlt allowed to use ibis expressions in a slightly different way, allowing users to directly execute and retrieve data on ibis Unbound tables. While this still works, this method should be considered depcrecated and you should udpate your code to the new version suggested above. The old method will be removed in an upcoming release.
+A previous version of dlt allowed to use ibis expressions in a slightly different way, allowing users to directly execute and retrieve data on ibis Unbound tables. This method does not work anymore. See the migration guide below for instruction on how to update your code.
 :::
 
+<!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::ibis_expressions-->
+
 You can learn more about the available expressions on the [ibis for sql users](https://ibis-project.org/tutorials/ibis-for-sql-users) page. 
+
+
+### Migrating from the previous dlt / ibis implementation
+
+As describe above, the new way to use ibis expressions is to first get one or many `UnboundTable` objects, construct your expression and then bind it to your data via the `Dataset` to get a `Relation` object which you may execute to retrieve your data.
+
+An example from our previous docs for joining a customers and a purchase table was this:
+
+```py
+# get two relations
+customers_relation = dataset["customers"]
+purchases_relation = dataset["purchases"]
+
+# join them using an ibis expression
+joined_relation = customers_relation.join(
+    purchases_relation, customers_relation.id == purchases_relation.customer_id
+)
+
+# ... do other ibis operations
+
+# directly fetch the data on the expression we have built
+df = joined_relation.df()
+```
+
+The migrated version looks like this:
+
+```py
+# we need to explicitely select table type ibis here
+customers_expression = dataset.table("customers", table_type="ibis")
+purchases_expression = dataset.table("purchases", table_type="ibis")
+
+# join them using an ibis expression, same code as above
+joined_epxression = customers_expression.join(
+    purchases_expression, customers_expression.id == purchases_expression.customer_id
+)
+
+# ... do other ibis operations, would be same as before
+
+# now convert the expression to a relation
+joined_relation = dataset(joined_epxression)
+
+# execute as before
+df = joined_relation.df()
+```
+
 
 ## Supported destinations
 
