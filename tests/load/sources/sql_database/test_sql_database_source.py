@@ -631,6 +631,8 @@ def test_reflection_levels(
     source = prepare_source()
 
     pipeline = make_pipeline("duckdb")
+
+    # EXTRACT
     pipeline.extract(source)
 
     schema = pipeline.default_schema
@@ -638,7 +640,6 @@ def test_reflection_levels(
 
     col_names = [col["name"] for col in schema.tables["has_precision"]["columns"].values()]
     expected_col_names = [col["name"] for col in PRECISION_COLUMNS]
-
     # on sqlalchemy json col is not written to schema if no types are discovered
     # nested types are converted into nested tables, not columns
     if backend == "sqlalchemy" and reflection_level == "minimal":
@@ -648,6 +649,9 @@ def test_reflection_levels(
 
     assert col_names == expected_col_names
 
+    # TODO move to separate test
+    # in `sql_source_db`,  column `id` from table `app_user` is a primary key
+    # primary key hint should always be reflected
     # Pk col is always reflected
     pk_col = schema.tables["app_user"]["columns"]["id"]
     assert pk_col["primary_key"] is True
@@ -663,16 +667,17 @@ def test_reflection_levels(
             if backend == "sqlalchemy":  # Data types are inferred from pandas/arrow during extract
                 assert schema_col.get("data_type") is None
 
+    # NORMALIZE
     pipeline.normalize()
     # Check with/out precision after normalize
     schema_cols = pipeline.default_schema.tables["has_precision"]["columns"]
     if reflection_level == "full":
         # Columns have data type set
-        assert_no_precision_columns(schema_cols, backend, False)
+        assert_no_precision_columns(columns=schema_cols, backend=backend, nullable=False)
 
     elif reflection_level == "full_with_precision":
         # Columns have data type and precision scale set
-        assert_precision_columns(schema_cols, backend, False)
+        assert_precision_columns(columns=schema_cols, backend=backend, nullable=False)
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
@@ -1427,13 +1432,11 @@ def assert_precision_columns(
     if backend == "sqlalchemy":
         expected = remove_timestamp_precision(expected)
         actual = remove_dlt_columns(actual)
-    if backend == "pyarrow":
+    elif backend == "pyarrow":
         expected = add_default_decimal_precision(expected)
-    if backend == "pandas":
+    elif backend == "pandas":
         expected = remove_timestamp_precision(expected, with_timestamps=False)
-    if backend == "connectorx":
-        # connector x emits 32 precision which gets merged with sql alchemy schema
-        del columns["int_col"]["precision"]
+
     assert actual == expected
 
 
@@ -1455,6 +1458,7 @@ def assert_no_precision_columns(
     elif backend == "sqlalchemy":
         # no precision, no nullability, all hints inferred
         # remove dlt columns
+        # TODO assertion / test logic shouldn't modify value returned by tested feature
         actual = remove_dlt_columns(actual)
     elif backend == "pandas":
         # no precision, no nullability, all hints inferred
@@ -1462,8 +1466,10 @@ def assert_no_precision_columns(
         expected = convert_non_pandas_types(expected)
         # on one of the timestamps somehow there is timezone info..., we only remove values set to false
         # to be sure no bad data is coming in
+        # TODO assertion / test logic shouldn't modify value returned by tested feature
         actual = remove_timezone_info(actual, only_falsy=True)
     elif backend == "connectorx":
+        # NOTE these checks are dependant on connectorx version; expected to evolve as they support types more precisely
         expected = cast(
             List[TColumnSchema],
             deepcopy(NULL_PRECISION_COLUMNS if nullable else NOT_NULL_PRECISION_COLUMNS),
@@ -1472,6 +1478,7 @@ def assert_no_precision_columns(
         expected = remove_timezone_info(expected, only_falsy=False)
         # on one of the timestamps somehow there is timezone info..., we only remove values set to false
         # to be sure no bad data is coming in
+        # TODO assertion / test logic shouldn't modify value returned by tested feature
         actual = remove_timezone_info(actual, only_falsy=True)
 
     assert actual == expected
@@ -1522,9 +1529,8 @@ def convert_connectorx_types(columns: List[TColumnSchema]) -> List[TColumnSchema
     nullability is not kept, string precision is not kept
     """
     for column in columns:
-        if column["data_type"] == "bigint":
-            if column["name"] == "int_col":
-                column["precision"] = 32  # only int and bigint in connectorx
+        if column["data_type"] == "bigint" and column["name"] == "smallint_col":
+            del column["precision"]
         if column["data_type"] == "text" and column.get("precision"):
             del column["precision"]
     return columns
