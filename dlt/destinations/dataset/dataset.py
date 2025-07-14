@@ -196,12 +196,12 @@ class ReadableDBAPIDataset(Dataset):
     def table(self, table_name: str) -> Relation: ...
 
     @overload
-    def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
-
-    @overload
     def table(self, table_name: str, table_type: Literal["relation"]) -> Relation: ...
 
-    def table(self, table_name: str, table_type: Literal["relation", "ibis"] = None) -> Any:
+    @overload
+    def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
+
+    def table(self, table_name: str, table_type: Literal["relation", "ibis"] = "relation") -> Any:
         # dataset only provides access to tables known in dlt schema, direct query may cirumvent this
         if table_name not in self.schema.tables.keys():
             raise ValueError(

@@ -6,6 +6,7 @@ import dlt, os, sys
 
 from dlt.common.destination.dataset import Dataset
 from dlt.common.destination.dataset import Relation
+from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from tests.pipeline.utils import load_table_counts
 
 from tests.load.utils import DestinationTestConfiguration
@@ -139,7 +140,7 @@ def test_extract_without_source_name_or_pipeline(
     fruit_p.deactivate()
     model_rows = list(buffer_size_test(fruit_p.dataset()))
     assert len(model_rows) == 1
-    assert isinstance(model_rows[0], Relation)
+    assert isinstance(model_rows[0], ReadableDBAPIRelation)
 
 
 @pytest.mark.parametrize(
