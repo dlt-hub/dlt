@@ -71,7 +71,6 @@ class EpisodeSchema(LanceModel):
     # there is more data but we are not using it ...
 
 
-
 @dataclass(frozen=True)
 class Shows:
     monday_morning_data_chat: str = "3Km3lBNzJpc1nOTJUtbtMh"
