@@ -16,7 +16,7 @@ from dlt.cli.command_wrappers import (
     telemetry_status_command_wrapper,
     deploy_command_wrapper,
     ai_setup_command_wrapper,
-    studio_command_wrapper,
+    dashboard_command_wrapper,
 )
 from dlt.cli.ai_command import SUPPORTED_IDES
 from dlt.cli.docs_command import render_argparse_markdown
@@ -478,11 +478,11 @@ The `dlt schema` command will load, validate and print out a dlt schema: `dlt sc
         schema_command_wrapper(args.file, args.format, args.remove_defaults)
 
 
-class StudioCommand(SupportsCliCommand):
-    command = "studio"
-    help_string = "Starts the dlt studio pipeline dashboard"
+class DashboardCommand(SupportsCliCommand):
+    command = "dashboard"
+    help_string = "Starts the dlt pipeline dashboard"
     description = """
-The `dlt studio` command starts the dlt studio app. You can use the studio:
+The `dlt dashboard` command starts the dlt pipeline dashboard. You can use the dashboard:
 
 * to list and inspect local pipelines
 * browse the full pipeline schema and all hints
@@ -495,7 +495,7 @@ The `dlt studio` command starts the dlt studio app. You can use the studio:
         self.parser = parser
 
     def execute(self, args: argparse.Namespace) -> None:
-        studio_command_wrapper()
+        dashboard_command_wrapper()
 
 
 class TelemetryCommand(SupportsCliCommand):
@@ -744,8 +744,8 @@ def plug_cli_schema() -> Type[SupportsCliCommand]:
 
 # TODO: define actual command and re-enable
 # @plugins.hookimpl(specname="plug_cli")
-# def plug_cli_studio() -> Type[SupportsCliCommand]:
-#     return StudioCommand
+# def plug_cli_dashboard() -> Type[SupportsCliCommand]:
+#     return DashboardCommand
 
 
 @plugins.hookimpl(specname="plug_cli")

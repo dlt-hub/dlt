@@ -121,10 +121,10 @@ def pipeline_command(
             from dlt.common.utils import custom_environ
             from dlt.common.known_env import DLT_DATA_DIR
 
-            from dlt.helpers.dashboard.runner import run_studio
+            from dlt.helpers.dashboard.runner import run_dashboard
 
             with custom_environ({DLT_DATA_DIR: os.path.dirname(p.pipelines_dir)}):
-                run_studio(pipeline_name, edit=command_kwargs.get("edit"))
+                run_dashboard(pipeline_name, edit=command_kwargs.get("edit"))
         else:
             from dlt.common.runtime import signals
             from dlt.helpers.streamlit_app import index

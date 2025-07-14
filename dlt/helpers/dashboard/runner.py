@@ -6,7 +6,7 @@ from typing import Any
 from pathlib import Path
 from dlt.common.exceptions import MissingDependencyException
 
-# keep this, will raise if user tries to run studio without dependencies
+# keep this, will raise if user tries to run dashboard without dependencies
 try:
     import marimo
     import pandas
@@ -19,12 +19,12 @@ except ModuleNotFoundError:
         " workspace extra.",
     )
 
-EJECTED_APP_FILE_NAME = "dlt_app.py"
-STYLE_FILE_NAME = "dlt_app_styles.css"
+EJECTED_APP_FILE_NAME = "dlt_dashboard.py"
+STYLE_FILE_NAME = "dlt_dashboard_styles.css"
 
 
-def run_studio(pipeline_name: str = None, edit: bool = False) -> None:
-    from dlt.helpers.dashboard import dlt_app
+def run_dashboard(pipeline_name: str = None, edit: bool = False) -> None:
+    from dlt.helpers.dashboard import dlt_dashboard
 
     ejected_app_path = os.path.join(os.getcwd(), EJECTED_APP_FILE_NAME)
     ejected_css_path = os.path.join(os.getcwd(), STYLE_FILE_NAME)
@@ -32,7 +32,7 @@ def run_studio(pipeline_name: str = None, edit: bool = False) -> None:
 
     # when editing, eject the app with styles to the cwd if not present already
     if edit and not ejected_app_exists:
-        with open(dlt_app.__file__, "r", encoding="utf-8") as f:
+        with open(dlt_dashboard.__file__, "r", encoding="utf-8") as f:
             app_code = f.read()
         with open(ejected_app_path, "w", encoding="utf-8") as f:
             f.write(app_code)
@@ -49,15 +49,15 @@ def run_studio(pipeline_name: str = None, edit: bool = False) -> None:
         cli_args["pipeline"] = pipeline_name
 
     # app file
-    app_file_path = dlt_app.__file__ if not ejected_app_exists else ejected_app_path
+    app_file_path = dlt_dashboard.__file__ if not ejected_app_exists else ejected_app_path
 
-    studio_cmd = ["marimo", "run" if not edit else "edit", app_file_path]
+    dashboard_cmd = ["marimo", "run" if not edit else "edit", app_file_path]
 
     if pipeline_name:
-        studio_cmd.append("--")
-        studio_cmd.append("--pipeline")
-        studio_cmd.append(pipeline_name)
+        dashboard_cmd.append("--")
+        dashboard_cmd.append("--pipeline")
+        dashboard_cmd.append(pipeline_name)
     try:
-        subprocess.run(studio_cmd)
+        subprocess.run(dashboard_cmd)
     except KeyboardInterrupt:
         pass

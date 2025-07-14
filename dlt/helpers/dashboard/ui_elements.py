@@ -7,7 +7,7 @@ import traceback
 
 from dlt.common.pendulum import pendulum
 
-from dlt.helpers.dashboard.config import StudioConfiguration
+from dlt.helpers.dashboard.config import DashboardConfiguration
 
 
 def build_error_callout(message: str, code: str = None) -> Any:
@@ -35,7 +35,9 @@ def build_error_callout(message: str, code: str = None) -> Any:
     )
 
 
-def build_pipeline_link_list(config: StudioConfiguration, pipelines: List[Dict[str, Any]]) -> str:
+def build_pipeline_link_list(
+    config: DashboardConfiguration, pipelines: List[Dict[str, Any]]
+) -> str:
     """Build a list of links to the pipeline."""
     if not pipelines:
         return "No local pipelines found."
