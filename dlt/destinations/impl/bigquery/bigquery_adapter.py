@@ -1,15 +1,28 @@
-from typing import Any, Optional, Literal, Dict, Union, Sequence
+from dataclasses import asdict, dataclass
+from typing import Any, Dict, List, Literal, Optional, Protocol, Sequence, TypeVar, Union, get_args
 
 from dateutil import parser
+from sqlglot import exp
 
 from dlt.common.destination import PreparedTableSchema
 from dlt.common.pendulum import timezone
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import TColumnNames
+from dlt.destinations.impl.bigquery.bigquery_partition_specs import (
+    BigQueryDateColumnPartition,
+    BigQueryDatetimeTruncPartition,
+    BigQueryDateTruncPartition,
+    BigQueryIngestionTimePartition,
+    BigQueryPartitionSpec,
+    BigQueryRangeBucketPartition,
+    BigQueryTimestampOrDateTimePartition,
+    BigQueryTimestampTruncIngestionPartition,
+    BigQueryTimestampTruncPartition,
+    PARTITION_SPEC_TYPE_KEY,
+)
 from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 from dlt.extract.items import TTableHintTemplate
-
 
 PARTITION_HINT: Literal["x-bigquery-partition"] = "x-bigquery-partition"
 CLUSTER_HINT: Literal["x-bigquery-cluster"] = "x-bigquery-cluster"
@@ -24,6 +37,145 @@ PARTITION_EXPIRATION_DAYS_HINT: Literal["x-bigquery-partition-expiration-days"] 
     "x-bigquery-partition-expiration-days"
 )
 CLUSTER_COLUMNS_HINT: Literal["x-bigquery-cluster-columns"] = "x-bigquery-cluster-columns"
+
+T = TypeVar("T")
+
+
+class PartitionRenderer(Protocol[T]):
+    @staticmethod
+    def render_sql(partitions: List[T]) -> str: ...
+
+
+class BigQueryPartitionRenderer(PartitionRenderer[BigQueryPartitionSpec]):
+    """BigQuery partition expression generator and renderer using sqlglot."""
+
+    _DISPATCH = {
+        BigQueryRangeBucketPartition: (
+            lambda partition: BigQueryPartitionRenderer._render_range_bucket_expr(partition)
+        ),
+        BigQueryDateTruncPartition: (
+            lambda partition: BigQueryPartitionRenderer._render_date_trunc_expr(partition)
+        ),
+        BigQueryIngestionTimePartition: (
+            lambda partition: BigQueryPartitionRenderer._render_ingestion_time_expr(partition)
+        ),
+        BigQueryDateColumnPartition: (
+            lambda partition: BigQueryPartitionRenderer._render_date_column_expr(partition)
+        ),
+        BigQueryTimestampOrDateTimePartition: (
+            lambda partition: BigQueryPartitionRenderer._render_timestamp_or_datetime_expr(
+                partition
+            )
+        ),
+        BigQueryDatetimeTruncPartition: (
+            lambda partition: BigQueryPartitionRenderer._render_datetime_trunc_expr(partition)
+        ),
+        BigQueryTimestampTruncPartition: (
+            lambda partition: BigQueryPartitionRenderer._render_timestamp_trunc_expr(partition)
+        ),
+        BigQueryTimestampTruncIngestionPartition: (
+            lambda partition: BigQueryPartitionRenderer._render_timestamp_trunc_ingestion_expr(
+                partition
+            )
+        ),
+    }
+
+    @staticmethod
+    def render_sql(partitions: List[BigQueryPartitionSpec]) -> str:
+        """
+        Returns the full PARTITION BY clause for BigQuery, e.g.:
+        PARTITION BY RANGE_BUCKET(...) or PARTITION BY DATE_TRUNC(...)
+        """
+        if len(partitions) != 1:
+            raise ValueError("BigQuery only supports partitioning by a single column.")
+        partition = partitions[0]
+        handler = BigQueryPartitionRenderer._DISPATCH.get(type(partition))
+        if not handler:
+            raise NotImplementedError(f"Unknown partition type: {type(partition)}")
+        expr_sql = handler(partition)
+        return f"PARTITION BY {expr_sql}"
+
+    @staticmethod
+    def _render_ingestion_time_expr(partition: "BigQueryIngestionTimePartition") -> str:
+        return "_PARTITIONDATE"
+
+    @staticmethod
+    def _render_date_column_expr(partition: "BigQueryDateColumnPartition") -> str:
+        return exp.to_identifier(partition.column_name).sql(dialect="bigquery")
+
+    @staticmethod
+    def _render_timestamp_or_datetime_expr(
+        partition: "BigQueryTimestampOrDateTimePartition",
+    ) -> str:
+        expr = exp.Anonymous(
+            this="DATE",
+            expressions=[exp.to_identifier(partition.column_name)],
+        )
+        return expr.sql(dialect="bigquery")
+
+    @staticmethod
+    def _render_datetime_trunc_expr(partition: "BigQueryDatetimeTruncPartition") -> str:
+        expr = exp.Anonymous(
+            this="DATETIME_TRUNC",
+            expressions=[
+                exp.to_identifier(partition.column_name),
+                exp.Literal.string(partition.granularity),
+            ],
+        )
+        return expr.sql(dialect="bigquery")
+
+    @staticmethod
+    def _render_timestamp_trunc_expr(partition: "BigQueryTimestampTruncPartition") -> str:
+        expr = exp.Anonymous(
+            this="TIMESTAMP_TRUNC",
+            expressions=[
+                exp.to_identifier(partition.column_name),
+                exp.Literal.string(partition.granularity),
+            ],
+        )
+        return expr.sql(dialect="bigquery")
+
+    @staticmethod
+    def _render_timestamp_trunc_ingestion_expr(
+        partition: "BigQueryTimestampTruncIngestionPartition",
+    ) -> str:
+        expr = exp.Anonymous(
+            this="TIMESTAMP_TRUNC",
+            expressions=[
+                exp.to_identifier("_PARTITIONTIME"),
+                exp.Literal.string(partition.granularity),
+            ],
+        )
+        return expr.sql(dialect="bigquery")
+
+    @staticmethod
+    def _render_range_bucket_expr(partition: BigQueryRangeBucketPartition) -> str:
+        expr = exp.Anonymous(
+            this="RANGE_BUCKET",
+            expressions=[
+                exp.to_identifier(partition.column_name),
+                exp.Anonymous(
+                    this="GENERATE_ARRAY",
+                    expressions=[
+                        exp.Literal.number(partition.start),
+                        exp.Literal.number(partition.end),
+                        exp.Literal.number(partition.interval),
+                    ],
+                ),
+            ],
+        )
+        return expr.sql(dialect="bigquery")
+
+    @staticmethod
+    def _render_date_trunc_expr(partition: BigQueryDateTruncPartition) -> str:
+        expr = exp.Anonymous(
+            this="DATE_TRUNC",
+            expressions=[
+                exp.to_identifier(partition.column_name),
+                exp.Literal.string(partition.granularity),
+            ],
+        )
+        return expr.sql(dialect="bigquery")
 
 
 class PartitionTransformation:
@@ -66,7 +218,7 @@ class bigquery_partition:
 
 def bigquery_adapter(
     data: Any,
-    partition: Union[TColumnNames, PartitionTransformation] = None,
+    partition: Union[TColumnNames, PartitionTransformation, BigQueryPartitionSpec] = None,
     cluster: TColumnNames = None,
     round_half_away_from_zero: TColumnNames = None,
     round_half_even: TColumnNames = None,
@@ -130,23 +282,26 @@ def bigquery_adapter(
     column_hints: TTableSchemaColumns = {}
 
     if partition:
-        if not (isinstance(partition, str) or isinstance(partition, PartitionTransformation)):
-            raise ValueError(
-                "`partition` must be a single column name as a `str` or a"
-                " `PartitionTransformation`."
-            )
-
         # Can only have one partition column.
         for column in resource.columns.values():  # type: ignore[union-attr]
             column.pop(PARTITION_HINT, None)  # type: ignore[typeddict-item]
 
-        if isinstance(partition, str):
+        if isinstance(partition, get_args(BigQueryPartitionSpec)):
+            # Store the spec as a dict with type information for reconstruction
+            partition_dict = asdict(partition)
+            partition_dict[PARTITION_SPEC_TYPE_KEY] = type(partition).__name__
+            additional_table_hints[PARTITION_HINT] = partition_dict
+        elif isinstance(partition, str):
             column_hints[partition] = {"name": partition, PARTITION_HINT: True}  # type: ignore[typeddict-unknown-key]
-
-        if isinstance(partition, PartitionTransformation):
+        elif isinstance(partition, PartitionTransformation):
             partition_hint: Dict[str, str] = {}
             partition_hint[partition.column_name] = partition.template
             additional_table_hints[PARTITION_HINT] = partition_hint
+        else:
+            raise ValueError(
+                "`partition` must be a single column name as a `str`, `PartitionTransformation`, or"
+                " `BigQueryPartitionSpec`."
+            )
 
     if cluster:
         if isinstance(cluster, str):
