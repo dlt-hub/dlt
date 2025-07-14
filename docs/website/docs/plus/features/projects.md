@@ -53,7 +53,8 @@ sources:
     resources:
       - pokemon
       - berry
-      - name: encounter_conditions
+      - 
+        name: encounter_conditions
         endpoint:
           path: encounter-condition
           params:
@@ -67,10 +68,10 @@ sources:
 * `client.base_url` sets the root URL for all API requests.
 * `paginator: auto` enables automatic detection and handling of pagination.
 Each item in `resources`defines an endpoint to extract:
-* Simple entries like `pokemon`and `berry`will fetch from /pokemon and /berry, respectively.
+* Simple entries like `pokemon`and `berry`will fetch from `/pokemon` and `/berry`, respectively.
 * The `encounter-condition` resource uses an advanced configuration:
   * `path`: Point to the `/encounter-condition`endpoint.
-  * `params.offset`: Enables incremental loading using the name field as the cursor.
+  * `params.offset`: Enables incremental loading using the `name` field as the cursor.
   * `write_disposition`: append ensures new data is appended rather than overwriting previous loads.
 
 This setup provides a flexible, zero-code way to work with REST APIs and manage data extraction across multiple endpoints in a single source block.
