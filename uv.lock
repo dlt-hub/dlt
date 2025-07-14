@@ -2135,8 +2135,7 @@ weaviate = [
 ]
 workspace = [
     { name = "duckdb" },
-    { name = "ibis-framework", extra = ["bigquery", "clickhouse", "databricks", "duckdb", "postgres", "snowflake"], marker = "python_full_version >= '3.10'" },
-    { name = "ibis-framework", extra = ["mssql"], marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
+    { name = "ibis-framework", extra = ["duckdb"], marker = "python_full_version >= '3.10'" },
     { name = "marimo" },
     { name = "pandas", version = "2.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -2285,7 +2284,7 @@ requires-dist = [
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
     { name = "duckdb", marker = "extra == 'motherduck'", specifier = ">=0.9" },
-    { name = "duckdb", marker = "extra == 'workspace'", specifier = "<1.2.1" },
+    { name = "duckdb", marker = "extra == 'workspace'", specifier = ">=0.9" },
     { name = "fsspec", specifier = ">=2022.4.0" },
     { name = "gcsfs", marker = "extra == 'bigquery'", specifier = ">=2022.4.0" },
     { name = "gcsfs", marker = "extra == 'clickhouse'", specifier = ">=2022.4.0" },
@@ -2299,11 +2298,10 @@ requires-dist = [
     { name = "grpcio", marker = "extra == 'gcp'", specifier = ">=1.50.0" },
     { name = "hexbytes", specifier = ">=0.2.2" },
     { name = "humanize", specifier = ">=4.4.0" },
-    { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "clickhouse", "databricks"], marker = "python_full_version >= '3.13' and extra == 'workspace'", specifier = ">=10.5.0" },
-    { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse", "databricks"], marker = "python_full_version >= '3.10' and python_full_version < '3.13' and extra == 'workspace'", specifier = ">=10.5.0" },
+    { name = "ibis-framework", extras = ["duckdb"], marker = "python_full_version >= '3.10' and extra == 'workspace'", specifier = ">=10.5.0" },
     { name = "jsonpath-ng", specifier = ">=1.5.3" },
     { name = "lancedb", marker = "python_full_version < '3.13' and extra == 'lancedb'", specifier = ">=0.22.0" },
-    { name = "marimo", marker = "extra == 'workspace'", specifier = ">=0.13.6" },
+    { name = "marimo", marker = "extra == 'workspace'", specifier = ">=0.14.0" },
     { name = "orjson", marker = "sys_platform != 'emscripten'", specifier = ">=3.10.1" },
     { name = "orjson", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'", specifier = ">=3.6.7,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1,<4" },
     { name = "packaging", specifier = ">=21.1" },
@@ -4553,7 +4551,7 @@ wheels = [
 
 [[package]]
 name = "marimo"
-version = "0.13.15"
+version = "0.14.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -4574,9 +4572,9 @@ dependencies = [
     { name = "uvicorn" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9d/58/255a2469806d58b557f5993d258d9b668a4117da989c116b7bb7e25d91e2/marimo-0.13.15.tar.gz", hash = "sha256:773a76fc0916e48a2a04f83db13f0f543ed513b9372031ad40eca830218fb00e", size = 29053565, upload-time = "2025-05-29T20:28:31.993Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fa/93/d646fccda297843c41fa088e831212a425036e1cf7ea1c1fca41d7f7ad56/marimo-0.14.10.tar.gz", hash = "sha256:195247aabaccb7559532daa0313b7f47647ba78b98e151fe2b85df1f67bff79e", size = 29134153, upload-time = "2025-07-03T00:54:02.37Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/92/68/7072e7d1de40703f8eb1fbff303276d12bd4812fb2e7afa65353cee678c3/marimo-0.13.15-py3-none-any.whl", hash = "sha256:e82f7caf3b36531a38f8c2d1856a7ff3b45695c5e8d8698b0bd7c4e74fe761e9", size = 29527730, upload-time = "2025-05-29T20:28:26.28Z" },
+    { url = "https://files.pythonhosted.org/packages/cb/7a/296b66193a41a3024b56280b53e5066050fa0213469dd528bc1b322dac88/marimo-0.14.10-py3-none-any.whl", hash = "sha256:1fb78e272aaa25405f03ce9103972660ea694efc65e5b39b653d8291a9dea719", size = 29611482, upload-time = "2025-07-03T00:54:06.436Z" },
 ]
 
 [[package]]
