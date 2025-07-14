@@ -13,10 +13,10 @@ try:
     import ibis
 except ModuleNotFoundError:
     raise MissingDependencyException(
-        "dlt marimo app",
-        ["marimo", "pandas", "ibis-framework"],
-        "the dlt marimo app requires additional dependencies, such as marimo, pandas and"
-        " ibis-framework.",
+        "dlt dashboard",
+        ["workspace"],
+        "the dlt dashboard requires additional dependencies which you may install with the dlt"
+        " workspace extra.",
     )
 
 EJECTED_APP_FILE_NAME = "dlt_app.py"

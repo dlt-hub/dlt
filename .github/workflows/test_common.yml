@@ -126,7 +126,8 @@ jobs:
 
       # test marimo app, does not work with python 3.13
       - name: Install dlt with duckdb and studio
-        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --group sentry-sdk --group pipeline --group sources --group ibis --group marimo
+        # note: this also tests the workspace extra installation
+        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra workspace --group sentry-sdk --group pipeline --group sources --group ibis --group dashboard-tests
         if: matrix.python-version != '3.13'
 
       - name: Install playwright
