@@ -214,7 +214,7 @@ class TableLoader:
 
         # default settings
         backend_kwargs = {
-            "return_type": "arrow2",
+            "return_type": "arrow",
             "protocol": "binary",
             **backend_kwargs,
         }
