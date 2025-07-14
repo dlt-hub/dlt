@@ -608,7 +608,7 @@ class TestSecretRedaction:
         response._content = b"Resource not found"
 
         with pytest.raises(HTTPError) as exc_info:
-            _dlt_raise_for_status(response)
+            _dlt_raise_for_status(response, show_error_body=False, max_error_body_length=0)
 
         error_msg = str(exc_info.value)
         assert "api_key=***" in error_msg
@@ -618,7 +618,6 @@ class TestSecretRedaction:
 
     def test_dlt_raise_for_status_truncates_long_body(self):
         from dlt.sources.helpers.rest_client.client import _dlt_raise_for_status
-        from unittest.mock import patch
 
         # Create response with long body
         response = Response()
@@ -627,33 +626,25 @@ class TestSecretRedaction:
         response.url = "https://api.example.com/endpoint"
         response._content = b"Error: " + b"x" * 10000
 
-        with patch("dlt.sources.helpers.rest_client.client.resolve_configuration") as mock_resolve:
-            mock_config = type(
-                "MockConfig", (), {"http_show_error_body": True, "http_max_error_body_length": 8192}
-            )()
-            mock_resolve.return_value = mock_config
+        with pytest.raises(HTTPError) as exc_info:
+            _dlt_raise_for_status(response, show_error_body=True, max_error_body_length=8192)
 
-            with pytest.raises(HTTPError) as exc_info:
-                _dlt_raise_for_status(response)
-
-            error_msg = str(exc_info.value)
-            assert "(truncated)" in error_msg
+        error_msg = str(exc_info.value)
+        assert "(truncated)" in error_msg
 
     def test_dlt_raise_for_status_no_error_on_success(self):
         from dlt.sources.helpers.rest_client.client import _dlt_raise_for_status
 
-        # Test that no exception is raised for success codes
         response = Response()
         response.status_code = 200
         response.reason = "OK"
         response.url = "https://api.example.com/endpoint?api_key=secret"
 
         # Should not raise any exception
-        _dlt_raise_for_status(response)
+        _dlt_raise_for_status(response, show_error_body=False, max_error_body_length=0)
 
     def test_dlt_raise_for_status_with_body_enabled(self):
         from dlt.sources.helpers.rest_client.client import _dlt_raise_for_status
-        from unittest.mock import patch
 
         response = Response()
         response.status_code = 500
@@ -663,22 +654,15 @@ class TestSecretRedaction:
             b'{"error": "Database connection failed", "detail": "Connection timeout"}'
         )
 
-        with patch("dlt.sources.helpers.rest_client.client.resolve_configuration") as mock_resolve:
-            mock_config = type(
-                "MockConfig", (), {"http_show_error_body": True, "http_max_error_body_length": 8192}
-            )()
-            mock_resolve.return_value = mock_config
+        with pytest.raises(HTTPError) as exc_info:
+            _dlt_raise_for_status(response, show_error_body=True, max_error_body_length=8192)
 
-            with pytest.raises(HTTPError) as exc_info:
-                _dlt_raise_for_status(response)
-
-            error_msg = str(exc_info.value)
-            assert "Database connection failed" in error_msg
-            assert "Connection timeout" in error_msg
+        error_msg = str(exc_info.value)
+        assert "Database connection failed" in error_msg
+        assert "Connection timeout" in error_msg
 
     def test_dlt_raise_for_status_with_body_disabled(self):
         from dlt.sources.helpers.rest_client.client import _dlt_raise_for_status
-        from unittest.mock import patch
 
         response = Response()
         response.status_code = 404
@@ -688,18 +672,10 @@ class TestSecretRedaction:
             b'{"error": "Resource not found", "detail": "Item with ID 123 not found"}'
         )
 
-        with patch("dlt.sources.helpers.rest_client.client.resolve_configuration") as mock_resolve:
-            mock_config = type(
-                "MockConfig",
-                (),
-                {"http_show_error_body": False, "http_max_error_body_length": 8192},
-            )()
-            mock_resolve.return_value = mock_config
+        with pytest.raises(HTTPError) as exc_info:
+            _dlt_raise_for_status(response, show_error_body=False, max_error_body_length=8192)
 
-            with pytest.raises(HTTPError) as exc_info:
-                _dlt_raise_for_status(response)
-
-            error_msg = str(exc_info.value)
-            assert "Resource not found" not in error_msg  # No body included
-            assert "Item with ID 123" not in error_msg
-            assert "404 Client Error: Not Found" in error_msg  # Still has status and URL
+        error_msg = str(exc_info.value)
+        assert "Resource not found" not in error_msg  # No body included
+        assert "Item with ID 123" not in error_msg
+        assert "404 Client Error: Not Found" in error_msg  # Still has status and URL

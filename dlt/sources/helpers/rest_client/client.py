@@ -8,6 +8,7 @@ from typing import (
     TypeVar,
     Iterable,
     cast,
+    Callable,
 )
 import copy
 from urllib.parse import urlparse
@@ -65,6 +66,8 @@ class RESTClient:
         session (BaseSession): HTTP session for making requests.
         paginator_factory (Optional[PaginatorFactory]): Factory for creating paginator instances,
             used for detecting paginators.
+        config (Optional[RuntimeConfiguration]): Runtime configuration for HTTP error handling.
+            If not provided, will resolve from the global configuration.
     """
 
     def __init__(
@@ -76,10 +79,12 @@ class RESTClient:
         data_selector: Optional[jsonpath.TJsonPath] = None,
         session: BaseSession = None,
         paginator_factory: Optional[PaginatorFactory] = None,
+        config: Optional[RuntimeConfiguration] = None,
     ) -> None:
         self.base_url = base_url
         self.headers = headers
         self.auth = auth
+        self._config = config or resolve_configuration(RuntimeConfiguration())
 
         if session:
             # If the `session` is provided (for example, an instance of
@@ -229,7 +234,7 @@ class RESTClient:
         # HTTP error status codes. This is a fallback to handle errors
         # unless explicitly overridden in the provided hooks.
         if "response" not in hooks:
-            hooks["response"] = [_dlt_raise_for_status]
+            hooks["response"] = [self._create_response_handler()]
 
         request = self._create_request(
             path_or_url=path,
@@ -301,6 +306,18 @@ class RESTClient:
             logger.info(f"Detected single page data at path: '{path}' type: {type(data).__name__}")
         return data_selector
 
+    def _create_response_handler(self) -> Callable[[Response, Any, Any], None]:
+        def handler(response: Response, *args: Any, **kwargs: Any) -> None:
+            return _dlt_raise_for_status(
+                response,
+                self._config.http_show_error_body,
+                self._config.http_max_error_body_length,
+                *args,
+                **kwargs,
+            )
+
+        return handler
+
     def detect_paginator(self, response: Response, data: Any) -> BasePaginator:
         """Detects a paginator for the response and returns it.
 
@@ -335,11 +352,15 @@ class RESTClient:
         return paginator
 
 
-def _dlt_raise_for_status(response: Response, *args: Any, **kwargs: Any) -> None:
+def _dlt_raise_for_status(
+    response: Response, show_error_body: bool, max_error_body_length: int, *args: Any, **kwargs: Any
+) -> None:
     """Custom raise_for_status that sanitizes URLs and includes response body.
 
     Args:
         response: The response object to check
+        show_error_body: Whether to show the error body
+        max_error_body_length: The maximum length of the error body to show
 
     Raises:
         HTTPError: If the response status code indicates an error
@@ -347,13 +368,12 @@ def _dlt_raise_for_status(response: Response, *args: Any, **kwargs: Any) -> None
     if response.status_code >= 400:
         safe_url = sanitize_url(response.url)
 
-        config = resolve_configuration(RuntimeConfiguration())
         body_text = ""
 
-        if config.http_show_error_body and response.text:
+        if show_error_body and response.text:
             body_text = response.text
-            if len(body_text) > config.http_max_error_body_length:
-                body_text = body_text[: config.http_max_error_body_length] + "… (truncated)"
+            if len(body_text) > max_error_body_length:
+                body_text = body_text[:max_error_body_length] + "… (truncated)"
 
         reason = _decode_reason(response.reason)
         error_type_string = "Client" if response.status_code < 500 else "Server"
