@@ -189,7 +189,7 @@ def lock_del_task():
 
 
 def test_pool_runner_shutdown_timeout() -> None:
-    pool = runner.TimeoutThreadPoolExecutor(max_workers=4, timeout=1.01)
+    pool = runner.TimeoutThreadPoolExecutor(max_workers=4, timeout=1.1)
 
     t0 = time.perf_counter()
 
