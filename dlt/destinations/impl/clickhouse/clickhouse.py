@@ -136,7 +136,13 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
             access_key_id = self._staging_credentials.aws_access_key_id
             secret_access_key = self._staging_credentials.aws_secret_access_key
             auth = "NOSIGN"
-            if access_key_id and secret_access_key:
+            if self._config.credentials.extra_credentials:
+                extra_credential_args = [
+                    f"{k} = '{v}'" for k, v in self._config.credentials.extra_credentials.items()
+                ]
+                auth = f"extra_credentials({', '.join(extra_credential_args)})"
+
+            elif access_key_id and secret_access_key:
                 auth = f"'{access_key_id}','{secret_access_key}'"
 
             table_function = (
