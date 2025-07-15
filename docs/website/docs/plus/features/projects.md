@@ -182,6 +182,28 @@ profiles:
         bucket_url: s3://dlt-ci-test-bucket/dlt_example_project/
 ```
 
+### Run Configurations
+
+For each pipeline, you can use the `run_config` section to define what happens when the pipeline is run from
+the command line with `dlt pipeline <pipeline_name> run`.
+
+```yaml
+pipelines:
+  my_pipeline:
+    source: my_source
+    destination: duckdb
+    dataset_name: my_dataset
+    run_config:
+      run_from_clean_folder: true
+      store_trace_info: true
+      retry_policy:
+        type: fixed
+        max_attempts: 3
+      retry_pipeline_steps: ["load"]
+```
+
+Read more about these options [here](./pipeline-runner.md).
+
 ### Project settings and variable substitution
 
 You can override default project settings using the `project` section:
