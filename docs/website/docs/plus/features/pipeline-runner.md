@@ -150,7 +150,7 @@ pipelines:
 
 You can use the runner directly in your python code as well to finalize pending data or to run pipelines.
 
-```python
+```py
 import dlt
 from dlt_plus.runner import PipelineRunner
 from tenacity import Retrying, stop_after_attempt
