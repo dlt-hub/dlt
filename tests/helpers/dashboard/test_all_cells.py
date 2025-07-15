@@ -1,6 +1,6 @@
 from typing import List
 
-from dlt.helpers.studio import dlt_app
+from dlt.helpers.dashboard import dlt_dashboard
 
 from marimo._ast.cell import Cell
 import marimo as mo
@@ -41,8 +41,8 @@ def test_run_all_cells():
     Runs al cells with basic values, StopException is allowed
     """
     cells: List[Cell] = []
-    for item in dir(dlt_app):
-        c = getattr(dlt_app, item)
+    for item in dir(dlt_dashboard):
+        c = getattr(dlt_dashboard, item)
         if isinstance(c, Cell):
             cells.append(c)
 

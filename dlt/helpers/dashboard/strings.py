@@ -5,14 +5,15 @@ import marimo as _mo
 
 # Reusable string parts
 _credentials_info = (
-    "Have you run your pipeline and are your credentials available to the dltHub marimo app?"
+    "Have you run your pipeline and are your credentials available to the dltHub pipeline"
+    " dashboard?"
 )
 
 #
 # App general
 #
 app_title = """
-# Welcome to the dltHub marimo app...
+# Welcome to the dltHub pipeline dashboard...
 """
 app_intro = """
 <p align="center">...the hackable data platform for `dlt` developers.</p>
@@ -32,27 +33,27 @@ home_quick_start_title = """
 """
 
 home_basics_text = """
-## dltHub marimo app basics
+## dltHub pipeline dashboard basics
 
 We have found `{}` pipelines in local directory `{}`. When you select a pipeline to inspect, you will be able to:
 
 * See the current pipeline schema
 * See the pipeline state
 * Browse information about past loads and traces
-* Browse the data in the pipeline's dataset (requires credentials available to the dltHub marimo app)
+* Browse the data in the pipeline's dataset (requires credentials available to the dltHub pipeline dashboard)
 
-To sync the current schema and state from the destination dataset or inspect data in the destination dataset, your destination credentials need to be available to the dltHub marimo app. Either provide them as environment variables or start the dltHub marimo app from the directory containing your `.dlt` folder where the credentials are stored.
+To sync the current schema and state from the destination dataset or inspect data in the destination dataset, your destination credentials need to be available to the dltHub pipeline dashboard. Either provide them as environment variables or start the dltHub pipeline dashboard from the directory containing your `.dlt` folder where the credentials are stored.
 
-If the dltHub marimo app can't connect to the destination, you will receive a warning and can browse the locally stored information about the pipeline.
+If the dltHub pipeline dashboard can't connect to the destination, you will receive a warning and can browse the locally stored information about the pipeline.
 
-## dltHub marimo app CLI commands
+## dltHub pipeline dashboard CLI commands
 
-* `dlt pipeline <pipeline_name> show --marimo` - Start the marimo app for the selected pipeline
-* `dlt pipeline <pipeline_name> show --marimo --edit` - Start a local copy of the marimo app for the selected pipeline in edit mode
+* `dlt pipeline <pipeline_name> show --dashboard` - Start the pipeline dashboard for the selected pipeline
+* `dlt pipeline <pipeline_name> show --dashboard --edit` - Start a local copy of the pipeline dashboard for the selected pipeline in edit mode
 
 ## Learn more
 
-* [marimo docs](https://docs.marimo.io/) - Learn all about marimo, the amazing framework that powers the dltHub marimo app
+* [marimo docs](https://docs.marimo.io/) - Learn all about marimo, the amazing framework that powers the dltHub pipeline dashboard
 
 <small>
 2025 [dltHub](https://dlthub.com)

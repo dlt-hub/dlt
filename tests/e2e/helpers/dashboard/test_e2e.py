@@ -16,7 +16,7 @@ from dlt.sources._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
 )
 
-from dlt.helpers.studio import strings as app_strings
+from dlt.helpers.dashboard import strings as app_strings
 
 
 @pytest.fixture(autouse=True)
@@ -74,12 +74,12 @@ def test_page_loads(page: Page):
     _go_home(page)
 
     # check title
-    expect(page).to_have_title("dlt marimo app")
+    expect(page).to_have_title("dlt pipeline dashboard")
 
     # check top heading
-    expect(page.get_by_role("heading", name="Welcome to the dltHub marimo app...")).to_contain_text(
-        "Welcome to the dltHub marimo app..."
-    )
+    expect(
+        page.get_by_role("heading", name="Welcome to the dltHub pipeline dashboard...")
+    ).to_contain_text("Welcome to the dltHub pipeline dashboard...")
 
     #
     # One two three pipeline
