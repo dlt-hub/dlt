@@ -102,5 +102,5 @@ Read more about [accessing your data](https://dlthub.com/docs/general-usage/data
 
 ## 5. Next steps: Deploy to production
 
-- [How to prepare production deployment](https://dlthub.com/docs/walkthroughs/share-a-dataset)
-- [How to deploy a pipeline](https://dlthub.com/docs/walkthroughs/deploy-a-pipeline)
+- [How to prepare production deployment](https://dlthub.com/docs/walkthroughs/share-a-dataset/)
+- [How to deploy a pipeline](https://dlthub.com/docs/walkthroughs/deploy-a-pipeline/)
