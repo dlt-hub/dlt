@@ -127,7 +127,7 @@ jobs:
       # test pipeline dashboard app, does not work with python 3.13
       - name: Install dlt with duckdb and dashboard
         # note: this also tests the workspace extra installation
-        run: uv sync --resolution lowest-direct --extra duckdb --extra workspace --group sentry-sdk --group pipeline --group sources --group dashboard-tests
+        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra workspace --group sentry-sdk --group pipeline --group sources --group dashboard-tests
       - name: Install playwright
         run: playwright install
 
