@@ -42,6 +42,7 @@ from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
 from dlt.destinations import filesystem, redshift, dummy, duckdb
+from dlt.destinations.path_utils import get_file_format_compression
 import dlt.destinations.dataset
 from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME
 from dlt.extract.exceptions import (
@@ -3224,7 +3225,7 @@ def test_exceed_job_file_name_length() -> None:
     assert isinstance(os_err.value.__cause__, OSError)
 
     # fit into 255 + 1
-    suffix_len = len(".b61d3af76c.0.insert-values")
+    suffix_len = len(".b61d3af76c.0.insert-values.gz")
     pipeline = dlt.pipeline(
         pipeline_name="test_exceed_job_file_name_length",
         destination=duckdb(
@@ -3256,10 +3257,14 @@ def assert_imported_file(
     assert len(rows[table_name]) == expected_rows
     # we should have twp files loaded
     jobs = pipeline.last_trace.last_load_info.load_packages[0].jobs["completed_jobs"]
-    job_extensions = [os.path.splitext(job.job_file_info.file_name())[1] for job in jobs]
+    job_extensions = []
+    for job in jobs:
+        file_format, compression_ext = get_file_format_compression(job.job_file_info.file_name())
+        ext = f".{file_format}.gz" if compression_ext else f".{file_format}"
+        job_extensions.append(ext)
     assert ".jsonl" in job_extensions
     if expects_state:
-        assert ".insert_values" in job_extensions
+        assert ".insert_values.gz" in job_extensions
     # check extract trace if jsonl is really there
     extract_info = pipeline.last_trace.last_extract_info
     jobs = extract_info.load_packages[0].jobs["new_jobs"]
@@ -3502,7 +3507,7 @@ def test_nested_hints_file_format() -> None:
     norm_metrics = normalize_info.metrics[load_id][0]
     for file_name, _ in norm_metrics["job_metrics"].items():
         # always jsonl
-        assert file_name.endswith("jsonl")
+        assert file_name.endswith("jsonl.gz")
 
 
 def test_nested_hints_write_disposition_append_replace() -> None:

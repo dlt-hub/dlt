@@ -1,3 +1,4 @@
+import os
 from copy import deepcopy
 import pytest
 from fnmatch import fnmatch
@@ -690,7 +691,7 @@ def expect_load_package(
         file_path = load_storage.normalized_packages.get_job_file_path(
             load_id, "new_jobs", file_mask
         )
-        candidates = [f for f in files if fnmatch(f, file_path)]
+        candidates = [f for f in files if fnmatch(os.path.splitext(f)[0], file_path)]
         # assert len(candidates) == 1
         ofl[expected_table] = candidates
     # get the schema update

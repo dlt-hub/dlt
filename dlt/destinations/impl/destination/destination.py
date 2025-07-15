@@ -15,6 +15,7 @@ from dlt.destinations.job_impl import (
     DestinationJsonlLoadJob,
     DestinationParquetLoadJob,
 )
+from dlt.destinations.path_utils import get_file_format_compression
 
 
 class DestinationClient(JobClientBase):
@@ -66,7 +67,9 @@ class DestinationClient(JobClientBase):
 
         # save our state in destination name scope
         load_state = destination_state()
-        if file_path.endswith("parquet"):
+
+        file_format, _ = get_file_format_compression(file_path)
+        if file_format == "parquet":
             return DestinationParquetLoadJob(
                 file_path,
                 self.config,
@@ -74,7 +77,7 @@ class DestinationClient(JobClientBase):
                 self.destination_callable,
                 skipped_columns,
             )
-        if file_path.endswith("jsonl"):
+        if file_format in ["jsonl", "typed-jsonl"]:
             return DestinationJsonlLoadJob(
                 file_path,
                 self.config,
