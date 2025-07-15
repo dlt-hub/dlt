@@ -146,11 +146,11 @@ def schema_command_wrapper(file_path: str, format_: str, remove_defaults: bool) 
     fmt.echo(schema_str)
 
 
-@utils.track_command("studio", True)
-def studio_command_wrapper() -> None:
-    from dlt.helpers.studio.runner import run_studio
+@utils.track_command("dashboard", True)
+def dashboard_command_wrapper() -> None:
+    from dlt.helpers.dashboard.runner import run_dashboard
 
-    run_studio()
+    run_dashboard()
 
 
 @utils.track_command("telemetry", False)

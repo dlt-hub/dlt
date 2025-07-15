@@ -44,7 +44,7 @@ has-uv:
 	uv --version
 
 dev: has-uv
-	uv sync --all-extras --group docs --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group marimo
+	uv sync --all-extras --group docs --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
 dev-airflow: has-uv
 	uv sync --all-extras --group docs --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
@@ -159,11 +159,11 @@ update-cli-docs:
 check-cli-docs:
 	uv run dlt --debug render-docs docs/website/docs/reference/command-line-interface.md --compare
 
-test-e2e-studio:
+test-e2e-dashboard:
 	uv run pytest --browser chromium tests/e2e
 
-test-e2e-studio-headed:
+test-e2e-dashboard-headed:
 	uv run pytest --headed --browser chromium tests/e2e
 
-start-dlt-studio-e2e:
-	uv run marimo run --headless dlt/helpers/studio/dlt_app.py -- -- --pipelines_dir _storage/.dlt/pipelines --with_test_identifiers true
+start-dlt-dashboard-e2e:
+	uv run marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines_dir _storage/.dlt/pipelines --with_test_identifiers true
