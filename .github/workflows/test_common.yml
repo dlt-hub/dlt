@@ -127,24 +127,21 @@ jobs:
       # test pipeline dashboard app, does not work with python 3.13
       - name: Install dlt with duckdb and dashboard
         # note: this also tests the workspace extra installation
-        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra workspace --group sentry-sdk --group pipeline --group sources --group ibis --group dashboard-tests
-        if: matrix.python-version != '3.13'
-
+        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra workspace --group sentry-sdk --group pipeline --group sources --group dashboard-tests
       - name: Install playwright
         run: playwright install
-        if: matrix.python-version != '3.13'
 
       # Run pipeline dashboard unit tests
       - name: Run pipeline dashboard unit tests
         run: |
           pytest tests/helpers/dashboard
-        if: matrix.python-version != '3.13' && matrix.python-version != '3.9'
+        if: matrix.python-version != '3.9'
 
       # Run pipeline dashboard e2e tests (does not pass with python 3.9, does not pass on windows (playwright does not work somehow), does not pass on python 3.13 (ibis not available))
       - name: Run dashboard e2e
         run: |
           marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines_dir _storage/.dlt/pipelines/ --with_test_identifiers true & pytest --browser chromium tests/e2e
-        if: matrix.python-version != '3.13' && matrix.python-version != '3.9' && matrix.os != 'windows-latest'
+        if: matrix.python-version != '3.11' && matrix.python-version != '3.9' && matrix.os != 'windows-latest'
   
   matrix_job_required_check:
     name: common | common tests
