@@ -18,6 +18,7 @@ from dlt.destinations.insert_job_client import InsertValuesJobClient
 
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
+from dlt.destinations.path_utils import get_file_format_compression
 
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
@@ -32,10 +33,12 @@ class DuckDbCopyJob(RunnableLoadJob, HasFollowupJobs):
         self._sql_client = self._job_client.sql_client
 
         qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
-        if self._file_path.endswith("parquet"):
+
+        file_format, _ = get_file_format_compression(self._file_path)
+        if file_format == "parquet":
             source_format = "read_parquet"
             options = ", union_by_name=true"
-        elif self._file_path.endswith("jsonl"):
+        elif file_format in ["jsonl", "typed-jsonl"]:
             # NOTE: loading JSON does not work in practice on duckdb: the missing keys fail the load instead of being interpreted as NULL
             source_format = "read_json"  # newline delimited, compression auto
             options = ", COMPRESSION=GZIP" if FileStorage.is_gzipped(self._file_path) else ""
