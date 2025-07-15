@@ -188,7 +188,7 @@ workspace = [
     "pyarrow>=18.0.0 ; python_version >= '3.13'",
     "pandas>2.1 ; python_version >= '3.12'",
     "pandas<2.1 ; python_version < '3.12'",
-    "marimo>=0.14.0",
+    "marimo>=0.14.5",
 ]
 
 [project.urls]
