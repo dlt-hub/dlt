@@ -465,6 +465,9 @@ tables:
       file_format:
         data_type: text
         nullable: true
+      has_compression_ext:
+        data_type: bool
+        nullable: true
       job_id:
         data_type: text
         nullable: true

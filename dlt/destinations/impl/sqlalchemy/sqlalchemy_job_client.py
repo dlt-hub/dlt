@@ -38,6 +38,7 @@ from dlt.destinations.impl.sqlalchemy.load_jobs import (
     SqlalchemyReplaceJob,
     SqlalchemyMergeFollowupJob,
 )
+from dlt.destinations.path_utils import get_file_format_compression
 
 
 class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
@@ -128,10 +129,11 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
         job = super().create_load_job(table, file_path, load_id, restore)
         if job is not None:
             return job
-        if file_path.endswith(".typed-jsonl"):
+        file_format, _ = get_file_format_compression(file_path)
+        if file_format == "typed-jsonl":
             table_obj = self._to_table_object(table)
             return SqlalchemyJsonLInsertJob(file_path, table_obj)
-        elif file_path.endswith(".parquet"):
+        elif file_format == "parquet":
             table_obj = self._to_table_object(table)
             return SqlalchemyParquetInsertJob(file_path, table_obj)
         return None

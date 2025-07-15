@@ -64,6 +64,10 @@ def test_rotation_with_buffer_on_schema_change(disable_compression: bool) -> Non
         writer.write_data_item(list(c2_doc(1)), t2)
         # file name is there
         assert writer._file_name is not None
+        if not disable_compression:
+            assert writer._file_name.endswith(".insert_values.gz")
+        else:
+            assert writer._file_name.endswith(".insert_values")
         # no file is open
         assert writer._file is None
     # writer is closed and data was written
@@ -158,6 +162,10 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
         writer.write_data_item(list(c1_doc(1)), t1)
         # in buffer
         assert writer._file is None
+        if not disable_compression:
+            assert writer._file_name.endswith(".jsonl.gz")
+        else:
+            assert writer._file_name.endswith(".jsonl")
         assert len(writer._buffered_items) == 1
         writer.write_data_item(list(c2_doc(1)), t2)
         # flushed because we force rotation with buffer flush
@@ -194,6 +202,10 @@ def test_NO_rotation_on_schema_change(disable_compression: bool) -> None:
         assert len(writer._buffered_items) == 2
         # only the initial 15 items written
         assert writer._writer.items_count == 15
+        if not disable_compression:
+            assert writer._file_name.endswith(".jsonl.gz")
+        else:
+            assert writer._file_name.endswith(".jsonl")
     # all written
     assert len(writer.closed_files) == 1
     with FileStorage.open_zipsafe_ro(writer.closed_files[-1].file_path, "r", encoding="utf-8") as f:
@@ -215,6 +227,10 @@ def test_writer_requiring_schema(disable_compression: bool) -> None:
     with get_writer(InsertValuesWriter, disable_compression=disable_compression) as writer:
         writer.write_data_item([{"col1": 1}], None)
         writer.write_data_item([{"col1": 1}], t1)
+        if not disable_compression:
+            assert writer._file_name.endswith(".insert_values.gz")
+        else:
+            assert writer._file_name.endswith(".insert_values")
 
 
 @pytest.mark.parametrize(
@@ -224,6 +240,10 @@ def test_writer_optional_schema(disable_compression: bool) -> None:
     with get_writer(writer=JsonlWriter, disable_compression=disable_compression) as writer:
         writer.write_data_item([{"col1": 1}], None)
         writer.write_data_item([{"col1": 1}], None)
+        if not disable_compression:
+            assert writer._file_name.endswith(".jsonl.gz")
+        else:
+            assert writer._file_name.endswith(".jsonl")
 
 
 @pytest.mark.parametrize(
@@ -245,6 +265,11 @@ def test_write_empty_file(disable_compression: bool, writer_type: Type[DataWrite
         assert metrics.items_count == 0
         assert metrics.file_size >= 0
         assert writer.closed_files[0] == metrics
+        extension = writer.writer_spec.file_extension
+        if not disable_compression and writer.writer_spec.supports_compression:
+            assert writer._file_name.endswith(f".{extension}.gz")
+        else:
+            assert writer._file_name.endswith(f".{extension}")
 
 
 @pytest.mark.parametrize("writer_type", ALL_WRITERS)
@@ -316,6 +341,10 @@ def test_gather_metrics(disable_compression: bool, writer_type: Type[DataWriter]
         assert metrics_2.last_modified - metrics_2.created >= 0.35
 
     assert len(writer.closed_files) == 2
+    if not disable_compression and writer.writer_spec.supports_compression:
+        assert all(closed_file.file_path.endswith(".gz") for closed_file in writer.closed_files)
+    else:
+        assert not any(closed_file.file_path.endswith(".gz") for closed_file in writer.closed_files)
 
 
 @pytest.mark.parametrize(
@@ -352,6 +381,21 @@ def test_special_write_rotates(disable_compression: bool, writer_type: Type[Data
         metrics = writer.import_file(
             "tests/extract/cases/imported.any", DataWriterMetrics("", 1, 231, 0, 0)
         )
+        if not disable_compression and writer.writer_spec.supports_compression:
+            assert all(
+                closed_file.file_path.endswith(".gz")
+                for i, closed_file in enumerate(writer.closed_files)
+                if i in [0, 1, 2, 4]
+            )
+            assert not any(
+                closed_file.file_path.endswith(".gz")
+                for i, closed_file in enumerate(writer.closed_files)
+                if i in [3, 5]
+            )
+        else:
+            assert not any(
+                closed_file.file_path.endswith(".gz") for closed_file in writer.closed_files
+            )
 
 
 @pytest.mark.parametrize(
@@ -387,3 +431,8 @@ def test_rotation_on_destination_caps_recommended_file_size(
     assert len(writer.closed_files) == 2
     for file in writer.closed_files:
         assert file.file_size < caps.recommended_file_size + 1024 * 50
+
+    if not disable_compression and writer.writer_spec.supports_compression:
+        assert all(closed_file.file_path.endswith(".gz") for closed_file in writer.closed_files)
+    else:
+        assert not any(closed_file.file_path.endswith(".gz") for closed_file in writer.closed_files)

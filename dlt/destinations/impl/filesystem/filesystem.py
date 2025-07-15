@@ -94,6 +94,12 @@ class FilesystemLoadJob(RunnableLoadJob):
         # It `auto_mkdir` is disabled by default in fsspec so we made some
         # trade offs between different options and decided on this.
         remote_path = self.make_remote_path()
+        if (
+            not self._job_client.config.as_staging_destination
+            and self._job_client.config.legacy_compression_without_ext
+            and remote_path.endswith(".gz")
+        ):
+            remote_path = remote_path[:-3]
         if self.__is_local_filesystem:
             # use os.path for local file name
             self._job_client.fs_client.makedirs(os.path.dirname(remote_path), exist_ok=True)

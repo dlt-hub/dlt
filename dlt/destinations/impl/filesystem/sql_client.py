@@ -14,6 +14,7 @@ from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
 from dlt.destinations.impl.duckdb.factory import DuckDbCredentials
 
 from dlt.destinations.utils import is_compression_disabled
+from dlt.destinations.path_utils import get_file_format_compression
 
 SUPPORTED_PROTOCOLS = ["gs", "gcs", "s3", "file", "memory", "az", "abfss"]
 
@@ -50,12 +51,15 @@ class FilesystemSqlClient(WithTableScanners):
         # checking file type is expensive so we optimistically allow to create view and prune later
         return True
 
-    def get_file_format_and_files(self, table_schema: PreparedTableSchema) -> Tuple[str, List[str]]:
+    def get_file_format_and_files(
+        self, table_schema: PreparedTableSchema
+    ) -> Tuple[str, List[str], bool]:
         table_name = table_schema["name"]
         files = self.remote_client.list_table_files(table_name)
         if len(files) == 0:
             raise DestinationUndefinedEntity(table_name)
-        return os.path.splitext(files[0])[1][1:], files
+        file_format, has_compression_ext = get_file_format_compression(files[0])
+        return file_format, files, has_compression_ext
 
     def create_secret(
         self,
@@ -121,9 +125,6 @@ class FilesystemSqlClient(WithTableScanners):
         protocol = self.remote_client.config.protocol
         table_location = self.remote_client.get_open_table_location(table_format, table_name)
 
-        # discover whether compression is enabled
-        compression = "" if is_compression_disabled() else ", compression = 'gzip'"
-
         dlt_table_names = self.remote_client.schema.dlt_table_names()
 
         def _escape_column_name(col_name: str) -> str:
@@ -135,10 +136,6 @@ class FilesystemSqlClient(WithTableScanners):
 
         # get columns to select from table schema
         columns = [_escape_column_name(c) for c in self.schema.get_table_columns(table_name).keys()]
-
-        if table_name in dlt_table_names:
-            # dlt tables are never compressed for now...
-            compression = ""
 
         # create from statement
         from_statement = ""
@@ -172,7 +169,9 @@ class FilesystemSqlClient(WithTableScanners):
             # NOTE: this does not support cases where table contains many different file formats
             # NOTE: since we must list all the files anyway we just pass them to duckdb without further globbing
             #   list is in the memory already and query size in duckdb is very large
-            first_file_type, files = self.get_file_format_and_files(table_schema)
+            first_file_type, files, has_compression_ext = self.get_file_format_and_files(
+                table_schema
+            )
             if protocol == "file":
                 resolved_files_string = ",".join(map(lambda f: f"'{f}'", files))
             else:
@@ -181,6 +180,15 @@ class FilesystemSqlClient(WithTableScanners):
             if first_file_type == "parquet":
                 from_statement = f"read_parquet([{resolved_files_string}], union_by_name=true)"
             elif first_file_type in ("jsonl", "csv"):
+                # Determine whether we should use the gzip compression in readers
+                is_dlt_table = table_name in dlt_table_names
+                is_compressed = (
+                    has_compression_ext or self.remote_client.config.legacy_compression_without_ext
+                )
+                compression = (
+                    ", compression = 'gzip'" if (is_compressed and not is_dlt_table) else ""
+                )
+
                 # build columns definition
                 type_mapper = self.capabilities.get_type_mapper()
                 columns_defs = self.schema.get_table_columns(table_name).values()

@@ -46,7 +46,7 @@ def test_postgres_encoded_binary(
     load_info = pipeline.run(blob_table, table_name="table", loader_file_format="csv")
     assert_load_info(load_info)
     job = load_info.load_packages[0].jobs["completed_jobs"][0].file_path
-    assert job.endswith("csv")
+    assert job.endswith("csv.gz")
     # assert if column inferred correctly
     assert pipeline.default_schema.get_table_columns("table")["hash"]["data_type"] == "binary"
 
