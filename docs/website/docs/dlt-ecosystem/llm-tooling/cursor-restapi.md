@@ -4,63 +4,25 @@ description: This doc explains how to build REST API Sources with Cursor
 keywords: [cursor, llm, restapi, ai]
 ---
 
+# REST API Sources with Cursor
+
 ## Overview
 
-The purpose of this document is to explain how to build REST API sources with Cursor and dlt. While the focus here is on REST APIs, this approach can be generalized to other source types such as Python imperative/full code dlthub sources. We choose REST APIs because they are ideal for this process, they are inherently self-documenting, exposing endpoints and methods in a way that enables us to easily troubleshoot and refine our vibe coding.
+The purpose of this document is to explain how to build REST API sources with Cursor and dlt. While the focus here is on REST APIs, this approach can be generalized to other source types such as Python imperative/full code dlthub sources. We choose REST APIs becausebeing a declarative source, it is ideal for this process - being inherently self-documenting, exposing endpoints and methods in a way that enables us to easily troubleshoot and refine our AI-assisted development.
 
-With REST API sources being configuration-driven and vibe coding based on prompts, users don't necessarily need to know how to code. However, it is important to understand how an API is represented and how data should be structured at the destination, such as managing incremental loading configurations. This foundational knowledge ensures that even non-developers can effectively contribute to building and maintaining these data pipelines.
-
-We also introduce experimental [dlt ai](../../reference/command-line-interface.md#dlt-ai-setup) command that distributes relevant cursor rules.
+With REST API sources being configuration-driven and AI-assisted development based on prompts, users don't necessarily need extensive coding experience. However, it is important to understand how an API is represented and how data should be structured at the destination, such as managing incremental loading configurations. This foundational knowledge ensures that even non-developers can effectively contribute to building and maintaining these data pipelines.
 
 ## 1. Problem definition & feature extraction
 
 Building a data pipeline can be separated into two distinct problems, each with their own challenges:
 
-1. **Extraction:** Identifying and gathering key configuration details from various sources.
-2. **Pipeline construction:** Using those details to build a robust data ingestion pipeline.
+1. **Extraction**: Identifying and gathering key configuration details from various sources.
+2. **Pipeline construction**: Using those details to build a robust data ingestion pipeline.
 
-Consider these steps separately, as this will aid you in troubleshooting.
+todo: Mention the scaffolds and how they achieve point 1
 
-![image](https://storage.googleapis.com/dlt-blog-images/dlt-cursor-restapi.drawio.png)
 
-### 1.1 Extracting features from information sources
-
-The best source of information for building a pipeline is another working pipeline. This is because many documentations do not contain all the information required to build a top-notch pipeline. For example, API docs often do not contain all the information needed for creating an incremental strategy - meaning you can still build a pipeline, but it will not work as efficiently as it could.
-
-So here is the ranking of what sources you could use
-
-1. **Other pipelines**: Legacy pipelines, sources and connectors from other languages or frameworks, or any code that shows how to request, such as API wrappers.
-2. **OpenAPI spec**: Contains very detailed specification of all endpoints and authentication, but does not provide info on pagination, incremental loading or primary keys for data entities.
-2. **Docs + HTTP responses**. Reading the docs, creating an initial working pipeline and then requesting from the API data so we can infer the rest of the missing info.
-3. **Scraped code, LLM memory**: When nothing is available but a public API exists, such as APIs that power public websites, we can try inferring how it is called from other websites’ code that calls it.
-
-### 1.2 Understanding the parameters
-
-Since there are only partial naming standards for these parameters, we describe the ones we use here.
-
-- **Top-level client settings:**
-    - **client.base_url:** The API’s root URL.
-    - **client.auth:** Authentication details (token/credentials, reference to dlthub secrets).
-    - **client.headers:** Required custom headers.
-    - **client.paginator:** Pagination configuration (type such as "cursor", and associated parameters like `next_url_path`, `offset_param`, `limit_param`).
-- **Per-resource settings:**
-    - **name:** The resource/table name.
-    - **endpoint.path:** The REST API endpoint’s path.
-    - **endpoint.method:** HTTP method (defaults to GET if unspecified).
-    - **endpoint.params:** Query parameters including defaults and dynamic placeholders.
-    - **endpoint.json:** POST payload (with support for placeholders) when applicable.
-    - **endpoint.data_selector:** JSONPath or equivalent to extract the actual data.
-    - **endpoint.paginator:** Resource-specific pagination settings if differing from client-level.
-    - **endpoint.response_actions:** Handlers for varied HTTP status codes or responses.
-    - **write_disposition:** Options like append, replace, or merge.
-    - **primary_key:** Field(s) used for deduplication.
-    - **incremental:** Configuration parameters for incremental loading (`start_param`, `end_param`, `cursor_path`, etc.).
-    - **include_from_parent:** Inheriting fields from parent resources.
-    - **processing_steps:** Transformations (filters, mappings) applied to the records.
-- **Resource relationships:**
-    - Define parent-child relationships and how to reference fields using placeholders (for example when requesting details of an entity by ID).
-
-## 2. Setting up Cursor for REST API source generation
+## 2. Set up Cursor for REST API source generation
 
 ### 2.1 Understanding Cursor
 
@@ -68,153 +30,77 @@ Cursor is an AI-powered IDE built on Visual Studio Code that accelerates your wo
 
 This produces self-documenting, self-maintaining, and easy to troubleshoot sources.
 
-### 2.2 Adding rules to cursor
+### 2.2 Adding rules and context to cursor
 
-We bundled a set of cursor rules that help build REST API pipelines with `dlt`. To use them, you should start by [initializing a new `dlt` project](../../walkthroughs/create-a-pipeline.md):
-```sh
-dlt init rest_api duckdb
-```
-This will add `rest_api_pipeline.py` to your current folder with pretty detailed usage examples. We see improvements in generated code if this file is
-added to the cursor agent context.
+We bundled LLM-native source docs with a set of cursor rules that help build REST API pipelines with dlt. To use them, you should start by initializing a new dlt project:
 
-Now you can add a set of project rules we use to develop REST API sources:
-```sh
-dlt ai setup cursor
+```bash
+pip install dlt[workspace]
 ```
 
-They are pretty useful when converting OpenAPI specs or legacy source code into `dlt` pipelines. Some rules are always included,
-others are triggered by the agent based on their descriptions. You can review your project rules by looking in `.cursor/rules` folder
-or in Cursor Settings >> Rules.
+Init the source documentation and template. You can find the supported sources on our hub TODO LINK.
+If your source is not supported, request it here: TODO LINK.
+If you don't want to wait, find the source docs online and add them to Cursor, but this results in less focused outputs and increased risk of overlooking critical API details.
 
-:::note
-🚧 This command is a work in progress and currently only adds rules focused on REST API Source. We plan for more code editors,
-`dlt` use cases and mcp tools to be added this way so command options will surely change.
+```bash
+dlt init dlthub:{source_name} duckdb
+```
+The init command will setup some important files and folders.
+- your source documentation scaffold
+- cursor rules
+- dlt pipeline template files
 
-We are also happy to get improvements. Make a PR with an update [here](https://github.com/dlt-hub/verified-sources/ai).
-:::
+### 2.3 Model and context selection
 
-
-### 2.3 Configuring Cursor with documentation
-
-Under `Cursor Settings` > `Features` > `Docs`, you will see the docs you have added. You can edit, delete, or add new docs here.
-
-We recommend adding documentation scoped for a specific task. Here you may try:
-* REST API Source documentation: https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/
-* Core `dlt` concepts & usage: https://dlthub.com/docs/general-usage/resource (optional)
+We had the best results with models Claude 3.7-sonnet and Gemini 2.5 or higher. Weaker models were not able to comprehend the required context in full and were not able to use tools and follow workflows consistently. Due to the big performance difference we discourage using inferior models.
 
 
-We observed that cursor is not able to ingest full `dlt` docs (there are bug reports in cursor about their docs crawler). Also putting too much information into the agent context will prevent generation of correct code.
 
-### 2.4 Integrating local docs
+## 3. Begin coding
 
-If you have local docs in a folder in your codebase, Cursor will automatically index them unless they are added to `.gitignore` or `.cursorignore` files.
+Once you are ready, prompt something along the lines:
 
-To improve accuracy, make sure any files or docs that could confound the search are ignored.
+ ```prompt
+    Please generate a REST API Source for {source} API, as specified in @{source}-docs.yaml
+    Start with endpoints {endpints you want} and skip incremental loading for now.
+    Place the code in {source}_pipeline.py and name the pipeline {source}_pipeline.
+    If the file exists, use it as a starting point.
+    Do not add or modify any other files.
+    Use @dlt rest api as a tutorial.
+    After adding the endpoints, allow the user to run the pipeline with python {source}_pipeline.py and await further instructions.
+   ```
 
-### 2.5 Documentation augmentation
+ If your pipeline runs correctly, you’ll see something like the following:
 
-If existing documentation for a task is regularly ignored by LLMs, consider using reverse prompts outside of cursor to create LLM optimised docs, and then make those available to cursor as local documentation. You could use a RAG or something like DeepResearch for this task. You can then ask cursor to improve the cursor rules with this documentation.
+    ```shell
+    Pipeline {source} load step completed in 0.26 seconds
+    1 load package(s) were loaded to destination duckdb and into dataset {source}_data
+    The duckdb destination used duckdb:/{source}.duckdb location to store data
+    Load package 1749667187.541553 is LOADED and contains no failed jobs
+    ```
 
-### 2.6 Model and context selection
+If the pipeline runs, continue to the debugging step. If it does not, pass the error message to the LLM in chat and let it attempt to resolve it until the code runs. If your code does not run after 4-8 prompts, consider restarting the process.
 
-We had the best results with Claude 3.7-sonnet (which requires paid version of Cursor). Weaker models were not able to comprehend the required 
-context in full and were not able to use tools and follow workflows consistently.
+Consider prompting for instructions how to make credentials for the source and add them to the project secrets file.
 
-We typically put the following in the context:
-1. docs: REST API Source documentation
-2. example `rest_api_pipeline.py`
-3. yaml definitions, OpenAPI specs or references to files implementing legacy data source
-4. we've noticed that it makes sense to copy initial section from `build-rest-api` rule, which Claude follows pretty well.
 
-## 3. Running the workflow
+## 4. Debug your pipeline and data with the Pipeline Dashboard
 
-Before you start, it might be a good idea to scaffold a dlt pipeline by running dlt init with the REST API source:
+Now that you have a running pipeline, you need to make sure it’s correct, so you do not introduce silent failures like misconfigured pagination or incremental. By launching the dlt Workspace Pipeline Dashboard, you can see various info about the pipeline to enable you to test it.
 
-`dlt init rest_api duckdb`
+Here you can see:
+    - Pipeline overview: State, load metrics
+    - Data’s schema: tables, columns, types, hints,
+    - You can query the data itself
 
-Consider prompting for instructions how to make credentials for the source and add them to the project.
+    ```shell
+    dlt pipeline {source}_pipeline show --dashboard
+    ```
 
-1. **Initial prompt:**
-    - Make sure your cursor rule is added, dlt REST API docs are added and your source for information is added.
-    - Prompt something along the lines:
-    
-        "Please build a REST API (dlthub) pipeline using the details from the documentation you added in context. Please include all endpoints you find and try to capture the incremental logic you can find. Use the build REST API cursor rule. Build it in a python file called “my_pipeline.py" 
-    
-    - If it builds what looks like a sensible REST API source, go on with inspection. If not and if the LLM ended up writing random code, just start over.
-2. **Inspect the generated code:**
-    - Look into the endpoints that were added. Often the LLM will stop after adding a bunch, so you might need to prompt “Did you add all the endpoints? Please do”.
-    - Look into incremental loading configs, does it align with documentation, is it sensible?
-3. **Run and test the code:**
-    - Execute the code in a controlled test environment.
-    - If it succeeds, double check the outputs and make double sure your incremental and pagination are correct - both of them could cause silent failures, where only some pages are loaded, or pagination never finishes (some APIs re-start from page 0 once they finish pages), or the wrong incremental strategy removes records based on the wrong key, or the wrong data is extracted.  Writing some tests is probably a good idea at this point.
-4. **Error handling and recovery:**
-    - If an error occurs, share the error message with Cursor’s LLM agent chat.
-    - Let the LLM attempt to recover the error and repeat this process until the issue is resolved.
-5. **Iterative debugging:**
-    - If errors persist after several attempts, review the error details manually.
-        - Extraction issue: Identify if any configuration details are missing from the feature extraction, and try to manually locate the missing information and provide it in the chat along with the error message.
-        - Info in responses: Currently the REST API does not return full information about the API calls on failure, to prevent accidental leakage of sensitive information. We are considering adding a dev mode for enabling full responses in a future version. If you want to pass the full responses, consider building the pipeline in pure python first  to expose the API responses (you can prompt for it).
-        - Implementation incorrect: If the extracted details seem correct but the REST API source still isn’t implemented properly, ask the LLM to re-check the REST API documentation and locate the missing information.
+Read more about [accessing your data](https://dlthub.com/docs/general-usage/dataset-access/)
 
-## 4. Best practices and vibe coding tips
 
-Below, find some tips that might help when vibe coding REST API or python pipelines.
+## 5. Next steps: Deploy to production
 
-### 4.1 General best practices
-
-- **Clarity over cleverness**
-    - Use explicit names for variables, configs, and pipeline steps.
-        
-        `source_config = {...}` is better than `cfg = {...}`.
-        
-    - Version your code and config files. Use Git branches per integration.
-    - Include comments only when the code isn’t self-explanatory, avoid noise.
-        
-        Good: `# Required by API to avoid pagination bug`.
-        
-        Bad: `# Set the page size`.
-        
-- **Use checklists, no, really.**
-    
-    Before publishing any new pipeline or source, confirm:
-    
-    - [ ]  All `client` configs (auth keys, tokens, endpoints) are present and correct.
-    - [ ]  `resource` settings match the expected schema and entity structure.
-    - [ ]  Incremental fields (`updated_at`, `id`, etc.) are configured correctly.
-    - [ ]  Destination settings (dataset names, schema names, write disposition) are reviewed.
-- **Break work into small, testable chunks**
-    - Don’t process all endpoints at once. Implement one `resource` at a time, test it, and then layer more.
-    - Ingestion pipelines should run in under 10 minutes locally, if not, split the logic.
-    - Use fixtures or mocks when testing APIs with rate limits or unstable responses.
-
-### 4.2 LLM-Specific tips & common pitfalls
-
-- **Prompt design tips**
-    - Give context: include 1-2 lines about the task, data structure, and output format.
-        
-        Example: *"You are generating Python code to parse a paginated REST API. Output one function per endpoint."*
-    
-    - Be explicit: always define structure expectations.
-        
-        Example: *"Return a list of dictionaries with keys `id`, `name`, `timestamp`."*
-        
-    - Avoid ambiguity: never say “optimize” or “improve” unless you define what “better” means.
-- **Validate LLM output like you would PRs**
-    - Run the code it generates.
-    - Compare schema definitions, type hints, and transformations with the actual API/data.
-    - If your docs say a field is optional, the prompt should include that.
-- **Pitfalls to avoid**
-    - Session sprawl: Keep LLM sessions under 15-20 interactions. Split into sub-tasks if needed.
-    - Misinterpreting placeholders: For dynamic variables like `{{timestamp}}` or `{{page}}`, wrap them in extra explanation, e.g.,
-        
-        *"Use `{{timestamp}}` as an ISO 8601 string from the last run time."*
-        
-    - **Model drift**: GPT-4, Claude, and other models don’t behave the same. Outputs vary in subtle ways. Always test prompts across models if switching.
-- **When changing models or seeing weird behavior:**
-    - Reduce the scope: instead of asking “write the full source,” say “write the pagination logic.”
-    - Switch from creative mode (broad prompts) to constrained mode (e.g., give a template and ask it to fill it in).
-    - Run diffs between old and new LLM outputs to detect accidental regressions, especially if you fine-tuned prompts.
-
-## Closing words
-
-This domain is new, and the document on this page will evolve as we will be better able to provide better instructions. We are actively working on pushing the envelope. For advanced usage, see our [MCP server docs.](../../dlt-ecosystem/llm-tooling/mcp-server.md)
+- [How to prepare production deployment](https://dlthub.com/docs/walkthroughs/share-a-dataset)
+- [How to deploy a pipeline](https://dlthub.com/docs/walkthroughs/deploy-a-pipeline)
