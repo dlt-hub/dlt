@@ -8,7 +8,7 @@ keywords: [cursor, llm, restapi, ai]
 
 ## Overview
 
-The purpose of this document is to explain how to build REST API sources with Cursor and dlt. While the focus here is on REST APIs, this approach can be generalized to other source types such as Python imperative/full code dlthub sources. We choose REST APIs becausebeing a declarative source, it is ideal for this process - being inherently self-documenting, exposing endpoints and methods in a way that enables us to easily troubleshoot and refine our AI-assisted development.
+The purpose of this document is to explain how to build REST API sources with Cursor and `dlt`. While the focus here is on REST APIs, this approach can be generalized to other source types such as Python imperative/full code dlthub sources. We choose REST APIs because being a declarative source, it is ideal for this process - being inherently self-documenting, exposing endpoints and methods in a way that enables us to easily troubleshoot and refine our AI-assisted development.
 
 With REST API sources being configuration-driven and AI-assisted development based on prompts, users don't necessarily need extensive coding experience. However, it is important to understand how an API is represented and how data should be structured at the destination, such as managing incremental loading configurations. This foundational knowledge ensures that even non-developers can effectively contribute to building and maintaining these data pipelines.
 
@@ -97,10 +97,10 @@ Here you can see:
     dlt pipeline {source}_pipeline show --dashboard
     ```
 
-Read more about [accessing your data](../../general-usage/dataset-access.md)
+Read more about [accessing your data](../../general-usage/dataset-access)
 
 
 ## 5. Next steps: Deploy to production
 
 - [How to prepare production deployment](../../walkthroughs/share-a-dataset.md)
-- [How to deploy a pipeline](../../walkthroughs/deploy-a-pipeline.md)
+- [How to deploy a pipeline](../../walkthroughs/deploy-a-pipeline/)
