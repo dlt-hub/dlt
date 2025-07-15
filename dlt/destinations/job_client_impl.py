@@ -78,10 +78,10 @@ from dlt.destinations.utils import (
 )
 from dlt.destinations.queries import (
     normalize_query,
+    render_sql,
     build_insert_expr,
     build_stored_state_expr,
     build_stored_schema_expr,
-    replace_placeholders,
     build_info_schema_columns_expr,
     build_create_table_expr,
     build_delete_schema_expr,
@@ -418,7 +418,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             table_name=name, columns=list(self.loads_table_schema_columns.keys())
         )
 
-        normalized_query = self._render_sql(insert_expr, ensure_pystring_placeholders=True)
+        normalized_query = render_sql(insert_expr, self.schema, self.sql_client)
 
         self.sql_client.execute_sql(
             normalized_query,
@@ -535,24 +535,6 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     ) -> TColumnType:
         pass
 
-    def _render_sql(
-        self,
-        expr: Union[sge.Query, sge.Insert, sge.Create, sge.Delete],
-        normalize: bool = True,
-        ensure_pystring_placeholders: bool = False,
-    ) -> str:
-        """Normalizes sqlglot expression into a raw SQL string using the client's dialect and schema"""
-        dialect = self.sql_client.capabilities.sqlglot_dialect
-        if normalize:
-            sqlglot_schema = create_sqlglot_schema(
-                self.schema,
-                self.sql_client.dataset_name,
-                self.sql_client.capabilities.sqlglot_dialect,
-            )
-            expr = normalize_query(sqlglot_schema, expr, self.sql_client)
-        query = expr.sql(dialect=dialect)
-        return replace_placeholders(query, dialect) if ensure_pystring_placeholders else query
-
     def get_stored_schema(self, schema_name: str = None) -> StorageSchemaInfo:
         table_name = self.schema.version_table_name
         c_schema_name = self.schema.naming.normalize_path("schema_name")
@@ -566,7 +548,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             c_schema_name=c_schema_name,
         )
 
-        normalized_query = self._render_sql(select_expr)
+        normalized_query = render_sql(select_expr, self.schema, self.sql_client)
         return self._row_to_schema_info(normalized_query)
 
     def get_stored_state(self, pipeline_name: str) -> StateInfo:
@@ -588,7 +570,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             c_status=c_status,
         )
 
-        normalized_query = self._render_sql(stored_state_expr)
+        normalized_query = render_sql(stored_state_expr, self.schema, self.sql_client)
         with self.sql_client.execute_query(normalized_query) as cur:
             row = cur.fetchone()
         if not row:
@@ -619,7 +601,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             c_version_hash=c_version_hash,
         )
 
-        normalized_query = self._render_sql(select_expr)
+        normalized_query = render_sql(select_expr, self.schema, self.sql_client)
         return self._row_to_schema_info(normalized_query)
 
     def _get_info_schema_columns_query(
@@ -638,9 +620,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             folded_table_names=folded_table_names,
         )
 
-        query = self._render_sql(
-            schema_cols_expr, normalize=False, ensure_pystring_placeholders=True
-        )
+        query = render_sql(schema_cols_expr, self.schema, self.sql_client, normalize=False)
 
         return query, db_params
 
@@ -727,7 +707,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             use_if_exists=use_if_exists,
             quoted_identifiers=True,
         )
-        return self._render_sql(expr=create_expr, normalize=True)
+        return render_sql(create_expr, self.schema, self.sql_client)
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
@@ -875,7 +855,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             table_name=self.schema.version_table_name,
             c_schema_name=self.schema.naming.normalize_path("schema_name"),
         )
-        query = self._render_sql(delete_expr, normalize=True, ensure_pystring_placeholders=True)
+        query = render_sql(delete_expr, self.schema, self.sql_client)
         self.sql_client.execute_sql(query, schema.name)
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
@@ -896,7 +876,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             table_name=name, columns=list(self.version_table_schema_columns.keys())
         )
 
-        normalized_query = self._render_sql(insert_expr, ensure_pystring_placeholders=True)
+        normalized_query = render_sql(insert_expr, self.schema, self.sql_client)
 
         self.sql_client.execute_sql(
             normalized_query,

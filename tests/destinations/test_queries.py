@@ -9,7 +9,6 @@ from dlt.destinations.queries import (
     build_info_schema_columns_expr,
     build_create_table_expr,
     build_delete_schema_expr,
-    replace_placeholders,
 )
 from dlt.common.schema.typing import C_DLT_LOAD_ID
 
@@ -74,16 +73,16 @@ def test_selected_columns() -> None:
 
 def test_build_insert_expr() -> None:
     stmt = build_insert_expr("my_table", ["col1", "col2", "col3"], quoted_identifiers=True)
-    expected = 'INSERT INTO "my_table" ("col1", "col2", "col3") VALUES (?, ?, ?)'
+    expected = 'INSERT INTO "my_table" ("col1", "col2", "col3") VALUES (%s, %s, %s)'
     assert stmt.sql() == expected
 
     stmt = build_insert_expr("my_table", ["col1", "col2"], quoted_identifiers=False)
-    expected = "INSERT INTO my_table (col1, col2) VALUES (?, ?)"
+    expected = "INSERT INTO my_table (col1, col2) VALUES (%s, %s)"
     assert stmt.sql() == expected
 
     # Test single column
     stmt = build_insert_expr("users", ["name"], quoted_identifiers=True)
-    expected = 'INSERT INTO "users" ("name") VALUES (?)'
+    expected = 'INSERT INTO "users" ("name") VALUES (%s)'
     assert stmt.sql() == expected
 
 
@@ -163,7 +162,7 @@ def test_build_info_schema_columns_expr(with_catalog_name: bool, with_folded_tab
         expected = (  # NULLS LAST is added by sqlglot for the default dialect and some others
             "SELECT table_name, column_name, data_type "
             "FROM INFORMATION_SCHEMA.COLUMNS "
-            "WHERE table_catalog = ? AND table_schema = ? AND table_name IN (?, ?) "
+            "WHERE table_catalog = %s AND table_schema = %s AND table_name IN (%s, %s) "
             "ORDER BY table_name NULLS LAST, ordinal_position NULLS LAST"
         )
         expected_params = ["test_catalog", "test_schema", "table1", "table2"]
@@ -171,7 +170,7 @@ def test_build_info_schema_columns_expr(with_catalog_name: bool, with_folded_tab
         expected = (
             "SELECT table_name, column_name, data_type "
             "FROM INFORMATION_SCHEMA.COLUMNS "
-            "WHERE table_schema = ? "
+            "WHERE table_schema = %s "
             "ORDER BY table_name NULLS LAST, ordinal_position NULLS LAST"
         )
         expected_params = ["test_schema"]
@@ -179,7 +178,7 @@ def test_build_info_schema_columns_expr(with_catalog_name: bool, with_folded_tab
         expected = (
             "SELECT table_name, column_name, data_type "
             "FROM INFORMATION_SCHEMA.COLUMNS "
-            "WHERE table_schema = ? AND table_name IN (?, ?) "
+            "WHERE table_schema = %s AND table_name IN (%s, %s) "
             "ORDER BY table_name NULLS LAST, ordinal_position NULLS LAST"
         )
         expected_params = ["test_schema", "table1", "table2"]
@@ -187,7 +186,7 @@ def test_build_info_schema_columns_expr(with_catalog_name: bool, with_folded_tab
         expected = (
             "SELECT table_name, column_name, data_type "
             "FROM INFORMATION_SCHEMA.COLUMNS "
-            "WHERE table_catalog = ? AND table_schema = ? "
+            "WHERE table_catalog = %s AND table_schema = %s "
             "ORDER BY table_name NULLS LAST, ordinal_position NULLS LAST"
         )
         expected_params = ["test_catalog", "test_schema"]
@@ -222,57 +221,7 @@ def test_build_delete_schema_expr(quoted: bool) -> None:
         quoted_identifiers=quoted,
     )
     if quoted:
-        expected = 'DELETE FROM "my_table" WHERE "schema_name" = ?'
+        expected = 'DELETE FROM "my_table" WHERE "schema_name" = %s'
     else:
-        expected = "DELETE FROM my_table WHERE schema_name = ?"
+        expected = "DELETE FROM my_table WHERE schema_name = %s"
     assert stmt.sql() == expected
-
-
-def test_replace_placeholders() -> None:
-    # Test basic tuple replacement
-    query = "INSERT INTO table (col1, col2, col3) VALUES (?, ?, ?)"
-    result = replace_placeholders(query, "postgres")
-    expected = "INSERT INTO table (col1, col2, col3) VALUES (%s, %s, %s)"
-    assert result == expected
-
-    # Test multiple tuples
-    query = "INSERT INTO table (col1, col2) VALUES (?, ?), (?, ?)"
-    result = replace_placeholders(query, "postgres")
-    expected = "INSERT INTO table (col1, col2) VALUES (%s, %s), (%s, %s)"
-    assert result == expected
-
-    # Test standalone placeholder
-    query = "SELECT * FROM table WHERE id = ?"
-    result = replace_placeholders(query, "postgres")
-    expected = "SELECT * FROM table WHERE id = %s"
-    assert result == expected
-
-    # Test ClickHouse format
-    query = "INSERT INTO table (col1, col2) VALUES ({?: }, {?: })"
-    result = replace_placeholders(query, "clickhouse")
-    expected = "INSERT INTO table (col1, col2) VALUES (%s, %s)"
-    assert result == expected
-
-    # Test ClickHouse standalone
-    query = "SELECT * FROM table WHERE id = {?: }"
-    result = replace_placeholders(query, "clickhouse")
-    expected = "SELECT * FROM table WHERE id = %s"
-    assert result == expected
-
-    # Test mixed case with spaces
-    query = "INSERT INTO table (col1, col2, col3) VALUES ( ? , ? , ? )"
-    result = replace_placeholders(query, "postgres")
-    expected = "INSERT INTO table (col1, col2, col3) VALUES (%s, %s, %s)"
-    assert result == expected
-
-    # Test no placeholders
-    query = "SELECT * FROM table"
-    result = replace_placeholders(query, "postgres")
-    expected = "SELECT * FROM table"
-    assert result == expected
-
-    # Test placeholder token appearing elsewhere
-    query = "INSERT INTO my??table (col?, col?col) VALUES (?, ?)"
-    result = replace_placeholders(query, "postgres")
-    expected = "INSERT INTO my??table (col?, col?col) VALUES (%s, %s)"
-    assert result == expected

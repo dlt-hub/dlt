@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional, overload, Union, Match, Tuple
+from typing import Dict, Any, List, Optional, overload, Union, Tuple
 
 import re
 
@@ -6,9 +6,11 @@ import sqlglot
 import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema
 
+from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
-from dlt.common.typing import TypedDict
-from dlt.common.destination.client import PreparedTableSchema
+from dlt.common.schema import Schema
+
+from dlt.transformations.lineage import create_sqlglot_schema
 
 
 @overload
@@ -93,6 +95,9 @@ def normalize_query(
                         node.set("catalog", sqlglot.to_identifier(expanded_path[0], quoted=False))
         # quote and case-fold identifiers, TODO: maybe we could be more intelligent, but then we need to unquote ibis
         if isinstance(node, sge.Identifier):
+            # if it's a pystring placeholder, skip
+            if node.this == "%s":
+                continue
             if is_casefolding:
                 node.set("this", caps.casefold_identifier(node.this))
             node.set("quoted", True)
@@ -107,6 +112,25 @@ def normalize_query(
                 qualified_query.selects[i] = sge.alias_(sel_expr, orig, quoted=True)
 
     return qualified_query
+
+
+def render_sql(
+    expr: Union[sge.Query, sge.Insert, sge.Create, sge.Delete],
+    schema: Schema,
+    sql_client: SqlClientBase[TNativeConn],
+    normalize: bool = True,
+) -> str:
+    """Normalizes sqlglot expression into a raw SQL string using the client's dialect and schema"""
+    dialect = sql_client.capabilities.sqlglot_dialect
+    if normalize:
+        sqlglot_schema = create_sqlglot_schema(
+            schema,
+            sql_client.dataset_name,
+            dialect,
+        )
+        expr = normalize_query(sqlglot_schema, expr, sql_client)
+    query = expr.sql(dialect=dialect)
+    return query
 
 
 def build_row_counts_expr(
@@ -182,7 +206,11 @@ def build_insert_expr(
     columns_expr = [sge.to_identifier(col, quoted=quoted_identifiers) for col in columns]
 
     placeholders_expr = sge.Values(
-        expressions=[sge.Tuple(expressions=[sge.Placeholder() for _ in enumerate(columns)])]
+        expressions=[
+            sge.Tuple(
+                expressions=[sge.to_identifier("%s", quoted=False) for _ in enumerate(columns)]
+            )
+        ]
     )
 
     insert_expr = sge.insert(expression=placeholders_expr, into=table_expr, columns=columns_expr)
@@ -342,14 +370,14 @@ def build_info_schema_columns_expr(
     if catalog_name:
         where_table_catalog = sge.EQ(
             this=sge.to_identifier("table_catalog", quoted=False),
-            expression=sge.Placeholder(),
+            expression=sge.to_identifier("%s", quoted=False),
         )
         db_params.append(catalog_name)
 
     # Always filter by schema
     where_table_schema = sge.EQ(
         this=sge.to_identifier("table_schema", quoted=False),
-        expression=sge.Placeholder(),
+        expression=sge.to_identifier("%s", quoted=False),
     )
     db_params.append(schema_name)
 
@@ -358,7 +386,9 @@ def build_info_schema_columns_expr(
     if folded_table_names:
         where_table_name_in = sge.In(
             this=sge.to_identifier("table_name", quoted=False),
-            expressions=[sge.Placeholder() for _ in enumerate(folded_table_names)],
+            expressions=[
+                sge.to_identifier("%s", quoted=False) for _ in enumerate(folded_table_names)
+            ],
         )
         db_params += folded_table_names
 
@@ -400,28 +430,7 @@ def build_delete_schema_expr(
     )
     where_condition = sge.EQ(
         this=sge.Column(this=sge.to_identifier(c_schema_name, quoted=quoted_identifiers)),
-        expression=sge.Placeholder(),
+        expression=sge.to_identifier("%s", quoted=False),
     )
     delete_expr = delete_expr.where(where_condition)
     return delete_expr
-
-
-def replace_placeholders(query: str, dialect: str) -> str:
-    """Replaces (?, ?, ?, ...), as well as ({?: }, {?: }, {?: }, ...) placeholders with (%s, %s, %s, ...)."""
-
-    # Sqlglot creates "{?: }"" placeholders for clickhouse, otherwise just "?""
-    placeholder_pattern = r"\{\?:\s*\}" if dialect == "clickhouse" else r"\?"
-
-    # Only match tuples, not stray ?'s elsewhere
-    base_pattern = rf"\(\s*{placeholder_pattern}\s*(,\s*{placeholder_pattern}\s*)*\)"
-
-    def _convert_to_percents(match: Match[str]) -> str:
-        n = len(re.findall(placeholder_pattern, match.group()))
-        return "(" + ", ".join(["%s"] * n) + ")"
-
-    query = re.sub(base_pattern, _convert_to_percents, query)
-
-    # Handle standalone placeholders
-    query = re.sub(rf"\s*=\s*{placeholder_pattern}", " = %s", query)
-
-    return query
