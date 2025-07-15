@@ -132,7 +132,7 @@ def test_base_transformation_spec() -> None:
 
     # we return SQL so we expect a model to be created
     model = list(default_spec(ds_))[0]
-    assert isinstance(model, Relation)
+    assert isinstance(model, ReadableDBAPIRelation)
     # TODO: why dialect is not set??
     # assert model.dialect is not None
 
@@ -152,7 +152,7 @@ def test_base_transformation_spec() -> None:
     os.environ["LAST_ID"] = "test_last_id"
 
     model = list(default_transformation_with_args(ds_))[0]
-    assert isinstance(model, Relation)
+    assert isinstance(model, ReadableDBAPIRelation)
     assert get_fun_last_config(default_transformation_with_args)["last_id"] == "test_last_id"
 
     # test explicit spec
