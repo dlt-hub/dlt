@@ -363,8 +363,11 @@ class FilesystemClient(
         """Yields tables that have files in storage, returns columns from current schema"""
         for table_name in table_names:
             table_dir = self.get_table_dir(table_name)
-            if self.fs_client.exists(table_dir) and (
-                self.is_dlt_table(table_name) or len(self.list_table_files(table_name)) > 0
+            table_exists = self.is_dlt_table(table_name) and self.is_storage_initialized()
+            if (
+                table_exists
+                or self.fs_client.exists(table_dir)
+                or len(self.list_table_files(table_name)) > 0
             ):
                 if table_name in self.schema.tables:
                     yield (table_name, self.schema.get_table_columns(table_name))
@@ -613,10 +616,10 @@ class FilesystemClient(
     def _list_dlt_table_files(
         self, table_name: str, pipeline_name: str = None
     ) -> Iterator[Tuple[str, List[str]]]:
-        dirname = self.get_table_dir(table_name)
-        if not self.is_storage_initialized():
-            raise DestinationUndefinedEntity({"dir": dirname})
         all_files = self.list_table_files(table_name)
+        if len(all_files) == 0:
+            if not self.is_storage_initialized():
+                raise DestinationUndefinedEntity(table_name)
         for filepath in all_files:
             filename = os.path.splitext(os.path.basename(filepath))[0]
             fileparts = filename.split(FILENAME_SEPARATOR)
