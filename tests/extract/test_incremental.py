@@ -32,6 +32,7 @@ from dlt.common.utils import chunks, digest128, uniq_id
 
 from dlt.extract import DltSource
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
+from dlt.extract.pipe import Pipe
 from dlt.extract.state import resource_state
 from dlt.extract.incremental.exceptions import (
     IncrementalCursorInvalidCoercion,
@@ -4058,6 +4059,14 @@ def test_start_range_open_no_deduplication(item_type: TestDataItemFormat) -> Non
 
     # No unique values should be computed
     assert state["unique_hashes"] == []
+
+
+def test_primary_key_disables_deduplication() -> None:
+    incremental = dlt.sources.incremental[int]("updated_at")
+    incremental._cached_state = {"unique_hashes": [], "initial_value": None, "last_value": None}
+    assert incremental._get_transform({}).boundary_deduplication is True
+    incremental.primary_key = ()
+    assert incremental._get_transform({}).boundary_deduplication is False
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)

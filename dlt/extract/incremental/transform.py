@@ -98,11 +98,6 @@ class IncrementalTransform:
         primary_key: Optional[TTableHintTemplate[TColumnNames]],
     ) -> str:
         try:
-            # assert not self.deduplication_disabled, (
-            #     f"{self.resource_name}: Attempt to compute unique values when deduplication is"
-            #     " disabled"
-            # )
-
             if primary_key:
                 return digest128(json.dumps(resolve_column_value(primary_key, row), sort_keys=True))
             elif primary_key is None:
