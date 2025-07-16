@@ -148,8 +148,7 @@ class RESTClient:
         return self.session.send(prepared_request, **send_kwargs)
 
     def _log_request(self, request: Request, prepared_url: str) -> None:
-        # XXX: Use logger.isEnabledFor(logging.DEBUG) once dlt logger is fixed
-        if logger.log_level() == "DEBUG":
+        if logger.isEnabledFor(logging.DEBUG):
             logger.debug(
                 f"Making {request.method.upper()} request to {request.url}"
                 f" with params={request.params}, json={request.json},"
