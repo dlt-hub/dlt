@@ -75,6 +75,14 @@ class ReadableDBAPIDataset(Dataset):
         if not self._schema:
             self._ensure_schema()
         return self._schema
+    
+    @property
+    def tables(self) -> list[str]:
+        return list(self.schema.tables.keys())
+    
+    def _ipython_key_completions_(self) -> list[str]:
+        print("getting keys")
+        return self.tables
 
     @property
     def sqlglot_schema(self) -> SQLGlotSchema:
@@ -266,11 +274,11 @@ class ReadableDBAPIDataset(Dataset):
 
     def __getitem__(self, table_name: str) -> Relation:
         """access of table via dict notation"""
+        if table_name not in self.tables:
+            raise KeyError(f"Table `{table_name}` not found on dataset. Available tables: `{self.tables}`")
+
         return self.table(table_name)
 
-    def __getattr__(self, table_name: str) -> Relation:
-        """access of table via property notation"""
-        return self.table(table_name)
 
     def __enter__(self) -> Self:
         """Context manager used to open and close sql client and internal connection"""

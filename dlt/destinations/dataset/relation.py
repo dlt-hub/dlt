@@ -181,6 +181,13 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
     @schema.setter
     def schema(self, new_value: TTableSchema) -> None:
         raise NotImplementedError("Schema may not be set")
+    
+    @property
+    def columns(self) -> list[str]:
+        return list(self.schema.get("columns", {}).keys())
+    
+    def _ipython_key_completions_(self) -> list[str]:
+        return self.columns
 
     #
     # WithSqlClient interface
@@ -464,17 +471,18 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
     def __getitem__(self, columns: Sequence[str]) -> Self:
         # NOTE remember that `issubclass(str, Sequence) is True`
         if isinstance(columns, str):
+            columns = [columns]      
+        elif not isinstance(columns, Sequence):
             raise TypeError(
-                f"Received invalid value `columns={columns}` of type"
-                f" {type(columns).__name__}`. Valid types are: ['Sequence[str]']"
+                f"Received value `{columns=:}` of type `{type(columns).__name__}`."
+                " Valid types are: `[Sequence[str]]`"
             )
-        elif isinstance(columns, Sequence):
-            return self.select(*columns)
 
-        raise TypeError(
-            f"Received invalid value `columns={columns}` of type"
-            f" {type(columns).__name__}`. Valid types are: ['Sequence[str]']"
-        )
+        unknown_columns = [col for col in columns if col not in self.columns]
+        if unknown_columns:
+            raise KeyError(f"Columns `{unknown_columns}` not found on dataset. Available columns: {self.columns}")
+
+        return self.select(*columns)
 
     #
     # Builtins
