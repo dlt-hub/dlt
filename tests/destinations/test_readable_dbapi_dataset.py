@@ -5,9 +5,6 @@ import dlt
 import pytest
 
 import dlt.destinations.dataset
-from dlt.destinations.dataset.exceptions import (
-    ReadableRelationUnknownColumnException,
-)
 from dlt.transformations.exceptions import LineageFailedException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
@@ -50,7 +47,7 @@ def test_relation_autocompletion(mock_dataset: ReadableDBAPIDataset):
 
 
 def test_query_builder(mock_dataset: ReadableDBAPIDataset) -> None:
-    relation = cast(ReadableDBAPIRelation, mock_dataset["my_table"])
+    relation = cast(ReadableDBAPIRelation, mock_dataset.my_table)
 
     # default query for a table
     assert (
@@ -109,7 +106,7 @@ def test_copy_and_chaining() -> None:
     }
 
     # create relation and set some stuff on it
-    relation = cast(ReadableDBAPIRelation, dataset["items"])
+    relation = cast(ReadableDBAPIRelation, dataset.items)
     relation = relation.limit(34)
     relation = relation[["one", "two"]]
 
@@ -135,7 +132,7 @@ def test_computed_schema_columns() -> None:
     )
 
     with pytest.raises(KeyError):
-        dataset["items"]
+        dataset.items
 
     dataset.schema.tables["items"] = {
         "columns": {
@@ -145,7 +142,7 @@ def test_computed_schema_columns() -> None:
     }
 
     # now add columns
-    relation = dataset["items"]
+    relation = dataset.items
 
     # computed columns are same as above
     assert relation.columns_schema == {

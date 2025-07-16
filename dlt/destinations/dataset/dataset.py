@@ -278,7 +278,14 @@ class ReadableDBAPIDataset(Dataset):
             raise KeyError(f"Table `{table_name}` not found on dataset. Available tables: `{self.tables}`")
 
         return self.table(table_name)
+    
+    def __getattr__(self, name: str) -> Any:
+        """Retrieve a `Relation` via `__getitem__` if standard `__getattr__` returns `None`."""
+        attribute = self.__dict__.get(name, None)
+        if attribute is not None:
+            return attribute
 
+        return self.__getitem__(table_name=name)
 
     def __enter__(self) -> Self:
         """Context manager used to open and close sql client and internal connection"""
