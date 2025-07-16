@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 from dlt.common.warnings import DltDeprecationWarning
+
 if not TYPE_CHECKING:
     from dlt.common.warnings import DltDeprecationWarning
 
