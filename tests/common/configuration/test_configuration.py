@@ -1716,7 +1716,7 @@ def test_warn_when_resolving_placeholders(
             # verify
             assert value == placeholder_value
             assert mock_warning.call_count == 1
-            msg = mock_warning.call_args[0][0]
+            msg = mock_warning.call_args[1]["msg"]
             assert "Placeholder value encountered when resolving config or secret" in msg
             assert key in msg
             assert str(placeholder_value) in msg
