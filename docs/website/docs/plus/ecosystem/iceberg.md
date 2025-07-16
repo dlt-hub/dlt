@@ -310,6 +310,319 @@ export DESTINATION__ICEBERG__CAPABILITIES__TABLE_LOCATION_LAYOUT={dataset_name}/
 
 For more information, refer to the [Lakekeeper section above](#lakekeeper-catalog).
 
+### AWS Iceberg Catalogs
+
+dlt supports three AWS-backed Iceberg catalogs.
+Their names correspond to the `catalog_type` value you pass in your destination block:
+
+| `catalog_type`      | What it talks to under the hood |
+| ------------------- | ----------------------------------------------------------------------------------- |
+| **`s3tables-rest`** | Uses the AWS S3 Tables Iceberg REST API endpoint, and S3 table buckets |
+| **`glue-rest`**     | Uses the AWS Glue Iceberg REST API endpoint, Lake Formation, and S3 table buckets |
+| **`glue`**          | Uses the AWS Glue Catalog, and normal S3 buckets |
+
+
+#### Catalog `[s3tables-rest]`
+
+Configure this catalog when you want to publish Iceberg tables directly into an S3 Table bucket via the Amazon S3 Tables Iceberg REST API endpoint.
+
+To configure a `s3tables-rest` catalog, provide the following parameters and replace `<region>`, `<account-id>`, `<s3-table-bucket-name>`, and AWS keys with your actual values:
+
+<Tabs
+  groupId="filesystem-type"
+  defaultValue="yml"
+  values={[
+    {"label": "dlt.yml", "value": "yml"},
+    {"label": "TOML files", "value": "toml"},
+    {"label": "Environment variables", "value": "env"}
+]}>
+
+<TabItem value="yml">
+
+```yaml
+# we recommend to put sensitive parameters to secrets.toml
+destinations:
+  iceberg_lake:
+    type: iceberg
+    catalog_type: s3tables-rest
+    catalog_name: iceberg_lake
+    credentials:
+        warehouse: "arn:aws:s3tables:<region>:<account-id>:bucket/<s3-table-bucket-name>"
+        uri: "https://s3tables.<region>.amazonaws.com/iceberg"
+        aws_access_key_id: "<aws_access_key_id>"
+        aws_secret_access_key: "<aws_secret_access_key>"
+        region_name: "<region>"
+        properties:
+            rest.sigv4-enabled: "true"
+            rest.signing-name: "s3tables"
+            rest.signing-region: "<region>"
+
+```
+</TabItem>
+
+<TabItem value="toml">
+
+```toml
+[destination.iceberg]
+catalog_type = "s3tables-rest"
+catalog_name = "iceberg_lake"
+
+[destination.iceberg.credentials]
+warehouse = "arn:aws:s3tables:<region>:<account-id>:bucket/<s3-table-bucket-name>"
+uri       = "https://s3tables.<region>.amazonaws.com/iceberg"
+aws_access_key_id     = "<aws_access_key_id>"
+aws_secret_access_key = "<aws_secret_access_key>"
+region_name           = "<region>"
+
+[destination.iceberg.credentials.properties]
+"rest.sigv4-enabled"  = "true"
+"rest.signing-name"   = "s3tables"
+"rest.signing-region" = "<region>"
+```
+</TabItem>
+
+<TabItem value="env">
+
+```sh
+export DESTINATION__ICEBERG__CREDENTIALS__WAREHOUSE="arn:aws:s3tables:<region>:<account-id>:bucket/<s3-table-bucket-name>"
+export DESTINATION__ICEBERG__CREDENTIALS__URI="https://s3tables.<region>.amazonaws.com/iceberg"
+export DESTINATION__ICEBERG__CREDENTIALS__AWS_ACCESS_KEY_ID="<aws_access_key_id>"
+export DESTINATION__ICEBERG__CREDENTIALS__AWS_SECRET_ACCESS_KEY="<aws_secret_access_key>"
+export DESTINATION__ICEBERG__CREDENTIALS__REGION_NAME="<region>"
+
+export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES='{
+  "rest.sigv4-enabled": "true",
+  "rest.signing-name" : "s3tables",
+  "rest.signing-region": "<region>"
+}'
+```
+</TabItem>
+
+</Tabs>
+
+##### Prerequisites
+
+Create the S3 Table bucket first and grant the calling IAM principal s3tables:* actions read/write permissions on that bucket.
+* `warehouse` – full bucket ARN for your S3 Tables catalog.
+* `uri` – region-specific S3 Tables REST endpoint.
+* `rest.*` properties – mandatory SigV4 settings for every call.
+
+#### Catalog `[glue-rest]`
+Configure this catalog when you want to publish Iceberg tables directly into an S3 Tables bucket via the AWS Glue Iceberg REST API endpoint.
+
+:::note
+`glue-rest` catalog involves the most complex IAM/Lake Formation setup.
+:::
+To configure a `glue-rest` catalog, provide the following parameters and replace `<region>`, `<account-id>`, `<s3-table-bucket-name>`, and AWS keys with real values:
+
+<Tabs
+  groupId="filesystem-type"
+  defaultValue="yml"
+  values={[
+    {"label": "dlt.yml", "value": "yml"},
+    {"label": "TOML files", "value": "toml"},
+    {"label": "Environment variables", "value": "env"}
+]}>
+
+<TabItem value="yml">
+```yaml
+# we recommend to put sensitive parameters to secrets.toml
+destinations:
+  iceberg_lake:
+    type: iceberg
+    catalog_type: glue-rest
+    catalog_name: iceberg_lake
+    credentials:
+        warehouse: "<account-id>:s3tablescatalog/<s3-table-bucket-name>"
+        uri: "https://glue.<region>.amazonaws.com/iceberg"
+        aws_access_key_id: "<aws_access_key_id>"
+        aws_secret_access_key: "<aws_secret_access_key>"
+        region_name: "<region>"
+        properties:
+            rest.sigv4-enabled: "true"
+            rest.signing-name: "glue"
+            rest.signing-region: "<region>"
+```
+</TabItem>
+<TabItem value="toml">
+```toml
+[destination.iceberg]
+catalog_type = "glue-rest"
+catalog_name = "iceberg_lake"
+
+[destination.iceberg.credentials]
+warehouse = "<account-id>:s3tablescatalog/<s3-table-bucket-name>"
+uri       = "https://glue.<region>.amazonaws.com/iceberg"
+aws_access_key_id     = "<aws_access_key_id>"
+aws_secret_access_key = "<aws_secret_access_key>"
+region_name           = "<region>"
+
+[destination.iceberg.credentials.properties]
+"rest.sigv4-enabled"  = "true"
+"rest.signing-name"   = "glue"
+"rest.signing-region" = "<region>"
+```
+</TabItem>
+<TabItem value="env">
+```sh
+export DESTINATION__ICEBERG__CREDENTIALS__WAREHOUSE="<account-id>:s3tablescatalog/<s3-table-bucket-name>"
+export DESTINATION__ICEBERG__CREDENTIALS__URI="https://glue.<region>.amazonaws.com/iceberg"
+export DESTINATION__ICEBERG__CREDENTIALS__AWS_ACCESS_KEY_ID="<aws_access_key_id>"
+export DESTINATION__ICEBERG__CREDENTIALS__AWS_SECRET_ACCESS_KEY="<aws_secret_access_key>"
+export DESTINATION__ICEBERG__CREDENTIALS__REGION_NAME="<region>"
+export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES='{
+  "rest.sigv4-enabled": "true",
+  "rest.signing-name" : "glue",
+  "rest.signing-region": "<region>"
+}'
+```
+</TabItem>
+</Tabs>
+
+##### Prerequisites
+Сreate the S3 Table bucket first and follow this AWS documentation to properly configure IAM, Glue, and Lake Formation: [Create an Iceberg catalog for S3 Tables via Glue REST](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-integrating-glue-endpoint.html)
+* `warehouse` – glue catalog arn for your S3 Tables catalog.
+* `uri` – region-specific Glue REST endpoint.
+* `rest.*` properties – mandatory SigV4 settings for every call.
+
+#### Catalog `[glue]`
+
+Choose this when you simply want to use the Glue Catalog with a normal S3 bucket for table storage.
+
+<Tabs
+  groupId="filesystem-type"
+  defaultValue="yml"
+  values={[
+    {"label": "dlt.yml", "value": "yml"},
+    {"label": "TOML files", "value": "toml"},
+    {"label": "Environment variables", "value": "env"}
+]}>
+<TabItem value="yml">
+```yaml
+# we recommend to put sensitive parameters to secrets.toml
+destinations:
+  iceberg_lake:
+    type: iceberg
+    catalog_type: glue
+    catalog_name: iceberg_lake
+    filesystem:
+        bucket_url: "<s3-bucket-url>"
+    credentials:
+        aws_access_key_id: "<aws_access_key_id>"
+        aws_secret_access_key: "<aws_secret_access_key>"
+        region_name: "<region>"
+```
+</TabItem>
+<TabItem value="toml">
+```toml
+[destination.iceberg]
+catalog_type = "glue"
+catalog_name = "iceberg_lake"
+
+[destination.iceberg.filesystem]
+bucket_url = "<s3-bucket-url>"
+
+[destination.iceberg.credentials]
+aws_access_key_id     = "<aws_access_key_id>"
+aws_secret_access_key = "<aws_secret_access_key>"
+region_name           = "<region>"
+```
+</TabItem> <TabItem value="env">
+```sh
+export DESTINATION__ICEBERG__FILESYSTEM__BUCKET_URL="<s3-bucket-url>"
+export DESTINATION__ICEBERG__CREDENTIALS__AWS_ACCESS_KEY_ID="<aws_access_key_id>"
+export DESTINATION__ICEBERG__CREDENTIALS__AWS_SECRET_ACCESS_KEY="<aws_secret_access_key>"
+export DESTINATION__ICEBERG__CREDENTIALS__REGION_NAME="<region>"
+```
+</TabItem>
+</Tabs>
+
+##### Prerequisites
+An S3 bucket and an IAM principal allowed to read/write that bucket and access the Glue Data Catalog.
+
+* `bucket_url` – S3 prefix where Iceberg data and metadata files will live.
+
+
+### Unity Catalog
+
+[Unity Catalog](https://www.databricks.com/product/unity-catalog) provides a REST API for Iceberg that allows external clients to access Databricks tables.
+
+#### Prerequisites
+
+Before using Unity Catalog with the Iceberg destination, ensure you have:
+
+1. Unity Catalog enabled in your workspace
+2. External data access enabled for your metastore
+3. EXTERNAL USE SCHEMA privilege granted to your principal:
+   ```sql
+   GRANT EXTERNAL USE SCHEMA ON CATALOG <catalog_name> TO `user@company.com`;
+   ```
+   Where `<catalog_name>` is the name of the catalog you want to grant access to.
+
+For detailed setup instructions, see Databricks guide on [accessing tables from Apache Iceberg clients](https://learn.microsoft.com/en-us/azure/databricks/external-access/iceberg).
+
+#### Configuration
+
+<Tabs
+  groupId="filesystem-type"
+  defaultValue="yml"
+  values={[
+    {"label": "dlt.yml", "value": "yml"},
+    {"label": "TOML files", "value": "toml"},
+    {"label": "Environment variables", "value": "env"}
+]}>
+
+<TabItem value="yml">
+
+```yaml
+# we recommend to put sensitive configurations to secrets.toml
+destinations:
+  iceberg_unity_catalog:
+    type: iceberg
+    catalog_type: rest
+    credentials:
+      # we recommend to put sensitive configurations to secrets.toml
+      uri: https://<workspace-url>/api/2.1/unity-catalog/iceberg-rest
+      warehouse: dlt_ci
+      properties:
+        token: please set me up!
+```
+</TabItem>
+
+<TabItem value="toml">
+
+```toml
+[destination.iceberg]
+catalog_type = "rest"
+
+[destination.iceberg.credentials]
+uri = "https://<workspace-url>/api/2.1/unity-catalog/iceberg-rest"
+warehouse = "dlt_ci"
+
+[destination.iceberg.credentials.properties]
+token = "please set me up!"
+```
+</TabItem>
+
+<TabItem value="env">
+
+```sh
+export DESTINATION__ICEBERG__CATALOG_TYPE=rest
+export DESTINATION__ICEBERG__CREDENTIALS__URI=https://<workspace-url>/api/2.1/unity-catalog/iceberg-rest
+export DESTINATION__ICEBERG__CREDENTIALS__WAREHOUSE=dlt_ci
+export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES__TOKEN=please set me up!
+```
+</TabItem>
+
+</Tabs>
+
+#### Configuration Parameters
+
+* `catalog_type=rest` - specifies the REST catalog implementation
+* `credentials.uri` - the Unity Catalog Iceberg REST API endpoint (format: `https://<workspace-url>/api/2.1/unity-catalog/iceberg-rest`)
+* `credentials.warehouse` - the catalog name in Unity Catalog containing your tables
+* `credentials.properties.token` - your Databricks personal access token for authentication
+
 ## Write dispositions
 
 All [write dispositions](../../general-usage/incremental-loading.md) are supported.

@@ -149,11 +149,11 @@ def _maybe_parse_native_value(
             # parse native value and convert it into dict, extract the diff and use it as exact value
             # explicit_value may not be complete ie. may be a connection string without password
             # we want the resolve to still fill missing values
-            default_value = config.__class__()
             native_value = {
                 k: v
-                for k, v in config.__class__.from_init_value(native_value).items()
-                if default_value[k] != v
+                for k, v in config.__class__.from_init_value(native_value)
+                .as_dict_nondefault()
+                .items()
             }
         except (ValueError, NotImplementedError) as v_err:
             raise InvalidNativeValue(type(config), type(native_value), embedded_sections, v_err)

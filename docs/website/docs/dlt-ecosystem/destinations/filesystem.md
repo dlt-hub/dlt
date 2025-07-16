@@ -201,8 +201,12 @@ If you need to use a custom host for your storage account, you can set it up lik
 azure_account_host = "<storage_account_name>.<host_base>"
 ```
 Remember to include `storage_account_name` with your base host ie. `dlt_ci.blob.core.usgovcloudapi.net`.
-`dlt` will use this host to connect to azure blob storage without any modifications:
 
+`dlt` will use this host to connect to Azure Blob Storage without any modifications:
+
+:::tip OneLake (Fabric)
+Use the Blob endpoint (`azure_account_host = "onelake.blob.fabric.microsoft.com"`).
+:::
 
 Two forms of Azure credentials are supported:
 

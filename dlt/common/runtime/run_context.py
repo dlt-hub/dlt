@@ -3,6 +3,7 @@ import tempfile
 import warnings
 from types import ModuleType
 from typing import Any, ClassVar, Dict, List, Optional
+from urllib.parse import urlencode
 
 from dlt.common import known_env
 from dlt.common.configuration import plugins
@@ -33,6 +34,19 @@ class RunContext(SupportsRunContext):
     @property
     def global_dir(self) -> str:
         return self.data_dir
+
+    @property
+    def uri(self) -> str:
+        from dlt.common.storages.configuration import FilesystemConfiguration
+
+        uri_no_qs = FilesystemConfiguration.make_file_url(self.run_dir)
+        # add query string from self.runtime_kwargs
+        runtime_kwargs = self.runtime_kwargs
+        if runtime_kwargs:
+            query_string = urlencode(runtime_kwargs)
+            if query_string:
+                return f"{uri_no_qs}?{query_string}"
+        return uri_no_qs
 
     @property
     def run_dir(self) -> str:

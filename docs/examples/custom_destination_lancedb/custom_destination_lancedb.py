@@ -22,12 +22,13 @@ __source_name__ = "spotify"
 
 import datetime  # noqa: I251
 from dataclasses import dataclass, fields
+import os
 from pathlib import Path
 from typing import Any
 
-import lancedb  # type: ignore
-from lancedb.embeddings import get_registry  # type: ignore
-from lancedb.pydantic import LanceModel, Vector  # type: ignore
+import lancedb
+from lancedb.embeddings import get_registry
+from lancedb.pydantic import LanceModel, Vector
 
 import dlt
 from dlt.common.configuration import configspec
@@ -36,11 +37,25 @@ from dlt.common.typing import TDataItems, TSecretStrValue
 from dlt.sources.helpers import requests
 from dlt.sources.helpers.rest_client import RESTClient, AuthConfigBase
 
-# access secrets to get openai key and instantiate embedding function
+# access secrets to get openai key
 openai_api_key: str = dlt.secrets.get(
     "destination.lancedb.credentials.embedding_model_provider_api_key"
 )
-func = get_registry().get("openai").create(name="text-embedding-3-small", api_key=openai_api_key)
+# usually the api-key would be provided to the embedding function via the registry, but there
+# currently is a bug: https://github.com/lancedb/lancedb/issues/2387
+registry = get_registry()
+registry.set_var("openai_api_key", openai_api_key)
+# create the embedding function
+func = (
+    get_registry()
+    .get("openai")
+    .create(
+        name="text-embedding-3-small",
+        # api_key="$var:api_key" # << currently broken
+    )
+)
+# so instead we provide it via environment variable
+os.environ["OPENAI_API_KEY"] = openai_api_key
 
 
 class EpisodeSchema(LanceModel):
@@ -49,7 +64,11 @@ class EpisodeSchema(LanceModel):
     description: str = func.SourceField()
     vector: Vector(func.ndims()) = func.VectorField()  # type: ignore[valid-type]
     release_date: datetime.date
+    audio_preview_url: str
+    duration_ms: int
     href: str
+    uri: str
+    # there is more data but we are not using it ...
 
 
 @dataclass(frozen=True)
@@ -113,15 +132,17 @@ def lancedb_destination(items: TDataItems, table: TTableSchema) -> None:
     db_path = Path(dlt.config.get("lancedb.db_path"))
     db = lancedb.connect(db_path)
 
-    # since we are embedding the description field, we need to do some additional cleaning
-    # for openai. Openai will not accept empty strings or input with more than 8191 tokens
-    for item in items:
-        item["description"] = item.get("description") or "No Description"
-        item["description"] = item["description"][0:8000]
     try:
         tbl = db.open_table(table["name"])
-    except FileNotFoundError:
+    except ValueError:
         tbl = db.create_table(table["name"], schema=EpisodeSchema)
+
+    # remove all fields that are not in the schema
+    for item in items:
+        keys_to_remove = [key for key in item.keys() if key not in EpisodeSchema.model_fields]
+        for key in keys_to_remove:
+            del item[key]
+
     tbl.add(items)
 
 
@@ -130,7 +151,11 @@ if __name__ == "__main__":
     db = lancedb.connect(db_path)
 
     for show in fields(Shows):
-        db.drop_table(show.name, ignore_missing=True)
+        try:
+            db.drop_table(show.name)
+        except ValueError:
+            # table is not there
+            pass
 
     pipeline = dlt.pipeline(
         pipeline_name="spotify",

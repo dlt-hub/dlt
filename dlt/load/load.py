@@ -19,7 +19,7 @@ from dlt.common.storages.load_storage import (
 )
 from dlt.common.storages.load_package import (
     LoadPackageStateInjectableContext,
-    load_package as current_load_package,
+    load_package_state as current_load_package,
 )
 from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR

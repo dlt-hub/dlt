@@ -12,6 +12,7 @@ EXAMPLES_DIR = "../examples"
 # settings
 SKIP_FOLDERS = ["archive", ".", "_", "local_cache"]
 SKIP_EXAMPLES: List[str] = []
+SKIP_FORK_EXAMPLES: List[str] = ["custom_destination_lancedb"]
 
 # the entry point for the script
 MAIN_CLAUSE = 'if __name__ == "__main__":'
@@ -70,7 +71,8 @@ if __name__ == "__main__":
             if line.startswith(MAIN_CLAUSE):
                 main_clause_found = True
                 processed_lines.append("@skipifgithubfork")  # skip on forks
-                processed_lines.append("@pytest.mark.forked")  # skip on forks
+                if example not in SKIP_FORK_EXAMPLES:
+                    processed_lines.append("@pytest.mark.forked")  # run on forked-subprocess
                 processed_lines.append(f"def test_{example}():")
             else:
                 processed_lines.append(line)

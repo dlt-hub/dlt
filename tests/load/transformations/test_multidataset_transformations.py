@@ -9,8 +9,10 @@ import pytest
 def test_combine_two_datasets(fruit_p: dlt.Pipeline, private_fruit_p: dlt.Pipeline) -> None:
     @dlt.transformation()
     def customers_with_ages(dataset: dlt.Dataset, dataset2: dlt.Dataset) -> Any:
-        return dataset["customers"].join(
-            dataset2["customers_ages"], dataset["customers"].id == dataset2["customers_ages"].id
+        customers_table = dataset.table("customers", table_type="ibis")
+        customers_ages_table = dataset2.table("customers_ages", table_type="ibis")
+        yield customers_table.join(
+            customers_ages_table, customers_table.id == customers_ages_table.id
         )
 
     fruit_p.run(customers_with_ages(fruit_p.dataset(), private_fruit_p.dataset()))

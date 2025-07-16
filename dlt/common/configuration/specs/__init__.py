@@ -27,7 +27,7 @@ from .azure_credentials import (
     AnyAzureCredentials,
 )
 
-from .sftp_crendentials import SFTPCredentials
+from .sftp_credentials import SFTPCredentials
 
 # backward compatibility for service account credentials
 from .gcp_credentials import (

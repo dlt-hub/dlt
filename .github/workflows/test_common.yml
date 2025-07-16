@@ -110,7 +110,7 @@ jobs:
           pytest tests/pipeline/test_pipeline_extra.py -k arrow ${{ matrix.pytest_args }}
 
       - name: Install pipeline and sources dependencies
-        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra cli --extra parquet --extra deltalake --extra sql_database --group sentry-sdk --group pipeline --group sources
+        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra cli --extra parquet --extra deltalake --extra sql_database --group sentry-sdk --group pipeline --group sources --group ibis
 
       - name: Run extract and pipeline tests
         run: |
@@ -124,29 +124,25 @@ jobs:
         run: |
           pytest tests/sources/sql_database
 
-      # test marimo app, does not work with python 3.13
-      - name: Install dlt with duckdb and studio
-        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --group sentry-sdk --group pipeline --group sources --group ibis --group marimo
-        if: matrix.python-version != '3.13'
-
+      # test pipeline dashboard app, does not work with python 3.13
+      - name: Install dlt with duckdb and dashboard
+        # note: this also tests the workspace extra installation
+        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra workspace --group sentry-sdk --group pipeline --group sources --group dashboard-tests
       - name: Install playwright
         run: playwright install
-        if: matrix.python-version != '3.13'
 
-      # Run marimo studio unit tests
-      - name: Run marimo studio unit tests
+      # Run pipeline dashboard unit tests
+      - name: Run pipeline dashboard unit tests
         run: |
-          pytest tests/helpers/studio
-        if: matrix.python-version != '3.13' && matrix.python-version != '3.9'
+          pytest tests/helpers/dashboard
+        if: matrix.python-version != '3.9'
 
-      # Run marimo e2e tests (does not pass with python 3.9, does not pass on windows (playwright does not work somehow), does not pass on python 3.13 (ibis not available))
-      - name: Run marimo e2e
+      # Run pipeline dashboard e2e tests (does not pass with python 3.9, does not pass on windows (playwright does not work somehow), does not pass on python 3.13 (ibis not available))
+      - name: Run dashboard e2e
         run: |
-          marimo run --headless dlt/helpers/studio/dlt_app.py -- -- --pipelines_dir _storage/.dlt/pipelines/ --with_test_identifiers true & pytest --browser chromium tests/e2e
-        if: matrix.python-version != '3.13' && matrix.python-version != '3.9' && matrix.os != 'windows-latest'
-
-
-
+          marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines_dir _storage/.dlt/pipelines/ --with_test_identifiers true & pytest --browser chromium tests/e2e
+        if: matrix.python-version != '3.9' && matrix.os != 'windows-latest'
+  
   matrix_job_required_check:
     name: common | common tests
     needs: run_common
