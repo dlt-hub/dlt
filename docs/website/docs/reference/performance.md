@@ -126,6 +126,10 @@ Below, we set files to rotate after 100,000 items written or when the filesize e
 Several [text file formats](../dlt-ecosystem/file-formats/) have `gzip` compression enabled by default. If you wish that your load packages have uncompressed files (e.g., to debug the content easily), change `data_writer.disable_compression` in config.toml. The entry below will disable the compression of the files processed in the `normalize` stage.
 <!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::compression_toml-->
 
+:::note
+**Filesystem destination**: Starting from dlt version 1.14.0, compressed files in the filesystem destination automatically receive a `.gz` extension. To retain the legacy behavior (no `.gz` extension), set `DESTINATION__FILESYSTEM__LEGACY_COMPRESSION_WITHOUT_EXT=true`. This setting is also required for `pipeline.sql_client()` access to existing compressed files without `.gz` extension.
+:::
+
 
 ### Freeing disk space after loading
 

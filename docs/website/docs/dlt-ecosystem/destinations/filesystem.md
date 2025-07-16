@@ -436,6 +436,27 @@ disable_compression=true
 
 - To decompress a `gzip` file, you can use tools like `gunzip`. This will convert the compressed file back to its original format, making it readable.
 
+### Compressed file extensions
+
+Starting from dlt version 1.14.0, compressed files automatically receive a `.gz` extension. Previously, compressed files were stored without the `.gz` extension.
+
+If you want to retain the legacy behavior (no `.gz` extension), you can set the following environment variable:
+
+```sh
+export DESTINATION__FILESYSTEM__LEGACY_COMPRESSION_WITHOUT_EXT=true
+```
+
+Or configure it in your `config.toml`:
+
+```toml
+[destination.filesystem]
+legacy_compression_without_ext=true
+```
+
+:::note
+You must also set `legacy_compression_without_ext=true` if you have existing compressed files without the `.gz` extension and want to use `pipeline.sql_client()` to access the data. This ensures compatibility with your existing file structure.
+:::
+
 For more details on managing file compression, please visit our documentation on performance optimization: [Disabling and enabling file compression](../../reference/performance#disabling-and-enabling-file-compression).
 
 ## Files layout
