@@ -312,7 +312,7 @@ def test_csv_writer_quoting_parameters(quoting: CsvQuoting) -> None:
         mock_writer_instance.writeheader.assert_called_once()
         mock_writer_instance.writerows.assert_called_once_with(test_data)
 
-        
+
 @pytest.mark.parametrize("line_ending", ["lf", "crlf"])
 @pytest.mark.parametrize("writer_type", [CsvWriter, ArrowToCsvWriter])
 def test_csv_line_endings(writer_type: Type[DataWriter], line_ending: str) -> None:
