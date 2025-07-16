@@ -1,5 +1,5 @@
 """Unit tests for readable db api dataset and relation"""
-from typing import cast
+from typing import Callable, cast
 
 import dlt
 import pytest
@@ -42,8 +42,31 @@ def test_dataset_autocompletion(mock_dataset: ReadableDBAPIDataset):
 
 def test_relation_autocompletion(mock_dataset: ReadableDBAPIDataset):
     expected_suggestions = ["col1", "col2"]
-    suggestions = mock_dataset["my_table"]._ipython_key_completions_()  # type: ignore[attr-defined]
+    suggestions = mock_dataset["my_table"]._ipython_key_completions_()
     assert set(expected_suggestions) == set(suggestions)
+
+
+def test_dataset_has_table_that_conflicts_with_dataset_attribute():
+    """When an attribute and a table name collide, calling `dlt.Dataset.{name}`
+    should return the method instead of the table.
+    """
+    s = Schema("my_schema")
+    # `row_counts` is a method on `dlt.Dataset`
+    t = new_table("row_counts", columns=[{"name": "col1", "data_type": "text"}])
+    s.update_table(t)
+    dataset = cast(
+        ReadableDBAPIDataset,
+        dlt.destinations.dataset.dataset(
+            dlt.destinations.duckdb(destination_name="duck_db"),
+            "pipeline_dataset",
+            schema=s,
+        ),
+    )
+
+    attribute = dataset.row_counts
+
+    assert isinstance(attribute, Callable)
+    assert not isinstance(attribute, ReadableDBAPIRelation)
 
 
 def test_query_builder(mock_dataset: ReadableDBAPIDataset) -> None:

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from types import TracebackType
 from typing import Any, Type, Union, TYPE_CHECKING, List, Literal, overload
 
@@ -12,10 +14,7 @@ from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common.json import json
 from dlt.common.destination.reference import TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase, SupportsOpenTables, WithStateSync
-from dlt.common.destination.dataset import (
-    Relation,
-    Dataset,
-)
+from dlt.common.destination.dataset import Dataset
 from dlt.common.schema import Schema
 from dlt.common.typing import Self
 from dlt.common.schema.typing import C_DLT_LOAD_ID
@@ -32,10 +31,6 @@ if TYPE_CHECKING:
     from dlt.helpers.ibis import BaseBackend as IbisBackend
     from dlt.helpers.ibis import Table as IbisTable
     from dlt.helpers.ibis import Expr as IbisExpr
-else:
-    IbisBackend = Any
-    IbisTable = Any
-    IbisExpr = Any
 
 
 class ReadableDBAPIDataset(Dataset):
@@ -129,7 +124,7 @@ class ReadableDBAPIDataset(Dataset):
                 )
         return self._table_client
 
-    def is_same_physical_destination(self, other: "ReadableDBAPIDataset") -> bool:
+    def is_same_physical_destination(self, other: ReadableDBAPIDataset) -> bool:
         """
         Returns true if the other dataset is on the same physical destination
         helpful if we want to run sql queries without extracting the data
@@ -184,7 +179,7 @@ class ReadableDBAPIDataset(Dataset):
         query: Union[str, sge.Select, IbisExpr],
         query_dialect: TSqlGlotDialect = None,
         _execute_raw_query: bool = False,
-    ) -> Relation:
+    ) -> ReadableDBAPIRelation:
         return ReadableDBAPIRelation(
             readable_dataset=self,
             query=query,
@@ -197,27 +192,26 @@ class ReadableDBAPIDataset(Dataset):
         query: Union[str, sge.Select, IbisExpr],
         query_dialect: TSqlGlotDialect = None,
         _execute_raw_query: bool = False,
-    ) -> Relation:
+    ) -> ReadableDBAPIRelation:
         return self.query(query, query_dialect, _execute_raw_query)
 
     @overload
-    def table(self, table_name: str) -> Relation: ...
+    def table(self, table_name: str) -> ReadableDBAPIRelation: ...
 
     @overload
-    def table(self, table_name: str, table_type: Literal["relation"]) -> Relation: ...
+    def table(self, table_name: str, table_type: Literal["relation"]) -> ReadableDBAPIRelation: ...
 
     @overload
     def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
 
-    def table(self, table_name: str, table_type: Literal["relation", "ibis"] = "relation") -> Any:
+    def table(self, table_name: str, table_type: Literal["relation", "ibis"] = "relation") -> Union[ReadableDBAPIRelation, IbisTable]:
         # dataset only provides access to tables known in dlt schema, direct query may circumvent this
         available_tables = self.tables
         if table_name not in available_tables:
             # TODO: raise TableNotFound
             raise ValueError(
                 f"Table `{table_name}` not found in schema `{self.schema.name}` of dataset"
-                f" `{self.dataset_name}`. Available table(s):"
-                f" {', '.join(available_tables)}"
+                f" `{self.dataset_name}`. Available table(s): {available_tables}"
             )
 
         if table_type == "ibis":
@@ -238,7 +232,7 @@ class ReadableDBAPIDataset(Dataset):
         dlt_tables: bool = False,
         table_names: List[str] = None,
         load_id: str = None,
-    ) -> Relation:
+    ) -> ReadableDBAPIRelation:
         """Returns a dictionary of table names and their row counts, returns counts of all data tables by default"""
         """If table_names is provided, only the tables in the list are returned regardless of the data_tables and dlt_tables flags"""
 
@@ -274,7 +268,7 @@ class ReadableDBAPIDataset(Dataset):
 
         return self.query(query=union_all_expr)
 
-    def __getitem__(self, table_name: str) -> Relation:
+    def __getitem__(self, table_name: str) -> ReadableDBAPIRelation:
         """access of table via dict notation"""
         if table_name not in self.tables:
             raise KeyError(
@@ -291,8 +285,9 @@ class ReadableDBAPIDataset(Dataset):
         try:
             return self.table(name)
         # TODO: expect TableNotFound in the future
-        except ValueError as exc:
-            raise AttributeError(name, str(exc))
+        except ValueError as e:
+            # args[0] retrieves the message of the exception
+            raise AttributeError(e.args[0]) from e
 
     def __enter__(self) -> Self:
         """Context manager used to open and close sql client and internal connection"""
