@@ -5,8 +5,8 @@ if not TYPE_CHECKING:
 
     DltDeprecationWarning(
         "Content from this module was moved to `dlt._dataset`, which is internal.",
-        since="1.15",
-        expected_due="2.0",
+        since="1.15.0",
+        expected_due="2.0.0",
     )
 
 from dlt.destinations.dataset.factory import dataset
