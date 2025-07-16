@@ -21,6 +21,8 @@ import datetime  # noqa: 251
 
 from dlt.common import logger, pendulum
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
+from dlt.common.configuration import configspec, NotResolved
+from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.destination.utils import (
     resolve_replace_strategy,
@@ -37,9 +39,6 @@ from dlt.common.schema.typing import (
     TLoaderReplaceStrategy,
     TTableFormat,
 )
-
-from dlt.common.configuration import configspec, NotResolved
-from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
     DestinationSchemaTampered,

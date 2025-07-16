@@ -25,7 +25,7 @@ from dlt.common.data_writers.exceptions import (
     FileSpecNotFound,
     InvalidDataItem,
 )
-from dlt.common.data_writers.configuration import (
+from dlt.common.destination.configuration import (
     CsvFormatConfiguration,
     CsvQuoting,
     ParquetFormatConfiguration,
@@ -38,7 +38,6 @@ from dlt.common.destination import (
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.typing import TTableSchemaColumns
-from dlt.common.schema.utils import is_nullable_column
 from dlt.common.typing import StrAny, TDataItem
 
 import sqlglot
@@ -191,16 +190,9 @@ class ModelWriter(DataWriter):
     def write_data(self, items: Sequence[TDataItem]) -> None:
         super().write_data(items)
         for item in items:
-            dialect = item.dialect or (self._caps.sqlglot_dialect if self._caps else None)
-            query = item.query
-            parsed_query = sqlglot.parse_one(query, read=dialect)
-
-            # Ensure the parsed query is a SELECT statement
-            if not isinstance(parsed_query, sqlglot.exp.Select):
-                raise ValueError("Only SELECT statements are allowed to write model files.")
-
-            normalized_query = parsed_query.sql(dialect=dialect)
-            self._f.write("dialect: " + (dialect or "") + "\n" + normalized_query + "\n")
+            dialect = item.query_dialect()
+            query = item.to_sql()
+            self._f.write("dialect: " + (dialect or "") + "\n" + query + "\n")
 
     @classmethod
     def writer_spec(cls) -> FileWriterSpec:
@@ -324,6 +316,8 @@ class ParquetDataWriter(DataWriter):
         row_group_size: Optional[int] = None,
         coerce_timestamps: Optional[Literal["s", "ms", "us", "ns"]] = None,
         allow_truncated_timestamps: bool = False,
+        use_compliant_nested_type: bool = True,
+        _format: ParquetFormatConfiguration = None,  # will receive the full config
     ) -> None:
         super().__init__(f, caps or DestinationCapabilitiesContext.generic_capabilities("parquet"))
         from dlt.common.libs.pyarrow import pyarrow
@@ -331,16 +325,15 @@ class ParquetDataWriter(DataWriter):
         self.writer: Optional[pyarrow.parquet.ParquetWriter] = None
         self.schema: Optional[pyarrow.Schema] = None
         self.nested_indices: List[str] = None
-        self.parquet_flavor = flavor
-        self.parquet_version = version
-        self.parquet_data_page_size = data_page_size
-        self.timestamp_timezone = timestamp_timezone
-        self.parquet_row_group_size = row_group_size
-        self.coerce_timestamps = coerce_timestamps
-        self.allow_truncated_timestamps = allow_truncated_timestamps
+        # merge parquet format
+        if self._caps.parquet_format is not None:
+            self.parquet_format = self._caps.parquet_format.copy()
+            self.parquet_format.update(_format.as_dict_nondefault())
+        else:
+            self.parquet_format = _format
 
     def _create_writer(self, schema: "pa.Schema") -> "pa.parquet.ParquetWriter":
-        from dlt.common.libs.pyarrow import pyarrow, get_py_arrow_timestamp
+        from dlt.common.libs.pyarrow import pyarrow
 
         # if timestamps are not explicitly coerced, use destination resolution
         # TODO: introduce maximum timestamp resolution, using timestamp_precision too aggressive
@@ -353,18 +346,21 @@ class ParquetDataWriter(DataWriter):
         return pyarrow.parquet.ParquetWriter(
             self._f,
             schema,
-            flavor=self.parquet_flavor,
-            version=self.parquet_version,
-            data_page_size=self.parquet_data_page_size,
-            coerce_timestamps=self.coerce_timestamps,
-            allow_truncated_timestamps=self.allow_truncated_timestamps,
+            flavor=self.parquet_format.flavor,
+            version=self.parquet_format.version,
+            data_page_size=self.parquet_format.data_page_size,
+            coerce_timestamps=self.parquet_format.coerce_timestamps,
+            allow_truncated_timestamps=self.parquet_format.allow_truncated_timestamps,
+            use_compliant_nested_type=self.parquet_format.use_compliant_nested_type,
         )
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         from dlt.common.libs.pyarrow import columns_to_arrow
 
         # build schema
-        self.schema = columns_to_arrow(columns_schema, self._caps, self.timestamp_timezone)
+        self.schema = columns_to_arrow(
+            columns_schema, self._caps, self.parquet_format.timestamp_timezone
+        )
         # find row items that are of the json type (could be abstracted out for use in other writers?)
         self.nested_indices = [
             i for i, field in columns_schema.items() if field["data_type"] == "json"
@@ -388,7 +384,7 @@ class ParquetDataWriter(DataWriter):
         if semver.Version.parse(pyarrow.__version__).major < 19:
             table = table.cast(self.schema)
         # Write
-        self.writer.write_table(table, row_group_size=self.parquet_row_group_size)
+        self.writer.write_table(table, row_group_size=self.parquet_format.row_group_size)
 
     def close(self) -> None:  # noqa
         if self.writer:
@@ -430,9 +426,13 @@ class CsvWriter(DataWriter):
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         self._columns_schema = columns_schema
         if self.quoting == "quote_needed":
-            quoting: Literal[1, 2] = csv.QUOTE_NONNUMERIC
+            quoting: Literal[0, 1, 2, 3] = csv.QUOTE_NONNUMERIC
         elif self.quoting == "quote_all":
             quoting = csv.QUOTE_ALL
+        elif self.quoting == "quote_none":
+            quoting = csv.QUOTE_NONE
+        elif self.quoting == "quote_minimal":
+            quoting = csv.QUOTE_MINIMAL
         else:
             raise ValueError(self.quoting)
 
@@ -517,7 +517,7 @@ class ArrowToParquetWriter(ParquetDataWriter):
         if not self.writer:
             self.writer = self._create_writer(table.schema)
         # write concatenated tables
-        self.writer.write_table(table, row_group_size=self.parquet_row_group_size)
+        self.writer.write_table(table, row_group_size=self.parquet_format.row_group_size)
 
     def write_footer(self) -> None:
         if not self.writer:
@@ -572,6 +572,8 @@ class ArrowToCsvWriter(DataWriter):
                         quoting = "needed"
                     elif self.quoting == "quote_all":
                         quoting = "all_valid"
+                    elif self.quoting == "quote_none":
+                        quoting = "none"
                     else:
                         raise ValueError(self.quoting)
                     try:

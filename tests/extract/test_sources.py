@@ -13,7 +13,7 @@ from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.data_types.typing import TDataType
 from dlt.common.exceptions import DictValidationException, PipelineStateNotAvailable
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
-from dlt.common.pipeline import StateInjectableContext, source_state
+from dlt.common.pipeline import StateInjectableContext
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnProp, TColumnSchema
 from dlt.common.schema import utils
@@ -22,6 +22,7 @@ from dlt.common.typing import TDataItems, TTableNames
 from dlt.extract import DltResource, DltSource, Incremental
 from dlt.extract.hints import TResourceNestedHints
 from dlt.extract.items import TableNameMeta
+from dlt.extract.state import source_state
 from dlt.extract.source import DltResourceDict
 from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
@@ -1625,6 +1626,9 @@ def test_apply_dynamic_hints() -> None:
     )
     assert empty_r._table_name_hint_fun is not None
     assert empty_r._table_has_other_dynamic_hints is True
+
+    assert empty_r.has_dynamic_table_name is True
+    assert empty_r.has_other_dynamic_hints is True
 
     with pytest.raises(DataItemRequiredForDynamicTableHints):
         empty_r.compute_table_schema()

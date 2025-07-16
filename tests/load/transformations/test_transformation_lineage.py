@@ -34,14 +34,14 @@ def test_simple_lineage(
 
     @dlt.transformation(write_disposition="append")
     def enriched_purchases(dataset: dlt.Dataset) -> Any:
-        purchases = dataset["purchases"]
-        customers = dataset["customers"]
-        return purchases.join(customers, purchases.customer_id == customers.id)
+        purchases = dataset.table("purchases", table_type="ibis")
+        customers = dataset.table("customers", table_type="ibis")
+        yield purchases.join(customers, purchases.customer_id == customers.id)
 
     dest_p.run(enriched_purchases(fruit_p.dataset()))
 
     # check the rowcounts in the dest
-    assert load_table_counts(dest_p, "enriched_purchases") == {"enriched_purchases": 3}
+    assert load_table_counts(dest_p, "enriched_purchases") == {"enriched_purchases": 100}
 
     # check that ppi column hint was preserved for name col
     assert dest_p.dataset().schema.tables["enriched_purchases"]["columns"]["name"]["x-annotation-pii"] is True  # type: ignore

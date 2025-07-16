@@ -15,8 +15,10 @@ from dlt.common.pendulum import pendulum
 from dlt.common.pipeline import get_dlt_pipelines_dir
 from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage
-from dlt.helpers.studio import ui_elements as ui
-from dlt.helpers.studio.config import StudioConfiguration
+from dlt.common.destination.client import DestinationClientConfiguration
+
+from dlt.helpers.dashboard import ui_elements as ui
+from dlt.helpers.dashboard.config import DashboardConfiguration
 
 PICKLE_TRACE_FILE = "trace.pickle"
 
@@ -26,11 +28,11 @@ PICKLE_TRACE_FILE = "trace.pickle"
 #
 
 
-def resolve_studio_config(p: dlt.Pipeline) -> StudioConfiguration:
-    """Resolve the studio configuration"""
+def resolve_dashboard_config(p: dlt.Pipeline) -> DashboardConfiguration:
+    """Resolve the dashboard configuration"""
     return resolve_configuration(
-        StudioConfiguration(),
-        sections=(known_sections.STUDIO, p.pipeline_name if p else None),
+        DashboardConfiguration(),
+        sections=(known_sections.DASHBOARD, p.pipeline_name if p else None),
     )
 
 
@@ -86,12 +88,18 @@ def get_pipeline(pipeline_name: str, pipelines_dir: str) -> dlt.Pipeline:
 #
 
 
+def get_destination_config(pipeline: dlt.Pipeline) -> DestinationClientConfiguration:
+    """Get the destination config of a pipeline."""
+    # NOTE: this uses internal interfaces for now...
+    return cast(DestinationClientConfiguration, pipeline.dataset().destination_client.config)  # type: ignore[attr-defined]
+
+
 def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
     """
     Get the details of a pipeline.
     """
     try:
-        credentials = str(pipeline.dataset().destination_client.config.credentials)
+        credentials = str(get_destination_config(pipeline).credentials)
     except Exception:
         credentials = "Could not resolve credentials"
 
@@ -121,7 +129,7 @@ def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
 
 
 def create_table_list(
-    c: StudioConfiguration,
+    c: DashboardConfiguration,
     pipeline: dlt.Pipeline,
     show_internals: bool = False,
     show_child_tables: bool = True,
@@ -157,7 +165,7 @@ def create_table_list(
 
 
 def create_column_list(
-    c: StudioConfiguration,
+    c: DashboardConfiguration,
     pipeline: dlt.Pipeline,
     table_name: str,
     show_internals: bool = False,
@@ -248,14 +256,15 @@ def get_row_counts(pipeline: dlt.Pipeline, load_id: str = None) -> Dict[str, int
 
 
 @functools.cache
-def get_loads(c: StudioConfiguration, pipeline: dlt.Pipeline, limit: int = 100) -> Any:
+def get_loads(c: DashboardConfiguration, pipeline: dlt.Pipeline, limit: int = 100) -> Any:
     """
     Get the loads of a pipeline.
     """
     loads = pipeline.dataset()._dlt_loads
     if limit:
         loads = loads.limit(limit)
-    loads = loads.order_by(loads.inserted_at.desc())
+    loads = loads.order_by("inserted_at", "desc")
+
     loads_list = loads.df().to_dict(orient="records")
 
     loads_list = [_humanize_datetime_values(c, load) for load in loads_list]
@@ -282,7 +291,7 @@ def get_schema_by_version(pipeline: dlt.Pipeline, version_hash: str) -> Schema:
 #
 
 
-def trace_overview(c: StudioConfiguration, trace: Dict[str, Any]) -> List[Dict[str, Any]]:
+def trace_overview(c: DashboardConfiguration, trace: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Get the overview of a trace.
     """
@@ -298,14 +307,16 @@ def trace_overview(c: StudioConfiguration, trace: Dict[str, Any]) -> List[Dict[s
     )
 
 
-def trace_execution_context(c: StudioConfiguration, trace: Dict[str, Any]) -> List[Dict[str, Any]]:
+def trace_execution_context(
+    c: DashboardConfiguration, trace: Dict[str, Any]
+) -> List[Dict[str, Any]]:
     """
     Get the execution context of a trace.
     """
     return _dict_to_table_items(trace.get("execution_context", {}))
 
 
-def trace_steps_overview(c: StudioConfiguration, trace: Dict[str, Any]) -> List[Dict[str, Any]]:
+def trace_steps_overview(c: DashboardConfiguration, trace: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Get the steps overview of a trace.
     """
@@ -320,7 +331,7 @@ def trace_steps_overview(c: StudioConfiguration, trace: Dict[str, Any]) -> List[
 
 
 def trace_resolved_config_values(
-    c: StudioConfiguration, trace: Dict[str, Any]
+    c: DashboardConfiguration, trace: Dict[str, Any]
 ) -> List[Dict[str, Any]]:
     """
     Get the resolved config values of a trace.
@@ -329,7 +340,7 @@ def trace_resolved_config_values(
 
 
 def trace_step_details(
-    c: StudioConfiguration, trace: Dict[str, Any], step_id: str
+    c: DashboardConfiguration, trace: Dict[str, Any], step_id: str
 ) -> List[Dict[str, Any]]:
     """
     Get the details of a step.
@@ -411,7 +422,7 @@ def _align_dict_keys(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return items
 
 
-def _humanize_datetime_values(c: StudioConfiguration, d: Dict[str, Any]) -> Dict[str, Any]:
+def _humanize_datetime_values(c: DashboardConfiguration, d: Dict[str, Any]) -> Dict[str, Any]:
     """Humanize datetime values in a dict, expects certain keys to be present as found in the trace, could be made more configurable"""
 
     started_at = d.get("started_at", "")

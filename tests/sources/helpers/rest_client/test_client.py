@@ -544,3 +544,138 @@ class TestRESTClient:
         )
         response = rest_client.get("https://my.url", headers={"Accept": "my/mimetype"})
         assert response.json() == expected
+
+
+class TestSecretRedaction:
+    def test_sanitize_url_basic(self):
+        from dlt.sources.helpers.rest_client.redaction import sanitize_url
+
+        # Test basic API key redaction
+        url = "https://api.example.com/endpoint?api_key=secret123&other=value"
+        sanitized = sanitize_url(url)
+        assert sanitized == "https://api.example.com/endpoint?api_key=***&other=value"
+
+    def test_sanitize_url_multiple_secrets(self):
+        from dlt.sources.helpers.rest_client.redaction import sanitize_url
+
+        # Test multiple sensitive parameters
+        url = "https://api.example.com/endpoint?token=abc123&api_key=xyz789&data=public"
+        sanitized = sanitize_url(url)
+        assert sanitized == "https://api.example.com/endpoint?token=***&api_key=***&data=public"
+
+    def test_sanitize_url_case_insensitive(self):
+        from dlt.sources.helpers.rest_client.redaction import sanitize_url
+
+        # Test case insensitive matching
+        url = "https://api.example.com/endpoint?API_KEY=secret&Token=xyz&ACCESS_TOKEN=abc"
+        sanitized = sanitize_url(url)
+        assert (
+            sanitized == "https://api.example.com/endpoint?API_KEY=***&Token=***&ACCESS_TOKEN=***"
+        )
+
+    def test_sanitize_url_no_secrets(self):
+        from dlt.sources.helpers.rest_client.redaction import sanitize_url
+
+        # Test URL without sensitive parameters
+        url = "https://api.example.com/endpoint?page=1&limit=10&sort=asc"
+        sanitized = sanitize_url(url)
+        assert sanitized == url
+
+    def test_sanitize_url_empty_values(self):
+        from dlt.sources.helpers.rest_client.redaction import sanitize_url
+
+        # Test with empty values
+        url = "https://api.example.com/endpoint?api_key=&token=&other=value"
+        sanitized = sanitize_url(url)
+        assert sanitized == "https://api.example.com/endpoint?api_key=***&token=***&other=value"
+
+    def test_sanitize_url_fragment_and_path(self):
+        from dlt.sources.helpers.rest_client.redaction import sanitize_url
+
+        # Test URL with fragment and complex path
+        url = "https://api.example.com/v2/resource/123?api_key=secret#section"
+        sanitized = sanitize_url(url)
+        assert sanitized == "https://api.example.com/v2/resource/123?api_key=***#section"
+
+    def test_dlt_raise_for_status_with_sanitized_url(self):
+        from dlt.sources.helpers.rest_client.client import _dlt_raise_for_status
+
+        # Create a mock response with sensitive URL
+        response = Response()
+        response.status_code = 404
+        response.reason = "Not Found"
+        response.url = "https://api.example.com/endpoint?api_key=secret123"
+        response._content = b"Resource not found"
+
+        with pytest.raises(HTTPError) as exc_info:
+            _dlt_raise_for_status(response, show_error_body=False, max_error_body_length=0)
+
+        error_msg = str(exc_info.value)
+        assert "api_key=***" in error_msg
+        assert "api_key=secret123" not in error_msg
+        assert "404 Client Error: Not Found" in error_msg
+        assert "Resource not found" not in error_msg
+
+    def test_dlt_raise_for_status_truncates_long_body(self):
+        from dlt.sources.helpers.rest_client.client import _dlt_raise_for_status
+
+        # Create response with long body
+        response = Response()
+        response.status_code = 500
+        response.reason = "Internal Server Error"
+        response.url = "https://api.example.com/endpoint"
+        response._content = b"Error: " + b"x" * 10000
+
+        with pytest.raises(HTTPError) as exc_info:
+            _dlt_raise_for_status(response, show_error_body=True, max_error_body_length=8192)
+
+        error_msg = str(exc_info.value)
+        assert "(truncated)" in error_msg
+
+    def test_dlt_raise_for_status_no_error_on_success(self):
+        from dlt.sources.helpers.rest_client.client import _dlt_raise_for_status
+
+        response = Response()
+        response.status_code = 200
+        response.reason = "OK"
+        response.url = "https://api.example.com/endpoint?api_key=secret"
+
+        # Should not raise any exception
+        _dlt_raise_for_status(response, show_error_body=False, max_error_body_length=0)
+
+    def test_dlt_raise_for_status_with_body_enabled(self):
+        from dlt.sources.helpers.rest_client.client import _dlt_raise_for_status
+
+        response = Response()
+        response.status_code = 500
+        response.reason = "Internal Server Error"
+        response.url = "https://api.example.com/endpoint"
+        response._content = (
+            b'{"error": "Database connection failed", "detail": "Connection timeout"}'
+        )
+
+        with pytest.raises(HTTPError) as exc_info:
+            _dlt_raise_for_status(response, show_error_body=True, max_error_body_length=8192)
+
+        error_msg = str(exc_info.value)
+        assert "Database connection failed" in error_msg
+        assert "Connection timeout" in error_msg
+
+    def test_dlt_raise_for_status_with_body_disabled(self):
+        from dlt.sources.helpers.rest_client.client import _dlt_raise_for_status
+
+        response = Response()
+        response.status_code = 404
+        response.reason = "Not Found"
+        response.url = "https://api.example.com/endpoint"
+        response._content = (
+            b'{"error": "Resource not found", "detail": "Item with ID 123 not found"}'
+        )
+
+        with pytest.raises(HTTPError) as exc_info:
+            _dlt_raise_for_status(response, show_error_body=False, max_error_body_length=8192)
+
+        error_msg = str(exc_info.value)
+        assert "Resource not found" not in error_msg  # No body included
+        assert "Item with ID 123" not in error_msg
+        assert "404 Client Error: Not Found" in error_msg  # Still has status and URL

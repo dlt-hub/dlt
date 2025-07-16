@@ -9,7 +9,7 @@ from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
     AwsCredentialsWithoutDefaults,
 )
-from dlt.common.data_writers.configuration import CsvFormatConfiguration
+from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.exceptions import TerminalValueError
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.snowflake.utils import (

@@ -109,7 +109,7 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
                 "starrocks",
                 "sqlite",
             ]:
-                caps.sqlglot_dialect = backend_name
+                caps.sqlglot_dialect = backend_name  #  type: ignore
 
             elif backend_name == "postgresql":
                 caps.sqlglot_dialect = "postgres"

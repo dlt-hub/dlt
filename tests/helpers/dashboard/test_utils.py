@@ -23,11 +23,11 @@ from dlt.common.pendulum import pendulum as dlt_pendulum
 from dlt.common.pipeline import get_dlt_pipelines_dir
 from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage
-from dlt.helpers.studio.config import StudioConfiguration
-from dlt.helpers.studio import utils
-from dlt.helpers.studio.utils import (
+from dlt.helpers.dashboard.config import DashboardConfiguration
+from dlt.helpers.dashboard import utils
+from dlt.helpers.dashboard.utils import (
     PICKLE_TRACE_FILE,
-    resolve_studio_config,
+    resolve_dashboard_config,
     get_local_pipelines,
     get_pipeline,
     pipeline_details,
@@ -108,20 +108,20 @@ def test_pipeline():
         yield pipeline
 
 
-def test_resolve_studio_config(test_pipeline):
-    """Test resolving studio config with a real pipeline"""
+def test_resolve_dashboard_config(test_pipeline):
+    """Test resolving dashboard config with a real pipeline"""
 
-    os.environ["STUDIO__TEST_PIPELINE__DATETIME_FORMAT"] = "some format"
-    os.environ["STUDIO__DATETIME_FORMAT"] = "other format"
+    os.environ["DASHBOARD__TEST_PIPELINE__DATETIME_FORMAT"] = "some format"
+    os.environ["DASHBOARD__DATETIME_FORMAT"] = "other format"
 
-    config = resolve_studio_config(test_pipeline)
+    config = resolve_dashboard_config(test_pipeline)
 
-    assert isinstance(config, StudioConfiguration)
+    assert isinstance(config, DashboardConfiguration)
     assert isinstance(config.datetime_format, str)
     assert config.datetime_format == "some format"
 
     other_pipeline = dlt.pipeline(pipeline_name="other_pipeline", destination="duckdb")
-    config = resolve_studio_config(other_pipeline)
+    config = resolve_dashboard_config(other_pipeline)
     assert config.datetime_format == "other format"
 
 
@@ -189,17 +189,23 @@ def test_pipeline_details(test_pipeline):
 
 def test_create_table_list(test_pipeline):
     """Test creating a basic table list with real schema"""
-    config = StudioConfiguration()
+    config = DashboardConfiguration()
 
     result = create_table_list(config, test_pipeline, show_child_tables=False)
 
     # Should exclude _dlt_loads by default
     table_names = {table["name"] for table in result}
-    assert table_names == {"inventory", "purchases", "customers"}
+    assert table_names == {"inventory", "purchases", "customers", "inventory_categories"}
 
     result = create_table_list(config, test_pipeline, show_child_tables=True)
     table_names = {table["name"] for table in result}
-    assert table_names == {"inventory", "purchases", "customers", "purchases__child"}
+    assert table_names == {
+        "inventory",
+        "purchases",
+        "customers",
+        "purchases__child",
+        "inventory_categories",
+    }
 
     result = create_table_list(config, test_pipeline, show_internals=True, show_child_tables=False)
     table_names = {table["name"] for table in result}
@@ -210,17 +216,18 @@ def test_create_table_list(test_pipeline):
         "_dlt_pipeline_state",
         "inventory",
         "_dlt_version",
+        "inventory_categories",
     }
 
 
 def test_create_column_list_basic(test_pipeline):
     """Test creating a basic column list with real schema"""
-    config = StudioConfiguration()
+    config = DashboardConfiguration()
 
     # Should exclude _dlt columns by default, will also not show incomplete columns
     result = create_column_list(config, test_pipeline, "purchases")
     column_names = {col["name"] for col in result}
-    assert column_names == {"customer_id", "quantity", "id", "inventory_id"}
+    assert column_names == {"customer_id", "quantity", "id", "inventory_id", "date"}
 
     result = create_column_list(config, test_pipeline, "purchases", show_internals=True)
     column_names = {col["name"] for col in result}
@@ -231,12 +238,13 @@ def test_create_column_list_basic(test_pipeline):
         "id",
         "inventory_id",
         "_dlt_id",
+        "date",
     }
 
 
 def test_create_column_list_type_hints(test_pipeline):
     """Test creating column list with type hints"""
-    config = StudioConfiguration()
+    config = DashboardConfiguration()
     result = create_column_list(config, test_pipeline, "purchases", show_type_hints=True)
 
     # Find the id column
@@ -254,7 +262,7 @@ def test_get_query_result(test_pipeline):
 
     assert isinstance(result, pd.DataFrame)
     assert len(result) == 1
-    assert result.iloc[0]["count"] == 3
+    assert result.iloc[0]["count"] == 100
 
 
 def test_get_row_counts_real(test_pipeline):
@@ -262,9 +270,10 @@ def test_get_row_counts_real(test_pipeline):
     result = get_row_counts(test_pipeline)
     assert result == {
         "customers": 13,
-        "inventory": 3,
-        "purchases": 3,
+        "inventory": 6,
+        "purchases": 100,
         "purchases__child": 3,
+        "inventory_categories": 3,
         "_dlt_version": 2,
         "_dlt_loads": 2,
         "_dlt_pipeline_state": 1,
@@ -273,7 +282,7 @@ def test_get_row_counts_real(test_pipeline):
 
 def test_get_loads(test_pipeline):
     """Test getting loads from real pipeline"""
-    config = StudioConfiguration()
+    config = DashboardConfiguration()
 
     # Clear cache first
     get_loads.cache_clear()
@@ -289,7 +298,7 @@ def test_get_loads(test_pipeline):
 
 def test_trace(test_pipeline):
     """Test trace overview with real trace data"""
-    config = StudioConfiguration()
+    config = DashboardConfiguration()
     trace = test_pipeline.last_trace.asdict()
 
     # overview
@@ -408,7 +417,7 @@ def test_align_dict_keys_with_none_values():
 
 def test_humanize_datetime_values():
     """Test humanizing datetime values"""
-    config = StudioConfiguration()
+    config = DashboardConfiguration()
     config.datetime_format = "YYYY-MM-DD HH:mm:ss Z"
 
     input_dict = {
@@ -490,6 +499,6 @@ def test_integration_pipeline_workflow(test_pipeline):
     assert query_result.iloc[0]["name"] == "simon"
 
     # Test loads
-    config = StudioConfiguration()
+    config = DashboardConfiguration()
     loads = get_loads(config, test_pipeline)
     assert len(loads) >= 1

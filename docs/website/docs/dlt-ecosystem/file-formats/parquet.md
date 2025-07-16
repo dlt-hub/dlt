@@ -17,7 +17,14 @@ pip install "dlt[parquet]"
 
 ## Supported destinations
 
-Supported by: **BigQuery**, **DuckDB**, **Snowflake**, **Filesystem**, **Athena**, **Databricks**, **Synapse**
+- [BigQuery](../destinations/bigquery.md)
+- [DuckDB](../destinations/duckdb.md)
+- [Snowflake](../destinations/snowflake.md)
+- [Filesystem](../destinations/filesystem.md)
+- [Athena](../destinations/athena.md)
+- [Databricks](../destinations/databricks.md)
+- [Synapse](../destinations/synapse.md)
+- [LanceDB](../destinations/lancedb.md)
 
 ## How to configure
 

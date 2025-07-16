@@ -4,7 +4,9 @@
 import marimo
 
 __generated_with = "0.13.9"
-app = marimo.App(width="medium", app_title="dlt studio", css_file="dlt_app_styles.css")
+app = marimo.App(
+    width="medium", app_title="dlt pipeline dashboard", css_file="dlt_dashboard_styles.css"
+)
 
 with app.setup:
     from typing import Any, Dict, List, Callable, cast
@@ -16,8 +18,9 @@ with app.setup:
 
     import dlt
     from dlt.common.json import json
-    from dlt.helpers.studio import strings, utils, ui_elements as ui
-    from dlt.helpers.studio.config import StudioConfiguration
+    from dlt.helpers.dashboard import strings, utils, ui_elements as ui
+    from dlt.helpers.dashboard.config import DashboardConfiguration
+    from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
 
 
 @app.cell(hide_code=True)
@@ -37,7 +40,7 @@ def home(
     dlt_pipeline: dlt.Pipeline = None
     if dlt_pipeline_name:
         dlt_pipeline = utils.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
-    dlt_config = utils.resolve_studio_config(dlt_pipeline)
+    dlt_config = utils.resolve_dashboard_config(dlt_pipeline)
 
     if not dlt_pipeline:
         _stack = [
@@ -105,7 +108,7 @@ def section_sync_status(
         with mo.status.spinner(title=strings.sync_status_spinner_text):
             try:
                 dlt_pipeline.sync_destination()
-                _credentials = str(dlt_pipeline.dataset().destination_client.config.credentials)
+                _credentials = str(utils.get_destination_config(dlt_pipeline).credentials)
                 _result.append(
                     mo.callout(
                         mo.vstack([mo.md(strings.sync_status_success_text.format(_credentials))]),
@@ -149,7 +152,7 @@ def section_overview(
 
 @app.cell(hide_code=True)
 def section_schema(
-    dlt_config: StudioConfiguration,
+    dlt_config: DashboardConfiguration,
     dlt_pipeline: dlt.Pipeline,
     dlt_schema_show_child_tables: mo.ui.switch,
     dlt_schema_show_custom_hints: mo.ui.switch,
@@ -264,7 +267,7 @@ def section_browse_data_table_list(
     if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_data_table_list is not None:
         try:
             # try to connect to the dataset
-            dlt_pipeline.dataset().destination_client.config.credentials
+            utils.get_destination_config(dlt_pipeline)
             _result.append(
                 mo.hstack(
                     [
@@ -280,11 +283,11 @@ def section_browse_data_table_list(
             _sql_query = ""
             if dlt_data_table_list.value:
                 _table_name = dlt_data_table_list.value[0]["name"]  # type: ignore[index,unused-ignore]
+                _dataset = cast(ReadableDBAPIDataset, dlt_pipeline.dataset())
                 _sql_query = (
-                    dlt_pipeline.dataset()
-                    .table(_table_name)
+                    cast(ReadableDBAPIRelation, _dataset.table(_table_name))
                     .limit(1000 if dlt_restrict_to_last_1000.value else None)
-                    .query(pretty=True)
+                    .to_sql(pretty=True)
                 )
 
             dlt_query_editor = mo.ui.code_editor(
@@ -453,7 +456,7 @@ def section_trace(
     dlt_pipeline: dlt.Pipeline,
     dlt_section_trace_switch: mo.ui.switch,
     dlt_trace_steps_table: mo.ui.table,
-    dlt_config: StudioConfiguration,
+    dlt_config: DashboardConfiguration,
 ):
     """
     Show last trace of the currently selected pipeline
@@ -550,7 +553,7 @@ def section_trace(
 
 @app.cell(hide_code=True)
 def section_loads(
-    dlt_config: StudioConfiguration,
+    dlt_config: DashboardConfiguration,
     dlt_clear_query_cache: mo.ui.run_button,
     dlt_pipeline: dlt.Pipeline,
     dlt_restrict_to_last_1000: mo.ui.switch,
@@ -829,7 +832,7 @@ def ui_primary_controls(
     dlt_section_browse_data_switch: mo.ui.switch,
     dlt_section_schema_switch: mo.ui.switch,
     dlt_section_trace_switch: mo.ui.switch,
-    dlt_config: StudioConfiguration,
+    dlt_config: DashboardConfiguration,
 ):
     """
     Helper cell for creating certain controls based on selected sections
