@@ -1,6 +1,6 @@
 [project]
 name = "dlt"
-version = "1.14.0"
+version = "1.14.1"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
 requires-python = ">=3.9.2, <3.14"
@@ -70,8 +70,7 @@ gcp = [
 bigquery = [
     "grpcio>=1.50.0",
     "google-cloud-bigquery>=2.26.0",
-    "pyarrow>=16.0.0; python_version < '3.13'",
-    "pyarrow>=18.0.0; python_version >= '3.13'",
+    "pyarrow>=16.0.0",
     "gcsfs>=2022.4.0",
     "db-dtypes>=1.2.0",
 ]
@@ -82,8 +81,7 @@ redshift = [
     "psycopg2-binary>=2.9.1"
 ]
 parquet = [
-    "pyarrow>=16.0.0; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "pyarrow>=16.0.0",
 ]
 duckdb = [
     "duckdb>=0.9"
@@ -108,8 +106,7 @@ sftp = [
 snowflake = ["snowflake-connector-python>=3.5.0"]
 motherduck = [
     "duckdb>=0.9",
-    "pyarrow>=16.0.0 ; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "pyarrow>=16.0.0",
 ]
 cli = [
     "pipdeptree>=2.9.0,<2.10",
@@ -118,8 +115,7 @@ cli = [
 ]
 athena = [
     "pyathena>=2.9.6",
-    "pyarrow>=16.0.0 ; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "pyarrow>=16.0.0",
     "s3fs>=2022.4.0",
     "botocore>=1.28",
 ]
@@ -132,8 +128,7 @@ mssql = [
 synapse = [
     "pyodbc>=4.0.39 ; python_version < '3.13'",
     "adlfs>=2024.7.0",
-    "pyarrow>=16.0.0 ; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "pyarrow>=16.0.0",
 ]
 qdrant = [
     "qdrant-client[fastembed]>=1.8"
@@ -149,23 +144,19 @@ clickhouse = [
     "s3fs>=2022.4.0",
     "gcsfs>=2022.4.0",
     "adlfs>=2024.7.0",
-    "pyarrow>=16.0.0 ; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "pyarrow>=16.0.0",
 ]
 dremio = [
-    "pyarrow>=16.0.0 ; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "pyarrow>=16.0.0",
 ]
 lancedb = [
     "lancedb>=0.22.0 ; python_version < '3.13'",
-    "pyarrow>=16.0.0 ; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "pyarrow>=16.0.0",
     "tantivy>= 0.22.0",
 ]
 deltalake = [
     "deltalake>=0.25.1",
-    "pyarrow>=16.0.0; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "pyarrow>=16.0.0",
 ]
 sql_database = ["sqlalchemy>=1.4"]
 sqlalchemy = [
@@ -174,8 +165,7 @@ sqlalchemy = [
 ]
 pyiceberg = [
     "pyiceberg>=0.9.1",
-    "pyarrow>=16.0.0 ; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "pyarrow>=16.0.0",
     "sqlalchemy>=1.4",
 ]
 postgis = [
@@ -184,10 +174,8 @@ postgis = [
 workspace = [
     "duckdb>=0.9",
     "ibis-framework[duckdb]>=10.5.0 ; python_version >= '3.10'",
-    "pyarrow>=16.0.0; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
-    "pandas>2.1 ; python_version >= '3.12'",
-    "pandas<2.1 ; python_version < '3.12'",
+    "pyarrow>=16.0.0",
+    "pandas>=2",
     "marimo>=0.14.5",
 ]
 
@@ -248,8 +236,7 @@ dev = [
     # keep last duckdb version that works with azure and iceberg correctly
     "duckdb<1.2.1",
     "pydoclint>=0.6.5,<0.7",
-    # limit the pyarrow version not to test on too new one
-    "pyarrow>=16.0.0,<19.0.0",
+    "pyarrow>=16.0.0",
 ]
 sources = [
     "connectorx>=0.3.3 ; python_version >= '3.9'",
@@ -263,11 +250,10 @@ pipeline = [
     "enlighten>=1.11.2,<2",
     "alive-progress>=3.1.1,<4",
     "pydantic>=2.10",
-    "numpy>=1.21,<2.0 ; python_version >= '3.9' and python_version < '3.12'",
-    "numpy>=1.26,<2.0 ; python_version >= '3.12' and python_version < '3.13'",
-    "numpy>=2.0.0 ; python_version >= '3.13'",
-    "pandas>2.1 ; python_version >= '3.12'",
-    "pandas<2.1 ; python_version < '3.12'",
+    # "numpy>=1.21,<2.0 ; python_version >= '3.9' and python_version < '3.12'",
+    # "numpy>=1.26,<2.0 ; python_version >= '3.12' and python_version < '3.13'",
+    # "numpy>=2.0.0 ; python_version >= '3.13'",
+    "pandas>=2",
 ]
 airflow = ["apache-airflow>=2.8.0,<3 ; python_version < '3.12'"]
 ibis = [
@@ -301,10 +287,9 @@ docs = [
     "dbt-core>=1.5.0",
     "dbt-duckdb>=1.5.0",
     "pymongo>=4.3.3",
-    "pandas>2",
+    "pandas>=2",
     "alive-progress>=3.0.1",
-    "pyarrow>=16.0.0; python_version < '3.13'",
-    "pyarrow>=18.0.0 ; python_version >= '3.13'",
+    "pyarrow>=16.0.0",
     "psycopg2-binary>=2.9",
     "lancedb>=0.8.2 ; python_version < '3.13'",
     "openai>=1.45",
