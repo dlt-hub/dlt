@@ -1,20 +1,13 @@
-from typing import Union, TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from dlt.common.destination import TDestinationReferenceArg
-from dlt.common.schema import Schema
-from dlt.common import logger
+if not TYPE_CHECKING:
+    from dlt.common.warnings import DltDeprecationWarning
 
-from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+    DltDeprecationWarning(
+        """Content from this module was moved to `dlt._dataset.dataset`, which is internal. \
+        If you need to import `dataset`, import `dlt.dataset` instead.""",
+        since="1.15",
+        expected_due="2.0",
+    )
 
-if TYPE_CHECKING:
-    from dlt import Dataset
-else:
-    Dataset = Any
-
-
-def dataset(
-    destination: TDestinationReferenceArg,
-    dataset_name: str,
-    schema: Union[Schema, str, None] = None,
-) -> Dataset:
-    return ReadableDBAPIDataset(destination, dataset_name, schema)
+from dlt._dataset import dataset

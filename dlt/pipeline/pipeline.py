@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import contextlib
 import os
 from contextlib import contextmanager
@@ -30,7 +32,6 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
     ContextDefaultCannotBeCreated,
 )
-from dlt.common.destination.dataset import Dataset
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.destination.exceptions import (
     DestinationIncompatibleLoaderFileFormatException,
@@ -107,9 +108,7 @@ from dlt.normalize import Normalize
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.fs_client import FSClientBase
-from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.dataset import (
-    dataset,
     get_destination_clients,
 )
 
@@ -122,7 +121,6 @@ from dlt.pipeline.exceptions import (
     CannotRestorePipelineException,
     InvalidPipelineName,
     PipelineConfigMissing,
-    PipelineNeverRan,
     PipelineNotActive,
     PipelineStepFailed,
 )
@@ -148,11 +146,11 @@ from dlt.pipeline.state_sync import (
 )
 from dlt.common.storages.load_package import TLoadPackageState
 from dlt.pipeline.helpers import refresh_source
+from dlt._dataset import dataset
+
 
 if TYPE_CHECKING:
-    from dlt import Dataset
-else:
-    Dataset = Any
+    from dlt._dataset import Dataset
 
 
 TWithLocalFiles = TypeVar("TWithLocalFiles", bound=WithLocalFiles)

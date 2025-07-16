@@ -12,7 +12,6 @@ from dlt.common.pipeline import LoadInfo
 from dlt.common.typing import DictStrAny
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.exceptions import DestinationUndefinedEntity
-from dlt.destinations.dataset.dataset import ReadableDBAPIRelation
 from dlt.common.schema.typing import TTableSchema
 
 
@@ -554,7 +553,7 @@ def assert_table_column(
     # select full table
     assert_query_column(
         p,
-        cast(ReadableDBAPIRelation, dataset[table_name]).to_sql(),
+        dataset[table_name].to_sql(),
         table_data,
         schema_name,
         info,

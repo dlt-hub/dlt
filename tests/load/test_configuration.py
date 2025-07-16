@@ -2,12 +2,10 @@ from typing import Any
 
 import dlt
 
-from dlt.common.destination.dataset import Dataset
-
 
 def test_transformation_defaults() -> None:
     @dlt.transformation()
-    def my_tf(dataset: Dataset) -> Any:
+    def my_tf(dataset: dlt.Dataset) -> Any:
         yield dataset["example_table"].limit(5)
 
     assert my_tf.write_disposition == "append"

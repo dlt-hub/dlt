@@ -1,25 +1,21 @@
-import pytest
-
+import os
+import sys
 from typing import Any
 
-import dlt, os, sys
+import pytest
 
-from dlt.common.destination.dataset import Dataset
-from dlt.common.destination.dataset import Relation
-from dlt.destinations.dataset.relation import ReadableDBAPIRelation
+import dlt
+from dlt.destinations.dataset.relation import Relation
+from dlt.extract.hints import make_hints
+from dlt.sources._single_file_templates.fruitshop_pipeline import (
+    fruitshop as fruitshop_source,
+)
 from tests.pipeline.utils import load_table_counts
-
 from tests.load.utils import DestinationTestConfiguration
 from tests.load.transformations.utils import (
     transformation_configs,
     setup_transformation_pipelines,
     get_job_types,
-)
-
-from dlt.extract.hints import make_hints
-
-from dlt.sources._single_file_templates.fruitshop_pipeline import (
-    fruitshop as fruitshop_source,
 )
 
 
@@ -42,13 +38,13 @@ def test_simple_query_transformations(
     if transformation_type == "sql":
 
         @dlt.transformation()
-        def copied_purchases(dataset: Dataset) -> Any:
+        def copied_purchases(dataset: dlt.Dataset) -> Any:
             yield """SELECT * FROM purchases LIMIT 3"""
 
     elif transformation_type == "relation":
 
         @dlt.transformation()
-        def copied_purchases(dataset: Dataset) -> Any:
+        def copied_purchases(dataset: dlt.Dataset) -> Any:
             yield dataset["purchases"].limit(3)
 
     # transform into transformed dataset
@@ -90,13 +86,13 @@ def test_transformations_with_supplied_hints(
 
     # we can now transform this table twice, one with changed hints and once with the original hints
     @dlt.transformation()
-    def inventory_original(dataset: Dataset) -> Any:
+    def inventory_original(dataset: dlt.Dataset) -> Any:
         yield dataset["inventory"]
 
     column_hints: Any = [{"name": "price", "precision": 20, "scale": 2}]
 
     @dlt.transformation(columns=(column_hints if hint_location == "decorator" else None))
-    def inventory_more_precise(dataset: Dataset) -> Any:
+    def inventory_more_precise(dataset: dlt.Dataset) -> Any:
         if hint_location == "meta":
             yield dlt.mark.with_hints(dataset["inventory"], hints=make_hints(columns=column_hints))
         else:
@@ -133,14 +129,14 @@ def test_extract_without_source_name_or_pipeline(
     fruit_p.run(fruitshop_source())
 
     @dlt.transformation()
-    def buffer_size_test(dataset: Dataset) -> Any:
+    def buffer_size_test(dataset: dlt.Dataset) -> Any:
         yield dataset["customers"]
 
     # transformations switch to model extraction
     fruit_p.deactivate()
     model_rows = list(buffer_size_test(fruit_p.dataset()))
     assert len(model_rows) == 1
-    assert isinstance(model_rows[0], ReadableDBAPIRelation)
+    assert isinstance(model_rows[0], Relation)
 
 
 @pytest.mark.parametrize(
@@ -153,7 +149,7 @@ def test_extract_without_destination(destination_config: DestinationTestConfigur
     fruit_p.run(fruitshop_source())
 
     @dlt.transformation()
-    def extract_test(dataset: Dataset) -> Any:
+    def extract_test(dataset: dlt.Dataset) -> Any:
         yield dataset["customers"]
 
     pipeline_no_destination = dlt.pipeline(pipeline_name="no_destination")
@@ -179,7 +175,7 @@ def test_enumerate_and_access_relation(destination_config: DestinationTestConfig
     fruit_p.run(fruitshop_source())
 
     @dlt.transformation()
-    def materializable_sql_model(dataset: Dataset) -> Any:
+    def materializable_sql_model(dataset: dlt.Dataset) -> Any:
         yield "SELECT id, name FROM customers"
 
     model = list(materializable_sql_model(fruit_p.dataset()))[0]
@@ -203,7 +199,7 @@ def test_ibis_unbound_table_transformation(
     fruit_p.run(fruitshop_source())
 
     @dlt.transformation()
-    def materializable_sql_model(dataset: Dataset) -> Any:
+    def materializable_sql_model(dataset: dlt.Dataset) -> Any:
         purchases = dataset.table("purchases", table_type="ibis")
         customers = dataset.table("customers", table_type="ibis")
         yield purchases.join(customers, purchases.customer_id == customers.id)[
@@ -233,7 +229,7 @@ def test_transformations_without_generator(
     fruit_p.run(fruitshop_source())
 
     @dlt.transformation()
-    def transform_without_generator(dataset: Dataset) -> Any:
+    def transform_without_generator(dataset: dlt.Dataset) -> Any:
         # return works!
         return dataset["customers"]
 
@@ -260,7 +256,7 @@ def test_multiple_transformations_in_function(
     fruit_p.run(fruitshop_source())
 
     @dlt.transformation()
-    def multiple_transformations(dataset: Dataset) -> Any:
+    def multiple_transformations(dataset: dlt.Dataset) -> Any:
         if transformation_type in ["sql", "mixed"]:
             yield dataset["customers"]
         else:

@@ -1,13 +1,8 @@
 import dlt
-import pytest
 import os
-from random import randrange, choice
 from typing import Any, Dict, Tuple
 
-from dlt.common.destination.dataset import Dataset
-
 from tests.load.utils import (
-    FILE_BUCKET,
     destinations_configs,
     SFTP_BUCKET,
     MEMORY_BUCKET,
