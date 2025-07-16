@@ -600,9 +600,7 @@ class ArrowToCsvWriter(DataWriter):
                         self.writer = pyarrow.csv.CSVWriter(
                             self._f,
                             item.schema,
-                            write_options=pyarrow.csv.WriteOptions(
-                                **write_options_kwargs
-                            ),
+                            write_options=pyarrow.csv.WriteOptions(**write_options_kwargs),
                         )
                         self._first_schema = item.schema
                     except pyarrow.ArrowInvalid as inv_ex:
