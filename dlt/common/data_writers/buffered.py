@@ -46,7 +46,6 @@ class BufferedDataWriter(Generic[TWriter]):
         file_max_bytes: int = None,
         disable_compression: bool = False,
         _caps: DestinationCapabilitiesContext = None,
-        **writer_kwargs,
     ):
         self.writer_spec = writer_spec
         if self.writer_spec.requires_destination_capabilities and not _caps:
@@ -78,7 +77,6 @@ class BufferedDataWriter(Generic[TWriter]):
         self._created: float = None
         self._last_modified: float = None
         self._closed = False
-        self._writer_kwargs = writer_kwargs
         try:
             self._rotate_file()
         except TypeError:
@@ -245,7 +243,7 @@ class BufferedDataWriter(Generic[TWriter]):
                     self._file = self.open(self._file_name, "wb")  # type: ignore
                 else:
                     self._file = self.open(self._file_name, "wt", encoding="utf-8", newline="")
-                self._writer = self.writer_cls(self._file, caps=self._caps, **self._writer_kwargs)  # type: ignore[assignment]
+                self._writer = self.writer_cls(self._file, caps=self._caps)  # type: ignore[assignment]
                 self._writer.write_header(self._current_columns)
             # write buffer
             if self._buffered_items:
