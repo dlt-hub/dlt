@@ -78,7 +78,8 @@ class ReadableDBAPIDataset(Dataset):
 
     @property
     def tables(self) -> list[str]:
-        return list(self.schema.tables.keys())
+        # return only completed tables
+        return self.schema.data_table_names() + self.schema.dlt_table_names()
 
     def _ipython_key_completions_(self) -> list[str]:
         return self.tables
@@ -209,13 +210,14 @@ class ReadableDBAPIDataset(Dataset):
     def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
 
     def table(self, table_name: str, table_type: Literal["relation", "ibis"] = "relation") -> Any:
-        # dataset only provides access to tables known in dlt schema, direct query may cirumvent this
-        if table_name not in self.schema.tables.keys():
+        # dataset only provides access to tables known in dlt schema, direct query may circumvent this
+        available_tables = self.tables
+        if table_name not in available_tables:
             # TODO: raise TableNotFound
             raise ValueError(
                 f"Table `{table_name}` not found in schema `{self.schema.name}` of dataset"
                 f" `{self.dataset_name}`. Available table(s):"
-                f" {', '.join(self.schema.tables.keys())}"
+                f" {', '.join(available_tables)}"
             )
 
         if table_type == "ibis":

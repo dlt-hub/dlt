@@ -98,12 +98,10 @@ def test_copy_and_chaining() -> None:
         ),
     )
 
-    dataset.schema.tables["items"] = {
-        "columns": {
-            "one": {"data_type": "text", "name": "one"},
-            "two": {"data_type": "json", "name": "two"},
-        }
-    }
+    dataset.schema.tables["items"] = new_table(
+        "items",
+        columns=[{"data_type": "text", "name": "one"}, {"data_type": "json", "name": "two"}],
+    )
 
     # create relation and set some stuff on it
     relation = cast(ReadableDBAPIRelation, dataset.items)
@@ -142,12 +140,10 @@ def test_computed_schema_columns() -> None:
     with pytest.raises(ValueError):
         dataset.table("items")
 
-    dataset.schema.tables["items"] = {
-        "columns": {
-            "one": {"data_type": "text", "name": "one"},
-            "two": {"data_type": "json", "name": "two"},
-        }
-    }
+    dataset.schema.tables["items"] = new_table(
+        "items",
+        columns=[{"data_type": "text", "name": "one"}, {"data_type": "json", "name": "two"}],
+    )
 
     # now add columns
     relation = dataset.items
