@@ -175,7 +175,7 @@ workspace = [
     "duckdb>=0.9",
     "ibis-framework[duckdb]>=10.5.0 ; python_version >= '3.10'",
     "pyarrow>=16.0.0",
-    "pandas>=2.1",
+    "pandas>=2.1.4",
     "marimo>=0.14.5",
 ]
 
@@ -249,14 +249,13 @@ pipeline = [
     "sqlalchemy<2",
     "cryptography>=41.0.7,<42",
     "shapely>=2.0.6",
-    "google-api-python-client>=1.7.11",
-    "google-auth-oauthlib>=1.0.0,<2",
     "tqdm>=4.65.0,<5",
     "enlighten>=1.11.2,<2",
     "alive-progress>=3.1.1,<4",
     "pydantic>=2.10",
-    "pyarrow>=16.0.0",    
-    "pandas>=2.1",
+    "pyarrow>=16.0.0",
+    # this pandas and above has functional numpy dependency
+    "pandas>=2.1.4",
     # keep last duckdb version that works with azure and iceberg correctly
     "duckdb<1.2.1",
 ]
@@ -270,6 +269,7 @@ dashboard-tests = [
     "playwright>=1.52.0,<2",
     "pytest-playwright>=0.7.0,<1",
     ]
+# NOTE: required to use google secrets config provider
 providers = ["google-api-python-client>=2.86.0,<3"]
 sentry-sdk = ["sentry-sdk>=2.0.0,<3"]
 dbt = [
@@ -293,7 +293,7 @@ docs = [
     "dbt-core>=1.5.0",
     "dbt-duckdb>=1.5.0",
     "pymongo>=4.3.3",
-    "pandas>=2.1",
+    "pandas>=2.1.4",
     "alive-progress>=3.0.1",
     "pyarrow>=16.0.0",
     "psycopg2-binary>=2.9",
