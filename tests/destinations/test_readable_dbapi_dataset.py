@@ -42,7 +42,7 @@ def test_dataset_autocompletion(mock_dataset: ReadableDBAPIDataset):
 
 def test_relation_autocompletion(mock_dataset: ReadableDBAPIDataset):
     expected_suggestions = ["col1", "col2"]
-    suggestions = mock_dataset["my_table"]._ipython_key_completions_()
+    suggestions = mock_dataset["my_table"]._ipython_key_completions_()  # type: ignore[attr-defined]
     assert set(expected_suggestions) == set(suggestions)
 
 
@@ -131,8 +131,16 @@ def test_computed_schema_columns() -> None:
         "pipeline_dataset",
     )
 
-    with pytest.raises(KeyError):
+    # missing attribute should raise Attribute error
+    with pytest.raises(AttributeError):
         dataset.items
+
+    # missing key should raise KeyError
+    with pytest.raises(KeyError):
+        dataset["items"]
+
+    with pytest.raises(ValueError):
+        dataset.table("items")
 
     dataset.schema.tables["items"] = {
         "columns": {
@@ -152,10 +160,14 @@ def test_computed_schema_columns() -> None:
 
     # when selecting only one column, computing schema columns will only show that one
     assert relation.select("one").columns_schema == {"one": {"data_type": "text", "name": "one"}}
+    assert relation["one"].columns_schema == {"one": {"data_type": "text", "name": "one"}}
+    assert relation[["one"]].columns_schema == {"one": {"data_type": "text", "name": "one"}}
 
     # selecting unknown column fails
     with pytest.raises(KeyError):
         relation[["unknown_columns"]]
+    with pytest.raises(KeyError):
+        relation["unknown_columns"]
 
 
 def test_changing_relation_with_query() -> None:

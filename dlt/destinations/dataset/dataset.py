@@ -75,13 +75,12 @@ class ReadableDBAPIDataset(Dataset):
         if not self._schema:
             self._ensure_schema()
         return self._schema
-    
+
     @property
     def tables(self) -> list[str]:
         return list(self.schema.tables.keys())
-    
+
     def _ipython_key_completions_(self) -> list[str]:
-        print("getting keys")
         return self.tables
 
     @property
@@ -212,6 +211,7 @@ class ReadableDBAPIDataset(Dataset):
     def table(self, table_name: str, table_type: Literal["relation", "ibis"] = "relation") -> Any:
         # dataset only provides access to tables known in dlt schema, direct query may cirumvent this
         if table_name not in self.schema.tables.keys():
+            # TODO: raise TableNotFound
             raise ValueError(
                 f"Table `{table_name}` not found in schema `{self.schema.name}` of dataset"
                 f" `{self.dataset_name}`. Available table(s):"
@@ -275,17 +275,22 @@ class ReadableDBAPIDataset(Dataset):
     def __getitem__(self, table_name: str) -> Relation:
         """access of table via dict notation"""
         if table_name not in self.tables:
-            raise KeyError(f"Table `{table_name}` not found on dataset. Available tables: `{self.tables}`")
+            raise KeyError(
+                f"Table `{table_name}` not found on dataset. Available tables: `{self.tables}`"
+            )
+        try:
+            return self.table(table_name)
+        # TODO: expect TableNotFound in the future
+        except ValueError as exc:
+            raise KeyError(table_name, str(exc))
 
-        return self.table(table_name)
-    
     def __getattr__(self, name: str) -> Any:
-        """Retrieve a `Relation` via `__getitem__` if standard `__getattr__` returns `None`."""
-        attribute = self.__dict__.get(name, None)
-        if attribute is not None:
-            return attribute
-
-        return self.__getitem__(table_name=name)
+        """Retrieve a `Relation` with `name` and raise `AttributeError` when not found"""
+        try:
+            return self.table(name)
+        # TODO: expect TableNotFound in the future
+        except ValueError as exc:
+            raise AttributeError(name, str(exc))
 
     def __enter__(self) -> Self:
         """Context manager used to open and close sql client and internal connection"""
