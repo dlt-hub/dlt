@@ -175,7 +175,7 @@ workspace = [
     "duckdb>=0.9",
     "ibis-framework[duckdb]>=10.5.0 ; python_version >= '3.10'",
     "pyarrow>=16.0.0",
-    "pandas>=2",
+    "pandas>=2.1",
     "marimo>=0.14.5",
 ]
 
@@ -187,11 +187,10 @@ Repository = "https://github.com/dlt-hub/dlt"
 dlt = "dlt.cli._dlt:_main"
 
 [dependency-groups]
+# NOTE: add only dependencies used for linting, type checking etc. anything else goes to pipeline group
+# we use those deps in common tests to make sure they work without extra dependencies so if you add them
+# here you'll break everything
 dev = [
-    "cffi>=1.16",
-    "greenlet>=3.1",
-    "regex>=2024.10",
-    "sqlalchemy<2",
     "requests-mock>=1.10.0,<2",
     "types-click>=7.1.8,<8",
     "sqlfluff>=2.3.2,<3",
@@ -220,8 +219,6 @@ dev = [
     "types-tqdm>=4.66.0.2,<5",
     "types-psutil>=5.9.5.16,<6",
     "types-psycopg2>=2.9.21.14,<3",
-    "cryptography>=41.0.7,<42",
-    "google-api-python-client>=1.7.11",
     "pytest-asyncio>=0.23.5,<0.24",
     "types-sqlalchemy>=1.4.53.38,<2",
     "types-pytz>=2024.1.0.20240203",
@@ -230,30 +227,38 @@ dev = [
     "pytest-mock>=3.14.0,<4",
     "types-regex>=2024.5.15.20240519,<2025",
     "flake8-print>=5.0.0,<6",
-    "mimesis>=7.0.0,<8",
-    "shapely>=2.0.6",
     "pip>=24.0.0",
-    # keep last duckdb version that works with azure and iceberg correctly
-    "duckdb<1.2.1",
     "pydoclint>=0.6.5,<0.7",
-    "pyarrow>=16.0.0",
 ]
+
+# NOTE: those dependencies are used to test built in sources
 sources = [
     "connectorx>=0.3.3 ; python_version >= '3.9'",
     "connectorx>=0.4.0,<0.4.2 ; python_version >= '3.10'",
     "pymysql>=1.1.0,<2",
     "openpyxl>=3,<4",
+    "mimesis>=7.0.0,<8",
+    "sqlalchemy<2",
 ]
+
+# NOTE: those dependencies are used to test pipelines, do not include what is in extras for destinations
 pipeline = [
+    "cffi>=1.16",
+    "greenlet>=3.1",
+    "regex>=2024.10",
+    "sqlalchemy<2",
+    "cryptography>=41.0.7,<42",
+    "shapely>=2.0.6",
+    "google-api-python-client>=1.7.11",
     "google-auth-oauthlib>=1.0.0,<2",
     "tqdm>=4.65.0,<5",
     "enlighten>=1.11.2,<2",
     "alive-progress>=3.1.1,<4",
     "pydantic>=2.10",
-    # "numpy>=1.21,<2.0 ; python_version >= '3.9' and python_version < '3.12'",
-    # "numpy>=1.26,<2.0 ; python_version >= '3.12' and python_version < '3.13'",
-    # "numpy>=2.0.0 ; python_version >= '3.13'",
-    "pandas>=2",
+    "pyarrow>=16.0.0",    
+    "pandas>=2.1",
+    # keep last duckdb version that works with azure and iceberg correctly
+    "duckdb<1.2.1",
 ]
 airflow = ["apache-airflow>=2.8.0,<3 ; python_version < '3.12'"]
 ibis = [
@@ -279,6 +284,7 @@ dbt = [
 adbc = [
     "adbc-driver-postgresql>=1.6.0"
 ]
+# NOTE: depedencies required to lint and test docs and examples
 docs = [
     "SQLAlchemy>=1.4.0",
     "pymysql>=1.1.0,<2",
@@ -287,7 +293,7 @@ docs = [
     "dbt-core>=1.5.0",
     "dbt-duckdb>=1.5.0",
     "pymongo>=4.3.3",
-    "pandas>=2",
+    "pandas>=2.1",
     "alive-progress>=3.0.1",
     "pyarrow>=16.0.0",
     "psycopg2-binary>=2.9",
@@ -295,6 +301,9 @@ docs = [
     "openai>=1.45",
     "connectorx>=0.3.2,<0.4.2",
     "modal>=0.64.170",
+    # google secrets provider
+    "google-api-python-client>=1.7.11",
+    "google-auth-oauthlib>=1.0.0,<2",
 ]
 
 [tool.uv]
