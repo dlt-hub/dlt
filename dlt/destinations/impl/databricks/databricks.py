@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Optional, Sequence, List, cast
+from typing import Dict, Optional, Sequence, List, cast, Union, Literal
 from urllib.parse import urlparse, urlunparse
 
 from dlt.common.configuration.specs.azure_credentials import (
@@ -49,7 +49,13 @@ from dlt.destinations.utils import is_compression_disabled
 
 SUPPORTED_BLOB_STORAGE_PROTOCOLS = AZURE_BLOB_STORAGE_PROTOCOLS + S3_PROTOCOLS + GCS_PROTOCOLS
 
-SUPPORTED_HINTS: Dict[TColumnHint, str] = {"primary_key": "PRIMARY KEY", "foreign_key": "FOREIGN KEY"}
+TDatabricksColumnHint = Union[TColumnHint, Literal["foreign_key"]]
+
+SUPPORTED_HINTS: Dict[TDatabricksColumnHint, str] = {
+    "primary_key": "PRIMARY KEY",
+    "foreign_key": "FOREIGN KEY",
+}
+
 
 class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
@@ -313,7 +319,9 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         self.config: DatabricksClientConfiguration = config
         self.sql_client: DatabricksSqlClient = sql_client  # type: ignore[assignment, unused-ignore]
         self.type_mapper = self.capabilities.get_type_mapper()
-        self.active_hints = SUPPORTED_HINTS if self.config.create_indexes else {}
+        self.active_hints = (
+            cast(Dict[TColumnHint, str], SUPPORTED_HINTS) if self.config.create_indexes else {}
+        )
 
     def _get_column_def_sql(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         column_def_sql = super()._get_column_def_sql(column, table)
@@ -377,7 +385,7 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
                     quoted_pk_cols = ", ".join(
                         self.sql_client.escape_column_name(col) for col in pk_columns
                     )
-                    constraints_sql += f",\nPRIMARY KEY ({quoted_pk_cols})"                
+                    constraints_sql += f",\nPRIMARY KEY ({quoted_pk_cols})"
 
             return constraints_sql
 
@@ -395,7 +403,9 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         qualified_name = self.sql_client.make_qualified_table_name(table_name)
 
         cluster_list = [
-            self.sql_client.escape_column_name(c["name"]) for c in new_columns if c.get("cluster") or c.get(CLUSTER_HINT, False)
+            self.sql_client.escape_column_name(c["name"])
+            for c in new_columns
+            if c.get("cluster") or c.get(CLUSTER_HINT, False)
         ]
 
         if cluster_list:
@@ -407,7 +417,8 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             sql.append(f"COMMENT ON TABLE {qualified_name} IS {escaped_comment}")
 
         if table.get(TABLE_TAGS_HINT):
-            for tag in table.get(TABLE_TAGS_HINT):
+            table_tags = cast(List[Union[str, Dict[str, str]]], table.get(TABLE_TAGS_HINT))
+            for tag in table_tags:
                 if isinstance(tag, str):
                     escaped_tag = escape_databricks_literal(tag)
                     sql.append(f"ALTER TABLE {qualified_name} SET TAGS ({escaped_tag})")
@@ -415,23 +426,34 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
                     (key, value), *rest = tag.items()
                     escaped_key = escape_databricks_literal(key)
                     escaped_value = escape_databricks_literal(value)
-                    sql.append(f"ALTER TABLE {qualified_name} SET TAGS ({escaped_key}={escaped_value})")
+                    sql.append(
+                        f"ALTER TABLE {qualified_name} SET TAGS ({escaped_key}={escaped_value})"
+                    )
 
         column_tag_list = [
-            (self.sql_client.escape_column_name(c["name"]), c.get(COLUMN_TAGS_HINT)) for c in new_columns if c.get(COLUMN_TAGS_HINT)
+            (self.sql_client.escape_column_name(c["name"]), c.get(COLUMN_TAGS_HINT))
+            for c in new_columns
+            if c.get(COLUMN_TAGS_HINT)
         ]
 
         if column_tag_list:
-            for (column_name, column_tags) in column_tag_list:
-                for column_tag in column_tags:
+            for column_name, column_tags in column_tag_list:
+                column_tags_typed = cast(List[Union[str, Dict[str, str]]], column_tags)
+                for column_tag in column_tags_typed:
                     if isinstance(column_tag, str):
                         escaped_tag = escape_databricks_literal(column_tag)
-                        sql.append(f"ALTER TABLE {qualified_name} ALTER COLUMN {column_name} SET TAGS ({escaped_tag})")
+                        sql.append(
+                            f"ALTER TABLE {qualified_name} ALTER COLUMN {column_name} SET TAGS"
+                            f" ({escaped_tag})"
+                        )
                     elif isinstance(column_tag, dict):
                         (key, value), *rest = column_tag.items()
                         escaped_key = escape_databricks_literal(key)
                         escaped_value = escape_databricks_literal(value)
-                        sql.append(f"ALTER TABLE {qualified_name} ALTER COLUMN {column_name} SET TAGS ({escaped_key}={escaped_value})")
+                        sql.append(
+                            f"ALTER TABLE {qualified_name} ALTER COLUMN {column_name} SET TAGS"
+                            f" ({escaped_key}={escaped_value})"
+                        )
 
         return sql
 

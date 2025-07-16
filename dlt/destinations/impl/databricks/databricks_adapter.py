@@ -13,6 +13,7 @@ TABLE_TAGS_HINT: Literal["x-databricks-table-tags"] = "x-databricks-table-tags"
 COLUMN_COMMENT_HINT: Literal["x-databricks-column-comment"] = "x-databricks-column-comment"
 COLUMN_TAGS_HINT: Literal["x-databricks-column-tags"] = "x-databricks-column-tags"
 
+
 def databricks_adapter(
     data: Any,
     cluster: TColumnNames = None,
@@ -75,9 +76,9 @@ def databricks_adapter(
             # cast to a generic dict to access keys not in TColumnSchema
             hints_dict = cast(Dict[str, Any], hints)
             if "column_comment" in hints_dict:
-                additional_column_hints[column_name][COLUMN_COMMENT_HINT] = hints_dict[
+                additional_column_hints[column_name][COLUMN_COMMENT_HINT] = hints_dict[  # type: ignore[typeddict-unknown-key]
                     "column_comment"
-                ]  # type: ignore[typeddict-unknown-key]
+                ]
             if "column_tags" in hints_dict:
                 column_tags = hints_dict["column_tags"]
                 if not isinstance(column_tags, list):
@@ -113,10 +114,14 @@ def databricks_adapter(
                 # Ensure the dictionary has exactly one key-value pair
                 continue
             else:
-                raise ValueError("Each tag must be either a string or a dictionary with a single key-value pair.")
+                raise ValueError(
+                    "Each tag must be either a string or a dictionary with a single key-value pair."
+                )
 
         additional_table_hints[TABLE_TAGS_HINT] = table_tags
 
-    resource.apply_hints(columns=additional_column_hints, additional_table_hints=additional_table_hints)
+    resource.apply_hints(
+        columns=additional_column_hints, additional_table_hints=additional_table_hints
+    )
 
     return resource

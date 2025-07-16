@@ -1,4 +1,4 @@
-from typing import Iterator, Dict
+from typing import Iterator, Dict, Any, cast
 import pytest
 
 import dlt
@@ -14,6 +14,7 @@ from tests.load.utils import (
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
+
 
 @pytest.mark.parametrize(
     "destination_config",
@@ -50,12 +51,12 @@ def test_databricks_hints(
     @dlt.resource(
         columns={"some_int_2": {"data_type": "bigint", "nullable": False}},
         references=[
-                {
-                    "referenced_table": "demo_resource_primary",
-                    "columns": ["some_int_2"],
-                    "referenced_columns": ["some_int"],
-                }
-            ],
+            {
+                "referenced_table": "demo_resource_primary",
+                "columns": ["some_int_2"],
+                "referenced_columns": ["some_int"],
+            }
+        ],
     )
     def demo_resource_foreign() -> Iterator[Dict[str, int]]:
         for i in range(10):
@@ -70,8 +71,7 @@ def test_databricks_hints(
     pipeline.run(demo_source())
 
     with pipeline.sql_client() as c:
-        with c.execute_query(
-            f"""
+        with c.execute_query(f"""
                 SELECT tables.comment, table_tags.tag_name, table_tags.tag_value
                 FROM information_schema.tables
                 LEFT JOIN information_schema.table_tags ON tables.table_catalog = table_tags.catalog_name
@@ -79,8 +79,7 @@ def test_databricks_hints(
                     AND tables.table_name = table_tags.table_name
                 WHERE tables.table_name = 'demo_resource_primary'
                     AND tables.table_schema = '{pipeline.dataset_name}';
-            """
-        ) as cur:
+            """) as cur:
             rows = cur.fetchall()
 
             assert all("Dummy table comment" in str(row[0]) for row in rows)
@@ -103,8 +102,7 @@ def test_databricks_hints(
                 WHERE columns.table_schema = '{pipeline.dataset_name}'
                     AND columns.table_name = 'demo_resource_primary'
                     AND columns.column_name NOT LIKE '\\_%';
-            """
-        ) as cur:
+            """) as cur:
             rows = cur.fetchall()
 
             assert all("Dummy column comment" in str(row[0]) for row in rows)
@@ -126,7 +124,10 @@ def test_databricks_hints(
             """) as cur:
             rows = cur.fetchall()
 
-            assert any("demo_resource_foreign_demo_resource_primary_fk" in str(row[0]) for row in rows)
+            assert any(
+                "demo_resource_foreign_demo_resource_primary_fk" in str(row[0]) for row in rows
+            )
+
 
 @pytest.mark.parametrize(
     "invalid_table_tags",
@@ -141,9 +142,11 @@ def test_databricks_hints(
 def test_databricks_adapter_invalid_table_tags(invalid_table_tags):
     def dummy_resource():
         yield {"some_int": 1}
+
     # Should raise ValueError for invalid table_tags
     with pytest.raises(ValueError):
         databricks_adapter(dummy_resource, table_tags=invalid_table_tags)
+
 
 @pytest.mark.parametrize(
     "invalid_column_tags",
@@ -158,28 +161,33 @@ def test_databricks_adapter_invalid_table_tags(invalid_table_tags):
 def test_databricks_adapter_invalid_column_tags(invalid_column_tags):
     def dummy_resource():
         yield {"some_int": 1}
-    # Should raise ValueError for invalid column_tags
+
     with pytest.raises(ValueError):
         databricks_adapter(
             dummy_resource,
             column_hints={
-                "some_int": {"column_tags": invalid_column_tags}
+                "some_int": {"column_tags": invalid_column_tags}  # type: ignore[typeddict-unknown-key]
             },
         )
+
 
 def test_databricks_adapter_invalid_table_comment():
     def dummy_resource():
         yield {"some_int": 1}
+
     # Should raise ValueError for non-string table_comment
     with pytest.raises(ValueError):
-        databricks_adapter(dummy_resource, table_comment=123)
+        databricks_adapter(dummy_resource, table_comment=123)  # type: ignore[arg-type]
+
 
 def test_databricks_adapter_invalid_cluster():
     def dummy_resource():
         yield {"some_int": 1}
+
     # Should raise ValueError for invalid cluster type
     with pytest.raises(ValueError):
-        databricks_adapter(dummy_resource, cluster=123)
+        databricks_adapter(dummy_resource, cluster=123)  # type: ignore[arg-type]
+
 
 @pytest.mark.parametrize(
     "destination_config",
@@ -204,11 +212,11 @@ def test_databricks_adapter_special_characters(
     databricks_adapter(
         demo_resource_special,
         table_comment="O'Reilly's \"book\" on SQL; DROP TABLE users;--",
-        table_tags=[{"env": "test's \"env\""}],
+        table_tags=[{"env": 'test\'s "env"'}],
         column_hints={
-            "some_int": {
+            "some_int": {  # type: ignore[typeddict-unknown-key]
                 "column_comment": "User's ID with \"quotes\" and 'apostrophes'",
-                "column_tags": [{"type": "user's \"data\""}],
+                "column_tags": [{"type": 'user\'s "data"'}],
             }
         },
     )
@@ -221,10 +229,8 @@ def test_databricks_adapter_special_characters(
 
     # Verify that the special characters were properly handled and the table was created
     with pipeline.sql_client() as c:
-        with c.execute_query(
-            f"""
+        with c.execute_query(f"""
                 SELECT COUNT(*) FROM {pipeline.dataset_name}.demo_resource_special
-            """
-        ) as cur:
+            """) as cur:
             row = cur.fetchone()
             assert row[0] == 5  # All rows should be loaded successfully
