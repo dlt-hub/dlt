@@ -695,7 +695,35 @@ request_timeout = 120  # Timeout in seconds
 request_max_retry_delay = 30  # Cap exponential delay to 30 seconds
 ```
 
+### URL sanitization and secret protection
+
+The RESTClient automatically sanitizes URLs in logs and error messages to prevent exposure of sensitive information. Query parameters with the following names are automatically redacted:
+
+- `api_key`, `token`, `key`, `access_token`, `apikey`, `api-key`, `access-token`
+- `secret`, `password`, `pwd`, `client_secret`
+
+For example, a URL like `https://api.example.com/data?api_key=secret123&page=1` will appear in logs as `https://api.example.com/data?api_key=***&page=1`.
+
+
 ## Troubleshooting
+
+### Debugging HTTP error responses
+
+When debugging API issues, you may need to see the full error response body. By default, error response bodies are not included in exceptions to keep error messages concise.
+
+To enable error response bodies:
+
+```toml
+[runtime]
+http_show_error_body = true
+http_max_error_body_length = 8192  # Maximum characters (default: 8192)
+```
+
+Example error with response body enabled:
+```text
+HTTPError: 400 Client Error: Bad Request for url: https://api.example.com/data?api_key=***
+Response body: {"error": "Invalid date format", "code": "INVALID_DATE", "field": "start_date"}
+```
 
 ### `RESTClient.get()` and `RESTClient.post()` methods
 

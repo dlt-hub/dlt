@@ -1,7 +1,7 @@
 import dataclasses
 from typing import Dict, Final, ClassVar, Any, List, Optional
 
-from dlt.common.data_writers.configuration import CsvFormatConfiguration
+from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.utils import digest128

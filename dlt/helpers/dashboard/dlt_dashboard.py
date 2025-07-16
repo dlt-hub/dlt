@@ -4,7 +4,9 @@
 import marimo
 
 __generated_with = "0.13.9"
-app = marimo.App(width="medium", app_title="dlt studio", css_file="style.css")
+app = marimo.App(
+    width="medium", app_title="dlt pipeline dashboard", css_file="dlt_dashboard_styles.css"
+)
 
 with app.setup:
     from typing import Any, Dict, List, Callable, cast
@@ -16,8 +18,9 @@ with app.setup:
 
     import dlt
     from dlt.common.json import json
-    from dlt.helpers.studio import strings, utils, ui_elements as ui
-    from dlt.helpers.studio.config import StudioConfiguration
+    from dlt.helpers.dashboard import strings, utils, ui_elements as ui
+    from dlt.helpers.dashboard.config import DashboardConfiguration
+    from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
 
 
 @app.cell(hide_code=True)
@@ -37,7 +40,7 @@ def home(
     dlt_pipeline: dlt.Pipeline = None
     if dlt_pipeline_name:
         dlt_pipeline = utils.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
-    dlt_config = utils.resolve_studio_config(dlt_pipeline)
+    dlt_config = utils.resolve_dashboard_config(dlt_pipeline)
 
     if not dlt_pipeline:
         _stack = [
@@ -105,7 +108,7 @@ def section_sync_status(
         with mo.status.spinner(title=strings.sync_status_spinner_text):
             try:
                 dlt_pipeline.sync_destination()
-                _credentials = str(dlt_pipeline.dataset().destination_client.config.credentials)
+                _credentials = str(utils.get_destination_config(dlt_pipeline).credentials)
                 _result.append(
                     mo.callout(
                         mo.vstack([mo.md(strings.sync_status_success_text.format(_credentials))]),
@@ -149,7 +152,7 @@ def section_overview(
 
 @app.cell(hide_code=True)
 def section_schema(
-    dlt_config: StudioConfiguration,
+    dlt_config: DashboardConfiguration,
     dlt_pipeline: dlt.Pipeline,
     dlt_schema_show_child_tables: mo.ui.switch,
     dlt_schema_show_custom_hints: mo.ui.switch,
@@ -239,13 +242,13 @@ def section_schema(
 
 @app.cell(hide_code=True)
 def section_browse_data_table_list(
-    dlt_cache_query_results: mo.ui.switch,
+    dlt_clear_query_cache: mo.ui.run_button,
     dlt_data_table_list: mo.ui.table,
     dlt_pipeline: dlt.Pipeline,
     dlt_restrict_to_last_1000: mo.ui.switch,
     dlt_schema_show_child_tables: mo.ui.switch,
     dlt_schema_show_dlt_tables: mo.ui.switch,
-    dlt_schema_show_row_counts: mo.ui.switch,
+    dlt_schema_show_row_counts: mo.ui.run_button,
     dlt_section_browse_data_switch: mo.ui.switch,
 ):
     """
@@ -264,27 +267,27 @@ def section_browse_data_table_list(
     if dlt_pipeline and dlt_section_browse_data_switch.value and dlt_data_table_list is not None:
         try:
             # try to connect to the dataset
-            dlt_pipeline.dataset().destination_client.config.credentials
+            utils.get_destination_config(dlt_pipeline)
             _result.append(
                 mo.hstack(
                     [
                         dlt_schema_show_dlt_tables,
                         dlt_schema_show_child_tables,
-                        dlt_schema_show_row_counts,
                     ],
                     justify="start",
                 ),
             )
             _result.append(dlt_data_table_list)
+            _result.append(dlt_schema_show_row_counts)
 
             _sql_query = ""
             if dlt_data_table_list.value:
                 _table_name = dlt_data_table_list.value[0]["name"]  # type: ignore[index,unused-ignore]
+                _dataset = cast(ReadableDBAPIDataset, dlt_pipeline.dataset())
                 _sql_query = (
-                    dlt_pipeline.dataset()
-                    .table(_table_name)
+                    cast(ReadableDBAPIRelation, _dataset.table(_table_name))
                     .limit(1000 if dlt_restrict_to_last_1000.value else None)
-                    .query()
+                    .to_sql(pretty=True)
                 )
 
             dlt_query_editor = mo.ui.code_editor(
@@ -301,13 +304,15 @@ def section_browse_data_table_list(
             _result += [
                 mo.md(strings.browse_data_explorer_title),
                 mo.hstack(
-                    [dlt_cache_query_results, dlt_restrict_to_last_1000],
+                    [dlt_restrict_to_last_1000],
                     justify="start",
                 ),
                 dlt_query_editor,
             ]
 
-            _result.append(dlt_run_query_button)
+            _result.append(
+                mo.hstack([dlt_run_query_button, dlt_clear_query_cache], justify="start")
+            )
         except Exception:
             _result.append(ui.build_error_callout(strings.browse_data_error_text))
     elif dlt_pipeline and dlt_section_browse_data_switch.value:
@@ -323,7 +328,7 @@ def section_browse_data_query_result(
     dlt_query_editor: mo.ui.code_editor,
     dlt_run_query_button: mo.ui.run_button,
     dlt_section_browse_data_switch: mo.ui.switch,
-    dlt_cache_query_results: mo.ui.switch,
+    dlt_clear_query_cache: mo.ui.run_button,
     dlt_get_last_query_result,
     dlt_set_last_query_result,
     dlt_set_query_cache,
@@ -353,7 +358,7 @@ def section_browse_data_query_result(
                         dlt_query_editor.value,
                         dialect=dlt_pipeline.destination.capabilities().sqlglot_dialect,
                     )
-                    if not dlt_cache_query_results.value:
+                    if dlt_clear_query_cache.value:
                         utils.clear_query_cache(dlt_pipeline)
                     dlt_query = dlt_query_editor.value
                     dlt_set_last_query_result(utils.get_query_result(dlt_pipeline, dlt_query))
@@ -392,7 +397,6 @@ def section_browse_data_query_history(
     dlt_pipeline: dlt.Pipeline,
     dlt_query_history_table: mo.ui.table,
     dlt_section_browse_data_switch: mo.ui.switch,
-    dlt_cache_query_results: mo.ui.switch,
 ):
     """
     Show the query history
@@ -402,7 +406,6 @@ def section_browse_data_query_history(
     if (
         dlt_pipeline
         and dlt_section_browse_data_switch.value
-        and dlt_cache_query_results.value
         and dlt_query_history_table is not None
     ):
         _result.append(
@@ -453,7 +456,7 @@ def section_trace(
     dlt_pipeline: dlt.Pipeline,
     dlt_section_trace_switch: mo.ui.switch,
     dlt_trace_steps_table: mo.ui.table,
-    dlt_config: StudioConfiguration,
+    dlt_config: DashboardConfiguration,
 ):
     """
     Show last trace of the currently selected pipeline
@@ -550,8 +553,8 @@ def section_trace(
 
 @app.cell(hide_code=True)
 def section_loads(
-    dlt_config: StudioConfiguration,
-    dlt_cache_query_results: mo.ui.switch,
+    dlt_config: DashboardConfiguration,
+    dlt_clear_query_cache: mo.ui.run_button,
     dlt_pipeline: dlt.Pipeline,
     dlt_restrict_to_last_1000: mo.ui.switch,
     dlt_section_loads_switch: mo.ui.switch,
@@ -569,9 +572,7 @@ def section_loads(
     )
 
     if dlt_pipeline and dlt_section_loads_switch.value:
-        _result.append(
-            mo.hstack([dlt_cache_query_results, dlt_restrict_to_last_1000], justify="start")
-        )
+        _result.append(mo.hstack([dlt_restrict_to_last_1000], justify="start"))
 
         with mo.status.spinner(title=strings.loads_loading_spinner_text):
             dlt_loads_table: mo.ui.table = None
@@ -583,6 +584,7 @@ def section_loads(
                 )
                 dlt_loads_table = mo.ui.table(_loads_data, selection="single")
                 _result.append(dlt_loads_table)
+                _result.append(dlt_clear_query_cache)
             except Exception:
                 _result.append(ui.build_error_callout(strings.loads_loading_failed_text))
     mo.vstack(_result) if _result else None
@@ -722,7 +724,7 @@ def utils_discover_pipelines(
 
 @app.cell(hide_code=True)
 def utils_caches_and_state(
-    dlt_cache_query_results: mo.ui.switch,
+    dlt_clear_query_cache: mo.ui.run_button,
     dlt_pipeline: dlt.Pipeline,
 ):
     """
@@ -734,7 +736,7 @@ def utils_caches_and_state(
     # a cache of query results in the form of {query: row_count}
     dlt_get_query_cache, dlt_set_query_cache = mo.state(cast(Dict[str, int], {}))
 
-    if not dlt_cache_query_results.value:
+    if dlt_clear_query_cache.value:
         utils.clear_query_cache(dlt_pipeline)
 
     return
@@ -779,8 +781,8 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
     dlt_schema_show_child_tables: mo.ui.switch = mo.ui.switch(
         label=f"<small>{strings.ui_show_child_tables}</small>", value=False
     )
-    dlt_schema_show_row_counts: mo.ui.switch = mo.ui.switch(
-        label=f"<small>{strings.ui_show_row_counts}</small>", value=False
+    dlt_schema_show_row_counts: mo.ui.run_button = mo.ui.run_button(
+        label=f"<small>{strings.ui_load_row_counts}</small>"
     )
     dlt_schema_show_dlt_columns: mo.ui.switch = mo.ui.switch(
         label=f"<small>{strings.ui_show_dlt_columns}</small>"
@@ -794,14 +796,14 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
     dlt_schema_show_custom_hints: mo.ui.switch = mo.ui.switch(
         label=f"<small>{strings.ui_show_custom_hints}</small>", value=False
     )
-    dlt_cache_query_results: mo.ui.switch = mo.ui.switch(
-        label=f"<small>{strings.ui_cache_query_results}</small>", value=True
+    dlt_clear_query_cache: mo.ui.run_button = mo.ui.run_button(
+        label=f"<small>{strings.ui_clear_cache}</small>"
     )
     dlt_restrict_to_last_1000: mo.ui.switch = mo.ui.switch(
         label=f"<small>{strings.ui_limit_to_1000_rows}</small>", value=True
     )
     return (
-        dlt_cache_query_results,
+        dlt_clear_query_cache,
         dlt_restrict_to_last_1000,
         dlt_schema_show_child_tables,
         dlt_schema_show_custom_hints,
@@ -830,7 +832,7 @@ def ui_primary_controls(
     dlt_section_browse_data_switch: mo.ui.switch,
     dlt_section_schema_switch: mo.ui.switch,
     dlt_section_trace_switch: mo.ui.switch,
-    dlt_config: StudioConfiguration,
+    dlt_config: DashboardConfiguration,
 ):
     """
     Helper cell for creating certain controls based on selected sections

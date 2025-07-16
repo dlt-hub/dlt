@@ -199,6 +199,40 @@ You can also adjust iceberg table properties:
 vacuum_max_snapshot_age_seconds = 86400
 ```
 
+
+### LakeFormation tags
+
+AWS lakeformation tags can be set on the database level when running a pipeline. Resources/tables will inherit the same tags as their parent database. It will not affect data in staging.
+
+#### Prerequisites
+
+- The lakeformation tags you want to apply must already exists, created through IAC or the AWS console.
+- The s3 location the data lands in must be registered as a data location in lakeformation
+
+- The IAM role/user running the pipeline is required to have lakeformation permissions in addition to regular IAM permissions
+  - ASSOCIATE on the lf tags to apply
+  - CREATE_TABLE/DESCRIBE/ALTER on Database with the lf tags to apply
+  - ALL on Table
+
+[See full Lake Formation permission reference](https://docs.aws.amazon.com/lake-formation/latest/dg/lf-permissions-reference.html)
+
+
+Tags can be set on database level using the destination config
+```toml
+[destination.athena.lakeformation_config]
+enabled = true
+
+[destination.athena.lakeformation_config.tags]
+my_tag = "my_key"
+```
+
+To remove lakeformation tags you can set:
+
+```toml
+[destination.athena.lakeformation_config]
+enabled = false
+```
+
 #### `merge` support
 
 The `merge` write disposition is supported for Athena when using Iceberg tables.

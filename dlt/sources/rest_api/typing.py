@@ -27,6 +27,7 @@ from dlt.sources.helpers.rest_client.paginators import (
     BasePaginator,
     JSONLinkPaginator,
     HeaderLinkPaginator,
+    HeaderCursorPaginator,
     JSONResponseCursorPaginator,
     OffsetPaginator,
     PageNumberPaginator,
@@ -44,6 +45,7 @@ PaginatorType = Literal[
     "json_link",
     "json_response",  # deprecated. Use json_link instead. Will be removed in upcoming release
     "header_link",
+    "header_cursor",
     "auto",
     "single_page",
     "cursor",
@@ -102,16 +104,26 @@ class JSONResponseCursorPaginatorConfig(PaginatorTypeConfig, total=False):
     cursor_body_path: Optional[jsonpath.TJsonPath]
 
 
+class HeaderCursorPaginatorConfig(PaginatorTypeConfig, total=False):
+    """A paginator that uses a cursor in the HTTP response header
+    for pagination."""
+
+    cursor_key: Optional[str]
+    cursor_param: Optional[str]
+
+
 PaginatorConfig = Union[
     PaginatorType,
     PageNumberPaginatorConfig,
     OffsetPaginatorConfig,
     HeaderLinkPaginatorConfig,
+    HeaderCursorPaginatorConfig,
     JSONLinkPaginatorConfig,
     JSONResponseCursorPaginatorConfig,
     BasePaginator,
     SinglePagePaginator,
     HeaderLinkPaginator,
+    HeaderCursorPaginator,
     JSONLinkPaginator,
     JSONResponseCursorPaginator,
     OffsetPaginator,

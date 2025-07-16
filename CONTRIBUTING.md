@@ -87,13 +87,36 @@ We encourage you to attach your branches to a ticket, if none exists, create one
 ### Submitting a hotfix
 We'll fix critical bugs and release `dlt` out of the schedule. Follow the regular procedure, but make your PR against **master** branch. Please ping us on Slack if you do it.
 
-### Testing with Github Actions
-We enable our CI to run tests for contributions from forks. All the tests are run, but not all destinations are available due to credentials. Currently
-only the `duckdb` and `postgres` are available to forks.
+### Submitting Changes Requiring Full CI Credentials.
+We enable our CI to run tests for contributions from forks. By default only tests that do not require credentials are run. Full CI tests may be enabled with labels:
+- `ci from fork` will enable access to CI credentials in PRs from fork and run associated tests
+- `ci full` will run all tests. By default only essential destination tests are run.
 
-## Submitting Changes Requiring Full CI Credentials.
+Labels are assigned by the core team. If you need CI credentials for local tests you can contact us on Slack.
 
-In case you submit a new destination or make changes to a destination that require credentials (so Bigquery, Snowflake, buckets etc.) you **should contact us so we can add you as contributor**. Then you should make a PR directly to the `dlt` repo.
+
+## Deprecation guidelines
+We introduce breaking changes in major versions. In the meantime we maintain backward compatibility and deprecate behaviors and features. Example:
+`complex` type got renamed to `json` in a minor version so backward compat was provided:
+- we keep `complex` data type in schema definition
+- `migrate_complex_types` is used to migrate schemas and at run time ie to handle `columns` hints
+- `warning` Python module and `Dlt100DeprecationWarning` category is used to generate warning with full deprecation info
+
+What is breaking change:
+- A change in a well documented and common behavior that will break user's code.
+- A change as above in undefined or undocumented behavior that we know is being used
+- We do not consider changes that define behaviors or edge cases that were not documented and are not often used. Most of our QoL tickets are like that. Still, if possible,
+backward compat should be provided.
+
+Mechanisms to maintain backward compat:
+- all schemas/state files have built-in migration methods (`engine_version`).
+- storages (ie. extract/normalize/load) have versioned layout and may be upgraded or wiped out if version changes
+- `DltDeprecationWarning` and variants with various version ranges. It automatically shows deprecation information and when deprecation will be removed from the code base
+- `deprecated` decorator that can be applied to classes, functions and overloads which will generate warnings at runtime and when type checking (PEP702)
+- backward compatibility must be tested. there are many such tests in our code base.
+- we have end-to-end tests in `tests_dlt_versions.py`: pipelines are created with `venv` and old `dlt` (starting with `0.3.x`) and then upgraded and tested.
+
+Please review `warnings.py` module and how deprecation warnings and decorators are used.
 
 ## Adding or updating core dependencies
 
@@ -189,8 +212,7 @@ Once the version has been bumped, follow these steps to publish the new release 
 1. Ensure that you are on the **master** branch and have the latest code that has passed all tests on CI.
 2. Verify the current version with `uv version`.
 3. Obtain a PyPI access token
-4. Build the library with `make build-library`
-4. Run `uv publish --token "$PYPI_API_TOKEN"` to publish the new version.
+4. Build and publish the library with `make publish-library`, you will be asked to input the PyPI token.
 5. Create a release on GitHub, using the version and git tag as the release name.
 
 ## Resources

@@ -1,87 +1,72 @@
+from __future__ import annotations
+
+import abc
+from types import TracebackType
 from typing import (
-    Optional,
-    Sequence,
-    Union,
-    List,
-    Any,
-    Generator,
     TYPE_CHECKING,
-    Protocol,
-    Tuple,
-    AnyStr,
     overload,
-    runtime_checkable,
+    Any,
+    AnyStr,
+    Generator,
+    Literal,
+    Optional,
+    Protocol,
+    Sequence,
+    Type,
+    Union,
 )
 
-from abc import ABC, abstractmethod
-
+import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema
+from sqlglot.expressions import ExpOrStr as SqlglotExprOrStr
 
-from dlt.common.typing import Self, Generic, TypeVar
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.typing import Self, TSortOrder
 from dlt.common.schema.schema import Schema
-from dlt.common.schema.typing import TTableSchemaColumns
-
+from dlt.common.schema.typing import TTableSchema, TTableSchemaColumns
+from dlt.common.libs.sqlglot import TSqlGlotDialect
 
 if TYPE_CHECKING:
     from dlt.common.libs.pandas import DataFrame
     from dlt.common.libs.pyarrow import Table as ArrowTable
-    from dlt.helpers.ibis import BaseBackend as IbisBackend
-else:
-    DataFrame = Any
-    ArrowTable = Any
-    IbisBackend = Any
+    from dlt.helpers.ibis import BaseBackend as IbisBackend, Table as IbisTable, Expr as IbisExpr
+    from dlt.common.destination.client import SupportsOpenTables
 
 
-class SupportsReadableRelation:
-    """A readable relation retrieved from a destination that supports it"""
+TFilterOperation = Literal["eq", "ne", "gt", "lt", "gte", "lte", "in", "not_in"]
 
-    columns_schema: TTableSchemaColumns
-    """Returns the expected columns schema for the result of the relation. Column types are discovered with
-    sql glot query analysis and lineage. dlt hints for columns are kept in some cases. Refere to <docs-page> for more details.
-    """
 
-    def query(self) -> Any:
-        """Returns the sql query that represents the relation. The query will be qualified, quoted and escaped
-           according to a SQL dialect that the destination uses, unless query normalization is disabled by the user.
+class DataAccess(Protocol):
+    """Common data access protocol shared between dbapi cursors and relations"""
 
-        Returns:
-            Any: The qualified sql query that represents the relation
+    @property
+    def columns_schema(self) -> TTableSchemaColumns:
         """
-        raise NotImplementedError("`query()` method is not supported for this relation")
+        Returns the expected columns schema for the result of the relation. Column types are discovered with
+        sql glot query analysis and lineage. dlt hints for columns are kept in some cases. Refere to <docs-page> for more details.
+        """
+        ...
 
-    def compute_columns_schema(
-        self,
-        infer_sqlglot_schema: bool = True,
-        allow_anonymous_columns: bool = True,
-        allow_partial: bool = True,
-    ) -> TTableSchemaColumns:
-        """Return the expected dlt schema of the execution result of self.query()"""
-        raise NotImplementedError(
-            "`compute_columns_schema()` method is not supported for this relation"
-        )
-
-    def df(self, chunk_size: int = None) -> Optional[DataFrame]:
+    def df(self, chunk_size: Optional[int] = None) -> Optional[DataFrame]:
         """Fetches the results as arrow table. Uses the native pandas implementation of the destination client cursor if available.
 
         Args:
-            chunk_size (int, optional): The number of rows to fetch for this call. Defaults to None which will fetch all rows.
+            chunk_size (Optional[int]): The number of rows to fetch for this call. Defaults to None which will fetch all rows.
 
         Returns:
             Optional[DataFrame]: A data frame with query results.
         """
-        raise NotImplementedError("`df()` method is not supported for this relation")
+        ...
 
-    def arrow(self, chunk_size: int = None) -> Optional[ArrowTable]:
+    def arrow(self, chunk_size: Optional[int] = None) -> Optional[ArrowTable]:
         """Fetches the results as arrow table. Uses the native arrow implementation of the destination client cursor if available.
 
         Args:
-            chunk_size (int, optional): The number of rows to fetch for this call. Defaults to None which will fetch all rows.
+            chunk_size (Optional[int]): The number of rows to fetch for this call. Defaults to None which will fetch all rows.
 
         Returns:
             Optional[ArrowTable]: An arrow table with query results.
         """
-        raise NotImplementedError("`arrow()` method is not supported for this relation")
+        ...
 
     def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
         """Iterates over data frames of 'chunk_size' items. Uses the native pandas implementation of the destination client cursor if available.
@@ -92,7 +77,7 @@ class SupportsReadableRelation:
         Returns:
             Generator[DataFrame, None, None]: A generator of data frames with query results.
         """
-        raise NotImplementedError("`iter_df()` method is not supported for this relation")
+        ...
 
     def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
         """Iterates over arrow tables of 'chunk_size' items. Uses the native arrow implementation of the destination client cursor if available.
@@ -103,61 +88,60 @@ class SupportsReadableRelation:
         Returns:
             Generator[ArrowTable, None, None]: A generator of arrow tables with query results.
         """
-        raise NotImplementedError("`iter_arrow()` method is not supported for this relation")
+        ...
 
-    def fetchall(self) -> List[Tuple[Any, ...]]:
+    def fetchall(self) -> list[tuple[Any, ...]]:
         """Fetches all items as a list of python tuples. Uses the native dbapi fetchall implementation of the destination client cursor.
 
         Returns:
-            List[Tuple[Any, ...]]: A list of python tuples w
+            list[tuple[Any, ...]]: A list of python tuples w
         """
-        raise NotImplementedError("`fetchall()` method is not supported for this relation")
+        ...
 
-    def fetchmany(self, chunk_size: int) -> List[Tuple[Any, ...]]:
+    def fetchmany(self, chunk_size: int) -> list[tuple[Any, ...]]:
         """Fetches the first 'chunk_size' items as a list of python tuples. Uses the native dbapi fetchmany implementation of the destination client cursor.
 
         Args:
             chunk_size (int): The number of rows to fetch for this call.
 
         Returns:
-            List[Tuple[Any, ...]]: A list of python tuples with query results.
+            list[tuple[Any, ...]]: A list of python tuples with query results.
         """
-        raise NotImplementedError("`fetchmany()` method is not supported for this relation")
+        ...
 
-    def iter_fetch(self, chunk_size: int) -> Generator[List[Tuple[Any, ...]], Any, Any]:
+    def iter_fetch(self, chunk_size: int) -> Generator[list[tuple[Any, ...]], Any, Any]:
         """Iterates in lists of Python tuples in 'chunk_size' chunks. Uses the native dbapi fetchmany implementation of the destination client cursor.
 
         Args:
             chunk_size (int): The number of rows to fetch for each iteration.
 
         Returns:
-            Generator[List[Tuple[Any, ...]], Any, Any]: A generator of lists of python tuples with query results.
+            Generator[list[tuple[Any, ...]], Any, Any]: A generator of lists of python tuples with query results.
         """
-        raise NotImplementedError("`iter_fetch()` method is not supported for this relation")
+        ...
 
-    def fetchone(self) -> Optional[Tuple[Any, ...]]:
+    def fetchone(self) -> Optional[tuple[Any, ...]]:
         """Fetches the first item as a python tuple. Uses the native dbapi fetchone implementation of the destination client cursor.
 
         Returns:
-            Optional[Tuple[Any, ...]]: A python tuple with the first item of the query results.
+            Optional[tuple[Any, ...]]: A python tuple with the first item of the query results.
         """
-        raise NotImplementedError("`fetchone()` method is not supported for this relation")
+        ...
+
+
+class Relation(DataAccess, Protocol):
+    """A readable relation retrieved from a destination that supports it"""
+
+    schema: TTableSchema
+    """The schema of the relation"""
 
     def scalar(self) -> Any:
-        """fetch first value of first column on first row as python primitive"""
-        row = self.fetchmany(2)
-        if not row:
-            return None
-        if len(row) != 1:
-            raise ValueError(
-                "Expected scalar result (single row, single column), got more than one row"
-            )
-        if len(row[0]) != 1:
-            raise ValueError(
-                "Expected scalar result (single row, single column), got 1 row with"
-                f" {len(row[0])} columns"
-            )
-        return row[0][0]
+        """fetch first value of first column on first row as python primitive
+
+        Returns:
+            Any: The first value of the first column on the first row as a python primitive.
+        """
+        ...
 
     # modifying access parameters
     def limit(self, limit: int, **kwargs: Any) -> Self:
@@ -170,7 +154,7 @@ class SupportsReadableRelation:
         Returns:
             Self: The relation with the limit applied.
         """
-        raise NotImplementedError("`limit()` method is not supported for this relation")
+        ...
 
     def head(self, limit: int = 5) -> Self:
         """By default returns a relation with the first 5 rows selected.
@@ -181,7 +165,7 @@ class SupportsReadableRelation:
         Returns:
             Self: The relation with the limit applied.
         """
-        raise NotImplementedError("`head()` method is not supported for this relation")
+        ...
 
     def select(self, *columns: str) -> Self:
         """Returns a new relation with the given columns selected.
@@ -192,10 +176,87 @@ class SupportsReadableRelation:
         Returns:
             Self: The relation with the columns selected.
         """
-        raise NotImplementedError("`select()` method is not supported for this relation")
+        ...
+
+    def max(self) -> Self:  # noqa: A003
+        """Returns a new relation with the MAX aggregate applied.
+        Exactly one column must be selected.
+
+        Returns:
+            Self: The relation with the MAX aggregate expression.
+        """
+        ...
+
+    def min(self) -> Self:  # noqa: A003
+        """Returns a new relation with the MIN aggregate applied.
+        Exactly one column must be selected.
+
+        Returns:
+            Self: The relation with the MIN aggregate expression.
+        """
+        ...
 
     @overload
-    def __getitem__(self, column: str) -> Self: ...
+    def where(self, column_or_expr: SqlglotExprOrStr) -> Self: ...
+
+    @overload
+    def where(
+        self,
+        column_or_expr: str,
+        operator: TFilterOperation,
+        value: Any,
+    ) -> Self: ...
+
+    def where(
+        self,
+        column_or_expr: SqlglotExprOrStr,
+        operator: Optional[TFilterOperation] = None,
+        value: Optional[Any] = None,
+    ) -> Self:
+        """Returns a new relation with the given where clause applied. Same as .filter().
+
+        Args:
+            column_or_expr (SqlglotExprOrStr): The column to filter on. Alternatively, the SQL expression or string representing a custom WHERE clause.
+            operator (Optional[TFilterOperation]): The operator to use. Available operations are: eq, ne, gt, lt, gte, lte, in, not_in
+            value (Optional[Any]): The value to filter on.
+
+        Returns:
+            Self: A copy of the relation with the where clause applied.
+        """
+        ...
+
+    def filter(  # noqa: A003
+        self,
+        column_name: str,
+        operator: TFilterOperation,
+        value: Any,
+    ) -> Self:
+        """Returns a new relation with the given where clause applied. Same as .where().
+
+        Args:
+            column_name (str): The column to filter on.
+            operator (TFilterOperation): The operator to use. Available operations are: eq, ne, gt, lt, gte, lte, in, not_in
+            value (Any): The value to filter on.
+
+        Returns:
+            Self: A copy of the relation with the where clause applied.
+        """
+        ...
+
+    def order_by(self, column_name: str, direction: TSortOrder = "asc") -> Self:
+        """Returns a new relation with the given order by clause applied.
+
+        Args:
+            column_name (str): The column to order by.
+            direction (TSortOrder, optional): The direction to order by: "asc"/"desc". Defaults to "asc".
+
+        Returns:
+            Self: A copy of the relation with the order by clause applied.
+        """
+        ...
+
+    @overload
+    def __getitem__(self, columns: str) -> Self: ...
 
     @overload
     def __getitem__(self, columns: Sequence[str]) -> Self: ...
@@ -209,18 +270,7 @@ class SupportsReadableRelation:
         Returns:
             Self: The relation with the columns selected.
         """
-        raise NotImplementedError("`__getitem__()` method is not supported for this relation")
-
-    def __getattr__(self, attr: str) -> Any:
-        """get an attribute of the relation
-
-        Args:
-            attr (str): The attribute to get.
-
-        Returns:
-            Any: The attribute of the relation
-        """
-        raise NotImplementedError("`__getattr__()` method is not supported for this relation")
+        ...
 
     def __copy__(self) -> Self:
         """create a copy of the relation object
@@ -228,25 +278,55 @@ class SupportsReadableRelation:
         Returns:
             Self: The copy of the relation object
         """
-        raise NotImplementedError("`__copy()__` method is not supported for this relation")
+        ...
 
 
-class DBApiCursor(SupportsReadableRelation):
-    """Protocol for DBAPI cursor"""
+class DBApiCursorProtocol(DataAccess, Protocol):
+    """Protocol for the DBAPI cursor"""
 
-    description: Tuple[Any, ...]
-
+    description: tuple[Any, ...]
     native_cursor: "DBApiCursor"
     """Cursor implementation native to current destination"""
 
-    def execute(self, query: AnyStr, *args: Any, **kwargs: Any) -> None: ...
-    def close(self) -> None: ...
+    @property
+    def columns_schema(self) -> TTableSchemaColumns: ...
+
+    def execute(self, query: AnyStr, *args: Any, **kwargs: Any) -> None:
+        """Execute a query on the cursor"""
+        ...
+
+    def close(self) -> None:
+        """Close the cursor"""
+        ...
 
 
-TReadableRelation = TypeVar("TReadableRelation", bound=SupportsReadableRelation, covariant=True)
+class DBApiCursor(abc.ABC, DBApiCursorProtocol):
+    """Protocol for the DBAPI cursor"""
+
+    description: tuple[Any, ...]
+    native_cursor: "DBApiCursor"
+    """Cursor implementation native to current destination"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._columns_schema: TTableSchemaColumns = {}
+
+    @property
+    def columns_schema(self) -> TTableSchemaColumns:
+        return self._columns_schema
+
+    @columns_schema.setter
+    def columns_schema(self, value: TTableSchemaColumns) -> None:
+        self._columns_schema = value
+
+    def execute(self, query: AnyStr, *args: Any, **kwargs: Any) -> None:
+        """Execute a query on the cursor"""
+
+    def close(self) -> None:
+        """Close the cursor"""
 
 
-class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
+class Dataset(Protocol):
     """A readable dataset retrieved from a destination, has support for creating readable relations for a query or table"""
 
     @property
@@ -256,6 +336,7 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
         Returns:
             Schema: The schema of the dataset
         """
+        ...
 
     @property
     def sqlglot_schema(self) -> SQLGlotSchema:
@@ -264,6 +345,7 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
         Returns:
             SQLGlotSchema: The sqlglot schema of the dataset
         """
+        ...
 
     @property
     def dataset_name(self) -> str:
@@ -272,37 +354,100 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
         Returns:
             str: The name of the dataset
         """
+        ...
 
-    def __call__(self, query: Any, normalize_query: bool = True) -> SupportsReadableRelation:
+    def __call__(
+        self,
+        query: Union[str, sge.Select, IbisExpr],
+        query_dialect: Optional[TSqlGlotDialect] = None,
+        _execute_raw_query: bool = False,
+    ) -> Relation:
         """Returns a readable relation for a given sql query
 
         Args:
-            query (Any): The sql query to base the relation on
-            normalize_query (bool, optional): Whether to run the query as is or perform query normalization and lineage. Experimental.
+            query (Union[str, sge.Select, IbisExpr]): The sql query to base the relation on. Can be a raw sql query, a sqlglot select expression or an ibis expression.
+            query_dialect (Optional[TSqlGlotDialect]): The dialect of the query. Defaults to the dataset's destination dialect. You can use this to write queries in a different dialect than the destination.
+                This settings will only be user fo the initial parsing of the query. When executing the query, the query will be executed in the underlying destination dialect.
+            _execute_raw_query (bool, optional): Whether to run the query as is (raw)or perform query normalization and lineage. Experimental.
 
         Returns:
-            SupportsReadableRelation: The readable relation for the query
+            Relation: The readable relation for the query
         """
+        ...
 
-    def __getitem__(self, table: str) -> TReadableRelation:
+    def query(
+        self,
+        query: Union[str, sge.Select, IbisExpr],
+        query_dialect: Optional[TSqlGlotDialect] = None,
+        _execute_raw_query: bool = False,
+    ) -> Relation:
+        """Returns a readable relation for a given sql query
+
+        Args:
+            query (Union[str, sge.Select, IbisExpr]): The sql query to base the relation on. Can be a raw sql query, a sqlglot select expression or an ibis expression.
+            query_dialect (Optional[TSqlGlotDialect]): The dialect of the query. Defaults to the dataset's destination dialect. You can use this to write queries in a different dialect than the destination.
+                This settings will only be user fo the initial parsing of the query. When executing the query, the query will be executed in the underlying destination dialect.
+            _execute_raw_query (bool, optional): Whether to run the query as is (raw)or perform query normalization and lineage. Experimental.
+
+        Returns:
+            Relation: The readable relation for the query
+        """
+        ...
+
+    @overload
+    def table(self, table_name: str) -> Relation: ...
+
+    @overload
+    def table(self, table_name: str, table_type: Literal["relation"]) -> Relation: ...
+
+    @overload
+    def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
+
+    def table(
+        self, table_name: str, table_type: Literal["relation", "ibis"] = "relation"
+    ) -> Union[Relation, IbisTable]:
+        """Returns an object representing a table named `table_name`
+
+        Args:
+            table_name (str): The name of the table
+            table_type (Literal["relation", "ibis"], optional): The type of the table. Defaults to "relation" if not specified. If "ibis" is specified, you will get an unbound ibis table.
+
+        Returns:
+            Union[Relation, IbisTable]: The object representing the table
+        """
+        ...
+
+    def __getitem__(self, table: str) -> Relation:
         """Returns a readable relation for the table named `table`
 
         Args:
             table (str): The name of the table
 
         Returns:
-            TReadableRelation: The readable relation for the table
+            Relation: The readable relation for the table
         """
+        ...
 
-    def __getattr__(self, table: str) -> TReadableRelation:
+    def __getattr__(self, table: str) -> Relation:
         """Returns a readable relation for the table named `table`
 
         Args:
             table (str): The name of the table
 
         Returns:
-            TReadableRelation: The readable relation for the table
+            Relation: The readable relation for the table
         """
+        ...
+
+    def __enter__(self) -> Self:
+        """Context manager to keep the connection to the destination open between queries"""
+        ...
+
+    def __exit__(
+        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+    ) -> None:
+        """Context manager to keep the connection to the destination open between queries"""
+        ...
 
     def ibis(self) -> IbisBackend:
         """Returns a connected ibis backend for the dataset. Not implemented for all destinations.
@@ -310,23 +455,24 @@ class SupportsReadableDataset(Generic[TReadableRelation], Protocol):
         Returns:
             IbisBackend: The ibis backend for the dataset
         """
+        ...
 
     def row_counts(
         self,
         *,
         data_tables: bool = True,
         dlt_tables: bool = False,
-        table_names: List[str] = None,
-        load_id: str = None,
-    ) -> SupportsReadableRelation:
+        table_names: Optional[list[str]] = None,
+        load_id: Optional[str] = None,
+    ) -> Relation:
         """Returns the row counts of the dataset
 
         Args:
-            data_tables (bool, optional): Whether to include data tables. Defaults to True.
-            dlt_tables (bool, optional): Whether to include dlt tables. Defaults to False.
-            table_names (List[str], optional): The names of the tables to include. Defaults to None. Will override data_tables and dlt_tables if set
-            load_id (str, optional): If set, only count rows associated with a given load id. Will exclude tables that do not have a load id.
+            data_tables (bool): Whether to include data tables. Defaults to True.
+            dlt_tables (bool): Whether to include dlt tables. Defaults to False.
+            table_names (Optional[list[str]]): The names of the tables to include. Defaults to None. Will override data_tables and dlt_tables if set
+            load_id (Optional[str]): If set, only count rows associated with a given load id. Will exclude tables that do not have a load id.
         Returns:
-            SupportsReadableRelation: The row counts of the dataset as ReadableRelation
+            Relation: The row counts of the dataset as ReadableRelation
         """
         ...

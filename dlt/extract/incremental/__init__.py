@@ -23,7 +23,6 @@ from dlt.common.typing import (
 )
 from dlt.common.configuration import configspec, ConfigurationValueError
 from dlt.common.configuration.specs import BaseConfiguration
-from dlt.common.pipeline import resource_state
 from dlt.common.data_types.type_helpers import (
     coerce_from_date_types,
     coerce_value,
@@ -45,6 +44,7 @@ from dlt.common.incremental.typing import (
 )
 from dlt.extract.items import SupportsPipe, TTableHintTemplate
 from dlt.extract.items_transform import ItemTransform
+from dlt.extract.state import resource_state
 from dlt.extract.incremental.transform import (
     JsonIncremental,
     ArrowIncremental,
@@ -543,7 +543,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         )
         return transformer
 
-    def _get_transformer(self, items: TDataItems) -> IncrementalTransform:
+    def _get_transform(self, items: TDataItems) -> IncrementalTransform:
+        """Gets transform implementation that handles particular data item type"""
         # Assume list is all of the same type
         for item in items if isinstance(items, list) else [items]:
             if is_arrow_item(item):
@@ -558,7 +559,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         # example: MaterializedEmptyList
         if rows is None or (isinstance(rows, list) and len(rows) == 0):
             return rows
-        transformer = self._get_transformer(rows)
+        transformer = self._get_transform(rows)
         if isinstance(rows, list):
             rows = [
                 item
@@ -576,7 +577,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         # writing back state
         self._cached_state["last_value"] = transformer.last_value
 
-        if not transformer.deduplication_disabled:
+        if transformer.boundary_deduplication:
             # compute hashes for new last rows
             # NOTE: object transform uses last_rows to pass rows to dedup, arrow computes
             #  hashes directly

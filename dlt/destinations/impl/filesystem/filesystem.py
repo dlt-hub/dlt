@@ -41,7 +41,7 @@ from dlt.common.storages.load_package import (
     LoadJobInfo,
     ParsedLoadJobFileName,
     TPipelineStateDoc,
-    load_package as current_load_package,
+    load_package_state as current_load_package,
 )
 from dlt.destinations.sql_client import WithSqlClient, SqlClientBase
 from dlt.common.destination import DestinationCapabilitiesContext

@@ -1,6 +1,21 @@
+import warnings
 from typing import ClassVar, Literal, Optional
 from dlt.common.configuration import configspec, known_sections
 from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.warnings import Dlt100DeprecationWarning
+from dlt.common.destination.configuration import (
+    CsvQuoting,
+    CsvFormatConfiguration,
+    ParquetFormatConfiguration,
+)
+
+warnings.warn(
+    "Please import format configuration from dlt.common.destination.configuration",
+    Dlt100DeprecationWarning,
+    stacklevel=2,
+)
+
+__all__ = ["CsvQuoting", "CsvFormatConfiguration", "ParquetFormatConfiguration"]
 
 CsvQuoting = Literal["quote_all", "quote_needed"]
 CsvLineEnding = Literal["lf", "crlf"]
