@@ -41,7 +41,7 @@ def test_databricks_hints(
         table_comment="Dummy table comment",
         table_tags=[{"environment": "dummy"}, "pii"],
         column_hints={
-            "some_int": {  # type: ignore[typeddict-unknown-key]
+            "some_int": {
                 "column_comment": "Dummy column comment",
                 "column_tags": [{"environment": "dummy"}, "pii"],
             }
@@ -165,9 +165,7 @@ def test_databricks_adapter_invalid_column_tags(invalid_column_tags):
     with pytest.raises(ValueError):
         databricks_adapter(
             dummy_resource,
-            column_hints={
-                "some_int": {"column_tags": invalid_column_tags}  # type: ignore[typeddict-unknown-key]
-            },
+            column_hints={"some_int": {"column_tags": invalid_column_tags}},
         )
 
 
@@ -214,7 +212,7 @@ def test_databricks_adapter_special_characters(
         table_comment="O'Reilly's \"book\" on SQL; DROP TABLE users;--",
         table_tags=[{"env": 'test\'s "env"'}],
         column_hints={
-            "some_int": {  # type: ignore[typeddict-unknown-key]
+            "some_int": {
                 "column_comment": "User's ID with \"quotes\" and 'apostrophes'",
                 "column_tags": [{"type": 'user\'s "data"'}],
             }

@@ -5,6 +5,7 @@ from dlt.common.typing import TColumnNames
 from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 from dlt.extract.items import TTableHintTemplate
+from dlt.destinations.impl.databricks.typing import TDatabricksTableSchemaColumns
 
 
 CLUSTER_HINT: Literal["x-databricks-cluster"] = "x-databricks-cluster"
@@ -19,7 +20,7 @@ def databricks_adapter(
     cluster: TColumnNames = None,
     table_comment: Optional[str] = None,
     table_tags: Optional[List[Union[str, Dict[str, str]]]] = None,
-    column_hints: Optional[TTableSchemaColumns] = None,
+    column_hints: Optional[TDatabricksTableSchemaColumns] = None,
 ) -> DltResource:
     """
     Prepares data for loading into Databricks.
@@ -56,7 +57,7 @@ def databricks_adapter(
     resource = get_resource_for_adapter(data)
 
     additional_table_hints: Dict[str, TTableHintTemplate[Any]] = {}
-    additional_column_hints: TTableSchemaColumns = {}
+    additional_column_hints: TDatabricksTableSchemaColumns = {}
 
     if cluster:
         if isinstance(cluster, str):
@@ -121,7 +122,8 @@ def databricks_adapter(
         additional_table_hints[TABLE_TAGS_HINT] = table_tags
 
     resource.apply_hints(
-        columns=additional_column_hints, additional_table_hints=additional_table_hints
+        columns=cast(TTableSchemaColumns, additional_column_hints),
+        additional_table_hints=additional_table_hints,
     )
 
     return resource
