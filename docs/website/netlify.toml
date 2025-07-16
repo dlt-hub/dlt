@@ -1,3 +1,6 @@
+[build.processing.html]
+pretty_urls = true
+
 [[redirects]]
 from = "/"
 to = "/docs/intro"
