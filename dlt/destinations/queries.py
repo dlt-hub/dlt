@@ -1,9 +1,10 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 import sqlglot
 import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema
 
+from dlt.common.schema.typing import C_DLT_LOAD_ID, TTableReference, TTableReferenceParam, TTableSchema
 from dlt.destinations.sql_client import SqlClientBase
 
 
@@ -125,3 +126,69 @@ def build_select_expr(
     select_expr = sge.Select(expressions=columns_expr).from_(table_expr)
 
     return select_expr
+
+
+def _create_column_alias(
+    table_name: str,
+    column_name: str,
+    *,
+    prefix: Optional[str] = None,
+    separator: str = "__",
+):
+    if prefix is None:
+        prefix = table_name
+
+    return f"{table_name}.{column_name} AS {prefix}{separator}{column_name}"
+
+
+# TODO add a custom type for `JoinCondition`
+def _create_join_condition(table: str, column: str, other_table: str, other_column: str) -> str:
+    return f'"{table}"."{column}" = "{other_table}"."{other_column}"'
+
+
+def _create_join_condition_from_reference(table_name: str, reference: TTableReference) -> str:
+    other_table_name = reference["referenced_table"]
+    join_conditions = [
+        _create_join_condition(
+            table=table_name,
+            column=col,
+            other_table=other_table_name,
+            other_column=referenced_col
+        )
+        for col, referenced_col in zip(reference["columns"], reference["referenced_columns"])
+    ]
+
+    if len(join_conditions) == 1:
+        return join_conditions[0]
+    else:
+        return " AND ".join(join_conditions)
+    
+
+def _get_valid_reference(
+    *,
+    other_table_name: str,
+    other_column_name: Optional[str] = None,
+    references: TTableReferenceParam,
+) -> TTableReference:
+    for reference in references:
+        if other_table_name != reference["referenced_table"]:
+            continue
+
+        # multi-column joins aren't supported; should be specified explicitly
+        if len(reference["referenced_columns"]) > 1:
+            continue
+
+        # if `other_col_name` is unspecified, return the first match
+        # else, return an exact match
+        if (
+            other_column_name is not None
+            and other_column_name not in reference["referenced_columns"]
+        ):
+            continue
+
+        return reference
+
+    raise KeyError(
+        f"Couldn't find a reference matching `'{other_column_name}.{other_column_name}'`."
+        f" Available references: `{list(references)}`"
+    )

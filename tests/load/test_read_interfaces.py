@@ -936,7 +936,6 @@ def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
     assert 2 == combined_result
 
 
-
 def test_join_on_child_parent_relation():
     @dlt.resource(primary_key="id", columns={"name": {"x-annotation-pii": True}})  # type: ignore[typeddict-unknown-key]
     def purchases():
@@ -981,10 +980,23 @@ def test_join_on_child_parent_relation():
     dataset = pipeline.dataset()
     purchases_rel = dataset.table("purchases")
 
+    # NOTE this only works when removing `qualify()` from `lineage.compute_columns_schema()`
     joined_rel = purchases_rel.join_child("purchases__items")
-    df = dataset(joined_rel._sqlglot_expression.sql()).df()
+    df = joined_rel.df()
 
-    assert False
+    expected_columns = [
+        "_dlt_load_id",  # from parent table
+        "_dlt_id",  # from parent table
+        "_dlt_list_idx",  # from child table
+        "items___dlt_id",  # `_dlt_id` from child table; equivalent to `(_dlt_id, _dlt_list_idx)`
+        "purchases__id",
+        "purchases__name",
+        "purchases__city",
+        "items__name",
+        "items__price",
+    ]
+    assert all(col in expected_columns for col in joined_rel.schema["columns"].keys())
+    assert all(col in expected_columns for col in df.columns)
 
 
 def test_join_on_references():
@@ -1035,11 +1047,9 @@ def test_join_on_references():
                 "customer_id": random.choice(customers_ids),
                 "inventory_id": random.choice(inventory_ids),
                 "quantity": random.randint(1, 5),
-                "date": (start_date + timedelta(days=random.randint(0, 13))).strftime(
-                    "%Y-%m-%d"
-                ),
+                "date": (start_date + timedelta(days=random.randint(0, 13))).strftime("%Y-%m-%d"),
             }
-            for i in range(100)
+            for i in range(20)
         ]
 
     pipeline = dlt.pipeline("fruit_with_ref", destination="duckdb")
@@ -1054,7 +1064,8 @@ def test_join_on_references():
     purchases_rel = dataset.table("purchases")
     customers_rel = dataset.table("customers")
 
-    joined_rel = purchases_rel.join(customers_rel)
+    joined_rel = purchases_rel.join("customers.id")
+    joined_rel.to_sql()
 
     assert False
 

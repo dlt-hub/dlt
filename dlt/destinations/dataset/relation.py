@@ -18,7 +18,6 @@ from contextlib import contextmanager
 from textwrap import indent
 from dlt.common.utils import simple_repr, without_none
 
-import sqlglot
 from sqlglot import maybe_parse
 from sqlglot.optimizer.merge_subqueries import merge_subqueries
 from sqlglot.expressions import ExpOrStr as SqlglotExprOrStr
@@ -29,12 +28,12 @@ from dlt.common.destination.dataset import Relation, TFilterOperation
 
 from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGlotDialect
 from dlt.common.schema.utils import get_first_column_name_with_prop
-from dlt.common.schema.typing import TTableSchemaColumns, TTableSchema
+from dlt.common.schema.typing import TTableSchemaColumns, TTableSchema, C_DLT_LOAD_ID, C_DLT_ID
 from dlt.common.typing import Self, TSortOrder
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.transformations import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
-from dlt.destinations.queries import normalize_query, build_select_expr
+from dlt.destinations.queries import _create_column_alias, _create_join_condition, _create_join_condition_from_reference, _get_valid_reference, normalize_query, build_select_expr
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination.dataset import DataAccess
 
@@ -432,7 +431,7 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
 
         rel._sqlglot_expression = rel._sqlglot_expression.where(condition)
         return rel
-    
+
     def join(
         self,
         other: Union[Relation, str],
@@ -440,37 +439,92 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
     ) -> Self:
         """Join two tables based on Reference"""
         rel = self.__copy__()
-
+        other_rel: Relation
         if isinstance(other, str):
-            other = self._dataset.table(other)
+            if "." in other:
+                other, *_ = other.split(".")
+            other_rel = self._dataset.table(other)
+        elif isinstance(other, ReadableDBAPIRelation):
+            other_rel = other
+        else:
+            raise TypeError
 
-        references = other
-        return
+        current_table_name = rel._sqlglot_expression.find(sge.From).name
+        current_table_schema = self._dataset.schema.tables[current_table_name]
+        references = current_table_schema.get("references")
+        if references is None:
+            raise KeyError(f"Not references found on schema for table `{current_table_name}`")
 
-    def join_child(
-        self,
-        other: Union[Relation, str],
-        how: Literal["left", "right", "inner", "outer"] = "left",
-    ) -> Self:
-        """Join two tables based on child-parent relationship produced by 
+        other_table_name = other_rel._sqlglot_expression.find(sge.From).name
+        other_table_schema = self._dataset.schema.tables[other_table_name]
+        
+        reference = _get_valid_reference(
+            other_table_name=other_table_name,
+            # other_col_name=other_col_name,
+            references=references
+        )
+        join_condition = _create_join_condition_from_reference(current_table_name, reference)
+
+
+        meta_cols_aliases = []
+        current_cols_aliases = []
+        other_cols_aliases = []
+
+        for col in current_table_schema["columns"]:
+            if col in [C_DLT_LOAD_ID]:
+                continue
+
+            alias = _create_column_alias(current_table_name, col)
+            if col in [C_DLT_ID]:
+                meta_cols_aliases.append(alias)
+            else:
+                current_cols_aliases.append(alias)
+
+        for col in other_table_schema["columns"]:
+            if col in [C_DLT_LOAD_ID]:
+                continue
+
+            alias = _create_column_alias(other_table_name, col)
+            if col in [C_DLT_ID]:
+                meta_cols_aliases.append(alias)
+            else:
+                other_cols_aliases.append(alias)
+
+        rel._sqlglot_expression = (
+            sge.select(
+                *meta_cols_aliases,
+                *current_cols_aliases,
+                *other_cols_aliases,
+            )
+            .from_(sge.to_identifier(current_table_name))
+            .join(
+                sge.to_identifier(other_table_name, quoted=True),
+                on=join_condition,
+                join_type=how,
+            )
+        )
+        return rel
+
+    def join_child(self, other: Union[Relation, str]) -> Self:
+        """Join two tables based on child-parent relationship produced by
         the dlt normalization.
 
         Join type defaults to `how="left"` because parent->child relations are
-        typically one-to-many.        
+        typically one-to-many.
         """
         rel = self.__copy__()
         other_rel: Relation
         if isinstance(other, str):
             other_rel = self._dataset.table(other)
-        elif isinstance(other, Relation):
+        elif isinstance(other, ReadableDBAPIRelation):
             other_rel = other
         else:
             raise TypeError
-        
-        current_table_name = rel._sqlglot_expression.find(sqlglot.exp.From).name
+
+        current_table_name = rel._sqlglot_expression.find(sge.From).name
         current_table_schema = self._dataset.schema.tables[current_table_name]
 
-        other_table_name = other_rel._sqlglot_expression.find(sqlglot.exp.From).name
+        other_table_name = other_rel._sqlglot_expression.find(sge.From).name
         other_table_schema = self._dataset.schema.tables[other_table_name]
 
         if other_table_schema.get("parent") == current_table_name:
@@ -489,21 +543,20 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
         # TODO handle child being a relation
         parent_row_key = get_first_column_name_with_prop(parent_table_schema, "row_key")
         child_parent_key = get_first_column_name_with_prop(child_table_schema, "parent_key")
-        
-        parent_col = sge.Column(
-            this=sge.to_identifier(parent_row_key, quoted=True),
-            table=sge.to_identifier(parent_table_name, quoted=True),
-        )
-        child_col = sge.Column(
-            this=sge.to_identifier(child_parent_key, quoted=True),
-            table=sge.to_identifier(child_table_name, quoted=True),
+
+        join_condition = _create_join_condition(
+            table=parent_table_name,
+            column=parent_row_key,
+            other_table=child_table_name,
+            other_column=child_parent_key,
         )
 
         parent_cols_aliases = []
         for col in parent_table_schema["columns"]:
             if col in ["_dlt_id", "_dlt_load_id"]:
                 continue
-            alias = f"{parent_table_name}.{col} AS {parent_table_name}__{col}"
+
+            alias = _create_column_alias(parent_table_name, col)
             parent_cols_aliases.append(alias)
 
         _, _, child_table_part = child_table_name.removeprefix(parent_table_name).partition("__")
@@ -512,15 +565,15 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
             if col in [child_parent_key, "_dlt_list_idx", "_dlt_id"]:
                 continue
 
-            alias = f"{child_table_name}.{col} AS {child_table_part}__{col}"
+            alias = _create_column_alias(child_table_name, col, prefix=child_table_part)
             child_cols_aliases.append(alias)
-        
-        meta_cols_aliases = [
-            f"{parent_table_name}._dlt_load_id AS _dlt_load_id",
-            f"{parent_table_name}._dlt_id AS _dlt_id",
-            f"{child_table_name}._dlt_list_idx AS _dlt_list_idx",
-            f"{child_table_name}._dlt_id AS {child_table_part}___dlt_id",
-        ]
+
+        meta_cols_aliases = (
+            _create_column_alias(parent_table_name, "_dlt_load_id", prefix="", separator=""),
+            _create_column_alias(parent_table_name, "_dlt_id", prefix="", separator=""),
+            _create_column_alias(child_table_name, "_dlt_list_idx", prefix="", separator=""),
+            _create_column_alias(child_table_name, "_dlt_id", prefix=child_table_part),
+        )
 
         # we're unpacking this way to provide a sensible column order
         rel._sqlglot_expression = (
@@ -532,8 +585,8 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
             .from_(sge.to_identifier(parent_table_name))
             .join(
                 sge.to_identifier(child_table_name, quoted=True),
-                on=[f"{parent_col} = {child_col}"],
-                join_type=how
+                on=join_condition,
+                join_type="left",
             )
         )
         return rel
