@@ -49,6 +49,7 @@ dependencies = [
     "orjson>=3.6.7,<4,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     # enables pyodide install, mind that 3.10.1 is a buggy version and should be yanked
     "orjson>=3.10.1 ; sys_platform != 'emscripten'",
+    "orjson>=3.11.0 ; python_version > '3.13'",
     "tenacity>=8.0.2",
     "jsonpath-ng>=1.5.3",
     "fsspec>=2022.4.0",
@@ -310,8 +311,6 @@ docs = [
 
 [tool.uv.sources]
 flake8-encodings = { git = "https://github.com/dlt-hub/flake8-encodings.git", branch = "disable_jedi_support" }
-# NOTE: orjson for python 3.14 is not released yet, so we use the PR to the official github repo
-orjson = { git = "https://github.com/cdce8p/orjson.git", branch = "python-3.14" }
 
 [tool.hatch.build.targets.sdist]
 packages = ["dlt"]
