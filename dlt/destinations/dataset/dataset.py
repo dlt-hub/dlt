@@ -3,7 +3,6 @@ from typing import Any, Type, Union, TYPE_CHECKING, List, Literal, overload
 
 
 from sqlglot.schema import Schema as SQLGlotSchema
-import sqlglot.expressions as sge
 
 from dlt.common.destination.exceptions import (
     OpenTableClientNotAvailable,

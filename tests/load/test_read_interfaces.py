@@ -936,6 +936,129 @@ def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
     assert 2 == combined_result
 
 
+
+def test_join_on_child_parent_relation():
+    @dlt.resource(primary_key="id", columns={"name": {"x-annotation-pii": True}})  # type: ignore[typeddict-unknown-key]
+    def purchases():
+        yield from [
+            {
+                "id": 1,
+                "name": "simon",
+                "city": "berlin",
+                "items": [
+                    {"name": "item1", "price": 10},
+                    {"name": "item2", "price": 20},
+                ],
+            },
+            {
+                "id": 2,
+                "name": "violet",
+                "city": "montreal",
+                "items": [
+                    {"name": "item3", "price": 30},
+                    {"name": "item1", "price": 10},
+                ],
+            },
+            {
+                "id": 3,
+                "name": "tammo",
+                "city": "new york",
+                "items": [
+                    {"name": "item2", "price": 20},
+                    {"name": "item3", "price": 30},
+                ],
+            },
+        ]
+
+    pipeline = dlt.pipeline("parent_child_relation", destination="duckdb")
+    pipeline.run([purchases])
+
+    schema = pipeline.default_schema
+    assert "purchases" in schema.tables
+    assert "purchases__items" in schema.tables
+    assert schema.tables["purchases"].get("references") is None
+
+    dataset = pipeline.dataset()
+    purchases_rel = dataset.table("purchases")
+
+    joined_rel = purchases_rel.join_child("purchases__items")
+    df = dataset(joined_rel._sqlglot_expression.sql()).df()
+
+    assert False
+
+
+def test_join_on_references():
+    import random
+    from datetime import datetime, timedelta
+
+    references = [
+        dict(
+            columns=["customer_id"],
+            referenced_table="customers",
+            referenced_columns=["id"],
+        )
+    ]
+
+    @dlt.resource(primary_key="id", columns={"name": {"x-annotation-pii": True}})  # type: ignore[typeddict-unknown-key]
+    def customers():
+        """Load customer data from three cities from a simple python list."""
+        yield from [
+            {"id": 1, "name": "simon", "city": "berlin"},
+            {"id": 2, "name": "violet", "city": "montreal"},
+            {"id": 3, "name": "tammo", "city": "new york"},
+            {"id": 4, "name": "dave", "city": "berlin"},
+            {"id": 5, "name": "andrea", "city": "montreal"},
+            {"id": 6, "name": "marcin", "city": "new york"},
+            {"id": 7, "name": "sarah", "city": "berlin"},
+            {"id": 8, "name": "miguel", "city": "new york"},
+            {"id": 9, "name": "yuki", "city": "montreal"},
+            {"id": 10, "name": "olivia", "city": "berlin"},
+            {"id": 11, "name": "raj", "city": "montreal"},
+            {"id": 12, "name": "sofia", "city": "new york"},
+            {"id": 13, "name": "chen", "city": "berlin"},
+        ]
+
+    @dlt.resource(
+        primary_key="id",
+        references=references,
+    )
+    def purchases():
+        """Generate 100 seeded random purchases between Mon. Oct 1 and Sun. Oct 14, 2018."""
+        random.seed(42)
+        start_date = datetime(2018, 10, 1)
+        customers_ids = list(range(1, 14))  # 13 customers
+        inventory_ids = list(range(1, 7))  # 6 inventory items
+
+        yield from [
+            {
+                "id": i + 1,
+                "customer_id": random.choice(customers_ids),
+                "inventory_id": random.choice(inventory_ids),
+                "quantity": random.randint(1, 5),
+                "date": (start_date + timedelta(days=random.randint(0, 13))).strftime(
+                    "%Y-%m-%d"
+                ),
+            }
+            for i in range(100)
+        ]
+
+    pipeline = dlt.pipeline("fruit_with_ref", destination="duckdb")
+    pipeline.run([customers, purchases])
+
+    schema = pipeline.default_schema
+    assert schema.tables["purchases"].get("references") == references
+    assert schema.tables["customers"].get("references") is None
+
+    dataset = pipeline.dataset()
+
+    purchases_rel = dataset.table("purchases")
+    customers_rel = dataset.table("customers")
+
+    joined_rel = purchases_rel.join(customers_rel)
+
+    assert False
+
+
 @pytest.mark.no_load
 @pytest.mark.essential
 @pytest.mark.parametrize(
