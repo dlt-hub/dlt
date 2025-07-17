@@ -23,11 +23,11 @@ jobs:
         # Test all python versions on ubuntu only
         exclude:
         - os: "macos-latest"
-          python-version: "3.10"
+          python-version: "3.11"
         - os: "macos-latest"
           python-version: "3.12"
         - os: "windows-latest"
-          python-version: "3.10"
+          python-version: "3.11"
         - os: "windows-latest"
           python-version: "3.12"
 
@@ -43,7 +43,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
