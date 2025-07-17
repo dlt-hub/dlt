@@ -554,6 +554,37 @@ class JobClientBase(ABC):
             )
         return expected_update
 
+    def update_stored_schema_destructively(
+        self,
+    ) -> None:
+        """
+        Compare the schema we think we should have (`self.schema`)
+        with what actually exists in the destination, and drop any
+        columns that disappeared.
+        """
+        for table in self.schema.data_tables():
+            table_name = table["name"]
+
+            actual_columns = self._get_actual_columns(table_name)
+            schema_columns = self.schema.get_table_columns(table_name)
+            dropped_columns = set(schema_columns.keys()) - set(actual_columns)
+            if dropped_columns:
+                for dropped_col in dropped_columns:
+                    if schema_columns[dropped_col].get("increment"):
+                        logger.warning(
+                            "An incremental field is being removed from schema."
+                            "You should unset the"
+                            " incremental with `incremental=dlt.sources.incremental.EMPTY`"
+                        )
+                self.schema.drop_columns(table_name, list(dropped_columns))
+
+    def _get_actual_columns(self, table_name: str) -> List[str]:  # noqa: B027, optional override
+        """
+        Return a list of column names that currently exist in the
+        destination for `table_name`.
+        """
+        pass
+
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
         """Prepares a table schema to be loaded by filling missing hints and doing other modifications requires by given destination.
 

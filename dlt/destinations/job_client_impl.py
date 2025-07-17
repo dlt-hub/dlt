@@ -319,6 +319,10 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             )
         return applied_update
 
+    def _get_actual_columns(self, table_name: str) -> List[str]:
+        actual_columns = list(self.get_storage_table(table_name)[1].keys())
+        return actual_columns
+
     def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
         """Drop tables in destination database and optionally delete the stored schema as well.
         Clients that support ddl transactions will have both operations performed in a single transaction.

@@ -569,6 +569,26 @@ class FilesystemClient(
         # externally changed
         return applied_update
 
+    def _get_actual_columns(self, table_name: str) -> List[str]:
+        """Get actual column names from files in storage for regular (non-delta/iceberg) tables
+        or column names from schema"""
+
+        if self.is_open_table("iceberg", table_name):
+            from dlt.common.libs.pyiceberg import get_table_columns as get_iceberg_table_columns
+
+            iceberg_table = self.load_open_table("iceberg", table_name)
+            return get_iceberg_table_columns(iceberg_table)
+
+        elif self.is_open_table("delta", table_name):
+            from dlt.common.libs.deltalake import get_table_columns as get_delta_table_columns
+
+            delta_table = self.load_open_table("delta", table_name)
+            return get_delta_table_columns(delta_table)
+
+        else:
+            schema_columns = self.schema.get_table_columns(table_name)
+            return list(schema_columns.keys())
+
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
         table = super().prepare_load_table(table_name)
         if self.config.as_staging_destination:

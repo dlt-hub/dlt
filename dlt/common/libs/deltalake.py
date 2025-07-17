@@ -217,3 +217,9 @@ def evolve_delta_table_schema(delta_table: DeltaTable, arrow_schema: pa.Schema) 
     if new_fields:
         delta_table.alter.add_columns(new_fields)
     return delta_table
+
+
+def get_table_columns(table: DeltaTable) -> List[str]:
+    fields = table.schema().fields
+    column_names = [field.name for field in fields]
+    return column_names
