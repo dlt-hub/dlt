@@ -251,3 +251,8 @@ def make_location(path: str, config: FilesystemConfiguration) -> str:
         # pyiceberg cannot deal with windows absolute urls
         location = location.replace("file:///", "file://")
     return location
+
+
+def get_table_columns(table: IcebergTable) -> List[str]:
+    column_names = table.schema().column_names
+    return column_names
