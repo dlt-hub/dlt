@@ -463,6 +463,14 @@ class Schema:
                 self.data_item_normalizer.remove_table(table_name)
         return result
 
+    def drop_columns(self, table_name: str, column_names: Sequence[str]) -> List[TColumnSchema]:
+        """Drops columns from the table schema and returns the dropped columns"""
+        result = []
+        for col_name in column_names:
+            # TODO: do we need this normalization stuff?
+            result.append(self._schema_tables[table_name]["columns"].pop(col_name))
+        return result
+
     def filter_row_with_hint(
         self, table_name: str, hint_type: TColumnDefaultHint, row: StrAny
     ) -> StrAny:

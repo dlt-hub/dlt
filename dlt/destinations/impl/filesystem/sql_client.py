@@ -202,6 +202,7 @@ class FilesystemSqlClient(WithTableScanners):
                         f"read_json([{resolved_files_string}], columns ="
                         f" {{{column_types}}}{compression})"
                     )
+                    print(from_statement)
                 if first_file_type == "csv":
                     # TODO: use default csv_format config to set params below
                     not_null_columns = [
