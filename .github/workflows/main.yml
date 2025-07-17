@@ -30,7 +30,6 @@ jobs:
   test_docs_snippets:
     name: test snippets in docs
     uses: ./.github/workflows/test_docs_snippets.yml
-    secrets: inherit
   
   lint:
     name: lint on all python versions
