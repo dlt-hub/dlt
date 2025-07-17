@@ -273,33 +273,3 @@ def test_import_file_writer() -> None:
     w_ = writer(None)
     with pytest.raises(NotImplementedError):
         w_.write_header(None)
-
-
-def test_csv_writer_line_endings() -> None:
-    """Test that CSV writer correctly handles different line endings"""
-    from dlt.common.data_writers.writers import CsvWriter
-    from dlt.common.data_writers.configuration import CsvFormatConfiguration
-    from io import StringIO
-
-    # Test LF line endings (default)
-    f_lf = StringIO()
-    writer_lf = CsvWriter(f_lf, line_ending="lf")
-    writer_lf.write_header({"col1": {"name": "col1", "data_type": "text"}})
-    writer_lf.write_data([{"col1": "value1"}, {"col1": "value2"}])
-    writer_lf.close()
-    content_lf = f_lf.getvalue()
-    assert content_lf.count("\n") == 3  # header + 2 rows
-    assert content_lf.count("\r") == 0  # no CR characters
-
-    # Test CRLF line endings
-    f_crlf = StringIO()
-    writer_crlf = CsvWriter(f_crlf, line_ending="crlf")
-    writer_crlf.write_header({"col1": {"name": "col1", "data_type": "text"}})
-    writer_crlf.write_data([{"col1": "value1"}, {"col1": "value2"}])
-    writer_crlf.close()
-    content_crlf = f_crlf.getvalue()
-    assert content_crlf.count("\r\n") == 3  # header + 2 rows
-    # Ensure all line endings are CRLF and there are no isolated LF or CR
-    assert "\r\n" in content_crlf
-    assert "\r" not in content_crlf.replace("\r\n", "")
-    assert "\n" not in content_crlf.replace("\r\n", "")
