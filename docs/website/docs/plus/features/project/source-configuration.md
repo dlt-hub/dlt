@@ -3,9 +3,15 @@
 <img src="https://storage.googleapis.com/dlt-blog-images/plus/dlt_plus_projects.png" width="500"/>
 
 
+The `dlt.yml` file is used to declaratively configure data sources for use with the dlt CLI. This setup provides a flexible way to work manage data extraction for the core sources REST APIs, SQL databases and file systems using YAML syntax.
+
+Credential placeholders for the defined sources are automatically generated in `.dlt/secrets.toml`. Alternatively, credentials may also be provided directly within `dlt.yml`.
+
+
 ## REST API
 
-This setup provides a flexible, zero-code way to work with REST APIs and manage data extraction across multiple endpoints in a single source block.
+The built-in rest_api type enables configuration of REST-based integrations. Multiple endpoints can be defined under a single source.
+
 
 ```yaml
 sources:
@@ -33,7 +39,7 @@ sources:
         write_disposition: append
 ```
 
-* `type: rest_api` specifies the use of the built-in REST API source.
+* `type: rest_api:` specifies the use of the built-in REST API source.
 * `client.base_url` sets the root URL for all API requests.
 * `paginator: auto` enables automatic detection and handling of pagination.
 * `resource_defaults`: Contains the default values to configure the dlt resources. This configuration is applied to all resources unless overridden by the resource-specific configuration.
@@ -47,13 +53,50 @@ sources:
 
 ## SQL database
 
+For SQL-base extractions that require no table-specific parameter configuration, it's possible to initialize `type = sql_database` and declare multiple tables at once.
+ 
+### General SQL Database Source
+
 ```yaml 
 sources:
-  arrow:
-    type: sources.arrow.source
-
-  sql_db_1:
-    type: sql_database
+   sql_source:
+    type: dlt.sources.sql_database.sql_database
+    table_names: 
+      - family
+      - clan
+    incremental:
+        cursor_path: updated
+        initial_value: 2023-01-12T11:21:28Z 
 ```
 
-The corresponding credential placeholders will be added to `.dlt/secrets.toml`, but you can also define them in `dlt.yml`.
+This defines a connection to a SQL database with incremental loading applied across multiple tables.
+
+* `type: sql_database`: Specifies the SQL database connector.
+
+* `table_names`: List of tables to extract.
+
+* `incremental`: Global configuration for incremental extraction.
+
+### Table-Specific Configuration
+
+For table specific configurationssettings such as different `primary_key`s, individual tables can be defined as standalone sources using the `sql_table`type.
+
+
+```yaml
+sources: 
+  sql_family:
+      type: dlt.sources.sql_database.sql_table
+      table: family
+      incremental:
+        cursor_path: updated
+        initial_value: 2023-01-12T11:21:28Z 
+      primary_key: rfam_id
+```
+
+* `type: sql_table`: Indicates a single-table extraction.
+
+* `table`: Name of the table to extract.
+
+* `incremental`: Enables incremental loading for the table.
+
+* `primary_key`: Specifies the table's unique identifier for deduplication and merges.
