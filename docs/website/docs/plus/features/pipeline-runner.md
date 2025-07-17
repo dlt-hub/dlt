@@ -138,12 +138,11 @@ occured during the specified pipeline phase, which is controlled by the `retry_p
 pipelines:
   my_pipeline:
     source: github_source
-    ...
     run_config:
-    retry_policy:
+      retry_policy:
         type: fixed
         max_attempts: 5
-    retry_pipeline_steps: ["normalize", "load"]
+      retry_pipeline_steps: ["normalize", "load"]
 ```
 
 ## Python API
