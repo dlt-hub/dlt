@@ -557,14 +557,12 @@ class ArrowToCsvWriter(DataWriter):
         delimiter: str = ",",
         include_header: bool = True,
         quoting: CsvQuoting = "quote_needed",
-        line_ending: CsvLineEnding = "lf",
     ) -> None:
         super().__init__(f, caps)
         self.delimiter = delimiter
         self._delimiter_b = delimiter.encode("ascii")
         self.include_header = include_header
         self.quoting: CsvQuoting = quoting
-        self.line_ending = line_ending
         self.writer: Any = None
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
@@ -573,10 +571,6 @@ class ArrowToCsvWriter(DataWriter):
     def write_data(self, items: Sequence[TDataItem]) -> None:
         from dlt.common.libs.pyarrow import pyarrow
         import pyarrow.csv
-        import pkg_resources
-
-        # Check pyarrow version
-        pyarrow_version = tuple(map(int, pyarrow.__version__.split(".")[:2]))
 
         for item in items:
             if isinstance(item, (pyarrow.Table, pyarrow.RecordBatch)):
@@ -589,18 +583,15 @@ class ArrowToCsvWriter(DataWriter):
                         quoting = "none"
                     else:
                         raise ValueError(self.quoting)
-                    write_options_kwargs = dict(
-                        include_header=self.include_header,
-                        delimiter=self._delimiter_b,
-                        quoting_style=quoting,
-                    )
-                    if pyarrow_version >= (14, 0):
-                        write_options_kwargs["eol"] = self.line_ending.encode("ascii")
                     try:
                         self.writer = pyarrow.csv.CSVWriter(
                             self._f,
                             item.schema,
-                            write_options=pyarrow.csv.WriteOptions(**write_options_kwargs),
+                            write_options=pyarrow.csv.WriteOptions(
+                                include_header=self.include_header,
+                                delimiter=self._delimiter_b,
+                                quoting_style=quoting,
+                            ),
                         )
                         self._first_schema = item.schema
                     except pyarrow.ArrowInvalid as inv_ex:

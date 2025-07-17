@@ -314,26 +314,15 @@ def test_csv_writer_quoting_parameters(quoting: CsvQuoting) -> None:
 
 
 @pytest.mark.parametrize("line_ending", ["lf", "crlf"])
-@pytest.mark.parametrize("writer_type", [CsvWriter, ArrowToCsvWriter])
-def test_csv_line_endings(writer_type: Type[DataWriter], line_ending: str) -> None:
+def test_csv_line_endings(line_ending: str) -> None:
     data = copy(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
 
-    if writer_type == ArrowToCsvWriter:
-        # write parquet and read it
-        with get_writer(ParquetDataWriter) as pq_writer:
-            pq_writer.write_data_item([data], TABLE_UPDATE_COLUMNS_SCHEMA)
-
-        with open(pq_writer.closed_files[0].file_path, "rb") as f:
-            table = pq.read_table(f)
-        data = table
-
-    with get_writer(writer_type, disable_compression=True, line_ending=line_ending) as writer:
+    with get_writer(CsvWriter, disable_compression=True, line_ending=line_ending) as writer:
         writer.write_data_item(data, TABLE_UPDATE_COLUMNS_SCHEMA)
 
     with open(writer.closed_files[0].file_path, "rb") as f:
         content = f.read()
         expected_eol = b"\r\n" if line_ending == "crlf" else b"\n"
         assert expected_eol in content
-        # Verify that all line endings are consistent
-        assert content.count(expected_eol) > 0
-        assert content.count(b"\r\n" if line_ending == "lf" else b"\n") == 0
+        # Count line endings - there should be at least 2 (header + 1 data row)
+        assert content.count(expected_eol) >= 2
