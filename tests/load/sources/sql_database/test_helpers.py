@@ -1,8 +1,12 @@
+import datetime
 from functools import partial
 from typing import Callable, Any, Literal
 from dataclasses import dataclass
 
+import pyarrow
+import pyarrow.lib
 import pytest
+import pytz
 
 import dlt
 from dlt.common.typing import TDataItem
@@ -408,6 +412,60 @@ def test_make_query_incremental_range_end_closed(
         expected = expected.where(table.c.created_at >= incremental.last_value)
 
     assert query.compare(expected)
+
+
+def test_connectorx_handles_timestamptz(sql_source_db: SQLAlchemySourceDB) -> None:
+    """Test oddities with timezone handling in Arrow C (pyarrow) and Arrow Rust (connectorx)
+
+    dlt user issue: https://github.com/dlt-hub/dlt/issues/2699
+    issue opened on connectorx: https://github.com/sfu-db/connector-x/issues/811
+    issue opened on pyarrow: https://github.com/apache/arrow/issues/47043
+    """
+    # table `chat_message` has columns with timestamptz: `created_at`, `updated_at`
+    table = sql_source_db.get_table("chat_message")
+    loader = TableLoader(
+        engine=sql_source_db.engine,
+        backend="connectorx",
+        table=table,
+        columns=table_to_columns(table),
+    )
+    # defaults should be `backend_kwargs={"return_type": "arrow"}`
+    data_generator = loader._load_rows_connectorx(sa.select(table), {})
+    data = list(data_generator)[0]
+
+    
+    # updates to connectorx may change type mapping `backend --connectorx--> arrow --dlt--> dlt`
+    # it seems unreasonable for dlt to maintain `backend --dlt--> dlt`; if the user
+    # accepts to rely on external dependency `connectorx`, it's their responsibility to handle
+    # migrations; However, dlt should ensure `connectorx` doesn't break pipelines and facilitate
+    # migrations with type promotions 
+    expected_schema = pyarrow.schema(
+        # NOTE field order matters for equality
+        [
+            pyarrow.field("id", pyarrow.int32()),
+            pyarrow.field("created_at", pyarrow.timestamp("us", tz="+00:00")),
+            pyarrow.field("content", pyarrow.string()),
+            pyarrow.field("user_id", pyarrow.int32()),
+            pyarrow.field("channel_id", pyarrow.int32()),
+            pyarrow.field("updated_at", pyarrow.timestamp("us", tz="+00:00"))
+        ]
+    )
+    assert isinstance(data, pyarrow.Table)
+    assert data.schema == expected_schema
+
+    # explanation for the next few lines: https://github.com/apache/arrow/issues/47043
+    # TL;DR: timezone `"+00:00"` created by `connectorx` is valid, but can't be `__repr__`
+    # you can print the column, the scalar value, but you can't print inside an interactive Python environment
+    scalar = data["created_at"][0]
+    scalar.__str__()
+    with pytest.raises(pyarrow.lib.ArrowInvalid):
+        scalar.__repr__()
+
+    value = scalar.as_py()
+    assert isinstance(value, datetime.datetime)
+    assert value.tzinfo == pytz.UTC  # this is equivalent to `tz="+00:00"` produced by connectorx
+    
+    data.to_pandas()
 
 
 def mock_column(field: str, mock_type: Literal["json", "array"] = "json") -> TDataItem:
