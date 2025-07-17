@@ -7,12 +7,9 @@ import dlt
 import pytest
 from dlt.common import pendulum
 
-from dlt.common.storages import fsspec_filesystem
 from dlt.sources.filesystem import filesystem, readers, FileItem, FileItemDict, read_csv
 from dlt.sources.filesystem.helpers import fsspec_from_resource
 
-from tests.common.storages.utils import TEST_SAMPLE_FILES
-from tests.common.configuration.utils import environment
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import (
     assert_load_info,
@@ -21,15 +18,7 @@ from tests.pipeline.utils import (
 )
 from tests.utils import TEST_STORAGE_ROOT
 from tests.load.sources.filesystem.cases import GLOB_RESULTS, TESTS_BUCKET_URLS
-
-
-@pytest.fixture(autouse=True)
-def glob_test_setup() -> None:
-    file_fs, _ = fsspec_filesystem("file")
-    file_path = os.path.join(TEST_STORAGE_ROOT, "data", "standard_source")
-    if not file_fs.isdir(file_path):
-        file_fs.mkdirs(file_path)
-        file_fs.upload(TEST_SAMPLE_FILES, file_path, recursive=True)
+from tests.load.sources.filesystem.utils import glob_test_setup
 
 
 @pytest.mark.parametrize("bucket_url", TESTS_BUCKET_URLS)
