@@ -1,17 +1,53 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, overload, Union, Match, Tuple
+
+import re
 
 import sqlglot
 import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema
 
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.common.typing import TypedDict
+from dlt.common.destination.client import PreparedTableSchema
 
 
+@overload
+def normalize_query(
+    sqlglot_schema: SQLGlotSchema,
+    qualified_query: sge.Delete,
+    sql_client: SqlClientBase[Any],
+) -> sge.Delete: ...
+
+
+@overload
+def normalize_query(
+    sqlglot_schema: SQLGlotSchema,
+    qualified_query: sge.Create,
+    sql_client: SqlClientBase[Any],
+) -> sge.Create: ...
+
+
+@overload
 def normalize_query(
     sqlglot_schema: SQLGlotSchema,
     qualified_query: sge.Query,
     sql_client: SqlClientBase[Any],
-) -> sge.Query:
+) -> sge.Query: ...
+
+
+@overload
+def normalize_query(
+    sqlglot_schema: SQLGlotSchema,
+    qualified_query: sge.Insert,
+    sql_client: SqlClientBase[Any],
+) -> sge.Insert: ...
+
+
+def normalize_query(
+    sqlglot_schema: SQLGlotSchema,
+    qualified_query: Union[sge.Query, sge.Insert, sge.Create, sge.Delete],
+    sql_client: SqlClientBase[Any],
+) -> Union[sge.Query, sge.Insert, sge.Create, sge.Delete]:
     """Normalizes a qualified query compliant with the dlt schema into the namespace of the source dataset"""
 
     # this function modifies the incoming query
@@ -23,7 +59,7 @@ def normalize_query(
 
     # preserve "column" names in original selects which are done in dlt schema namespace
     orig_selects: Dict[int, str] = None
-    if is_casefolding:
+    if is_casefolding and isinstance(qualified_query, sge.Query):
         orig_selects = {}
         for i, proj in enumerate(qualified_query.selects):
             orig_selects[i] = proj.name or proj.args["alias"].name
@@ -33,7 +69,15 @@ def normalize_query(
         if isinstance(node, sge.Table):
             # expand named of known tables. this is currently clickhouse things where
             # we use dataset.table in queries but render those as dataset___table
-            if sqlglot_schema.column_names(node):
+            # Check if table exists in schema (not just if it has columns)
+            try:
+                column_names = sqlglot_schema.column_names(node)
+                table_exists = (
+                    column_names is not None
+                )  # Returns None if table doesn't exist, [] if no columns
+            except Exception:
+                table_exists = False
+            if table_exists:
                 expanded_path = sql_client.make_qualified_table_name_path(
                     node.name, quote=False, casefold=False
                 )
@@ -49,12 +93,15 @@ def normalize_query(
                         node.set("catalog", sqlglot.to_identifier(expanded_path[0], quoted=False))
         # quote and case-fold identifiers, TODO: maybe we could be more intelligent, but then we need to unquote ibis
         if isinstance(node, sge.Identifier):
+            # if it's a pystring placeholder, skip
+            if node.this == "%s":
+                continue
             if is_casefolding:
                 node.set("this", caps.casefold_identifier(node.this))
             node.set("quoted", True)
 
     # add aliases to output selects to stay compatible with dlt schema after the query
-    if orig_selects:
+    if orig_selects and isinstance(qualified_query, sge.Query):
         for i, orig in orig_selects.items():
             case_folded_orig = caps.casefold_identifier(orig)
             if case_folded_orig != orig:
@@ -125,3 +172,244 @@ def build_select_expr(
     select_expr = sge.Select(expressions=columns_expr).from_(table_expr)
 
     return select_expr
+
+
+def build_insert_expr(
+    table_name: str,
+    columns: List[str],
+    quoted_identifiers: bool = True,
+) -> sge.Insert:
+    """Builds a SQL Insert expression with placeholders."""
+    table_expr = sge.Table(this=sge.to_identifier(table_name, quoted=quoted_identifiers))
+
+    columns_expr = [sge.to_identifier(col, quoted=quoted_identifiers) for col in columns]
+
+    placeholders_expr = sge.Values(
+        expressions=[
+            sge.Tuple(
+                expressions=[sge.to_identifier("%s", quoted=False) for _ in enumerate(columns)]
+            )
+        ]
+    )
+
+    insert_expr = sge.insert(expression=placeholders_expr, into=table_expr, columns=columns_expr)
+
+    return insert_expr
+
+
+def build_stored_state_expr(
+    pipeline_name: str,
+    state_table_name: str,
+    state_table_cols: List[str],
+    loads_table_name: str,
+    c_load_id: str,
+    c_dlt_load_id: str,
+    c_pipeline_name: str,
+    c_status: str,
+) -> sge.Select:
+    """Builds a SQL expression for querying the stored state."""
+    state_table_expr = sge.Table(
+        this=sge.to_identifier(state_table_name, quoted=True),
+        alias=sge.to_identifier("s", quoted=False),
+    )
+
+    loads_table_expr = sge.Table(
+        this=sge.to_identifier(loads_table_name, quoted=True),
+        alias=sge.to_identifier("l", quoted=False),
+    )
+
+    join_condition = sge.EQ(
+        this=sge.Column(
+            this=sge.to_identifier(c_load_id, quoted=True),
+            table=sge.to_identifier("l", quoted=False),
+        ),
+        expression=sge.Column(
+            this=sge.to_identifier(c_dlt_load_id, quoted=True),
+            table=sge.to_identifier("s", quoted=False),
+        ),
+    )
+
+    where_condition = sge.and_(
+        sge.EQ(
+            this=sge.Column(this=sge.to_identifier(c_pipeline_name, quoted=True)),
+            expression=sge.Literal.string(pipeline_name),
+        ),
+        sge.EQ(
+            this=sge.Column(
+                this=sge.to_identifier(c_status, quoted=True),
+                table=sge.to_identifier("l", quoted=False),
+            ),
+            expression=sge.Literal.number(0),
+        ),
+    )
+
+    select_expr = sge.Select(
+        expressions=[
+            sge.Column(this=sge.to_identifier(col, quoted=True)) for col in state_table_cols
+        ]
+    )
+
+    order_expr = sge.Ordered(
+        this=sge.Column(this=sge.to_identifier(c_load_id, quoted=True)),
+        desc=True,
+    )
+
+    select_expr = (
+        select_expr.from_(state_table_expr)
+        .join(loads_table_expr, on=join_condition)
+        .where(where_condition)
+        .order_by(order_expr)
+        .limit(1)
+    )
+    return select_expr
+
+
+@overload
+def build_stored_schema_expr(
+    table_name: str,
+    version_table_schema_columns: List[str],
+    *,
+    schema_name: str,
+    c_inserted_at: str,
+    c_schema_name: str,
+) -> sge.Select: ...
+
+
+@overload
+def build_stored_schema_expr(
+    table_name: str,
+    version_table_schema_columns: List[str],
+    *,
+    version_hash: str,
+    c_version_hash: str,
+) -> sge.Select: ...
+
+
+def build_stored_schema_expr(
+    table_name: str,
+    version_table_schema_columns: List[str],
+    schema_name: Optional[str] = None,
+    c_inserted_at: Optional[str] = None,
+    c_schema_name: Optional[str] = None,
+    version_hash: Optional[str] = None,
+    c_version_hash: Optional[str] = None,
+) -> sge.Select:
+    """Builds a SQL expression for querying the stored schema based on the version hash if provided."""
+    select_expr = build_select_expr(
+        table_name=table_name,
+        selected_columns=version_table_schema_columns,
+        quoted_identifiers=True,
+    )
+
+    if version_hash:
+        where_condition = sge.EQ(
+            this=sge.Column(this=sge.to_identifier(c_version_hash, quoted=True)),
+            expression=sge.Literal.string(version_hash),
+        )
+
+        select_expr = select_expr.where(where_condition).limit(1)
+        return select_expr
+
+    order_expr = sge.Ordered(
+        this=sge.Column(this=sge.to_identifier(c_inserted_at, quoted=True)),
+        desc=True,
+    )
+
+    where_condition = None
+    if schema_name:
+        where_condition = sge.EQ(
+            this=sge.Column(this=sge.to_identifier(c_schema_name, quoted=True)),
+            expression=sge.Literal.string(schema_name),
+        )
+
+    select_expr = select_expr.where(where_condition).order_by(order_expr)
+
+    return select_expr
+
+
+def build_info_schema_columns_expr(
+    schema_name: str,
+    storage_table_query_columns: List[str],
+    catalog_name: Optional[str],
+    folded_table_names: Optional[List[str]],
+) -> Tuple[sge.Select, List[str]]:
+    """Builds a SQL expression for querying the information schema columns table using the catalog name and folded table names if provided."""
+
+    # Base select
+    select_expr = build_select_expr(
+        table_name="INFORMATION_SCHEMA.COLUMNS",
+        selected_columns=storage_table_query_columns,
+        quoted_identifiers=False,
+    )
+
+    db_params: List[str] = []
+
+    # Where condition for catalog if provided
+    where_table_catalog = None
+    if catalog_name:
+        where_table_catalog = sge.EQ(
+            this=sge.to_identifier("table_catalog", quoted=False),
+            expression=sge.to_identifier("%s", quoted=False),
+        )
+        db_params.append(catalog_name)
+
+    # Always filter by schema
+    where_table_schema = sge.EQ(
+        this=sge.to_identifier("table_schema", quoted=False),
+        expression=sge.to_identifier("%s", quoted=False),
+    )
+    db_params.append(schema_name)
+
+    # Optional IN clause for filtering by table names
+    where_table_name_in = None
+    if folded_table_names:
+        where_table_name_in = sge.In(
+            this=sge.to_identifier("table_name", quoted=False),
+            expressions=[
+                sge.to_identifier("%s", quoted=False) for _ in enumerate(folded_table_names)
+            ],
+        )
+        db_params += folded_table_names
+
+    # Ordering by table name and ordinal position
+    order_by_table_name = sge.Ordered(this=sge.to_identifier("table_name", quoted=False))
+    order_by_ordinal_position = sge.Ordered(
+        this=sge.to_identifier("ordinal_position", quoted=False)
+    )
+
+    select_expr = select_expr.where(
+        where_table_catalog, where_table_schema, where_table_name_in
+    ).order_by(order_by_table_name, order_by_ordinal_position)
+
+    return select_expr, db_params
+
+
+def build_create_table_expr(
+    table_name: str,
+    use_if_exists: bool = False,
+    quoted_identifiers: bool = True,
+) -> sge.Create:
+    """Builds a SQL expression with optional IF NOT EXISTS clause to create a table."""
+    table_expr = sge.Table(this=sge.to_identifier(table_name, quoted=quoted_identifiers))
+
+    create_expr = sge.Create(this=table_expr, kind="TABLE", exists=use_if_exists)
+
+    return create_expr
+
+
+def build_delete_schema_expr(
+    table_name: str,
+    c_schema_name: str,
+    quoted_identifiers: bool = True,
+) -> sge.Delete:
+    """Builds a SQL expression to delete a schema."""
+    table_expr = sge.Table(this=sge.to_identifier(table_name, quoted=quoted_identifiers))
+    delete_expr = sge.Delete(
+        this=table_expr,
+    )
+    where_condition = sge.EQ(
+        this=sge.Column(this=sge.to_identifier(c_schema_name, quoted=quoted_identifiers)),
+        expression=sge.to_identifier("%s", quoted=False),
+    )
+    delete_expr = delete_expr.where(where_condition)
+    return delete_expr

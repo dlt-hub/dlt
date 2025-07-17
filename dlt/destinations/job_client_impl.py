@@ -6,7 +6,7 @@ from copy import copy
 from types import TracebackType
 from typing import (
     Any,
-    ClassVar,
+    Union,
     Dict,
     List,
     Optional,
@@ -19,7 +19,8 @@ from typing import (
 import zlib
 import re
 
-import sqlglot.expressions
+from sqlglot import parse_one
+import sqlglot.expressions as sge
 
 from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common import pendulum, logger
@@ -75,8 +76,17 @@ from dlt.destinations.utils import (
     verify_schema_merge_disposition,
     verify_schema_replace_disposition,
 )
+from dlt.destinations.queries import (
+    normalize_query,
+    build_insert_expr,
+    build_stored_state_expr,
+    build_stored_schema_expr,
+    build_info_schema_columns_expr,
+    build_create_table_expr,
+    build_delete_schema_expr,
+)
+from dlt.transformations.lineage import create_sqlglot_schema
 
-import sqlglot
 
 # this should suffice for now
 DDL_COMMANDS = ["ALTER", "CREATE", "DROP"]
@@ -173,30 +183,30 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         destination_dialect = self._job_client.capabilities.sqlglot_dialect
 
         # Parse SELECT
-        parsed_select = sqlglot.parse_one(select_statement, read=select_dialect)
+        parsed_select = parse_one(select_statement, read=select_dialect)
 
         # Adjust table parts (catalog/db/this) based on dialect and catalog presence
         if select_dialect != destination_dialect:
             # TODO: We might need this
-            for table in parsed_select.find_all(sqlglot.exp.Table):
+            for table in parsed_select.find_all(sge.Table):
                 parts = list(table.parts)
                 if target_catalog:
                     if len(parts) == 3:
-                        table.set("catalog", sqlglot.to_identifier(target_catalog))
-                        table.set("db", sqlglot.to_identifier(parts[1].name))
-                        table.set("this", sqlglot.to_identifier(parts[2].name))
+                        table.set("catalog", sge.to_identifier(target_catalog))
+                        table.set("db", sge.to_identifier(parts[1].name))
+                        table.set("this", sge.to_identifier(parts[2].name))
                     elif len(parts) == 2:
-                        table.set("catalog", sqlglot.to_identifier(target_catalog))
-                        table.set("db", sqlglot.to_identifier(parts[0].name))
-                        table.set("this", sqlglot.to_identifier(parts[1].name))
+                        table.set("catalog", sge.to_identifier(target_catalog))
+                        table.set("db", sge.to_identifier(parts[0].name))
+                        table.set("this", sge.to_identifier(parts[1].name))
                 else:
                     if len(parts) == 3:
                         table.set("catalog", None)
-                        table.set("db", sqlglot.to_identifier(parts[1].name))
-                        table.set("this", sqlglot.to_identifier(parts[2].name))
+                        table.set("db", sge.to_identifier(parts[1].name))
+                        table.set("this", sge.to_identifier(parts[2].name))
 
         # Ensure there's a top-level SELECT, otherwise it doesn't make sense
-        top_level_select = parsed_select.find(sqlglot.exp.Select)
+        top_level_select = parsed_select.find(sge.Select)
         if top_level_select is None:
             raise ValueError(
                 "No top-level SELECT statement found in the model query. Models must be defined"
@@ -208,10 +218,10 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         columns = []
         for _, expr in enumerate(top_level_select.expressions):
             alias_name = expr.alias
-            columns.append(sqlglot.to_identifier(alias_name, quoted=True))
+            columns.append(sge.to_identifier(alias_name))
 
         # Build final INSERT
-        query = sqlglot.expressions.insert(
+        query = sge.insert(
             expression=parsed_select,
             into=target_table,
             columns=columns,
@@ -246,19 +256,13 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     ) -> None:
         # get definitions of the dlt tables, normalize column names and keep for later use
         version_table_ = normalize_table_identifiers(version_table(), schema.naming)
-        self.version_table_schema_columns = ", ".join(
-            sql_client.escape_column_name(col) for col in version_table_["columns"]
-        )
+        self.version_table_schema_columns = version_table_["columns"]
         loads_table_ = normalize_table_identifiers(loads_table(), schema.naming)
-        self.loads_table_schema_columns = ", ".join(
-            sql_client.escape_column_name(col) for col in loads_table_["columns"]
-        )
+        self.loads_table_schema_columns = loads_table_["columns"]
         state_table_ = normalize_table_identifiers(
             get_pipeline_state_query_columns(), schema.naming
         )
-        self.state_table_columns = ", ".join(
-            sql_client.escape_column_name(col) for col in state_table_["columns"]
-        )
+        self.state_table_columns = state_table_["columns"]
         self.active_hints: Dict[TColumnHint, str] = {}
         self.type_mapper: DataTypeMapper = None
         super().__init__(schema, config, sql_client.capabilities)
@@ -406,10 +410,17 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         return None
 
     def complete_load(self, load_id: str) -> None:
-        name = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
+        name = self.schema.loads_table_name
         now_ts = pendulum.now()
+
+        insert_expr = build_insert_expr(
+            table_name=name, columns=list(self.loads_table_schema_columns.keys())
+        )
+
+        normalized_query = self._render_sql(insert_expr)
+
         self.sql_client.execute_sql(
-            f"INSERT INTO {name}({self.loads_table_schema_columns}) VALUES(%s, %s, %s, %s, %s);",
+            normalized_query,
             load_id,
             self.schema.name,
             0,
@@ -523,37 +534,60 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     ) -> TColumnType:
         pass
 
+    def _render_sql(
+        self,
+        expr: Union[sge.Query, sge.Insert, sge.Create, sge.Delete],
+        normalize: bool = True,
+    ) -> str:
+        """Normalizes sqlglot expression into a raw SQL string using the client's dialect and schema"""
+        dialect = self.sql_client.capabilities.sqlglot_dialect
+        if normalize:
+            sqlglot_schema = create_sqlglot_schema(
+                self.schema,
+                self.sql_client.dataset_name,
+                self.sql_client.capabilities.sqlglot_dialect,
+            )
+            expr = normalize_query(sqlglot_schema, expr, self.sql_client)
+        query = expr.sql(dialect=dialect)
+        return query
+
     def get_stored_schema(self, schema_name: str = None) -> StorageSchemaInfo:
-        name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        c_schema_name, c_inserted_at = self._norm_and_escape_columns("schema_name", "inserted_at")
-        if not schema_name:
-            query = (
-                f"SELECT {self.version_table_schema_columns} FROM {name}"
-                f" ORDER BY {c_inserted_at} DESC;"
-            )
-            return self._row_to_schema_info(query)
-        else:
-            query = (
-                f"SELECT {self.version_table_schema_columns} FROM {name} WHERE {c_schema_name} = %s"
-                f" ORDER BY {c_inserted_at} DESC;"
-            )
-            return self._row_to_schema_info(query, schema_name)
+        table_name = self.schema.version_table_name
+        c_schema_name = self.schema.naming.normalize_path("schema_name")
+        c_inserted_at = self.schema.naming.normalize_path("inserted_at")
+
+        select_expr = build_stored_schema_expr(
+            schema_name=schema_name,
+            table_name=table_name,
+            version_table_schema_columns=list(self.version_table_schema_columns.keys()),
+            c_inserted_at=c_inserted_at,
+            c_schema_name=c_schema_name,
+        )
+
+        normalized_query = self._render_sql(select_expr)
+        return self._row_to_schema_info(normalized_query)
 
     def get_stored_state(self, pipeline_name: str) -> StateInfo:
-        state_table = self.sql_client.make_qualified_table_name(self.schema.state_table_name)
-        loads_table = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
-        c_load_id, c_dlt_load_id, c_pipeline_name, c_status = self._norm_and_escape_columns(
-            C_DLT_LOADS_TABLE_LOAD_ID, C_DLT_LOAD_ID, "pipeline_name", "status"
+        state_table_name = self.schema.state_table_name
+        loads_table_name = self.schema.loads_table_name
+        c_load_id = self.schema.naming.normalize_path(C_DLT_LOADS_TABLE_LOAD_ID)
+        c_dlt_load_id = self.schema.naming.normalize_path(C_DLT_LOAD_ID)
+        c_pipeline_name = self.schema.naming.normalize_path("pipeline_name")
+        c_status = self.schema.naming.normalize_path("status")
+
+        stored_state_expr = build_stored_state_expr(
+            pipeline_name=pipeline_name,
+            state_table_name=state_table_name,
+            state_table_cols=list(self.state_table_columns.keys()),
+            loads_table_name=loads_table_name,
+            c_load_id=c_load_id,
+            c_dlt_load_id=c_dlt_load_id,
+            c_pipeline_name=c_pipeline_name,
+            c_status=c_status,
         )
 
-        maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(1)
-
-        query = (
-            f"SELECT {maybe_limit_clause_1} {self.state_table_columns} FROM {state_table} AS s JOIN"
-            f" {loads_table} AS l ON l.{c_load_id} = s.{c_dlt_load_id} WHERE {c_pipeline_name} = %s"
-            f" AND l.{c_status} = 0 ORDER BY {c_load_id} DESC {maybe_limit_clause_2}"
-        )
-        with self.sql_client.execute_query(query, pipeline_name) as cur:
+        normalized_query = self._render_sql(stored_state_expr)
+        with self.sql_client.execute_query(normalized_query) as cur:
             row = cur.fetchone()
         if not row:
             return None
@@ -573,16 +607,18 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         )
 
     def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
-        table_name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        (c_version_hash,) = self._norm_and_escape_columns("version_hash")
+        table_name = self.schema.version_table_name
+        c_version_hash = self.schema.naming.normalize_path("version_hash")
 
-        maybe_limit_clause_1, maybe_limit_clause_2 = self.sql_client._limit_clause_sql(1)
-
-        query = (
-            f"SELECT {maybe_limit_clause_1} {self.version_table_schema_columns} FROM"
-            f" {table_name} WHERE {c_version_hash} = %s {maybe_limit_clause_2};"
+        select_expr = build_stored_schema_expr(
+            table_name=table_name,
+            version_table_schema_columns=list(self.version_table_schema_columns.keys()),
+            version_hash=version_hash,
+            c_version_hash=c_version_hash,
         )
-        return self._row_to_schema_info(query, version_hash)
+
+        normalized_query = self._render_sql(select_expr)
+        return self._row_to_schema_info(normalized_query)
 
     def _get_info_schema_columns_query(
         self, catalog_name: Optional[str], schema_name: str, folded_table_names: List[str]
@@ -593,24 +629,14 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
 
         Returns: query and list of db_params tuple
         """
-        query = f"""
-SELECT {",".join(self._get_storage_table_query_columns())}
-    FROM INFORMATION_SCHEMA.COLUMNS
-WHERE """
+        schema_cols_expr, db_params = build_info_schema_columns_expr(
+            schema_name=schema_name,
+            storage_table_query_columns=self._get_storage_table_query_columns(),
+            catalog_name=catalog_name,
+            folded_table_names=folded_table_names,
+        )
 
-        db_params = []
-        if catalog_name:
-            db_params.append(catalog_name)
-            query += "table_catalog = %s AND "
-        db_params.append(schema_name)
-        select_tables_clause = ""
-        # look for particular tables only when requested, otherwise return the full schema
-        if folded_table_names:
-            db_params = db_params + folded_table_names
-            # placeholder for each table
-            table_placeholders = ",".join(["%s"] * len(folded_table_names))
-            select_tables_clause = f"AND table_name IN ({table_placeholders})"
-        query += f"table_schema = %s {select_tables_clause} ORDER BY table_name, ordinal_position;"
+        query = self._render_sql(schema_cols_expr, normalize=False)
 
         return query, db_params
 
@@ -686,15 +712,18 @@ WHERE """
         """Make one or more ADD COLUMN sql clauses to be joined in ALTER TABLE statement(s)"""
         return [f"ADD COLUMN {self._get_column_def_sql(c, table)}" for c in new_columns]
 
-    def _make_create_table(self, qualified_name: str, table: PreparedTableSchema) -> str:
+    def _make_create_table(self, table_name: str, table: PreparedTableSchema) -> str:
         """Begins CREATE TABLE statement"""
-        not_exists_clause = " "
-        if (
+        use_if_exists = (
             table["name"] in self.schema.dlt_table_names()
             and self.capabilities.supports_create_table_if_not_exists
-        ):
-            not_exists_clause = " IF NOT EXISTS "
-        return f"CREATE TABLE{not_exists_clause}{qualified_name}"
+        )
+        create_expr = build_create_table_expr(
+            table_name=table_name,
+            use_if_exists=use_if_exists,
+            quoted_identifiers=True,
+        )
+        return self._render_sql(expr=create_expr, normalize=True)
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
@@ -707,7 +736,7 @@ WHERE """
         sql_result: List[str] = []
         if not generate_alter:
             # build CREATE
-            sql = self._make_create_table(qualified_name, table) + " (\n"
+            sql = self._make_create_table(table_name, table) + " (\n"
             sql += ",\n".join([self._get_column_def_sql(c, table) for c in new_columns])
             sql += self._get_constraints_sql(table_name, new_columns, generate_alter)
             sql += ")"
@@ -838,9 +867,12 @@ WHERE """
         Delete all stored versions with the same name as given schema.
         Fails silently if versions table does not exist
         """
-        name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        (c_schema_name,) = self._norm_and_escape_columns("schema_name")
-        self.sql_client.execute_sql(f"DELETE FROM {name} WHERE {c_schema_name} = %s;", schema.name)
+        delete_expr = build_delete_schema_expr(
+            table_name=self.schema.version_table_name,
+            c_schema_name=self.schema.naming.normalize_path("schema_name"),
+        )
+        query = self._render_sql(delete_expr, normalize=True)
+        self.sql_client.execute_sql(query, schema.name)
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
         # get schema string or zip
@@ -853,12 +885,17 @@ WHERE """
         self._commit_schema_update(schema, schema_str)
 
     def _commit_schema_update(self, schema: Schema, schema_str: str) -> None:
+        name = self.schema.version_table_name
         now_ts = pendulum.now()
-        name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        # values =  schema.version_hash, schema.name, schema.version, schema.ENGINE_VERSION, str(now_ts), schema_str
+
+        insert_expr = build_insert_expr(
+            table_name=name, columns=list(self.version_table_schema_columns.keys())
+        )
+
+        normalized_query = self._render_sql(insert_expr)
+
         self.sql_client.execute_sql(
-            f"INSERT INTO {name}({self.version_table_schema_columns}) VALUES (%s, %s, %s, %s, %s,"
-            " %s);",
+            normalized_query,
             schema.version,
             schema.ENGINE_VERSION,
             now_ts,

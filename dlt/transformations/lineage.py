@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Optional, Tuple, cast
+from typing import Any, Optional, Tuple, cast, Dict
 
 import sqlglot.expressions as sge
 
@@ -22,6 +22,7 @@ from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TColumnSchema,
 )
+from dlt.common.schema.utils import pipeline_state_table
 from dlt.transformations.exceptions import LineageFailedException
 
 
@@ -34,21 +35,15 @@ def create_sqlglot_schema(
     dialect: TSqlGlotDialect,
 ) -> SQLGlotSchema:
     """Create an SQLGlot schema using a dlt Schema and the destination capabilities.
-
     The SQLGlot schema automatically scopes the tables to the `dataset_name`.
     This can allow cross-dataset transformations on the same physical location.
     No name translation nor case folding is performing. All identifiers correspond
     to identifiers in dlt schema.
     """
 
-    sqlglot_schema = {}  # MappingSchema(empty_schema, normalize=False)
-
-    for table_name in schema.tables.keys():
+    def map_columns(columns: Dict[str, Any]) -> Dict[str, Any]:
         column_mapping = {}
-        # skip not materialized columns
-        for column_name, column in schema.get_table_columns(
-            table_name, include_incomplete=False
-        ).items():
+        for column_name, column in columns.items():
             sqlglot_type = to_sqlglot_type(
                 dlt_type=column["data_type"],
                 nullable=column.get("nullable"),
@@ -56,16 +51,27 @@ def create_sqlglot_schema(
                 scale=column.get("scale"),
                 timezone=column.get("timezone"),
             )
-            sqlglot_type = set_metadata(sqlglot_type, column)
             # column_name = sql_client.capabilities.casefold_identifier(column_name)
-            column_mapping[column_name] = sqlglot_type
-        # skip tables without columns
+            column_mapping[column_name] = set_metadata(sqlglot_type, column)
+        return column_mapping
+
+    sqlglot_schema_dict = {}  # MappingSchema(empty_schema, normalize=False)
+
+    for table_name in schema.tables.keys():
+        # skip not materialized columns
+        columns = schema.get_table_columns(table_name, include_incomplete=False)
+        column_mapping = map_columns(columns)
         if column_mapping:
-            # table_name = sql_client.make_qualified_table_name_path(table_name, quote=False, casefold=False)[-1]
-            sqlglot_schema[table_name] = column_mapping
+            sqlglot_schema_dict[table_name] = column_mapping
+
+    if schema.state_table_name not in sqlglot_schema_dict:
+        state_columns = pipeline_state_table()["columns"]
+        column_mapping = map_columns(state_columns)
+        if column_mapping:
+            sqlglot_schema_dict[schema.state_table_name] = column_mapping
 
     # ensure proper nesting with db and catalog
-    nested_schema = {dataset_name: sqlglot_schema}
+    nested_schema = {dataset_name: sqlglot_schema_dict}
 
     return ensure_schema(nested_schema, dialect=dialect, normalize=False)
 
