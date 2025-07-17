@@ -21,8 +21,6 @@ MAIN_CLAUSE = 'if __name__ == "__main__":'
 TEST_HEADER = """
 import pytest
 
-from tests.utils import skipifgithubfork
-
 """
 
 
@@ -70,7 +68,6 @@ if __name__ == "__main__":
             # convert the main clause to a test function
             if line.startswith(MAIN_CLAUSE):
                 main_clause_found = True
-                processed_lines.append("@skipifgithubfork")  # skip on forks
                 if example not in SKIP_FORK_EXAMPLES:
                     processed_lines.append("@pytest.mark.forked")  # run on forked-subprocess
                 processed_lines.append(f"def test_{example}():")
