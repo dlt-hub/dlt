@@ -31,10 +31,10 @@ from lancedb.embeddings import get_registry
 from lancedb.pydantic import LanceModel, Vector
 
 import dlt
-from dlt.common.configuration import configspec
 from dlt.common.schema import TTableSchema
 from dlt.common.typing import TDataItems, TSecretStrValue
 from dlt.sources.helpers import requests
+from dlt.common.configuration import configspec
 from dlt.sources.helpers.rest_client import RESTClient, AuthConfigBase
 
 # access secrets to get openai key
