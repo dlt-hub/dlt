@@ -108,6 +108,7 @@ from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.dataset import (
     dataset,
     get_destination_clients,
@@ -1021,7 +1022,7 @@ class Pipeline(SupportsPipeline):
 
     @with_schemas_sync
     def sync_schema(self, schema_name: str = None) -> TSchemaTables:
-        """Synchronizes the schema `schema_name` with the destination. If no name is provided, the default schema will be synchronized."""
+        """Synchronizes the destination with the schema `schema_name`. If no name is provided, the default schema will be synchronized."""
         if not schema_name and not self.default_schema_name:
             raise PipelineConfigMissing(
                 self.pipeline_name,
@@ -1035,6 +1036,21 @@ class Pipeline(SupportsPipeline):
         with self._get_destination_clients(schema)[0] as client:
             client.initialize_storage()
             return client.update_stored_schema()
+
+    @with_schemas_sync
+    def sync_schema_destructively(self, schema_name: str = None) -> None:
+        """Synchronizes the schema `schema_name` with the destination. If no name is provided, the default schema will be synchronized."""
+        if not schema_name and not self.default_schema_name:
+            raise PipelineConfigMissing(
+                self.pipeline_name,
+                "default_schema_name",
+                "load",
+                "Pipeline contains no schemas. Please extract any data with `extract` or `run`"
+                " methods.",
+            )
+        schema = self.schemas[schema_name] if schema_name else self.default_schema
+        with self._get_destination_clients(schema)[0] as client:
+            client.update_stored_schema_destructively()
 
     def set_local_state_val(self, key: str, value: Any) -> None:
         """Sets value in local state. Local state is not synchronized with destination."""
