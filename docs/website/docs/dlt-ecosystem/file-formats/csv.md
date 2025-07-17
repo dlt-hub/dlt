@@ -29,7 +29,7 @@ Internally, we use two implementations:
 * separators are commas
 * quotes are **"** and are escaped as **""**
 * `NULL` values are both empty strings and empty tokens as in the example below
-* UNIX new lines (LF) are used by default
+* UNIX new lines (`"\n"`) are used by default
 * dates are represented as ISO 8601
 * quoting style is "when needed"
 
