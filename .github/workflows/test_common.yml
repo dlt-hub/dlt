@@ -31,7 +31,7 @@ jobs:
             python-version: "3.9"
             shell: bash
           - os: ubuntu-latest
-            python-version: "3.10"
+            python-version: "3.11"
             shell: bash
           - os: ubuntu-latest
             python-version: "3.11"
