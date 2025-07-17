@@ -1535,7 +1535,7 @@ class Pipeline(SupportsPipeline):
 
         # normalizes the dataset name using the dataset_name_layout
         if self.config.dataset_name_layout:
-            new_dataset_name = self.config.dataset_name_layout % new_dataset_name
+            new_dataset_name = self.config.dataset_name_layout.format(new_dataset_name)
         return new_dataset_name
 
     def _set_default_schema_name(self, schema: Schema) -> None:
