@@ -25,7 +25,7 @@ from tests.cases import (
     TABLE_ROW_ALL_DATA_TYPES,
     arrow_table_all_data_types,
 )
-from tests.utils import TestDataItemFormat
+from tests.utils import TestDataItemFormat, custom_environ
 
 
 def test_csv_arrow_writer_all_data_fields() -> None:
@@ -313,16 +313,24 @@ def test_csv_writer_quoting_parameters(quoting: CsvQuoting) -> None:
         mock_writer_instance.writerows.assert_called_once_with(test_data)
 
 
-@pytest.mark.parametrize("line_ending", ["lf", "crlf"])
-def test_csv_line_endings(line_ending: str) -> None:
-    data = copy(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        {"lineterminator": "\n", "expected": b'"col1"\n"value1"\n"value2"\n'},
+        {"lineterminator": "\r\n", "expected": b'"col1"\r\n"value1"\r\n"value2"\r\n'},
+    ],
+)
+def test_csv_lineterminator(test_case: Dict[str, str]) -> None:
+    lineterminator = test_case["lineterminator"]
+    expected = test_case["expected"]
 
-    with get_writer(CsvWriter, disable_compression=True, line_ending=line_ending) as writer:
-        writer.write_data_item(data, TABLE_UPDATE_COLUMNS_SCHEMA)
+    schema: TTableSchemaColumns = {"col1": {"name": "col1", "data_type": "text"}}
+    data = [{"col1": "value1"}, {"col1": "value2"}]
 
-    with open(writer.closed_files[0].file_path, "rb") as f:
-        content = f.read()
-        expected_eol = b"\r\n" if line_ending == "crlf" else b"\n"
-        assert expected_eol in content
-        # Count line endings - there should be at least 2 (header + 1 data row)
-        assert content.count(expected_eol) >= 2
+    with custom_environ({"DATA_WRITER__LINETERMINATOR": lineterminator}):
+        with get_writer(CsvWriter, disable_compression=True) as writer:
+            writer.write_data_item(data, schema)
+
+        with open(writer.closed_files[0].file_path, "rb") as f:
+            content = f.read()
+            assert content == expected

@@ -29,7 +29,6 @@ from dlt.common.destination.configuration import (
     CsvFormatConfiguration,
     CsvQuoting,
     ParquetFormatConfiguration,
-    CsvLineEnding,
 )
 from dlt.common.destination import (
     DestinationCapabilitiesContext,
@@ -415,14 +414,14 @@ class CsvWriter(DataWriter):
         delimiter: str = ",",
         include_header: bool = True,
         quoting: CsvQuoting = "quote_needed",
-        line_ending: CsvLineEnding = "lf",
+        lineterminator: str = "\n",
         bytes_encoding: str = "utf-8",
     ) -> None:
         super().__init__(f, caps)
         self.include_header = include_header
         self.delimiter = delimiter
         self.quoting: CsvQuoting = quoting
-        self.line_ending = line_ending
+        self.lineterminator = lineterminator
         self.writer: csv.DictWriter[str] = None
         self.bytes_encoding = bytes_encoding
 
@@ -439,17 +438,14 @@ class CsvWriter(DataWriter):
         else:
             raise ValueError(self.quoting)
 
-        # Create a custom dialect based on unix_dialect
-        class CustomDialect(csv.unix_dialect):
-            lineterminator = "\r\n" if self.line_ending == "crlf" else "\n"
-
         self.writer = csv.DictWriter(
             self._f,
             fieldnames=list(columns_schema.keys()),
             extrasaction="ignore",
-            dialect=CustomDialect,
+            dialect=csv.unix_dialect,
             delimiter=self.delimiter,
             quoting=quoting,
+            lineterminator=self.lineterminator,
         )
         if self.include_header:
             self.writer.writeheader()

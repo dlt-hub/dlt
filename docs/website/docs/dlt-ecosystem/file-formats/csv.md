@@ -51,7 +51,7 @@ with standard settings:
 
 * `delimiter`: change the delimiting character (default: ',')
 * `include_header`: include the header row (default: True)
-* `line_ending`: `lf` - use UNIX line endings (default), `crlf` - use Windows line endings
+* `lineterminator`: specify the string used to terminate lines (default: `\n` - UNIX line endings, use `\r\n` for Windows line endings)
 * `quoting`: controls when quotes should be generated around field values. Available options:
 
     - `quote_needed` (default): quote only values that need quoting, i.e., non-numeric values
@@ -73,7 +73,7 @@ with standard settings:
 delimiter="|"
 include_header=false
 quoting="quote_all"
-line_ending="crlf"
+lineterminator="\r\n"
 ```
 
 Or using environment variables:
@@ -82,7 +82,7 @@ Or using environment variables:
 NORMALIZE__DATA_WRITER__DELIMITER=|
 NORMALIZE__DATA_WRITER__INCLUDE_HEADER=False
 NORMALIZE__DATA_WRITER__QUOTING=quote_all
-NORMALIZE__DATA_WRITER__LINE_ENDING=crlf
+NORMALIZE__DATA_WRITER__LINETERMINATOR="\r\n"
 ```
 
 ### Destination settings

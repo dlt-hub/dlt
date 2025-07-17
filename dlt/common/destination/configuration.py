@@ -3,7 +3,6 @@ from dlt.common.configuration import configspec, known_sections
 from dlt.common.configuration.specs import BaseConfiguration
 
 CsvQuoting = Literal["quote_all", "quote_needed", "quote_minimal", "quote_none"]
-CsvLineEnding = Literal["lf", "crlf"]
 
 
 @configspec
@@ -11,7 +10,7 @@ class CsvFormatConfiguration(BaseConfiguration):
     delimiter: str = ","
     include_header: bool = True
     quoting: CsvQuoting = "quote_needed"
-    line_ending: CsvLineEnding = "lf"
+    lineterminator: str = "\n"
 
     # read options
     on_error_continue: bool = False
