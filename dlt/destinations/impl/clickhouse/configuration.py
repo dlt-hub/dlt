@@ -33,7 +33,7 @@ class ClickHouseCredentials(ConnectionStringCredentials):
     """Timeout for establishing connection. Defaults to 10 seconds."""
     send_receive_timeout: int = 300
     """Timeout for sending and receiving data. Defaults to 300 seconds."""
-    extra_credentials: Optional[Dict[str, str]] = None
+    s3_extra_credentials: Optional[Dict[str, str]] = None
     """Arguments to pass to the `extra_credentials` function specifically for S3 function."""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
@@ -43,7 +43,7 @@ class ClickHouseCredentials(ConnectionStringCredentials):
         "database",
         "username",
         "password",
-        "extra_credentials",
+        "s3_extra_credentials",
     ]
 
     def parse_native_representation(self, native_value: Any) -> None:

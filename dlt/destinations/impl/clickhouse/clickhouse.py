@@ -2,7 +2,7 @@ import os
 from copy import deepcopy
 from textwrap import dedent
 from typing import Any, Optional, List, Sequence, cast
-from urllib.parse import urlparse
+from urllib.parse import ParseResult, urlparse
 
 import clickhouse_connect
 from clickhouse_connect.driver.tools import insert_file
@@ -71,10 +71,108 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._staging_credentials = staging_credentials
         self._config = config
 
+    def _get_table_function(
+        self,
+        *,
+        bucket_scheme: str,
+        bucket_url: ParseResult,
+        ext: str,
+        compression: str,
+        clickhouse_format: str,
+    ) -> str:
+        """
+        Creates the ClickHouse table function for loading data from cloud storage used with a staging destination.
+
+        Args:
+            bucket_scheme (str): The scheme of the bucket URL (e.g., 's3', 'gs', 'azure').
+            bucket_url (ParseResult): The parsed URL of the bucket.
+            ext (str): The file extension of the file being loaded.
+            compression (str): The compression type to use ('auto', 'gz', 'none').
+            clickhouse_format (str): The ClickHouse format to use for loading data.
+
+        Returns:
+            str: The ClickHouse table function string for loading data from the specified bucket.
+
+        Raises:
+            LoadJobTerminalException: If the bucket scheme is not supported or if credentials are missing.
+        """
+        # Auto does not work for jsonl, get info from config for buckets
+        # NOTE: we should not really be accessing the config this way, but for
+        # now it is ok...
+        if ext == "jsonl":
+            compression = "none" if is_compression_disabled() else "gz"
+
+        if bucket_scheme in ("s3", "gs", "gcs"):
+            if not isinstance(self._staging_credentials, AwsCredentialsWithoutDefaults):
+                raise LoadJobTerminalException(
+                    self._file_path,
+                    dedent(
+                        """
+                        Google Cloud Storage buckets must be configured using the S3 compatible access pattern.
+                        Please provide the necessary S3 credentials (access key ID and secret access key), to access the GCS bucket through the S3 API.
+                        Refer to https://dlthub.com/docs/dlt-ecosystem/destinations/filesystem#using-s3-compatible-storage.
+                    """,
+                    ).strip(),
+                )
+
+            bucket_http_url = convert_storage_to_http_scheme(
+                bucket_url,
+                endpoint=self._staging_credentials.endpoint_url,
+                use_https=self._config.staging_use_https,
+            )
+            access_key_id = self._staging_credentials.aws_access_key_id
+            secret_access_key = self._staging_credentials.aws_secret_access_key
+            auth = "NOSIGN"
+            if self._config.credentials.s3_extra_credentials:
+                """
+                Use extra credentials for S3 compatible storage.
+                Refer to https://clickhouse.com/docs/sql-reference/table-functions/s3#using-s3-credentials-clickhouse-cloud
+                """
+                extra_credential_args = [
+                    f"{k} = '{v}'" for k, v in self._config.credentials.s3_extra_credentials.items()
+                ]
+                auth = f"extra_credentials({', '.join(extra_credential_args)})"
+
+            elif access_key_id and secret_access_key:
+                auth = f"'{access_key_id}','{secret_access_key}'"
+
+            table_function = (
+                f"s3('{bucket_http_url}',{auth},'{clickhouse_format}','auto','{compression}')"
+            )
+            return table_function
+
+        elif bucket_scheme in AZURE_BLOB_STORAGE_PROTOCOLS:
+            if not isinstance(self._staging_credentials, AzureCredentialsWithoutDefaults):
+                raise LoadJobTerminalException(
+                    self._file_path,
+                    "Unsigned Azure Blob Storage access from ClickHouse isn't supported as yet.",
+                )
+
+            # Authenticated access.
+            account_name = self._staging_credentials.azure_storage_account_name
+            account_host = (
+                self._staging_credentials.azure_account_host
+                or f"{account_name}.blob.core.windows.net"
+            )
+            storage_account_url = ensure_canonical_az_url("", "https", account_name, account_host)
+            account_key = self._staging_credentials.azure_storage_account_key
+
+            # build table func
+            table_function = f"azureBlobStorage('{storage_account_url}','{bucket_url.netloc}','{bucket_url.path}','{account_name}','{account_key}','{clickhouse_format}','{compression}')"
+            return table_function
+
+        else:
+            raise LoadJobTerminalException(
+                self._file_path,
+                f"ClickHouse loader does not support `{bucket_scheme}` filesystem.",
+            )
+
     def run(self) -> None:
         client = self._job_client.sql_client
 
         bucket_path = None
+        bucket_url = None
+        bucket_scheme = None
         file_name = self._file_name
 
         if ReferenceFollowupJobRequest.is_reference_job(self._file_path):
@@ -109,69 +207,18 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         qualified_table_name = client.make_qualified_table_name(self.load_table_name)
 
-        # Auto does not work for jsonl, get info from config for buckets
-        # NOTE: we should not really be accessing the config this way, but for
-        # now it is ok...
-        if ext == "jsonl":
-            compression = "none" if is_compression_disabled() else "gz"
-
-        if bucket_scheme in ("s3", "gs", "gcs"):
-            if not isinstance(self._staging_credentials, AwsCredentialsWithoutDefaults):
-                raise LoadJobTerminalException(
-                    self._file_path,
-                    dedent(
-                        """
-                        Google Cloud Storage buckets must be configured using the S3 compatible access pattern.
-                        Please provide the necessary S3 credentials (access key ID and secret access key), to access the GCS bucket through the S3 API.
-                        Refer to https://dlthub.com/docs/dlt-ecosystem/destinations/filesystem#using-s3-compatible-storage.
-                    """,
-                    ).strip(),
-                )
-
-            bucket_http_url = convert_storage_to_http_scheme(
-                bucket_url,
-                endpoint=self._staging_credentials.endpoint_url,
-                use_https=self._config.staging_use_https,
-            )
-            access_key_id = self._staging_credentials.aws_access_key_id
-            secret_access_key = self._staging_credentials.aws_secret_access_key
-            auth = "NOSIGN"
-            if self._config.credentials.extra_credentials:
-                extra_credential_args = [
-                    f"{k} = '{v}'" for k, v in self._config.credentials.extra_credentials.items()
-                ]
-                auth = f"extra_credentials({', '.join(extra_credential_args)})"
-
-            elif access_key_id and secret_access_key:
-                auth = f"'{access_key_id}','{secret_access_key}'"
-
-            table_function = (
-                f"s3('{bucket_http_url}',{auth},'{clickhouse_format}','auto','{compression}')"
-            )
-
-        elif bucket_scheme in AZURE_BLOB_STORAGE_PROTOCOLS:
-            if not isinstance(self._staging_credentials, AzureCredentialsWithoutDefaults):
-                raise LoadJobTerminalException(
-                    self._file_path,
-                    "Unsigned Azure Blob Storage access from ClickHouse isn't supported as yet.",
-                )
-
-            # Authenticated access.
-            account_name = self._staging_credentials.azure_storage_account_name
-            account_host = (
-                self._staging_credentials.azure_account_host
-                or f"{account_name}.blob.core.windows.net"
-            )
-            storage_account_url = ensure_canonical_az_url("", "https", account_name, account_host)
-            account_key = self._staging_credentials.azure_storage_account_key
-
-            # build table func
-            table_function = f"azureBlobStorage('{storage_account_url}','{bucket_url.netloc}','{bucket_url.path}','{account_name}','{account_key}','{clickhouse_format}','{compression}')"
-        else:
+        if not (bucket_scheme and bucket_url):
             raise LoadJobTerminalException(
-                self._file_path,
-                f"ClickHouse loader does not support `{bucket_scheme}` filesystem.",
+                self._file_path, "Cannot determine bucket scheme and URL from the file path."
             )
+
+        table_function = self._get_table_function(
+            bucket_scheme=bucket_scheme,
+            bucket_url=bucket_url,
+            ext=ext,
+            compression=compression,
+            clickhouse_format=clickhouse_format,
+        )
 
         statement = f"INSERT INTO {qualified_table_name} SELECT * FROM {table_function}"
         with client.begin_transaction():

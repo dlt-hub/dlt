@@ -1,3 +1,4 @@
+from os import environ
 from typing import Iterator
 
 import pytest
@@ -44,6 +45,24 @@ def test_clickhouse_connection_string_with_all_params() -> None:
 
     # Test URL components regardless of query param order.
     assert make_url(creds.to_native_representation()) == expected
+
+
+def test_clickhouse_credentials_resolved() -> None:
+    environ["CREDENTIALS__HOST"] = "localhost"
+    environ["CREDENTIALS__PORT"] = "9000"
+    environ["CREDENTIALS__USERNAME"] = "user"
+    environ["CREDENTIALS__PASSWORD"] = "pass"
+    environ["CREDENTIALS__DATABASE"] = "test_db"
+    environ["CREDENTIALS__S3_EXTRA_CREDENTIALS"] = '{"role_arn": "my_arn"}'
+
+    config = resolve_configuration(ClickHouseCredentials())
+
+    assert config.host == "localhost"
+    assert config.port == 9000
+    assert config.username == "user"
+    assert config.password == "pass"
+    assert config.s3_extra_credentials
+    assert config.s3_extra_credentials["role_arn"] == "my_arn"
 
 
 def test_clickhouse_configuration() -> None:
