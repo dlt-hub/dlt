@@ -1099,3 +1099,61 @@ def add_arrow_metadata(
         return pyarrow.Table.from_arrays(item.columns, schema=new_schema)
     else:  # RecordBatch
         return pyarrow.RecordBatch.from_arrays(item.columns, schema=new_schema)
+
+
+def _has_offset_timezones(item: Union[pyarrow.Table, pyarrow.RecordBatch]) -> bool:
+    """Eager check to identify it the table contains fields with offset-based timezones."""
+    for field in item.schema:
+        if getattr(field.type, "tz", "").startswith(("+", "-")):
+            return True
+    return False
+
+
+# NOTE could use an explicit mapping of ~30 offset to IANA timezones
+# would be less error-prone and easy to maintain.
+def _offset_to_iana(offset_tzinfo: str) -> str:
+    """Convert an offset-based time zone to IANA time zone.
+
+    This function assumes that the offset time zone is valid.
+
+    Facts:
+    - Time zones go from `-12:00` to `+14:00`
+    - Neutral time zone is `+00:00`
+    - The sign used in UTC is reversed for GMT; for example: UTC+05:00 == Etc/GMT-5
+    ref: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+    """
+    hours, _, minutes = offset_tzinfo[1:].partition(":")
+    sign = "-" if offset_tzinfo[0] == "+" and hours != "00" else "+"
+    if int(minutes) != 0:
+        raise ValueError(
+            "Received time zone defined as an offset with fractional hours. This is currently not"
+            f" supported. Time zone: {offset_tzinfo}"
+        )
+    return f"Etc/GMT{sign}{int(hours)}"
+
+
+def _convert_offset_timezones_field(field: pyarrow.Field) -> pyarrow.Field:
+    """Convert an offset-based timezone to IANA timezone for a single field.
+    This is a no-op for non-timestamp fields. Timestamp unit is preserved.
+    """
+    if not pyarrow.types.is_timestamp(field.type):
+        return field
+
+    tzinfo = getattr(field.type, "tz", None)
+    if isinstance(tzinfo, str):
+        if tzinfo.startswith(("+", "-")):
+            new_tzinfo = _offset_to_iana(tzinfo)
+            new_type = pyarrow.timestamp(field.type.unit, tz=new_tzinfo)
+            new_field = pyarrow.field(field.name, type=new_type)
+            return new_field
+
+    return field
+
+
+def _convert_offset_timezones_table(
+    item: Union[pyarrow.Table, pyarrow.RecordBatch]
+) -> Union[pyarrow.Table, pyarrow.RecordBatch]:
+    """Convert fields that use offset-based timezones to IANA timezones"""
+    new_fields = [_convert_offset_timezones_field(field) for field in item.schema]
+    new_schema = pyarrow.schema(new_fields)
+    return item.cast(new_schema)
