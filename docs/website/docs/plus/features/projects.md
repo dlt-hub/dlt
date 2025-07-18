@@ -182,6 +182,28 @@ profiles:
         bucket_url: s3://dlt-ci-test-bucket/dlt_example_project/
 ```
 
+### Run Configurations
+
+For each pipeline, you can use the `run_config` section to define what happens when the pipeline is run from
+the command line with `dlt pipeline <pipeline_name> run`.
+
+```yaml
+pipelines:
+  my_pipeline:
+    source: my_source
+    destination: duckdb
+    dataset_name: my_dataset
+    run_config:
+      run_from_clean_folder: true
+      store_trace_info: true
+      retry_policy:
+        type: fixed
+        max_attempts: 3
+      retry_pipeline_steps: ["load"]
+```
+
+Read more about these options [here](./pipeline-runner.md).
+
 ### Project settings and variable substitution
 
 You can override default project settings using the `project` section:
@@ -366,8 +388,8 @@ Here, we access the entities manager, which allows you to create sources, destin
 
 ### Running pipelines with the runner
 
-`dlt+` includes a pipeline runner, which is the same one used when you run pipelines from the CLI.
-You can also use it directly in your code through the project context:
+`dlt+` includes a pipeline runner which will instantiate your pipeline from the `dlt.yml` file
+and run it, which is exactly what happens when you run pipelines from the CLI.
 
 ```py
 from dlt_plus import current
@@ -376,6 +398,26 @@ from dlt_plus import current
 runner = current.runner()
 # run the "my_pipeline" pipeline from the currently active project
 runner.run_pipeline("my_pipeline")
+```
+
+If you already have your pipeline instance, you can also use the `PipelineRunner` directly:
+
+```py
+import dlt
+from dlt_plus.runner import PipelineRunner
+
+# your pipeline instance
+pipeline = dlt.Pipeline(
+  pipeline_name="my_pipeline",
+  destination="duckdb",
+  dataset_name="my_dataset"
+)
+
+# instantiate the runner and pass any args that you would usually pass to pipeline.run()
+load_info = PipelineRunner(
+  pipeline,
+  store_trace_info=True,
+).run(data=[1,2,3], table_name="numbers")
 ```
 
 ### Accessing the catalog
