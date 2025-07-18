@@ -363,11 +363,11 @@ class FilesystemClient(
         """Yields tables that have files in storage, returns columns from current schema"""
         for table_name in table_names:
             table_dir = self.get_table_dir(table_name)
-            table_exists = self.is_dlt_table(table_name) and self.is_storage_initialized()
             if (
-                table_exists
-                or self.fs_client.exists(table_dir)
-                or len(self.list_table_files(table_name)) > 0
+                # TODO: isdir is sufficient if table_dir == table prefix
+                #   since this method is used currently only for tests we do not need to improve it
+                self.fs_client.isdir(table_dir)
+                and len(self.list_table_files(table_name)) > 0
             ):
                 if table_name in self.schema.tables:
                     yield (table_name, self.schema.get_table_columns(table_name))
