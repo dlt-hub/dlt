@@ -6,10 +6,11 @@ from dlt.common.runtime.collector import (
     LogCollector as log,
     EnlightenCollector as enlighten,
     AliveCollector as alive_progress,
+    CallbackCollector as callback,
 )
 from dlt.common.runtime.collector import Collector as _Collector, NULL_COLLECTOR as _NULL_COLLECTOR
 
-TSupportedCollectors = Literal["tqdm", "enlighten", "log", "alive_progress"]
+TSupportedCollectors = Literal["tqdm", "enlighten", "log", "alive_progress", "callback"]
 TCollectorArg = Union[_Collector, TSupportedCollectors]
 
 
@@ -27,5 +28,7 @@ def _from_name(collector: TCollectorArg) -> _Collector:
             return log()
         if collector == "alive_progress":
             return alive_progress()
+        if collector == "callback":
+            return callback()
         raise ValueError(collector)
     return collector

@@ -18,6 +18,9 @@ from typing import (
     TypeVar,
 )
 
+from dlt.common.pipeline import SupportsPipeline
+from dlt.pipeline.typing import TPipelineStep
+
 if TYPE_CHECKING:
     from tqdm import tqdm
     import enlighten
@@ -28,6 +31,7 @@ else:
 
 from dlt.common import logger as dlt_logger
 from dlt.common.exceptions import MissingDependencyException
+from dlt.pipeline.trace import PipelineStepTrace, PipelineTrace, SupportsTracking
 
 TCollector = TypeVar("TCollector", bound="Collector")
 
@@ -129,7 +133,7 @@ class DictCollector(Collector):
         self.counters = None
 
 
-class LogCollector(Collector):
+class LogCollector(Collector, SupportsTracking):
     """A Collector that shows progress by writing to a Python logger or a console"""
 
     logger: Union[logging.Logger, TextIO]
@@ -210,11 +214,17 @@ class LogCollector(Collector):
             self.messages[counter_key] = message
         self.maybe_log()
 
-    def maybe_log(self) -> None:
+    @property
+    def should_report(self) -> bool:
+        """Check if it's time to report/log based on log_period."""
         current_time = time.time()
-        if self.last_log_time is None or current_time - self.last_log_time >= self.log_period:
+        return self.last_log_time is None or current_time - self.last_log_time >= self.log_period
+
+    def maybe_log(self) -> None:
+        """Check if should report and if so, dump counters."""
+        if self.should_report:
             self.dump_counters()
-            self.last_log_time = current_time
+            self.last_log_time = time.time()
 
     def dump_counters(self) -> None:
         current_time = time.time()
@@ -265,6 +275,7 @@ class LogCollector(Collector):
             self.logger.log(log_level, log_message)
         else:
             print(log_message, file=self.logger or sys.stdout)  # noqa
+        self.on_log()
 
     def _start(self, step: str) -> None:
         self.counters = defaultdict(int)
@@ -278,6 +289,34 @@ class LogCollector(Collector):
         self.counter_info = None
         self.messages = None
         self.last_log_time = None
+
+    def on_log(self) -> None:
+        pass
+
+    def on_start_trace(
+        self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
+    ) -> None:
+        pass
+
+    def on_start_trace_step(
+        self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
+    ) -> None:
+        pass
+
+    def on_end_trace_step(
+        self,
+        trace: PipelineTrace,
+        step: PipelineStepTrace,
+        pipeline: SupportsPipeline,
+        step_info: Any,
+        send_state: bool,
+    ) -> None:
+        pass
+
+    def on_end_trace(
+        self, trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool
+    ) -> None:
+        pass
 
 
 class TqdmCollector(Collector):
@@ -480,6 +519,122 @@ class EnlightenCollector(Collector):
         self._manager = None
         self._bars = None
         self._status = None
+
+
+class CallbackCollector(LogCollector):
+    """A Collector that extends LogCollector to also call external callbacks with live progress updates.
+    
+    This collector provides all the functionality of LogCollector (logging, progress tracking, etc.)
+    while also calling a callback function with a summary of all active counters for the current stage.
+    The callback is only called when the LogCollector actually logs something (based on log_period).
+    """
+
+    def __init__(
+        self,
+        callback: callable = None,
+        log_period: float = 1.0,
+        logger: Union[logging.Logger, TextIO] = sys.stdout,
+        log_level: int = logging.INFO,
+        dump_system_stats: bool = True,
+    ) -> None:
+        """Initialize the callback collector.
+        
+        Args:
+            callback (callable, optional): A callback function that receives a summary of all active counters:
+                callback(counters_summary: Dict[str, Dict[str, Any]]) -> None
+                where counters_summary is a dict with counter names as keys and dicts containing:
+                - count: current count value
+                - total: total expected value (if known)
+                - message: additional message
+                - label: counter label
+            log_period (float, optional): Time period in seconds between log updates. Defaults to 1.0.
+            logger (logging.Logger | TextIO, optional): Logger or text stream to write log messages to. Defaults to stdio.
+            log_level (str, optional): Log level for the logger. Defaults to INFO level
+            dump_system_stats (bool, optional): Log memory and cpu usage. Defaults to True
+        """
+        super().__init__(log_period, logger, log_level, dump_system_stats)
+        self.callback = callback
+
+    def _counters_to_summary(self) -> Dict[str, Dict[str, Any]]:
+        """Convert current counters to a summary dictionary for the callback.
+        
+        Returns:
+            Dict[str, Dict[str, Any]]: Summary of all active counters with their details,
+            mirroring what dump_counters outputs
+        """
+        current_time = time.time()
+        counters_summary = {
+            "_step": self.step,
+            "_timestamp": current_time
+        }
+        
+        for counter_key, count in self.counters.items():
+            # Parse counter_key back to name and label
+            if "_" in counter_key and counter_key.count("_") >= 1:
+                parts = counter_key.split("_")
+                name = parts[0]
+                label = "_".join(parts[1:]) if len(parts) > 1 else None
+            else:
+                name = counter_key
+                label = None
+            
+            # Get counter info
+            info = self.counter_info.get(counter_key)
+            if info:
+                elapsed_time = current_time - info.start_time
+                items_per_second = (count / elapsed_time) if elapsed_time > 0 else 0
+                
+                # Calculate percentage only if total is available
+                percentage = None
+                if info.total:
+                    percentage = (count / info.total * 100)
+                
+                counters_summary[name] = {
+                    "count": count,
+                    "total": info.total,
+                    "description": info.description,
+                    "elapsed_time": elapsed_time,
+                    "items_per_second": items_per_second,
+                    "percentage": percentage,
+                    "message": self.messages.get(counter_key),
+                    "label": label
+                }
+        
+        # Add system stats if enabled
+        if self.dump_system_stats:
+            try:
+                import psutil
+                process = psutil.Process(os.getpid())
+                mem_info = process.memory_info()
+                current_mem = mem_info.rss / (1024**2)  # Convert to MB
+                mem_percent = psutil.virtual_memory().percent
+                cpu_percent = process.cpu_percent()
+                
+                counters_summary["_system_stats"] = {
+                    "memory_mb": current_mem,
+                    "memory_percent": mem_percent,
+                    "cpu_percent": cpu_percent,
+                    "process_id": os.getpid()
+                }
+            except ImportError:
+                # psutil not available
+                pass
+        
+        return counters_summary
+
+    def _call_callback_safely(self) -> None:
+        """Call the callback function with current counter summary, handling errors gracefully."""
+        if self.callback and self.counters:
+            try:
+                counters_summary = self._counters_to_summary()
+                self.callback(counters_summary)
+            except Exception as e:
+                # Log callback errors but don't fail the pipeline
+                import logging
+                logging.warning(f"Callback collector error: {e}")
+
+    def on_log(self) -> None:
+        self._call_callback_safely()
 
 
 NULL_COLLECTOR = NullCollector()
