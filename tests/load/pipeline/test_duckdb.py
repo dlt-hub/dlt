@@ -298,5 +298,5 @@ def test_duckdb_credentials_separation(
     print(p1_dataset.p1_data.fetchall())
     print(p2_dataset.p2_data.fetchall())
 
-    assert "p1" in p1_dataset.sql_client.credentials._conn_str()  # type: ignore[attr-defined]
-    assert "p2" in p2_dataset.sql_client.credentials._conn_str()  # type: ignore[attr-defined]
+    assert "p1" in p1_dataset.sql_client.credentials._conn_str()
+    assert "p2" in p2_dataset.sql_client.credentials._conn_str()

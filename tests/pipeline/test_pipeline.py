@@ -3574,9 +3574,7 @@ def test_nested_hints_write_disposition_nested_merge() -> None:
     # nested_data__list not copied to main dataset
     assert p.dataset().row_counts().fetchall() == [("nested_data", 1), ("nested_data__list", 0)]
     # will be loading to staging and always overwritten but not merged
-    staging_dataset = dlt.destinations.dataset.dataset(
-        p.destination, "local_staging", p.default_schema
-    )
+    staging_dataset = dlt.dataset(p.destination, "local_staging", p.default_schema)
     assert staging_dataset.row_counts(table_names=["nested_data__list"]).fetchall() == [
         ("nested_data__list", 3)
     ]

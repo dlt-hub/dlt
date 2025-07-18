@@ -18,7 +18,6 @@ with app.setup:
     from dlt.common.json import json
     from dlt.helpers.dashboard import strings, utils, ui_elements as ui
     from dlt.helpers.dashboard.config import DashboardConfiguration
-    from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
 
 
 @app.cell(hide_code=True)
@@ -281,9 +280,9 @@ def section_browse_data_table_list(
             _sql_query = ""
             if dlt_data_table_list.value:
                 _table_name = dlt_data_table_list.value[0]["name"]  # type: ignore[index,unused-ignore]
-                _dataset = cast(ReadableDBAPIDataset, dlt_pipeline.dataset())
+                _dataset = dlt_pipeline.dataset()
                 _sql_query = (
-                    cast(ReadableDBAPIRelation, _dataset.table(_table_name))
+                    _dataset.table(_table_name)
                     .limit(1000 if dlt_restrict_to_last_1000.value else None)
                     .to_sql(pretty=True)
                 )
