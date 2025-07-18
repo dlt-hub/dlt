@@ -190,13 +190,22 @@ Before publishing a new release, make sure to bump the project's version accordi
 2. Use `uv version --bump patch` to increase the **patch** version. You can also bump to `minor` or `major`.
 3. Run `make build-library` to apply the changes to the project.
 4. Create a new branch, and submit the PR to **devel**. Go through the standard process to merge it.
-5. Create a merge PR from `devel` to `master` and merge it with a merge commit.
+
+Once the version has been bumped, follow these steps to publish the new release to PyPI:
+
+1. Create a merge PR from `devel` to `master` and merge it with a ❗ **merge commit** (not squash) so `master` always mirrors `devel`
+2. Ensure that you are on the **master** branch and have the latest code that has passed all tests on CI.
+3. Verify the current version with `uv version`.
+4. Obtain a PyPI access token
+5. Build and publish the library with `make publish-library`, you will be asked to input the PyPI token.
+6. Create a release on GitHub, using the version and git tag as the release name.
 
 ### Hotfix release
 1. Check out the **master** branch
 2. Use `uv version --bump patch` to increase the **patch** version
 3. Run `make build-library` to apply the changes to the project.
 4. Create a new branch, submit the PR to **master** and merge it.
+5. Re-submit the same fix to the `devel` branch.
 
 ### Pre-release
 Occasionally we may release an alpha version directly from the **branch**.
@@ -204,16 +213,6 @@ Occasionally we may release an alpha version directly from the **branch**.
 2. You need to manually update the alpha version in the `pyproject.toml` file and run `uv sync` to update the uv lockfile.
 3. Run `make build-library` to apply the changes to the project.
 4. Create a new branch, and submit the PR to **devel** and merge it.
-
-### Publishing to PyPI
-
-Once the version has been bumped, follow these steps to publish the new release to PyPI:
-
-1. Ensure that you are on the **master** branch and have the latest code that has passed all tests on CI.
-2. Verify the current version with `uv version`.
-3. Obtain a PyPI access token
-4. Build and publish the library with `make publish-library`, you will be asked to input the PyPI token.
-5. Create a release on GitHub, using the version and git tag as the release name.
 
 ## Resources
 

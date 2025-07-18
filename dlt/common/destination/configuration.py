@@ -10,6 +10,7 @@ class CsvFormatConfiguration(BaseConfiguration):
     delimiter: str = ","
     include_header: bool = True
     quoting: CsvQuoting = "quote_needed"
+    lineterminator: str = "\n"
 
     # read options
     on_error_continue: bool = False

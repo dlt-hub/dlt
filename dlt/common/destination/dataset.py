@@ -20,7 +20,7 @@ import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema
 from sqlglot.expressions import ExpOrStr as SqlglotExprOrStr
 
-from dlt.common.typing import Self
+from dlt.common.typing import Self, TSortOrder
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableSchema, TTableSchemaColumns
 from dlt.common.libs.sqlglot import TSqlGlotDialect
@@ -243,12 +243,12 @@ class Relation(DataAccess, Protocol):
         """
         ...
 
-    def order_by(self, column_name: str, direction: Literal["asc", "desc"] = "asc") -> Self:
+    def order_by(self, column_name: str, direction: TSortOrder = "asc") -> Self:
         """Returns a new relation with the given order by clause applied.
 
         Args:
             column_name (str): The column to order by.
-            direction (Literal["asc", "desc"], optional): The direction to order by. Defaults to "asc".
+            direction (TSortOrder, optional): The direction to order by: "asc"/"desc". Defaults to "asc".
 
         Returns:
             Self: A copy of the relation with the order by clause applied.

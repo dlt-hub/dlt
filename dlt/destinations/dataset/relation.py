@@ -28,7 +28,7 @@ from dlt.common.destination.dataset import Relation, TFilterOperation
 
 from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGlotDialect
 from dlt.common.schema.typing import TTableSchemaColumns, TTableSchema
-from dlt.common.typing import Self
+from dlt.common.typing import Self, TSortOrder
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.transformations import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
@@ -182,6 +182,13 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
     def schema(self, new_value: TTableSchema) -> None:
         raise NotImplementedError("Schema may not be set")
 
+    @property
+    def columns(self) -> list[str]:
+        return list(self.schema.get("columns", {}).keys())
+
+    def _ipython_key_completions_(self) -> list[str]:
+        return self.columns
+
     #
     # WithSqlClient interface
     #
@@ -323,7 +330,11 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
         rel.compute_columns_schema()
         return rel
 
-    def order_by(self, column_name: str, direction: Literal["asc", "desc"] = "asc") -> Self:
+    def order_by(self, column_name: str, direction: TSortOrder = "asc") -> Self:
+        if direction not in ["asc", "desc"]:
+            raise ValueError(
+                f"`{direction}` is an invalid sort order, allowed values are: `asc` and `desc`"
+            )
         order_expr = sge.Ordered(
             this=sge.Column(
                 this=sge.to_identifier(column_name, quoted=True),
@@ -460,17 +471,21 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
     def __getitem__(self, columns: Sequence[str]) -> Self:
         # NOTE remember that `issubclass(str, Sequence) is True`
         if isinstance(columns, str):
+            columns = [columns]
+        elif not isinstance(columns, Sequence):
             raise TypeError(
-                f"Received invalid value `columns={columns}` of type"
-                f" {type(columns).__name__}`. Valid types are: ['Sequence[str]']"
+                f"Received value `{columns=:}` of type `{type(columns).__name__}`."
+                " Valid types are: `[Sequence[str]]`"
             )
-        elif isinstance(columns, Sequence):
-            return self.select(*columns)
 
-        raise TypeError(
-            f"Received invalid value `columns={columns}` of type"
-            f" {type(columns).__name__}`. Valid types are: ['Sequence[str]']"
-        )
+        unknown_columns = [col for col in columns if col not in self.columns]
+        if unknown_columns:
+            raise KeyError(
+                f"Columns `{unknown_columns}` not found on dataset. Available columns:"
+                f" {self.columns}"
+            )
+
+        return self.select(*columns)
 
     #
     # Builtins

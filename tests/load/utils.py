@@ -44,6 +44,7 @@ from dlt.common.destination.client import (
 from dlt.common.destination import TLoaderFileFormat, Destination, TDestinationReferenceArg
 from dlt.common.destination.exceptions import DestinationUndefinedEntity, SqlClientNotAvailable
 from dlt.common.data_writers import DataWriter
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.pipeline import PipelineContext
 from dlt.common.schema import TTableSchemaColumns, Schema
 from dlt.common.schema.typing import TTableFormat, TTableSchema
@@ -55,7 +56,6 @@ from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.exceptions import CantExtractTablePrefix
-from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
@@ -971,9 +971,14 @@ def yield_client(
         )
     ):
         with destination.client(schema, dest_config) as client:  # type: ignore[assignment]
-            # open table scanners automatically, context manager above does not do that
-            if issubclass(client.sql_client_class, WithTableScanners):
-                client.sql_client.open_connection()
+            try:
+                from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
+
+                # open table scanners automatically, context manager above does not do that
+                if issubclass(client.sql_client_class, WithTableScanners):
+                    client.sql_client.open_connection()
+            except (ImportError, MissingDependencyException):
+                pass
             yield client
 
 

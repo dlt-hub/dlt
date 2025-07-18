@@ -747,6 +747,12 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
     assert list(data_frame.columns.values) == columns
     assert len(data_frame.index) == 5
 
+    # test single column indexer
+    arrow_table = table_relationship["other_decimal"].limit(1).arrow()
+    assert arrow_table.column_names == ["other_decimal"]
+    assert arrow_table.num_rows == 1
+
+    # test multiple column indexer
     columns = ["decimal", "other_decimal"]
     arrow_table = table_relationship[columns].head().arrow()
     assert arrow_table.column_names == columns
@@ -963,8 +969,19 @@ def test_min_max(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_unknown_table_access(populated_pipeline: Pipeline) -> None:
-    with pytest.raises(ValueError, match="Table `unknown_table` not found in schema"):
-        populated_pipeline.dataset().unknown_table
+    match = "Table `unknown_table` not found"
+    dataset = populated_pipeline.dataset()
+
+    # missing attribute should raise Attribute error
+    with pytest.raises(AttributeError, match=match):
+        dataset.unknown_table
+
+    # missing key should raise KeyError
+    with pytest.raises(KeyError, match=match):
+        dataset["unknown_table"]
+
+    with pytest.raises(ValueError, match=match):
+        dataset.table("unknown_table")
 
 
 @pytest.mark.no_load
@@ -1038,15 +1055,30 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         .order_by("id")
         .limit(20)
     )
-    table = dataset(joined_table).fetchall()
+    relation = dataset(joined_table)
+    table = relation.fetchall()
     assert len(table) == 20
     assert list(table[0]) == [0, 0]
     assert list(table[5]) == [5, 10]
     assert list(table[10]) == [10, 20]
+    # verify computed columns
+    assert (
+        list(relation.columns_schema.keys())
+        == relation.columns  # type: ignore[attr-defined]
+        == relation._ipython_key_completions_()  # type: ignore[attr-defined]
+        == ["id", "double_id"]
+    )
 
     # check aggregate of first 20 items
-    agg_table = items_table.order_by("id").limit(20).aggregate(sum_id=items_table.id.sum())
-    assert dataset(agg_table).fetchone()[0] == reduce(lambda a, b: a + b, range(20))
+    agg_query = items_table.order_by("id").limit(20).aggregate(sum_id=items_table.id.sum())
+    agg_relation = dataset(agg_query)
+    assert agg_relation.fetchone()[0] == reduce(lambda a, b: a + b, range(20))
+    assert (
+        list(agg_relation.columns_schema.keys())
+        == agg_relation.columns  # type: ignore[attr-defined]
+        == agg_relation._ipython_key_completions_()  # type: ignore[attr-defined]
+        == ["sum_id"]
+    )
 
     # check filtering
     filtered_table = items_table.filter(items_table.id < 10)
