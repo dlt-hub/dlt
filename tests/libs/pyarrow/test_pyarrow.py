@@ -1,6 +1,7 @@
 from datetime import timezone, datetime, date, timedelta  # noqa: I251
 from copy import deepcopy
-from typing import List, Any, Optional
+from typing import List, Any, Union
+import zoneinfo
 
 import pytest
 import pyarrow as pa
@@ -25,6 +26,8 @@ from dlt.common.libs.pyarrow import (
     is_arrow_item,
     remove_null_columns_from_schema,
     UnsupportedArrowTypeException,
+    _convert_offset_timezones_table,
+    _offset_to_iana,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from tests.cases import TABLE_UPDATE_COLUMNS_SCHEMA
@@ -504,3 +507,80 @@ def test_fill_empty_source_column_values_with_placeholder() -> None:
     ]
     expected_table = pa.Table.from_arrays(expected_data, names=["A", "B", "C", "D"])
     assert new_table.equals(expected_table)
+
+
+@pytest.mark.parametrize(
+    "offset_tzinfo,expected_iana",
+    [
+        ("+14:00", "Etc/GMT-14"),
+        ("+11:00", "Etc/GMT-11"),
+        ("+00:00", "Etc/GMT+0"),
+        ("-01:00", "Etc/GMT+1"),
+        ("-02:30", ValueError()),
+        ("-10:00", "Etc/GMT+10"),
+        ("-12:00", "Etc/GMT+12"),
+    ],
+)
+def test_offset_to_iana(offset_tzinfo: str, expected_iana: Union[str, Exception]) -> None:
+    """
+    arrow rust suggests that increments lower than 1h are supported;
+    ref: https://docs.rs/arrow/latest/arrow/datatypes/enum.DataType.html#timezone-string-parsing
+    Since there are no `Etc/GMT` timezone for fractional increments, we need to explicitly map
+    the offset to a named IANA timezone that matches the increment. Though, named IANA timezones
+    are political and may be subject to daylight savings and changes over time.
+
+    Currently, the robust option is not support fractional timezones. We can raise an error or
+    automatically trim the timezone to the nearest hour.
+    """
+    if isinstance(expected_iana, str):
+        iana_tzinfo = _offset_to_iana(offset_tzinfo)
+        assert iana_tzinfo == expected_iana
+    else:
+        with pytest.raises(expected_iana.__class__):
+            _offset_to_iana(offset_tzinfo)
+        return
+
+    # verify that the iana timezone exists in the python timezone database
+    zoneinfo.ZoneInfo(iana_tzinfo)
+    with pytest.raises(zoneinfo.ZoneInfoNotFoundError):
+        zoneinfo.ZoneInfo(offset_tzinfo)
+
+    # NOTE offset time zones are valid in pyarrow; the issue is their incompatiblity with CSVWriter
+    # we expect the offset and IANA timestamps to be equal
+    offset_scalar = pa.scalar(datetime(2021, 1, 1), type=pa.timestamp("s", tz=offset_tzinfo))
+    iana_scalar = pa.scalar(datetime(2021, 1, 1), type=pa.timestamp("s", tz=iana_tzinfo))
+
+    offset_tzinfo_retrieved = offset_scalar.as_py().tzinfo
+    iana_tzinfo_retrieved = iana_scalar.as_py().tzinfo
+
+    # we expect pyarrow to produce different types of objects
+    assert offset_tzinfo_retrieved != iana_tzinfo_retrieved
+    # though, converting a datetime to either time zone should be equivalent
+    dt = datetime.now()
+    assert dt.astimezone(offset_tzinfo_retrieved) == dt.astimezone(iana_tzinfo_retrieved)
+
+    # triggers the timezone database lookup, just like pyarrow._csv.CSVWriter().write()
+    iana_scalar.__repr__()
+
+
+def test_convert_offset_timezones_table():
+    value = datetime(2021, 1, 1, 5, 2, 32)
+    table = pa.Table.from_pydict(
+        {
+            "col1": [pa.scalar(value, type=pa.timestamp("s", tz="+14:00"))],
+            "col2": [pa.scalar(value, type=pa.timestamp("s", tz="+00:00"))],
+            "col3": [pa.scalar(value, type=pa.timestamp("s", tz="UTC"))],
+            "col4": [pa.scalar("foo", type=pa.string())],
+            "col5": [pa.scalar(value, type=pa.timestamp("s", tz="-08:00"))],
+        }
+    )
+
+    converted_table = _convert_offset_timezones_table(table)
+
+    assert isinstance(converted_table, pa.Table)
+    for original_field, converted_field in zip(table.schema, converted_table.schema):
+        assert original_field.name == converted_field.name
+        if not pa.types.is_timestamp(original_field.type):
+            assert original_field.type == converted_field.type
+        else:
+            assert original_field.type.unit == converted_field.type.unit

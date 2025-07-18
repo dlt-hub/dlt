@@ -562,7 +562,11 @@ class ArrowToCsvWriter(DataWriter):
         self._columns_schema = columns_schema
 
     def write_data(self, items: Sequence[TDataItem]) -> None:
-        from dlt.common.libs.pyarrow import pyarrow
+        from dlt.common.libs.pyarrow import (
+            pyarrow,
+            _has_offset_timezones,
+            _convert_offset_timezones_table,
+        )
         import pyarrow.csv
 
         for item in items:
@@ -607,6 +611,9 @@ class ArrowToCsvWriter(DataWriter):
                         f" schema:\n{self._first_schema}\n\nCurrent schema:\n{item.schema}",
                     )
 
+                if _has_offset_timezones(item):
+                    item = _convert_offset_timezones_table(item)
+
                 # write headers only on the first write
                 try:
                     self.writer.write(item)
@@ -627,6 +634,18 @@ class ArrowToCsvWriter(DataWriter):
                             + ". Arrow does not ship with tzdata on Windows. You need to install it"
                             " yourself:"
                             " https://arrow.apache.org/docs/cpp/build_system.html#runtime-dependencies",
+                        )
+                    if "Cannot locate timezone" in str(inv_ex):
+                        raise InvalidDataItem(
+                            "csv",
+                            "arrow",
+                            str(inv_ex)
+                            + ". Pyarrow uses Arrow C and doesn't support offset-based timestamp"
+                            " time zones for some operations. This error is likely due to"
+                            " timestamps being produced by Arrow Rust which defaults to"
+                            " offset-based.\nsee docs:"
+                            " https://docs.rs/arrow/latest/arrow/datatypes/enum.DataType.html#timezone-string-parsing\nsee"
+                            " issue: https://github.com/apache/arrow/issues/47043",
                         )
                     raise
             else:
