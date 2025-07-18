@@ -82,8 +82,10 @@ Or using environment variables:
 NORMALIZE__DATA_WRITER__DELIMITER=|
 NORMALIZE__DATA_WRITER__INCLUDE_HEADER=False
 NORMALIZE__DATA_WRITER__QUOTING=quote_all
-NORMALIZE__DATA_WRITER__LINETERMINATOR="\r\n"
+NORMALIZE__DATA_WRITER__LINETERMINATOR=$"\r\n"
 ```
+
+Note the `"$"` prefix before `"\r\n"` to escape the newline character when using environment variables.
 
 ### Destination settings
 A few additional settings are available when copying `csv` to destination tables:
