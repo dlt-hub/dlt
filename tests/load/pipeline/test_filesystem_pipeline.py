@@ -397,8 +397,8 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
     s2_old = c1.get_stored_state("p2")
 
     created_files = _collect_files(p1)
-    # 4 init files, 2 item files, 2 load files, 2 state files, 2 version files
-    assert len(created_files) == 12
+    # 1 init file, 2 item files, 2 load files, 2 state files, 2 version files
+    assert len(created_files) == 9
 
     # second two loads
     @dlt.resource(table_name="items2")
@@ -439,8 +439,8 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
     assert c2.get_stored_schema_by_hash(sc1_old.version_hash)
 
     created_files = _collect_files(p1)
-    # 4 init files, 4 item files, 4 load files, 3 state files, 3 version files
-    assert len(created_files) == 18
+    # 1 init file, 4 item files, 4 load files, 3 state files, 3 version files
+    assert len(created_files) == 15
 
     # drop it
     p1.destination_client().drop_storage()

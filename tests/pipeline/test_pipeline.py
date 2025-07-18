@@ -2749,12 +2749,12 @@ def test_local_filesystem_destination(local_path: str) -> None:
     assert expected_dataset.joinpath(INIT_FILE_NAME).is_file()
     # one numbers table (replaced)
     assert len(list(expected_dataset.joinpath("numbers").glob("*"))) == 1
-    # two loads + init
-    assert len(list(expected_dataset.joinpath("_dlt_loads").glob("*"))) == 3
+    # two loads
+    assert len(list(expected_dataset.joinpath("_dlt_loads").glob("*"))) == 2
     # one schema (dedup on hash)
-    assert len(list(expected_dataset.joinpath("_dlt_version").glob("*"))) == 2
+    assert len(list(expected_dataset.joinpath("_dlt_version").glob("*"))) == 1
     # one state (not sent twice)
-    assert len(list(expected_dataset.joinpath("_dlt_pipeline_state").glob("*"))) == 2
+    assert len(list(expected_dataset.joinpath("_dlt_pipeline_state").glob("*"))) == 1
 
     fs_client = pipeline._fs_client()
     # all path formats we use must lead to "_storage" relative to tests
