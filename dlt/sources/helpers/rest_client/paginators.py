@@ -146,7 +146,7 @@ class RangePaginator(BasePaginator):
         self.total_path = jsonpath.compile_path(total_path) if total_path else None
         self.error_message_items = error_message_items
         self.stop_after_empty_page = stop_after_empty_page
-        self.has_more_path = has_more_path
+        self.has_more_path = jsonpath.compile_path(has_more_path) if has_more_path else None
 
     def init_request(self, request: Request) -> None:
         self._has_next_page = True
@@ -360,7 +360,8 @@ class PageNumberPaginator(RangePaginator):
         return (
             super().__str__()
             + f": current page: {self.current_value} page_param: {self.param_name} total_path:"
-            f" {self.total_path} maximum_value: {self.maximum_value} has_more_path: {self.has_more_path}"
+            f" {self.total_path} maximum_value: {self.maximum_value}"
+            f" has_more_path: {self.has_more_path}"
         )
 
 
