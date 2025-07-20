@@ -8,18 +8,13 @@ keywords: [cursor, llm, restapi, ai]
 
 ## Overview
 
-This guide walks you through a collaborative AI-human workflow for extracting and exploring data from REST API sources using Cursor and dlt. It introduces the first workflow available in dltHub Workspace — an LLM-native data engineering platform.
+This guide walks you through a collaborative AI-human workflow for extracting and exploring data from REST API sources using Cursor and dlt. It introduces the first workflow available in dltHub Workspace — an LLM-native development environment for data engineering tasks.
 
 You will learn:
-1. How to use dltHub's [LLM-context database](https://dlthub.com/workspace) to set up Cursor scaffolding
+1. How to use dltHub's [LLM-context database](https://dlthub.com/workspace) to init workspace for the source you need.
 2. How to build a REST API source in minutes with AI assistance
-3. How to explore pipeline metadata using the dltHub dashboard
-
-This guide focuses on automatic LLM-context setup. If your REST API isn't listed [here](https://dlthub.com/workspace) or you want to add a custom context, see [the manual Cursor setup](#alternative-manually-setting-up-cursor).
-
-:::note
-REST APIs are ideal for AI-assisted development because they're declarative and self-documenting, making them easy to troubleshoot and refine. However, this approach can also be adapted for other source types.
-:::
+3. How to debug the pipeline and explore data using the pipeline dashboard
+4. How to start a new notebook and use the pipeline's dataset in it
 
 ## Prerequisites
 
@@ -29,7 +24,9 @@ REST APIs are ideal for AI-assisted development because they're declarative and 
 
 Before diving into the workflow, here’s a quick overview of key terms you’ll encounter:
 
-1. **dltHub Workspace** - A platform designed to empower individual Python developers to do what traditionally required full data teams:
+1. **dltHub Workspace** - An environment where all data engineering tasks, from writing code to maintenance in production, can be executed by single developer:
+    > TODO: rewrite this
+   - Develop and test locally with `dlt`, `duckdb` and `filesystem` then run in the cloud without any changes to code and schemas.
    - Deploy and run dlt pipelines, transformations, and notebooks with one command
    - Maintain pipelines with a Runtime Agent, customizable dashboards, and validation tests
    - Deliver live, production-ready reports without worrying about schema drift or silent failures
@@ -42,36 +39,59 @@ Before diving into the workflow, here’s a quick overview of key terms you’ll
 
 ## Setup
 
+### Setup Cursor
+
+> TODO: review and make this section smooth
+
+1. Use the right model
+For best results, use Claude 3.7-sonnet or Gemini 2.5+. Weaker models struggle with context comprehension and workflow consistency.
+We've had the best results with Claude 3.7-sonnet (which requires the paid version of Cursor). Weaker models were not able to comprehend the required context fully and were not able to use tools and follow workflows consistently.
+
+2. Add documentation
+
+    AI code editors let you upload documentation and code examples to provide additional context. [Here](https://docs.cursor.com/context/@-symbols/@-docs) you can learn how to do it.
+
+    Under Cursor `Settings > Features > Docs`, you can see all the docs you have added. You can edit, delete, or add new docs here. We recommend adding documentation scoped for a specific task. For example, for developing a REST API source, consider adding:
+
+    * [REST API Source](../verified-sources/rest_api/) documentation
+
+
 ### Install dlt Workspace
 
 ```sh
 pip install dlt[workspace]
 ```
 
-### Initialize project
+### Initialize workspace
 
 dltHub provides prepared contexts for 1000+ sources, available at [https://dlthub.com/workspace](https://dlthub.com/workspace). To get started, search for your API and follow the tailored instructions.
 
-:::tip
-If your API is not supported, you can find the API docs online and [add them to the Cursor context manually](#alternative-manually-setting-up-cursor), but this may result in less focused outputs, increased risk of overlooking critical API details, and require more troubleshooting.
-:::
 
-To initialize your project, execute this dltHub Workspace command:
+To initialize your workspace, execute this dltHub Workspace command:
 
 ```sh
 dlt init dlthub:{source_name} duckdb
 ```
 
-This command will initialize the dltHub Workspace with prepared:
-- Documentation scaffold for the specific source
-- Cursor rules tailored for dlt
-- Pipeline template files
+This command will initialize the dltHub Workspace with:
+- files and folder structure you know from [dlt init](../../walkthroughs/create-a-pipeline.md)
+- Documentation scaffold for the specific source (typically a `yaml` file)
+- Cursor rules tailored for `dlt`
+- Pipeline script and REST API Source (`{source_name}_pipeline.py`) definition that you'll customize in next step
 
-### Model selection
+:::tip
+If you can't find the source you need, start with a generic REST API Source template. Choose source name you need ie.
+```sh
+dlt init dlthub:my_internal_fast_api duckdb
+```
+You'll still get full cursor setup and pipeline script (`my_internal_fast_api_pipeline.py`) plus all files and folder you get with regular [dlt init](../../walkthroughs/create-a-pipeline.md).
 
-For best results, use Claude 3.7-sonnet or Gemini 2.5+. Weaker models struggle with context comprehension and workflow consistency.
+You'll need to [provide an useful REST API scaffold](#addon-bring-your-own-llm-scaffold) for your LLM model, though.
 
-## Build dlt pipeline
+:::
+
+
+## Create dlt pipeline
 
 ### Generate code
 
@@ -89,11 +109,14 @@ Use @dlt rest api as a tutorial.
 After adding the endpoints, allow the user to run the pipeline with python {source}_pipeline.py and await further instructions.
 ```
 
+> TODO: the crucial part is to explain the context in the prompt. this is basically why we write this docs - to give a little background to the walkthrough on the website.
+> in the prompt above: we link to the scaffold/spec, pipeline script, dlt rest api docs etc. this should be explained
+
 ### Add credentials
 
-Prompt the LLM for credential setup instructions and add them to your project secrets file `.dlt/secrets.toml`.
+Prompt the LLM for credential setup instructions and add them to your workspace secrets file `.dlt/secrets.toml`.
 
-### Test the pipeline
+## Run the pipeline
 
 Run your pipeline:
 
@@ -113,9 +136,7 @@ Load package 1749667187.541553 is LOADED and contains no failed jobs
 If the pipeline fails, pass error messages to the LLM. Restart after 4-8 failed attempts.
 :::
 
-## Observe and validate
-
-### Use the Pipeline Dashboard
+### Validate with Pipeline Dashboard
 
 Launch the dashboard to validate your pipeline:
 
@@ -130,9 +151,11 @@ The dashboard shows:
 
 The dashboard helps detect silent failures due to pagination errors, schema drift, or incremental load misconfigurations.
 
-### Access the data
+## Use the data in a Notebook
 
 With the pipeline and data validated, you can continue with custom data explorations and reports. You can use your preferred environment, for example, [Jupyter Notebook](https://jupyter.org/), [Marimo Notebook](https://marimo.io/), or a plain Python file.
+
+> TODO: (1) maybe a short instruction how to bootstrap marimo notebook would help? (2) we have some instructions in our docs already https://dlthub.com/docs/general-usage/dataset-access/marimo 
 
 To access the data, you can use the `dataset()` method:
 
@@ -151,31 +174,10 @@ For more, see [dataset access guide](../../general-usage/dataset-access).
 - [Prepare production deployment](../../walkthroughs/share-a-dataset.md)
 - [Deploy a pipeline](../../walkthroughs/deploy-a-pipeline/)
 
-## Alternative: manually setting up Cursor
 
-If your source is not present in our [LLM-context database](https://dlthub.com/workspace), you can manually set up the context for Cursor.
+## Addon: bring your own LLM Scaffold
+LLMs can infer REST API Source definition from many kinds of specs and sometimes providing one is fairly easy.
 
-1. Adding docs
-
-    AI code editors let you upload documentation and code examples to provide additional context. [Here](https://docs.cursor.com/context/@-symbols/@-docs) you can learn how to do it.
-
-    Under Cursor `Settings > Features > Docs`, you can see all the docs you have added. You can edit, delete, or add new docs here. We recommend adding documentation scoped for a specific task. For example, for developing a REST API source, consider adding:
-
-    * [REST API Source](../verified-sources/rest_api/) documentation
-    * Core dlt [concepts and usage](../../general-usage/resource)
-    * Example pipeline rest_api_pipeline.py
-    * YAML definitions, OpenAPI specs, or other legacy source references
-
-    We've observed that Cursor is not able to ingest full dlt docs (there are bug reports in Cursor about their docs crawler). It also struggles with very large documentation sets, and excessive context can reduce code quality.
-
-2. Cursorignore
-
-    If you have local docs in a folder in your codebase, Cursor will automatically index them unless they are added to `.gitignore` or `.cursorignore` files.
-
-    To improve accuracy, make sure any files or docs that could confound the search are ignored.
-
-    One important note is to put your `.dlt` folder in `.cursorignore` as well to ensure any sensitive information is protected.
-
-3. Model and context selection
-
-    We've had the best results with Claude 3.7-sonnet (which requires the paid version of Cursor). Weaker models were not able to comprehend the required context fully and were not able to use tools and follow workflows consistently.
+1. If you use Fast API (ie. for internal API) - use autogenerated openAPI spec and refer to it in your prompt.
+2. If you have legacy code in any Language, add it to the workspace and refer to it in your prompt.
+3. A good human readable documentation also works! You can try to add it ot Cursor docs and refer to it in your prompt.
