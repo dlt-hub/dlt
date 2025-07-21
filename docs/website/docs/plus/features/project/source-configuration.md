@@ -79,7 +79,7 @@ This defines a connection to a SQL database with incremental loading applied acr
 
 ### Table-Specific Configuration
 
-For table specific configurationssettings such as different `primary_key`s, individual tables can be defined as standalone sources using the `sql_table`type.
+For table specific configurationssettings such as different `primary_key`s, individual tables can be defined as standalone sources using the `sql_table` type.
 
 
 ```yaml
@@ -100,3 +100,19 @@ sources:
 * `incremental`: Enables incremental loading for the table.
 
 * `primary_key`: Specifies the table's unique identifier for deduplication and merges.
+
+
+## Filesystem
+
+Filesystem sources can be set via the readers type and the filesystem specific resources can be called via the CLI `run pipline` command
+
+
+```yaml
+sources: 
+ file_source:
+    type: dlt.sources.filesystem.readers
+    bucket_url: file://Users/admin/Documents/csv_files
+    file_glob: '*.csv'
+```
+
+`dlt pipeline file_pipeline run --resources read_csv`
