@@ -233,13 +233,17 @@ class RangePaginator(BasePaginator):
             self._update_request_with_param_name(request, self.param_name, self.current_value)
 
     @staticmethod
-    def _update_request_with_param_name(request: Request, param_name: str, current_value: int) -> None:
+    def _update_request_with_param_name(
+        request: Request, param_name: str, current_value: int
+    ) -> None:
         if request.params is None:
             request.params = {}
         request.params[param_name] = current_value
 
     @staticmethod
-    def _update_request_with_body_path(request: Request, body_path: jsonpath.TJsonPath, current_value: int) -> None:
+    def _update_request_with_body_path(
+        request: Request, body_path: jsonpath.TJsonPath, current_value: int
+    ) -> None:
         if request.json is None:
             request.json = {}
         jsonpath.set_value_at_path(request.json, body_path, current_value)
@@ -384,10 +388,10 @@ class PageNumberPaginator(RangePaginator):
         return (
             super().__str__()
             + f": current page: {self.current_value} "
-            + (f" page_param: {self.param_name}" if self.param_name else "")
-            + (f" page_body_path: {self.body_path}" if self.body_path else "")
-            + f" total_path: {self.total_path} maximum_value: {self.maximum_value}"
-            f" has_more_path: {self.has_more_path}"
+            + (f"page_param: {self.param_name} " if self.param_name else "")
+            + (f"page_body_path: {self.body_path} " if self.body_path else "")
+            + f"total_path: {self.total_path} maximum_value: {self.maximum_value} "
+            f"has_more_path: {self.has_more_path}"
         )
 
 
@@ -508,13 +512,17 @@ class OffsetPaginator(RangePaginator):
             offset_param = "offset"
         # Check that only one of offset_param or offset_body_path is provided
         if offset_param is not None and offset_body_path is not None:
-            raise ValueError("Either 'offset_param' or 'offset_body_path' must be provided, not both.")
+            raise ValueError(
+                "Either 'offset_param' or 'offset_body_path' must be provided, not both."
+            )
 
         if limit_param is None and limit_body_path is None:
             limit_param = "limit"
         # Check that only one of limit_param or limit_body_path is provided
         if limit_param is not None and limit_body_path is not None:
-            raise ValueError("Either 'limit_param' or 'limit_body_path' must be provided, not both.")
+            raise ValueError(
+                "Either 'limit_param' or 'limit_body_path' must be provided, not both."
+            )
 
         if (
             total_path is None
@@ -548,7 +556,7 @@ class OffsetPaginator(RangePaginator):
         super().update_request(request)
         self._update_request_limit(request)
 
-    def _update_request_limit(self, request):
+    def _update_request_limit(self, request: Request) -> None:
         if self.limit_body_path:
             self._update_request_with_body_path(request, self.limit_body_path, self.limit)
         else:
@@ -558,13 +566,13 @@ class OffsetPaginator(RangePaginator):
         return (
             super().__str__()
             + f": current offset: {self.current_value} "
-            + (f"offset_param: {self.param_name}" if self.param_name else "")
-            + (f"offset_body_path: {self.body_path}" if self.body_path else "")
-            + f"limit: {self.value_step}"
-            + (f"limit_param: {self.limit_param}" if self.limit_param else "")
-            + (f"limit_body_path: {self.limit_body_path}" if self.limit_body_path else "")
-            + f" total_path: {self.total_path}"
-            + f" maximum_value: {self.maximum_value} has_more_path: {self.has_more_path}"
+            + (f"offset_param: {self.param_name} " if self.param_name else "")
+            + (f"offset_body_path: {self.body_path} " if self.body_path else "")
+            + f"limit: {self.value_step} "
+            + (f"limit_param: {self.limit_param} " if self.limit_param else "")
+            + (f"limit_body_path: {self.limit_body_path} " if self.limit_body_path else "")
+            + f"total_path: {self.total_path} "
+            + f"maximum_value: {self.maximum_value} has_more_path: {self.has_more_path}"
         )
 
 

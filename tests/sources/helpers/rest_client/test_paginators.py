@@ -417,11 +417,12 @@ class TestOffsetPaginator:
             "/posts_offset_limit_via_json_body",
             method="POST",
             json={"limit": 5, "offset": 0, "ids_greater_than": -1},
-            paginator=OffsetPaginator(offset=0,
-                                      limit=5,
-                                      offset_body_path="offset",
-                                      limit_body_path="limit",
-                                      total_path="total_records"
+            paginator=OffsetPaginator(
+                offset=0,
+                limit=5,
+                offset_body_path="offset",
+                limit_body_path="limit",
+                total_path="total_records",
             ),
         )
 
