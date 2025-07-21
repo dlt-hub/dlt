@@ -33,13 +33,37 @@ def is_same_physical_destination(dataset: Dataset, other: Dataset) -> bool:
     return str(dataset.destination_client.config) == str(other.destination_client.config)
 
 
+@overload
 def dataset(
+    *,
+    destination: TDestinationReferenceArg,
+    schema: Schema,
+    name: None = None,
+) -> Dataset: ...
+
+
+@overload
+def dataset(
+    *,
     destination: TDestinationReferenceArg,
     name: str,
-    schema: Union[Schema, str, None] = None,
+    schema: None = None,
+) -> Dataset: ...
+
+
+def dataset(
+    *,
+    destination: TDestinationReferenceArg,
+    name: Optional[str] = None,
+    schema: Optional[Schema] = None,
 ) -> Dataset:
     """Instantiate a `dlt.Dataset` object."""
-    return Dataset(destination, name, schema)
+    if schema is not None:
+        return Dataset(destination=destination, name=schema.name, schema=schema)
+    elif name is not None:
+        return Dataset(destination=destination, name=name, schema=schema)    
+    else:
+        raise ValueError("Either `schema` or `name` must be provided")
 
 
 class Dataset:
@@ -282,13 +306,13 @@ class Dataset:
         except ValueError as exc:
             raise KeyError(table_name, str(exc))
 
-    def __getattr__(self, name: str) -> Any:
-        """Retrieve a `Relation` with `name` and raise `AttributeError` when not found"""
-        try:
-            return self.table(name)
-        # TODO: expect TableNotFound in the future
-        except ValueError as exc:
-            raise AttributeError(name, str(exc))
+    # def __getattr__(self, name: str) -> Any:
+    #     """Retrieve a `Relation` with `name` and raise `AttributeError` when not found"""
+    #     try:
+    #         return self.table(name)
+    #     # TODO: expect TableNotFound in the future
+    #     except ValueError as exc:
+    #         raise AttributeError(name, str(exc))
 
     def __enter__(self) -> Dataset:
         """Context manager used to open and close sql client and internal connection"""
