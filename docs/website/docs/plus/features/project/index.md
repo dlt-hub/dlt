@@ -1,21 +1,15 @@
 ---
 title: "Project"
-description: Run local transformations with dlt+ Cache
-keywords: ["dlt+", "peoject", "cache", "dbt"]
+description: Create dlt projets using yaml files
+keywords: ["dlt+", "peoject", "source", "dbt"]
 ---
 import DocCardList from '@theme/DocCardList';
 
-As part of dlt+, we provide a local transformation [cache](../../core-concepts/cache.md) — a staging layer for data transformations allowing you to test, validate, and debug data pipelines without running everything in the warehouse. With local transformations, you can:
+[dlt+ Project](../project/overview.md) is a structured, opinionated framework for managing data workflows. It automates essential tasks like data loading, transformations, quality checks, and governance, so data teams can collaborate more effectively and ship faster.
 
-* Run transformations locally, eliminating the need to wait for warehouse queries.
-* Validate the schema before loading to catch mismatches early.
-* Test without incurring cloud costs, as in-memory execution prevents wasted compute.
+Define everything in a declarative dlt.yml, manage [profiles](../project/overview.md#profiles) for different environments, ensure quality with built-in test utilities, and prepare for packaging your project as a [Python package](../project/python-api.md).
 
-Local transformations are built on DuckDB, Arrow, and dbt, so they work with your existing stack.
 
-:::caution
-The local transformations feature is currently in the early access phase. We recommend waiting for general access before using it in production.
-:::
 
 <DocCardList />
 

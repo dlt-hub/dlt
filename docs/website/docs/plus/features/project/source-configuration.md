@@ -15,9 +15,6 @@ The built-in rest_api type enables configuration of REST-based integrations. Mul
 
 ```yaml
 sources:
-  github:
-    type: github.github_reactions
-
   pokemon_api:
     type: rest_api
     client:
@@ -110,9 +107,22 @@ Filesystem sources can be set via the readers type and the filesystem specific r
 ```yaml
 sources: 
  file_source:
-    type: dlt.sources.filesystem.readers
+    type: filesystem.readers
     bucket_url: file://Users/admin/Documents/csv_files
     file_glob: '*.csv'
 ```
 
 `dlt pipeline file_pipeline run --resources read_csv`
+
+
+``
+:::tip
+Source **type** is used to refer to the location in Python code where the `@dlt.source` decorated function is present. You can
+always use a full path to a function name in a Python module, but we also support shorthand and relative notations. For example:
+* `rest_api` will be expanded to `dlt.sources.rest_api.rest_api` where `dlt.sources.rest_api` is a Python module in OSS dlt and `rest_api` is a name of a function in that module.
+* `github.source` will be expanded to `sources.github.sources` in the current project.
+* `filesystem.readers` will be expanded to `dlt.sources.filesystem.readers`
+
+If the **type** cannot be resolved, dlt+ will provide you with a detailed list of all candidate types that were looked up
+so you can make required corrections.
+:::

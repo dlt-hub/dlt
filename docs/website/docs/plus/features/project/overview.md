@@ -36,7 +36,7 @@ The main component of a dlt+ Project is the dlt manifest file (`dlt.yml`). It ma
 
 ### Sources
 
-This section lets you define sources either declaratively or by referencing an implementation from a Python module inside `sources/`. In the example below, two sources are declared:
+This section lets you define [sources](../project/source-configuration.md)  either declaratively or by referencing an implementation from a Python module inside `sources/`. In the example below, two sources are declared:
 1. a dlt REST API source whose parameters are passed within the manifest
 2. a GitHub source defined in a function `source` whose source code inside `sources/github.py` is referenced
 
@@ -57,15 +57,6 @@ sources:
   github:
     type: github.source
 ```
-:::tip
-Source **type** is used to refer to the location in Python code where the `@dlt.source` decorated function is present. You can
-always use a full path to a function name in a Python module, but we also support shorthand and relative notations. For example:
-* `rest_api` will be expanded to `dlt.sources.rest_api.rest_api` where `dlt.sources.rest_api` is a Python module in OSS dlt and `rest_api` is a name of a function in that module.
-* `github.source` will be expanded to `sources.github.sources` in the current project.
-
-If the **type** cannot be resolved, dlt+ will provide you with a detailed list of all candidate types that were looked up
-so you can make required corrections.
-:::
 
 ### Destinations
 
