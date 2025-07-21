@@ -1,16 +1,21 @@
+---
+title: Configuration of Source
+description: Initialize ore sources in yaml file
+---
+
 # Configuration of Sources
 
 <img src="https://storage.googleapis.com/dlt-blog-images/plus/dlt_plus_projects.png" width="500"/>
 
 
-The `dlt.yml` file is used to declaratively configure data sources for use with the dlt CLI. This setup provides a flexible way to work manage data extraction for the core sources REST APIs, SQL databases and file systems using YAML syntax.
+The `dlt.yml` file is used to declaratively configure data sources for use with the dlt CLI. This setup provides a flexible way to manage data extraction for the core sources REST APIs, SQL databases and file systems using YAML syntax.
 
 Credential placeholders for the defined sources are automatically generated in `.dlt/secrets.toml`. Alternatively, credentials may also be provided directly within `dlt.yml`.
 
 
 ## REST API
 
-The built-in rest_api type enables configuration of REST-based integrations. Multiple endpoints can be defined under a single source.
+The built-in `rest_api` type enables configuration of REST-based integrations. Multiple endpoints can be defined under a single source.
 
 
 ```yaml
@@ -36,15 +41,15 @@ sources:
         write_disposition: append
 ```
 
-* `type: rest_api:` specifies the use of the built-in REST API source.
-* `client.base_url` sets the root URL for all API requests.
-* `paginator: auto` enables automatic detection and handling of pagination.
+* `type: rest_api`: Specifies the use of the built-in REST API source.
+* `client.base_url`: Sets the root URL for all API requests.
+* `paginator: auto`: Enables automatic detection and handling of pagination.
 * `resource_defaults`: Contains the default values to configure the dlt resources. This configuration is applied to all resources unless overridden by the resource-specific configuration.
-* Each item in `resources`defines an endpoint to extract. Simple entries like `pokemon`and `berry`will fetch from `/pokemon` and `/berry`, respectively.
+* Each item in `resources`defines an endpoint to extract. Simple entries like `pokemon`and `berry` will fetch from `/pokemon` and `/berry`, respectively.
 * The `encounter-condition` resource uses an advanced configuration:
   * `path`: Point to the `/encounter-condition`endpoint.
   * `params.offset`: Enables incremental loading using the `name` field as the cursor.
-  * `write_disposition`: append ensures new data is appended rather than overwriting previous loads.
+  * `write_disposition: append`: Ensures new data is appended rather than overwriting previous loads.
 
 
 
@@ -57,7 +62,7 @@ For SQL-base extractions that require no table-specific parameter configuration,
 ```yaml 
 sources:
    sql_source:
-    type: dlt.sources.sql_database.sql_database
+    type: sql_database
     table_names: 
       - family
       - clan
@@ -82,7 +87,7 @@ For table specific configurationssettings such as different `primary_key`s, indi
 ```yaml
 sources: 
   sql_family:
-      type: dlt.sources.sql_database.sql_table
+      type: sql_database.sql_table
       table: family
       incremental:
         cursor_path: updated
@@ -101,7 +106,7 @@ sources:
 
 ## Filesystem
 
-Filesystem sources can be set via the readers type and the filesystem specific resources can be called via the CLI `run pipline` command
+Filesystem sources can be set via the `readers` type and the filesystem specific resources can be called via the CLI `run pipline` command.
 
 
 ```yaml
@@ -115,7 +120,7 @@ sources:
 `dlt pipeline file_pipeline run --resources read_csv`
 
 
-``
+
 :::tip
 Source **type** is used to refer to the location in Python code where the `@dlt.source` decorated function is present. You can
 always use a full path to a function name in a Python module, but we also support shorthand and relative notations. For example:

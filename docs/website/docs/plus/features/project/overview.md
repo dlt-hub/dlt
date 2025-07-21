@@ -1,15 +1,20 @@
+---
+title: Project overview
+description: Generate dlt projects in yaml
+---
+
 # Project
 
 
 <img src="https://storage.googleapis.com/dlt-blog-images/plus/dlt_plus_projects.png" width="500"/>
 
-[dlt+ Project](../core-concepts/project.md) provides a structured and opinionated approach to organizing data workflows while implementing best practices for data engineering teams. dlt+ Project automates key processes such as data loading, data transformations, data catalogs, and data governance, and enables different members of the data teams to work more easily with each other.
+[dlt+ Project](../../core-concepts/project.md) provides a structured and opinionated approach to organizing data workflows while implementing best practices for data engineering teams. dlt+ Project automates key processes such as data loading, data transformations, data catalogs, and data governance, and enables different members of the data teams to work more easily with each other.
 
 With dlt+ Project, you can efficiently manage your data workflows by:
 
 1. [Using a declarative `dlt.yml` file](#the-dlt-manifest-file-dltyml) to define sources, destinations, pipelines, and transformations.
-2. Configuring [different profiles](../core-concepts/profiles.md) for various use cases and environments.
-3. Ensuring data quality by defining tests with [dlt+ tests utils](./quality/tests.md).
+2. Configuring [different profiles](../../core-concepts/profiles.md) for various use cases and environments.
+3. Ensuring data quality by defining tests with [dlt+ tests utils](../quality/tests.md).
 4. Packaging your project as a Python package and distributing it via PyPI or a git repository [Coming Soon!]
 
 This structured approach allows teams to work efficiently while maintaining flexibility and control over their data workflows.
@@ -82,7 +87,7 @@ You can declare all arguments of `dlt.pipeline` in this section. For a full list
 
 ### Datasets
 
-The datasets section defines datasets that live on a destination (defined in the destinations section). Any datasets declared in the [pipeline section](#pipelines) are automatically created if not declared here. Read more about datasets in dlt+ [here](../core-concepts/datasets.md).
+The datasets section defines datasets that live on a destination (defined in the destinations section). Any datasets declared in the [pipeline section](#pipelines) are automatically created if not declared here. Read more about datasets in dlt+ [here](../../core-concepts/datasets.md).
 
 ```yaml
 datasets:
@@ -93,9 +98,9 @@ datasets:
 
 ### Cache 🧪
 
-In this section, you specify the input table(s) that you want to transform, and the output table(s) that you want to write after performing the transformations. The example below loads the table "events" from the destination dataset "github_events_dataset" into a local cache, then transforms it using the transformations inside the `transformations/` folder, and finally writes two tables back into the dataset "github_events_dataset": the original "events" table, and the transformed "events_aggregated" table. Read more about how local cache is used for transformations [here](../core-concepts/datasets.md).
+In this section, you specify the input table(s) that you want to transform, and the output table(s) that you want to write after performing the transformations. The example below loads the table "events" from the destination dataset "github_events_dataset" into a local cache, then transforms it using the transformations inside the `transformations/` folder, and finally writes two tables back into the dataset "github_events_dataset": the original "events" table, and the transformed "events_aggregated" table. Read more about how local cache is used for transformations [here](../../core-concepts/datasets.md).
 
-The cache feature is currently limited to specific use cases and is only compatible with data stored in filesystem-based destinations. Please make sure that the input dataset for the cache is located in the filesystem-based destination ([Iceberg](../ecosystem/iceberg.md), [Delta](../ecosystem/delta.md), or [Cloud storage and filesystem](../../dlt-ecosystem/destinations/filesystem.md)).
+The cache feature is currently limited to specific use cases and is only compatible with data stored in filesystem-based destinations. Please make sure that the input dataset for the cache is located in the filesystem-based destination ([Iceberg](../../ecosystem/iceberg.md), [Delta](../../ecosystem/delta.md), or [Cloud storage and filesystem](../../../dlt-ecosystem/destinations/filesystem.md)).
 
 ```yaml
 caches:
@@ -116,7 +121,7 @@ caches:
 
 ### Transformations 🧪
 
-Here you specify the settings for your transformations. In the code example, we define an arrow-based transformation that will operate on the cache "github_events_cache". It will make use of code in the `transformations/` folder. Read more about how transformations are done [here](../features/transformations/index.md).
+Here you specify the settings for your transformations. In the code example, we define an arrow-based transformation that will operate on the cache "github_events_cache". It will make use of code in the `transformations/` folder. Read more about how transformations are done [here](../../features/transformations/index.md).
 
 ```yaml
 transformations:
@@ -234,7 +239,7 @@ The destination field is an array, allowing you to specify one or more destinati
 
 ### Other settings
 
-`dlt.yml` is a [dlt config provider](../../general-usage/credentials/setup.md), and you can use it in the same way you use `config.toml`.
+`dlt.yml` is a [dlt config provider](../../../general-usage/credentials/setup.md), and you can use it in the same way you use `config.toml`.
 For example, you can configure the log level:
 
 ```yaml
@@ -242,7 +247,7 @@ runtime:
   log_level: WARNING
 ```
 
-or any of the settings we mention in the [performance](../../reference/performance.md) chapter.
+or any of the settings we mention in the [performance](../../../reference/performance.md) chapter.
 
 ## Local and temporary files (`data_dir`)
 

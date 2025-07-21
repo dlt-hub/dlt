@@ -1,8 +1,13 @@
+---
+title: Python API
+description: Use of Python interface to access dlt+ project
+---
+
 # Python API to interact with dlt-plus project
 
 <img src="https://storage.googleapis.com/dlt-blog-images/plus/dlt_plus_projects.png" width="500"/>
 
-You can access any [dlt+ Project](../core-concepts/project.md) entity or function via the Python interface.
+You can access any [dlt+ Project](../../core-concepts/project.md) entity or function via the Python interface.
 The current module provides access to various parts of your active dlt+ project.
 
 Import statement:
@@ -23,7 +28,7 @@ import my_dlt_package
 
 my_dlt_package.catalog()
 ```
-[Learn more](../getting-started/advanced_tutorial.md) about how to package your project.
+[Learn more](../../getting-started/advanced_tutorial.md) about how to package your project.
 :::
 
 
@@ -60,7 +65,7 @@ Here, we access the entities manager, which allows you to create sources, destin
 
 ## Running pipelines with the runner
 
-`dlt+` includes a pipeline runner, which is the same one used when you run pipelines from the CLI.
+dlt+ includes a pipeline runner, which is the same one used when you run pipelines from the CLI.
 You can also use it directly in your code through the project context:
 
 ```py
@@ -95,7 +100,7 @@ It covers how to browse, filter tables, and retrieve data in various formats.
 
 You can also write data to datasets in the dlt+ catalog. Each dataset has a `.save()` method that lets you write data back to it.
 In the future, you'll be able to control which datasets are writable using contracts.
-Under the hood, `dlt+` runs an ad-hoc pipeline to handle the write operation.
+Under the hood, dlt+ runs an ad-hoc pipeline to handle the write operation.
 
 :::warning
 Writing data to the catalog is an **experimental feature**.
