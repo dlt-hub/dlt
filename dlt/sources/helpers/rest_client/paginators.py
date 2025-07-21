@@ -233,13 +233,13 @@ class RangePaginator(BasePaginator):
             self._update_request_with_param_name(request, self.param_name, self.current_value)
 
     @staticmethod
-    def _update_request_with_param_name(request, param_name, current_value):
+    def _update_request_with_param_name(request: Request, param_name: str, current_value: int) -> None:
         if request.params is None:
             request.params = {}
         request.params[param_name] = current_value
 
     @staticmethod
-    def _update_request_with_body_path(request, body_path, current_value):
+    def _update_request_with_body_path(request: Request, body_path: jsonpath.TJsonPath, current_value: int) -> None:
         if request.json is None:
             request.json = {}
         jsonpath.set_value_at_path(request.json, body_path, current_value)
@@ -542,13 +542,13 @@ class OffsetPaginator(RangePaginator):
 
     def init_request(self, request: Request) -> None:
         super().init_request(request)
-        if self.limit_body_path:
-            self._update_request_with_body_path(request, self.limit_body_path, self.limit)
-        else:
-            self._update_request_with_param_name(request, self.limit_param, self.limit)
+        self._update_request_limit(request)
 
     def update_request(self, request: Request) -> None:
         super().update_request(request)
+        self._update_request_limit(request)
+
+    def _update_request_limit(self, request):
         if self.limit_body_path:
             self._update_request_with_body_path(request, self.limit_body_path, self.limit)
         else:
@@ -561,6 +561,8 @@ class OffsetPaginator(RangePaginator):
             + (f"offset_param: {self.param_name}" if self.param_name else "")
             + (f"offset_body_path: {self.body_path}" if self.body_path else "")
             + f"limit: {self.value_step}"
+            + (f"limit_param: {self.limit_param}" if self.limit_param else "")
+            + (f"limit_body_path: {self.limit_body_path}" if self.limit_body_path else "")
             + f" total_path: {self.total_path}"
             + f" maximum_value: {self.maximum_value} has_more_path: {self.has_more_path}"
         )

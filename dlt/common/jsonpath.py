@@ -92,7 +92,7 @@ def extract_simple_field_name(path: Union[str, JSONPath]) -> Optional[str]:
     return None
 
 
-def set_value_at_path(obj: dict[str, Any], path: str, value: Any) -> None:
+def set_value_at_path(obj: dict[str, Any], path: TJsonPath, value: Any) -> None:
     """Sets a value in a nested dictionary at the specified path.
 
     Args:
