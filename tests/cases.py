@@ -326,6 +326,7 @@ def arrow_table_all_data_types(
     include_decimal: bool = True,
     include_decimal_default_precision: bool = False,
     include_decimal_arrow_max_precision: bool = False,
+    include_decimal_high_precision: bool = False,
     include_date: bool = True,
     include_not_normalized_name: bool = True,
     include_name_clash: bool = False,
@@ -400,6 +401,11 @@ def arrow_table_all_data_types(
             Decimal(int("1" * ARROW_DECIMAL_MAX_PRECISION)) for _ in range(num_rows)
         ]
 
+    if include_decimal_high_precision:
+        # Create high precision decimal with native decimal type (38,18)
+        decimal_data = [Decimal("9" * 20 + "." + "9" * 18) for _ in range(num_rows)]
+        data["high_decimal_precision"] = decimal_data
+
     if include_date:
         data["date"] = pd.date_range("2021-01-01", periods=num_rows, tz=tz).date
 
@@ -420,6 +426,19 @@ def arrow_table_all_data_types(
         return rows, rows, data
     else:
         return arrow_item_from_pandas(df, object_format), rows, data
+
+
+def remove_column_from_data(object_format: TestDataItemFormat, data: Any, column_name: str) -> Any:
+    """drop the column form arrow_table pandas or object data"""
+    if object_format == "arrow-table":
+        return data.drop([column_name])
+    elif object_format == "pandas":
+        return data.drop(columns=[column_name])
+    elif object_format == "object":
+        # actually is a list of dicts
+        return [{k: v for k, v in row.items() if k != column_name} for row in data]
+    else:
+        raise ValueError(f"not supported: {object_format}")
 
 
 def prepare_shuffled_tables() -> Tuple[Any, Any, Any]:

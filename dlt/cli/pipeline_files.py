@@ -203,10 +203,10 @@ def _get_docstring_for_module(sources_storage: FileStorage, source_name: str) ->
 
 
 def get_template_configuration(
-    sources_storage: FileStorage, source_name: str
+    sources_storage: FileStorage, source_name: str, display_source_name: str
 ) -> SourceConfiguration:
-    destination_pipeline_file_name = source_name + PIPELINE_FILE_SUFFIX
-    source_pipeline_file_name = destination_pipeline_file_name
+    destination_pipeline_file_name = display_source_name + PIPELINE_FILE_SUFFIX
+    source_pipeline_file_name = source_name + PIPELINE_FILE_SUFFIX
 
     if not sources_storage.has_file(source_pipeline_file_name):
         source_pipeline_file_name = DEFAULT_PIPELINE_TEMPLATE
@@ -322,12 +322,6 @@ def gen_index_diff(
         if name not in remote_index["files"]:
             deleted[name] = entry
 
-    # print("NEW")
-    # print(new)
-    # print("MOD")
-    # print(modified)
-    # print("DEL")
-    # print(deleted)
     return new, modified, deleted
 
 

@@ -1,4 +1,4 @@
-from .provider import ConfigProvider
+from .provider import ConfigProvider, EXPLICIT_VALUES_PROVIDER_NAME
 from .environ import EnvironProvider
 from .dictionary import DictionaryProvider
 from .toml import (
@@ -10,7 +10,8 @@ from .toml import (
     StringTomlProvider,
 )
 from .doc import CustomLoaderDocProvider
-from .vault import SECRETS_TOML_KEY
+from .vault import SECRETS_TOML_KEY, VaultDocProvider
+from .google_secrets import GoogleSecretsProvider
 from .context import ContextProvider
 
 __all__ = [
@@ -26,4 +27,7 @@ __all__ = [
     "SECRETS_TOML_KEY",
     "ContextProvider",
     "CustomLoaderDocProvider",
+    "VaultDocProvider",
+    "GoogleSecretsProvider",
+    "EXPLICIT_VALUES_PROVIDER_NAME",
 ]

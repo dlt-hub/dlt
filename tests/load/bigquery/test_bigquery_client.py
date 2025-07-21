@@ -359,7 +359,7 @@ def test_bigquery_location(location: str, file_storage: FileStorage, client) -> 
             file_storage.make_full_path(job.file_name()),
             uniq_id(),
         )
-        canonical_name = client.sql_client.make_qualified_table_name(user_table_name, escape=False)
+        canonical_name = client.sql_client.make_qualified_table_name(user_table_name, quote=False)
         t = client.sql_client.native_connection.get_table(canonical_name)
         assert t.location == location
 

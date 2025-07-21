@@ -1,24 +1,13 @@
+from contextlib import contextmanager
 import sys
 import os
 import shutil
-import venv
 import types
 import subprocess
-from typing import Any, ClassVar, List, Type
+from typing import Any, ClassVar, Generator, List, Type, ContextManager
 
 from dlt.common import known_env
 from dlt.common.exceptions import CannotInstallDependencies, VenvNotFound
-
-
-class DLTEnvBuilder(venv.EnvBuilder):
-    context: types.SimpleNamespace
-
-    def __init__(self) -> None:
-        # setup pip only if autodetect or explicit pip, skip for uv etc.
-        super().__init__(with_pip=Venv.get_pip_tool() == "pip", clear=True)
-
-    def post_setup(self, context: types.SimpleNamespace) -> None:
-        self.context = context
 
 
 class Venv:
@@ -34,11 +23,23 @@ class Venv:
     @classmethod
     def create(cls, venv_dir: str, dependencies: List[str] = None) -> "Venv":
         """Creates a new Virtual Environment at the location specified in `venv_dir` and installs `dependencies` via pip. Deletes partially created environment on failure."""
+        import venv
+
+        class DLTEnvBuilder(venv.EnvBuilder):
+            context: types.SimpleNamespace
+
+            def __init__(self) -> None:
+                # setup pip only if autodetect or explicit pip, skip for uv etc.
+                super().__init__(with_pip=Venv.get_pip_tool() == "pip", clear=True)
+
+            def post_setup(self, context: types.SimpleNamespace) -> None:
+                self.context = context
+
         b = DLTEnvBuilder()
         try:
             b.create(os.path.abspath(venv_dir))
             if dependencies:
-                Venv._install_deps(b.context, dependencies)
+                Venv.install_deps(b.context, dependencies)
         except Exception:
             if os.path.isdir(venv_dir):
                 shutil.rmtree(venv_dir)
@@ -48,6 +49,8 @@ class Venv:
     @classmethod
     def restore(cls, venv_dir: str, current: bool = False) -> "Venv":
         """Restores Virtual Environment at `venv_dir`"""
+        import venv
+
         if not os.path.isdir(venv_dir):
             raise VenvNotFound(venv_dir)
         b = venv.EnvBuilder(clear=False, upgrade=False)
@@ -97,7 +100,16 @@ class Venv:
     def run_command(self, entry_point: str, *script_args: Any) -> str:
         """Runs any `command` with specified `script_args`. Current `os.environ` and cwd is passed to executed process"""
         # runs one of installed entry points typically CLIs coming with packages and installed into PATH
-        command = os.path.join(self.context.bin_path, entry_point)
+        # command = os.path.join(self.context.bin_path, entry_point)
+        command: str = None
+        if os.path.basename(entry_point) == entry_point:
+            # look into current venv
+            command = shutil.which(entry_point, path=self.context.bin_path)
+
+        if not command:
+            # for all paths do a normal lookup
+            command = entry_point
+
         cmd = [command, *script_args]
         return subprocess.check_output(
             cmd, stderr=subprocess.STDOUT, text=True, errors="backslashreplace"
@@ -125,10 +137,28 @@ class Venv:
         )
 
     def add_dependencies(self, dependencies: List[str] = None) -> None:
-        Venv._install_deps(self.context, dependencies)
+        Venv.install_deps(self.context, dependencies)
+
+    @staticmethod
+    def set_pip_tool(pip_tool: str) -> ContextManager[None]:
+        """Sets pip tool in context manager, not thread safe"""
+
+        @contextmanager
+        def _ctx(pip_tool: str) -> Generator[None, None, None]:
+            old_tool = Venv.PIP_TOOL
+            try:
+                Venv.PIP_TOOL = pip_tool
+                yield
+            finally:
+                Venv.PIP_TOOL = old_tool
+
+        return _ctx(pip_tool)
 
     @staticmethod
     def get_pip_tool() -> str:
+        """Gets configured tool to manage python packages, using DLT_PIP_TOOL or by
+        autodetecting `uv` and `pip`.
+        """
         if Venv.PIP_TOOL is None:
             # autodetect tool
             import shutil
@@ -137,7 +167,18 @@ class Venv:
         return Venv.PIP_TOOL
 
     @staticmethod
-    def _install_deps(context: types.SimpleNamespace, dependencies: List[str]) -> None:
+    def get_pip_command(context: types.SimpleNamespace, command: str) -> List[str]:
+        """Returns a sequence that is a pip-like command"""
+        pip_tool = Venv.get_pip_tool()
+        if pip_tool == "uv":
+            return ["uv", "pip", command, "--python", context.env_exe]
+        return [pip_tool, command]
+
+    @staticmethod
+    def install_deps(context: types.SimpleNamespace, dependencies: List[str]) -> None:
+        """Install a set of `dependencies` into Venv context using current pip tool. Makes
+        sure that the right command context and arguments are used.
+        """
         pip_tool = Venv.get_pip_tool()
         if pip_tool == "uv":
             cmd = [
@@ -149,6 +190,9 @@ class Venv:
                 "--prerelease",
                 "if-necessary-or-explicit",
             ]
+            # on windows we need to copy the dependencies to the venv instead of linking
+            if os.name == "nt":
+                cmd.extend(["--link-mode", "copy"])
         else:
             cmd = [context.env_exe, "-Im", pip_tool, "install"]
 

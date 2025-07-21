@@ -5,10 +5,7 @@ import dlt.cli.echo as fmt
 
 
 from dlt.common.configuration import plugins
-from dlt.cli import SupportsCliCommand
-from dlt.cli.init_command import (
-    DEFAULT_VERIFIED_SOURCES_REPO,
-)
+from dlt.cli import SupportsCliCommand, DEFAULT_VERIFIED_SOURCES_REPO
 from dlt.cli.exceptions import CliCommandException
 from dlt.cli.command_wrappers import (
     init_command_wrapper,
@@ -19,6 +16,7 @@ from dlt.cli.command_wrappers import (
     telemetry_status_command_wrapper,
     deploy_command_wrapper,
     ai_setup_command_wrapper,
+    dashboard_command_wrapper,
 )
 from dlt.cli.ai_command import SUPPORTED_IDES
 from dlt.cli.docs_command import render_argparse_markdown
@@ -201,7 +199,7 @@ schemas, resources in schemas, list of completed and normalized load packages, a
 pipeline state set by the resources during the extraction process.
 """,
         )
-        pipeline_subparsers.add_parser(
+        show_cmd = pipeline_subparsers.add_parser(
             "show",
             help=(
                 "Generates and launches Streamlit app with the loading status and dataset explorer"
@@ -211,8 +209,27 @@ Generates and launches Streamlit (https://streamlit.io/) app with the loading st
 
 This is a simple app that you can use to inspect the schemas and data in the destination as well as your pipeline state and loading status/stats. It should be executed from the same folder from which you ran the pipeline script to access destination credentials.
 
-Requires `streamlit` to be installed in the current environment: `pip install streamlit`.
+Requires `streamlit` to be installed in the current environment: `pip install streamlit`. Using --dashboard flag to launch pipeline dashboard preview instead of streamlit.
 """,
+        )
+        show_cmd.add_argument(
+            "--dashboard",
+            default=False,
+            action="store_true",
+            help=(
+                "Launch pipeline dashboard instead of streamlit. Will launch editable version of"
+                " app (created with the --edit flag) if it exists in the current directory."
+            ),
+        )
+        show_cmd.add_argument(
+            "--edit",
+            default=False,
+            action="store_true",
+            help=(
+                "Creates editable version of pipeline dashboard in current directory if it does not"
+                " exist there yet and launches it in edit mode. Only works when using the pipeline"
+                " dashboard (--dashboard flag)."
+            ),
         )
         pipeline_subparsers.add_parser(
             "failed-jobs",
@@ -461,6 +478,26 @@ The `dlt schema` command will load, validate and print out a dlt schema: `dlt sc
         schema_command_wrapper(args.file, args.format, args.remove_defaults)
 
 
+class DashboardCommand(SupportsCliCommand):
+    command = "dashboard"
+    help_string = "Starts the dlt pipeline dashboard"
+    description = """
+The `dlt dashboard` command starts the dlt pipeline dashboard. You can use the dashboard:
+
+* to list and inspect local pipelines
+* browse the full pipeline schema and all hints
+* browse the data in the destination
+* inspect the pipeline state
+
+    """
+
+    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        self.parser = parser
+
+    def execute(self, args: argparse.Namespace) -> None:
+        dashboard_command_wrapper()
+
+
 class TelemetryCommand(SupportsCliCommand):
     command = "telemetry"
     help_string = "Shows telemetry status"
@@ -703,6 +740,12 @@ def plug_cli_pipeline() -> Type[SupportsCliCommand]:
 @plugins.hookimpl(specname="plug_cli")
 def plug_cli_schema() -> Type[SupportsCliCommand]:
     return SchemaCommand
+
+
+# TODO: define actual command and re-enable
+# @plugins.hookimpl(specname="plug_cli")
+# def plug_cli_dashboard() -> Type[SupportsCliCommand]:
+#     return DashboardCommand
 
 
 @plugins.hookimpl(specname="plug_cli")

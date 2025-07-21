@@ -1,10 +1,7 @@
 from abc import ABC, abstractmethod
 import dataclasses
-import os
 import datetime  # noqa: 251
 import humanize
-import contextlib
-import threading
 from typing import (
     Any,
     Callable,
@@ -56,8 +53,7 @@ from dlt.common.schema.typing import (
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.storages.load_storage import LoadPackageInfo
 from dlt.common.time import ensure_pendulum_datetime, precise_time
-from dlt.common.typing import DictStrAny, REPattern, StrAny, SupportsHumanize, TColumnNames
-from dlt.common.jsonpath import delete_matches, TAnyJsonPath
+from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize, TColumnNames
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.utils import RowCounts, merge_row_counts
 from dlt.common.versioned_state import TVersionedState
@@ -439,6 +435,19 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
         pass
 
 
+class TLastRunContext(TypedDict, total=False):
+    """Stores context from the last successful pipeline run or sync"""
+
+    run_dir: str
+    """Defines the context working directory, defaults to cwd()"""
+    uri: str
+    """Uniquely identifies the context"""
+    local_dir: str
+    """Defines data dir where local relative dirs and files are created, defaults to run_dir"""
+    settings_dir: str
+    """Defines where the current settings (secrets and configs) are located"""
+
+
 class TPipelineLocalState(TypedDict, total=False):
     first_run: bool
     """Indicates a first run of the pipeline, where run ends with successful loading of data"""
@@ -448,6 +457,8 @@ class TPipelineLocalState(TypedDict, total=False):
     """Hash of state that was recently synced with destination"""
     initial_cwd: str
     """Run dir when pipeline was instantiated for a first time, defaults to cwd on OSS run context"""
+    last_run_context: Optional[TLastRunContext]
+    """Context from the last successful pipeline run or sync"""
 
 
 class TPipelineState(TVersionedState, total=False):
@@ -494,20 +505,44 @@ class SupportsPipeline(Protocol):
     """A configurable pipeline secret to be used as a salt or a seed for encryption key"""
     first_run: bool
     """Indicates a first run of the pipeline, where run ends with successful loading of the data"""
+    last_run_context: TLastRunContext
+    """Stores last "good" run context, where run ends with successful loading of the data"""
 
     @property
     def state(self) -> TPipelineState:
-        """Returns dictionary with pipeline state"""
+        """Returns dictionary with current pipeline state
+
+        Returns:
+            TPipelineState: The current pipeline state
+        """
 
     @property
     def schemas(self) -> Mapping[str, Schema]:
-        """Mapping of all pipeline schemas"""
+        """Returns all known schemas of the pipeline
+
+        Returns:
+            Mapping[str, Schema]: A mapping of schema names to their corresponding Schema objects
+        """
 
     def get_local_state_val(self, key: str) -> Any:
-        """Gets value from local state. Local state is not synchronized with destination."""
+        """Gets value from local state. Local state is not synchronized with destination.
+
+        Args:
+            key (str): The key to get the value from
+
+        Returns:
+            Any: The value from the local state
+        """
 
     def destination_client(self, schema_name: str = None) -> JobClientBase:
-        """Get the destination job client for the configured destination"""
+        """Get the destination job client for the configured destination
+
+        Args:
+            schema_name (str, optional): The name of the schema to get the client for. Defaults to None.
+
+        Returns:
+            JobClientBase: The destination job client
+        """
 
     def run(
         self,
@@ -523,13 +558,28 @@ class SupportsPipeline(Protocol):
         schema: Schema = None,
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
-    ) -> LoadInfo: ...
+    ) -> LoadInfo:
+        """Loads the data into the destination
+
+        Args:
+            data (Any): The data to load. Can be a DltSource, DltResource or any iterable of data items.
+            destination (TDestinationReferenceArg, optional): The destination to load the data to.
+            dataset_name (str, optional): The name of the dataset to load the data to.
+            credentials (Any, optional): The credentials to use to load the data.
+            table_name (str, optional): The name of the table to load the data to.
+            write_disposition (TWriteDispositionConfig, optional): The write disposition to use to load the data.
+            columns (Sequence[TColumnSchema], optional): A list of column hints.
+            primary_key (TColumnNames, optional): A list of column names to be used as primary key.
+            schema (Schema, optional): A schema to use to load the data. Defaults to the schema configured in the pipeline.
+            loader_file_format (TLoaderFileFormat, optional): The file format to use to load the data. Defaults to preferred loader file format of the destination.
+            schema_contract (TSchemaContract, optional): The schema contract to use to load the data.
+
+        Returns:
+            LoadInfo: Information on the load operation
+        """
 
     def _set_context(self, is_active: bool) -> None:
         """Called when pipeline context activated or deactivate"""
-
-    def _make_schema_with_default_name(self) -> Schema:
-        """Make a schema from the pipeline name using the name normalizer. "_pipeline" suffix is removed if present"""
 
 
 class SupportsPipelineRun(Protocol):
@@ -550,31 +600,51 @@ class SupportsPipelineRun(Protocol):
 
 @configspec
 class PipelineContext(ContainerInjectableContext):
-    _DEFERRED_PIPELINE: ClassVar[Callable[[], SupportsPipeline]] = None
+    _PIPELINE_FACTORY: ClassVar[Callable[[], SupportsPipeline]] = None
+    """Maker of default pipeline, set at runtime"""
     _pipeline: SupportsPipeline = dataclasses.field(
         default=None, init=False, repr=False, compare=False
     )
+    """Active pipeline"""
+    _pipelines: Optional[List[SupportsPipeline]] = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
+    """History of previously activated pipelines, disabled by default"""
+    enable_activation_history: bool = False
+    """When True, references to activated pipelines will be also stored"""
 
     can_create_default: ClassVar[bool] = True
 
     def pipeline(self) -> SupportsPipeline:
-        """Creates or returns exiting pipeline"""
+        """Creates or returns an active pipeline"""
         if not self._pipeline:
             # delayed pipeline creation
-            assert PipelineContext._DEFERRED_PIPELINE is not None, (
+            assert PipelineContext._PIPELINE_FACTORY is not None, (
                 "Deferred pipeline creation function not provided to PipelineContext. Are you"
                 " calling dlt.pipeline() from another thread?"
             )
-            self.activate(PipelineContext._DEFERRED_PIPELINE())
+            self.activate(PipelineContext._PIPELINE_FACTORY())
         return self._pipeline
 
     def activate(self, pipeline: SupportsPipeline) -> None:
+        """Activates `pipeline` and deactivates active one."""
         # do not activate currently active pipeline
         if pipeline == self._pipeline:
             return
         self.deactivate()
+        # TODO: (1) compare run_context in pipeline with currently active context (via uri) and warn if they differ
+        # TODO: (2) activate the right pipeline context. that requires that we should change pluggable run context
+        #       to thread-affine or even contextvar that works in async pools
         pipeline._set_context(True)
         self._pipeline = pipeline
+        # store activated pipelines
+        # NOTE: this prevents them from being garbage collected
+        # NOTE: this context has thread affinity so each thread has own history
+        if self.enable_activation_history:
+            if self._pipelines is None:
+                self._pipelines = []
+            if pipeline not in self._pipelines:
+                self._pipelines.append(pipeline)
 
     def is_active(self) -> bool:
         return self._pipeline is not None
@@ -584,10 +654,19 @@ class PipelineContext(ContainerInjectableContext):
             self._pipeline._set_context(False)
         self._pipeline = None
 
+    def clear_activation_history(self) -> None:
+        self._pipelines = []
+
+    def activation_history(self) -> List[SupportsPipeline]:
+        """Get list of pipelines that were activated"""
+        if not self.enable_activation_history:
+            raise RuntimeError("Activation history is not enabled")
+        return self._pipelines or []
+
     @classmethod
     def cls__init__(self, deferred_pipeline: Callable[..., SupportsPipeline] = None) -> None:
         """Initialize the context with a function returning the Pipeline object to allow creation on first use"""
-        self._DEFERRED_PIPELINE = deferred_pipeline
+        self._PIPELINE_FACTORY = deferred_pipeline
 
 
 def current_pipeline() -> SupportsPipeline:
@@ -629,155 +708,6 @@ def pipeline_state(
             return proxy.pipeline().state, False
 
 
-def _sources_state(pipeline_state_: Optional[TPipelineState] = None, /) -> DictStrAny:
-    global _last_full_state
-
-    if pipeline_state_ is None:
-        state, _ = pipeline_state(Container())
-    else:
-        state = pipeline_state_
-    if state is None:
-        raise PipelineStateNotAvailable()
-
-    sources_state_: DictStrAny = state.setdefault(known_sections.SOURCES, {})  # type: ignore
-
-    # allow inspection of last returned full state
-    _last_full_state = state
-    return sources_state_
-
-
-def source_state() -> DictStrAny:
-    """Returns a dictionary with the source-scoped state. Source-scoped state may be shared across the resources of a particular source. Please avoid using source scoped state. Check
-    the `resource_state` function for resource-scoped state that is visible within particular resource. Dlt state is preserved across pipeline runs and may be used to implement incremental loads.
-
-    #### Note:
-    The source state is a python dictionary-like object that is available within the `@dlt.source` and `@dlt.resource` decorated functions and may be read and written to.
-    The data within the state is loaded into destination together with any other extracted data and made automatically available to the source/resource extractor functions when they are run next time.
-    When using the state:
-    * The source state is scoped to a particular source and will be stored under the source name in the pipeline state
-    * It is possible to share state across many sources if they share a schema with the same name
-    * Any JSON-serializable values can be written and the read from the state. `dlt` dumps and restores instances of Python bytes, DateTime, Date and Decimal types.
-    * The state available in the source decorated function is read only and any changes will be discarded.
-    * The state available in the resource decorated function is writable and written values will be available on the next pipeline run
-    """
-    global _last_full_state
-
-    container = Container()
-
-    # get the source name from the section context
-    source_state_key: str = None
-    with contextlib.suppress(ContextDefaultCannotBeCreated):
-        sections_context = container[ConfigSectionContext]
-        source_state_key = sections_context.source_state_key
-
-    if not source_state_key:
-        raise SourceSectionNotAvailable()
-
-    try:
-        state = _sources_state()
-    except PipelineStateNotAvailable as e:
-        # Reraise with source section
-        raise PipelineStateNotAvailable(source_state_key) from e
-
-    return state.setdefault(source_state_key, {})  # type: ignore[no-any-return]
-
-
-_last_full_state: TPipelineState = None
-
-
-def _delete_source_state_keys(
-    key: TAnyJsonPath, source_state_: Optional[DictStrAny] = None, /
-) -> None:
-    """Remove one or more key from the source state.
-    The `key` can be any number of keys and/or json paths to be removed.
-    """
-    state_ = source_state() if source_state_ is None else source_state_
-    delete_matches(key, state_)
-
-
-def resource_state(
-    resource_name: str = None, source_state_: Optional[DictStrAny] = None, /
-) -> DictStrAny:
-    """Returns a dictionary with the resource-scoped state. Resource-scoped state is visible only to resource requesting the access. Dlt state is preserved across pipeline runs and may be used to implement incremental loads.
-
-    Note that this function accepts the resource name as optional argument. There are rare cases when `dlt` is not able to resolve resource name due to requesting function
-    working in different thread than the main. You'll need to pass the name explicitly when you request resource_state from async functions or functions decorated with @defer.
-
-    Summary:
-        The resource state is a python dictionary-like object that is available within the `@dlt.resource` decorated functions and may be read and written to.
-        The data within the state is loaded into destination together with any other extracted data and made automatically available to the source/resource extractor functions when they are run next time.
-        When using the state:
-        * The resource state is scoped to a particular resource requesting it.
-        * Any JSON-serializable values can be written and the read from the state. `dlt` dumps and restores instances of Python bytes, DateTime, Date and Decimal types.
-        * The state available in the resource decorated function is writable and written values will be available on the next pipeline run
-
-    Example:
-        The most typical use case for the state is to implement incremental load.
-        >>> @dlt.resource(write_disposition="append")
-        >>> def players_games(chess_url, players, start_month=None, end_month=None):
-        >>>     checked_archives = dlt.current.resource_state().setdefault("archives", [])
-        >>>     archives = players_archives(chess_url, players)
-        >>>     for url in archives:
-        >>>         if url in checked_archives:
-        >>>             print(f"skipping archive {url}")
-        >>>             continue
-        >>>         else:
-        >>>             print(f"getting archive {url}")
-        >>>             checked_archives.append(url)
-        >>>         # get the filtered archive
-        >>>         r = requests.get(url)
-        >>>         r.raise_for_status()
-        >>>         yield r.json().get("games", [])
-
-    Here we store all the urls with game archives in the state and we skip loading them on next run. The archives are immutable. The state will grow with the coming months (and more players).
-    Up to few thousand archives we should be good though.
-    Args:
-        resource_name (str, optional): forces to use state for a resource with this name. Defaults to None.
-        source_state_ (Optional[DictStrAny], optional): Alternative source state. Defaults to None.
-
-    Raises:
-        ResourceNameNotAvailable: Raise if used outside of resource context or from a different thread than main
-
-    Returns:
-        DictStrAny: State dictionary
-    """
-    state_ = source_state() if source_state_ is None else source_state_
-    # backtrace to find the shallowest resource
-    if not resource_name:
-        resource_name = get_current_pipe_name()
-    return state_.setdefault("resources", {}).setdefault(resource_name, {})  # type: ignore
-
-
-def reset_resource_state(resource_name: str, source_state_: Optional[DictStrAny] = None, /) -> None:
-    """Resets the resource state with name `resource_name` by removing it from `source_state`
-
-    Args:
-        resource_name: The resource key to reset
-        state: Optional source state dictionary to operate on. Use when working outside source context.
-    """
-    state_ = source_state() if source_state_ is None else source_state_
-    if "resources" in state_ and resource_name in state_["resources"]:
-        state_["resources"].pop(resource_name)
-
-
-def _get_matching_sources(
-    pattern: REPattern, pipeline_state: Optional[TPipelineState] = None, /
-) -> List[str]:
-    """Get all source names in state matching the regex pattern"""
-    state_ = _sources_state(pipeline_state)
-    return [key for key in state_ if pattern.match(key)]
-
-
-def _get_matching_resources(
-    pattern: REPattern, source_state_: Optional[DictStrAny] = None, /
-) -> List[str]:
-    """Get all resource names in state matching the regex pattern"""
-    state_ = source_state() if source_state_ is None else source_state_
-    if "resources" not in state_:
-        return []
-    return [key for key in state_["resources"] if pattern.match(key)]
-
-
 def get_dlt_pipelines_dir() -> str:
     """Gets default directory where pipelines' data will be stored
     1. in user home directory ~/.dlt/pipelines/
@@ -794,28 +724,3 @@ def get_dlt_repos_dir() -> str:
     from dlt.common.runtime import run_context
 
     return run_context.active().get_data_entity("repos")
-
-
-_CURRENT_PIPE_NAME: Dict[int, str] = {}
-"""Name of currently executing pipe per thread id set during execution of a gen in pipe"""
-
-
-def set_current_pipe_name(name: str) -> None:
-    """Set pipe name in current thread"""
-    _CURRENT_PIPE_NAME[threading.get_ident()] = name
-
-
-def unset_current_pipe_name() -> None:
-    """Unset pipe name in current thread"""
-    _CURRENT_PIPE_NAME[threading.get_ident()] = None
-
-
-def get_current_pipe_name() -> str:
-    """When executed from withing dlt.resource decorated function, gets pipe name associated with current thread.
-
-    Pipe name is the same as resource name for all currently known cases. In some multithreading cases, pipe name may be not available.
-    """
-    name = _CURRENT_PIPE_NAME.get(threading.get_ident())
-    if name is None:
-        raise ResourceNameNotAvailable()
-    return name

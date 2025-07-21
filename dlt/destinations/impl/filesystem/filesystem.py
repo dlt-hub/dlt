@@ -4,7 +4,6 @@ import base64
 from contextlib import contextmanager
 from types import TracebackType
 from typing import (
-    ContextManager,
     List,
     Type,
     Iterable,
@@ -20,13 +19,13 @@ from typing import (
 )
 from fsspec import AbstractFileSystem
 
-import dlt
 from dlt.common import logger, time, json, pendulum
 from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace_strategy
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.schema.exceptions import TableNotFound
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
+    C_DLT_LOADS_TABLE_LOAD_ID,
     TTableFormat,
     TTableSchemaColumns,
     DLT_NAME_PREFIX,
@@ -42,7 +41,7 @@ from dlt.common.storages.load_package import (
     LoadJobInfo,
     ParsedLoadJobFileName,
     TPipelineStateDoc,
-    load_package as current_load_package,
+    load_package_state as current_load_package,
 )
 from dlt.destinations.sql_client import WithSqlClient, SqlClientBase
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -190,6 +189,7 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     table=delta_table,
                     data=arrow_rbr,
                     schema=self._load_table,
+                    load_table_name=self.load_table_name,
                 )
             else:
                 location = self._job_client.get_open_table_location("delta", self.load_table_name)
@@ -199,6 +199,7 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     write_disposition=self._load_table["write_disposition"],
                     partition_by=self._partition_columns,
                     storage_options=storage_options,
+                    configuration=self._job_client.config.deltalake_configuration,
                 )
         # release memory ASAP by deleting objects explicitly
         del source_ds
@@ -211,7 +212,7 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
 
 class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
     def run(self) -> None:
-        from dlt.common.libs.pyiceberg import write_iceberg_table, create_table
+        from dlt.common.libs.pyiceberg import write_iceberg_table, merge_iceberg_table, create_table
 
         try:
             table = self._job_client.load_open_table(
@@ -233,11 +234,19 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             self.run()
             return
 
-        write_iceberg_table(
-            table=table,
-            data=self.arrow_dataset.to_table(),
-            write_disposition=self._load_table["write_disposition"],
-        )
+        if self._load_table["write_disposition"] == "merge" and table is not None:
+            merge_iceberg_table(
+                table=table,
+                data=self.arrow_dataset.to_table(),
+                schema=self._load_table,
+                load_table_name=self.load_table_name,
+            )
+        else:
+            write_iceberg_table(
+                table=table,
+                data=self.arrow_dataset.to_table(),
+                write_disposition=self._load_table["write_disposition"],
+            )
 
 
 class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
@@ -278,6 +287,12 @@ class FilesystemClient(
         self.bucket_path = (
             config.make_local_path(config.bucket_url) if self.is_local_filesystem else fs_path
         )
+
+        # NOTE: we need to make checksum validation optional for boto to work with s3 compat mode
+        # https://www.beginswithdata.com/2025/05/14/aws-s3-tools-with-gcs/
+        os.environ["AWS_REQUEST_CHECKSUM_CALCULATION"] = "when_required"
+        os.environ["AWS_RESPONSE_CHECKSUM_VALIDATION"] = "when_required"
+
         # pick local filesystem pathlib or posix for buckets
         self.pathlib = os.path if self.is_local_filesystem else posixpath
 
@@ -319,7 +334,7 @@ class FilesystemClient(
         """A path within a bucket to tables in a dataset
         NOTE: dataset_name changes if with_staging_dataset is active
         """
-        return self.pathlib.join(self.bucket_path, self.dataset_name)  # type: ignore[no-any-return]
+        return self.pathlib.join(self.bucket_path, self.dataset_name, "")  # type: ignore[no-any-return]
 
     @contextmanager
     def with_staging_dataset(self) -> Iterator["FilesystemClient"]:
@@ -477,14 +492,18 @@ class FilesystemClient(
         return table
 
     def get_table_dir(self, table_name: str, remote: bool = False) -> str:
+        """Returns a directory containing table files, ending with separator.
+        Note that many tables can share the same table dir
+        """
         # dlt tables do not respect layout (for now)
         table_prefix = self.get_table_prefix(table_name)
-        table_dir: str = self.pathlib.dirname(table_prefix)
+        table_dir: str = self.pathlib.dirname(table_prefix) + self.pathlib.sep
         if remote:
             table_dir = self.make_remote_url(table_dir)
         return table_dir
 
     def get_table_prefix(self, table_name: str) -> str:
+        """For table prefixes that are folders, trailing separator will be preserved"""
         # dlt tables do not respect layout (for now)
         if table_name.startswith(self.schema._dlt_tables_prefix):
             # dlt tables get layout where each tables is a folder
@@ -623,7 +642,7 @@ class FilesystemClient(
         # write entry to load "table"
         # TODO: this is also duplicate across all destinations. DRY this.
         load_data = {
-            "load_id": load_id,
+            C_DLT_LOADS_TABLE_LOAD_ID: load_id,
             "schema_name": self.schema.name,
             "status": 0,
             "inserted_at": pendulum.now().isoformat(),
@@ -867,7 +886,7 @@ class FilesystemClient(
             return DeltaTable(table_location, storage_options=storage_options)
         else:
             raise NotImplementedError(
-                f"Cannot load tables in {table_format} format in filesystem destination."
+                f"Can't load tables using `{table_format=:}` with `filesystem` destination."
             )
 
     def get_open_table_catalog(self, table_format: TTableFormat, catalog_name: str = None) -> Any:
@@ -895,9 +914,15 @@ class FilesystemClient(
         return catalog
 
     def get_open_table_location(self, table_format: TTableFormat, table_name: str) -> str:
-        """All tables have location, also those in "native" table format."""
-        folder = self.get_table_dir(table_name)
-        location = self.make_remote_url(folder)
+        """All tables have location, also those in "native" table format. Native format
+        in case of filesystem is a set of parquet/csv/jsonl files where a table may
+        be placed in a separate folder or share common prefix define in the layout.
+        Locations of native tables will are normalized to include trailing separator
+        if path is a "folder" (includes buckets)
+        Note: location is fully formed url
+        """
+        prefix = self.get_table_prefix(table_name)
+        location = self.make_remote_url(prefix)
         if self.config.is_local_filesystem and os.name == "nt":
             # pyiceberg cannot deal with windows absolute urls
             location = location.replace("file:///", "file://")

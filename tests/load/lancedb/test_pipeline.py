@@ -5,9 +5,11 @@ from typing import Mapping
 from typing import Union, Dict
 
 import pytest
-from lancedb import DBConnection  # type: ignore
-from lancedb.embeddings import EmbeddingFunctionRegistry  # type: ignore
-from lancedb.table import Table  # type: ignore
+from lancedb import DBConnection
+from lancedb.embeddings import EmbeddingFunctionRegistry
+from lancedb.table import Table
+import pyarrow as pa
+import numpy as np
 
 import dlt
 from dlt.common import json
@@ -21,17 +23,12 @@ from dlt.destinations.impl.lancedb.lancedb_adapter import (
 from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
 from dlt.extract import DltResource
 from tests.load.lancedb.utils import assert_table, chunk_document, mock_embed
-from tests.load.utils import sequence_generator, drop_active_pipeline_data
+from tests.load.utils import sequence_generator
 from tests.pipeline.utils import assert_load_info
+from tests.utils import TEST_STORAGE_ROOT
 
 # Mark all tests as essential, don't remove.
 pytestmark = pytest.mark.essential
-
-
-@pytest.fixture(autouse=True)
-def drop_lancedb_data() -> Iterator[Any]:
-    yield
-    drop_active_pipeline_data()
 
 
 def test_adapter_and_hints() -> None:
@@ -52,6 +49,7 @@ def test_adapter_and_hints() -> None:
         "name": "content",
         "data_type": "text",
         "x-lancedb-embed": True,
+        "nullable": True,  # lancedb will override nullability
     }
 
     lancedb_adapter(
@@ -66,6 +64,7 @@ def test_adapter_and_hints() -> None:
         "name": "content",
         "data_type": "text",
         "x-lancedb-embed": True,
+        "nullable": True,  # lancedb will override nullability
     }
 
     assert some_data.compute_table_schema()["columns"]["content"]["merge_key"] is True
@@ -367,8 +366,19 @@ def test_pipeline_with_schema_evolution() -> None:
     assert_table(pipeline, "some_data", items=aggregated_data)
 
 
-def test_merge_github_nested() -> None:
-    pipe = dlt.pipeline(destination="lancedb", dataset_name="github1", dev_mode=True)
+@pytest.mark.parametrize("lance_location", (":external:", ":pipeline:", "default"))
+def test_merge_github_nested(lance_location: str) -> None:
+    if lance_location == ":pipeline:":
+        destination_ = dlt.destinations.lancedb(lance_uri=lance_location)
+    elif lance_location == ":external:":
+        import lancedb
+
+        path = os.path.join(TEST_STORAGE_ROOT, "test.lancedb")
+        destination_ = dlt.destinations.lancedb(credentials=lancedb.connect(path))
+    else:
+        destination_ = "lancedb"  # type: ignore[assignment]
+
+    pipe = dlt.pipeline(destination=destination_, dataset_name="github1", dev_mode=True)
     assert pipe.dataset_name.startswith("github1_202")
 
     with open(
@@ -412,6 +422,85 @@ def test_merge_github_nested() -> None:
     assert issues["columns"]["body"][VECTORIZE_HINT]  # type: ignore[literal-required]
     assert VECTORIZE_HINT not in issues["columns"]["url"]
     assert_table(pipe, "issues", expected_items_count=17)
+
+
+def test_bring_your_own_vector() -> None:
+    """Test pipeline with explicitly provided vector data in an arrow table."""
+
+    # TODO: support Python objects - requires serializing arrow types (get_nested_column_type_from_py_arrow)
+
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "TRUE"
+
+    num_rows = 5
+    vector_dim = 10
+
+    # vector column must be of fixed size! other nested types are not implemented
+    vectors = [np.random.rand(vector_dim).tolist() for _ in range(num_rows)]
+    table = pa.table(
+        {
+            "id": pa.array(list(range(1, num_rows + 1)), pa.int32()),
+            "text": pa.array([f"Sample text {i}" for i in range(1, num_rows + 1)]),
+            "vector": pa.array(
+                vectors, pa.list_(pa.float32(), vector_dim)
+            ),  # This is the format LanceDB expects
+        }
+    )
+
+    @dlt.resource(
+        table_name="vector_data",
+        primary_key="id",
+        write_disposition="merge",
+    )
+    def identity_resource(data: pa.Table) -> Generator[pa.Table, None, None]:
+        yield data
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_bring_your_own_vector",
+        destination="lancedb",
+        dataset_name=f"test_bring_your_own_vector_{uniq_id()}",
+        dev_mode=True,
+    )
+
+    info = pipeline.run(identity_resource(table))
+    assert_load_info(info)
+
+    # run it twice to see how merge behaves
+    vectors = [np.random.rand(vector_dim).tolist() for _ in range(num_rows)]
+    table = pa.table(
+        {
+            "id": pa.array(list(range(1, num_rows + 1)), pa.int32()),
+            "text": pa.array([f"Sample text {i}" for i in range(1, num_rows + 1)]),
+            "vector": pa.array(
+                vectors, pa.list_(pa.float32(), vector_dim)
+            ),  # This is the format LanceDB expects
+        }
+    )
+    info = pipeline.run(identity_resource(table))
+    assert_load_info(info)
+
+    # Verify the data was loaded correctly
+    client: LanceDBClient = None
+    with pipeline.destination_client() as client:  # type: ignore[assignment]
+        db: DBConnection = client.db_client
+        table_name = client.make_qualified_table_name("vector_data")
+        tbl = db.open_table(table_name)
+        tbl.create_scalar_index("id")
+
+        # Check that the vector column exists and has the right dimensions
+        assert "vector" in tbl.schema.names
+
+        # Check we can do vector search with the provided vectors
+        results = tbl.search(
+            query=vectors[0],  # Use the first vector as query
+            vector_column_name="vector",
+            query_type="vector",
+        ).to_pandas()
+
+        # The first result should be the first item (exact match)
+        assert results.iloc[0]["id"] == 1
+
+        # Check that all rows were loaded
+        assert len(tbl.to_pandas()) == num_rows
 
 
 def test_empty_dataset_allowed() -> None:

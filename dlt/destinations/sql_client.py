@@ -195,51 +195,70 @@ SELECT 1
                     ret.append(result)
         return ret
 
-    def catalog_name(self, escape: bool = True) -> Optional[str]:
+    def catalog_name(self, quote: bool = True, casefold: bool = True) -> Optional[str]:
         # default is no catalogue component of the name, which typically means that
         # connection is scoped to a current database
         return None
 
-    def fully_qualified_dataset_name(self, escape: bool = True, staging: bool = False) -> str:
+    def fully_qualified_dataset_name(
+        self, quote: bool = True, staging: bool = False, casefold: bool = True
+    ) -> str:
         if staging:
             with self.with_staging_dataset():
-                path = self.make_qualified_table_name_path(None, escape=escape)
+                path = self.make_qualified_table_name_path(None, quote=quote, casefold=casefold)
         else:
-            path = self.make_qualified_table_name_path(None, escape=escape)
+            path = self.make_qualified_table_name_path(None, quote=quote, casefold=casefold)
         return ".".join(path)
 
-    def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
-        return ".".join(self.make_qualified_table_name_path(table_name, escape=escape))
+    def make_qualified_table_name(
+        self, table_name: str, quote: bool = True, casefold: bool = True
+    ) -> str:
+        return ".".join(
+            self.make_qualified_table_name_path(table_name, quote=quote, casefold=casefold)
+        )
 
     def make_qualified_table_name_path(
-        self, table_name: Optional[str], escape: bool = True
+        self, table_name: Optional[str], quote: bool = True, casefold: bool = True
     ) -> List[str]:
         """Returns a list with path components leading from catalog to table_name.
         Used to construct fully qualified names. `table_name` is optional.
         """
         path: List[str] = []
-        if catalog_name := self.catalog_name(escape=escape):
+        if catalog_name := self.catalog_name(quote=quote, casefold=casefold):
             path.append(catalog_name)
-        dataset_name = self.capabilities.casefold_identifier(self.dataset_name)
-        if escape:
+        dataset_name = self.dataset_name
+        if casefold:
+            dataset_name = self.capabilities.casefold_identifier(self.dataset_name)
+        if quote:
             dataset_name = self.capabilities.escape_identifier(dataset_name)
         path.append(dataset_name)
         if table_name:
-            table_name = self.capabilities.casefold_identifier(table_name)
-            if escape:
+            if casefold:
+                table_name = self.capabilities.casefold_identifier(table_name)
+            if quote:
                 table_name = self.capabilities.escape_identifier(table_name)
             path.append(table_name)
         return path
 
-    def get_qualified_table_names(self, table_name: str, escape: bool = True) -> Tuple[str, str]:
+    def get_qualified_table_names(
+        self, table_name: str, quote: bool = True, casefold: bool = True
+    ) -> Tuple[str, str]:
         """Returns qualified names for table and corresponding staging table as tuple."""
         with self.with_staging_dataset():
-            staging_table_name = self.make_qualified_table_name(table_name, escape)
-        return self.make_qualified_table_name(table_name, escape), staging_table_name
+            staging_table_name = self.make_qualified_table_name(
+                table_name, quote=quote, casefold=casefold
+            )
+        return (
+            self.make_qualified_table_name(table_name, quote=quote, casefold=casefold),
+            staging_table_name,
+        )
 
-    def escape_column_name(self, column_name: str, escape: bool = True) -> str:
-        column_name = self.capabilities.casefold_identifier(column_name)
-        if escape:
+    def escape_column_name(
+        self, column_name: str, quote: bool = True, casefold: bool = True
+    ) -> str:
+        if casefold:
+            column_name = self.capabilities.casefold_identifier(column_name)
+        if quote:
             return self.capabilities.escape_identifier(column_name)
         return column_name
 
@@ -289,11 +308,11 @@ SELECT 1
         used to query INFORMATION_SCHEMA. catalog name is optional: in that case None is
         returned in the first element of the tuple.
         """
-        schema_path = self.make_qualified_table_name_path(None, escape=False)
+        schema_path = self.make_qualified_table_name_path(None, quote=False)
         return (
-            self.catalog_name(escape=False),
+            self.catalog_name(quote=False),
             schema_path[-1],
-            [self.make_qualified_table_name_path(table, escape=False)[-1] for table in tables],
+            [self.make_qualified_table_name_path(table, quote=False)[-1] for table in tables],
         )
 
     #
@@ -327,14 +346,6 @@ class DBApiCursorImpl(DBApiCursor):
 
     def __init__(self, curr: DBApiCursor) -> None:
         self.native_cursor = curr
-
-        # wire protocol methods
-        self.execute = curr.execute  # type: ignore
-        self.fetchall = curr.fetchall  # type: ignore
-        self.fetchmany = curr.fetchmany  # type: ignore
-        self.fetchone = curr.fetchone  # type: ignore
-        self.close = curr.close  # type: ignore
-
         self._set_default_schema_columns()
 
     def __getattr__(self, name: str) -> Any:
@@ -344,6 +355,22 @@ class DBApiCursorImpl(DBApiCursor):
         if self.native_cursor.description:
             return [c[0] for c in self.native_cursor.description]
         return []
+
+    # wire protocol methods
+    def execute(self, *args: Any, **kwargs: Any) -> None:
+        self.native_cursor.execute(*args, **kwargs)
+
+    def fetchall(self, *args: Any, **kwargs: Any) -> List[Tuple[Any, ...]]:
+        return self.native_cursor.fetchall(*args, **kwargs)
+
+    def fetchmany(self, *args: Any, **kwargs: Any) -> List[Tuple[Any, ...]]:
+        return self.native_cursor.fetchmany(*args, **kwargs)
+
+    def fetchone(self, *args: Any, **kwargs: Any) -> Tuple[Any, ...]:
+        return self.native_cursor.fetchone(*args, **kwargs)
+
+    def close(self, *args: Any, **kwargs: Any) -> None:
+        self.native_cursor.close(*args, **kwargs)
 
     def _set_default_schema_columns(self) -> None:
         self.columns_schema = cast(

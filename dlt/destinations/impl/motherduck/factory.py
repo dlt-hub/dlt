@@ -1,4 +1,4 @@
-import typing as t
+from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.data_writers.escape import escape_postgres_identifier, escape_duckdb_literal
@@ -10,9 +10,12 @@ from dlt.destinations.impl.motherduck.configuration import (
     MotherDuckClientConfiguration,
 )
 
-if t.TYPE_CHECKING:
+if TYPE_CHECKING:
     from duckdb import DuckDBPyConnection
     from dlt.destinations.impl.motherduck.motherduck import MotherDuckClient
+else:
+    DuckDBPyConnection = Any
+    MotherDuckClient = Any
 
 
 class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"]):
@@ -46,30 +49,31 @@ class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"])
         return caps
 
     @property
-    def client_class(self) -> t.Type["MotherDuckClient"]:
+    def client_class(self) -> Type["MotherDuckClient"]:
         from dlt.destinations.impl.motherduck.motherduck import MotherDuckClient
 
         return MotherDuckClient
 
     def __init__(
         self,
-        credentials: t.Union[
-            MotherDuckCredentials, str, t.Dict[str, t.Any], "DuckDBPyConnection"
-        ] = None,
+        credentials: Union[MotherDuckCredentials, str, Dict[str, Any], DuckDBPyConnection] = None,
         create_indexes: bool = False,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
-        **kwargs: t.Any,
+        destination_name: str = None,
+        environment: str = None,
+        **kwargs: Any,
     ) -> None:
         """Configure the MotherDuck destination to use in a pipeline.
 
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials: Credentials to connect to the MotherDuck database. Can be an instance of `MotherDuckCredentials` or
-                a connection string in the format `md:///<database_name>?token=<service token>`
-            create_indexes: Should unique indexes be created
-            **kwargs: Additional arguments passed to the destination config
+            credentials (Union[MotherDuckCredentials, str, Dict[str, Any], DuckDBPyConnection], optional): Credentials to connect to the MotherDuck database. Can be an instance of `MotherDuckCredentials` or
+                a connection string in the format `md:///<database_name>?token=<service token>`.
+                Instance of `DuckDbCredentials` allows to pass access token, extensions, configs and pragmas to be set up for connection.
+            create_indexes (bool, optional): Should unique indexes be created
+            destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (str, optional): Environment of the destination
+            **kwargs (Any): Additional arguments passed to the destination config
         """
         super().__init__(
             credentials=credentials,

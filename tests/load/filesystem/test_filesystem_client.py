@@ -20,12 +20,13 @@ from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import (
+    FilesystemClient,
     FilesystemDestinationClientConfiguration,
     INIT_FILE_NAME,
 )
 
 from dlt.destinations.path_utils import create_path, prepare_datetime_params
-from tests.load.filesystem.utils import perform_load
+from tests.load.filesystem.utils import perform_load, setup_loader
 from tests.utils import TEST_STORAGE_ROOT, clean_test_storage, init_test_logging
 from tests.load.utils import TEST_FILE_LAYOUTS
 
@@ -106,10 +107,37 @@ def test_filesystem_follows_local_dir(location: str) -> None:
     assert client.bucket_path == os.path.abspath(lake_rel_dir)
 
 
+@pytest.mark.parametrize(
+    "layout", ("{table_name}/{load_id}.{file_id}.{ext}", "{table_name}.{load_id}.{file_id}.{ext}")
+)
+def test_trailing_separators(layout: str, with_gdrive_buckets_env: str) -> None:
+    os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
+    load = setup_loader("_data")
+    client: FilesystemClient = load.get_destination_client(Schema("empty"))  # type: ignore[assignment]
+    # assert separators
+    assert client.dataset_path.endswith("_data/")
+    assert client.get_table_dir("_dlt_versions").endswith("_dlt_versions/")
+    assert client.get_table_dir("_dlt_versions", remote=True).endswith("_dlt_versions/")
+    is_folder = layout.startswith("{table_name}/")
+    if is_folder:
+        assert client.get_table_dir("letters").endswith("_data/letters/")
+        assert client.get_table_dir("letters", remote=True).endswith("_data/letters/")
+    else:
+        # strip prefix
+        assert client.get_table_dir("letters").endswith("_data/")
+        assert client.get_table_dir("letters", remote=True).endswith("_data/")
+    if is_folder:
+        assert client.get_table_prefix("letters").endswith("_data/letters/")
+    else:
+        assert client.get_table_prefix("letters").endswith("_data/letters.")
+
+
 @pytest.mark.parametrize("write_disposition", ("replace", "append", "merge"))
 @pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
-def test_successful_load(write_disposition: str, layout: str, with_gdrive_buckets_env: str) -> None:
-    """Test load is successful with an empty destination dataset"""
+def test_successful_load(write_disposition: str, layout: str, default_buckets_env: str) -> None:
+    """Test load is successful with an empty destination dataset
+    Note: removed gdrive because it is slow
+    """
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
@@ -118,14 +146,17 @@ def test_successful_load(write_disposition: str, layout: str, with_gdrive_bucket
     dataset_name = "test_" + uniq_id()
     timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
-    with mock.patch(
-        "dlt.current.load_package",
-        return_value=mocked_timestamp,
-    ), perform_load(
-        dataset_name,
-        NORMALIZED_FILES,
-        write_disposition=write_disposition,
-    ) as load_info:
+    with (
+        mock.patch(
+            "dlt.current.load_package_state",
+            return_value=mocked_timestamp,
+        ),
+        perform_load(
+            dataset_name,
+            NORMALIZED_FILES,
+            write_disposition=write_disposition,
+        ) as load_info,
+    ):
         client, jobs, _, load_id = load_info
         layout = client.config.layout
         dataset_path = posixpath.join(client.bucket_path, client.config.dataset_name)
@@ -166,14 +197,17 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
     # state is typed now
     timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
-    with mock.patch(
-        "dlt.current.load_package",
-        return_value=mocked_timestamp,
-    ), perform_load(
-        dataset_name,
-        NORMALIZED_FILES,
-        write_disposition="replace",
-    ) as load_info:
+    with (
+        mock.patch(
+            "dlt.current.load_package_state",
+            return_value=mocked_timestamp,
+        ),
+        perform_load(
+            dataset_name,
+            NORMALIZED_FILES,
+            write_disposition="replace",
+        ) as load_info,
+    ):
         client, _, root_path, load_id1 = load_info
         layout = client.config.layout
         # this path will be kept after replace
@@ -242,14 +276,17 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
     # also we would like to have reliable timestamp for this test so we patch it
     timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
-    with mock.patch(
-        "dlt.current.load_package",
-        return_value=mocked_timestamp,
-    ), perform_load(
-        dataset_name,
-        NORMALIZED_FILES,
-        write_disposition="append",
-    ) as load_info:
+    with (
+        mock.patch(
+            "dlt.current.load_package_state",
+            return_value=mocked_timestamp,
+        ),
+        perform_load(
+            dataset_name,
+            NORMALIZED_FILES,
+            write_disposition="append",
+        ) as load_info,
+    ):
         client, jobs1, root_path, load_id1 = load_info
         with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="append") as load_info:
             client, jobs2, root_path, load_id2 = load_info

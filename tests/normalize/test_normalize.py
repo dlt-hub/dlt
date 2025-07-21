@@ -4,6 +4,7 @@ from fnmatch import fnmatch
 from typing import Dict, Iterator, List, Sequence, Tuple
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
+from dlt.common import logger
 from dlt.common import json
 from dlt.common.destination.capabilities import TLoaderFileFormat
 from dlt.common.schema.exceptions import CannotCoerceColumnException
@@ -37,6 +38,8 @@ from tests.normalize.utils import (
     DEFAULT_CAPS,
     ALL_CAPABILITIES,
 )
+
+from pytest_mock import MockerFixture
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -820,3 +823,46 @@ def test_removal_of_normalizer_schema_section_and_add_seen_data(raw_normalize: N
     # no data seen here, so seen-data is not set and evolve settings stays until first data is seen
     assert schema.tables["event__random_table"]["x-normalizer"] == {"evolve-columns-once": True}
     assert "x-other-info" in schema.tables["event"]
+
+
+@pytest.mark.parametrize("is_none", [True, False])
+def test_warning_from_json_normalizer_on_null_column(
+    raw_normalize: Normalize,
+    mocker: MockerFixture,
+    is_none: bool,
+) -> None:
+    """
+    Test that the JsonLItemsNormalizer step emits a warning when a resource is yielded
+    with a column (`col1`) that contains only null values.
+    """
+
+    nested_data_item = {
+        "id": 1,
+        "children": [
+            {"id": 2, "col1": None if is_none else "a"},
+            {"id": 3, "col1": None if is_none else "b"},
+        ],
+    }
+
+    logger_spy = mocker.spy(logger, "warning")
+
+    extract_items(
+        raw_normalize.normalize_storage,
+        [nested_data_item],
+        load_or_create_schema(raw_normalize, "test_schema"),
+        "nested_table",
+    )
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        raw_normalize.run(pool)
+
+    if is_none:
+        logger_spy.assert_called()
+        assert logger_spy.call_count == 1
+        expected_warning = (
+            "columns in table 'nested_table__children' did not receive any data during this load "
+            "and therefore could not have their types inferred:\n"
+            "  - col1"
+        )
+        assert expected_warning in logger_spy.call_args_list[0][0][0]
+    else:
+        logger_spy.assert_not_called()

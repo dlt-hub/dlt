@@ -14,12 +14,15 @@ from typing import (
     Dict,
     Any,
     TypeVar,
+    Tuple,
 )
 from typing_extensions import Annotated
 import datetime  # noqa: 251
 
 from dlt.common import logger, pendulum
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
+from dlt.common.configuration import configspec, NotResolved
+from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.destination.utils import (
     resolve_replace_strategy,
@@ -36,9 +39,6 @@ from dlt.common.schema.typing import (
     TLoaderReplaceStrategy,
     TTableFormat,
 )
-
-from dlt.common.configuration import configspec, NotResolved
-from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
     DestinationSchemaTampered,
@@ -197,6 +197,8 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     """Layout for staging dataset, where %s is replaced with dataset name. placeholder is optional"""
     enable_dataset_name_normalization: bool = True
     """Whether to normalize the dataset name. Affects staging dataset as well."""
+    info_tables_query_threshold: int = 1000
+    """Threshold for information schema tables query, if exceeded tables will be filtered in code."""
 
     def _bind_dataset_name(
         self: TDestinationDwhClient, dataset_name: str, default_schema_name: str = None
@@ -261,7 +263,7 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
 
     def _make_dataset_name(self, schema_name: str) -> str:
         if not schema_name:
-            raise ValueError("schema_name is None or empty")
+            raise ValueError("`schema_name` is `None` or empty")
 
         # if default schema is None then suffix is not added
         if self.default_schema_name is not None and schema_name != self.default_schema_name:
@@ -653,7 +655,11 @@ class SupportsOpenTables(ABC):
 
     @abstractmethod
     def get_open_table_location(self, table_format: TTableFormat, table_name: str) -> str:
-        """Computes location in which table metadata is stored. Does not verify if table exists."""
+        """Computes location in which table is stored which is typically a "folder" with table
+        data and metadata. Does not verify if table exists.
+        Returns:
+            str: fully formed url with table location
+        """
 
     @abstractmethod
     def load_open_table(self, table_format: TTableFormat, table_name: str, **kwargs: Any) -> Any:

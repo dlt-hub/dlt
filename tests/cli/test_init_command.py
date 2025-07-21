@@ -25,10 +25,9 @@ from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import set_working_dir
 
 
-from dlt.cli import init_command, echo, utils
+from dlt.cli import init_command, echo, utils, DEFAULT_VERIFIED_SOURCES_REPO
 from dlt.cli.init_command import (
     SOURCES_MODULE_NAME,
-    DEFAULT_VERIFIED_SOURCES_REPO,
     SourceConfiguration,
     utils as cli_utils,
     files_ops,
@@ -41,6 +40,7 @@ from dlt.cli.exceptions import CliCommandInnerException
 from dlt.cli.requirements import SourceRequirements
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 from dlt.reflection import names as n
+from dlt.cli.config_toml_writer import TYPE_EXAMPLES
 
 from tests.cli.utils import (
     echo_default_choice,
@@ -63,7 +63,16 @@ CORE_SOURCES_CONFIG = {
 CORE_SOURCES = list(CORE_SOURCES_CONFIG.keys())
 
 # we also hardcode all the templates here for testing
-TEMPLATES = ["debug", "default", "arrow", "requests", "dataframe", "fruitshop", "github_api"]
+TEMPLATES = [
+    "debug",
+    "default",
+    "arrow",
+    "requests",
+    "dataframe",
+    "fruitshop",
+    "github_api",
+    "vibe_rest_api",
+]
 
 # a few verified sources we know to exist
 SOME_KNOWN_VERIFIED_SOURCES = ["chess", "google_sheets", "pipedrive"]
@@ -93,14 +102,21 @@ def test_default_source_file_selection() -> None:
     templates_storage = init_command._get_templates_storage()
 
     # try a known source, it will take the known pipeline script
-    tconf = files_ops.get_template_configuration(templates_storage, "debug")
+    tconf = files_ops.get_template_configuration(templates_storage, "debug", "debug")
     assert tconf.dest_pipeline_script == "debug_pipeline.py"
     assert tconf.src_pipeline_script == "debug_pipeline.py"
 
     # random name will select the default script
-    tconf = files_ops.get_template_configuration(templates_storage, "very_nice_name")
+    tconf = files_ops.get_template_configuration(
+        templates_storage, "very_nice_name", "very_nice_name"
+    )
     assert tconf.dest_pipeline_script == "very_nice_name_pipeline.py"
     assert tconf.src_pipeline_script == "default_pipeline.py"
+
+    # you can set the dest script name for existing scripts
+    tconf = files_ops.get_template_configuration(templates_storage, "vibe_rest_api", "notion")
+    assert tconf.dest_pipeline_script == "notion_pipeline.py"
+    assert tconf.src_pipeline_script == "vibe_rest_api_pipeline.py"
 
 
 def test_init_command_new_pipeline_same_name(repo_dir: str, project_files: FileStorage) -> None:
@@ -284,6 +300,16 @@ def test_init_core_sources_ejected(cloned_init_repo: FileStorage) -> None:
             assert_requirements_txt(files, "bigquery")
             # check if files copied
             assert files.has_folder(candidate)
+
+
+def test_init_writes_example_config_placeholders(repo_dir: str, project_files: FileStorage) -> None:
+    init_command.init_command("filesystem", "bigquery", repo_dir)
+    # check that written secret of type string was replaced with correct placeholder value
+    secrets = SecretsTomlProvider(settings_dir=dlt.current.run_context().settings_dir)
+    access_key_value, _ = secrets.get_value(
+        "aws_access_key_id", str, "", "sources", "filesystem", "credentials"
+    )
+    assert access_key_value == TYPE_EXAMPLES["text"]
 
 
 @pytest.mark.parametrize("destination_name", IMPLEMENTED_DESTINATIONS)

@@ -1,49 +1,62 @@
 ---
-title: How to set up credentials
-description: Where and in which order dlt looks for config/secrets.
-keywords: [credentials, secrets.toml, secrets, config, configuration, environment
-      variables, provider]
+title: Overview and examples
+description: Learn where configs are stored and how to write them
+keywords: [credentials, secrets.toml, secrets, config, configuration, environment variables, provider]
 ---
 
-`dlt` automatically extracts configuration settings and secrets based on flexible [naming conventions](#naming-convention).
+`dlt` retrieves configuration and secrets from several [locations](#choose-where-to-store-configuration) like environment variables, dedicated
+files or secure vaults. It understands both simple and verbose layouts of [configuration sections](#select-a-configuration-layout). You can use one of
+[built-in](#use-built-in-credential-types) credentials for popular external systems. Functions decorated with`@dlt.source`, `@dlt.resource`, or `@dlt.destination` can be configured without writing additional code - `dlt` will automatically [inject](advanced/#injection-rules) missing arguments (like passwords or API keys) when you call them.
 
-It then [injects](advanced/#injection-mechanism) these values where needed in functions decorated with `@dlt.source`, `@dlt.resource`, or `@dlt.destination`.
-
-:::note
-* **Configuration** refers to non-sensitive settings that define a data pipeline's behavior. These include file paths, database hosts, timeouts, API URLs, and performance settings.
-* **Secrets** are sensitive data like passwords, API keys, and private keys. They should never be hard-coded to avoid security risks.
-:::
-
-## Available config providers
+## Choose where to store configuration
 
 :::tip dlt+
-To define your configuration (including sources, destinations, pipeline and parameters) in a declarative way in the YAML file, check out [dlt+](../../plus/features/projects.md).
+To define your configuration (including sources, destinations, pipeline and parameters) in a declarative way using YAML files, check out [dlt+](../../plus/features/projects.md).
 :::
 
-There are multiple ways to define configurations and credentials for your pipelines. `dlt` looks for these definitions in the following order during pipeline execution:
+`dlt` looks for configuration and secrets in various locations (environment variables, toml files or secure vaults) through **config providers** that are queried when your pipeline runs. You can pick a single location or combine them - for example, define secret `api_key` in environment variables and `api_url` in a TOML file. Providers are queried in the following order:
 
-1. [Environment Variables](#environment-variables): If a value for a specific argument is found in an environment variable, dlt will use it and will not proceed to search in lower-priority providers.
+1. [Environment Variables](#environment-variables): If a value is found in an environment variable, `dlt` uses it and doesn't check lower-priority providers.
 
-1. [Vaults](#vaults): Credentials specified in vaults like Google Secrets Manager, Azure Key Vault, AWS Secrets Manager.
+2. [secrets.toml and config.toml files](#secretstoml-and-configtoml): These files store configuration values and secrets. `secrets.toml` contains sensitive information, while `config.toml` holds non-sensitive configuration.
 
-1. [secrets.toml and config.toml files](#secretstoml-and-configtoml): These files are used for storing both configuration values and secrets. `secrets.toml` is dedicated to sensitive information, while `config.toml` contains non-sensitive configuration data.
+3. [Vaults](#vaults): Credentials stored in secure vaults like Google Secrets Manager, Azure Key Vault, or AWS Secrets Manager.
 
-1. [Custom Providers](#custom-providers) added with `register_provider`: This is a custom provider implementation you can design yourself.
-A custom config provider is helpful if you want to use your own configuration file structure or perform advanced preprocessing of configs and secrets.
+4. [Custom Providers](#custom-providers) added with `register_provider`: These are custom implementations you can create to use your own configuration formats or perform specialized preprocessing.
 
-1. [Default Argument Values](./advanced#injection-mechanism): These are the values specified in the function's signature.
+5. [Default Argument Values](./advanced#injection-rules): The values specified in the function signature.
 
 :::tip
-Please make sure your pipeline name contains no whitespace or any other punctuation characters except `"-"` and `"_"`. This way, you will ensure your code is working with any configuration option.
+Make sure your pipeline name contains only alphanumeric characters, hyphens (`-`), and underscores (`_`). Avoid whitespace and other punctuation to ensure compatibility with all configuration providers.
 :::
 
-## Naming convention
+## Select a configuration layout
 
-`dlt` uses a specific naming hierarchy to search for the secrets and config values. This makes configurations and secrets easy to manage.
+You can define configuration in different ways depending on your project's complexity. For a simple pipeline with a single source and destination, your configuration can be straightforward:
 
-To keep the naming convention flexible, `dlt` looks for a lot of possible combinations of key names, starting from the most specific possible path. Then, if the value is not found, it removes the right-most section and tries again.
+Simplest **source** configuration:
+<Tabs
+  groupId="config-provider-type"
+  defaultValue="toml"
+  values={[
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
+]}>
+  <TabItem value="toml">
 
-The most specific possible path for **sources** looks like:
+```toml
+api_key="some_value"
+```
+  </TabItem>
+  <TabItem value="env">
+
+```sh
+export API_KEY="some_value"
+```
+  </TabItem>
+</Tabs>
+
+For **destination**, you typically need to configure [credentials](#use-built-in-credential-types) which group multiple related keys together. `dlt` places these under a `credentials` section.
 
 <Tabs
   groupId="config-provider-type"
@@ -51,32 +64,32 @@ The most specific possible path for **sources** looks like:
   values={[
     {"label": "TOML config provider", "value": "toml"},
     {"label": "Environment variables", "value": "env"},
-    {"label": "In the code", "value": "code"},
 ]}>
   <TabItem value="toml">
 
-```sh
-[<pipeline_name>.sources.<source_module_name>.<source_function_name>]
-<argument_name>="some_value"
+```toml
+[credentials]
+user="dlthub"
+password="some_value"
 ```
   </TabItem>
   <TabItem value="env">
 
 ```sh
-export PIPELINE_NAME__SOURCES__SOURCE_MODULE_NAME__SOURCE_FUNCTION_NAME__ARGUMENT_NAME="some_value"
-```
-  </TabItem>
-  <TabItem value="code">
-
-```py
-import os
-
-os.environ["PIPELINE_NAME__SOURCES__SOURCE_MODULE_NAME__SOURCE_FUNCTION_NAME__ARGUMENT_NAME"] = "some_value"
+export CREDENTIALS__USER="dlthub"
+export CREDENTIALS__PASSWORD="some_value"
 ```
   </TabItem>
 </Tabs>
 
-The most specific possible path for **destinations** looks like:
+### Recommended section layout
+
+When using multiple sources with potentially conflicting argument names, or multiple destinations where you want separate credentials, you can organize your config keys with **sections**. Here's the **recommended section layout** that is most often used in this documentation
+and is also generated by `dlt init` command. 
+
+* Use `sources` and `destination` top-level sections to separate their configurations
+* Use the Python module name where the source function is defined to separate configuration of sources defined in different modules
+* Use destination type to separate destinations
 
 <Tabs
   groupId="config-provider-type"
@@ -84,52 +97,89 @@ The most specific possible path for **destinations** looks like:
   values={[
     {"label": "TOML config provider", "value": "toml"},
     {"label": "Environment variables", "value": "env"},
-    {"label": "In the code", "value": "code"},
 ]}>
   <TabItem value="toml">
 
-```sh
-[<pipeline_name>.destination.<destination_name>.credentials]
-<credential_option>="some_value"
+```toml
+# source defined in notion.py
+[sources.notion]
+api_key="some_value"
 ```
   </TabItem>
   <TabItem value="env">
 
 ```sh
-export PIPELINE_NAME__DESTINATION__DESTINATION_NAME__CREDENTIALS__CREDENTIAL_VALUE="some_value"
-```
-  </TabItem>
-  <TabItem value="code">
-
-```py
-import os
-
-os.environ["PIPELINE_NAME__DESTINATION__DESTINATION_NAME__CREDENTIALS__CREDENTIAL_VALUE"] = "some_value"
+export SOURCES__NOTION__API_KEY="some_value"
 ```
   </TabItem>
 </Tabs>
 
-### Example
+Destination:
 
-For example, if the source module is named `pipedrive` and the source is defined as follows:
+<Tabs
+  groupId="config-provider-type"
+  defaultValue="toml"
+  values={[
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
+]}>
+  <TabItem value="toml">
+
+```toml
+# use postgres destination
+[destination.postgres.credentials]
+user="dlthub"
+password="some_value"
+
+```
+  </TabItem>
+  <TabItem value="env">
+
+```sh
+export DESTINATION__POSTGRES__CREDENTIALS__USER="dltHub"
+export DESTINATION__POSTGRES__CREDENTIALS__PASSWORD="some_value"
+```
+  </TabItem>
+</Tabs>
+
+Refer to [Add credentials](../../walkthroughs/add_credentials.md) guide for more examples and tips
+how to configure particular source and destination.
+
+### How dlt looks for values
+
+`dlt` starts looking for a particular value with all possible sections present and if value is not found,
+it will eliminate rightmost section and try again.
+
+For example, if the source function is in module `notion.py`:
 
 ```py
-# pipedrive.py
+# module: notion.py
 
 @dlt.source
-def deals(api_key: str = dlt.secrets.value):
+def notion_databases(api_key: str = dlt.secrets.value):
     pass
 ```
 
-`dlt` will search for the following names in this order:
+`dlt` will search for the following keys in this order:
 
-1. `sources.pipedrive.deals.api_key`
-2. `sources.pipedrive.api_key`
+1. `sources.notion.notion_databases.api_key`
+2. `sources.notion.api_key`
 3. `sources.api_key`
 4. `api_key`
 
+Similarly with destination credentials. In that case `credentials` sections is considered a required grouping
+and won't be eliminated:
+
+1. `destination.postgres.credentials.password`
+2. `destination.credentials.password`
+3. `credentials.password`
+
 :::tip
-You can use your pipeline name to have separate configurations for each pipeline in your project. All config values will be looked at with the pipeline name first and then again without it.
+For more detailed information about configuration organization, see [configuration and secrets structure](advanced.md#organize-configuration-and-secrets-with-sections).
+:::
+
+:::tip
+You can use pipeline name to create separate configurations for each pipeline in your project. Configuration values are searched first with the pipeline name prefix, then without it:
 
 ```toml
 [pipeline_name_1.sources.google_sheets.credentials]
@@ -144,16 +194,20 @@ project_id = "<project_id_2>"
 ```
 :::
 
-### Credential types
+### Use built-in credential types
 
-In most cases, credentials are just key-value pairs, but in some cases, the actual structure of [credentials](./complex_types) could be quite complex and support several ways of setting it up.
-For example, to connect to a `sql_database` source, you can either set up a connection string:
+Credentials are groups of configs and secrets that are defined together in order to access external systems.
+`dlt` implements several [built-in credential types](./complex_types)) to access AWS, Azure, Google Cloud and other common systems
+
+Some of the credential types give you options how you specify them:
+For example, to connect to a `sql_database` source, you can either use a connection string:
 
 ```toml
 [sources.sql_database]
 credentials="snowflake://user:password@service-account/database?warehouse=warehouse_name&role=role"
 ```
-or set up all parameters of connection separately:
+
+Or set up the connection parameters separately:
 
 ```toml
 [sources.sql_database.credentials]
@@ -166,60 +220,74 @@ warehouse="warehouse_name"
 role="role"
 ```
 
-`dlt` can work with both ways and convert one to another. To learn more about which credential types are supported, visit the [complex credential types](./complex_types) page.
+:::tip
+`dlt` can discover **default credentials** of all major cloud providers: it is able to use what is already present in
+the runtime environment: ie. when running in Colab or Google VM it has access to cloud credentials and if
+nothing is specified in the configuration it will use them instead.
+:::
 
 ## Environment variables
 
-`dlt` prioritizes security by looking in environment variables before looking into the .toml files.
+Environment variables provide a convenient way to specify configuration and secrets, especially in deployment environments. When using environment variables, names are capitalized and sections are separated with double underscores (`__`).
 
-The format of lookup keys is slightly different from secrets files because for environment variables, all names are capitalized, and sections are separated with a double underscore `"__"`. For example, to specify the Facebook Ads access token through environment variables, you would need to set up:
+For example, to set the Facebook Ads access token:
 
 ```sh
 export SOURCES__FACEBOOK_ADS__ACCESS_TOKEN="<access_token>"
 ```
 
-Check out the [example](#examples) of setting up credentials through environment variables.
+or when you want to pass a list or dict of values:
+```sh
+export DESTINATION__DUCKDB__CREDENTIALS__PRAGMAS="[\"enable_logging\"]"
+```
+Note that you can use environment variables to pass dictionaries and lists: those must be passed as Python literals (not JSON!).
+You may also need to escape quotation marks, depending on your shell.
+
+See the [examples section](#examples) for more details on setting up credentials with environment variables.
 
 :::tip
-To organize development and securely manage environment variables for credentials storage, you can use [python-dotenv](https://pypi.org/project/python-dotenv/) to automatically load variables from an `.env` file.
+For local development, you can use [python-dotenv](https://pypi.org/project/python-dotenv/) to automatically load variables from an `.env` file, making credential management easier and more secure.
 :::
 
 :::tip
-Environment Variables additionally looks for secret values in `/run/secrets/<secret-name>` to seamlessly resolve values defined as **Kubernetes/Docker secrets**.
-For that purpose it uses alternative name format with lowercase, `-` (dash) as a separator and "_" converted into `-`:
-In the example above: `sources--facebook-ads--access-token` will be used to search for the secrets (and other forms up until `access-token`).
-Mind that only values marked as secret (with `dlt.secrets.value` or using ie. `TSecretStrValue` explicitly) are checked. Remember to name your secrets
-in Kube resources/compose file properly.
+Environment variables can also retrieve secret values from `/run/secrets/<secret-name>` to seamlessly work with **Kubernetes/Docker secrets**.
+
+For these secrets, `dlt` uses an alternative name format with lowercase letters, dashes (`-`) as separators, and underscores converted to dashes. For example, `sources--facebook-ads--access-token` would be checked for the above environment variable.
+
+Only values marked as secrets (with `dlt.secrets.value` or using types like `TSecretStrValue`) are checked this way. Remember to name your secrets appropriately in Kubernetes resources or Docker Compose files.
 :::
 
 ## Vaults
 
-Vault integration methods vary based on the vault type. Check out our example involving [Google Cloud Secrets Manager](../../walkthroughs/add_credentials.md#retrieving-credentials-from-google-cloud-secret-manager).
-For other vault integrations, you are welcome to [contact sales](https://dlthub.com/contact-sales) to learn about our [building blocks for data platform teams](https://dlthub.com/product/data-platform-teams#secure).
+`dlt` may read configuration from secure vaults - specialized services for storing credentials.
+
+* For Google Cloud Secrets Manager, see our [example walkthrough](../../walkthroughs/add_credentials.md#retrieving-credentials-from-google-cloud-secret-manager).
+
+* For other vault integrations like AWS Secrets Manager or Azure Key Vault, [contact our sales team](https://dlthub.com/contact-sales) to learn about our [secure building blocks for data platform teams](https://dlthub.com/product/data-platform-teams#secure).
 
 ## secrets.toml and config.toml
 
-The TOML config provider in `dlt` utilizes two TOML files:
+The TOML configuration provider uses two separate files:
 
-`config.toml`:
+**config.toml**:
+- Contains non-sensitive configuration data that defines pipeline behavior
+- Includes settings like file paths, database hosts, timeouts, API URLs, and performance options
+- Values are accessible in code through the `dlt.config` dictionary
+- Can be safely committed to version control
 
-- Configs refer to non-sensitive configuration data. These are settings, parameters, or options that define the behavior of a data pipeline.
-- They can include things like file paths, database hosts and timeouts, API URLs, performance settings, or any other settings that affect the pipeline's behavior.
-- Accessible in code through `dlt.config.values`
+**secrets.toml**:
+- Contains sensitive information that must be kept confidential
+- Includes credentials like passwords, API keys, and private keys
+- Values are accessible in code through the `dlt.secrets` dictionary
+- Should never be committed to version control
 
-`secrets.toml`:
+By default, the `.gitignore` file in your project prevents `secrets.toml` from being added to version control, while `config.toml` can be freely included.
 
-- Secrets are sensitive information that should be kept confidential, such as passwords, API keys, private keys, and other confidential data.
-- It's crucial to never hard-code secrets directly into the code, as it can pose a security risk.
-- Accessible in code through `dlt.secrets.values`
+### File locations
 
-By default, the `.gitignore` file in the project prevents `secrets.toml` from being added to version control and pushed. However, `config.toml` can be freely added to version control.
+The TOML provider loads files from the `.dlt` folder **relative to your current working directory**.
 
-### Location
-
-The TOML provider always loads those files from the `.dlt` folder, located **relative** to the current working directory.
-
-For example, if your working directory is `my_dlt_project` and your project has the following structure:
+For example, if your working directory is `my_dlt_project` with this structure:
 
 ```text
 my_dlt_project:
@@ -229,69 +297,89 @@ my_dlt_project:
     |---- google_sheets.py
 ```
 
-and you run
+When you run:
 ```sh
 python pipelines/google_sheets.py
 ```
-then `dlt` will look for secrets in `my_dlt_project/.dlt/secrets.toml` and ignore the existing `my_dlt_project/pipelines/.dlt/secrets.toml`.
 
-If you change your working directory to `pipelines` and run
+`dlt` will look for secrets in `my_dlt_project/.dlt/secrets.toml` and ignore `my_dlt_project/pipelines/.dlt/secrets.toml`.
+
+If you change your working directory to `pipelines` and run:
 ```sh
 python google_sheets.py
 ```
 
-`dlt` will look for `my_dlt_project/pipelines/.dlt/secrets.toml` as (probably) expected.
+`dlt` will look for `my_dlt_project/pipelines/.dlt/secrets.toml` instead.
 
-:::caution
-The TOML provider also has the capability to read files from `~/.dlt/` (located in the user's home directory) in addition to the local project-specific `.dlt` folder.
-:::
+### Special locations
 
-### Structure
+The TOML provider also reads configuration from special locations depending on your runtime environment:
 
-`dlt` organizes sections in TOML files in a specific structure required by the [injection mechanism](advanced/#injection-mechanism).
-Understanding this structure gives you more flexibility in setting credentials. For more details, see [TOML files structure](advanced/#toml-files-structure).
+1. **Home directory**: If available, `dlt` checks `~/.dlt/` for `config.toml` and `secrets.toml`. These values are merged with project-specific configurations, with project values taking precedence. This is useful for sharing global settings (like telemetry preferences) across all pipelines on a machine.
+
+2. **Google Colab**: When running in Colab, you can use Colab Secrets named `secrets.toml` and `config.toml`. The provider reads these as if they were TOML files. This functionality is disabled if files exist in the `.dlt` folder.
+
+3. **Streamlit**: When running in Streamlit without local `.dlt/secrets.toml`, the provider uses Streamlit secrets. You can add `dlt` secrets directly to your Streamlit secrets.
 
 ## Custom providers
 
-You can use the `CustomLoaderDocProvider` classes to supply a custom dictionary to `dlt` for use
-as a supplier of `config` and `secret` values. The code below demonstrates how to use a config stored in `config.json`.
+You can create and register your own configuration providers to customize how `dlt` accesses configuration values. The simplest approach is to write a function that returns a nested dictionary where keys correspond to sections and argument names.
+
+This example demonstrates how to create a custom provider that loads configuration from a JSON file:
 
 ```py
 import dlt
+from dlt.common import json
 from dlt.common.configuration.providers import CustomLoaderDocProvider
 
-# Create a function that loads a dict
+# Create a function that loads a dictionary
 def load_config():
     with open("config.json", "rb") as f:
         return json.load(f)
 
-
 # Create the custom provider
-provider = CustomLoaderDocProvider("my_json_provider", load_config)
+provider = CustomLoaderDocProvider(
+    "my_json_provider", 
+    load_config, 
+    supports_secrets=False
+)
 
-# Register provider
+# Register the provider with dlt
 dlt.config.register_provider(provider)
 ```
 
 :::tip
-Check out an [example](../../examples/custom_config_provider) for a YAML based config provider that supports switchable profiles.
+Check out our [example YAML provider](../../examples/custom_config_provider) that supports switchable configuration profiles.
 :::
 
 ## Examples
 
-### Setup both configurations and secrets
+### Configure both config and secrets
 
-`dlt` recognizes two types of data: secrets and configurations. The main difference is that secrets contain sensitive information,
-while configurations hold non-sensitive information and can be safely added to version control systems like git.
-This means you have more flexibility with configurations. You can set up configurations directly in the code,
-but it is strongly advised not to do this with secrets.
+This example uses the [Notion](../../dlt-ecosystem/verified-sources/notion) source and [filesystem](../../dlt-ecosystem/destinations/filesystem) destination to demonstrate how to organize configuration in TOML files using the [recommended section layout](#recommended-section-layout).
 
-:::caution
-You can put all configurations and credentials in the `secrets.toml` if it's more convenient.
-However, credentials cannot be placed in `configs.toml` because `dlt` doesn't look for them there.
-:::
+The Notion source is defined in a file named `notion.py`, so we use that module name in the configuration. We configure the `api_key` in our configuration while passing the list of database IDs explicitly in code. For the filesystem destination, we split configuration between `config.toml` (for `bucket_url`) and `secrets.toml` (for AWS credentials).
 
-Let's assume we have a [notion](../../dlt-ecosystem/verified-sources/notion) source and [filesystem](../../dlt-ecosystem/destinations/filesystem) destination:
+```py
+import dlt
+
+@dlt.source
+def notion_databases(
+    database_ids = None,
+    api_key: str = dlt.secrets.value,  # mark argument to be injected as secret
+):
+   ...
+
+# Pass database_id in code, let `dlt` inject api_key
+sales_database = notion_databases(  # type: ignore
+  database_ids=[
+            {
+                "id": "a94223535c674d33a24e313e7921ce15",
+                "use_name": "sales_alias",
+            }
+        ]
+)
+```
 
 <Tabs
   groupId="config-provider-type"
@@ -304,26 +392,32 @@ Let's assume we have a [notion](../../dlt-ecosystem/verified-sources/notion) sou
 
   <TabItem value="toml">
 
+**config.toml**
+
 ```toml
-# we can set up a lot in config.toml
-# config.toml
 [runtime]
 log_level="INFO"
 
-[destination.filesystem]
-bucket_url = "s3://[your_bucket_name]"
-
+# Do not compress files sent to the filesystem bucket
 [normalize.data_writer]
 disable_compression=true
 
-# but credentials should go to secrets.toml!
-# secrets.toml
-[source.notion]
-api_key = "api_key"
+# Recommended sections for the destination (destination.module)
+[destination.filesystem]
+bucket_url = "s3://[your_bucket_name]"
+```
 
+**secrets.toml**
+
+```toml
+# Recommended sections for sources (sources.module)
+[sources.notion]
+api_key = "your-notion-api-key"  # Will be injected to api_key argument
+
+# Recommended sections for destination credentials
 [destination.filesystem.credentials]
-aws_access_key_id = "ABCDEFGHIJKLMNOPQRST" # copy the access key here
-aws_secret_access_key = "1234567890_access_key" # copy the secret access key here
+aws_access_key_id = "ABCDEFGHIJKLMNOPQRST" 
+aws_secret_access_key = "1234567890_access_key" 
 ```
 
   </TabItem>
@@ -331,11 +425,11 @@ aws_secret_access_key = "1234567890_access_key" # copy the secret access key her
   <TabItem value="env">
 
 ```sh
-# Environment variables are set up the same way both for configs and secrets
+# Environment variables for both config and secrets follow the same format
 export RUNTIME__LOG_LEVEL="INFO"
 export DESTINATION__FILESYSTEM__BUCKET_URL="s3://[your_bucket_name]"
 export NORMALIZE__DATA_WRITER__DISABLE_COMPRESSION="true"
-export SOURCE__NOTION__API_KEY="api_key"
+export SOURCES__NOTION__API_KEY="your-notion-api-key"
 export DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID="ABCDEFGHIJKLMNOPQRST"
 export DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY="1234567890_access_key"
 ```
@@ -350,23 +444,21 @@ import dlt
 import botocore.session
 from dlt.common.credentials import AwsCredentials
 
-# you can freely set up configuration directly in the code
-
-# via env vars
+# Set configuration values directly in code
+# Via environment variables
 os.environ["RUNTIME__LOG_LEVEL"] = "INFO"
 os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "s3://[your_bucket_name]"
 os.environ["NORMALIZE__DATA_WRITER__DISABLE_COMPRESSION"] = "true"
 
-# or even directly to the dlt.config
+# Or directly through dlt.config
 dlt.config["runtime.log_level"] = "INFO"
 dlt.config["destination.filesystem.bucket_url"] = "s3://[your_bucket_name]"
 dlt.config["normalize.data_writer.disable_compression"] = "true"
 
-# but please, do not set up the secrets in the code!
-# what you can do is reassign env variables:
-os.environ["SOURCE__NOTION__API_KEY"] = os.environ.get("NOTION_KEY")
+# For secrets, avoid hardcoding - use existing environment variables
+os.environ["SOURCES__NOTION__API_KEY"] = os.environ.get("NOTION_KEY")
 
-# or use a third-party credentials supplier
+# Or use credentials from third-party providers
 credentials = AwsCredentials()
 session = botocore.session.get_session()
 credentials.parse_native_representation(session)
@@ -377,12 +469,18 @@ dlt.secrets["destination.filesystem.credentials"] = credentials
 
 </Tabs>
 
+:::caution
+While you can put all configuration and credentials in `secrets.toml` for convenience, sensitive information should never be placed in `config.toml` or other non-secure locations. `dlt` will raise an exception if it detects secrets in inappropriate locations.
+:::
 
-### Google credentials for both source and destination
 
-Let's assume we use the `bigquery` destination and the `google_sheets` source. They both use Google credentials and expect them to be configured under the `credentials` key.
+### Use different Google credentials for source and destination
 
-1. If we create just a single `credentials` section, the destination and source will share the same credentials.
+This example shows how to configure different credentials for Google-based sources and destinations:
+
+#### Option 1: Share credentials between source and destination
+
+If you want both the BigQuery destination and Google Sheets source to use the same credentials:
 
 <Tabs
   groupId="config-provider-type"
@@ -397,9 +495,9 @@ Let's assume we use the `bigquery` destination and the `google_sheets` source. T
 
 ```toml
 [credentials]
-client_email = "<client_email_both_for_destination_and_source>"
-private_key = "<private_key_both_for_destination_and_source>"
-project_id = "<project_id_both_for_destination_and_source>"
+client_email = "<client_email_for_both>"
+private_key = "<private_key_for_both>"
+project_id = "<project_id_for_both>"
 ```
 
   </TabItem>
@@ -407,9 +505,9 @@ project_id = "<project_id_both_for_destination_and_source>"
   <TabItem value="env">
 
 ```sh
-export CREDENTIALS__CLIENT_EMAIL="<client_email_both_for_destination_and_source>"
-export CREDENTIALS__PRIVATE_KEY="<private_key_both_for_destination_and_source>"
-export CREDENTIALS__PROJECT_ID="<project_id_both_for_destination_and_source>"
+export CREDENTIALS__CLIENT_EMAIL="<client_email_for_both>"
+export CREDENTIALS__PRIVATE_KEY="<private_key_for_both>"
+export CREDENTIALS__PROJECT_ID="<project_id_for_both>"
 ```
 
   </TabItem>
@@ -419,8 +517,8 @@ export CREDENTIALS__PROJECT_ID="<project_id_both_for_destination_and_source>"
 ```py
 import os
 
-# Do not set up the secrets directly in the code!
-# What you can do is reassign env variables.
+# Avoid setting secrets directly in code
+# Instead, use existing environment variables
 os.environ["CREDENTIALS__CLIENT_EMAIL"] = os.environ.get("GOOGLE_CLIENT_EMAIL")
 os.environ["CREDENTIALS__PRIVATE_KEY"] = os.environ.get("GOOGLE_PRIVATE_KEY")
 os.environ["CREDENTIALS__PROJECT_ID"] = os.environ.get("GOOGLE_PROJECT_ID")
@@ -430,7 +528,9 @@ os.environ["CREDENTIALS__PROJECT_ID"] = os.environ.get("GOOGLE_PROJECT_ID")
 
 </Tabs>
 
-2. If we define sections as below, we'll keep the credentials separate
+#### Option 2: Use separate credentials for sources and destinations
+
+To keep source and destination credentials separate:
 
 <Tabs
   groupId="config-provider-type"
@@ -444,17 +544,17 @@ os.environ["CREDENTIALS__PROJECT_ID"] = os.environ.get("GOOGLE_PROJECT_ID")
   <TabItem value="toml">
 
 ```toml
-# Google Sheet credentials
+# Google Sheets credentials
 [sources.credentials]
-client_email = "<client_email from services.json>"
-private_key = "<private_key from services.json>"
-project_id = "<project_id from services json>"
+client_email = "<sheets_client_email>"
+private_key = "<sheets_private_key>"
+project_id = "<sheets_project_id>"
 
 # BigQuery credentials
 [destination.credentials]
-client_email = "<client_email from services.json>"
-private_key = "<private_key from services.json>"
-project_id = "<project_id from services json>"
+client_email = "<bigquery_client_email>"
+private_key = "<bigquery_private_key>"
+project_id = "<bigquery_project_id>"
 ```
 
   </TabItem>
@@ -462,15 +562,15 @@ project_id = "<project_id from services json>"
   <TabItem value="env">
 
 ```sh
-# Google Sheet credentials
-export SOURCES__CREDENTIALS__CLIENT_EMAIL="<client_email>"
-export SOURCES__CREDENTIALS__PRIVATE_KEY="<private_key>"
-export SOURCES__CREDENTIALS__PROJECT_ID="<project_id>"
+# Google Sheets credentials
+export SOURCES__CREDENTIALS__CLIENT_EMAIL="<sheets_client_email>"
+export SOURCES__CREDENTIALS__PRIVATE_KEY="<sheets_private_key>"
+export SOURCES__CREDENTIALS__PROJECT_ID="<sheets_project_id>"
 
 # BigQuery credentials
-export DESTINATION__CREDENTIALS__CLIENT_EMAIL="<client_email>"
-export DESTINATION__CREDENTIALS__PRIVATE_KEY="<private_key>"
-export DESTINATION__CREDENTIALS__PROJECT_ID="<project_id>"
+export DESTINATION__CREDENTIALS__CLIENT_EMAIL="<bigquery_client_email>"
+export DESTINATION__CREDENTIALS__PRIVATE_KEY="<bigquery_private_key>"
+export DESTINATION__CREDENTIALS__PROJECT_ID="<bigquery_project_id>"
 ```
 
   </TabItem>
@@ -481,13 +581,12 @@ export DESTINATION__CREDENTIALS__PROJECT_ID="<project_id>"
 import dlt
 import os
 
-# Do not set up the secrets directly in the code!
-# What you can do is reassign env variables.
+# For destination credentials, use existing environment variables
 os.environ["DESTINATION__CREDENTIALS__CLIENT_EMAIL"] = os.environ.get("BIGQUERY_CLIENT_EMAIL")
 os.environ["DESTINATION__CREDENTIALS__PRIVATE_KEY"] = os.environ.get("BIGQUERY_PRIVATE_KEY")
 os.environ["DESTINATION__CREDENTIALS__PROJECT_ID"] = os.environ.get("BIGQUERY_PROJECT_ID")
 
-# Or set them to the dlt.secrets.
+# For source credentials, set values in dlt.secrets
 dlt.secrets["sources.credentials.client_email"] = os.environ.get("SHEETS_CLIENT_EMAIL")
 dlt.secrets["sources.credentials.private_key"] = os.environ.get("SHEETS_PRIVATE_KEY")
 dlt.secrets["sources.credentials.project_id"] = os.environ.get("SHEETS_PROJECT_ID")
@@ -497,22 +596,22 @@ dlt.secrets["sources.credentials.project_id"] = os.environ.get("SHEETS_PROJECT_I
 
 </Tabs>
 
-Now `dlt` looks for destination credentials in the following order:
+With this setup, `dlt` looks for destination credentials in this order:
 ```sh
 destination.bigquery.credentials --> Not found
 destination.credentials --> Found
 ```
 
-When looking for the source credentials:
+And for source credentials:
 ```sh
 sources.google_sheets_module.google_sheets_function.credentials --> Not found
 sources.google_sheets_function.credentials --> Not found
 sources.credentials --> Found
 ```
 
-### Credentials for several different sources and destinations
+### Configure credentials for multiple sources and destinations
 
-Let's assume we have several different Google sources and destinations. We can use full paths to organize the `secrets.toml` file:
+When working with multiple Google-based sources and destinations, you can use recommended sections layout:
 
 <Tabs
   groupId="config-provider-type"
@@ -526,23 +625,23 @@ Let's assume we have several different Google sources and destinations. We can u
   <TabItem value="toml">
 
 ```toml
-# Google Sheet credentials
+# Google Sheets credentials
 [sources.google_sheets.credentials]
-client_email = "<client_email from services.json>"
-private_key = "<private_key from services.json>"
-project_id = "<project_id from services.json>"
+client_email = "<sheets_client_email>"
+private_key = "<sheets_private_key>"
+project_id = "<sheets_project_id>"
 
 # Google Analytics credentials
 [sources.google_analytics.credentials]
-client_email = "<client_email from services.json>"
-private_key = "<private_key from services.json>"
-project_id = "<project_id from services.json>"
+client_email = "<analytics_client_email>"
+private_key = "<analytics_private_key>"
+project_id = "<analytics_project_id>"
 
 # BigQuery credentials
 [destination.bigquery.credentials]
-client_email = "<client_email from services.json>"
-private_key = "<private_key from services.json>"
-project_id = "<project_id from services.json>"
+client_email = "<bigquery_client_email>"
+private_key = "<bigquery_private_key>"
+project_id = "<bigquery_project_id>"
 ```
 
   </TabItem>
@@ -550,20 +649,20 @@ project_id = "<project_id from services.json>"
   <TabItem value="env">
 
 ```sh
-# Google Sheet credentials
-export SOURCES__GOOGLE_SHEETS__CREDENTIALS__CLIENT_EMAIL="<client_email>"
-export SOURCES__GOOGLE_SHEETS__CREDENTIALS__PRIVATE_KEY="<private_key>"
-export SOURCES__GOOGLE_SHEETS__CREDENTIALS__PROJECT_ID="<project_id>"
+# Google Sheets credentials
+export SOURCES__GOOGLE_SHEETS__CREDENTIALS__CLIENT_EMAIL="<sheets_client_email>"
+export SOURCES__GOOGLE_SHEETS__CREDENTIALS__PRIVATE_KEY="<sheets_private_key>"
+export SOURCES__GOOGLE_SHEETS__CREDENTIALS__PROJECT_ID="<sheets_project_id>"
 
 # Google Analytics credentials
-export SOURCES__GOOGLE_ANALYTICS__CREDENTIALS__CLIENT_EMAIL="<client_email>"
-export SOURCES__GOOGLE_ANALYTICS__CREDENTIALS__PRIVATE_KEY="<private_key>"
-export SOURCES__GOOGLE_ANALYTICS__CREDENTIALS__PROJECT_ID="<project_id>"
+export SOURCES__GOOGLE_ANALYTICS__CREDENTIALS__CLIENT_EMAIL="<analytics_client_email>"
+export SOURCES__GOOGLE_ANALYTICS__CREDENTIALS__PRIVATE_KEY="<analytics_private_key>"
+export SOURCES__GOOGLE_ANALYTICS__CREDENTIALS__PROJECT_ID="<analytics_project_id>"
 
 # BigQuery credentials
-export DESTINATION__BIGQUERY__CREDENTIALS__CLIENT_EMAIL="<client_email>"
-export DESTINATION__BIGQUERY__CREDENTIALS__PRIVATE_KEY="<private_key>"
-export DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID="<project_id>"
+export DESTINATION__BIGQUERY__CREDENTIALS__CLIENT_EMAIL="<bigquery_client_email>"
+export DESTINATION__BIGQUERY__CREDENTIALS__PRIVATE_KEY="<bigquery_private_key>"
+export DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID="<bigquery_project_id>"
 ```
 
   </TabItem>
@@ -574,29 +673,29 @@ export DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID="<project_id>"
 import os
 import dlt
 
-# Do not set up the secrets directly in the code!
-# What you can do is reassign env variables
-os.environ["SOURCES__GOOGLE_ANALYTICS__CREDENTIALS__CLIENT_EMAIL"] = os.environ.get("SHEETS_CLIENT_EMAIL")
+# For Analytics credentials
+os.environ["SOURCES__GOOGLE_ANALYTICS__CREDENTIALS__CLIENT_EMAIL"] = os.environ.get("ANALYTICS_CLIENT_EMAIL")
 os.environ["SOURCES__GOOGLE_ANALYTICS__CREDENTIALS__PRIVATE_KEY"] = os.environ.get("ANALYTICS_PRIVATE_KEY")
 os.environ["SOURCES__GOOGLE_ANALYTICS__CREDENTIALS__PROJECT_ID"] = os.environ.get("ANALYTICS_PROJECT_ID")
 
-os.environ["DESTINATION__CREDENTIALS__CLIENT_EMAIL"] = os.environ.get("BIGQUERY_CLIENT_EMAIL")
-os.environ["DESTINATION__CREDENTIALS__PRIVATE_KEY"] = os.environ.get("BIGQUERY_PRIVATE_KEY")
-os.environ["DESTINATION__CREDENTIALS__PROJECT_ID"] = os.environ.get("BIGQUERY_PROJECT_ID")
+# For BigQuery credentials
+os.environ["DESTINATION__BIGQUERY__CREDENTIALS__CLIENT_EMAIL"] = os.environ.get("BIGQUERY_CLIENT_EMAIL")
+os.environ["DESTINATION__BIGQUERY__CREDENTIALS__PRIVATE_KEY"] = os.environ.get("BIGQUERY_PRIVATE_KEY")
+os.environ["DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID"] = os.environ.get("BIGQUERY_PROJECT_ID")
 
-# Or set them to the dlt.secrets
-dlt.secrets["sources.credentials.client_email"] = os.environ.get("SHEETS_CLIENT_EMAIL")
-dlt.secrets["sources.credentials.private_key"] = os.environ.get("SHEETS_PRIVATE_KEY")
-dlt.secrets["sources.credentials.project_id"] = os.environ.get("SHEETS_PROJECT_ID")
+# For Google Sheets credentials
+dlt.secrets["sources.google_sheets.credentials.client_email"] = os.environ.get("SHEETS_CLIENT_EMAIL")
+dlt.secrets["sources.google_sheets.credentials.private_key"] = os.environ.get("SHEETS_PRIVATE_KEY")
+dlt.secrets["sources.google_sheets.credentials.project_id"] = os.environ.get("SHEETS_PROJECT_ID")
 ```
 
   </TabItem>
 
 </Tabs>
 
-### Credentials for several sources of the same type
+### Configure multiple instances of the same source
 
-Let's assume we have several sources of the same type. How can we separate them in the `secrets.toml`? The recommended solution is to use different pipeline names for each source:
+If you need to extract data from the same source type with different configurations, you can run them in different pipeline names:
 
 <Tabs
   groupId="config-provider-type"
@@ -622,8 +721,8 @@ credentials="snowflake://user2:password2@service-account/database2?warehouse=war
   <TabItem value="env">
 
 ```sh
-export PIPELINE_NAME_1_SOURCES__SQL_DATABASE__CREDENTIALS="snowflake://user1:password1@service-account/database1?warehouse=warehouse_name&role=role1"
-export PIPELINE_NAME_2_SOURCES__SQL_DATABASE__CREDENTIALS="snowflake://user2:password2@service-account/database2?warehouse=warehouse_name&role=role2"
+export PIPELINE_NAME_1__SOURCES__SQL_DATABASE__CREDENTIALS="snowflake://user1:password1@service-account/database1?warehouse=warehouse_name&role=role1"
+export PIPELINE_NAME_2__SOURCES__SQL_DATABASE__CREDENTIALS="snowflake://user2:password2@service-account/database2?warehouse=warehouse_name&role=role2"
 ```
 
   </TabItem>
@@ -634,11 +733,10 @@ export PIPELINE_NAME_2_SOURCES__SQL_DATABASE__CREDENTIALS="snowflake://user2:pas
 import os
 import dlt
 
-# Do not set up the secrets directly in the code!
-# What you can do is reassign env variables
-os.environ["PIPELINE_NAME_1_SOURCES__SQL_DATABASE__CREDENTIALS"] = os.environ.get("SQL_CREDENTIAL_STRING_1")
+# Use existing environment variables to set credentials
+os.environ["PIPELINE_NAME_1__SOURCES__SQL_DATABASE__CREDENTIALS"] = os.environ.get("SQL_CREDENTIAL_STRING_1")
 
-# Or set them to the dlt.secrets
+# Or set values directly in dlt.secrets
 dlt.secrets["pipeline_name_2.sources.sql_database.credentials"] = os.environ.get("SQL_CREDENTIAL_STRING_2")
 ```
 
@@ -646,11 +744,19 @@ dlt.secrets["pipeline_name_2.sources.sql_database.credentials"] = os.environ.get
 
 </Tabs>
 
-## Understanding the exceptions
+:::tip
+You have additional options for using multiple instances of the same source:
 
-If `dlt` expects a configuration of secrets value but cannot find it, it will output the `ConfigFieldMissingException`.
+1. Use the `clone()` method as explained in the [sql_database documentation](../../dlt-ecosystem/verified-sources/sql_database/advanced.md#configure-many-sources-side-by-side-with-custom-sections).
 
-Let's run the `chess.py` example without providing the password:
+2. Create [named destinations](../destination.md#configure-multiple-destinations-in-a-pipeline) to use the same destination type with different configurations.
+:::
+
+## Troubleshoot configuration errors
+
+If `dlt` can't find a required configuration value or secret, it raises a `ConfigFieldMissingException` that provides detailed information about what was searched for and where.
+
+For example, running the `chess.py` example without providing the password:
 
 ```sh
 $ CREDENTIALS="postgres://loader@localhost:5432/dlt_data" python chess.py
@@ -672,12 +778,12 @@ dlt.common.configuration.exceptions.ConfigFieldMissingException: Following field
 Please refer to https://dlthub.com/docs/general-usage/credentials/ for more information
 ```
 
-It tells you exactly which paths `dlt` looked at, via which config providers and in which order.
+This error message shows exactly:
 
-In the example above:
+1. Which field is missing (`password` in this case)
+2. All the keys and locations `dlt` checked, in order of priority
+3. That it first looked with the pipeline name (`chess_games`) prefix, then without it
+4. That it searched environment variables first, then `secrets.toml`
 
-1. First, `dlt` looked in a big section `chess_games`, which is the name of the pipeline.
-2. In each case, it starts with full paths and goes to the minimum path `credentials.password`.
-3. First, it looks into environment variables, then in `secrets.toml`. It displays the exact keys tried.
-4. Note that `config.toml` was skipped! It could not contain any secrets.
+Note that `config.toml` wasn't checked since it's not appropriate for storing secrets.
 

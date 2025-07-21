@@ -1,3 +1,5 @@
+from dlt.common import logger
+import os, sys
 import pytest
 import datetime  # noqa: I251
 from unittest.mock import patch
@@ -20,10 +22,16 @@ from typing_extensions import Annotated, TypeVar
 from dlt.common import json, pendulum, Decimal, Wei
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs.base_configuration import NotResolved, is_hint_not_resolvable
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.configuration.specs.gcp_credentials import (
     GcpServiceAccountCredentialsWithoutDefaults,
 )
-from dlt.common.utils import custom_environ, get_exception_trace, get_exception_trace_chain
+from dlt.common.utils import (
+    custom_environ,
+    get_exception_trace,
+    get_exception_trace_chain,
+    set_working_dir,
+)
 from dlt.common.typing import (
     AnyType,
     CallableAny,
@@ -42,6 +50,7 @@ from dlt.common.configuration.exceptions import (
     LookupTrace,
     ValueNotSecretException,
     UnmatchedConfigHintResolversException,
+    get_run_context_warning,
 )
 from dlt.common.configuration import (
     configspec,
@@ -56,6 +65,8 @@ from dlt.common.configuration.specs import (
     RuntimeConfiguration,
     ConnectionStringCredentials,
 )
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.resolve import resolve_single_provider_value
 from dlt.common.configuration.providers import environ as environ_provider, toml
 from dlt.common.configuration.utils import (
     get_resolved_traces,
@@ -65,10 +76,11 @@ from dlt.common.configuration.utils import (
     add_config_dict_to_env,
     add_config_to_env,
 )
-from dlt.common.pipeline import TRefreshMode
+from dlt.common.pipeline import TRefreshMode, PipelineContext
+from dlt.cli.config_toml_writer import TYPE_EXAMPLES
 
 from dlt.destinations.impl.postgres.configuration import PostgresCredentials
-from tests.utils import preserve_environ
+from tests.utils import preserve_environ, TEST_STORAGE_ROOT
 from tests.common.configuration.utils import (
     MockProvider,
     CoercionTestConfiguration,
@@ -79,10 +91,13 @@ from tests.common.configuration.utils import (
     SecretConfiguration,
     SectionedConfiguration,
     environment,
+    toml_providers,
     mock_provider,
     env_provider,
     reset_resolved_traces,
 )
+import dlt
+
 
 INVALID_COERCIONS = {
     # 'STR_VAL': 'test string',  # string always OK
@@ -160,8 +175,6 @@ class InstrumentedConfiguration(BaseConfiguration):
         self.head = parts[0]
         self.heels = parts[-1]
         self.tube = parts[1:-1]
-        if not self.is_partial():
-            self.resolve()
 
     def on_resolved(self) -> None:
         if self.head > self.heels:
@@ -331,18 +344,20 @@ def test_explicit_values_false_when_bool() -> None:
 
 
 def test_explicit_embedded_config(environment: Any) -> None:
-    instr_explicit = InstrumentedConfiguration(head="h", tube=["tu", "be"], heels="xhe")
+    instr_explicit = InstrumentedConfiguration(head="h", tube=["tu", "be"])
 
     environment["INSTRUMENTED__HEAD"] = "hed"
+    environment["INSTRUMENTED__HEELS"] = "xh"
     c = resolve.resolve_configuration(
         EmbeddedConfiguration(default="X", sectioned=SectionedConfiguration(password="S")),
         explicit_value={"instrumented": instr_explicit},
     )
-
-    # explicit value will be part of the resolved configuration
-    assert c.instrumented is instr_explicit
-    # configuration was injected from env
-    assert c.instrumented.head == "hed"
+    # explicit will overwrite empty default
+    assert c.instrumented is not instr_explicit
+    # configuration will not overwrite the explicit value
+    assert c.instrumented.head == "h"
+    # configuration will add missing field
+    assert c.instrumented.heels == "xh"
 
     # the same but with resolved
     instr_explicit = InstrumentedConfiguration(head="h", tube=["tu", "be"], heels="xhe")
@@ -351,9 +366,38 @@ def test_explicit_embedded_config(environment: Any) -> None:
         EmbeddedConfiguration(default="X", sectioned=SectionedConfiguration(password="S")),
         explicit_value={"instrumented": instr_explicit},
     )
+    # explicit value will be part of the resolved configuration
     assert c.instrumented is instr_explicit
     # but configuration is not injected
     assert c.instrumented.head == "h"
+
+
+def test_explicit_and_default_embedded_config() -> None:
+    instr_explicit = InstrumentedConfiguration(head="h", tube=["tu", "be"])
+    instr_default = InstrumentedConfiguration(head="eh", heels="xhe")
+
+    c = resolve.resolve_configuration(
+        EmbeddedConfiguration(
+            default="X", sectioned=SectionedConfiguration(password="S"), instrumented=instr_default
+        ),
+        explicit_value={"instrumented": instr_explicit},
+    )
+    # explicit overwrites default
+    assert c.instrumented.to_native_representation() == "h>tu>be>xhe"
+
+
+def test_default_embedded_provider_overwrites(environment: Any) -> None:
+    instr_default = InstrumentedConfiguration(head="h", tube=["tu", "be"])
+
+    environment["INSTRUMENTED__HEAD"] = "hed"
+    environment["INSTRUMENTED__HEELS"] = "xh"
+    c = resolve.resolve_configuration(
+        EmbeddedConfiguration(
+            default="X", sectioned=SectionedConfiguration(password="S"), instrumented=instr_default
+        ),
+    )
+    # head and heels overwritten
+    assert c.instrumented.to_native_representation() == "hed>tu>be>xh"
 
 
 def test_default_values(environment: Any) -> None:
@@ -514,7 +558,7 @@ def test_maybe_use_explicit_value() -> None:
     dict_explicit = {"explicit": "is_dict"}
     config_explicit = BaseConfiguration()
     assert resolve._maybe_parse_native_value(c, dict_explicit, ()) is dict_explicit
-    assert resolve._maybe_parse_native_value(c, config_explicit, ()) is config_explicit
+    assert resolve._maybe_parse_native_value(c, config_explicit, ()) == config_explicit
 
     # postgres credentials have a default parameter (connect_timeout), which must be removed for explicit value
     pg_c = PostgresCredentials()
@@ -638,6 +682,25 @@ def test_embedded_explicit_value_over_provider(environment: Any) -> None:
             assert not c.instrumented.is_partial()
 
 
+def test_initial_explicit_without_native_representation() -> None:
+    c = resolve.resolve_configuration(
+        ConfigurationWithOptionalTypes(sentry_dsn="dsn"),
+        explicit_value=ConfigurationWithOptionalTypes(pipeline_name="pipeline_custom"),
+    )
+    assert c.pipeline_name == "pipeline_custom"
+    # None in explicit value will not erase default value
+    assert c.sentry_dsn == "dsn"
+
+    # use dict instead
+    c = resolve.resolve_configuration(
+        ConfigurationWithOptionalTypes(sentry_dsn="dsn"),
+        explicit_value={"pipeline_name": "pipeline_custom", "sentry_dsn": None},
+    )
+    assert c.pipeline_name == "pipeline_custom"
+    # None in dict will erase default value
+    assert c.sentry_dsn is None
+
+
 def test_provider_values_over_embedded_default(environment: Any) -> None:
     # make the instance sectioned so it can read from INSTRUMENTED
     with patch.object(InstrumentedConfiguration, "__section__", "instrumented"):
@@ -660,6 +723,15 @@ def test_provider_values_over_embedded_default(environment: Any) -> None:
 def test_run_configuration_gen_name(environment: Any) -> None:
     C = resolve.resolve_configuration(RuntimeConfiguration())
     assert C.pipeline_name.startswith("dlt_")
+
+
+def test_runtime_configuration_telemetry_disabled_on_non_threading_platform(monkeypatch) -> None:
+    c = resolve.resolve_configuration(RuntimeConfiguration())
+    assert c.dlthub_telemetry
+
+    monkeypatch.setattr(sys, "platform", "emscripten")
+    c = resolve.resolve_configuration(RuntimeConfiguration())
+    assert not c.dlthub_telemetry
 
 
 def test_configuration_is_mutable_mapping(environment: Any, env_provider: ConfigProvider) -> None:
@@ -686,6 +758,8 @@ def test_configuration_is_mutable_mapping(environment: Any, env_provider: Config
         "request_max_retry_delay": 300,
         "config_files_storage_path": "storage",
         "dlthub_dsn": None,
+        "http_show_error_body": False,
+        "http_max_error_body_length": 8192,
         "secret_value": None,
     }
     assert dict(_SecretCredentials()) == expected_dict
@@ -1216,28 +1290,32 @@ def test_resolved_trace(environment: Any) -> None:
         }
     ):
         c = resolve.resolve_configuration(EmbeddedConfiguration(default="_DEFF"))
-    traces = get_resolved_traces()
+    tracer = get_resolved_traces()
+
+    def _resolved_traces():
+        return tracer._get_log_as_dict(tracer.resolved_traces)
+
     prov_name = environ_provider.EnvironProvider().name
-    assert traces[".default"] == ResolvedValueTrace(
+    assert _resolved_traces()[".default"] == ResolvedValueTrace(
         "default", "DEF", "_DEFF", str, [], prov_name, c
     )
-    assert traces["instrumented.head"] == ResolvedValueTrace(
+    assert _resolved_traces()["instrumented.head"] == ResolvedValueTrace(
         "head", "h", None, str, ["instrumented"], prov_name, c.instrumented
     )
     # value is before casting
-    assert traces["instrumented.tube"] == ResolvedValueTrace(
+    assert _resolved_traces()["instrumented.tube"] == ResolvedValueTrace(
         "tube", '["tu", "u", "be"]', None, List[str], ["instrumented"], prov_name, c.instrumented
     )
     assert deserialize_value(
-        "tube", traces["instrumented.tube"].value, resolve.extract_inner_hint(List[str])
+        "tube", _resolved_traces()["instrumented.tube"].value, resolve.extract_inner_hint(List[str])
     ) == ["tu", "u", "be"]
-    assert traces["instrumented.heels"] == ResolvedValueTrace(
+    assert _resolved_traces()["instrumented.heels"] == ResolvedValueTrace(
         "heels", "xhe", None, str, ["instrumented"], prov_name, c.instrumented
     )
-    assert traces["sectioned.password"] == ResolvedValueTrace(
+    assert _resolved_traces()["sectioned.password"] == ResolvedValueTrace(
         "password", "passwd", None, str, ["sectioned"], prov_name, c.sectioned
     )
-    assert len(traces) == 5
+    assert len(_resolved_traces()) == 5
 
     # try to get native representation
     with patch.object(InstrumentedConfiguration, "__section__", "snake"):
@@ -1252,14 +1330,51 @@ def test_resolved_trace(environment: Any) -> None:
             c = resolve.resolve_configuration(EmbeddedConfiguration())
             resolve.resolve_configuration(InstrumentedConfiguration())
 
-    assert traces[".default"] == ResolvedValueTrace("default", "UNDEF", None, str, [], prov_name, c)
-    assert traces[".instrumented"] == ResolvedValueTrace(
+    assert _resolved_traces()[".default"] == ResolvedValueTrace(
+        "default", "UNDEF", None, str, [], prov_name, c
+    )
+    assert _resolved_traces()[".instrumented"] == ResolvedValueTrace(
         "instrumented", "h>t>t>t>he", None, InstrumentedConfiguration, [], prov_name, c
     )
 
-    assert traces[".snake"] == ResolvedValueTrace(
+    assert _resolved_traces()[".snake"] == ResolvedValueTrace(
         "snake", "h>t>t>t>he", None, InstrumentedConfiguration, [], prov_name, None
     )
+
+
+@pytest.mark.parametrize("enable_logging", (True, False))
+def test_unresolved_trace(environment: Any, enable_logging: bool) -> None:
+    tracer = get_resolved_traces()
+    tracer.logging_enabled = enable_logging
+
+    @configspec
+    class OptEmbeddedConfiguration(BaseConfiguration):
+        default: Optional[str] = None
+        instrumented: InstrumentedConfiguration = None
+        sectioned: SectionedConfiguration = None
+
+    with custom_environ(
+        {
+            "INSTRUMENTED__HEAD": "h",
+            "INSTRUMENTED__TUBE": '["tu", "u", "be"]',
+            "INSTRUMENTED__HEELS": "xhe",
+        }
+    ):
+        resolve.resolve_configuration(
+            OptEmbeddedConfiguration(default="_DEFF"),
+            sections=("wrapper", "spec"),
+            explicit_value={"default": None, "sectioned": {"password": "$pwd"}},
+        )
+
+    if enable_logging:
+        # we try in ("wrapper", "spec") so there are 3 read attempts per resolved value
+        assert len(tracer.all_traces) == 3 * len(tracer.resolved_traces)
+        # there are 3 resolved values, explicit values are not included
+        assert len(tracer.resolved_traces) == 3
+        # first resolved value sections are full depth
+        assert tracer.all_traces[0].sections == ["wrapper", "spec", "instrumented"]
+    else:
+        assert len(tracer.all_traces) == len(tracer.resolved_traces) == 0
 
 
 def test_extract_inner_hint() -> None:
@@ -1474,6 +1589,22 @@ def test_configuration_with_configuration_as_default() -> None:
     assert c_resolved.conn_str.is_resolved()
 
 
+def test_configuration_with_section_propagation_to_embedded(environment: Dict[str, str]) -> None:
+    @configspec
+    class EmbeddedConfigurationWithDefaults(BaseConfiguration):
+        default: str = "STR"
+        instrumented: InstrumentedConfiguration = None
+
+        __section__ = "top_level"
+
+    # NOTE: top level will be stripped in less specific searches
+    environment["TOP_LEVEL__INSTRUMENTED__HEAD"] = "h"
+    environment["TOP_LEVEL__INSTRUMENTED__TUBE"] = '["t"]'
+    environment["TOP_LEVEL__INSTRUMENTED__HEELS"] = "he"
+    c_resolved = resolve.resolve_configuration(EmbeddedConfigurationWithDefaults())
+    assert c_resolved.is_resolved()
+
+
 def test_configuration_with_generic(environment: Dict[str, str]) -> None:
     TColumn = TypeVar("TColumn", bound=str)
 
@@ -1558,3 +1689,128 @@ def test_configuration_with_literal_field(environment: Dict[str, str]) -> None:
 
     spec = resolve.resolve_configuration(ConfigWithLiteralField())
     assert spec.refresh == "drop_data"
+
+
+@pytest.mark.parametrize("sc_type", TYPE_EXAMPLES.keys(), ids=TYPE_EXAMPLES.keys())
+def test_warn_when_resolving_placeholders(
+    environment: Dict[str, str],
+    toml_providers: ConfigProvidersContainer,
+    sc_type: str,
+) -> None:
+    for provider in toml_providers.providers:
+        with patch.object(logger.LOGGER, "warning") as mock_warning:
+            # setup
+            key = f"SOME_{sc_type}".upper()
+            placeholder_value = TYPE_EXAMPLES[sc_type]
+            test_section_name = "TEST_SECTION"
+            if provider.locations == []:
+                environment[f"{test_section_name}__{key}"] = placeholder_value
+            else:
+                provider.set_value(key, placeholder_value, test_section_name)
+
+            # run
+            value, _ = resolve_single_provider_value(
+                provider, key=key, hint=str, config_section=test_section_name
+            )
+
+            # verify
+            assert value == placeholder_value
+            assert mock_warning.call_count == 1
+            msg = mock_warning.call_args[1]["msg"]
+            assert "Placeholder value encountered when resolving config or secret" in msg
+            assert key in msg
+            assert str(placeholder_value) in msg
+            assert test_section_name in msg
+            assert provider.name in msg
+
+
+def test_get_run_context_warning_cli() -> None:
+    """Test get_run_context_warning function with CLI command scenarios"""
+    from dlt.common.runtime import run_context
+
+    # Case 1: CLI command with no active pipeline
+    # Expected: Only shows CLI-specific warning (1 WARNING total)
+    result = get_run_context_warning("/dlt")
+    assert "When accessing data in the pipeline from the command line" in result
+    assert 1 == result.count("WARNING")
+
+    # Setup: Create active pipeline with current location context
+    ctx = Container()[PipelineContext]
+    p = dlt.pipeline(pipeline_name="test_get_run_context_warning")
+    p._update_last_run_context()
+    assert ctx.is_active() is True
+
+    initial_run_dir = os.getcwd()
+
+    initial_settings_dir = os.path.join(initial_run_dir, ".dlt")
+    assert initial_settings_dir == p.last_run_context.get("settings_dir")
+    assert initial_settings_dir == os.path.abspath(run_context.active().settings_dir)
+
+    # Case 2: CLI command with active pipeline - same location as pipeline last ran
+    # Expected: Only shows CLI-specific warning (1 WARNING total)
+    result = get_run_context_warning("/dlt")
+    assert "When accessing data in the pipeline from the command line" in result
+    assert 1 == result.count("WARNING")
+
+    # Case 3: CLI command with active pipeline - different location than pipeline last ran
+    # Expected: Shows both CLI warning AND pipeline location mismatch warning (2 WARNINGS total)
+    with set_working_dir(TEST_STORAGE_ROOT):
+        assert initial_settings_dir == p.last_run_context.get("settings_dir")
+        assert initial_settings_dir != os.path.abspath(run_context.active().settings_dir)
+        result = get_run_context_warning("/dlt")
+        assert "Active pipeline `test_get_run_context_warning` used" in result
+        assert "When accessing data in the pipeline from the command line" in result
+        assert 2 == result.count("WARNING")
+
+    ctx.deactivate()
+
+
+def test_get_run_context_warning_script() -> None:
+    """Simple test for get_run_context_warning function with pipeline_script"""
+    from dlt.common.runtime import run_context
+
+    initial_run_dir = os.getcwd()
+
+    # Case 1: Python script with no active pipeline - script in same directory as run
+    # Expected: No warnings (script and run dir match, no pipeline context to check)
+    result = get_run_context_warning(os.path.join(initial_run_dir, "pipeline_script.py"))
+    assert initial_run_dir == os.path.abspath(run_context.active().run_dir)
+    assert "\n" == result
+
+    # Case 2: Python script with no active pipeline - script in different directory than run
+    # Expected: Shows original heuristic warning about script vs run dir mismatch (1 WARNING)
+    result = get_run_context_warning(
+        os.path.join(initial_run_dir, "some_folder", "pipeline_script.py")
+    )
+    assert initial_run_dir == os.path.abspath(run_context.active().run_dir)
+    assert (
+        f"Your run dir ({initial_run_dir}) is different from directory of your pipeline script"
+        f" ({os.path.join(initial_run_dir, 'some_folder')})"
+        in result
+    )
+    assert 1 == result.count("WARNING")
+
+    # Setup: Create active pipeline with current location context
+    ctx = Container()[PipelineContext]
+    p = dlt.pipeline(pipeline_name="test_get_run_context_warning")
+    p._update_last_run_context()
+    assert ctx.is_active() is True
+
+    # Case 3: Python script with active pipeline - same location as pipeline last ran
+    # Expected: No warnings (current location matches where pipeline worked before)
+    initial_settings_dir = os.path.join(initial_run_dir, ".dlt")
+    assert initial_settings_dir == p.last_run_context.get("settings_dir")
+    assert initial_settings_dir == os.path.abspath(run_context.active().settings_dir)
+    result = get_run_context_warning(os.path.join(initial_run_dir, "pipeline_script.py"))
+    assert "\n" == result
+
+    # Case 4: Python script with active pipeline - different location than pipeline last ran
+    # Expected: Shows pipeline-specific location mismatch warning (1 WARNING)
+    with set_working_dir(TEST_STORAGE_ROOT):
+        assert initial_settings_dir == p.last_run_context.get("settings_dir")
+        assert initial_settings_dir != os.path.abspath(run_context.active().settings_dir)
+        result = get_run_context_warning(os.path.join(initial_run_dir, "pipeline_script.py"))
+        assert "Active pipeline `test_get_run_context_warning` used" in result
+        assert 1 == result.count("WARNING")
+
+    ctx.deactivate()

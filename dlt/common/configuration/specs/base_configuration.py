@@ -23,6 +23,8 @@ from typing import (
 from typing_extensions import dataclass_transform
 from functools import wraps
 
+from dlt.common.utils import classlocal
+
 if TYPE_CHECKING:
     TDtcField = dataclasses.Field[Any]
 else:
@@ -250,6 +252,13 @@ def configspec(
                         )
                     setattr(cls, att_name, None)
 
+                from types import MappingProxyType
+
+                # make dict immutable: TODO: fix propery
+                # somehow default_factory does not work here..
+                if isinstance(att_value, dict):
+                    setattr(cls, att_name, MappingProxyType(att_value))
+
                 if isinstance(att_value, BaseConfiguration):
                     # Wrap config defaults in default_factory to work around dataclass
                     # blocking mutable defaults
@@ -267,9 +276,12 @@ def configspec(
         if synth_init != init and has_default_init:
             warnings.warn(
                 f"__init__ method will not be generated on {cls.__name__} because base class didn't"
-                " synthesize __init__. Please correct `init` flag in confispec decorator. You are"
+                " synthesize __init__. Please correct `init` flag in configspec decorator. You are"
                 " probably receiving incorrect __init__ signature for type checking"
             )
+        # mark exactly this class as processed by configspec so we can warn the user if it is not done
+        # this is not visible in derived classes that must be always decorated with configspec
+        cls.__configspec__ = classlocal(True, cls)  # type: ignore[attr-defined]
         # do not generate repr as it may contain secret values
         return dataclasses.dataclass(cls, init=synth_init, eq=False, repr=False)  # type: ignore
 
@@ -385,6 +397,18 @@ class BaseConfiguration(MutableMapping[str, Any]):
     def copy(self: _B) -> _B:
         """Returns a deep copy of the configuration instance"""
         return copy.deepcopy(self)
+
+    def as_dict_nondefault(self) -> Dict[str, Any]:
+        """Gets configuration as dictionary containing only values that are non-default"""
+        return {
+            field.name: self[field.name]
+            for field in self._get_resolvable_dataclass_fields()
+            if (
+                field.default_factory() != self[field.name]
+                if field.default_factory != dataclasses.MISSING
+                else field.default != self[field.name]
+            )
+        }
 
     # implement dictionary-compatible interface on top of dataclass
 

@@ -1,5 +1,4 @@
 from typing import Tuple
-
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination import AnyDestination, Destination
 from dlt.common.destination.client import (

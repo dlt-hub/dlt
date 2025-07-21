@@ -1,13 +1,17 @@
+from typing import Optional
 from datetime import datetime, timedelta, time as dt_time, date  # noqa: I251
 import os
 
 import pytest
+from pytest_mock import MockerFixture
+
 import numpy as np
 import pyarrow as pa
 import pandas as pd
 import base64
 
 import dlt
+from dlt.common import logger
 from dlt.common import pendulum
 from dlt.common.libs.pyarrow import columns_to_arrow, row_tuples_to_arrow
 from dlt.common.time import (
@@ -30,18 +34,25 @@ from tests.cases import (
     table_update_and_row,
 )
 
-# mark all tests as essential, do not remove
-pytestmark = pytest.mark.essential
+
+# NOTE: this test runs on parquet + postgres needs adbc dependency group
+destination_cases = destinations_configs(
+    default_sql_configs=True,
+    default_staging_configs=True,
+    all_staging_configs=False,
+    table_format_filesystem_configs=True,
+)
+# if postgres got selected, add postgres config with native parquet support via adbc
+if "postgres" in [case.destination_type for case in destination_cases]:
+    destination_cases.append(
+        DestinationTestConfiguration(destination_type="postgres", file_format="parquet")
+    )
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-        default_staging_configs=True,
-        all_staging_configs=True,
-        table_format_filesystem_configs=True,
-    ),
+    destination_cases,
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("item_type", ["pandas", "arrow-table", "arrow-batch"])
@@ -53,6 +64,7 @@ def test_load_arrow_item(
     # os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = "True"
+
     include_time = destination_config.destination_type not in (
         "athena",
         "redshift",
@@ -66,7 +78,6 @@ def test_load_arrow_item(
     )
 
     include_decimal = True
-
     if (
         destination_config.destination_type == "databricks"
         and destination_config.file_format == "jsonl"
@@ -95,9 +106,10 @@ def test_load_arrow_item(
 
     # use csv for postgres to get native arrow processing
     destination_config.file_format = (
-        destination_config.file_format
-        if destination_config.destination_type != "postgres"
-        else "csv"
+        "csv"
+        if destination_config.destination_type == "postgres"
+        and destination_config.file_format == "insert_values"
+        else destination_config.file_format
     )
 
     load_info = pipeline.run(some_data(), **destination_config.run_kwargs)
@@ -118,8 +130,7 @@ def test_load_arrow_item(
     if include_date:
         assert some_table_columns["date"]["data_type"] == "date"
 
-    qual_name = pipeline.sql_client().make_qualified_table_name("some_data")
-    rows = [list(row) for row in select_data(pipeline, f"SELECT * FROM {qual_name}")]
+    rows = [list(row) for row in select_data(pipeline, "SELECT * FROM some_data")]
 
     for row in rows:
         for i in range(len(row)):
@@ -224,12 +235,7 @@ def test_all_types_tuples_to_arrow(
 @pytest.mark.no_load  # Skips drop_pipeline fixture since we don't do any loading
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-        default_staging_configs=True,
-        all_staging_configs=True,
-        default_vector_configs=True,
-    ),
+    destination_cases,
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("item_type", ["arrow-table", "pandas", "arrow-batch"])
@@ -283,14 +289,10 @@ def test_parquet_column_names_are_normalized(
         assert result_tbl.schema.names == expected_column_names
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True,
-        default_staging_configs=True,
-        all_staging_configs=True,
-        default_vector_configs=True,
-    ),
+    destination_cases,
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("item_type", ["arrow-table", "pandas", "arrow-batch"])
@@ -338,3 +340,55 @@ def test_load_arrow_with_not_null_columns(
     # Load is successful
     info = pipeline.load()
     assert_load_info(info)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, default_staging_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("is_none", [True, False])
+def test_warning_from_arrow_normalizer_on_null_column(
+    destination_config: DestinationTestConfiguration,
+    mocker: MockerFixture,
+    is_none: bool,
+) -> None:
+    """
+    Test that the arrow normalizer emits a warning when a pyarrow table is yielded
+    with a column (`col1`) that contains only null values.
+    """
+
+    @dlt.source()
+    def my_source():
+        @dlt.resource
+        def my_resource():
+            col1: list[Optional[str]] = [None, None] if is_none else ["a", "b"]
+
+            table = pa.table(
+                {
+                    "id": pa.array([1, 2]),
+                    "col1": pa.array(col1),
+                }
+            )
+
+            yield table
+
+        return [my_resource()]
+
+    logger_spy = mocker.spy(logger, "warning")
+
+    pipeline = destination_config.setup_pipeline("arrow_" + uniq_id())
+
+    pipeline.extract(my_source())
+    pipeline.normalize()
+
+    if is_none:
+        logger_spy.assert_called_once()
+        expected_warning = (
+            "columns in table 'my_resource' did not receive any data during this load "
+            "and therefore could not have their types inferred:\n"
+            "  - col1"
+        )
+        assert expected_warning in logger_spy.call_args_list[0][0][0]
+    else:
+        logger_spy.assert_not_called()

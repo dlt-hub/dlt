@@ -47,7 +47,7 @@ Typically, resources are declared and grouped with related resources within a [s
 You can modify the generation process by using the table and column hints. The resource decorator accepts the following arguments:
 
 1. `table_name`: the name of the table, if different from the resource name.
-1. `primary_key` and `merge_key`: define the name of the columns (compound keys are allowed) that will receive those hints. Used in [incremental loading](incremental-loading.md).
+1. `primary_key` and `merge_key`: define the name of the columns (compound keys are allowed) that will receive those hints. Used in [incremental loading](incremental-loading.md) and [merge loading](merge-loading.md).
 1. `columns`: lets you define one or more columns, including the data types, nullability, and other hints. The column definition is a `TypedDict`: `TTableSchemaColumns`. In the example below, we tell `dlt` that the column `tags` (containing a list of tags) in the `user` table should have type `json`, which means that it will be loaded as JSON/struct and not as a separate nested table.
 
   ```py
@@ -227,14 +227,14 @@ You can add arguments to your resource functions like to any other. Below we par
 
 ```py
 @dlt.resource(name='table_name', write_disposition='replace')
-def generate_rows(nr):
+def generate_var_rows(nr):
     for i in range(nr):
         yield {'id': i, 'example_string': 'abc'}
 
-for row in generate_rows(10):
+for row in generate_var_rows(10):
     print(row)
 
-for row in generate_rows(20):
+for row in generate_var_rows(20):
     print(row)
 ```
 
@@ -292,9 +292,9 @@ print(list([1,2] | pokemon()))
 :::
 
 ### Declare a standalone resource
-A standalone resource is defined on a function that is top-level in a module (not an inner function) that accepts config and secrets values. Additionally, if the `standalone` flag is specified, the decorated function signature and docstring will be preserved. `dlt.resource` will just wrap the decorated function, and the user must call the wrapper to get the actual resource. Below we declare a `filesystem` resource that must be called before use.
+A standalone resource is defined on a function that is top-level in a module (not an inner function) that accepts config and secrets values. Here `dlt.resource` just wraps the decorated function, and the user must call the wrapper to get the actual resource. Below we declare a `filesystem` resource that must be called before use.
 ```py
-@dlt.resource(standalone=True)
+@dlt.resource
 def fs_resource(bucket_url=dlt.config.value):
   """List and yield files in `bucket_url`."""
   ...
@@ -303,9 +303,9 @@ def fs_resource(bucket_url=dlt.config.value):
 pipeline.run(fs_resource("s3://my-bucket/reports"), table_name="reports")
 ```
 
-Standalone may have a dynamic name that depends on the arguments passed to the decorated function. For example:
+Resource may have a dynamic name that depends on the arguments passed to the decorated function. For example:
 ```py
-@dlt.resource(standalone=True, name=lambda args: args["stream_name"])
+@dlt.resource(name=lambda args: args["stream_name"])
 def kinesis(stream_name: str):
     ...
 
@@ -496,7 +496,7 @@ You can also set the limit to `0` for the resource to not yield any items.
 
 ### Set table name and adjust schema
 
-You can change the schema of a resource, whether it is standalone or part of a source. Look for a method named `apply_hints` which takes the same arguments as the resource decorator. Obviously, you should call this method before data is extracted from the resource. The example below converts an `append` resource loading the `users` table into a [merge](incremental-loading.md#merge-incremental-loading) resource that will keep just one updated record per `user_id`. It also adds ["last value" incremental loading](incremental-loading.md#incremental-loading-with-a-cursor-field) on the `created_at` column to prevent requesting again the already loaded records:
+You can change the schema of a resource, whether it is standalone or part of a source. Look for a method named `apply_hints` which takes the same arguments as the resource decorator. Obviously, you should call this method before data is extracted from the resource. The example below converts an `append` resource loading the `users` table into a [merge](merge-loading.md) resource that will keep just one updated record per `user_id`. It also adds ["last value" incremental loading](incremental/cursor.md) on the `created_at` column to prevent requesting again the already loaded records:
 
 ```py
 tables = sql_database()
@@ -605,7 +605,7 @@ You can sniff the schema from the data, i.e., using DuckDB to infer the table sc
 There are cases when your resources are generic (i.e., bucket filesystem) and you want to load several instances of it (i.e., files from different folders) into separate tables. In the example below, we use the `filesystem` source to load csvs from two different folders into separate tables:
 
 ```py
-@dlt.resource(standalone=True)
+@dlt.resource
 def fs_resource(bucket_url):
   # list and yield files in bucket_url
   ...
@@ -634,7 +634,7 @@ You can pass individual resources or a list of resources to the `dlt.pipeline` o
 
 ```py
 @dlt.resource(name='table_name', write_disposition='replace')
-def generate_rows(nr):
+def generate_var_rows(nr):
     for i in range(nr):
         yield {'id': i, 'example_string': 'abc'}
 
@@ -644,9 +644,9 @@ pipeline = dlt.pipeline(
     dataset_name="rows_data"
 )
 # load an individual resource
-pipeline.run(generate_rows(10))
+pipeline.run(generate_var_rows(10))
 # load a list of resources
-pipeline.run([generate_rows(10), generate_rows(20)])
+pipeline.run([generate_var_rows(10), generate_var_rows(20)])
 ```
 
 ### Pick loader file format for a particular resource
@@ -655,7 +655,7 @@ You can request a particular loader file format to be used for a resource.
 
 ```py
 @dlt.resource(file_format="parquet")
-def generate_rows(nr):
+def generate_var_rows(nr):
     for i in range(nr):
         yield {'id': i, 'example_string': 'abc'}
 ```

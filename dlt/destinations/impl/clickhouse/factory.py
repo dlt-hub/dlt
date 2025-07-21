@@ -1,6 +1,6 @@
 import re
 import sys
-import typing as t
+from typing import Any, Dict, Type, Union, TYPE_CHECKING, Optional, cast
 
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.data_writers.escape import (
@@ -10,7 +10,9 @@ from dlt.common.data_writers.escape import (
 )
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 
-from dlt.common.schema.typing import TColumnType
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.exceptions import TerminalValueError
+from dlt.common.schema.typing import TColumnSchema, TColumnType
 from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseClientConfiguration,
@@ -18,9 +20,11 @@ from dlt.destinations.impl.clickhouse.configuration import (
 )
 
 
-if t.TYPE_CHECKING:
+if TYPE_CHECKING:
     from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
     from clickhouse_driver.dbapi import Connection  # type: ignore[import-untyped]
+else:
+    Connection = Any
 
 
 class ClickHouseTypeMapper(TypeMapperImpl):
@@ -51,13 +55,16 @@ class ClickHouseTypeMapper(TypeMapperImpl):
         "DateTime": "timestamp",
         "DateTime64": "timestamp",
         "Time": "timestamp",
+        "Int8": "bigint",
+        "Int16": "bigint",
+        "Int32": "bigint",
         "Int64": "bigint",
         "Object('json')": "json",
         "Decimal": "decimal",
     }
 
     def from_destination_type(
-        self, db_type: str, precision: t.Optional[int] = None, scale: t.Optional[int] = None
+        self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
     ) -> TColumnType:
         # Remove "Nullable" wrapper.
         db_type = re.sub(r"^Nullable\((?P<type>.+)\)$", r"\g<type>", db_type)
@@ -85,9 +92,26 @@ class ClickHouseTypeMapper(TypeMapperImpl):
             db_type = "Decimal"
 
         if db_type == "Decimal" and (precision, scale) == self.capabilities.wei_precision:
-            return t.cast(TColumnType, dict(data_type="wei"))
+            return cast(TColumnType, dict(data_type="wei"))
 
         return super().from_destination_type(db_type, precision, scale)
+
+    def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
+        """Map integer precision to the appropriate ClickHouse integer type."""
+        precision = column.get("precision")
+        if precision is None:
+            return "Int64"
+        if precision <= 8:
+            return "Int8"
+        if precision <= 16:
+            return "Int16"
+        if precision <= 32:
+            return "Int32"
+        if precision <= 64:
+            return "Int64"
+        raise TerminalValueError(
+            f"bigint with `{precision=:}` can't be mapped to ClickHouse integer type"
+        )
 
 
 class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"]):
@@ -140,25 +164,24 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
 
         caps.supported_merge_strategies = ["delete-insert", "scd2"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
+        caps.enforces_nulls_on_alter = False
 
         caps.sqlglot_dialect = "clickhouse"
 
         return caps
 
     @property
-    def client_class(self) -> t.Type["ClickHouseClient"]:
+    def client_class(self) -> Type["ClickHouseClient"]:
         from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
 
         return ClickHouseClient
 
     def __init__(
         self,
-        credentials: t.Union[
-            ClickHouseCredentials, str, t.Dict[str, t.Any], t.Type["Connection"]
-        ] = None,
+        credentials: Union[ClickHouseCredentials, str, Dict[str, Any], Type[Connection]] = None,
         destination_name: str = None,
         environment: str = None,
-        **kwargs: t.Any,
+        **kwargs: Any,
     ) -> None:
         """Configure the ClickHouse destination to use in a pipeline.
 
@@ -166,10 +189,11 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
         variables and dlt config files.
 
         Args:
-            credentials: Credentials to connect to the clickhouse database.
-                Can be an instance of `ClickHouseCredentials`, or a connection string
-                in the format `clickhouse://user:password@host:port/database`.
-            **kwargs: Additional arguments passed to the destination config.
+            credentials (Union[ClickHouseCredentials, str, Dict[str, Any], Type[Connection]], optional): Credentials to connect to the clickhouse database. Can be an instance of `ClickHouseCredentials` or
+                a connection string in the format `clickhouse://user:password@host:port/database`
+            destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (str, optional): Environment of the destination
+            **kwargs (Any): Additional arguments passed to the destination config
         """
         super().__init__(
             credentials=credentials,

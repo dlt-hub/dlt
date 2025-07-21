@@ -17,7 +17,12 @@ from dlt.common.destination.client import (
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset, SqlLoadJob
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema import Schema, TTableSchema, TColumnSchema, TSchemaTables
-from dlt.common.schema.typing import TColumnType, TTableSchemaColumns
+from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
+    C_DLT_LOADS_TABLE_LOAD_ID,
+    TColumnType,
+    TTableSchemaColumns,
+)
 from dlt.common.schema.utils import (
     pipeline_state_table,
     normalize_table_identifiers,
@@ -294,7 +299,7 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
 
         c_load_id, c_dlt_load_id, c_pipeline_name, c_status = map(
             self.schema.naming.normalize_identifier,
-            ("load_id", "_dlt_load_id", "pipeline_name", "status"),
+            (C_DLT_LOADS_TABLE_LOAD_ID, C_DLT_LOAD_ID, "pipeline_name", "status"),
         )
 
         query = (

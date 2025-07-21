@@ -1,9 +1,10 @@
 import os
 import inspect
 from types import ModuleType
-from functools import wraps
+from functools import update_wrapper, wraps
 from typing import (
     Any,
+    Awaitable,
     Callable,
     ClassVar,
     Dict,
@@ -19,6 +20,7 @@ from typing import (
 )
 from typing_extensions import TypeVar, Self
 
+from dlt.common import logger
 from dlt.common.configuration import with_config, get_fun_spec, known_sections, configspec
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
@@ -29,6 +31,7 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 from dlt.common.exceptions import ArgumentsOverloadException
 from dlt.common.pipeline import PipelineContext
 from dlt.common.reflection.spec import spec_from_signature
+from dlt.common.reflection.inspect import iscoroutinefunction
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import (
@@ -45,6 +48,7 @@ from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import (
     AnyFun,
     ParamSpec,
+    Generic,
     Concatenate,
     TDataItem,
     TDataItems,
@@ -59,14 +63,11 @@ from dlt.common.utils import (
 )
 
 from dlt.extract.hints import TResourceNestedHints, make_hints
-from dlt.extract.utils import simulate_func_call
+from dlt.extract.utils import dynstr
 from dlt.extract.exceptions import (
     CurrentSourceNotAvailable,
-    DynamicNameNotStandaloneResource,
-    InvalidResourceDataTypeFunctionNotAGenerator,
     InvalidTransformerDataTypeGeneratorFunctionRequired,
     ResourceFunctionExpected,
-    ResourceInnerCallableConfigWrapDisallowed,
     SourceDataIsNone,
     SourceIsAClassTypeError,
     ExplicitSourceNameInvalid,
@@ -181,7 +182,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
         # also remember original source function
         ovr._f = self._f
         ovr.ref = self.ref
-        # ovr._deco_f = self._deco_f
+        ovr._update_wrapper()
         # try to bind _f
         ovr.wrap()
         return ovr
@@ -196,7 +197,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
             source = self._deco_f(self.name, self.section, args, kwargs)
             assert isinstance(source, _DltSingleSource)
             # set source section to empty to not interfere with resource sections, same thing we do in extract
-            source.section = ""
+            source.section = source.single_resource.section
             # apply selected settings directly to resource
             resource = source.single_resource
             if self.max_table_nesting is not None:
@@ -210,6 +211,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
     def bind(self, f: AnyFun) -> Self:
         """Binds wrapper to the original source function and registers the source reference. This method is called only once by the decorator"""
         self._f = f
+        self._update_wrapper()
         self.ref = self.wrap()
         if not is_inner_callable(f):
             SourceReference.register(self.ref)
@@ -222,6 +224,15 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
         if hasattr(self._f, "__qualname__"):
             self.__qualname__ = self._f.__qualname__
         return self._wrap(self._f)
+
+    def _update_wrapper(self) -> None:
+        """wrap self so we preserve signature, module etc. from f"""
+        if not callable(self._f):
+            return None
+        update_wrapper(self, self._f)
+        # also change the signature return annotation to dlt source class
+        sig = inspect.signature(self._f).replace(return_annotation=self._impl_cls)
+        self.__signature__ = sig
 
     def _wrap(self, f: AnyFun) -> SourceReference:
         """Wraps source function `f` in configuration injector."""
@@ -315,7 +326,7 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
         # get spec for wrapped function
         SPEC = get_fun_spec(conf_f)
         # get correct wrapper
-        self._deco_f = _wrap_coro if inspect.iscoroutinefunction(inspect.unwrap(f)) else _wrap  # type: ignore[assignment]
+        self._deco_f = _wrap_coro if iscoroutinefunction(f) else _wrap  # type: ignore[assignment]
         return SourceReference(get_full_callable_name(f), SPEC, self, source_section, effective_name)  # type: ignore[arg-type]
 
 
@@ -389,11 +400,12 @@ def source(
     See https://dlthub.com/docs/general-usage/credentials/ for details.
 
     Args:
-        func: A function that returns a dlt resource or a list of those or a list of any data items that can be loaded by `dlt`.
+        func (Optional[AnyFun]): A function that returns a dlt resource or a list of those or a list of any data items that can be loaded by `dlt`.
 
         name (str, optional): A name of the source which is also the name of the associated schema. If not present, the function name will be used.
 
-        section (str, optional): A name of configuration. If not present, the current python module name will be used.
+        section (str, optional): Configuration section that comes right after 'sources` in default layout. If not present, the current python module name will be used.
+            Default layout is `sources.<section>.<name>.<key_name>`.
 
         max_table_nesting (int, optional): A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
 
@@ -411,11 +423,11 @@ def source(
         _impl_cls (Type[TDltSourceImpl], optional): A custom implementation of DltSource, may be also used to providing just a typing stub
 
     Returns:
-        Wrapped decorated source function, see SourceFactory reference for additional wrapper capabilities
+        Any: Wrapped decorated source function, see SourceFactory reference for additional wrapper capabilities
     """
     if name and schema:
         raise ArgumentsOverloadException(
-            "'name' has no effect when `schema` argument is present", source.__name__
+            "`name` has no effect when `schema` argument is present", source.__name__
         )
 
     source_wrapper = (
@@ -441,11 +453,19 @@ def source(
     return source_wrapper(func)
 
 
+class ResourceFactory(DltResource, Generic[TResourceFunParams, TDltResourceImpl]):
+    # this class is used only for typing, do not instantiate, do not add docstring
+    def __call__(  # type: ignore[override]
+        self, *args: TResourceFunParams.args, **kwargs: TResourceFunParams.kwargs
+    ) -> TDltResourceImpl:
+        pass
+
+
 @overload
 def resource(
     data: Callable[TResourceFunParams, Any],
     /,
-    name: str = None,
+    name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
     max_table_nesting: int = None,
     write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
@@ -462,31 +482,10 @@ def resource(
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
-) -> TDltResourceImpl: ...
-
-
-@overload
-def resource(
-    data: None = ...,
-    /,
-    name: str = None,
-    table_name: TTableHintTemplate[str] = None,
-    max_table_nesting: int = None,
-    write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
-    columns: TTableHintTemplate[TAnySchemaColumns] = None,
-    primary_key: TTableHintTemplate[TColumnNames] = None,
-    merge_key: TTableHintTemplate[TColumnNames] = None,
-    schema_contract: TTableHintTemplate[TSchemaContract] = None,
-    table_format: TTableHintTemplate[TTableFormat] = None,
-    file_format: TTableHintTemplate[TFileFormat] = None,
-    references: TTableHintTemplate[TTableReferenceParam] = None,
-    nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
-    selected: bool = True,
-    spec: Type[BaseConfiguration] = None,
-    parallelized: bool = False,
-    incremental: Optional[TIncrementalConfig] = None,
-    _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
-) -> Callable[[Callable[TResourceFunParams, Any]], TDltResourceImpl]: ...
+    section: Optional[TTableHintTemplate[str]] = None,
+    _base_spec: Type[BaseConfiguration] = BaseConfiguration,
+    standalone: bool = None,
+) -> ResourceFactory[TResourceFunParams, TDltResourceImpl]: ...
 
 
 @overload
@@ -510,15 +509,17 @@ def resource(
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
-    standalone: Literal[True] = True,
+    section: Optional[TTableHintTemplate[str]] = None,
+    _base_spec: Type[BaseConfiguration] = BaseConfiguration,
+    standalone: bool = None,
 ) -> Callable[
-    [Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, TDltResourceImpl]
+    [Callable[TResourceFunParams, Any]], ResourceFactory[TResourceFunParams, TDltResourceImpl]
 ]: ...
 
 
 @overload
 def resource(
-    data: Union[List[Any], Tuple[Any], Iterator[Any]],
+    data: Union[List[Any], Iterator[Any]],
     /,
     name: str = None,
     table_name: TTableHintTemplate[str] = None,
@@ -537,6 +538,9 @@ def resource(
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
+    section: Optional[str] = None,
+    _base_spec: Type[BaseConfiguration] = BaseConfiguration,
+    standalone: bool = None,
 ) -> TDltResourceImpl: ...
 
 
@@ -560,7 +564,9 @@ def resource(
     parallelized: bool = False,
     incremental: Optional[TIncrementalConfig] = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
-    standalone: bool = False,
+    section: Optional[TTableHintTemplate[str]] = None,
+    _base_spec: Type[BaseConfiguration] = BaseConfiguration,
+    standalone: bool = None,
     data_from: TUnboundDltResource = None,
 ) -> Any:
     """When used as a decorator, transforms any generator (yielding) function into a `dlt resource`. When used as a function, it transforms data in `data` argument into a `dlt resource`.
@@ -585,9 +591,9 @@ def resource(
     Note that if decorated function is an inner function, passing of the credentials will be disabled.
 
     Args:
-        data (Callable | Any, optional): a function to be decorated or a data compatible with `dlt` `run`.
+        data (Optional[Any], optional): a function to be decorated or a data compatible with `dlt` `run`.
 
-        name (str, optional): A name of the resource that by default also becomes the name of the table to which the data is loaded.
+        name (TTableHintTemplate[str], optional): A name of the resource that by default also becomes the name of the table to which the data is loaded.
             If not present, the name of the decorated function will be used.
 
         table_name (TTableHintTemplate[str], optional): An table name, if different from `name`.
@@ -600,50 +606,57 @@ def resource(
             Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        columns (Sequence[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas.
+        columns (TTableHintTemplate[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas.
             Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
             When the argument is a pydantic model, the model will be used to validate the data yielded by the resource as well.
 
-        primary_key (str | Sequence[str]): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
+        primary_key (TTableHintTemplate[TColumnNames], optional): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        merge_key (str | Sequence[str]): A column name or a list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to keep a single record for a given day.
+        merge_key (TTableHintTemplate[TColumnNames], optional): A column name or a list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to keep a single record for a given day.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        schema_contract (TSchemaContract, optional): Schema contract settings that will be applied to all resources of this source (if not overridden in the resource itself)
+        schema_contract (TTableHintTemplate[TSchemaContract], optional): Schema contract settings that will be applied to all resources of this source (if not overridden in the resource itself)
 
-        table_format (Literal["iceberg", "delta"], optional): Defines the storage format of the table. Currently only "iceberg" is supported on Athena, and "delta" on the filesystem.
+        table_format (TTableHintTemplate[TTableFormat], optional): Defines the storage format of the table. Currently only "iceberg" is supported on Athena, and "delta" on the filesystem.
             Other destinations ignore this hint.
 
-        file_format (Literal["preferred", ...], optional): Format of the file in which resource data is stored. Useful when importing external files. Use `preferred` to force
+        file_format (TTableHintTemplate[TFileFormat], optional): Format of the file in which resource data is stored. Useful when importing external files. Use `preferred` to force
             a file format that is preferred by the destination used. This setting superseded the `load_file_format` passed to pipeline `run` method.
 
-        references (TTableReferenceParam, optional): A list of references to other table's columns.
+        references (TTableHintTemplate[TTableReferenceParam], optional): A list of references to other table's columns.
             A list in the form of `[{'referenced_table': 'other_table', 'columns': ['other_col1', 'other_col2'], 'referenced_columns': ['col1', 'col2']}]`.
             Table and column names will be normalized according to the configured naming convention.
 
-        nested_hints (Dict[TTableNames, TResourceNestedHints], optional): Hints for nested tables created by this resource.
+        nested_hints (Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]], optional): Hints for nested tables created by this resource.
 
         selected (bool, optional): When `True` `dlt pipeline` will extract and load this resource, if `False`, the resource will be ignored.
 
         spec (Type[BaseConfiguration], optional): A specification of configuration and secret values required by the source.
 
-        standalone (bool, optional): Returns a wrapped decorated function that creates DltResource instance. Must be called before use. Cannot be part of a source.
-
-        data_from (TUnboundDltResource, optional): Allows to pipe data from one resource to another to build multi-step pipelines.
-
         parallelized (bool, optional): If `True`, the resource generator will be extracted in parallel with other resources.
             Transformers that return items are also parallelized. Defaults to `False`.
 
+        incremental (Optional[TIncrementalConfig], optional): An incremental configuration for the resource.
+
         _impl_cls (Type[TDltResourceImpl], optional): A custom implementation of DltResource, may be also used to providing just a typing stub
+
+        section (Optional[TTableHintTemplate[str]], optional): Configuration section that comes right after 'sources` in default layout. If not present, the current python module name will be used.
+            Default layout is `sources.<section>.<name>.<key_name>`. Note that resource section is used only when a single resource is passed to the pipeline.
+
+        _base_spec (Type[BaseConfiguration], optional): A base spec used to which spec derived from resource function arguments is added
+
+        standalone (bool, optional): Deprecated. Past functionality got merged into regular resource
+
+        data_from (TUnboundDltResource, optional): Allows to pipe data from one resource to another to build multi-step pipelines.
 
     Raises:
         ResourceNameMissing: indicates that name of the resource cannot be inferred from the `data` being passed.
         InvalidResourceDataType: indicates that the `data` argument cannot be converted into `dlt resource`
 
     Returns:
-        TDltResourceImpl instance which may be loaded, iterated or combined with other resources into a pipeline.
+        Any: TDltResourceImpl instance which may be loaded, iterated or combined with other resources into a pipeline.
     """
 
     def make_resource(_name: str, _section: str, _data: Any) -> TDltResourceImpl:
@@ -660,7 +673,6 @@ def resource(
             nested_hints=nested_hints,
             incremental=incremental,
         )
-
         resource = _impl_cls.from_data(
             _data,
             _name,
@@ -684,36 +696,9 @@ def resource(
             return resource.parallelize()
         return resource
 
-    def wrap_standalone(
-        _name: str, _section: str, f: AnyFun
-    ) -> Callable[TResourceFunParams, TDltResourceImpl]:
-        if not standalone:
-            # we return a DltResource that is callable and returns dlt resource when called
-            # so it should match the signature
-            return make_resource(_name, _section, f)  # type: ignore[return-value]
-
-        @wraps(f)
-        def _wrap(*args: Any, **kwargs: Any) -> TDltResourceImpl:
-            skip_args = 1 if data_from else 0
-            _, mod_sig, bound_args = simulate_func_call(f, skip_args, *args, **kwargs)
-            actual_resource_name = name(bound_args.arguments) if callable(name) else _name
-            r = make_resource(actual_resource_name, _section, f)
-            # wrap the standalone resource
-            data_ = r._pipe.bind_gen(*args, **kwargs)
-            if isinstance(data_, DltResource):
-                # we allow an edge case: resource can return another resource
-                r = data_  # type: ignore[assignment]
-            # consider transformer arguments bound
-            r._args_bound = True
-            # keep explicit args passed
-            r._set_explicit_args(f, mod_sig, *args, **kwargs)
-            return r
-
-        return _wrap
-
     def decorator(
         f: Callable[TResourceFunParams, Any],
-    ) -> Callable[TResourceFunParams, TDltResourceImpl]:
+    ) -> TDltResourceImpl:
         if not callable(f):
             if data_from:
                 # raise more descriptive exception if we construct transformer
@@ -721,43 +706,50 @@ def resource(
                     name or "<no name>", f, type(f)
                 )
             raise ResourceFunctionExpected(name or "<no name>", f, type(f))
-        if not standalone and callable(name):
-            raise DynamicNameNotStandaloneResource(get_callable_name(f))
 
-        resource_name = name if name and not callable(name) else get_callable_name(f)
-
+        # allow for name and section to be created at runtime via dynstr which will
+        # be evaluated when resource will be parametrized/called
         func_module = inspect.getmodule(f)
-        source_section = _get_source_section_name(func_module)
-        is_inner_resource = is_inner_callable(f)
+        if callable(name):
+            resource_name: str = dynstr(get_callable_name(f), name)
+        else:
+            resource_name = name or get_callable_name(f)
+        if callable(section):
+            source_section: str = dynstr(_get_source_section_name(func_module), section)
+        else:
+            source_section = section or _get_source_section_name(func_module)
 
+        is_inner_resource = is_inner_callable(f)
         if spec is None:
             # autodetect spec
-            SPEC, resolvable_fields = spec_from_signature(
-                f, inspect.signature(f), include_defaults=standalone
-            )
-            if is_inner_resource and not standalone:
-                if len(resolvable_fields) > 0:
-                    # prevent required arguments to inner functions that are not standalone
-                    raise ResourceInnerCallableConfigWrapDisallowed(resource_name, source_section)
-                else:
-                    # empty spec for inner functions - they should not be injected
-                    SPEC = BaseConfiguration
+            SPEC, resolvable_fields = spec_from_signature(f, inspect.signature(f), base=_base_spec)
         else:
-            SPEC = spec
-        # assign spec to "f"
+            SPEC, resolvable_fields = spec, spec.get_resolvable_fields()
+
+        # add spec to f
         set_fun_spec(f, SPEC)
 
+        if is_inner_resource and len(resolvable_fields) > 0 and data_from is not None:
+            # warn for parametrized inner transformers due to injection costs
+            # we do not warn on top level ones because that's normal pattern here
+            logger.info(
+                f"Transformer {resource_name} in section {source_section} is defined over an inner"
+                " function and has additional arguments that will be injected from the"
+                " configuration. Note that transformers  are called for each data item (typically"
+                " batch or page) and configuration injection is costly .Use the dlt.source to get"
+                " the required configuration and pass them explicitly to your source."
+            )
+
         factory = None
+        r_ = make_resource(resource_name, source_section, f)
         # register non inner resources as source with single resource in it
         if not is_inner_resource:
             # a source function for the source wrapper, args that go to source are forwarded
             # to a single resource within
             def _source(
                 name_ovr: str, section_ovr: str, args: Tuple[Any, ...], kwargs: Dict[str, Any]
-            ) -> TDltResourceImpl:
-                return wrap_standalone(name_ovr or resource_name, section_ovr or source_section, f)(
-                    *args, **kwargs
-                )
+            ) -> DltResource:
+                return r_.with_name(name_ovr, new_section=section_ovr)(*args, **kwargs)
 
             # make the source module same as original resource
             _source.__qualname__ = f.__qualname__
@@ -768,7 +760,7 @@ def resource(
                 .clone(
                     name=resource_name,
                     section=source_section,
-                    spec=BaseConfiguration,
+                    spec=_base_spec,
                     _impl_cls=_DltSingleSource,
                 )
                 .bind(_source)
@@ -776,14 +768,11 @@ def resource(
             # mod the reference to keep the right spec
             factory.ref.SPEC = SPEC
 
-        deco: Callable[TResourceFunParams, TDltResourceImpl] = wrap_standalone(
-            resource_name, source_section, f
-        )
         # associate source factory with the decorated function for the standalone=True resource
         # this provides access to standalone resources in the same way as to sources via SourceReference
-        deco._factory = factory  # type: ignore[attr-defined]
+        r_._factory = factory  # type: ignore[attr-defined]
 
-        return deco
+        return r_
 
     # if data is callable or none use decorator
     if data is None:
@@ -793,13 +782,15 @@ def resource(
     if callable(data):
         return decorator(data)
     else:
+        assert not callable(name)
+        assert not callable(section)
+
         # take name from the generator
         source_section: str = None
         if inspect.isgenerator(data):
             name = name or get_callable_name(data)  # type: ignore
             func_module = inspect.getmodule(data.gi_frame)
-            source_section = _get_source_section_name(func_module)
-        assert not callable(name)
+            source_section = section or _get_source_section_name(func_module)
         return make_resource(name, source_section, data)
 
 
@@ -808,29 +799,6 @@ def transformer(
     f: None = ...,
     /,
     data_from: TUnboundDltResource = DltResource.Empty,
-    name: str = None,
-    table_name: TTableHintTemplate[str] = None,
-    max_table_nesting: int = None,
-    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
-    columns: TTableHintTemplate[TAnySchemaColumns] = None,
-    primary_key: TTableHintTemplate[TColumnNames] = None,
-    merge_key: TTableHintTemplate[TColumnNames] = None,
-    schema_contract: TTableHintTemplate[TSchemaContract] = None,
-    table_format: TTableHintTemplate[TTableFormat] = None,
-    file_format: TTableHintTemplate[TFileFormat] = None,
-    references: TTableHintTemplate[TTableReferenceParam] = None,
-    nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
-    selected: bool = True,
-    spec: Type[BaseConfiguration] = None,
-    parallelized: bool = False,
-) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], DltResource]: ...
-
-
-@overload
-def transformer(
-    f: None = ...,
-    /,
-    data_from: TUnboundDltResource = DltResource.Empty,
     name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
     max_table_nesting: int = None,
@@ -846,10 +814,11 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
-    standalone: Literal[True] = True,
+    section: Optional[TTableHintTemplate[str]] = None,
+    standalone: bool = None,
 ) -> Callable[
     [Callable[Concatenate[TDataItem, TResourceFunParams], Any]],
-    Callable[TResourceFunParams, DltResource],
+    ResourceFactory[TResourceFunParams, DltResource],
 ]: ...
 
 
@@ -858,29 +827,6 @@ def transformer(
     f: Callable[Concatenate[TDataItem, TResourceFunParams], Any],
     /,
     data_from: TUnboundDltResource = DltResource.Empty,
-    name: str = None,
-    table_name: TTableHintTemplate[str] = None,
-    max_table_nesting: int = None,
-    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
-    columns: TTableHintTemplate[TAnySchemaColumns] = None,
-    primary_key: TTableHintTemplate[TColumnNames] = None,
-    merge_key: TTableHintTemplate[TColumnNames] = None,
-    schema_contract: TTableHintTemplate[TSchemaContract] = None,
-    table_format: TTableHintTemplate[TTableFormat] = None,
-    file_format: TTableHintTemplate[TFileFormat] = None,
-    references: TTableHintTemplate[TTableReferenceParam] = None,
-    nested_hints: Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]] = None,
-    selected: bool = True,
-    spec: Type[BaseConfiguration] = None,
-    parallelized: bool = False,
-) -> DltResource: ...
-
-
-@overload
-def transformer(
-    f: Callable[Concatenate[TDataItem, TResourceFunParams], Any],
-    /,
-    data_from: TUnboundDltResource = DltResource.Empty,
     name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
     max_table_nesting: int = None,
@@ -896,8 +842,9 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
-    standalone: Literal[True] = True,
-) -> Callable[TResourceFunParams, DltResource]: ...
+    section: Optional[TTableHintTemplate[str]] = None,
+    standalone: bool = None,
+) -> ResourceFactory[TResourceFunParams, DltResource]: ...
 
 
 def transformer(
@@ -919,7 +866,8 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
-    standalone: bool = False,
+    section: Optional[TTableHintTemplate[str]] = None,
+    standalone: bool = None,
     _impl_cls: Type[TDltResourceImpl] = DltResource,  # type: ignore[assignment]
 ) -> Any:
     """A form of `dlt resource` that takes input from other resources via `data_from` argument in order to enrich or transform the data.
@@ -948,11 +896,11 @@ def transformer(
     >>> list(players("GM") | player_profile)
 
     Args:
-        f (Callable): a function taking minimum one argument of TDataItems type which will receive data yielded from `data_from` resource.
+        f (Optional[Callable[Concatenate[TDataItem, TResourceFunParams], Any]]): a function taking minimum one argument of TDataItems type which will receive data yielded from `data_from` resource.
 
-        data_from (Callable | Any, optional): a resource that will send data to the decorated function `f`
+        data_from (TUnboundDltResource, optional): a resource that will send data to the decorated function `f`
 
-        name (str, optional): A name of the resource that by default also becomes the name of the table to which the data is loaded.
+        name (TTableHintTemplate[str], optional): A name of the resource that by default also becomes the name of the table to which the data is loaded.
             If not present, the name of the decorated function will be used.
 
         table_name (TTableHintTemplate[str], optional): An table name, if different from `name`.
@@ -960,37 +908,42 @@ def transformer(
 
         max_table_nesting (int, optional): A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
 
-        write_disposition (Literal["skip", "append", "replace", "merge"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
+        write_disposition (TTableHintTemplate[TWriteDisposition], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        columns (Sequence[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
+        columns (TTableHintTemplate[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        primary_key (str | Sequence[str]): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
+        primary_key (TTableHintTemplate[TColumnNames], optional): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        merge_key (str | Sequence[str]): A column name or a list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to keep a single record for a given day.
+        merge_key (TTableHintTemplate[TColumnNames], optional): A column name or a list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to keep a single record for a given day.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        schema_contract (TSchemaContract, optional): Schema contract settings that will be applied to all resources of this source (if not overridden in the resource itself)
+        schema_contract (TTableHintTemplate[TSchemaContract], optional): Schema contract settings that will be applied to all resources of this source (if not overridden in the resource itself)
 
-        table_format (Literal["iceberg", "delta"], optional): Defines the storage format of the table. Currently only "iceberg" is supported on Athena, and "delta" on the filesystem.
+        table_format (TTableHintTemplate[TTableFormat], optional): Defines the storage format of the table. Currently only "iceberg" is supported on Athena, and "delta" on the filesystem.
             Other destinations ignore this hint.
 
-        file_format (Literal["preferred", ...], optional): Format of the file in which resource data is stored. Useful when importing external files. Use `preferred` to force
+        file_format (TTableHintTemplate[TFileFormat], optional): Format of the file in which resource data is stored. Useful when importing external files. Use `preferred` to force
             a file format that is preferred by the destination used. This setting superseded the `load_file_format` passed to pipeline `run` method.
 
-        references (TTableReferenceParam, optional): A list of references to other table's columns.
+        references (TTableHintTemplate[TTableReferenceParam], optional): A list of references to other table's columns.
             A list in the form of `[{'referenced_table': 'other_table', 'columns': ['other_col1', 'other_col2'], 'referenced_columns': ['col1', 'col2']}]`.
             Table and column names will be normalized according to the configured naming convention.
 
-        nested_hints (Dict[TTableNames, TResourceNestedHints], optional): Hints for nested tables created by this resource.
+        nested_hints (Optional[TTableHintTemplate[Dict[TTableNames, TResourceNestedHints]]], optional): Hints for nested tables created by this resource.
 
         selected (bool, optional): When `True` `dlt pipeline` will extract and load this resource, if `False`, the resource will be ignored.
 
         spec (Type[BaseConfiguration], optional): A specification of configuration and secret values required by the source.
 
-        standalone (bool, optional): Returns a wrapped decorated function that creates DltResource instance. Must be called before use. Cannot be part of a source.
+        parallelized (bool, optional): When `True` the resource will be loaded in parallel.
+
+        section (Optional[TTableHintTemplate[str]], optional): Configuration section that comes right after 'sources` in default layout. If not present, the current python module name will be used.
+            Default layout is `sources.<section>.<name>.<key_name>`. Note that resource section is used only when a single resource is passed to the pipeline.
+
+        standalone (bool, optional): Deprecated. Past functionality got merged into regular resource
 
         _impl_cls (Type[TDltResourceImpl], optional): A custom implementation of DltResource, may be also used to providing just a typing stub
 
@@ -999,7 +952,7 @@ def transformer(
         InvalidResourceDataType: indicates that the `data` argument cannot be converted into `dlt resource`
 
     Returns:
-        TDltResourceImpl instance which may be loaded, iterated or combined with other resources into a pipeline.
+        Any: TDltResourceImpl instance which may be loaded, iterated or combined with other resources into a pipeline.
     """
     if isinstance(f, DltResource):
         raise ValueError(
@@ -1023,10 +976,10 @@ def transformer(
         nested_hints=nested_hints,
         selected=selected,
         spec=spec,
-        standalone=standalone,
         data_from=data_from,
         parallelized=parallelized,
         _impl_cls=_impl_cls,
+        section=section,
     )
 
 
@@ -1056,7 +1009,11 @@ def _get_source_section_name(m: ModuleType) -> str:
 
 
 def get_source_schema() -> Schema:
-    """When executed from the function decorated with @dlt.source, returns a writable source Schema"""
+    """Should be executed from inside the function decorated with @dlt.resource
+
+    Returns:
+        Schema: The current writeable source schema
+    """
     try:
         return Container()[SourceSchemaInjectableContext].schema
     except ContextDefaultCannotBeCreated:
@@ -1064,7 +1021,11 @@ def get_source_schema() -> Schema:
 
 
 def get_source() -> DltSource:
-    """When executed from the function decorated with @dlt.resource, returns currently extracted source"""
+    """Should be executed from inside the function decorated with @dlt.resource
+
+    Returns:
+        DltSource: The current writable source object
+    """
     try:
         return Container()[SourceInjectableContext].source
     except ContextDefaultCannotBeCreated:
@@ -1085,5 +1046,16 @@ def defer(
             return f(*args, **kwargs)
 
         return _curry
+
+    # copy the signature from f to _wrap, but change the return type
+    sig = inspect.signature(f)
+    return_annotation = (
+        Callable[[], sig.return_annotation]
+        if sig.return_annotation is not inspect.Parameter.empty
+        else None
+    )
+    if return_annotation:
+        new_sig = sig.replace(return_annotation=return_annotation)
+        setattr(_wrap, "__signature__", new_sig)
 
     return _wrap

@@ -32,7 +32,7 @@ from dlt.common.configuration.specs import (
     AzureCredentials,
     SFTPCredentials,
 )
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
 from dlt.common.storages.configuration import (
     FileSystemCredentials,
     FilesystemConfiguration,
@@ -136,9 +136,9 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
     protocol = config.protocol
     # never use listing caches
     fs_kwargs: DictStrAny = {
-        "use_listings_cache": False,
+        "use_listings_cache": config.read_only,
         "listings_expiry_time": 60.0,
-        "skip_instance_cache": True,
+        "skip_instance_cache": False,
     }
     credentials = CREDENTIALS_DISPATCH.get(protocol, lambda _: {})(config)
 
@@ -204,7 +204,7 @@ class FileItemDict(DictStrAny):
     def __init__(
         self,
         mapping: FileItem,
-        credentials: Optional[Union[FileSystemCredentials, AbstractFileSystem]] = None,
+        fsspec: AbstractFileSystem = None,
     ):
         """Create a dictionary with the filesystem client.
 
@@ -213,7 +213,7 @@ class FileItemDict(DictStrAny):
             credentials (Optional[FileSystemCredentials], optional): The credentials to the
                 filesystem. Defaults to None.
         """
-        self.credentials = credentials
+        self._fsspec = fsspec
         super().__init__(**mapping)
 
     @property
@@ -223,10 +223,7 @@ class FileItemDict(DictStrAny):
         Returns:
             AbstractFileSystem: The fsspec client.
         """
-        if isinstance(self.credentials, AbstractFileSystem):
-            return self.credentials
-        else:
-            return fsspec_filesystem(self["file_url"], self.credentials)[0]
+        return self._fsspec
 
     @property
     def local_file_path(self) -> str:
@@ -267,8 +264,9 @@ class FileItemDict(DictStrAny):
         elif compression == "disable":
             compression_arg = None
         else:
-            raise ValueError("""The argument `compression` must have one of the following values:
-                "auto", "enable", "disable".""")
+            raise ValueErrorWithKnownValues(
+                "compression", compression, ["auto", "enable", "disable"]
+            )
 
         # if the user has already extracted the content, we use it so there is no need to
         # download the file again.

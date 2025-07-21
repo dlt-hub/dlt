@@ -32,6 +32,7 @@ from dlt.normalize.items_normalizers import (
     FileImportNormalizer,
     JsonLItemsNormalizer,
     ItemsNormalizer,
+    ModelItemsNormalizer,
 )
 
 
@@ -68,7 +69,7 @@ def w_normalize_files(
 ) -> TWorkerRV:
     destination_caps = config.destination_capabilities
     schema_updates: List[TSchemaUpdate] = []
-    # normalizers are cached per table name
+    # normalizers are cached per {table_name}.{item_format}
     item_normalizers: Dict[str, ItemsNormalizer] = {}
 
     preferred_file_format = (
@@ -90,8 +91,10 @@ def w_normalize_files(
             item_format = DataWriter.item_format_from_file_extension(parsed_file_name.file_format)
 
             table_name = table_schema["name"]
-            if table_name in item_normalizers:
-                return item_normalizers[table_name]
+            normalizer_key = f"{table_name}.{item_format}"
+
+            if normalizer_key in item_normalizers:
+                return item_normalizers[normalizer_key]
 
             # TODO: extract code that resolves file_format from preferred to utils
 
@@ -141,7 +144,7 @@ def w_normalize_files(
                     logger.warning(
                         f"The configured value `{config_loader_file_format}` "
                         "for `loader_file_format` is not supported for table "
-                        f"`{table_name}` and will be ignored. Dlt "
+                        f"`{table_name}` and will be ignored. dlt "
                         "will use a supported format instead."
                     )
 
@@ -165,11 +168,14 @@ def w_normalize_files(
                     f" {item_storage.writer_cls.__name__} writer is used that internally"
                     f" converts {item_format}. This will degrade performance."
                 )
+
             cls: Type[ItemsNormalizer]
             if item_format == "arrow":
                 cls = ArrowItemsNormalizer
             elif item_format == "object":
                 cls = JsonLItemsNormalizer
+            elif item_format == "model":
+                cls = ModelItemsNormalizer
             else:
                 cls = FileImportNormalizer
             logger.info(
@@ -177,7 +183,8 @@ def w_normalize_files(
                 f" {item_storage.writer_cls.__name__} for item format {item_format} and file"
                 f" format {item_storage.writer_spec.file_format}"
             )
-            norm = item_normalizers[table_name] = cls(
+
+            norm = item_normalizers[normalizer_key] = cls(
                 item_storage,
                 normalize_storage,
                 schema,

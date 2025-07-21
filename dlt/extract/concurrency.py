@@ -4,11 +4,13 @@ from concurrent.futures import (
     as_completed,
     wait as wait_for_futures,
 )
+import contextvars
 from threading import Thread
 from typing import Awaitable, Dict, Optional
 
 from dlt.common.exceptions import PipelineException
 from dlt.common.configuration.container import Container
+from dlt.common.runners.pool_runner import TimeoutThreadPoolExecutor
 from dlt.common.runtime.signals import sleep
 from dlt.extract.items import DataItemWithMeta, TItemFuture, ResolvablePipeItem, FuturePipeItem
 
@@ -55,8 +57,10 @@ class FuturesPool:
         if self._thread_pool:
             return self._thread_pool
 
-        self._thread_pool = ThreadPoolExecutor(
-            self.workers, thread_name_prefix=Container.thread_pool_prefix() + "threads"
+        self._thread_pool = TimeoutThreadPoolExecutor(
+            self.workers,
+            timeout=2.0,
+            thread_name_prefix=Container.thread_pool_prefix() + "extract-threads",
         )
         return self._thread_pool
 
@@ -74,7 +78,7 @@ class FuturesPool:
             target=start_background_loop,
             args=(self._async_pool,),
             daemon=True,
-            name=Container.thread_pool_prefix() + "futures",
+            name=Container.thread_pool_prefix() + "extract-futures",
         )
         self._async_pool_thread.start()
 
@@ -111,9 +115,11 @@ class FuturesPool:
         if isinstance(item, Awaitable):
             future = asyncio.run_coroutine_threadsafe(item, self._ensure_async_pool())
         elif callable(item):
-            future = self._ensure_thread_pool().submit(item)
+            # pass pipe context to thread pool, happens automatically for coroutines
+            ctx = contextvars.copy_context()
+            future = self._ensure_thread_pool().submit(ctx.run, item)
         else:
-            raise ValueError(f"Unsupported item type: {type(item)}")
+            raise ValueError(f"Unsupported item type: `{type(item)}`")
 
         # Future is not removed from self.futures until it's been consumed by the
         # pipe iterator. But we always want to vacate a slot so new jobs can be submitted

@@ -1,52 +1,15 @@
 import dataclasses
-import base64
+from pathlib import Path
 from typing import Final, Optional, Any, Dict, ClassVar, List
 
-from dlt import version
-from dlt.common.data_writers.configuration import CsvFormatConfiguration
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.destination.configuration import CsvFormatConfiguration
+from dlt.common.libs.cryptography import decode_private_key
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration import configspec
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.utils import digest128
-
-
-def _decode_private_key(private_key: str, password: Optional[str] = None) -> bytes:
-    """Decode encrypted or unencrypted private key from string."""
-    try:
-        from cryptography.hazmat.backends import default_backend
-        from cryptography.hazmat.primitives.asymmetric import rsa
-        from cryptography.hazmat.primitives.asymmetric import dsa
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
-    except ModuleNotFoundError as e:
-        raise MissingDependencyException(
-            "SnowflakeCredentials with private key",
-            dependencies=[f"{version.DLT_PKG_NAME}[snowflake]"],
-        ) from e
-
-    try:
-        # load key from base64-encoded DER key
-        pkey = serialization.load_der_private_key(
-            base64.b64decode(private_key),
-            password=password.encode() if password is not None else None,
-            backend=default_backend(),
-        )
-    except Exception:
-        # loading base64-encoded DER key failed -> assume it's a plain-text PEM key
-        pkey = serialization.load_pem_private_key(
-            private_key.encode(encoding="ascii"),
-            password=password.encode() if password is not None else None,
-            backend=default_backend(),
-        )
-
-    return pkey.private_bytes(
-        encoding=serialization.Encoding.DER,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
 
 
 SNOWFLAKE_APPLICATION_ID = "dltHub_dlt"
@@ -63,6 +26,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     authenticator: Optional[str] = None
     token: Optional[str] = None
     private_key: Optional[TSecretStrValue] = None
+    private_key_path: Optional[str] = None
     private_key_passphrase: Optional[TSecretStrValue] = None
     application: Optional[str] = SNOWFLAKE_APPLICATION_ID
 
@@ -73,6 +37,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
         "authenticator",
         "token",
         "private_key",
+        "private_key_path",
         "private_key_passphrase",
     ]
 
@@ -83,11 +48,18 @@ class SnowflakeCredentials(ConnectionStringCredentials):
                 setattr(self, param, self.query.get(param))
 
     def on_resolved(self) -> None:
+        if self.private_key_path:
+            try:
+                self.private_key = Path(self.private_key_path).read_text("ascii")
+            except Exception:
+                raise ValueError(
+                    "Make sure that `private_key` in dlt recognized format is at"
+                    f" `{self.private_key_path}`. Note that binary formats are not supported"
+                )
         if not self.password and not self.private_key and not self.authenticator:
             raise ConfigurationValueError(
-                "Please specify password or private_key or authenticator fields."
-                " SnowflakeCredentials supports password, private key and authenticator based (ie."
-                " oauth2) authentication and one of those must be specified."
+                "`SnowflakeCredentials` requires one of the following to be specified: `password`,"
+                " `private_key`, `authenticator` (OAuth2)."
             )
 
     def get_query(self) -> Dict[str, Any]:
@@ -101,9 +73,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
         # gather all params in query
         query = self.get_query()
         if self.private_key:
-            query["private_key"] = _decode_private_key(
-                self.private_key, self.private_key_passphrase
-            )
+            query["private_key"] = decode_private_key(self.private_key, self.private_key_passphrase)
 
         # we do not want passphrase to be passed
         query.pop("private_key_passphrase", None)

@@ -1,10 +1,12 @@
 import base64
 import string
 import re
-from typing import Sequence
+from typing import Sequence, Set, Optional, Any, Dict, Tuple
 
+from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
+from dlt.common.configuration.exceptions import ConfigProviderException
 from dlt.common.exceptions import MissingDependencyException
 from .vault import VaultDocProvider
 from .provider import get_key_name
@@ -40,9 +42,20 @@ class GoogleSecretsProvider(VaultDocProvider):
         credentials: GcpServiceAccountCredentials,
         only_secrets: bool = True,
         only_toml_fragments: bool = True,
+        list_secrets: bool = False,
     ) -> None:
+        """Initialize a Google Secrets Provider to access secrets stored in Google Secret Manager
+
+        Args:
+            credentials: Google Cloud credentials to access Secret Manager
+            only_secrets: When True, only keys with secret hint types will be looked up
+            only_toml_fragments: When True, only load known TOML fragments and ignore other lookups
+            list_secrets: When True, list all secrets upfront to optimize vault access by
+                          avoiding lookups for non-existent secrets. Requires additional
+                          API calls and roles/secretmanager.secretViewer permission.
+        """
         self.credentials = credentials
-        super().__init__(only_secrets, only_toml_fragments)
+        super().__init__(only_secrets, only_toml_fragments, list_secrets)
 
     @staticmethod
     def get_key_name(key: str, *sections: str) -> str:
@@ -71,62 +84,104 @@ class GoogleSecretsProvider(VaultDocProvider):
         else:
             return super().locations
 
-    def _look_vault(self, full_key: str, hint: type) -> str:
+    def _get_google_client(self, service_name: str = "secretmanager", version: str = "v1") -> Any:
         try:
             from googleapiclient.discovery import build
-            from googleapiclient.errors import HttpError
         except ModuleNotFoundError:
             raise MissingDependencyException(
                 "GoogleSecretsProvider",
                 ["google-api-python-client"],
                 "We need google-api-python-client to build client for secretmanager v1",
             )
-        from dlt.common import logger
 
+        return build(service_name, version, credentials=self.credentials.to_native_credentials())
+
+    def _handle_http_error(self, error: Any) -> Tuple[Dict[str, Any], int, str, str]:
+        error_doc = json.loadb(error.content)["error"]
+        error_message = error_doc.get("message", "Unknown error")
+        error_status = error_doc.get("status", "Unknown status")
+        status_code = error.resp.status
+
+        return error_doc, status_code, error_message, error_status
+
+    def _look_vault(self, full_key: str, hint: type) -> Optional[str]:
         resource_name = f"projects/{self.credentials.project_id}/secrets/{full_key}/versions/latest"
-        client = build("secretmanager", "v1", credentials=self.credentials.to_native_credentials())
+        client = self._get_google_client()
+
+        from googleapiclient.errors import HttpError
+
         try:
             response = client.projects().secrets().versions().access(name=resource_name).execute()
             secret_value = response["payload"]["data"]
             decoded_value = base64.b64decode(secret_value).decode("utf-8")
             return decoded_value
         except HttpError as error:
-            error_doc = json.loadb(error.content)["error"]
-            if error.resp.status == 404:
-                # logger.warning(f"{self.credentials.client_email} has roles/secretmanager.secretAccessor role but {full_key} not found in Google Secrets: {error_doc['message']}[{error_doc['status']}]")
+            _, status_code, error_message, error_status = self._handle_http_error(error)
+
+            if status_code == 404:
+                # logger.warning(f"{self.credentials.client_email} has roles/secretmanager.secretAccessor role but {full_key} not found in Google Secrets: {error_message}[{error_status}]")
                 return None
-            elif error.resp.status == 403:
+            elif status_code == 403:
                 logger.warning(
                     f"{self.credentials.client_email} does not have"
                     " roles/secretmanager.secretAccessor role. It also does not have read"
                     f" permission to {full_key} or the key is not found in Google Secrets:"
-                    f" {error_doc['message']}[{error_doc['status']}]"
+                    f" {error_message}[{error_status}]"
                 )
                 return None
-            elif error.resp.status == 400:
-                logger.warning(
-                    f"Unable to read {full_key} : {error_doc['message']}[{error_doc['status']}]"
-                )
+            elif status_code == 400:
+                logger.warning(f"Unable to read {full_key} : {error_message}[{error_status}]")
                 return None
             raise
 
-    # def _verify_secret_access(self) -> None:
-    #     try:
-    #         from googleapiclient.discovery import build
-    #         from googleapiclient.errors import HttpError
-    #     except ImportError:
-    #         raise MissingDependencyException("GoogleSecretsProvider", ["google-api-python-client"], "We need google-api-python-client to build client for secretmanager v1")
-    #     client = build("iam", "v1", credentials=self.credentials.to_native_credentials())
-    #     resource_name = f"projects/-/serviceAccounts/{self.credentials.client_email}"
-    #     response = client.projects().serviceAccounts().getIamPolicy(resource=resource_name).execute()
-    #     bindings = response.get("bindings", [])
+    def _list_vault(self) -> Set[str]:
+        """Lists all available secrets in Google Secret Manager
 
-    #     has_required_role = False
-    #     required_role = "roles/secretmanager.secretAccessor"
+        This method is called when list_secrets is enabled to prefetch all available
+        secret names, which helps avoid unnecessary API calls for non-existent secrets.
 
-    #     for binding in bindings:
-    #         if binding["role"] == required_role and f"serviceAccount:{self.credentials.client_email}" in binding["members"]:
-    #             has_required_role = True
-    #             break
-    #     if not has_required_role:
-    #         print("no secrets read access")
+        Returns:
+            Set[str]: A set of available key names in the vault
+        """
+        available_keys: Set[str] = set()
+        client = self._get_google_client()
+
+        from googleapiclient.errors import HttpError
+
+        try:
+            parent = f"projects/{self.credentials.project_id}"
+            request = client.projects().secrets().list(parent=parent)
+
+            while request is not None:
+                response = request.execute()
+                secrets = response.get("secrets", [])
+
+                for secret in secrets:
+                    # Extract secret name from full resource path
+                    name = secret.get("name", "").split("/")[-1]
+                    if name:
+                        available_keys.add(name)
+
+                request = client.projects().secrets().list_next(request, response)
+
+            logger.info(f"Listed {len(available_keys)} secrets from Google Secret Manager")
+            return available_keys
+
+        except HttpError as error:
+            _, status_code, error_message, error_status = self._handle_http_error(error)
+
+            if status_code == 403:
+                raise ConfigProviderException(
+                    self.name,
+                    f"Cannot list secrets: `{self.credentials.client_email}` does not have "
+                    "roles/secretmanager.secretViewer role. Secret listing is required when "
+                    "list_secrets=True to optimize vault access by skipping lookups for "
+                    f"non-existent secrets. Error: {error_message} [{error_status}]",
+                )
+            else:
+                raise ConfigProviderException(
+                    self.name,
+                    "Failed to list secrets in Google Secret Manager. Secret listing is required"
+                    " when list_secrets=True to optimize vault access by skipping lookups for"
+                    f" non-existent secrets. Error: {error_message} [{error_status}]",
+                )

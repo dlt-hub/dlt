@@ -1,4 +1,4 @@
-import typing as t
+from typing import Any, Dict, Type, Union, TYPE_CHECKING, Optional, cast
 
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
@@ -16,7 +16,7 @@ from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfigura
 from dlt.destinations.utils import parse_db_data_type_str_with_precision
 
 
-if t.TYPE_CHECKING:
+if TYPE_CHECKING:
     from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
 
 
@@ -66,7 +66,7 @@ class BigQueryTypeMapper(TypeMapperImpl):
             and not should_autodetect_schema(table)
         ):
             raise TerminalValueError(
-                "Enable autodetect_schema in config or via BigQuery adapter", column["data_type"]
+                "Enable `autodetect_schema` in config or via BigQuery adapter", column["data_type"]
             )
 
     def to_db_decimal_type(self, column: TColumnSchema) -> str:
@@ -78,7 +78,7 @@ class BigQueryTypeMapper(TypeMapperImpl):
 
     # noinspection PyTypeChecker,PydanticTypeChecker
     def from_destination_type(
-        self, db_type: str, precision: t.Optional[int], scale: t.Optional[int]
+        self, db_type: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         # precision is present in the type name
         if db_type == "BIGNUMERIC":
@@ -128,30 +128,32 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
         return caps
 
     @property
-    def client_class(self) -> t.Type["BigQueryClient"]:
+    def client_class(self) -> Type["BigQueryClient"]:
         from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
 
         return BigQueryClient
 
     def __init__(
         self,
-        credentials: t.Optional[GcpServiceAccountCredentials] = None,
-        location: t.Optional[str] = None,
+        credentials: GcpServiceAccountCredentials = None,
+        location: str = None,
         has_case_sensitive_identifiers: bool = None,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
-        **kwargs: t.Any,
+        destination_name: str = None,
+        environment: str = None,
+        **kwargs: Any,
     ) -> None:
         """Configure the MsSql destination to use in a pipeline.
 
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials: Credentials to connect to the mssql database. Can be an instance of `GcpServiceAccountCredentials` or
+            credentials (GcpServiceAccountCredentials, optional): Credentials to connect to the BigQuery database. Can be an instance of `GcpServiceAccountCredentials` or
                 a dict or string with service accounts credentials as used in the Google Cloud
-            location: A location where the datasets will be created, eg. "EU". The default is "US"
-            has_case_sensitive_identifiers: Is the dataset case-sensitive, defaults to True
-            **kwargs: Additional arguments passed to the destination config
+            location (str, optional): A location where the datasets will be created, eg. "EU". The default is "US"
+            has_case_sensitive_identifiers (bool, optional): Is the dataset case-sensitive, defaults to True
+            destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (str, optional): Environment of the destination
+            **kwargs (Any): Additional arguments passed to the destination config
         """
         super().__init__(
             credentials=credentials,
@@ -167,7 +169,7 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
         cls,
         caps: DestinationCapabilitiesContext,
         config: BigQueryClientConfiguration,
-        naming: t.Optional[NamingConvention],
+        naming: Optional[NamingConvention],
     ) -> DestinationCapabilitiesContext:
         # modify the caps if case sensitive identifiers are requested
         if config.should_set_case_sensitivity_on_new_dataset:

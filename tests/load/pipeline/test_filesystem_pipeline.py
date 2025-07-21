@@ -22,6 +22,7 @@ from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.load.exceptions import LoadClientJobRetry
+from dlt.common.destination.exceptions import DestinationUndefinedEntity
 
 from tests.cases import arrow_table_all_data_types, table_update_and_row, assert_all_data_types_row
 from tests.common.utils import load_json_case
@@ -346,7 +347,11 @@ def test_filesystem_destination_extended_layout_placeholders(
         }
     pipeline._fs_client().truncate_tables(["table_1", "table_3"])
     if ".{ext}{timestamp}" not in layout:
-        assert load_table_counts(pipeline, "table_1", "table_2", "table_3") == {"table_2": 4}
+        assert load_table_counts(pipeline, "table_2") == {"table_2": 4}
+        with pytest.raises(DestinationUndefinedEntity):
+            load_table_counts(pipeline, "table_1")
+        with pytest.raises(DestinationUndefinedEntity):
+            load_table_counts(pipeline, "table_3")
 
 
 @pytest.mark.parametrize(
@@ -450,8 +455,9 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
 )
 def test_knows_dataset_state(destination_config: DestinationTestConfiguration) -> None:
     # check if pipeline knows initializisation state of dataset
-    p1 = destination_config.setup_pipeline("p1", dataset_name="layout_test")
+    p1 = destination_config.setup_pipeline("p1", dataset_name="layout_test", dev_mode=True)
     assert not p1.destination_client().is_storage_initialized()
+    assert p1.default_schema_name is None
     p1.run([1, 2, 3], table_name="items")
     assert p1.destination_client().is_storage_initialized()
     p1.destination_client().drop_storage()
@@ -574,7 +580,9 @@ def test_client_methods(
 
     # check truncate
     fs_client.truncate_tables(["table_1"])
-    assert load_table_counts(p, "table_1", "table_2") == {"table_2": 14}
+    assert load_table_counts(p, "table_2") == {"table_2": 14}
+    with pytest.raises(DestinationUndefinedEntity):
+        load_table_counts(p, "table_1")
 
     # load again
     p.run([table_1(), table_2(), table_3()])
@@ -586,7 +594,11 @@ def test_client_methods(
 
     # test truncate multiple
     fs_client.truncate_tables(["table_1", "table_3"])
-    assert load_table_counts(p, "table_1", "table_2", "table_3") == {"table_2": 21}
+    assert load_table_counts(p, "table_2") == {"table_2": 21}
+    with pytest.raises(DestinationUndefinedEntity):
+        load_table_counts(p, "table_1")
+    with pytest.raises(DestinationUndefinedEntity):
+        load_table_counts(p, "table_3")
 
 
 @pytest.mark.parametrize(

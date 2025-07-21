@@ -1,14 +1,16 @@
 from datetime import timezone, datetime, date, timedelta  # noqa: I251
 from copy import deepcopy
-from typing import List, Any
+from typing import List, Any, Optional
 
 import pytest
 import pyarrow as pa
 
 from dlt.common import pendulum
+from dlt.common import logger
 from dlt.common.libs.pyarrow import (
     columns_to_arrow,
     deserialize_type,
+    fill_empty_source_column_values_with_placeholder,
     get_column_type_from_py_arrow,
     py_arrow_to_table_schema_columns,
     from_arrow_scalar,
@@ -21,10 +23,18 @@ from dlt.common.libs.pyarrow import (
     append_column,
     rename_columns,
     is_arrow_item,
+    remove_null_columns_from_schema,
     UnsupportedArrowTypeException,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from tests.cases import TABLE_UPDATE_COLUMNS_SCHEMA
+from tests.extract.test_extract import extract_step
+
+from dlt.extract.extract import Extract
+
+from pytest_mock import MockerFixture
+
+import dlt
 
 
 def test_py_arrow_to_table_schema_columns():
@@ -446,3 +456,51 @@ def test_is_arrow_item(pa_type: Any) -> None:
     assert is_arrow_item(table)
     assert not is_arrow_item(table.to_pydict())
     assert not is_arrow_item("hello")
+
+
+def test_null_arrow_type() -> None:
+    obj = pa.null()
+    column_type = get_column_type_from_py_arrow(
+        obj, DestinationCapabilitiesContext.generic_capabilities()
+    )
+    assert {"seen-null-first": True} == column_type["x-normalizer"]  # type: ignore[typeddict-item]
+
+
+def test_remove_null_columns_from_schema() -> None:
+    schema = pa.schema(
+        [
+            pa.field("col1", pa.int32()),
+            pa.field("col2", pa.null()),
+            pa.field("col3", pa.string()),
+            pa.field("col4", pa.null()),
+        ]
+    )
+
+    new_schema, contains_null = remove_null_columns_from_schema(schema)
+    assert contains_null is True
+    assert new_schema.names == ["col1", "col3"]
+    assert all(not pa.types.is_null(f.type) for f in new_schema)
+
+
+def test_fill_empty_source_column_values_with_placeholder() -> None:
+    data = [
+        pa.array(["", "hello", ""]),
+        pa.array(["hello", None, ""]),
+        pa.array([1, 2, 3]),
+        pa.array(["world", "", "arrow"]),
+    ]
+    table = pa.Table.from_arrays(data, names=["A", "B", "C", "D"])
+
+    source_columns = ["A", "B"]
+    placeholder = "placeholder"
+
+    new_table = fill_empty_source_column_values_with_placeholder(table, source_columns, placeholder)
+
+    expected_data = [
+        pa.array(["placeholder", "hello", "placeholder"]),
+        pa.array(["hello", "placeholder", "placeholder"]),
+        pa.array([1, 2, 3]),
+        pa.array(["world", "", "arrow"]),
+    ]
+    expected_table = pa.Table.from_arrays(expected_data, names=["A", "B", "C", "D"])
+    assert new_table.equals(expected_table)

@@ -257,9 +257,14 @@ def test_union_concrete_type(environment: Any) -> None:
     assert isinstance(creds, ConnectionStringCredentials)
     # pass instance of credentials
     cn = ConnectionStringCredentials("sqlite://user@/:memory:")
+    cn.resolve()
     db = sql_database(credentials=cn)
     # exactly that instance is returned
     assert list(db)[0] is cn
+    # pass instance but not resolve
+    cn_2 = ConnectionStringCredentials("sqlite://user@/:memory:")
+    db = sql_database(credentials=cn_2)
+    assert dict(list(db)[0]) == dict(cn_2) == dict(cn)
     # invalid cn
     with pytest.raises(InvalidNativeValue):
         db = sql_database(credentials="?")

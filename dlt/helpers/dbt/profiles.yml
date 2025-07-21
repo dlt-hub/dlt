@@ -94,7 +94,7 @@ motherduck:
     analytics:
       type: duckdb
       schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
-      path: "md:{{ env_var('DLT__CREDENTIALS__DATABASE') }}?token={{env_var('DLT__CREDENTIALS__PASSWORD')}}"
+      path: "md:{{ env_var('DLT__CREDENTIALS__DATABASE') }}?motherduck_token={{env_var('DLT__CREDENTIALS__PASSWORD')}}"
 
 # snowflake with password auth
 snowflake:

@@ -147,7 +147,6 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
         assert isinstance(query, str)
-        curr: DBApiCursor = None
         if kwargs:
             raise NotImplementedError("pyodbc does not support named parameters in queries")
         if args:
@@ -159,8 +158,26 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
             # unpack because empty tuple gets interpreted as a single argument
             # https://github.com/mkleehammer/pyodbc/wiki/Features-beyond-the-DB-API#passing-parameters
             curr.execute(query, *args)
-            yield DBApiCursorImpl(curr)  # type: ignore[abstract]
+            # # NOTE: firsts recordset is wrapped in a cursor
+            yield DBApiCursorImpl(curr)
+            # clear all pending result sets
+            try:
+                while curr.nextset():
+                    pass
+            except pyodbc.Error:
+                pass
         except pyodbc.Error as outer:
+            # clear all pending result sets
+            try:
+                while curr.nextset():
+                    pass
+            except pyodbc.Error:
+                pass
+            # immediately rollback transaction
+            try:
+                self._conn.rollback()
+            except pyodbc.Error:
+                pass
             raise outer
         finally:
             # always close cursor
@@ -171,12 +188,14 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         if isinstance(ex, pyodbc.ProgrammingError):
             if ex.args[0] == "42S02":
                 return DatabaseUndefinedRelation(ex)
-            if ex.args[1] == "HY000":
-                return DatabaseTransientException(ex)
-            elif ex.args[0] == "42000":
-                if "(15151)" in ex.args[1]:
-                    return DatabaseUndefinedRelation(ex)
-                return DatabaseTransientException(ex)
+            # certain pyodbc exceptions do not have second argument
+            if len(ex.args) > 1:
+                if ex.args[1] == "HY000":
+                    return DatabaseTransientException(ex)
+                elif ex.args[0] == "42000":
+                    if "(15151)" in ex.args[1]:
+                        return DatabaseUndefinedRelation(ex)
+                    return DatabaseTransientException(ex)
         elif isinstance(ex, pyodbc.OperationalError):
             return DatabaseTransientException(ex)
         elif isinstance(ex, pyodbc.Error):

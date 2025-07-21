@@ -1,6 +1,6 @@
 import os
 import argparse
-from typing import Any, ClassVar, Optional, Type
+from typing import Any, ClassVar, Dict, Optional, Type
 
 from dlt.common.configuration import plugins
 from dlt.common.configuration.specs.pluggable_run_context import SupportsRunContext
@@ -31,6 +31,10 @@ class RunContextTest(RunContext):
     @property
     def local_dir(self) -> str:
         return os.path.join(self.data_dir, "tmp")
+
+    @property
+    def runtime_kwargs(self) -> Dict[str, Any]:
+        return {"profile": "dev"}
 
 
 @plugins.hookimpl(specname="plug_run_context")

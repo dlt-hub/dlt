@@ -1,0 +1,89 @@
+
+:root {
+  --marimo-heading-font: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell;
+  --marimo-monospace-font: monospace;
+
+  /* dlt colors */
+  --dlt-color-lime: #c6d300;
+  --dlt-color-aqua: #59c1d5;
+  --dlt-color-purple: #191937;
+
+  /* background colors */
+  --dlt-color-lime-background: #c6d30006;
+  --dlt-color-aqua-background: #59c1d503;
+  --dlt-color-purple-background: #19193706;
+
+}
+
+/* Make headings bold */
+.markdown h1 {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.markdown h2 {
+  color: var(--dlt-color-purple);
+}
+
+.markdown h3 {
+  font-weight: 600;
+  margin-bottom: 0;
+  padding-top: 0.5rem;
+  /* border-top: 1px dashed #ccc; */
+}
+
+
+
+/* Increase paragraph font size and change color */
+.paragraph {
+  font-size: 1.2rem;
+}
+
+.prose {
+  max-width: 100%;
+}
+
+
+/* add colors to cells */
+
+#App .marimo-cell .output-area{
+  border: 1px dashed var(--dlt-color-purple);
+  background-color: var(--dlt-color-purple-background);
+
+}
+
+/**
+*
+* Note: The block below makes it easier to see which cells belong together in app mode.
+* If you start adding new cells, you might need to update (or clear) these styles.
+*
+*/
+
+/* data browser cells */
+#App .marimo-cell:nth-child(4) .output-area,
+#App .marimo-cell:nth-child(6) .output-area,
+#App .marimo-cell:nth-child(7) .output-area,
+#App .marimo-cell:nth-child(8) .output-area,
+#App .marimo-cell:nth-child(10) .output-area,
+#App .marimo-cell:nth-child(13) .output-area
+ {
+  background-color: var(--dlt-color-aqua-background);
+  border: 1px dashed var(--dlt-color-aqua);
+}
+
+#App .marimo-cell:nth-child(0) .output-area,
+#App .marimo-cell:nth-child(1) .output-area,
+#App .marimo-cell:nth-child(2) .output-area {
+  background-color: white;
+  border: none;
+}
+
+#App .marimo-cell:nth-child(4) .output-area,
+#App .marimo-cell:nth-child(5) .output-area,
+#App .marimo-cell:nth-child(6) .output-area,
+#App .marimo-cell:nth-child(9) .output-area,
+#App .marimo-cell:nth-child(10) .output-area,
+#App .marimo-cell:nth-child(11) .output-area,
+#App .marimo-cell:nth-child(13) .output-area {
+  margin-top: 0.5rem;
+}

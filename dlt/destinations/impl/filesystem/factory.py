@@ -1,4 +1,4 @@
-import typing as t
+from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING, Sequence, Tuple
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext, TLoaderFileFormat
 from dlt.common.destination.client import DEFAULT_FILE_LAYOUT
@@ -8,40 +8,40 @@ from dlt.common.storages.configuration import FileSystemCredentials
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
 
-if t.TYPE_CHECKING:
+if TYPE_CHECKING:
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 
 def filesystem_loader_file_format_selector(
     preferred_loader_file_format: TLoaderFileFormat,
-    supported_loader_file_formats: t.Sequence[TLoaderFileFormat],
+    supported_loader_file_formats: Sequence[TLoaderFileFormat],
     /,
     *,
     table_schema: TTableSchema,
-) -> t.Tuple[TLoaderFileFormat, t.Sequence[TLoaderFileFormat]]:
+) -> Tuple[TLoaderFileFormat, Sequence[TLoaderFileFormat]]:
     if table_schema.get("table_format") in ("delta", "iceberg"):
         return ("parquet", ["parquet"])
     return (preferred_loader_file_format, supported_loader_file_formats)
 
 
 def filesystem_merge_strategies_selector(
-    supported_merge_strategies: t.Sequence[TLoaderMergeStrategy],
+    supported_merge_strategies: Sequence[TLoaderMergeStrategy],
     /,
     *,
     table_schema: TTableSchema,
-) -> t.Sequence[TLoaderMergeStrategy]:
-    if table_schema.get("table_format") == "delta":
+) -> Sequence[TLoaderMergeStrategy]:
+    if table_schema.get("table_format") in ["delta", "iceberg"]:
         return supported_merge_strategies
     else:
         return []
 
 
 def filesystem_replace_strategies_selector(
-    supported_replace_strategies: t.Sequence[TLoaderReplaceStrategy],
+    supported_replace_strategies: Sequence[TLoaderReplaceStrategy],
     /,
     *,
     table_schema: TTableSchema,
-) -> t.Sequence[TLoaderReplaceStrategy]:
+) -> Sequence[TLoaderReplaceStrategy]:
     if table_schema.get("table_format") in ("iceberg", "delta"):
         # always from staging table
         return ["insert-from-staging"]
@@ -68,13 +68,14 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         # for delta and iceberg this is copy from staging, use replace strategy selector
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
         caps.replace_strategies_selector = filesystem_replace_strategies_selector
+        caps.enforces_nulls_on_alter = False
         caps.sqlglot_dialect = "duckdb"
         caps.supports_nested_types = True
 
         return caps
 
     @property
-    def client_class(self) -> t.Type["FilesystemClient"]:
+    def client_class(self) -> Type["FilesystemClient"]:
         from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
         return FilesystemClient
@@ -82,13 +83,14 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
     def __init__(
         self,
         bucket_url: str = None,
-        credentials: t.Union[FileSystemCredentials, t.Dict[str, t.Any], t.Any] = None,
+        credentials: Union[FileSystemCredentials, Dict[str, Any], Any] = None,
         layout: str = DEFAULT_FILE_LAYOUT,
-        extra_placeholders: t.Optional[TExtraPlaceholders] = None,
-        current_datetime: t.Optional[TCurrentDateTime] = None,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
-        **kwargs: t.Any,
+        extra_placeholders: Optional[TExtraPlaceholders] = None,
+        current_datetime: Optional[TCurrentDateTime] = None,
+        always_refresh_views: bool = None,
+        destination_name: str = None,
+        environment: str = None,
+        **kwargs: Any,
     ) -> None:
         """Configure the filesystem destination to use in a pipeline and load data to local or remote filesystem.
 
@@ -103,17 +105,20 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         - Memory fs: `memory://m`
 
         Args:
-            bucket_url: The fsspec compatible bucket url to use for the destination.
-            credentials: Credentials to connect to the filesystem. The type of credentials should correspond to
+            bucket_url (str, optional): The fsspec compatible bucket url to use for the destination.
+            credentials (Union[FileSystemCredentials, Dict[str, Any], Any], optional): Credentials to connect to the filesystem. The type of credentials should correspond to
                 the bucket protocol. For example, for AWS S3, the credentials should be an instance of `AwsCredentials`.
                 A dictionary with the credentials parameters can also be provided.
-            layout (str): A layout of the files holding table data in the destination bucket/filesystem. Uses a set of pre-defined
+            layout (str, optional): A layout of the files holding table data in the destination bucket/filesystem. Uses a set of pre-defined
                 and user-defined (extra) placeholders. Please refer to https://dlthub.com/docs/dlt-ecosystem/destinations/filesystem#files-layout
-            extra_placeholders (dict(str, str | callable)): A dictionary of extra placeholder names that can be used in the `layout` parameter. Names
+            extra_placeholders (Optional[TExtraPlaceholders]): A dictionary of extra placeholder names that can be used in the `layout` parameter. Names
                 are mapped to string values or to callables evaluated at runtime.
-            current_datetime (DateTime | callable): current datetime used by date/time related placeholders. If not provided, load package creation timestamp
+            current_datetime (Optional[TCurrentDateTime]): Current datetime used by date/time related placeholders. If not provided, load package creation timestamp
                 will be used.
-            **kwargs: Additional arguments passed to the destination config
+            always_refresh_views (bool, optional): Always refresh sql_client views by setting the newest table metadata or globbing table files
+            destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
+            environment (str, optional): Environment of the destination
+            **kwargs (Any): Additional arguments passed to the destination config
         """
         super().__init__(
             bucket_url=bucket_url,
@@ -121,6 +126,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             layout=layout,
             extra_placeholders=extra_placeholders,
             current_datetime=current_datetime,
+            always_refresh_views=always_refresh_views,
             destination_name=destination_name,
             environment=environment,
             **kwargs,
