@@ -1102,7 +1102,7 @@ def add_arrow_metadata(
 
 
 def _has_offset_timezones(item: Union[pyarrow.Table, pyarrow.RecordBatch]) -> bool:
-    """Eager check to identify it the table contains fields with offset-based timezones."""
+    """Eager check to identify if the table contains fields with offset-based timezones."""
     for field in item.schema:
         if getattr(field.type, "tz", "").startswith(("+", "-")):
             return True
@@ -1150,10 +1150,8 @@ def _convert_offset_timezones_field(field: pyarrow.Field) -> pyarrow.Field:
     return field
 
 
-def _convert_offset_timezones_table(
-    item: Union[pyarrow.Table, pyarrow.RecordBatch]
-) -> Union[pyarrow.Table, pyarrow.RecordBatch]:
+def _convert_offset_timezones_table(item: TAnyArrowItem) -> TAnyArrowItem:
     """Convert fields that use offset-based timezones to IANA timezones"""
     new_fields = [_convert_offset_timezones_field(field) for field in item.schema]
-    new_schema = pyarrow.schema(new_fields)
+    new_schema = pyarrow.schema(new_fields, metadata=item.schema.metadata)
     return item.cast(new_schema)
