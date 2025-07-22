@@ -267,28 +267,36 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 "Incremental `end_value` was specified without `initial_value`."
                 "`initial_value` is required when using `end_value`."
             )
-        self._cursor_datetime_check(self.initial_value, "initial_value")
-        self._cursor_datetime_check(self.initial_value, "end_value")
         # Ensure end value is "higher" than initial value
-        if (
-            self.end_value is not None
-            and self.last_value_func([self.end_value, self.initial_value]) != self.end_value
-        ):
-            if self.last_value_func in (min, max):
-                adject = "higher" if self.last_value_func is max else "lower"
-                msg = (
-                    f"Incremental `initial_value={self.initial_value}` is {adject} than"
-                    f" `end_value={self.end_value}`. 'end_value' must be {adject} than"
-                    " `initial_value`."
-                )
-            else:
-                msg = (
-                    f"Incremental `initial_value={self.initial_value}` is greater than"
-                    f" `end_value={self.end_value}` as determined by the custom `last_value_func`."
-                    f" The result of `{self.last_value_func.__name__}([end_value,"
-                    " initial_value])` must equal `end_value`"
-                )
-            raise ConfigurationValueError(msg)
+        try:
+            if (
+                self.end_value is not None
+                and self.last_value_func([self.end_value, self.initial_value]) != self.end_value
+            ):
+                if self.last_value_func in (min, max):
+                    adject = "higher" if self.last_value_func is max else "lower"
+                    msg = (
+                        f"Incremental `initial_value={self.initial_value}` is {adject} than"
+                        f" `end_value={self.end_value}`. 'end_value' must be {adject} than"
+                        " `initial_value`."
+                    )
+                else:
+                    msg = (
+                        f"Incremental `initial_value={self.initial_value}` is greater than"
+                        f" `end_value={self.end_value}` as determined by the custom"
+                        " `last_value_func`. The result of"
+                        f" `{self.last_value_func.__name__}([end_value, initial_value])` must equal"
+                        " `end_value`"
+                    )
+                raise ConfigurationValueError(msg)
+        except ConfigurationValueError:
+            raise
+        except Exception as exc:
+            raise ConfigurationValueError(
+                f"Incremental `initial_value={self.initial_value}` and `end_value={self.end_value}`"
+                " are not comparable. Make sure they are of the same type and tz-awareness: "
+                + str(exc)
+            ) from exc
 
     def parse_native_representation(self, native_value: Any) -> None:
         if isinstance(native_value, Incremental):
@@ -353,16 +361,6 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         )
         # if state params is empty
         return state
-
-    @staticmethod
-    def _cursor_datetime_check(value: Any, arg_name: str) -> None:
-        if value and isinstance(value, datetime) and value.tzinfo is None:
-            logger.warning(
-                f"The {arg_name} argument {value} is a datetime without timezone. This may result"
-                " in an error when such values  are compared by Incremental class. Note that `dlt`"
-                " stores datetimes in timezone-aware types so the UTC timezone will be added by"
-                " the destination"
-            )
 
     @property
     def last_value(self) -> Optional[TCursorValue]:
