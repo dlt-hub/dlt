@@ -414,12 +414,14 @@ class CsvWriter(DataWriter):
         delimiter: str = ",",
         include_header: bool = True,
         quoting: CsvQuoting = "quote_needed",
+        lineterminator: str = "\n",
         bytes_encoding: str = "utf-8",
     ) -> None:
         super().__init__(f, caps)
         self.include_header = include_header
         self.delimiter = delimiter
         self.quoting: CsvQuoting = quoting
+        self.lineterminator = lineterminator
         self.writer: csv.DictWriter[str] = None
         self.bytes_encoding = bytes_encoding
 
@@ -443,6 +445,7 @@ class CsvWriter(DataWriter):
             dialect=csv.unix_dialect,
             delimiter=self.delimiter,
             quoting=quoting,
+            lineterminator=self.lineterminator,
         )
         if self.include_header:
             self.writer.writeheader()

@@ -1255,8 +1255,7 @@ numpy = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
 ]
 pandas = [
-    { name = "pandas", version = "2.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.12'" },
-    { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pandas", marker = "python_full_version >= '3.10'" },
 ]
 
 [[package]]
@@ -1616,8 +1615,7 @@ dependencies = [
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
     { name = "oauthlib", marker = "python_full_version < '3.13'" },
     { name = "openpyxl", marker = "python_full_version < '3.13'" },
-    { name = "pandas", version = "2.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.12.*'" },
+    { name = "pandas", marker = "python_full_version < '3.13'" },
     { name = "pyarrow", marker = "python_full_version < '3.13'" },
     { name = "requests", marker = "python_full_version < '3.13'" },
     { name = "thrift", marker = "python_full_version < '3.13'" },
@@ -1643,7 +1641,7 @@ dependencies = [
     { name = "lz4", marker = "python_full_version >= '3.13'" },
     { name = "oauthlib", marker = "python_full_version >= '3.13'" },
     { name = "openpyxl", marker = "python_full_version >= '3.13'" },
-    { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
+    { name = "pandas", marker = "python_full_version >= '3.13'" },
     { name = "python-dateutil", marker = "python_full_version >= '3.13'" },
     { name = "requests", marker = "python_full_version >= '3.13'" },
     { name = "thrift", marker = "python_full_version >= '3.13'" },
@@ -1663,8 +1661,7 @@ dependencies = [
     { name = "lz4", marker = "python_full_version >= '3.10'" },
     { name = "oauthlib", marker = "python_full_version >= '3.10'" },
     { name = "openpyxl", marker = "python_full_version >= '3.10'" },
-    { name = "pandas", version = "2.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.12'" },
-    { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pandas", marker = "python_full_version >= '3.10'" },
     { name = "requests", marker = "python_full_version >= '3.10'" },
     { name = "thrift", marker = "python_full_version >= '3.10'" },
     { name = "urllib3", marker = "python_full_version >= '3.10'" },
@@ -1682,8 +1679,7 @@ dependencies = [
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
     { name = "packaging" },
-    { name = "pandas", version = "2.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pandas" },
     { name = "pyarrow" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/7d/c8/83fd7a11ef8d960da6c58d1a36b430b0a1818ae7a1da6efe887d96c35f40/db_dtypes-1.4.3.tar.gz", hash = "sha256:d3cb08c32939d24e05501f17694be8c1c54cfb4620d61fb56fb311e8c3d8885e", size = 33379 }
@@ -1986,7 +1982,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.13.0"
+version = "1.14.1"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -2133,6 +2129,13 @@ synapse = [
 weaviate = [
     { name = "weaviate-client" },
 ]
+workspace = [
+    { name = "duckdb" },
+    { name = "ibis-framework", extra = ["duckdb"], marker = "python_full_version >= '3.10'" },
+    { name = "marimo" },
+    { name = "pandas" },
+    { name = "pyarrow" },
+]
 
 [package.dev-dependencies]
 adbc = [
@@ -2140,6 +2143,10 @@ adbc = [
 ]
 airflow = [
     { name = "apache-airflow", marker = "python_full_version < '3.12'" },
+]
+dashboard-tests = [
+    { name = "playwright" },
+    { name = "pytest-playwright" },
 ]
 dbt = [
     { name = "dbt-athena-community" },
@@ -2154,22 +2161,15 @@ dev = [
     { name = "bandit" },
     { name = "black" },
     { name = "boto3-stubs", extra = ["lakeformation", "s3"] },
-    { name = "cffi" },
-    { name = "cryptography" },
-    { name = "duckdb" },
     { name = "flake8" },
     { name = "flake8-bugbear" },
     { name = "flake8-builtins" },
     { name = "flake8-encodings" },
     { name = "flake8-print" },
     { name = "flake8-tidy-imports" },
-    { name = "google-api-python-client" },
-    { name = "greenlet" },
     { name = "isort" },
-    { name = "mimesis" },
     { name = "mypy" },
     { name = "pip" },
-    { name = "pyarrow" },
     { name = "pydoclint" },
     { name = "pyjwt" },
     { name = "pytest" },
@@ -2179,12 +2179,8 @@ dev = [
     { name = "pytest-forked" },
     { name = "pytest-mock" },
     { name = "pytest-order" },
-    { name = "regex" },
     { name = "requests-mock" },
     { name = "ruff" },
-    { name = "shapely", version = "2.0.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
-    { name = "shapely", version = "2.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
-    { name = "sqlalchemy" },
     { name = "sqlfluff" },
     { name = "types-cachetools" },
     { name = "types-click" },
@@ -2207,11 +2203,12 @@ docs = [
     { name = "connectorx", version = "0.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "dbt-core" },
     { name = "dbt-duckdb" },
+    { name = "google-api-python-client" },
+    { name = "google-auth-oauthlib" },
     { name = "lancedb", marker = "python_full_version < '3.13'" },
     { name = "modal" },
     { name = "openai" },
-    { name = "pandas", version = "2.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pandas" },
     { name = "psycopg2-binary" },
     { name = "pyarrow" },
     { name = "pydoc-markdown" },
@@ -2224,21 +2221,20 @@ ibis = [
     { name = "ibis-framework", extra = ["bigquery", "clickhouse", "databricks", "duckdb", "postgres", "snowflake"], marker = "python_full_version >= '3.10'" },
     { name = "ibis-framework", extra = ["mssql"], marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
 ]
-marimo = [
-    { name = "marimo" },
-    { name = "playwright" },
-    { name = "pyarrow" },
-    { name = "pytest-playwright" },
-]
 pipeline = [
     { name = "alive-progress" },
+    { name = "cffi" },
+    { name = "cryptography" },
+    { name = "duckdb" },
     { name = "enlighten" },
-    { name = "google-auth-oauthlib" },
-    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
-    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
-    { name = "pandas", version = "2.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "greenlet" },
+    { name = "pandas" },
+    { name = "pyarrow" },
     { name = "pydantic" },
+    { name = "regex" },
+    { name = "shapely", version = "2.0.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "shapely", version = "2.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "sqlalchemy" },
     { name = "tqdm" },
 ]
 providers = [
@@ -2250,8 +2246,10 @@ sentry-sdk = [
 sources = [
     { name = "connectorx", version = "0.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "connectorx", version = "0.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "mimesis" },
     { name = "openpyxl" },
     { name = "pymysql" },
+    { name = "sqlalchemy" },
 ]
 streamlit = [
     { name = "streamlit" },
@@ -2278,6 +2276,7 @@ requires-dist = [
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
     { name = "duckdb", marker = "extra == 'motherduck'", specifier = ">=0.9" },
+    { name = "duckdb", marker = "extra == 'workspace'", specifier = ">=0.9" },
     { name = "fsspec", specifier = ">=2022.4.0" },
     { name = "gcsfs", marker = "extra == 'bigquery'", specifier = ">=2022.4.0" },
     { name = "gcsfs", marker = "extra == 'clickhouse'", specifier = ">=2022.4.0" },
@@ -2291,11 +2290,14 @@ requires-dist = [
     { name = "grpcio", marker = "extra == 'gcp'", specifier = ">=1.50.0" },
     { name = "hexbytes", specifier = ">=0.2.2" },
     { name = "humanize", specifier = ">=4.4.0" },
+    { name = "ibis-framework", extras = ["duckdb"], marker = "python_full_version >= '3.10' and extra == 'workspace'", specifier = ">=10.5.0" },
     { name = "jsonpath-ng", specifier = ">=1.5.3" },
     { name = "lancedb", marker = "python_full_version < '3.13' and extra == 'lancedb'", specifier = ">=0.22.0" },
+    { name = "marimo", marker = "extra == 'workspace'", specifier = ">=0.14.5" },
     { name = "orjson", marker = "sys_platform != 'emscripten'", specifier = ">=3.10.1" },
     { name = "orjson", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'", specifier = ">=3.6.7,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1,<4" },
     { name = "packaging", specifier = ">=21.1" },
+    { name = "pandas", marker = "extra == 'workspace'", specifier = ">=2.1.4" },
     { name = "paramiko", marker = "extra == 'sftp'", specifier = ">=3.3.0" },
     { name = "pathvalidate", specifier = ">=2.5.2" },
     { name = "pendulum", specifier = ">=2.1.2" },
@@ -2305,26 +2307,17 @@ requires-dist = [
     { name = "psycopg2-binary", marker = "extra == 'postgis'", specifier = ">=2.9.1" },
     { name = "psycopg2-binary", marker = "extra == 'postgres'", specifier = ">=2.9.1" },
     { name = "psycopg2-binary", marker = "extra == 'redshift'", specifier = ">=2.9.1" },
-    { name = "pyarrow", marker = "python_full_version >= '3.13' and extra == 'athena'", specifier = ">=18.0.0" },
-    { name = "pyarrow", marker = "python_full_version >= '3.13' and extra == 'bigquery'", specifier = ">=18.0.0" },
-    { name = "pyarrow", marker = "python_full_version >= '3.13' and extra == 'clickhouse'", specifier = ">=18.0.0" },
-    { name = "pyarrow", marker = "python_full_version >= '3.13' and extra == 'deltalake'", specifier = ">=18.0.0" },
-    { name = "pyarrow", marker = "python_full_version >= '3.13' and extra == 'dremio'", specifier = ">=18.0.0" },
-    { name = "pyarrow", marker = "python_full_version >= '3.13' and extra == 'lancedb'", specifier = ">=18.0.0" },
-    { name = "pyarrow", marker = "python_full_version >= '3.13' and extra == 'motherduck'", specifier = ">=18.0.0" },
-    { name = "pyarrow", marker = "python_full_version >= '3.13' and extra == 'parquet'", specifier = ">=18.0.0" },
-    { name = "pyarrow", marker = "python_full_version >= '3.13' and extra == 'pyiceberg'", specifier = ">=18.0.0" },
-    { name = "pyarrow", marker = "python_full_version >= '3.13' and extra == 'synapse'", specifier = ">=18.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'athena'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'bigquery'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'clickhouse'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'deltalake'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'dremio'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'lancedb'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'motherduck'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'parquet'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'pyiceberg'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "python_full_version < '3.13' and extra == 'synapse'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'athena'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'bigquery'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'clickhouse'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'deltalake'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'dremio'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'lancedb'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'motherduck'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'parquet'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'pyiceberg'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'synapse'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'workspace'", specifier = ">=16.0.0" },
     { name = "pyathena", marker = "extra == 'athena'", specifier = ">=2.9.6" },
     { name = "pyiceberg", marker = "extra == 'pyiceberg'", specifier = ">=0.9.1" },
     { name = "pyodbc", marker = "python_full_version < '3.13' and extra == 'mssql'", specifier = ">=4.0.39" },
@@ -2356,11 +2349,15 @@ requires-dist = [
     { name = "weaviate-client", marker = "extra == 'weaviate'", specifier = ">=3.22" },
     { name = "win-precise-time", marker = "python_full_version < '3.13' and os_name == 'nt'", specifier = ">=1.4.2" },
 ]
-provides-extras = ["gcp", "bigquery", "postgres", "redshift", "parquet", "duckdb", "filesystem", "s3", "gs", "az", "sftp", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "synapse", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis"]
+provides-extras = ["gcp", "bigquery", "postgres", "redshift", "parquet", "duckdb", "filesystem", "s3", "gs", "az", "sftp", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "synapse", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis", "workspace"]
 
 [package.metadata.requires-dev]
 adbc = [{ name = "adbc-driver-postgresql", specifier = ">=1.6.0" }]
 airflow = [{ name = "apache-airflow", marker = "python_full_version < '3.12'", specifier = ">=2.8.0,<3" }]
+dashboard-tests = [
+    { name = "playwright", specifier = ">=1.52.0,<2" },
+    { name = "pytest-playwright", specifier = ">=0.7.0,<1" },
+]
 dbt = [
     { name = "dbt-athena-community", specifier = ">=1.5.0" },
     { name = "dbt-bigquery", specifier = ">=1.5.0" },
@@ -2374,22 +2371,15 @@ dev = [
     { name = "bandit", specifier = ">=1.7.0,<2" },
     { name = "black", specifier = ">=23.7.0,<24" },
     { name = "boto3-stubs", extras = ["lakeformation", "s3"], specifier = ">=1.28.28,<2" },
-    { name = "cffi", specifier = ">=1.16" },
-    { name = "cryptography", specifier = ">=41.0.7,<42" },
-    { name = "duckdb", specifier = "<1.2.1" },
     { name = "flake8", specifier = ">=7.0.0,<8" },
     { name = "flake8-bugbear", specifier = ">=22.0.0,<23" },
     { name = "flake8-builtins", specifier = ">=1.5.3,<2" },
     { name = "flake8-encodings", git = "https://github.com/dlt-hub/flake8-encodings.git?branch=disable_jedi_support" },
     { name = "flake8-print", specifier = ">=5.0.0,<6" },
     { name = "flake8-tidy-imports", specifier = ">=4.8.0" },
-    { name = "google-api-python-client", specifier = ">=1.7.11" },
-    { name = "greenlet", specifier = ">=3.1" },
     { name = "isort", specifier = ">=5.12.0,<6" },
-    { name = "mimesis", specifier = ">=7.0.0,<8" },
     { name = "mypy", specifier = ">=1.11.0,<1.13.0" },
     { name = "pip", specifier = ">=24.0.0" },
-    { name = "pyarrow", specifier = ">=16.0.0,<19.0.0" },
     { name = "pydoclint", specifier = ">=0.6.5,<0.7" },
     { name = "pyjwt", specifier = ">=2.8.0,<3" },
     { name = "pytest", specifier = ">=7.4.4,<8" },
@@ -2399,11 +2389,8 @@ dev = [
     { name = "pytest-forked", specifier = ">=1.3.0" },
     { name = "pytest-mock", specifier = ">=3.14.0,<4" },
     { name = "pytest-order", specifier = ">=1.0.0" },
-    { name = "regex", specifier = ">=2024.10" },
     { name = "requests-mock", specifier = ">=1.10.0,<2" },
     { name = "ruff", specifier = ">=0.3.2,<0.4" },
-    { name = "shapely", specifier = ">=2.0.6" },
-    { name = "sqlalchemy", specifier = "<2" },
     { name = "sqlfluff", specifier = ">=2.3.2,<3" },
     { name = "types-cachetools", specifier = ">=4.2.9" },
     { name = "types-click", specifier = ">=7.1.8,<8" },
@@ -2425,13 +2412,14 @@ docs = [
     { name = "connectorx", specifier = ">=0.3.2,<0.4.2" },
     { name = "dbt-core", specifier = ">=1.5.0" },
     { name = "dbt-duckdb", specifier = ">=1.5.0" },
+    { name = "google-api-python-client", specifier = ">=1.7.11" },
+    { name = "google-auth-oauthlib", specifier = ">=1.0.0,<2" },
     { name = "lancedb", marker = "python_full_version < '3.13'", specifier = ">=0.8.2" },
     { name = "modal", specifier = ">=0.64.170" },
     { name = "openai", specifier = ">=1.45" },
-    { name = "pandas", specifier = ">2" },
+    { name = "pandas", specifier = ">=2.1.4" },
     { name = "psycopg2-binary", specifier = ">=2.9" },
-    { name = "pyarrow", marker = "python_full_version < '3.13'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "python_full_version >= '3.13'", specifier = ">=18.0.0" },
+    { name = "pyarrow", specifier = ">=16.0.0" },
     { name = "pydoc-markdown", specifier = ">=4.8.2,<5" },
     { name = "pymongo", specifier = ">=4.3.3" },
     { name = "pymysql", specifier = ">=1.1.0,<2" },
@@ -2442,23 +2430,19 @@ ibis = [
     { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "clickhouse", "databricks"], marker = "python_full_version >= '3.13'", specifier = ">=10.5.0" },
     { name = "ibis-framework", extras = ["duckdb", "postgres", "bigquery", "snowflake", "mssql", "clickhouse", "databricks"], marker = "python_full_version >= '3.10' and python_full_version < '3.13'", specifier = ">=10.5.0" },
 ]
-marimo = [
-    { name = "marimo", specifier = ">=0.13.6" },
-    { name = "playwright", specifier = ">=1.52.0,<2" },
-    { name = "pyarrow", marker = "python_full_version < '3.13'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "python_full_version >= '3.13'", specifier = ">=18.0.0" },
-    { name = "pytest-playwright", specifier = ">=0.7.0,<1" },
-]
 pipeline = [
     { name = "alive-progress", specifier = ">=3.1.1,<4" },
+    { name = "cffi", specifier = ">=1.16" },
+    { name = "cryptography", specifier = ">=41.0.7,<42" },
+    { name = "duckdb", specifier = "<1.2.1" },
     { name = "enlighten", specifier = ">=1.11.2,<2" },
-    { name = "google-auth-oauthlib", specifier = ">=1.0.0,<2" },
-    { name = "numpy", marker = "python_full_version >= '3.9' and python_full_version < '3.12'", specifier = ">=1.21,<2.0" },
-    { name = "numpy", marker = "python_full_version == '3.12.*'", specifier = ">=1.26,<2.0" },
-    { name = "numpy", marker = "python_full_version >= '3.13'", specifier = ">=2.0.0" },
-    { name = "pandas", marker = "python_full_version < '3.12'", specifier = "<2.1" },
-    { name = "pandas", marker = "python_full_version >= '3.12'", specifier = ">2.1" },
+    { name = "greenlet", specifier = ">=3.1" },
+    { name = "pandas", specifier = ">=2.1.4" },
+    { name = "pyarrow", specifier = ">=16.0.0" },
     { name = "pydantic", specifier = ">=2.10" },
+    { name = "regex", specifier = ">=2024.10" },
+    { name = "shapely", specifier = ">=2.0.6" },
+    { name = "sqlalchemy", specifier = "<2" },
     { name = "tqdm", specifier = ">=4.65.0,<5" },
 ]
 providers = [{ name = "google-api-python-client", specifier = ">=2.86.0,<3" }]
@@ -2466,8 +2450,10 @@ sentry-sdk = [{ name = "sentry-sdk", specifier = ">=2.0.0,<3" }]
 sources = [
     { name = "connectorx", marker = "python_full_version >= '3.9'", specifier = ">=0.3.3" },
     { name = "connectorx", marker = "python_full_version >= '3.10'", specifier = ">=0.4.0,<0.4.2" },
+    { name = "mimesis", specifier = ">=7.0.0,<8" },
     { name = "openpyxl", specifier = ">=3,<4" },
     { name = "pymysql", specifier = ">=1.1.0,<2" },
+    { name = "sqlalchemy", specifier = "<2" },
 ]
 streamlit = [{ name = "streamlit", marker = "python_full_version >= '3.9' and python_full_version < '3.14'", specifier = ">=1.40.0,<2" }]
 
@@ -3749,8 +3735,7 @@ bigquery = [
     { name = "google-cloud-bigquery-storage", marker = "python_full_version >= '3.10'" },
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
-    { name = "pandas", version = "2.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.12'" },
-    { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pandas", marker = "python_full_version >= '3.10'" },
     { name = "pandas-gbq", marker = "python_full_version >= '3.10'" },
     { name = "pyarrow", marker = "python_full_version >= '3.10'" },
     { name = "pyarrow-hotfix", marker = "python_full_version >= '3.10'" },
@@ -3761,8 +3746,7 @@ clickhouse = [
     { name = "clickhouse-connect", extra = ["arrow", "numpy", "pandas"], marker = "python_full_version >= '3.10'" },
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
-    { name = "pandas", version = "2.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.12'" },
-    { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pandas", marker = "python_full_version >= '3.10'" },
     { name = "pyarrow", marker = "python_full_version >= '3.10'" },
     { name = "pyarrow-hotfix", marker = "python_full_version >= '3.10'" },
     { name = "rich", marker = "python_full_version >= '3.10'" },
@@ -3771,8 +3755,7 @@ databricks = [
     { name = "databricks-sql-connector-core", marker = "python_full_version >= '3.10'" },
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
-    { name = "pandas", version = "2.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.12'" },
-    { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pandas", marker = "python_full_version >= '3.10'" },
     { name = "pyarrow", marker = "python_full_version >= '3.10'" },
     { name = "pyarrow-hotfix", marker = "python_full_version >= '3.10'" },
     { name = "rich", marker = "python_full_version >= '3.10'" },
@@ -3782,16 +3765,14 @@ duckdb = [
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
     { name = "packaging", marker = "python_full_version >= '3.10'" },
-    { name = "pandas", version = "2.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.12'" },
-    { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pandas", marker = "python_full_version >= '3.10'" },
     { name = "pyarrow", marker = "python_full_version >= '3.10'" },
     { name = "pyarrow-hotfix", marker = "python_full_version >= '3.10'" },
     { name = "rich", marker = "python_full_version >= '3.10'" },
 ]
 mssql = [
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
-    { name = "pandas", version = "2.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.12'" },
-    { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.12.*'" },
+    { name = "pandas", marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
     { name = "pyarrow", marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
     { name = "pyarrow-hotfix", marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
     { name = "pyodbc", marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
@@ -3800,8 +3781,7 @@ mssql = [
 postgres = [
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
-    { name = "pandas", version = "2.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.12'" },
-    { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pandas", marker = "python_full_version >= '3.10'" },
     { name = "psycopg", extra = ["binary"], marker = "python_full_version >= '3.10'" },
     { name = "pyarrow", marker = "python_full_version >= '3.10'" },
     { name = "pyarrow-hotfix", marker = "python_full_version >= '3.10'" },
@@ -3810,8 +3790,7 @@ postgres = [
 snowflake = [
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
-    { name = "pandas", version = "2.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.12'" },
-    { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pandas", marker = "python_full_version >= '3.10'" },
     { name = "pyarrow", marker = "python_full_version >= '3.10'" },
     { name = "pyarrow-hotfix", marker = "python_full_version >= '3.10'" },
     { name = "rich", marker = "python_full_version >= '3.10'" },
@@ -4541,7 +4520,7 @@ wheels = [
 
 [[package]]
 name = "marimo"
-version = "0.13.15"
+version = "0.14.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -4562,9 +4541,9 @@ dependencies = [
     { name = "uvicorn" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9d/58/255a2469806d58b557f5993d258d9b668a4117da989c116b7bb7e25d91e2/marimo-0.13.15.tar.gz", hash = "sha256:773a76fc0916e48a2a04f83db13f0f543ed513b9372031ad40eca830218fb00e", size = 29053565 }
+sdist = { url = "https://files.pythonhosted.org/packages/fa/93/d646fccda297843c41fa088e831212a425036e1cf7ea1c1fca41d7f7ad56/marimo-0.14.10.tar.gz", hash = "sha256:195247aabaccb7559532daa0313b7f47647ba78b98e151fe2b85df1f67bff79e", size = 29134153 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/92/68/7072e7d1de40703f8eb1fbff303276d12bd4812fb2e7afa65353cee678c3/marimo-0.13.15-py3-none-any.whl", hash = "sha256:e82f7caf3b36531a38f8c2d1856a7ff3b45695c5e8d8698b0bd7c4e74fe761e9", size = 29527730 },
+    { url = "https://files.pythonhosted.org/packages/cb/7a/296b66193a41a3024b56280b53e5066050fa0213469dd528bc1b322dac88/marimo-0.14.10-py3-none-any.whl", hash = "sha256:1fb78e272aaa25405f03ce9103972660ea694efc65e5b39b653d8291a9dea719", size = 29611482 },
 ]
 
 [[package]]
@@ -5800,75 +5779,14 @@ wheels = [
 
 [[package]]
 name = "pandas"
-version = "2.0.3"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version == '3.11.*' and platform_python_implementation == 'emscripten' and sys_platform != 'emscripten'",
-    "python_full_version == '3.11.*' and platform_python_implementation == 'emscripten' and sys_platform == 'emscripten'",
-    "python_full_version == '3.11.*' and platform_python_implementation != 'PyPy' and platform_python_implementation != 'emscripten' and sys_platform != 'emscripten'",
-    "python_full_version == '3.11.*' and platform_python_implementation != 'PyPy' and platform_python_implementation != 'emscripten' and sys_platform == 'emscripten'",
-    "python_full_version == '3.11.*' and platform_python_implementation == 'PyPy'",
-    "python_full_version == '3.10.*' and platform_python_implementation == 'emscripten' and sys_platform != 'emscripten'",
-    "python_full_version == '3.10.*' and platform_python_implementation == 'emscripten' and sys_platform == 'emscripten'",
-    "python_full_version == '3.10.*' and platform_python_implementation != 'PyPy' and platform_python_implementation != 'emscripten' and sys_platform != 'emscripten'",
-    "python_full_version == '3.10.*' and platform_python_implementation != 'PyPy' and platform_python_implementation != 'emscripten' and sys_platform == 'emscripten'",
-    "python_full_version == '3.10.*' and platform_python_implementation == 'PyPy'",
-    "python_full_version < '3.10' and platform_python_implementation == 'emscripten' and sys_platform != 'emscripten'",
-    "python_full_version < '3.10' and platform_python_implementation == 'emscripten' and sys_platform == 'emscripten'",
-    "python_full_version < '3.10' and platform_python_implementation != 'PyPy' and platform_python_implementation != 'emscripten' and sys_platform != 'emscripten'",
-    "python_full_version < '3.10' and platform_python_implementation != 'PyPy' and platform_python_implementation != 'emscripten' and sys_platform == 'emscripten'",
-    "python_full_version < '3.10' and platform_python_implementation == 'PyPy'",
-]
-dependencies = [
-    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "python-dateutil", marker = "python_full_version < '3.12'" },
-    { name = "pytz", marker = "python_full_version < '3.12'" },
-    { name = "tzdata", marker = "python_full_version < '3.12'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/b1/a7/824332581e258b5aa4f3763ecb2a797e5f9a54269044ba2e50ac19936b32/pandas-2.0.3.tar.gz", hash = "sha256:c02f372a88e0d17f36d3093a644c73cfc1788e876a7c4bcb4020a77512e2043c", size = 5284455 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/3c/b2/0d4a5729ce1ce11630c4fc5d5522a33b967b3ca146c210f58efde7c40e99/pandas-2.0.3-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:e4c7c9f27a4185304c7caf96dc7d91bc60bc162221152de697c98eb0b2648dd8", size = 11760908 },
-    { url = "https://files.pythonhosted.org/packages/4a/f6/f620ca62365d83e663a255a41b08d2fc2eaf304e0b8b21bb6d62a7390fe3/pandas-2.0.3-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:f167beed68918d62bffb6ec64f2e1d8a7d297a038f86d4aed056b9493fca407f", size = 10823486 },
-    { url = "https://files.pythonhosted.org/packages/c2/59/cb4234bc9b968c57e81861b306b10cd8170272c57b098b724d3de5eda124/pandas-2.0.3-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ce0c6f76a0f1ba361551f3e6dceaff06bde7514a374aa43e33b588ec10420183", size = 11571897 },
-    { url = "https://files.pythonhosted.org/packages/e3/59/35a2892bf09ded9c1bf3804461efe772836a5261ef5dfb4e264ce813ff99/pandas-2.0.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ba619e410a21d8c387a1ea6e8a0e49bb42216474436245718d7f2e88a2f8d7c0", size = 12306421 },
-    { url = "https://files.pythonhosted.org/packages/94/71/3a0c25433c54bb29b48e3155b959ac78f4c4f2f06f94d8318aac612cb80f/pandas-2.0.3-cp310-cp310-win32.whl", hash = "sha256:3ef285093b4fe5058eefd756100a367f27029913760773c8bf1d2d8bebe5d210", size = 9540792 },
-    { url = "https://files.pythonhosted.org/packages/ed/30/b97456e7063edac0e5a405128065f0cd2033adfe3716fb2256c186bd41d0/pandas-2.0.3-cp310-cp310-win_amd64.whl", hash = "sha256:9ee1a69328d5c36c98d8e74db06f4ad518a1840e8ccb94a4ba86920986bb617e", size = 10664333 },
-    { url = "https://files.pythonhosted.org/packages/b3/92/a5e5133421b49e901a12e02a6a7ef3a0130e10d13db8cb657fdd0cba3b90/pandas-2.0.3-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:b084b91d8d66ab19f5bb3256cbd5ea661848338301940e17f4492b2ce0801fe8", size = 11645672 },
-    { url = "https://files.pythonhosted.org/packages/8f/bb/aea1fbeed5b474cb8634364718abe9030d7cc7a30bf51f40bd494bbc89a2/pandas-2.0.3-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:37673e3bdf1551b95bf5d4ce372b37770f9529743d2498032439371fc7b7eb26", size = 10693229 },
-    { url = "https://files.pythonhosted.org/packages/d6/90/e7d387f1a416b14e59290baa7a454a90d719baebbf77433ff1bdcc727800/pandas-2.0.3-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:b9cb1e14fdb546396b7e1b923ffaeeac24e4cedd14266c3497216dd4448e4f2d", size = 11581591 },
-    { url = "https://files.pythonhosted.org/packages/d0/28/88b81881c056376254618fad622a5e94b5126db8c61157ea1910cd1c040a/pandas-2.0.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d9cd88488cceb7635aebb84809d087468eb33551097d600c6dad13602029c2df", size = 12219370 },
-    { url = "https://files.pythonhosted.org/packages/e4/a5/212b9039e25bf8ebb97e417a96660e3dc925dacd3f8653d531b8f7fd9be4/pandas-2.0.3-cp311-cp311-win32.whl", hash = "sha256:694888a81198786f0e164ee3a581df7d505024fbb1f15202fc7db88a71d84ebd", size = 9482935 },
-    { url = "https://files.pythonhosted.org/packages/9e/71/756a1be6bee0209d8c0d8c5e3b9fc72c00373f384a4017095ec404aec3ad/pandas-2.0.3-cp311-cp311-win_amd64.whl", hash = "sha256:6a21ab5c89dcbd57f78d0ae16630b090eec626360085a4148693def5452d8a6b", size = 10607692 },
-    { url = "https://files.pythonhosted.org/packages/f8/c7/cfef920b7b457dff6928e824896cb82367650ea127d048ee0b820026db4f/pandas-2.0.3-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:5247fb1ba347c1261cbbf0fcfba4a3121fbb4029d95d9ef4dc45406620b25c8b", size = 11834160 },
-    { url = "https://files.pythonhosted.org/packages/6c/1c/689c9d99bc4e5d366a5fd871f0bcdee98a6581e240f96b78d2d08f103774/pandas-2.0.3-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:81af086f4543c9d8bb128328b5d32e9986e0c84d3ee673a2ac6fb57fd14f755e", size = 10862752 },
-    { url = "https://files.pythonhosted.org/packages/cc/b8/4d082f41c27c95bf90485d1447b647cc7e5680fea75e315669dc6e4cb398/pandas-2.0.3-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:1994c789bf12a7c5098277fb43836ce090f1073858c10f9220998ac74f37c69b", size = 11715852 },
-    { url = "https://files.pythonhosted.org/packages/9e/0d/91a9fd2c202f2b1d97a38ab591890f86480ecbb596cbc56d035f6f23fdcc/pandas-2.0.3-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5ec591c48e29226bcbb316e0c1e9423622bc7a4eaf1ef7c3c9fa1a3981f89641", size = 12398496 },
-    { url = "https://files.pythonhosted.org/packages/26/7d/d8aa0a2c4f3f5f8ea59fb946c8eafe8f508090ca73e2b08a9af853c1103e/pandas-2.0.3-cp39-cp39-win32.whl", hash = "sha256:04dbdbaf2e4d46ca8da896e1805bc04eb85caa9a82e259e8eed00254d5e0c682", size = 9630766 },
-    { url = "https://files.pythonhosted.org/packages/9a/f2/0ad053856debbe90c83de1b4f05915f85fd2146f20faf9daa3b320d36df3/pandas-2.0.3-cp39-cp39-win_amd64.whl", hash = "sha256:1168574b036cd8b93abc746171c9b4f1b83467438a5e45909fed645cf8692dbc", size = 10755902 },
-]
-
-[[package]]
-name = "pandas"
 version = "2.2.3"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.13' and platform_python_implementation == 'emscripten' and sys_platform != 'emscripten'",
-    "python_full_version >= '3.13' and platform_python_implementation == 'emscripten' and sys_platform == 'emscripten'",
-    "python_full_version >= '3.13' and platform_python_implementation != 'PyPy' and platform_python_implementation != 'emscripten' and sys_platform != 'emscripten'",
-    "python_full_version >= '3.13' and platform_python_implementation != 'PyPy' and platform_python_implementation != 'emscripten' and sys_platform == 'emscripten'",
-    "python_full_version >= '3.13' and platform_python_implementation == 'PyPy'",
-    "python_full_version == '3.12.*' and platform_python_implementation == 'emscripten' and sys_platform != 'emscripten'",
-    "python_full_version == '3.12.*' and platform_python_implementation == 'emscripten' and sys_platform == 'emscripten'",
-    "python_full_version == '3.12.*' and platform_python_implementation != 'PyPy' and platform_python_implementation != 'emscripten' and sys_platform != 'emscripten'",
-    "python_full_version == '3.12.*' and platform_python_implementation != 'PyPy' and platform_python_implementation != 'emscripten' and sys_platform == 'emscripten'",
-    "python_full_version == '3.12.*' and platform_python_implementation == 'PyPy'",
-]
 dependencies = [
-    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.12.*'" },
+    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
-    { name = "python-dateutil", marker = "python_full_version >= '3.12'" },
-    { name = "pytz", marker = "python_full_version >= '3.12'" },
-    { name = "tzdata", marker = "python_full_version >= '3.12'" },
+    { name = "python-dateutil" },
+    { name = "pytz" },
+    { name = "tzdata" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9c/d6/9f8431bacc2e19dca897724cd097b1bb224a6ad5433784a44b587c7c13af/pandas-2.2.3.tar.gz", hash = "sha256:4f18ba62b61d7e192368b84517265a99b4d7ee8912f8708660fb4a366cc82667", size = 4399213 }
 wheels = [
@@ -5928,8 +5846,7 @@ dependencies = [
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.13'" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
     { name = "packaging", marker = "python_full_version >= '3.10'" },
-    { name = "pandas", version = "2.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10' and python_full_version < '3.12'" },
-    { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pandas", marker = "python_full_version >= '3.10'" },
     { name = "pyarrow", marker = "python_full_version >= '3.10'" },
     { name = "pydata-google-auth", marker = "python_full_version >= '3.10'" },
     { name = "setuptools", marker = "python_full_version >= '3.10'" },
@@ -8491,8 +8408,7 @@ dependencies = [
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
     { name = "packaging" },
-    { name = "pandas", version = "2.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "pandas", version = "2.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pandas" },
     { name = "pillow" },
     { name = "protobuf" },
     { name = "pyarrow" },

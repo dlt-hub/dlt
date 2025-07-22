@@ -5,16 +5,15 @@ import dlt
 import pytest
 
 import dlt.destinations.dataset
-from dlt.destinations.dataset.exceptions import (
-    ReadableRelationUnknownColumnException,
-)
 from dlt.transformations.exceptions import LineageFailedException
 from dlt.common.schema.schema import Schema
+from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.schema.utils import new_table
 from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
 
 
-def test_query_builder() -> None:
+@pytest.fixture
+def mock_dataset() -> ReadableDBAPIDataset:
     s = Schema("my_schema")
     t = new_table(
         "my_table",
@@ -24,7 +23,6 @@ def test_query_builder() -> None:
         ],
     )
     s.update_table(t)
-
     dataset = cast(
         ReadableDBAPIDataset,
         dlt.destinations.dataset.dataset(
@@ -33,8 +31,23 @@ def test_query_builder() -> None:
             schema=s,
         ),
     )
+    return dataset
 
-    relation = cast(ReadableDBAPIRelation, dataset.my_table)
+
+def test_dataset_autocompletion(mock_dataset: ReadableDBAPIDataset):
+    expected_suggestions = ["my_table", LOADS_TABLE_NAME, VERSION_TABLE_NAME]
+    suggestions = mock_dataset._ipython_key_completions_()
+    assert set(expected_suggestions) == set(suggestions)
+
+
+def test_relation_autocompletion(mock_dataset: ReadableDBAPIDataset):
+    expected_suggestions = ["col1", "col2"]
+    suggestions = mock_dataset["my_table"]._ipython_key_completions_()  # type: ignore[attr-defined]
+    assert set(expected_suggestions) == set(suggestions)
+
+
+def test_query_builder(mock_dataset: ReadableDBAPIDataset) -> None:
+    relation = cast(ReadableDBAPIRelation, mock_dataset.my_table)
 
     # default query for a table
     assert (
@@ -85,12 +98,10 @@ def test_copy_and_chaining() -> None:
         ),
     )
 
-    dataset.schema.tables["items"] = {
-        "columns": {
-            "one": {"data_type": "text", "name": "one"},
-            "two": {"data_type": "json", "name": "two"},
-        }
-    }
+    dataset.schema.tables["items"] = new_table(
+        "items",
+        columns=[{"data_type": "text", "name": "one"}, {"data_type": "json", "name": "two"}],
+    )
 
     # create relation and set some stuff on it
     relation = cast(ReadableDBAPIRelation, dataset.items)
@@ -118,15 +129,21 @@ def test_computed_schema_columns() -> None:
         "pipeline_dataset",
     )
 
-    with pytest.raises(ValueError):
+    # missing attribute should raise Attribute error
+    with pytest.raises(AttributeError):
         dataset.items
 
-    dataset.schema.tables["items"] = {
-        "columns": {
-            "one": {"data_type": "text", "name": "one"},
-            "two": {"data_type": "json", "name": "two"},
-        }
-    }
+    # missing key should raise KeyError
+    with pytest.raises(KeyError):
+        dataset["items"]
+
+    with pytest.raises(ValueError):
+        dataset.table("items")
+
+    dataset.schema.tables["items"] = new_table(
+        "items",
+        columns=[{"data_type": "text", "name": "one"}, {"data_type": "json", "name": "two"}],
+    )
 
     # now add columns
     relation = dataset.items
@@ -139,14 +156,14 @@ def test_computed_schema_columns() -> None:
 
     # when selecting only one column, computing schema columns will only show that one
     assert relation.select("one").columns_schema == {"one": {"data_type": "text", "name": "one"}}
+    assert relation["one"].columns_schema == {"one": {"data_type": "text", "name": "one"}}
+    assert relation[["one"]].columns_schema == {"one": {"data_type": "text", "name": "one"}}
 
     # selecting unknown column fails
-
-    # TODO: add correct exception
-    import sqlglot
-
-    with pytest.raises(LineageFailedException):
-        relation[["unknown_columns"]].compute_columns_schema()  # type: ignore
+    with pytest.raises(KeyError):
+        relation[["unknown_columns"]]
+    with pytest.raises(KeyError):
+        relation["unknown_columns"]
 
 
 def test_changing_relation_with_query() -> None:

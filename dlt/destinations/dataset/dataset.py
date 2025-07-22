@@ -77,6 +77,14 @@ class ReadableDBAPIDataset(Dataset):
         return self._schema
 
     @property
+    def tables(self) -> list[str]:
+        # return only completed tables
+        return self.schema.data_table_names() + self.schema.dlt_table_names()
+
+    def _ipython_key_completions_(self) -> list[str]:
+        return self.tables
+
+    @property
     def sqlglot_schema(self) -> SQLGlotSchema:
         # NOTE: no cache for now, it is probably more expensive to compute the current schema hash
         # to see wether this is stale than to compute a new sqlglot schema
@@ -196,18 +204,20 @@ class ReadableDBAPIDataset(Dataset):
     def table(self, table_name: str) -> Relation: ...
 
     @overload
-    def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
-
-    @overload
     def table(self, table_name: str, table_type: Literal["relation"]) -> Relation: ...
 
-    def table(self, table_name: str, table_type: Literal["relation", "ibis"] = None) -> Any:
-        # dataset only provides access to tables known in dlt schema, direct query may cirumvent this
-        if table_name not in self.schema.tables.keys():
+    @overload
+    def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
+
+    def table(self, table_name: str, table_type: Literal["relation", "ibis"] = "relation") -> Any:
+        # dataset only provides access to tables known in dlt schema, direct query may circumvent this
+        available_tables = self.tables
+        if table_name not in available_tables:
+            # TODO: raise TableNotFound
             raise ValueError(
                 f"Table `{table_name}` not found in schema `{self.schema.name}` of dataset"
                 f" `{self.dataset_name}`. Available table(s):"
-                f" {', '.join(self.schema.tables.keys())}"
+                f" {', '.join(available_tables)}"
             )
 
         if table_type == "ibis":
@@ -266,11 +276,23 @@ class ReadableDBAPIDataset(Dataset):
 
     def __getitem__(self, table_name: str) -> Relation:
         """access of table via dict notation"""
-        return self.table(table_name)
+        if table_name not in self.tables:
+            raise KeyError(
+                f"Table `{table_name}` not found on dataset. Available tables: `{self.tables}`"
+            )
+        try:
+            return self.table(table_name)
+        # TODO: expect TableNotFound in the future
+        except ValueError as exc:
+            raise KeyError(table_name, str(exc))
 
-    def __getattr__(self, table_name: str) -> Relation:
-        """access of table via property notation"""
-        return self.table(table_name)
+    def __getattr__(self, name: str) -> Any:
+        """Retrieve a `Relation` with `name` and raise `AttributeError` when not found"""
+        try:
+            return self.table(name)
+        # TODO: expect TableNotFound in the future
+        except ValueError as exc:
+            raise AttributeError(name, str(exc))
 
     def __enter__(self) -> Self:
         """Context manager used to open and close sql client and internal connection"""

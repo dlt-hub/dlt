@@ -4,7 +4,9 @@
 import marimo
 
 __generated_with = "0.13.9"
-app = marimo.App(width="medium", app_title="dlt marimo app", css_file="dlt_app_styles.css")
+app = marimo.App(
+    width="medium", app_title="dlt pipeline dashboard", css_file="dlt_dashboard_styles.css"
+)
 
 with app.setup:
     from typing import Any, Dict, List, Callable, cast
@@ -16,8 +18,8 @@ with app.setup:
 
     import dlt
     from dlt.common.json import json
-    from dlt.helpers.studio import strings, utils, ui_elements as ui
-    from dlt.helpers.studio.config import StudioConfiguration
+    from dlt.helpers.dashboard import strings, utils, ui_elements as ui
+    from dlt.helpers.dashboard.config import DashboardConfiguration
     from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
 
 
@@ -38,7 +40,7 @@ def home(
     dlt_pipeline: dlt.Pipeline = None
     if dlt_pipeline_name:
         dlt_pipeline = utils.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
-    dlt_config = utils.resolve_studio_config(dlt_pipeline)
+    dlt_config = utils.resolve_dashboard_config(dlt_pipeline)
 
     if not dlt_pipeline:
         _stack = [
@@ -150,7 +152,7 @@ def section_overview(
 
 @app.cell(hide_code=True)
 def section_schema(
-    dlt_config: StudioConfiguration,
+    dlt_config: DashboardConfiguration,
     dlt_pipeline: dlt.Pipeline,
     dlt_schema_show_child_tables: mo.ui.switch,
     dlt_schema_show_custom_hints: mo.ui.switch,
@@ -454,7 +456,7 @@ def section_trace(
     dlt_pipeline: dlt.Pipeline,
     dlt_section_trace_switch: mo.ui.switch,
     dlt_trace_steps_table: mo.ui.table,
-    dlt_config: StudioConfiguration,
+    dlt_config: DashboardConfiguration,
 ):
     """
     Show last trace of the currently selected pipeline
@@ -551,7 +553,7 @@ def section_trace(
 
 @app.cell(hide_code=True)
 def section_loads(
-    dlt_config: StudioConfiguration,
+    dlt_config: DashboardConfiguration,
     dlt_clear_query_cache: mo.ui.run_button,
     dlt_pipeline: dlt.Pipeline,
     dlt_restrict_to_last_1000: mo.ui.switch,
@@ -830,7 +832,7 @@ def ui_primary_controls(
     dlt_section_browse_data_switch: mo.ui.switch,
     dlt_section_schema_switch: mo.ui.switch,
     dlt_section_trace_switch: mo.ui.switch,
-    dlt_config: StudioConfiguration,
+    dlt_config: DashboardConfiguration,
 ):
     """
     Helper cell for creating certain controls based on selected sections

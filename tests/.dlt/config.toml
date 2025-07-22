@@ -13,3 +13,7 @@ bucket_url_r2="s3://dlt-ci-test-bucket"
 bucket_url_gdrive="gdrive://15eC3e5MNew2XAIefWNlG8VlEa0ISnnaG"
 bucket_url_sftp="sftp://localhost/data"
 memory="memory:///m"
+
+[destination.databricks]
+# Add PRIMARY KEY and FOREIGN KEY constraints to tables
+create_indexes=true
