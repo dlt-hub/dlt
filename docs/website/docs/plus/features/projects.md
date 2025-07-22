@@ -407,7 +407,7 @@ import dlt
 from dlt_plus.runner import PipelineRunner
 
 # your pipeline instance
-pipeline = dlt.Pipeline(
+pipeline = dlt.pipeline(
   pipeline_name="my_pipeline",
   destination="duckdb",
   dataset_name="my_dataset"
