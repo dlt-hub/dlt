@@ -338,8 +338,10 @@ class PageNumberPaginator(RangePaginator):
                 the initial value will be set to `base_page`.
             page_param (str): The query parameter name for the page number.
                 Defaults to 'page'.
-            page_body_path (jsonpath.TJsonPath): The JSON path where to place the
-                next page in the request body.
+            page_body_path (jsonpath.TJsonPath): A JSONPath expression specifying where
+                to place the page number in the request JSON body. Use this instead
+                of `page_param` when sending the page number in the request body.
+                Defaults to `None`.
             total_path (jsonpath.TJsonPath): The JSONPath expression for
                 the total number of pages. Defaults to 'total'.
             maximum_page (int): The maximum page number. If provided, pagination
@@ -489,12 +491,16 @@ class OffsetPaginator(RangePaginator):
                 Defaults to 0.
             offset_param (str): The query parameter name for the offset.
                 Defaults to 'offset'.
-            offset_body_path (jsonpath.TJsonPath): The JSON path where to place
-                the offset param in the request body
+            offset_body_path (jsonpath.TJsonPath): A JSONPath expression specifying
+                where to place the offset in the request JSON body.
+                If provided, the paginator will use this instead of `offset_param`
+                to send the offset in the request body. Defaults to `None`.
             limit_param (str): The query parameter name for the limit.
                 Defaults to 'limit'.
-            limit_body_path (jsonpath.TJsonPath): The JSON path where to place
-                the limit param in the request body
+            limit_body_path (jsonpath.TJsonPath): A JSONPath expression specifying
+                where to place the limit in the request JSON body.
+                If provided, the paginator will use this instead of `limit_param`
+                to send the limit in the request body. Defaults to `None`.
             total_path (jsonpath.TJsonPath): The JSONPath expression for
                 the total number of items.
             maximum_offset (int): The maximum offset value. If provided,
