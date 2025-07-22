@@ -389,6 +389,8 @@ for user in users().add_filter(lambda user: user["user_id"] != "me").add_map(ano
     print(user)
 ```
 
+See more practical examples of `.add_map` and `.add_yield_map` [here](../dlt-ecosystem/transformations/add-map#add_map-vs-add_yield_map).
+
 ### Reduce the nesting level of generated tables
 
 You can limit how deep `dlt` goes when generating nested tables and flattening dicts into columns. By default, the library will descend
