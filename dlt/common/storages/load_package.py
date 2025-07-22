@@ -156,24 +156,29 @@ class ParsedLoadJobFileName(NamedTuple):
     file_id: str
     retry_count: int
     file_format: TJobFileFormat
-    has_compression_ext: bool = False
+    is_compressed: bool = False
 
     def job_id(self) -> str:
         """Unique identifier of the job"""
-        if self.has_compression_ext:
-            return f"{self.table_name}.{self.file_id}.{self.file_format}.gz"
-        return f"{self.table_name}.{self.file_id}.{self.file_format}"
+        compression_extension = ".gz" if self.is_compressed else ""
+        return f"{self.table_name}.{self.file_id}.{self.file_format}{compression_extension}"
 
     def file_name(self) -> str:
         """A name of the file with the data to be loaded"""
-        base_name = f"{self.table_name}.{self.file_id}.{int(self.retry_count)}.{self.file_format}"
-        if self.has_compression_ext:
-            return f"{base_name}.gz"
-        return base_name
+        compression_extension = ".gz" if self.is_compressed else ""
+        return f"{self.table_name}.{self.file_id}.{int(self.retry_count)}.{self.file_format}{compression_extension}"
 
     def with_retry(self) -> "ParsedLoadJobFileName":
         """Returns a job with increased retry count"""
         return self._replace(retry_count=self.retry_count + 1)
+
+    def to_reference_file_name(self) -> str:
+        """Returns a file name for a reference job"""
+        return f"{self.table_name}.{self.file_id}.{self.retry_count}.reference"
+
+    def full_extension(self) -> str:
+        """Returns the full file extension"""
+        return f"{self.file_format}.gz" if self.is_compressed else f"{self.file_format}"
 
     @staticmethod
     def parse(file_name: str) -> "ParsedLoadJobFileName":

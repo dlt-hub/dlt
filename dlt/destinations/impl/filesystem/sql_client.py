@@ -14,7 +14,7 @@ from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
 from dlt.destinations.impl.duckdb.factory import DuckDbCredentials
 
 from dlt.destinations.utils import is_compression_disabled
-from dlt.destinations.path_utils import get_file_format_compression
+from dlt.destinations.path_utils import get_file_format_and_compression
 
 SUPPORTED_PROTOCOLS = ["gs", "gcs", "s3", "file", "memory", "az", "abfss"]
 
@@ -58,8 +58,8 @@ class FilesystemSqlClient(WithTableScanners):
         files = self.remote_client.list_table_files(table_name)
         if len(files) == 0:
             raise DestinationUndefinedEntity(table_name)
-        file_format, has_compression_ext = get_file_format_compression(files[0])
-        return file_format, files, has_compression_ext
+        file_format, is_compressed = get_file_format_and_compression(files[0])
+        return file_format, files, is_compressed
 
     def create_secret(
         self,
@@ -169,26 +169,17 @@ class FilesystemSqlClient(WithTableScanners):
             # NOTE: this does not support cases where table contains many different file formats
             # NOTE: since we must list all the files anyway we just pass them to duckdb without further globbing
             #   list is in the memory already and query size in duckdb is very large
-            first_file_type, files, has_compression_ext = self.get_file_format_and_files(
-                table_schema
-            )
+            first_file_type, files, _ = self.get_file_format_and_files(table_schema)
             if protocol == "file":
                 resolved_files_string = ",".join(map(lambda f: f"'{f}'", files))
             else:
                 resolved_files_string = ",".join(map(lambda f: f"'{protocol}://{f}'", files))
 
+            # NOTE: duckdb automatically handles compression based on the .gz extension
+            # so we don't need to specify it
             if first_file_type == "parquet":
                 from_statement = f"read_parquet([{resolved_files_string}], union_by_name=true)"
             elif first_file_type in ("jsonl", "csv"):
-                # Determine whether we should use the gzip compression in readers
-                is_dlt_table = table_name in dlt_table_names
-                is_compressed = (
-                    has_compression_ext or self.remote_client.config.legacy_compression_without_ext
-                )
-                compression = (
-                    ", compression = 'gzip'" if (is_compressed and not is_dlt_table) else ""
-                )
-
                 # build columns definition
                 type_mapper = self.capabilities.get_type_mapper()
                 columns_defs = self.schema.get_table_columns(table_name).values()
@@ -207,8 +198,7 @@ class FilesystemSqlClient(WithTableScanners):
                         if column_def["data_type"] == "binary":
                             columns[idx] = f"from_base64(decode({columns[idx]})) as {columns[idx]}"
                     from_statement = (
-                        f"read_json([{resolved_files_string}], columns ="
-                        f" {{{column_types}}}{compression})"
+                        f"read_json([{resolved_files_string}], columns = {{{column_types}}})"
                     )
                 if first_file_type == "csv":
                     # TODO: use default csv_format config to set params below
@@ -226,8 +216,17 @@ class FilesystemSqlClient(WithTableScanners):
                     # autodetect and lock schema for all files
                     from_statement = (
                         f"read_csv([{resolved_files_string}],{force_not_null} union_by_name=true,header=true,null_padding=true,types="
-                        f" {{{column_types}}}{compression})"
+                        f" {{{column_types}}})"
                     )
+
+                # if the dataset is a legacy version where .gz is not added by default,
+                # we need to check configs
+                if (
+                    table_name not in dlt_table_names
+                    and self.remote_client.get_storage_version() == 1
+                    and not is_compression_disabled()
+                ):
+                    from_statement = from_statement[:-1] + ", compression = 'gzip')"
 
             else:
                 # we skipped checking file type in can_create_view to not repeat globs which are expensive

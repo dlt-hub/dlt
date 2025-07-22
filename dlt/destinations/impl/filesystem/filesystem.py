@@ -1,5 +1,6 @@
 import posixpath
 import os
+import orjson
 import base64
 from contextlib import contextmanager
 from types import TracebackType
@@ -75,6 +76,9 @@ from dlt.destinations.utils import (
     verify_schema_replace_disposition,
 )
 
+CURRENT_VERSION: int = 2
+SUPPORTED_VERSIONS: set[int] = {1, CURRENT_VERSION}
+
 INIT_FILE_NAME = "init"
 FILENAME_SEPARATOR = "__"
 
@@ -96,7 +100,7 @@ class FilesystemLoadJob(RunnableLoadJob):
         remote_path = self.make_remote_path()
         if (
             not self._job_client.config.as_staging_destination
-            and self._job_client.config.legacy_compression_without_ext
+            and self._job_client.get_storage_version() == 1
             and remote_path.endswith(".gz")
         ):
             remote_path = remote_path[:-3]
@@ -300,6 +304,7 @@ class FilesystemClient(
         self._sql_client: SqlClientBase[Any] = None
         # iceberg catalog
         self._catalog: Any = None
+        self._init_path: str = None
 
     @property
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
@@ -350,9 +355,45 @@ class FilesystemClient(
             logger.info(f"Will truncate tables {truncate_tables}")
             self.truncate_tables(list(truncate_tables))
 
+        # if the init file already exists, we return
+        if self.fs_client.exists(self.pathlib.join(self.dataset_path, INIT_FILE_NAME)):
+            return
+
         # we mark the storage folder as initialized
         self.fs_client.makedirs(self.dataset_path, exist_ok=True)
         self.fs_client.touch(self.pathlib.join(self.dataset_path, INIT_FILE_NAME))
+
+        # we set the version to "2" to indicate that .gz extension is added by default
+        # version "1" corresponds to an empty init file and indicates that .gz is not added to compressed files
+        self.fs_client.write_text(
+            self.pathlib.join(self.dataset_path, INIT_FILE_NAME),
+            json.dumps({"version": 2}),
+            encoding="utf-8",
+        )
+
+    def get_storage_version(self) -> int:
+        """Returns storage version
+        1. If the init file is empty, we assume legacy version 1 where .gz extension was not added to compressed files.
+        2. For any other non-empty content we parse it as json, expect "version" key to have a supported value.
+        """
+        init_path = self.pathlib.join(self.dataset_path, INIT_FILE_NAME)
+        version_info_str = self.fs_client.read_text(init_path, encoding="utf-8")
+
+        if not version_info_str.strip():
+            return 1
+
+        try:
+            version = json.loads(version_info_str)["version"]
+        except (KeyError, orjson.JSONDecodeError) as exc:
+            raise ValueError(f"Invalid content in {init_path}: {version_info_str!r}") from exc
+
+        if version not in SUPPORTED_VERSIONS:
+            raise ValueError(
+                f"Unsupported filesystem version {version!r} "
+                f"(supported: {sorted(SUPPORTED_VERSIONS)})"
+            )
+
+        return int(version)
 
     def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
         self.truncate_tables(list(tables))

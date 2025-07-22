@@ -57,7 +57,7 @@ from dlt.destinations.job_impl import ReferenceFollowupJobRequest, FinalizedLoad
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.utils import get_deterministic_temp_table_name
-from dlt.destinations.path_utils import get_file_format_compression
+from dlt.destinations.path_utils import get_file_format_and_compression
 
 
 class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -86,14 +86,14 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         compression = "auto"
 
-        file_format, compression_ext = get_file_format_compression(file_name)
+        file_format, is_compressed = get_file_format_and_compression(file_name)
         clickhouse_format: str = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[
             cast(SUPPORTED_FILE_FORMATS, file_format)
         ]
 
         if file_format == "jsonl":
             # Auto does not work for jsonl. So we set it to 'none' if not compressed
-            compression = "gz" if compression_ext else "none"
+            compression = "gz" if is_compressed else "none"
 
         # Don't use the DBAPI driver for local files.
         if not bucket_path or bucket_scheme == "file":

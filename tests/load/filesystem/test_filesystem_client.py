@@ -1,5 +1,8 @@
+from typing import Union, Dict
 import posixpath
 import os
+import json
+import orjson
 from unittest import mock
 from pathlib import Path
 from urllib.parse import urlparse
@@ -23,6 +26,8 @@ from dlt.destinations.impl.filesystem.filesystem import (
     FilesystemClient,
     FilesystemDestinationClientConfiguration,
     INIT_FILE_NAME,
+    CURRENT_VERSION,
+    SUPPORTED_VERSIONS,
 )
 
 from dlt.destinations.path_utils import create_path, prepare_datetime_params
@@ -50,6 +55,14 @@ NORMALIZED_FILES = [
 ]
 
 
+def _client_factory(fs: filesystem) -> FilesystemClient:
+    client = fs.client(
+        Schema("test"),
+        initial_config=FilesystemDestinationClientConfiguration()._bind_dataset_name("test"),
+    )
+    return client
+
+
 @pytest.mark.parametrize(
     "url, exp",
     (
@@ -71,10 +84,7 @@ def test_filesystem_factory_buckets(with_gdrive_buckets_env: str) -> None:
 
     # test factory figuring out the right credentials
     filesystem_ = filesystem(with_gdrive_buckets_env)
-    client = filesystem_.client(
-        Schema("test"),
-        initial_config=FilesystemDestinationClientConfiguration()._bind_dataset_name("test"),
-    )
+    client = _client_factory(filesystem_)
     assert client.config.protocol == proto or "file"
     assert isinstance(client.config.credentials, credentials_type)
     assert issubclass(client.config.credentials_type(client.config), credentials_type)
@@ -82,10 +92,7 @@ def test_filesystem_factory_buckets(with_gdrive_buckets_env: str) -> None:
 
     # factory gets initial credentials
     filesystem_ = filesystem(with_gdrive_buckets_env, credentials=credentials_type())
-    client = filesystem_.client(
-        Schema("test"),
-        initial_config=FilesystemDestinationClientConfiguration()._bind_dataset_name("test"),
-    )
+    client = _client_factory(filesystem_)
     assert isinstance(client.config.credentials, credentials_type)
 
 
@@ -327,3 +334,39 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
                         continue
                     paths.append(Path(posixpath.join(basedir, f)))
             assert list(sorted(paths)) == expected_files
+
+
+def test_get_storage_version_current() -> None:
+    filesystem_ = filesystem("random_location")
+    client = _client_factory(filesystem_)
+    # If storage is initialized with current code, then version must always be current
+    client.initialize_storage()
+    assert client.get_storage_version() == CURRENT_VERSION
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "",  # Legacy empty content
+        *[{"version": version} for version in SUPPORTED_VERSIONS],
+        "random",  # Completely invalid JSON
+        {"unexpected": 2},  # Valid JSON but no key "version"
+    ],
+)
+def test_get_storage_version(content: Union[str, Dict[str, int]]) -> None:
+    filesystem_ = filesystem("random_location")
+    client = _client_factory(filesystem_)
+    init_file = client.pathlib.join(client.dataset_path, INIT_FILE_NAME)
+    client.fs_client.mkdirs(client.dataset_path)
+    client.fs_client.touch(init_file)
+    client.fs_client.write_text(
+        init_file, json.dumps(content) if isinstance(content, Dict) else content, encoding="utf-8"
+    )
+
+    if content == "":
+        assert client.get_storage_version() == 1
+    elif isinstance(content, Dict) and "version" in content:
+        assert client.get_storage_version() == content["version"]
+    else:
+        with pytest.raises(ValueError):
+            client.get_storage_version()

@@ -7,7 +7,7 @@ from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.schema.typing import TColumnSchema
 from dlt.common.typing import TLoaderFileFormat
 from dlt.common.utils import uniq_id
-from dlt.destinations.path_utils import get_file_format_compression
+from dlt.destinations.path_utils import get_file_format_and_compression
 
 from tests.cases import arrow_table_all_data_types, prepare_shuffled_tables
 from tests.pipeline.utils import (
@@ -124,10 +124,10 @@ def test_custom_csv_no_header(
     assert len(jobs) == 2
     job_extensions = []
     for job in jobs:
-        file_format_ext, compression_ext = get_file_format_compression(
+        file_format_ext, is_compressed = get_file_format_and_compression(
             job.job_file_info.file_name()
         )
-        ext = f".{file_format_ext}.gz" if compression_ext else f".{file_format_ext}"
+        ext = f".{file_format_ext}.gz" if is_compressed else f".{file_format_ext}"
         job_extensions.append(ext)
     if not compression:
         assert ".csv" in job_extensions

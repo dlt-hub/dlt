@@ -127,7 +127,7 @@ Several [text file formats](../dlt-ecosystem/file-formats/) have `gzip` compress
 <!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::compression_toml-->
 
 :::note
-**Filesystem destination**: Starting from dlt version 1.14.0, compressed files in the filesystem destination automatically receive a `.gz` extension. To retain the legacy behavior (no `.gz` extension), set `DESTINATION__FILESYSTEM__LEGACY_COMPRESSION_WITHOUT_EXT=true`. This setting is also required for `pipeline.sql_client()` access to existing compressed files without `.gz` extension.
+**Filesystem destination**: Starting with dlt version 1.16.0, compressed `csv` and `jsonl` files automatically include a `.gz` extension to reflect their gzip-compressed format. In versions prior to 1.16.0, compressed files were saved without the `.gz` extension. If you have a dataset created with an earlier version (e.g., 1.15.0 or below), dlt will automatically detect the older format and preserve the original naming (without `.gz`) for that dataset. New datasets created with 1.16.0 or later will include the `.gz` extension by default.
 :::
 
 

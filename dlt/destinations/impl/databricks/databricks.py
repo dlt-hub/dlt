@@ -45,7 +45,7 @@ from dlt.destinations.impl.databricks.configuration import DatabricksClientConfi
 from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
-from dlt.destinations.path_utils import get_file_format_compression
+from dlt.destinations.path_utils import get_file_format_and_compression
 from dlt.destinations.impl.databricks.typing import TDatabricksColumnHint
 
 SUPPORTED_BLOB_STORAGE_PROTOCOLS = AZURE_BLOB_STORAGE_PROTOCOLS + S3_PROTOCOLS + GCS_PROTOCOLS
@@ -234,7 +234,7 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
     def _determine_source_format(
         self, file_name: str, orig_bucket_path: str
     ) -> tuple[str, str, bool]:
-        file_format, _ = get_file_format_compression(file_name)
+        file_format, is_compressed = get_file_format_and_compression(file_name)
 
         if file_format == "parquet":
             return "PARQUET", "", False
@@ -242,12 +242,13 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
         elif file_format in ["jsonl", "typed-jsonl"]:
             format_options_clause = "FORMAT_OPTIONS('inferTimestamp'='true')"
 
-            # check for an empty JSON file
-            fs, _ = fsspec_from_config(self._staging_config)
-            if orig_bucket_path is not None:
-                file_size = fs.size(orig_bucket_path)
-                if file_size == 0:
-                    return "JSON", format_options_clause, True
+            # check for an empty JSON file, unless it's a direct load
+            if self._staging_config is not None:
+                fs, _ = fsspec_from_config(self._staging_config)
+                if orig_bucket_path is not None:
+                    file_size = fs.size(orig_bucket_path)
+                    if file_size == 0:
+                        return "JSON", format_options_clause, True
 
             return "JSON", format_options_clause, False
 
