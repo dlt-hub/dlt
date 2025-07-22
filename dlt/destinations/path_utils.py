@@ -139,10 +139,7 @@ def prepare_params(
     if job_info:
         table_name = job_info.table_name
         file_id = job_info.file_id
-        if job_info.has_compression_ext:
-            ext = f"{job_info.file_format}.gz"
-        else:
-            ext = job_info.file_format
+        ext = job_info.full_extension()
         params.update(
             {
                 "table_name": table_name,
@@ -244,10 +241,7 @@ def create_path(
 
     # if extension is not defined, we append it at the end
     if "ext" not in placeholders:
-        if job_info.has_compression_ext:
-            path += f".{job_info.file_format}.gz"
-        else:
-            path += f".{job_info.file_format}"
+        path = job_info.full_extension()
 
     return path
 
@@ -294,7 +288,7 @@ def get_table_prefix_layout(
     return prefix
 
 
-def get_file_format_compression(file_path: str) -> Tuple[str, bool]:
+def get_file_format_and_compression(file_path: str) -> Tuple[str, bool]:
     """Return file format and whether an explicit .gz compression extension is present."""
     root, ext = os.path.splitext(file_path)
 

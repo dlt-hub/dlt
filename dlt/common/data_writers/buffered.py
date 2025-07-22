@@ -147,10 +147,12 @@ class BufferedDataWriter(Generic[TWriter]):
         if with_extension:
             spec = self.writer_spec._replace(file_extension=with_extension)
         with self.alternative_spec(spec):
-            self._rotate_file(is_imported_file=True)
+            (
+                self._rotate_file(mark_compressed=True)
+                if FileStorage.is_gzipped(file_path)
+                else self._rotate_file(mark_compressed=False)
+            )
         try:
-            if FileStorage.is_gzipped(file_path) and not self._file_name.endswith(".gz"):
-                self._file_name += ".gz"
             FileStorage.link_hard_with_fallback(file_path, self._file_name)
         except FileNotFoundError as f_ex:
             raise FileImportNotFound(file_path, self._file_name) from f_ex
@@ -228,15 +230,18 @@ class BufferedDataWriter(Generic[TWriter]):
         return new_rows_count
 
     def _rotate_file(
-        self, allow_empty_file: bool = False, is_imported_file: bool = False
+        self,
+        allow_empty_file: bool = False,
+        mark_compressed: Optional[bool] = None,
     ) -> DataWriterMetrics:
         metrics = self._flush_and_close_file(allow_empty_file)
 
         base_filename = self.file_name_template % new_file_id()
         file_extension = self.writer_spec.file_extension
 
-        # Add .gz extension if compression is enabled and is not imported file
-        if self.should_compress and not is_imported_file:
+        # Add .gz extension if compression is enabled and is not an imported file
+        # or if marked as a compressed file
+        if (mark_compressed is None and self.should_compress) or mark_compressed is True:
             self._file_name = f"{base_filename}.{file_extension}.gz"
         else:
             self._file_name = f"{base_filename}.{file_extension}"

@@ -33,7 +33,7 @@ from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.redshift.configuration import RedshiftClientConfiguration
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
-from dlt.destinations.path_utils import get_file_format_compression
+from dlt.destinations.path_utils import get_file_format_and_compression
 
 
 HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
@@ -90,14 +90,14 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
                 f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
             )
         # get format
-        file_format, compression_ext = get_file_format_compression(self._bucket_path)
+        file_format, is_compressed = get_file_format_and_compression(self._bucket_path)
         file_type = ""
         dateformat = ""
         compression = ""
         if file_format == "jsonl":
             file_type = "FORMAT AS JSON 'auto'"
             dateformat = "dateformat 'auto' timeformat 'auto'"
-            compression = "" if not compression_ext else "GZIP"
+            compression = "" if not is_compressed else "GZIP"
         elif file_format == "parquet":
             # Redshift doesn't support copying across regions for columnar data formats
             # https://docs.aws.amazon.com/redshift/latest/dg/copy-usage_notes-copy-from-columnar.html  # noqa: E501

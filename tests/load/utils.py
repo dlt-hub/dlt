@@ -476,7 +476,6 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=AWS_BUCKET,
                 extra_info="s3-authorization",
-                disable_compression=True,
             ),
             DestinationTestConfiguration(
                 destination_type="databricks",
@@ -484,7 +483,6 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
-                disable_compression=True,
             ),
             DestinationTestConfiguration(
                 destination_type="databricks",

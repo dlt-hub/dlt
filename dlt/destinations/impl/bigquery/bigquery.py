@@ -52,7 +52,7 @@ from dlt.destinations.job_impl import DestinationJsonlLoadJob, DestinationParque
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.sql_client import SqlClientBase
-from dlt.destinations.path_utils import get_file_format_compression
+from dlt.destinations.path_utils import get_file_format_and_compression
 
 
 class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -229,7 +229,7 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                         " `write_disposition='append'`. Resource received"
                         f" `write_disposition={table['write_disposition']}`"
                     )
-                file_format, _ = get_file_format_compression(file_path)
+                file_format, _ = get_file_format_and_compression(file_path)
                 if file_format in ["jsonl", "typed-jsonl"]:
                     job_cls = DestinationJsonlLoadJob
                 elif file_format == "parquet":
