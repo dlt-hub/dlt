@@ -48,6 +48,7 @@ def test_py_arrow_to_table_schema_columns():
     dlt_schema["col4_null"]["precision"] = caps.timestamp_precision
     dlt_schema["col6_null"]["precision"], dlt_schema["col6_null"]["scale"] = caps.decimal_precision
     dlt_schema["col11_null"]["precision"] = caps.timestamp_precision
+    dlt_schema["col12"]["precision"] = caps.timestamp_precision
 
     # Ignoring wei as we can't distinguish from decimal
     dlt_schema["col8"]["precision"], dlt_schema["col8"]["scale"] = (76, 0)

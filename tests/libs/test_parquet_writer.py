@@ -125,10 +125,7 @@ def test_parquet_writer_all_data_fields() -> None:
         table = pq.read_table(f)
 
     for key, value in data.items():
-        # what we have is pandas Timezone which is naive
         actual = table.column(key).to_pylist()[0]
-        if isinstance(value, datetime.datetime):
-            actual = ensure_pendulum_datetime(actual)
         if isinstance(value, dict):
             actual = json.loads(actual)
         assert actual == value
