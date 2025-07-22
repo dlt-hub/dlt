@@ -28,8 +28,8 @@ def get_default_initial_providers(
 ) -> list[ConfigProvider]:
     providers = [
         EnvironProvider(),
-        ConfigTomlProvider(settings_dir, global_dir),
         SecretsTomlProvider(settings_dir, global_dir),
+        ConfigTomlProvider(settings_dir, global_dir),
     ]
     return providers
 
