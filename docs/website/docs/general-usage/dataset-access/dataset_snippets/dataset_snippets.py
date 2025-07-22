@@ -1,9 +1,7 @@
 # flake8: noqa
 import dlt
-import pandas as pd
 import pytest
 
-from dlt.destinations.dataset import ReadableDBAPIDataset
 from dlt.sources._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
 )

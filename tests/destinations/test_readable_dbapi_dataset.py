@@ -9,11 +9,10 @@ from dlt.transformations.exceptions import LineageFailedException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.schema.utils import new_table
-from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
 
 
 @pytest.fixture
-def mock_dataset() -> ReadableDBAPIDataset:
+def mock_dataset() -> dlt.Dataset:
     s = Schema("my_schema")
     t = new_table(
         "my_table",
@@ -23,31 +22,28 @@ def mock_dataset() -> ReadableDBAPIDataset:
         ],
     )
     s.update_table(t)
-    dataset = cast(
-        ReadableDBAPIDataset,
-        dlt.destinations.dataset.dataset(
-            dlt.destinations.duckdb(destination_name="duck_db"),
-            "pipeline_dataset",
-            schema=s,
-        ),
+    dataset = dlt.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"),
+        "pipeline_dataset",
+        schema=s,
     )
     return dataset
 
 
-def test_dataset_autocompletion(mock_dataset: ReadableDBAPIDataset):
+def test_dataset_autocompletion(mock_dataset: dlt.Dataset):
     expected_suggestions = ["my_table", LOADS_TABLE_NAME, VERSION_TABLE_NAME]
     suggestions = mock_dataset._ipython_key_completions_()
     assert set(expected_suggestions) == set(suggestions)
 
 
-def test_relation_autocompletion(mock_dataset: ReadableDBAPIDataset):
+def test_relation_autocompletion(mock_dataset: dlt.Dataset):
     expected_suggestions = ["col1", "col2"]
-    suggestions = mock_dataset["my_table"]._ipython_key_completions_()  # type: ignore[attr-defined]
+    suggestions = mock_dataset["my_table"]._ipython_key_completions_()
     assert set(expected_suggestions) == set(suggestions)
 
 
-def test_query_builder(mock_dataset: ReadableDBAPIDataset) -> None:
-    relation = cast(ReadableDBAPIRelation, mock_dataset.my_table)
+def test_query_builder(mock_dataset: dlt.Dataset) -> None:
+    relation = mock_dataset.my_table
 
     # default query for a table
     assert (
@@ -90,12 +86,9 @@ def test_query_builder(mock_dataset: ReadableDBAPIDataset) -> None:
 
 
 def test_copy_and_chaining() -> None:
-    dataset = cast(
-        ReadableDBAPIDataset,
-        dlt.destinations.dataset.dataset(
-            dlt.destinations.duckdb(destination_name="duck_db"),
-            "pipeline_dataset",
-        ),
+    dataset = dlt.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"),
+        "pipeline_dataset",
     )
 
     dataset.schema.tables["items"] = new_table(
@@ -104,7 +97,7 @@ def test_copy_and_chaining() -> None:
     )
 
     # create relation and set some stuff on it
-    relation = cast(ReadableDBAPIRelation, dataset.items)
+    relation = dataset.items
     relation = relation.limit(34)
     relation = relation[["one", "two"]]
 
@@ -124,7 +117,7 @@ def test_copy_and_chaining() -> None:
 
 
 def test_computed_schema_columns() -> None:
-    dataset = dlt.destinations.dataset.dataset(
+    dataset = dlt.dataset(
         dlt.destinations.duckdb(destination_name="duck_db"),
         "pipeline_dataset",
     )
@@ -177,16 +170,12 @@ def test_changing_relation_with_query() -> None:
     )
 
     s.update_table(t)
-    dataset = cast(
-        ReadableDBAPIDataset,
-        dlt.destinations.dataset.dataset(
-            dlt.destinations.duckdb(destination_name="duck_db"),
-            "pipeline_dataset",
-            schema=s,
-        ),
+    dataset = dlt.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"),
+        "pipeline_dataset",
+        schema=s,
     )
-
-    relation = cast(ReadableDBAPIRelation, dataset("SELECT * FROM something"))
+    relation = dataset("SELECT * FROM something")
     query = relation.to_sql()
     assert (
         'SELECT "something"."this" AS "this", "something"."that" AS "that" FROM'
@@ -194,9 +183,7 @@ def test_changing_relation_with_query() -> None:
         == query
     )
 
-    query = (
-        cast(ReadableDBAPIRelation, dataset("SELECT this, that FROM something")).limit(5).to_sql()
-    )
+    query = dataset("SELECT this, that FROM something").limit(5).to_sql()
     assert (
         'SELECT "something"."this" AS "this", "something"."that" AS "that" FROM'
         ' "pipeline_dataset"."something" AS "something" LIMIT 5'

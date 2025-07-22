@@ -18,7 +18,6 @@ from tests.load.utils import (
     GCS_BUCKET,
 )
 from tests.pipeline.utils import assert_table_counts
-from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
 
 
 @pytest.mark.parametrize(
@@ -270,7 +269,7 @@ def test_load_open_table(destination_config: DestinationTestConfiguration) -> No
         client.load_open_table(destination_config.table_format, "non_existing_table")
 
     # test open table client
-    dataset_ = cast(ReadableDBAPIDataset, pipeline.dataset())
+    dataset_ = pipeline.dataset()
     assert dataset_.open_table_client.get_open_table_location(
         destination_config.table_format, "open_table"
     )

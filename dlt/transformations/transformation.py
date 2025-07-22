@@ -14,7 +14,7 @@ from dlt.transformations.exceptions import (
     TransformationException,
     IncompatibleDatasetsException,
 )
-from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+from dlt.destinations.dataset.dataset import Dataset
 from dlt.common.typing import TDataItem
 from dlt.common.schema.typing import TTableSchema
 
@@ -33,7 +33,7 @@ from dlt.common.utils import get_callable_name
 from dlt.extract.exceptions import CurrentSourceNotAvailable
 from dlt.extract.pipe_iterator import DataItemWithMeta
 from dlt.extract.hints import DLT_HINTS_METADATA_KEY, make_hints
-from dlt.destinations.dataset.relation import ReadableDBAPIRelation
+from dlt.destinations.dataset.relation import Relation
 
 try:
     from dlt.helpers.ibis import Expr as IbisExpr
@@ -62,7 +62,7 @@ class DltTransformationResource(DltResource):
         # if we detect any hints on the item directly, merge them with the existing hints
         schema: TTableSchema = {}
         original_hints = self._hints
-        if isinstance(item, ReadableDBAPIRelation):
+        if isinstance(item, Relation):
             schema = item.schema
 
         # extract resource hints from arrow metadata if available
@@ -116,9 +116,7 @@ def make_transformation_resource(
     def transformation_function(*args: Any, **kwargs: Any) -> Iterator[TDataItems]:
         # Collect all datasets from args and kwargs
         all_arg_values = list(args) + list(kwargs.values())
-        datasets: List[ReadableDBAPIDataset] = [
-            arg for arg in all_arg_values if isinstance(arg, ReadableDBAPIDataset)
-        ]
+        datasets: list[Dataset] = [arg for arg in all_arg_values if isinstance(arg, Dataset)]
 
         # resolve config
         config: TransformationConfiguration = (
@@ -132,9 +130,7 @@ def make_transformation_resource(
                 schema_name = dlt.current.source().name
                 current_pipeline = dlt.current.pipeline()
                 current_pipeline.destination_client()  # raises if destination not configured
-                pipeline_dataset = cast(
-                    ReadableDBAPIDataset, current_pipeline.dataset(schema=schema_name)
-                )
+                pipeline_dataset = current_pipeline.dataset(schema=schema_name)
                 should_materialize = not datasets[0].is_same_physical_destination(pipeline_dataset)
             except (PipelineConfigMissing, CurrentSourceNotAvailable):
                 logger.info(
@@ -148,7 +144,7 @@ def make_transformation_resource(
 
         def _process_item(item: TDataItems) -> Iterator[TDataItems]:
             # catch the cases where we get a relation from the transformation function
-            if isinstance(item, ReadableDBAPIRelation):
+            if isinstance(item, Relation):
                 relation = item
             # we see if the string is a valid sql query, if so we need a dataset
             elif isinstance(item, str):
@@ -161,7 +157,7 @@ def make_transformation_resource(
                             " all used datasets via transform function arguments.",
                         )
                     else:
-                        relation = cast(ReadableDBAPIRelation, datasets[0](item))
+                        relation = datasets[0](item)
                 except sqlglot.errors.ParseError as e:
                     raise TransformationException(
                         resource_name,
@@ -169,7 +165,7 @@ def make_transformation_resource(
                         " query via transform function arguments.",
                     ) from e
             elif IbisExpr and isinstance(item, IbisExpr):
-                relation = cast(ReadableDBAPIRelation, datasets[0](item))
+                relation = datasets[0](item)
             else:
                 # no transformation, just yield this item
                 yield item
