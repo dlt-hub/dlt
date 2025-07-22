@@ -154,21 +154,26 @@ import dlt
 from dlt_plus.runner import PipelineRunner
 from tenacity import Retrying, stop_after_attempt
 
+@dlt.resource(table_name="numbers")
+def my_resource():
+    return [1, 2, 3]
+
 pipeline = dlt.pipeline(
     pipeline_name="my_pipeline",
     destination="duckdb",
-    dataset="my_dataset",
+    dataset_name="my_dataset",
 )
 
-load_info = PipelineRunner(pipeline, run_from_clean_folder=True).run(my_source())
+load_info = PipelineRunner(pipeline, run_from_clean_folder=True).run(my_resource())
 print(load_info)
 
 # or just to finalize pending data reliably
+pipeline.extract(["a", "b", "c"], table_name="letters")
 load_info = PipelineRunner(
     pipeline, 
     retry_policy=Retrying(stop=stop_after_attempt(2), reraise=True),
     store_trace_info=True,
-).finalize_pending_data()
+).finalize()
 print(load_info)
 ```
 
