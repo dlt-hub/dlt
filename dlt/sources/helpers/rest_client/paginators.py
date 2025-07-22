@@ -92,7 +92,6 @@ class RangePaginator(BasePaginator):
     def __init__(
         self,
         param_name: Optional[str],
-        body_path: Optional[jsonpath.TJsonPath],
         initial_value: int,
         value_step: int,
         base_index: int = 0,
@@ -101,11 +100,15 @@ class RangePaginator(BasePaginator):
         error_message_items: str = "items",
         stop_after_empty_page: Optional[bool] = True,
         has_more_path: Optional[jsonpath.TJsonPath] = None,
+        param_body_path: Optional[jsonpath.TJsonPath] = None,
     ):
         """
         Args:
             param_name (str): The query parameter name for the numeric value.
                 For example, 'page'.
+            param_body_path (jsonpath.TJsonPath): The JSONPath expression specifying
+                where to place the numeric parameter in the request JSON body.
+                Defaults to `None`.
             initial_value (int): The initial value of the numeric parameter.
             value_step (int): The step size to increment the numeric parameter.
             base_index (int, optional): The index of the initial element.
@@ -139,7 +142,7 @@ class RangePaginator(BasePaginator):
                 " must be provided."
             )
         self.param_name = param_name
-        self.body_path = body_path
+        self.param_body_path = param_body_path
         self.initial_value = initial_value
         self.current_value = initial_value
         self.value_step = value_step
@@ -227,8 +230,8 @@ class RangePaginator(BasePaginator):
     def update_request(self, request: Request) -> None:
         """Updates the request with the current value either in query parameters
         or in the request JSON body."""
-        if self.body_path:
-            self._update_request_with_body_path(request, self.body_path, self.current_value)
+        if self.param_body_path:
+            self._update_request_with_body_path(request, self.param_body_path, self.current_value)
         else:
             self._update_request_with_param_name(request, self.param_name, self.current_value)
 
@@ -322,11 +325,11 @@ class PageNumberPaginator(RangePaginator):
         base_page: int = 0,
         page: int = None,
         page_param: Optional[str] = None,
-        page_body_path: Optional[jsonpath.TJsonPath] = None,
         total_path: Optional[jsonpath.TJsonPath] = "total",
         maximum_page: Optional[int] = None,
         stop_after_empty_page: Optional[bool] = True,
         has_more_path: Optional[jsonpath.TJsonPath] = None,
+        page_body_path: Optional[jsonpath.TJsonPath] = None,
     ):
         """
         Args:
@@ -375,7 +378,7 @@ class PageNumberPaginator(RangePaginator):
 
         super().__init__(
             param_name=page_param,
-            body_path=page_body_path,
+            param_body_path=page_body_path,
             initial_value=page,
             base_index=base_page,
             total_path=total_path,
@@ -391,7 +394,7 @@ class PageNumberPaginator(RangePaginator):
             super().__str__()
             + f": current page: {self.current_value} "
             + (f"page_param: {self.param_name} " if self.param_name else "")
-            + (f"page_body_path: {self.body_path} " if self.body_path else "")
+            + (f"page_body_path: {self.param_body_path} " if self.param_body_path else "")
             + f"total_path: {self.total_path} maximum_value: {self.maximum_value} "
             f"has_more_path: {self.has_more_path}"
         )
@@ -475,13 +478,13 @@ class OffsetPaginator(RangePaginator):
         limit: int,
         offset: int = 0,
         offset_param: Optional[str] = None,
-        offset_body_path: Optional[jsonpath.TJsonPath] = None,
         limit_param: Optional[str] = None,
-        limit_body_path: Optional[jsonpath.TJsonPath] = None,
         total_path: Optional[jsonpath.TJsonPath] = "total",
         maximum_offset: Optional[int] = None,
         stop_after_empty_page: Optional[bool] = True,
         has_more_path: Optional[jsonpath.TJsonPath] = None,
+        offset_body_path: Optional[jsonpath.TJsonPath] = None,
+        limit_body_path: Optional[jsonpath.TJsonPath] = None,
     ) -> None:
         """
         Args:
@@ -542,13 +545,13 @@ class OffsetPaginator(RangePaginator):
             )
         super().__init__(
             param_name=offset_param,
-            body_path=offset_body_path,
             initial_value=offset,
             total_path=total_path,
             value_step=limit,
             maximum_value=maximum_offset,
             stop_after_empty_page=stop_after_empty_page,
             has_more_path=has_more_path,
+            param_body_path=offset_body_path,
         )
         self.limit_param = limit_param
         self.limit_body_path = limit_body_path
@@ -573,7 +576,7 @@ class OffsetPaginator(RangePaginator):
             super().__str__()
             + f": current offset: {self.current_value} "
             + (f"offset_param: {self.param_name} " if self.param_name else "")
-            + (f"offset_body_path: {self.body_path} " if self.body_path else "")
+            + (f"offset_body_path: {self.param_body_path} " if self.param_body_path else "")
             + f"limit: {self.value_step} "
             + (f"limit_param: {self.limit_param} " if self.limit_param else "")
             + (f"limit_body_path: {self.limit_body_path} " if self.limit_body_path else "")

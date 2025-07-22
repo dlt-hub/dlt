@@ -281,17 +281,17 @@ class TestOffsetPaginator:
         # Test that offset_param defaults to 'offset' when offset_param and offset_body_path are None
         paginator = OffsetPaginator(limit=100)
         assert paginator.param_name == "offset"
-        assert paginator.body_path is None
+        assert paginator.param_body_path is None
 
         # Test that page_param is set to the provided value
         paginator = OffsetPaginator(limit=100, offset_param="offset_param")
         assert paginator.param_name == "offset_param"
-        assert paginator.body_path is None
+        assert paginator.param_body_path is None
 
         # Test that page_body_path is set to the provided value
         paginator = OffsetPaginator(limit=100, offset_body_path="offset_body_path")
         assert paginator.param_name is None
-        assert paginator.body_path == "offset_body_path"
+        assert paginator.param_body_path == "offset_body_path"
 
     def test_update_state_with_string_total(self):
         paginator = OffsetPaginator(0, 10)
@@ -521,17 +521,17 @@ class TestPageNumberPaginator:
         # Test that page_param defaults to 'page' when page_param and page_body_path are None
         paginator = PageNumberPaginator()
         assert paginator.param_name == "page"
-        assert paginator.body_path is None
+        assert paginator.param_body_path is None
 
         # Test that page_param is set to the provided value
         paginator = PageNumberPaginator(page_param="page_param")
         assert paginator.param_name == "page_param"
-        assert paginator.body_path is None
+        assert paginator.param_body_path is None
 
         # Test that page_body_path is set to the provided value
         paginator = PageNumberPaginator(page_body_path="page_body_path")
         assert paginator.param_name is None
-        assert paginator.body_path == "page_body_path"
+        assert paginator.param_body_path == "page_body_path"
 
     def test_init_request(self):
         paginator = PageNumberPaginator(base_page=1, total_path=None)
