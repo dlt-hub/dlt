@@ -1,4 +1,5 @@
 ---
+id: project-index
 title: "Project"
 description: Create dlt projets using yaml files
 keywords: ["dlt+", "peoject", "source", "dbt"]

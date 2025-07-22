@@ -92,7 +92,7 @@ print(dataset.row_counts().df())
 ```
 
 :::tip
-Learn more about the available data access methods in dlt datasets by reading the [Python loaded data access guide](../../general-usage/dataset-access/dataset).
+Learn more about the available data access methods in dlt datasets by reading the [Python loaded data access guide](../../../general-usage/dataset-access/dataset).
 It covers how to browse, filter tables, and retrieve data in various formats.
 :::
 
