@@ -139,7 +139,12 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     # now we have dlt tables
     storage_tables = list(client.get_storage_tables([VERSION_TABLE_NAME, LOADS_TABLE_NAME]))
     assert set([table[0] for table in storage_tables]) == {VERSION_TABLE_NAME, LOADS_TABLE_NAME}
-    assert [len(table[1]) > 0 for table in storage_tables] == [True, True]
+    # in filesystem we do not have folders really so we cannot tell empty table from non existing table
+    if client.config.destination_type in ["filesystem"]:
+        # loads table does not have data
+        assert [len(table[1]) > 0 for table in storage_tables] == [True, False]
+    else:
+        assert [len(table[1]) > 0 for table in storage_tables] == [True, True]
     # verify if schemas stored
     this_schema = client.get_stored_schema_by_hash(schema.version_hash)
     newest_schema = client.get_stored_schema(client.schema.name)
