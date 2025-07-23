@@ -498,10 +498,8 @@ For more complex pagination methods, you can implement a [custom paginator](../.
 Alternatively, you can use the dictionary configuration syntax also for custom paginators. For this, you need to register your custom paginator:
 
 ```py
-from dlt.common.configuration import configspec
 from dlt.sources.rest_api.config_setup import register_paginator
 
-@configspec
 class CustomPaginator(SinglePagePaginator):
     # custom implementation of SinglePagePaginator
     pass
