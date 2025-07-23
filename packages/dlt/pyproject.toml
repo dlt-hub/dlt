@@ -1,0 +1,229 @@
+[project]
+name = "dlt"
+version = "1.14.1"
+description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
+authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
+requires-python = ">=3.9.2, <3.15"
+readme = "README.md"
+license = "Apache-2.0"
+maintainers = [
+    { name = "Marcin Rudolf", email = "marcin@dlthub.com" },
+    { name = "Adrian Brudaru", email = "adrian@dlthub.com" },
+    { name = "Anton Burnashev", email = "anton@dlthub.com" },
+    { name = "David Scharf", email = "david@dlthub.com" },
+]
+keywords = ["etl"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Topic :: Software Development :: Libraries",
+    "Typing :: Typed",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+]
+dependencies = [
+    "requests>=2.26.0",
+    "pendulum>=2.1.2",
+    "pendulum>=3.0.0 ; python_version > '3.13'",
+    "simplejson>=3.17.5",
+    "PyYAML>=5.4.1",
+    "semver>=3.0.0",
+    "hexbytes>=0.2.2",
+    "tzdata>=2022.1",
+    "tomlkit>=0.11.3",
+    "pathvalidate>=2.5.2",
+    "typing-extensions>=4.8.0",
+    "click>=7.1",
+    "requirements-parser>=0.5.0",
+    "setuptools>=65.6.0",
+    "humanize>=4.4.0",
+    "gitpython>=3.1.29",
+    "pytz>=2022.6",
+    "giturlparse>=0.10.0",
+    "orjson>=3.6.7,<4,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
+    # enables pyodide install, mind that 3.10.1 is a buggy version and should be yanked
+    "orjson>=3.10.1 ; sys_platform != 'emscripten'",
+    "orjson>=3.11.0 ; python_version > '3.13'",
+    "tenacity>=8.0.2",
+    "jsonpath-ng>=1.5.3",
+    "fsspec>=2022.4.0",
+    "packaging>=21.1",
+    "pluggy>=1.3.0",
+    "win-precise-time>=1.4.2 ; os_name == 'nt' and python_version < '3.13'",
+    "sqlglot>=25.4.0",
+    "pywin32>=306 ; sys_platform == 'win32'",
+    "rich-argparse>=1.6.0",
+]
+
+[project.optional-dependencies]
+gcp = [
+    "grpcio>=1.50.0",
+    "google-cloud-bigquery>=2.26.0",
+    "db-dtypes>=1.2.0",
+    "gcsfs>=2022.4.0",
+]
+bigquery = [
+    "grpcio>=1.50.0",
+    "google-cloud-bigquery>=2.26.0",
+    "pyarrow>=16.0.0",
+    "gcsfs>=2022.4.0",
+    "db-dtypes>=1.2.0",
+]
+postgres = [
+    "psycopg2-binary>=2.9.1"
+]
+redshift = [
+    "psycopg2-binary>=2.9.1"
+]
+parquet = [
+    "pyarrow>=16.0.0",
+]
+duckdb = [
+    "duckdb>=0.9"
+    ]
+filesystem = [
+    "s3fs>=2022.4.0",
+    "botocore>=1.28",
+]
+s3 = [
+    "s3fs>=2022.4.0",
+    "botocore>=1.28",
+]
+gs = [
+    "gcsfs>=2022.4.0"
+]
+az = [
+    "adlfs>=2024.7.0"
+]
+sftp = [
+    "paramiko>=3.3.0"
+]
+snowflake = ["snowflake-connector-python>=3.5.0"]
+motherduck = [
+    "duckdb>=0.9",
+    "pyarrow>=16.0.0",
+]
+cli = [
+    "pipdeptree>=2.9.0,<2.10",
+    "cron-descriptor>=1.2.32",
+    "pip>=23.0.0",
+]
+athena = [
+    "pyathena>=2.9.6",
+    "pyarrow>=16.0.0",
+    "s3fs>=2022.4.0",
+    "botocore>=1.28",
+]
+weaviate = [
+    "weaviate-client>=3.22"
+]
+mssql = [
+    "pyodbc>=4.0.39 ; python_version < '3.13'"
+]
+synapse = [
+    "pyodbc>=4.0.39 ; python_version < '3.13'",
+    "adlfs>=2024.7.0",
+    "pyarrow>=16.0.0",
+]
+qdrant = [
+    "qdrant-client[fastembed]>=1.8"
+]
+databricks = [
+    "databricks-sql-connector>=2.9.3,<4 ; python_version <= '3.12'",
+    "databricks-sql-connector>=3.6.0 ; python_version >= '3.13'",
+    "databricks-sdk>=0.38.0",
+]
+clickhouse = [
+   "clickhouse-driver>=0.2.7",
+    "clickhouse-connect>=0.7.7",
+    "s3fs>=2022.4.0",
+    "gcsfs>=2022.4.0",
+    "adlfs>=2024.7.0",
+    "pyarrow>=16.0.0",
+]
+dremio = [
+    "pyarrow>=16.0.0",
+]
+lancedb = [
+    "lancedb>=0.22.0 ; python_version < '3.13'",
+    "pyarrow>=16.0.0",
+    "tantivy>= 0.22.0",
+]
+deltalake = [
+    "deltalake>=0.25.1",
+    "pyarrow>=16.0.0",
+]
+sql_database = ["sqlalchemy>=1.4"]
+sqlalchemy = [
+    "sqlalchemy>=1.4",
+    "alembic>1.10.0",
+]
+pyiceberg = [
+    "pyiceberg>=0.9.1",
+    "pyarrow>=16.0.0",
+    "sqlalchemy>=1.4",
+]
+postgis = [
+    "psycopg2-binary>=2.9.1"
+]
+workspace = [
+    "duckdb>=0.9",
+    "ibis-framework[duckdb]>=10.5.0 ; python_version >= '3.10'",
+    "pyarrow>=16.0.0",
+    "pandas>=2.1.4",
+    "marimo>=0.14.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/dlt-hub"
+Repository = "https://github.com/dlt-hub/dlt"
+
+[project.scripts]
+dlt = "dlt.cli._dlt:_main"
+
+[tool.uv]
+
+[tool.uv.sources]
+flake8-encodings = { git = "https://github.com/dlt-hub/flake8-encodings.git", branch = "disable_jedi_support" }
+
+[tool.hatch.build.targets.sdist]
+packages = ["dlt"]
+include = [
+    "LICENSE.txt",
+    "README.md",
+    "dlt/sources/pipeline_templates/.gitignore",
+    "dlt/sources/pipeline_templates/.dlt/config.toml",
+    "dlt/helpers/dashboard/dlt_dashboard_styles.css"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["dlt"]
+include = [
+    "LICENSE.txt",
+    "README.md",
+    "dlt/sources/pipeline_templates/.gitignore",
+    "dlt/sources/pipeline_templates/.dlt/config.toml",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.black]
+line-length = 100
+preview = true
+
+[tool.isort]
+color_output = true
+line_length = 100
+profile = "black"
+src_paths = ["dlt"]
+multi_line_output = 3
+

@@ -4,9 +4,9 @@ PYV=$(shell python3 -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_i
 .SILENT:has-uv
 
 # read version from package
-# AUTV=$(shell cd dlt && python3 -c "from __version__ import __version__;print(__version__)")
+# AUTV=$(shell cd packages/dlt/dlt && python3 -c "from __version__ import __version__;print(__version__)")
 
-# NAME   := dlthub/dlt
+# NAME   := packages/dlt/dlthub/dlt
 # TAG    := $(shell git log -1 --pretty=%h)
 # IMG    := ${NAME}:${TAG}
 # LATEST := ${NAME}:latest${VERSION_SUFFIX}
@@ -30,7 +30,7 @@ help:
 	@echo "		lint-and-test-snippets"
 	@echo "			tests and lints snippets and examples in docs"
 	@echo "		build-library"
-	@echo "			makes dev and then builds dlt package for distribution"
+	@echo "			makes dev and then builds packages/dlt/dlt package for distribution"
 	@echo "		publish-library"
 	@echo "			builds library and then publishes it to pypi"
 
@@ -50,20 +50,20 @@ dev-airflow: has-uv
 	uv sync --all-extras --group docs --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
 	
 lint:
-	uv run mypy --config-file mypy.ini dlt tests
+	uv run mypy --config-file mypy.ini packages/dlt/dlt tests
 	# NOTE: we need to make sure docstring_parser_fork is the only version of docstring_parser installed
 	uv pip uninstall docstring_parser
 	uv pip install docstring_parser_fork --reinstall
 	# NOTE: we exclude all D lint errors (docstrings)
-	uv run flake8 --extend-ignore=D --max-line-length=200 dlt
+	uv run flake8 --extend-ignore=D --max-line-length=200 packages/dlt/dlt
 	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
-	uv run black dlt docs tests --check --diff --color --extend-exclude=".*syntax_error.py"
+	uv run black packages/dlt/dlt docs tests --check --diff --color --extend-exclude=".*syntax_error.py"
 	# uv run isort ./ --diff
 	$(MAKE) lint-security
 	$(MAKE) lint-docstrings
 
 format:
-	uv run black dlt docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
+	uv run black packages/dlt/dlt docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
 
 lint-snippets:
 	cd docs/tools && uv run python check_embedded_snippets.py full
@@ -86,20 +86,20 @@ test-examples:
 
 lint-security:
 	# go for ll by cleaning up eval and SQL warnings.
-	uv run bandit -r dlt/ -n 3 -lll
+	uv run bandit -r packages/dlt/dlt/ -n 3 -lll
 
 # check docstrings for all important public classes and functions
 lint-docstrings:
 	uv run flake8 --count \
-		dlt/common/pipeline.py \
-		dlt/extract/decorators.py \
-		dlt/destinations/decorators.py \
-		dlt/sources/**/__init__.py \
-		dlt/extract/source.py \
-		dlt/common/destination/dataset.py \
-		dlt/destinations/impl/**/factory.py \
-		dlt/pipeline/pipeline.py \
-		dlt/pipeline/__init__.py \
+		packages/dlt/dlt/common/pipeline.py \
+		packages/dlt/dlt/extract/decorators.py \
+		packages/dlt/dlt/destinations/decorators.py \
+		packages/dlt/dlt/sources/**/__init__.py \
+		packages/dlt/dlt/extract/source.py \
+		packages/dlt/dlt/common/destination/dataset.py \
+		packages/dlt/dlt/destinations/impl/**/factory.py \
+		packages/dlt/dlt/pipeline/pipeline.py \
+		packages/dlt/dlt/pipeline/__init__.py \
 		tests/pipeline/utils.py
 
 test:
@@ -121,7 +121,7 @@ reset-test-storage:
 
 build-library: dev
 	uv version
-	uv build
+	uv build --all
 
 clean-dist:
 	-@rm -r dist/
@@ -129,7 +129,7 @@ clean-dist:
 publish-library: clean-dist build-library
 	ls -l dist/
 	@read -p "Enter PyPI API token: " PYPI_API_TOKEN; echo ; \
-	uv publish --token "$$PYPI_API_TOKEN"
+	uv publish --token "$$PYPI_API_TOKEN" ./dist/dlt-*
 
 test-build-images: build-library
 	# NOTE: uv export does not work with our many different deps, we install a subset and freeze
@@ -166,4 +166,4 @@ test-e2e-dashboard-headed:
 	uv run pytest --headed --browser chromium tests/e2e
 
 start-dlt-dashboard-e2e:
-	uv run marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines_dir _storage/.dlt/pipelines --with_test_identifiers true
+	uv run marimo run --headless packages/dlt/dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines_dir _storage/.dlt/pipelines --with_test_identifiers true

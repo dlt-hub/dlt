@@ -22,6 +22,12 @@ resolution-markers = [
     "python_full_version < '3.10' and sys_platform == 'emscripten'",
 ]
 
+[manifest]
+members = [
+    "dlt",
+    "dlt-all",
+]
+
 [[package]]
 name = "about-time"
 version = "4.2.1"
@@ -1962,7 +1968,7 @@ wheels = [
 [[package]]
 name = "dlt"
 version = "1.14.1"
-source = { editable = "." }
+source = { editable = "packages/dlt" }
 dependencies = [
     { name = "click" },
     { name = "fsspec" },
@@ -2117,6 +2123,201 @@ workspace = [
     { name = "pyarrow" },
 ]
 
+[package.metadata]
+requires-dist = [
+    { name = "adlfs", marker = "extra == 'az'", specifier = ">=2024.7.0" },
+    { name = "adlfs", marker = "extra == 'clickhouse'", specifier = ">=2024.7.0" },
+    { name = "adlfs", marker = "extra == 'synapse'", specifier = ">=2024.7.0" },
+    { name = "alembic", marker = "extra == 'sqlalchemy'", specifier = ">1.10.0" },
+    { name = "botocore", marker = "extra == 'athena'", specifier = ">=1.28" },
+    { name = "botocore", marker = "extra == 'filesystem'", specifier = ">=1.28" },
+    { name = "botocore", marker = "extra == 's3'", specifier = ">=1.28" },
+    { name = "click", specifier = ">=7.1" },
+    { name = "clickhouse-connect", marker = "extra == 'clickhouse'", specifier = ">=0.7.7" },
+    { name = "clickhouse-driver", marker = "extra == 'clickhouse'", specifier = ">=0.2.7" },
+    { name = "cron-descriptor", marker = "extra == 'cli'", specifier = ">=1.2.32" },
+    { name = "databricks-sdk", marker = "extra == 'databricks'", specifier = ">=0.38.0" },
+    { name = "databricks-sql-connector", marker = "python_full_version >= '3.13' and extra == 'databricks'", specifier = ">=3.6.0" },
+    { name = "databricks-sql-connector", marker = "python_full_version < '3.13' and extra == 'databricks'", specifier = ">=2.9.3,<4" },
+    { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
+    { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
+    { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
+    { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
+    { name = "duckdb", marker = "extra == 'motherduck'", specifier = ">=0.9" },
+    { name = "duckdb", marker = "extra == 'workspace'", specifier = ">=0.9" },
+    { name = "fsspec", specifier = ">=2022.4.0" },
+    { name = "gcsfs", marker = "extra == 'bigquery'", specifier = ">=2022.4.0" },
+    { name = "gcsfs", marker = "extra == 'clickhouse'", specifier = ">=2022.4.0" },
+    { name = "gcsfs", marker = "extra == 'gcp'", specifier = ">=2022.4.0" },
+    { name = "gcsfs", marker = "extra == 'gs'", specifier = ">=2022.4.0" },
+    { name = "gitpython", specifier = ">=3.1.29" },
+    { name = "giturlparse", specifier = ">=0.10.0" },
+    { name = "google-cloud-bigquery", marker = "extra == 'bigquery'", specifier = ">=2.26.0" },
+    { name = "google-cloud-bigquery", marker = "extra == 'gcp'", specifier = ">=2.26.0" },
+    { name = "grpcio", marker = "extra == 'bigquery'", specifier = ">=1.50.0" },
+    { name = "grpcio", marker = "extra == 'gcp'", specifier = ">=1.50.0" },
+    { name = "hexbytes", specifier = ">=0.2.2" },
+    { name = "humanize", specifier = ">=4.4.0" },
+    { name = "ibis-framework", extras = ["duckdb"], marker = "python_full_version >= '3.10' and extra == 'workspace'", specifier = ">=10.5.0" },
+    { name = "jsonpath-ng", specifier = ">=1.5.3" },
+    { name = "lancedb", marker = "python_full_version < '3.13' and extra == 'lancedb'", specifier = ">=0.22.0" },
+    { name = "marimo", marker = "extra == 'workspace'", specifier = ">=0.14.5" },
+    { name = "orjson", marker = "python_full_version >= '3.14'", specifier = ">=3.11.0" },
+    { name = "orjson", marker = "sys_platform != 'emscripten'", specifier = ">=3.10.1" },
+    { name = "orjson", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'", specifier = ">=3.6.7,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1,<4" },
+    { name = "packaging", specifier = ">=21.1" },
+    { name = "pandas", marker = "extra == 'workspace'", specifier = ">=2.1.4" },
+    { name = "paramiko", marker = "extra == 'sftp'", specifier = ">=3.3.0" },
+    { name = "pathvalidate", specifier = ">=2.5.2" },
+    { name = "pendulum", specifier = ">=2.1.2" },
+    { name = "pendulum", marker = "python_full_version >= '3.14'", specifier = ">=3.0.0" },
+    { name = "pip", marker = "extra == 'cli'", specifier = ">=23.0.0" },
+    { name = "pipdeptree", marker = "extra == 'cli'", specifier = ">=2.9.0,<2.10" },
+    { name = "pluggy", specifier = ">=1.3.0" },
+    { name = "psycopg2-binary", marker = "extra == 'postgis'", specifier = ">=2.9.1" },
+    { name = "psycopg2-binary", marker = "extra == 'postgres'", specifier = ">=2.9.1" },
+    { name = "psycopg2-binary", marker = "extra == 'redshift'", specifier = ">=2.9.1" },
+    { name = "pyarrow", marker = "extra == 'athena'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'bigquery'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'clickhouse'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'deltalake'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'dremio'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'lancedb'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'motherduck'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'parquet'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'pyiceberg'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'synapse'", specifier = ">=16.0.0" },
+    { name = "pyarrow", marker = "extra == 'workspace'", specifier = ">=16.0.0" },
+    { name = "pyathena", marker = "extra == 'athena'", specifier = ">=2.9.6" },
+    { name = "pyiceberg", marker = "extra == 'pyiceberg'", specifier = ">=0.9.1" },
+    { name = "pyodbc", marker = "python_full_version < '3.13' and extra == 'mssql'", specifier = ">=4.0.39" },
+    { name = "pyodbc", marker = "python_full_version < '3.13' and extra == 'synapse'", specifier = ">=4.0.39" },
+    { name = "pytz", specifier = ">=2022.6" },
+    { name = "pywin32", marker = "sys_platform == 'win32'", specifier = ">=306" },
+    { name = "pyyaml", specifier = ">=5.4.1" },
+    { name = "qdrant-client", extras = ["fastembed"], marker = "extra == 'qdrant'", specifier = ">=1.8" },
+    { name = "requests", specifier = ">=2.26.0" },
+    { name = "requirements-parser", specifier = ">=0.5.0" },
+    { name = "rich-argparse", specifier = ">=1.6.0" },
+    { name = "s3fs", marker = "extra == 'athena'", specifier = ">=2022.4.0" },
+    { name = "s3fs", marker = "extra == 'clickhouse'", specifier = ">=2022.4.0" },
+    { name = "s3fs", marker = "extra == 'filesystem'", specifier = ">=2022.4.0" },
+    { name = "s3fs", marker = "extra == 's3'", specifier = ">=2022.4.0" },
+    { name = "semver", specifier = ">=3.0.0" },
+    { name = "setuptools", specifier = ">=65.6.0" },
+    { name = "simplejson", specifier = ">=3.17.5" },
+    { name = "snowflake-connector-python", marker = "extra == 'snowflake'", specifier = ">=3.5.0" },
+    { name = "sqlalchemy", marker = "extra == 'pyiceberg'", specifier = ">=1.4" },
+    { name = "sqlalchemy", marker = "extra == 'sql-database'", specifier = ">=1.4" },
+    { name = "sqlalchemy", marker = "extra == 'sqlalchemy'", specifier = ">=1.4" },
+    { name = "sqlglot", specifier = ">=25.4.0" },
+    { name = "tantivy", marker = "extra == 'lancedb'", specifier = ">=0.22.0" },
+    { name = "tenacity", specifier = ">=8.0.2" },
+    { name = "tomlkit", specifier = ">=0.11.3" },
+    { name = "typing-extensions", specifier = ">=4.8.0" },
+    { name = "tzdata", specifier = ">=2022.1" },
+    { name = "weaviate-client", marker = "extra == 'weaviate'", specifier = ">=3.22" },
+    { name = "win-precise-time", marker = "python_full_version < '3.13' and os_name == 'nt'", specifier = ">=1.4.2" },
+]
+provides-extras = ["gcp", "bigquery", "postgres", "redshift", "parquet", "duckdb", "filesystem", "s3", "gs", "az", "sftp", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "synapse", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis", "workspace"]
+
+[[package]]
+name = "dlt-all"
+version = "1.14.1"
+source = { editable = "." }
+dependencies = [
+    { name = "dlt" },
+]
+
+[package.optional-dependencies]
+athena = [
+    { name = "dlt", extra = ["athena"] },
+]
+az = [
+    { name = "dlt", extra = ["az"] },
+]
+bigquery = [
+    { name = "dlt", extra = ["bigquery"] },
+]
+cli = [
+    { name = "dlt", extra = ["cli"] },
+]
+clickhouse = [
+    { name = "dlt", extra = ["clickhouse"] },
+]
+databricks = [
+    { name = "dlt", extra = ["databricks"] },
+]
+deltalake = [
+    { name = "dlt", extra = ["deltalake"] },
+]
+dremio = [
+    { name = "dlt", extra = ["dremio"] },
+]
+duckdb = [
+    { name = "dlt", extra = ["duckdb"] },
+]
+filesystem = [
+    { name = "dlt", extra = ["filesystem"] },
+]
+gcp = [
+    { name = "dlt", extra = ["gcp"] },
+]
+gs = [
+    { name = "dlt", extra = ["gs"] },
+]
+lancedb = [
+    { name = "dlt", extra = ["lancedb"] },
+]
+motherduck = [
+    { name = "dlt", extra = ["motherduck"] },
+]
+mssql = [
+    { name = "dlt", extra = ["mssql"] },
+]
+parquet = [
+    { name = "dlt", extra = ["parquet"] },
+]
+postgis = [
+    { name = "dlt", extra = ["postgis"] },
+]
+postgres = [
+    { name = "dlt", extra = ["postgres"] },
+]
+pyiceberg = [
+    { name = "dlt", extra = ["pyiceberg"] },
+]
+qdrant = [
+    { name = "dlt", extra = ["qdrant"] },
+]
+redshift = [
+    { name = "dlt", extra = ["redshift"] },
+]
+s3 = [
+    { name = "dlt", extra = ["s3"] },
+]
+sftp = [
+    { name = "dlt", extra = ["sftp"] },
+]
+snowflake = [
+    { name = "dlt", extra = ["snowflake"] },
+]
+sql-database = [
+    { name = "dlt", extra = ["sql-database"] },
+]
+sqlalchemy = [
+    { name = "dlt", extra = ["sqlalchemy"] },
+]
+synapse = [
+    { name = "dlt", extra = ["synapse"] },
+]
+weaviate = [
+    { name = "dlt", extra = ["weaviate"] },
+]
+workspace = [
+    { name = "dlt", extra = ["workspace"] },
+]
+
 [package.dev-dependencies]
 adbc = [
     { name = "adbc-driver-postgresql" },
@@ -2237,99 +2438,36 @@ streamlit = [
 
 [package.metadata]
 requires-dist = [
-    { name = "adlfs", marker = "extra == 'az'", specifier = ">=2024.7.0" },
-    { name = "adlfs", marker = "extra == 'clickhouse'", specifier = ">=2024.7.0" },
-    { name = "adlfs", marker = "extra == 'synapse'", specifier = ">=2024.7.0" },
-    { name = "alembic", marker = "extra == 'sqlalchemy'", specifier = ">1.10.0" },
-    { name = "botocore", marker = "extra == 'athena'", specifier = ">=1.28" },
-    { name = "botocore", marker = "extra == 'filesystem'", specifier = ">=1.28" },
-    { name = "botocore", marker = "extra == 's3'", specifier = ">=1.28" },
-    { name = "click", specifier = ">=7.1" },
-    { name = "clickhouse-connect", marker = "extra == 'clickhouse'", specifier = ">=0.7.7" },
-    { name = "clickhouse-driver", marker = "extra == 'clickhouse'", specifier = ">=0.2.7" },
-    { name = "cron-descriptor", marker = "extra == 'cli'", specifier = ">=1.2.32" },
-    { name = "databricks-sdk", marker = "extra == 'databricks'", specifier = ">=0.38.0" },
-    { name = "databricks-sql-connector", marker = "python_full_version >= '3.13' and extra == 'databricks'", specifier = ">=3.6.0" },
-    { name = "databricks-sql-connector", marker = "python_full_version < '3.13' and extra == 'databricks'", specifier = ">=2.9.3,<4" },
-    { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
-    { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
-    { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
-    { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
-    { name = "duckdb", marker = "extra == 'motherduck'", specifier = ">=0.9" },
-    { name = "duckdb", marker = "extra == 'workspace'", specifier = ">=0.9" },
-    { name = "fsspec", specifier = ">=2022.4.0" },
-    { name = "gcsfs", marker = "extra == 'bigquery'", specifier = ">=2022.4.0" },
-    { name = "gcsfs", marker = "extra == 'clickhouse'", specifier = ">=2022.4.0" },
-    { name = "gcsfs", marker = "extra == 'gcp'", specifier = ">=2022.4.0" },
-    { name = "gcsfs", marker = "extra == 'gs'", specifier = ">=2022.4.0" },
-    { name = "gitpython", specifier = ">=3.1.29" },
-    { name = "giturlparse", specifier = ">=0.10.0" },
-    { name = "google-cloud-bigquery", marker = "extra == 'bigquery'", specifier = ">=2.26.0" },
-    { name = "google-cloud-bigquery", marker = "extra == 'gcp'", specifier = ">=2.26.0" },
-    { name = "grpcio", marker = "extra == 'bigquery'", specifier = ">=1.50.0" },
-    { name = "grpcio", marker = "extra == 'gcp'", specifier = ">=1.50.0" },
-    { name = "hexbytes", specifier = ">=0.2.2" },
-    { name = "humanize", specifier = ">=4.4.0" },
-    { name = "ibis-framework", extras = ["duckdb"], marker = "python_full_version >= '3.10' and extra == 'workspace'", specifier = ">=10.5.0" },
-    { name = "jsonpath-ng", specifier = ">=1.5.3" },
-    { name = "lancedb", marker = "python_full_version < '3.13' and extra == 'lancedb'", specifier = ">=0.22.0" },
-    { name = "marimo", marker = "extra == 'workspace'", specifier = ">=0.14.5" },
-    { name = "orjson", marker = "python_full_version >= '3.14'", specifier = ">=3.11.0" },
-    { name = "orjson", marker = "sys_platform != 'emscripten'", specifier = ">=3.10.1" },
-    { name = "orjson", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'", specifier = ">=3.6.7,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1,<4" },
-    { name = "packaging", specifier = ">=21.1" },
-    { name = "pandas", marker = "extra == 'workspace'", specifier = ">=2.1.4" },
-    { name = "paramiko", marker = "extra == 'sftp'", specifier = ">=3.3.0" },
-    { name = "pathvalidate", specifier = ">=2.5.2" },
-    { name = "pendulum", specifier = ">=2.1.2" },
-    { name = "pendulum", marker = "python_full_version >= '3.14'", specifier = ">=3.0.0" },
-    { name = "pip", marker = "extra == 'cli'", specifier = ">=23.0.0" },
-    { name = "pipdeptree", marker = "extra == 'cli'", specifier = ">=2.9.0,<2.10" },
-    { name = "pluggy", specifier = ">=1.3.0" },
-    { name = "psycopg2-binary", marker = "extra == 'postgis'", specifier = ">=2.9.1" },
-    { name = "psycopg2-binary", marker = "extra == 'postgres'", specifier = ">=2.9.1" },
-    { name = "psycopg2-binary", marker = "extra == 'redshift'", specifier = ">=2.9.1" },
-    { name = "pyarrow", marker = "extra == 'athena'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "extra == 'bigquery'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "extra == 'clickhouse'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "extra == 'deltalake'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "extra == 'dremio'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "extra == 'lancedb'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "extra == 'motherduck'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "extra == 'parquet'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "extra == 'pyiceberg'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "extra == 'synapse'", specifier = ">=16.0.0" },
-    { name = "pyarrow", marker = "extra == 'workspace'", specifier = ">=16.0.0" },
-    { name = "pyathena", marker = "extra == 'athena'", specifier = ">=2.9.6" },
-    { name = "pyiceberg", marker = "extra == 'pyiceberg'", specifier = ">=0.9.1" },
-    { name = "pyodbc", marker = "python_full_version < '3.13' and extra == 'mssql'", specifier = ">=4.0.39" },
-    { name = "pyodbc", marker = "python_full_version < '3.13' and extra == 'synapse'", specifier = ">=4.0.39" },
-    { name = "pytz", specifier = ">=2022.6" },
-    { name = "pywin32", marker = "sys_platform == 'win32'", specifier = ">=306" },
-    { name = "pyyaml", specifier = ">=5.4.1" },
-    { name = "qdrant-client", extras = ["fastembed"], marker = "extra == 'qdrant'", specifier = ">=1.8" },
-    { name = "requests", specifier = ">=2.26.0" },
-    { name = "requirements-parser", specifier = ">=0.5.0" },
-    { name = "rich-argparse", specifier = ">=1.6.0" },
-    { name = "s3fs", marker = "extra == 'athena'", specifier = ">=2022.4.0" },
-    { name = "s3fs", marker = "extra == 'clickhouse'", specifier = ">=2022.4.0" },
-    { name = "s3fs", marker = "extra == 'filesystem'", specifier = ">=2022.4.0" },
-    { name = "s3fs", marker = "extra == 's3'", specifier = ">=2022.4.0" },
-    { name = "semver", specifier = ">=3.0.0" },
-    { name = "setuptools", specifier = ">=65.6.0" },
-    { name = "simplejson", specifier = ">=3.17.5" },
-    { name = "snowflake-connector-python", marker = "extra == 'snowflake'", specifier = ">=3.5.0" },
-    { name = "sqlalchemy", marker = "extra == 'pyiceberg'", specifier = ">=1.4" },
-    { name = "sqlalchemy", marker = "extra == 'sql-database'", specifier = ">=1.4" },
-    { name = "sqlalchemy", marker = "extra == 'sqlalchemy'", specifier = ">=1.4" },
-    { name = "sqlglot", specifier = ">=25.4.0" },
-    { name = "tantivy", marker = "extra == 'lancedb'", specifier = ">=0.22.0" },
-    { name = "tenacity", specifier = ">=8.0.2" },
-    { name = "tomlkit", specifier = ">=0.11.3" },
-    { name = "typing-extensions", specifier = ">=4.8.0" },
-    { name = "tzdata", specifier = ">=2022.1" },
-    { name = "weaviate-client", marker = "extra == 'weaviate'", specifier = ">=3.22" },
-    { name = "win-precise-time", marker = "python_full_version < '3.13' and os_name == 'nt'", specifier = ">=1.4.2" },
+    { name = "dlt", editable = "packages/dlt" },
+    { name = "dlt", extras = ["athena"], marker = "extra == 'athena'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["az"], marker = "extra == 'az'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["bigquery"], marker = "extra == 'bigquery'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["cli"], marker = "extra == 'cli'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["clickhouse"], marker = "extra == 'clickhouse'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["databricks"], marker = "extra == 'databricks'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["deltalake"], marker = "extra == 'deltalake'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["dremio"], marker = "extra == 'dremio'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["duckdb"], marker = "extra == 'duckdb'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["filesystem"], marker = "extra == 'filesystem'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["gcp"], marker = "extra == 'gcp'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["gs"], marker = "extra == 'gs'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["lancedb"], marker = "extra == 'lancedb'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["motherduck"], marker = "extra == 'motherduck'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["mssql"], marker = "extra == 'mssql'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["parquet"], marker = "extra == 'parquet'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["postgis"], marker = "extra == 'postgis'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["postgres"], marker = "extra == 'postgres'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["pyiceberg"], marker = "extra == 'pyiceberg'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["qdrant"], marker = "extra == 'qdrant'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["redshift"], marker = "extra == 'redshift'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["s3"], marker = "extra == 's3'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["sftp"], marker = "extra == 'sftp'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["snowflake"], marker = "extra == 'snowflake'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["sql-database"], marker = "extra == 'sql-database'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["sqlalchemy"], marker = "extra == 'sqlalchemy'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["synapse"], marker = "extra == 'synapse'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["weaviate"], marker = "extra == 'weaviate'", editable = "packages/dlt" },
+    { name = "dlt", extras = ["workspace"], marker = "extra == 'workspace'", editable = "packages/dlt" },
 ]
 provides-extras = ["gcp", "bigquery", "postgres", "redshift", "parquet", "duckdb", "filesystem", "s3", "gs", "az", "sftp", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "synapse", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis", "workspace"]
 
