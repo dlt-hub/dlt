@@ -1,4 +1,4 @@
-from typing import Union, Iterable, Optional, List, Dict, Tuple
+from typing import Union, Iterable, Optional, List, Dict, Tuple, TYPE_CHECKING
 from itertools import chain
 from dataclasses import dataclass
 
@@ -21,6 +21,8 @@ from dlt.common.schema.utils import (
 from dlt.common import jsonpath
 from dlt.common.typing import REPattern
 
+from dlt.common.destination.client import SupportsOpenTables
+
 from dlt.extract.state import (
     TPipelineState,
     _sources_state,
@@ -29,6 +31,9 @@ from dlt.extract.state import (
     reset_resource_state,
     delete_source_state_keys,
 )
+
+if TYPE_CHECKING:
+    from dlt.pipeline import Pipeline
 
 
 class _DropInfo(TypedDict):
@@ -41,6 +46,7 @@ class _DropInfo(TypedDict):
     drop_all: bool
     resource_pattern: Optional[REPattern]
     warnings: List[str]
+    notes: List[str]
     drop_columns: bool
 
 
@@ -171,6 +177,7 @@ def drop_resources(
         drop_all=drop_all,
         resource_pattern=resource_pattern,
         warnings=[],
+        notes=[],
         drop_columns=False,
     )
 
@@ -243,10 +250,12 @@ def _get_matched_droppable_columns(
 
 
 def drop_columns(
+    pipeline: "Pipeline",
     schema: Schema,
     from_resources: Union[Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]] = (),
     from_tables: Union[Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]] = (),
     columns: Union[Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]] = (),
+    is_filesystem: bool = False,
 ) -> _DropResult:
     """Generate a new schema and pipeline state with the requested columns removed.
 
@@ -295,6 +304,7 @@ def drop_columns(
 
     # Collect columns to drop grouped by table
     warnings: List[str] = []
+    notes: List[str] = []
     from_tables_drop_cols: List[_FromTableDropCols] = []
     affected_schema_table_names: List[str] = []
 
@@ -308,8 +318,8 @@ def drop_columns(
 
             if not can_drop and len(matched_droppable_cols) > 0:
                 warning = (
-                    f"""After dropping matched droppable columns {matched_droppable_cols} from table '{table_name}'"""
-                    " only internal dlt columns will remain. This is not allowed."
+                    f"After dropping matched droppable columns {matched_droppable_cols} from table"
+                    f" '{table_name}' only internal dlt columns will remain. This is not allowed."
                 )
                 warnings.append(warning)
                 continue
@@ -320,6 +330,25 @@ def drop_columns(
             ]
 
             if drop_cols:
+                # Tables without table format are not supported
+                if is_filesystem:
+                    with pipeline.destination_client() as client:
+                        assert isinstance(client, SupportsOpenTables)
+
+                        if not (
+                            client.is_open_table("delta", table_name)
+                            or client.is_open_table("iceberg", table_name)
+                        ):
+                            drop_cols_str = ",".join(drop_cols)
+                            note = (
+                                f"Skipped table '{table_name}' with selected column(s)"
+                                f" '{drop_cols_str}' because it does not use a supported table"
+                                " format. Column dropping in filesystem destinations requires the"
+                                " table to have an associated table format."
+                            )
+                            notes.append(note)
+                            continue
+
                 from_tables_drop_cols.append({"from_table": table_name, "drop_columns": drop_cols})
                 affected_schema_table_names.append(table_name)
 
@@ -348,6 +377,7 @@ def drop_columns(
         drop_all=False,
         resource_pattern=resource_pattern,
         warnings=warnings,
+        notes=notes,
         drop_columns=drop_columns,
     )
 

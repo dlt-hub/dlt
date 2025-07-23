@@ -161,18 +161,18 @@ def test_drop_helper_utils_drop_columns(seen_data: bool, params: Dict[str, Any])
         pipeline.extract(source)
 
     # drop nothing
-    drop_result = drop_columns(pipeline.default_schema.clone())
+    drop_result = drop_columns(pipeline, pipeline.default_schema.clone())
     assert drop_result.modified_tables == []
     assert drop_result.info["tables"] == []
 
     # attempt to drop all droppable columns with equivalent commands
-    drop_result = drop_columns(schema=pipeline.default_schema.clone(), **params)
+    drop_result = drop_columns(pipeline=pipeline, schema=pipeline.default_schema.clone(), **params)
 
     # nothing should be selected as the source doesn't have droppable columns
     assert drop_result.modified_tables == []
     assert drop_result.info["tables"] == []
 
-    # add a droppable columns to the peacock and wide_peacock resources
+    # add droppable columns to the peacock resource
     def add_droppable_column(data_item):
         data_item["droppable_col1"] = 1
         data_item["droppable_col2"] = 1
@@ -184,7 +184,9 @@ def test_drop_helper_utils_drop_columns(seen_data: bool, params: Dict[str, Any])
     else:
         pipeline.extract(source)
 
-    drop_result = drop_columns(schema=pipeline.default_schema.clone(), columns=["re:.*"])
+    drop_result = drop_columns(
+        pipeline=pipeline, schema=pipeline.default_schema.clone(), columns=["re:.*"]
+    )
     if seen_data:
         assert drop_result.modified_tables[0]["name"] == "_peacock"
         assert drop_result.info["tables"] == ["_peacock"]

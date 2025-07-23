@@ -441,6 +441,10 @@ def pipeline_command(
                 fmt.echo("Additional warnings are available")
                 for warning in drop.info["warnings"]:
                     fmt.warning(warning)
+            if len(drop.info["notes"]):
+                fmt.echo("Additional notes are available")
+                for note in drop.info["notes"]:
+                    fmt.echo(fmt.style(note, fg="yellow"))
             return
 
         fmt.echo(
@@ -467,7 +471,13 @@ def pipeline_command(
                 fmt.echo(f"\t{fmt.style('from table:', fg='green')} {table_name}")
                 fmt.echo(f"\t\t{fmt.style('columns:', fg='green')} {columns}")
 
-        for warning in drop.info["warnings"]:
-            fmt.warning(warning)
+        if len(drop.info["warnings"]):
+            fmt.echo("Additional warnings are available")
+            for warning in drop.info["warnings"]:
+                fmt.warning(warning)
+        if len(drop.info["notes"]):
+            fmt.echo("Additional info is available:")
+            for note in drop.info["notes"]:
+                fmt.echo(fmt.style(note, fg="yellow"))
         if fmt.confirm("Do you want to apply these changes?", default=False):
             drop()

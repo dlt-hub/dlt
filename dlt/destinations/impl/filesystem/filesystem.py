@@ -964,46 +964,6 @@ class FilesystemClient(
                     table=delta_table,
                     columns_to_drop=columns_to_drop,
                 )
-            else:
-                # Handle regular filesystem tables (jsonl, parquet, csv)
-                self._drop_columns_from_regular_table(table_name, columns_to_drop)
 
         if update_schema:
             self._update_schema_in_storage(self.schema)
-
-    def _drop_columns_from_regular_table(self, table_name: str, columns_to_drop: List[str]) -> None:
-        from dlt.common.libs.pyarrow import pyarrow as pa
-
-        table_files = self.list_table_files(table_name)
-
-        for file_path in table_files:
-            file_ext = os.path.splitext(file_path)[1].lower()
-
-            if file_ext == ".parquet":
-                table = pa.parquet.read_table(self.make_remote_url(file_path))
-                columns_to_keep = [col for col in table.column_names if col not in columns_to_drop]
-                filtered_table = table.select(columns_to_keep)
-                with pa.parquet.ParquetWriter(
-                    self.make_remote_url(file_path), filtered_table.schema
-                ) as writer:
-                    writer.write_table(filtered_table)
-
-            elif file_ext == ".jsonl":
-                content = self.fs_client.read_text(file_path, encoding="utf-8")
-                lines = content.strip().split("\n")
-
-                filtered_lines = []
-                for line in lines:
-                    if line.strip():
-                        record = json.loads(line)
-                        for col in columns_to_drop:
-                            record.pop(col, None)
-                        filtered_lines.append(json.dumps(record))
-
-                self.fs_client.write_text(file_path, "\n".join(filtered_lines), encoding="utf-8")
-
-            elif file_ext == ".csv":
-                table = pa.csv.read_csv(self.make_remote_url(file_path))
-                columns_to_keep = [col for col in table.column_names if col not in columns_to_drop]
-                filtered_table = table.select(columns_to_keep)
-                pa.csv.write_csv(filtered_table, self.make_remote_url(file_path))
