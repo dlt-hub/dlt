@@ -87,10 +87,12 @@ class DropCommand:
 
         if from_resources or from_tables or columns:
             drop_result = _drop_columns(
+                pipeline,
                 self.schema.clone(),
                 from_resources,
                 from_tables,
                 columns,
+                pipeline.destination.destination_name == "filesystem",
             )
         else:
             drop_result = drop_resources(
