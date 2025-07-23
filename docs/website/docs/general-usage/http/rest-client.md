@@ -622,9 +622,11 @@ Unfortunately, most OAuth 2.0 implementations vary, and thus you might need to s
 
 ```py
 from base64 import b64encode
+from dlt.common.configuration import configspec
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.auth import OAuth2ClientCredentials
 
+@configspec
 class OAuth2ClientCredentialsHTTPBasic(OAuth2ClientCredentials):
     """Used e.g. by Zoom Video Communications, Inc."""
     def build_access_token_request(self) -> Dict[str, Any]:
@@ -660,8 +662,10 @@ response = client.get("/users")
 You can implement custom authentication by subclassing the `AuthConfigBase` class and implementing the `__call__` method:
 
 ```py
+from dlt.common.configuration import configspec
 from dlt.sources.helpers.rest_client.auth import AuthConfigBase
 
+@configspec
 class CustomAuth(AuthConfigBase):
     def __init__(self, token):
         self.token = token
