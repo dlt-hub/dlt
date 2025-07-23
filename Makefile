@@ -50,20 +50,20 @@ dev-airflow: has-uv
 	uv sync --all-extras --group docs --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
 	
 lint:
-	uv run mypy --config-file mypy.ini packages/dlt/dlt tests
+	uv run mypy --config-file mypy.ini packages/dlt/dlt packages/dlt_tests/dlt_tests tests
 	# NOTE: we need to make sure docstring_parser_fork is the only version of docstring_parser installed
 	uv pip uninstall docstring_parser
 	uv pip install docstring_parser_fork --reinstall
 	# NOTE: we exclude all D lint errors (docstrings)
-	uv run flake8 --extend-ignore=D --max-line-length=200 packages/dlt/dlt
+	uv run flake8 --extend-ignore=D --max-line-length=200 packages/dlt/dlt packages/dlt_tests/dlt_tests
 	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
-	uv run black packages/dlt/dlt docs tests --check --diff --color --extend-exclude=".*syntax_error.py"
+	uv run black packages/dlt/dlt packages/dlt_tests/dlt_tests docs tests --check --diff --color --extend-exclude=".*syntax_error.py"
 	# uv run isort ./ --diff
 	$(MAKE) lint-security
 	$(MAKE) lint-docstrings
 
 format:
-	uv run black packages/dlt/dlt docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
+	uv run black packages/dlt/dlt packages/dlt_tests/dlt_tests docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
 
 lint-snippets:
 	cd docs/tools && uv run python check_embedded_snippets.py full
@@ -100,7 +100,8 @@ lint-docstrings:
 		packages/dlt/dlt/destinations/impl/**/factory.py \
 		packages/dlt/dlt/pipeline/pipeline.py \
 		packages/dlt/dlt/pipeline/__init__.py \
-		tests/pipeline/utils.py
+		tests/pipeline/utils.py \
+		packages/dlt_tests/dlt_tests
 
 test:
 	uv run pytest tests
@@ -119,19 +120,24 @@ reset-test-storage:
 	mkdir _storage
 	python3 tests/tools/create_storages.py
 
-build-library: dev
+build: dev
 	uv version
 	uv build --all
 
 clean-dist:
 	-@rm -r dist/
 
-publish-library: clean-dist build-library
+publish-library: clean-dist build
 	ls -l dist/
 	@read -p "Enter PyPI API token: " PYPI_API_TOKEN; echo ; \
 	uv publish --token "$$PYPI_API_TOKEN" ./dist/dlt-*
 
-test-build-images: build-library
+publish-tests-package: clean-dist
+	ls -l dist/
+	@read -p "Enter PyPI API token: " PYPI_API_TOKEN; echo ; \
+	uv publish --token "$$PYPI_API_TOKEN" ./dist/dlt_tests-*
+
+test-build-images: build
 	# NOTE: uv export does not work with our many different deps, we install a subset and freeze
 	uv sync --extra gcp --extra redshift --extra duckdb
 	uv pip freeze > _gen_requirements.txt
