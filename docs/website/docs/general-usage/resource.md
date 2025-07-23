@@ -350,9 +350,9 @@ Please find more details in [extract performance](../reference/performance.md#ex
 You can attach any number of transformations that are evaluated on an item-per-item basis to your
 resource. The available transformation types:
 
-- **map** - transform the data item (`resource.add_map`).
+- [**map**](../dlt-ecosystem/transformations/add-map#add_map) - transform the data item (`resource.add_map`).
 - **filter** - filter the data item (`resource.add_filter`).
-- **yield map** - a map that returns an iterator (so a single row may generate many rows -
+- [**yield map**](../dlt-ecosystem/transformations/add-map#add_yield_map) - a map that returns an iterator (so a single row may generate many rows -
   `resource.add_yield_map`).
 
 Example: We have a resource that loads a list of users from an API endpoint. We want to customize it
@@ -388,8 +388,6 @@ def anonymize_user(user_data):
 for user in users().add_filter(lambda user: user["user_id"] != "me").add_map(anonymize_user):
     print(user)
 ```
-
-See more practical examples of `.add_map` and `.add_yield_map` [here](../dlt-ecosystem/transformations/add-map#add_map-vs-add_yield_map).
 
 ### Reduce the nesting level of generated tables
 
