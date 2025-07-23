@@ -436,11 +436,9 @@ Suppose an API uses query parameters for pagination, incrementing a page paramet
 
 ```py
 from typing import Any, List, Optional
-from dlt.common.configuration import configspec
 from dlt.sources.helpers.rest_client.paginators import BasePaginator
 from dlt.sources.helpers.requests import Response, Request
 
-@configspec
 class QueryParamPaginator(BasePaginator):
     def __init__(self, page_param: str = "page", initial_page: int = 1):
         super().__init__()
@@ -490,12 +488,10 @@ Some APIs use POST requests for pagination, where the next page is fetched by se
 
 ```py
 from typing import Any, List, Optional
-from dlt.common.configuration import configspec
 from dlt.sources.helpers.rest_client.paginators import BasePaginator
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.requests import Response, Request
 
-@configspec
 class PostBodyPaginator(BasePaginator):
     def __init__(self):
         super().__init__()
