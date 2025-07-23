@@ -123,6 +123,18 @@ def mock_api_server():
                 **paginator.metadata,
             }
 
+        @router.post(r"/posts_offset_limit_via_json_body$")
+        def posts_offset_limit_via_json_body(request, context):
+            records = generate_posts()
+            offset = int(request.json().get("offset", 0))
+            limit = int(request.json().get("limit", DEFAULT_LIMIT))
+            paginator = OffsetPaginator(records, offset, limit)
+
+            return {
+                "data": paginator.page_records,
+                **paginator.metadata,
+            }
+
         @router.get(r"/posts_cursor(\?cursor=\d+)?$")
         def posts_cursor(request, context):
             records = generate_posts()
@@ -237,6 +249,7 @@ def mock_api_server():
             return {
                 "data": records_slice,
                 "next_page": page_number + 1 if page_number < total_pages else None,
+                "total_pages": page_count,
             }
 
         @router.post(r"/posts/search_by_id/\d+$")

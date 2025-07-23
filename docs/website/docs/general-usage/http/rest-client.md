@@ -179,7 +179,9 @@ Note: Normally, you don't need to specify this paginator explicitly, as it is us
 - `limit`: The maximum number of items to retrieve in each request.
 - `offset`: The initial offset for the first request. Defaults to `0`.
 - `offset_param`: The name of the query parameter used to specify the offset. Defaults to `"offset"`.
+- `offset_body_path`: A JSONPath expression specifying where to place the offset in the request JSON body. If provided, the paginator will use this instead of `offset_param` to send the offset in the request body. Defaults to `None`.
 - `limit_param`: The name of the query parameter used to specify the limit. Defaults to `"limit"`.
+- `limit_body_path`: A JSONPath expression specifying where to place the limit in the request JSON body. If provided, the paginator will use this instead of `limit_param` to send the limit in the request body. Defaults to `None`.
 - `total_path`: A JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset` and `stop_after_empty_page`.
 - `maximum_offset`: Optional maximum offset value. Limits pagination even without a total count.
 - `stop_after_empty_page`: Whether pagination should stop when a page contains no result items. Defaults to `True`.
@@ -259,6 +261,7 @@ You can disable automatic stoppage of pagination by setting `stop_after_empty_pa
 - `base_page`: The index of the initial page from the API perspective. Normally, it's 0-based or 1-based (e.g., 1, 2, 3, ...) indexing for the pages. Defaults to 0.
 - `page`: The page number for the first request. If not provided, the initial value will be set to `base_page`.
 - `page_param`: The query parameter name for the page number. Defaults to `"page"`.
+- `page_body_path`: A JSONPath expression specifying where to place the page number in the request JSON body. Use this instead of `page_param` when sending the page number in the request body. Defaults to `None`.
 - `total_path`: A JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page` and `stop_after_empty_page`.
 - `maximum_page`: Optional maximum page number. Stops pagination once this page is reached.
 - `stop_after_empty_page`: Whether pagination should stop when a page contains no result items. Defaults to `True`.
