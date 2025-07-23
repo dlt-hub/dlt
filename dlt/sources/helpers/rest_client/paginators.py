@@ -101,13 +101,13 @@ class RangePaginator(BasePaginator):
         stop_after_empty_page: Optional[bool] = True,
         *,
         has_more_path: Optional[jsonpath.TJsonPath] = None,
-        param_body_path: Optional[jsonpath.TJsonPath] = None,
+        param_body_path: Optional[str] = None,
     ):
         """
         Args:
             param_name (str): The query parameter name for the numeric value.
                 For example, 'page'.
-            param_body_path (jsonpath.TJsonPath): The JSONPath expression specifying
+            param_body_path (str): The dot-separated path specifying
                 where to place the numeric parameter in the request JSON body.
                 Defaults to `None`.
             initial_value (int): The initial value of the numeric parameter.
@@ -246,7 +246,7 @@ class RangePaginator(BasePaginator):
 
     @staticmethod
     def _update_request_with_body_path(
-        request: Request, body_path: jsonpath.TJsonPath, current_value: int
+        request: Request, body_path: str, current_value: int
     ) -> None:
         if request.json is None:
             request.json = {}
@@ -331,7 +331,7 @@ class PageNumberPaginator(RangePaginator):
         stop_after_empty_page: Optional[bool] = True,
         *,
         has_more_path: Optional[jsonpath.TJsonPath] = None,
-        page_body_path: Optional[jsonpath.TJsonPath] = None,
+        page_body_path: Optional[str] = None,
     ):
         """
         Args:
@@ -343,7 +343,7 @@ class PageNumberPaginator(RangePaginator):
                 the initial value will be set to `base_page`.
             page_param (str): The query parameter name for the page number.
                 Defaults to 'page'.
-            page_body_path (jsonpath.TJsonPath): A JSONPath expression specifying where
+            page_body_path (str): A dot-separated path specifying where
                 to place the page number in the request JSON body. Use this instead
                 of `page_param` when sending the page number in the request body.
                 Defaults to `None`.
@@ -486,8 +486,8 @@ class OffsetPaginator(RangePaginator):
         stop_after_empty_page: Optional[bool] = True,
         *,
         has_more_path: Optional[jsonpath.TJsonPath] = None,
-        offset_body_path: Optional[jsonpath.TJsonPath] = None,
-        limit_body_path: Optional[jsonpath.TJsonPath] = None,
+        offset_body_path: Optional[str] = None,
+        limit_body_path: Optional[str] = None,
     ) -> None:
         """
         Args:
@@ -497,13 +497,13 @@ class OffsetPaginator(RangePaginator):
                 Defaults to 0.
             offset_param (str): The query parameter name for the offset.
                 Defaults to 'offset'.
-            offset_body_path (jsonpath.TJsonPath): A JSONPath expression specifying
+            offset_body_path (str): A dot-separated path specifying
                 where to place the offset in the request JSON body.
                 If provided, the paginator will use this instead of `offset_param`
                 to send the offset in the request body. Defaults to `None`.
             limit_param (str): The query parameter name for the limit.
                 Defaults to 'limit'.
-            limit_body_path (jsonpath.TJsonPath): A JSONPath expression specifying
+            limit_body_path (str): A dot-separated path specifying
                 where to place the limit in the request JSON body.
                 If provided, the paginator will use this instead of `limit_param`
                 to send the limit in the request body. Defaults to `None`.
@@ -834,7 +834,7 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
         self,
         cursor_path: jsonpath.TJsonPath = "cursors.next",
         cursor_param: Optional[str] = None,
-        cursor_body_path: Optional[jsonpath.TJsonPath] = None,
+        cursor_body_path: Optional[str] = None,
     ):
         """
         Args:
@@ -842,7 +842,7 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
                 the response.
             cursor_param: The name of the query parameter to be used in
                 the request to get the next page.
-            cursor_body_path: The JSON path where to place the cursor in the request body.
+            cursor_body_path: The dot-separated path where to place the cursor in the request body.
         """
         super().__init__()
         self.cursor_path = jsonpath.compile_path(cursor_path)
