@@ -1,0 +1,71 @@
+[project]
+name = "dlt_tests"
+version = "1.14.1"
+description = "dlt_tests is pytest plugin and test helpers for users and developers of dlt"
+authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
+requires-python = ">=3.9.2, <3.15"
+readme = "README.md"
+license = "Apache-2.0"
+maintainers = [
+    { name = "Marcin Rudolf", email = "marcin@dlthub.com" },
+    { name = "Adrian Brudaru", email = "adrian@dlthub.com" },
+    { name = "Anton Burnashev", email = "anton@dlthub.com" },
+    { name = "David Scharf", email = "david@dlthub.com" },
+]
+keywords = ["etl"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Topic :: Software Development :: Libraries",
+    "Typing :: Typed",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/dlt-hub"
+Repository = "https://github.com/dlt-hub/dlt"
+
+# register the plugin with pytest
+[project.entry-points.pytest11]
+dlt-plus-tests = "dlt_tests.plugin"
+
+[tool.uv]
+
+[tool.hatch.build.targets.sdist]
+packages = ["dlt_tests"]
+include = [
+    "LICENSE.txt",
+    "README.md",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["dlt_tests"]
+include = [
+    "LICENSE.txt",
+    "README.md",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.black]
+line-length = 100
+preview = true
+
+[tool.isort]
+color_output = true
+line_length = 100
+profile = "black"
+src_paths = ["dlt"]
+multi_line_output = 3
+

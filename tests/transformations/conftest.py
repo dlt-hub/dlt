@@ -5,4 +5,4 @@ from tests.utils import (
     wipe_pipeline,
     test_storage,
 )
-from tests.pipeline.utils import drop_dataset_from_env
+from dlt_tests.fixtures import drop_dataset_from_env
