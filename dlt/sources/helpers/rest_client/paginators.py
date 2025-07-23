@@ -109,7 +109,8 @@ class RangePaginator(BasePaginator):
                 For example, 'page'.
             param_body_path (str): The dot-separated path specifying
                 where to place the numeric parameter in the request JSON body.
-                Defaults to `None`.
+                Defaults to `None`. Either `param_name` or `param_body_path`
+                must be provided, not both.
             initial_value (int): The initial value of the numeric parameter.
             value_step (int): The step size to increment the numeric parameter.
             base_index (int, optional): The index of the initial element.
@@ -142,6 +143,10 @@ class RangePaginator(BasePaginator):
                 "One of `total_path`, `maximum_value`, `has_more_path`, or `stop_after_empty_page`"
                 " must be provided."
             )
+
+        if (not param_name and not param_body_path) or (param_name and param_body_path):
+            raise ValueError("Either 'param_name' or 'param_body_path' must be provided, not both.")
+
         self.param_name = param_name
         self.param_body_path = param_body_path
         self.initial_value = initial_value
@@ -240,6 +245,8 @@ class RangePaginator(BasePaginator):
     def _update_request_with_param_name(
         request: Request, param_name: str, current_value: int
     ) -> None:
+        if not param_name:
+            raise ValueError("`param_name` must not be empty.")
         if request.params is None:
             request.params = {}
         request.params[param_name] = current_value
@@ -248,6 +255,8 @@ class RangePaginator(BasePaginator):
     def _update_request_with_body_path(
         request: Request, body_path: str, current_value: int
     ) -> None:
+        if not body_path:
+            raise ValueError("`body_path` must not be empty.")
         if request.json is None:
             request.json = {}
         jsonpath.set_value_at_path(request.json, body_path, current_value)
@@ -342,7 +351,8 @@ class PageNumberPaginator(RangePaginator):
             page (int): The page number for the first request. If not provided,
                 the initial value will be set to `base_page`.
             page_param (str): The query parameter name for the page number.
-                Defaults to 'page'.
+                Defaults to 'page'. Either `page_param` or `page_body_path`
+                must be provided, not both.
             page_body_path (str): A dot-separated path specifying where
                 to place the page number in the request JSON body. Use this instead
                 of `page_param` when sending the page number in the request body.
@@ -363,8 +373,9 @@ class PageNumberPaginator(RangePaginator):
         if page_param is None and page_body_path is None:
             page_param = "page"
         # Check that only one of page_param or page_body_path is provided
-        elif page_param is not None and page_body_path is not None:
+        elif (not page_param and not page_body_path) or (page_param and page_body_path):
             raise ValueError("Either 'page_param' or 'page_body_path' must be provided, not both.")
+
         if (
             total_path is None
             and maximum_page is None
@@ -523,7 +534,7 @@ class OffsetPaginator(RangePaginator):
         if offset_param is None and offset_body_path is None:
             offset_param = "offset"
         # Check that only one of offset_param or offset_body_path is provided
-        if offset_param is not None and offset_body_path is not None:
+        elif (not offset_param and not offset_body_path) or (offset_param and offset_body_path):
             raise ValueError(
                 "Either 'offset_param' or 'offset_body_path' must be provided, not both."
             )
@@ -531,7 +542,7 @@ class OffsetPaginator(RangePaginator):
         if limit_param is None and limit_body_path is None:
             limit_param = "limit"
         # Check that only one of limit_param or limit_body_path is provided
-        if limit_param is not None and limit_body_path is not None:
+        elif (not limit_param and not limit_body_path) or (limit_param and limit_body_path):
             raise ValueError(
                 "Either 'limit_param' or 'limit_body_path' must be provided, not both."
             )

@@ -10,6 +10,7 @@ from dlt.sources.helpers.rest_client.paginators import (
     SinglePagePaginator,
     OffsetPaginator,
     PageNumberPaginator,
+    RangePaginator,
     HeaderLinkPaginator,
     JSONLinkPaginator,
     JSONResponseCursorPaginator,
@@ -264,6 +265,77 @@ class TestSinglePagePaginator:
         assert_pagination(pages, total_pages=1)
 
 
+class TestRangePaginator:
+    def test_init(self) -> None:
+        # param_name provided, param_body_path not provided
+        RangePaginator(
+            param_name="page",
+            initial_value=0,
+            value_step=1,
+            total_path="total",
+        )
+
+        # param_name not provided, param_body_path provided
+        RangePaginator(
+            param_name=None,
+            param_body_path="body.path",
+            initial_value=0,
+            value_step=1,
+            total_path="total",
+        )
+
+        # both param_name and param_body_path provided
+        with pytest.raises(
+            ValueError, match="Either 'param_name' or 'param_body_path' must be provided, not both"
+        ):
+            RangePaginator(
+                param_name="page",
+                param_body_path="body.path",
+                initial_value=0,
+                value_step=1,
+                total_path="total",
+            )
+
+        # both param_name and param_body_path are None or empty strings
+        for param_name, param_body_path in [
+            (None, None),
+            ("", None),
+            (None, ""),
+            ("", ""),
+        ]:
+            with pytest.raises(
+                ValueError,
+                match="Either 'param_name' or 'param_body_path' must be provided, not both",
+            ):
+                RangePaginator(
+                    param_name=param_name,
+                    param_body_path=param_body_path,
+                    initial_value=0,
+                    value_step=1,
+                    total_path="total",
+                )
+
+        with pytest.raises(
+            ValueError, match="Either 'param_name' or 'param_body_path' must be provided, not both"
+        ):
+            RangePaginator(
+                param_name=None,
+                param_body_path=None,
+                initial_value=0,
+                value_step=1,
+                total_path="total",
+            )
+
+    def test_range_paginator_update(self) -> None:
+        request = Mock(Request)
+        request.json = {}
+        with pytest.raises(ValueError, match="param_name.*must not be empty"):
+            RangePaginator._update_request_with_param_name(request, "", 0)
+
+        with pytest.raises(ValueError, match="body_path.*must not be empty"):
+            RangePaginator._update_request_with_body_path(request, "", 0)
+
+
 @pytest.mark.usefixtures("mock_api_server")
 class TestOffsetPaginator:
     def test_update_state(self):
@@ -498,6 +570,60 @@ class TestOffsetPaginator:
             "`total_path`, `maximum_offset`, `has_more_path`, or `stop_after_empty_page`"
             " must be provided"
         )
+
+    @pytest.mark.parametrize(
+        "offset_param,offset_body_path",
+        [
+            (None, None),
+            ("", None),
+            (None, ""),
+            ("", ""),
+        ],
+    )
+    def test_empty_offset_params(self, offset_param, offset_body_path) -> None:
+        if offset_param is None and offset_body_path is None:
+            # Fallback to default 'offset' param
+            paginator = OffsetPaginator(
+                limit=100, offset_param=offset_param, offset_body_path=offset_body_path
+            )
+            assert paginator.param_name == "offset"
+            assert paginator.param_body_path is None
+        else:
+            with pytest.raises(
+                ValueError, match="Either 'offset_param' or 'offset_body_path' must be provided.*"
+            ):
+                OffsetPaginator(
+                    limit=100,
+                    offset_param=offset_param,
+                    offset_body_path=offset_body_path,
+                )
+
+    @pytest.mark.parametrize(
+        "limit_param,limit_body_path",
+        [
+            (None, None),
+            ("", None),
+            (None, ""),
+            ("", ""),
+        ],
+    )
+    def test_empty_limit_params(self, limit_param, limit_body_path) -> None:
+        if limit_param is None and limit_body_path is None:
+            # Fallback to default 'limit' param
+            paginator = OffsetPaginator(
+                limit=100, limit_param=limit_param, limit_body_path=limit_body_path
+            )
+            assert paginator.limit_param == "limit"
+            assert paginator.limit_body_path is None
+        else:
+            with pytest.raises(
+                ValueError, match="Either 'limit_param' or 'limit_body_path' must be provided.*"
+            ):
+                OffsetPaginator(
+                    limit=100,
+                    limit_param=limit_param,
+                    limit_body_path=limit_body_path,
+                )
 
 
 @pytest.mark.usefixtures("mock_api_server")
@@ -760,6 +886,30 @@ class TestPageNumberPaginator:
             "`total_path`, `maximum_page`, `has_more_path`, or `stop_after_empty_page`"
             " must be provided"
         )
+
+    @pytest.mark.parametrize(
+        "page_param,page_body_path",
+        [
+            (None, None),
+            ("", None),
+            (None, ""),
+            ("", ""),
+        ],
+    )
+    def test_empty_params(self, page_param, page_body_path) -> None:
+        if page_param is None and page_body_path is None:
+            # Fallback to default 'page' param
+            paginator = PageNumberPaginator(page_param=page_param, page_body_path=page_body_path)
+            assert paginator.param_name == "page"
+            assert paginator.param_body_path is None
+        else:
+            with pytest.raises(
+                ValueError, match="Either 'page_param' or 'page_body_path' must be provided.*"
+            ):
+                PageNumberPaginator(
+                    page_param=page_param,
+                    page_body_path=page_body_path,
+                )
 
 
 @pytest.mark.usefixtures("mock_api_server")
