@@ -737,6 +737,26 @@ class Schema:
         )
         return utils.to_pretty_yaml(d)
 
+    def to_dbml(
+        self,
+        include_dlt_tables: bool = True,
+        include_internal_dlt_ref: bool = True,
+        include_parent_child_ref: bool = True,
+        include_root_child_ref: bool = True,
+        group_by_resource: bool = False,
+    ) -> str:
+        from dlt.helpers.dbml import schema_to_dbml
+
+        dbml_schema = schema_to_dbml(
+            self,
+            include_dlt_tables=include_dlt_tables,
+            include_internal_dlt_ref=include_internal_dlt_ref,
+            include_parent_child_ref=include_parent_child_ref,
+            include_root_child_ref=include_root_child_ref,
+            group_by_resource=group_by_resource,
+        )
+        return str(dbml_schema.dbml)
+
     def clone(
         self,
         with_name: str = None,
