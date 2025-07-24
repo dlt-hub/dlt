@@ -10,6 +10,7 @@ from dlt.common.destination.client import (
     SupportsStagingDestination,
     FollowupJobRequest,
     LoadJob,
+    WithTableReflection,
 )
 from dlt.common.schema import TColumnSchema, Schema
 from dlt.common.schema.typing import TColumnType, TTableFormat
@@ -97,7 +98,7 @@ class DremioLoadJob(RunnableLoadJob, HasFollowupJobs):
             """)
 
 
-class DremioClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
+class DremioClient(SqlJobClientWithStagingDataset, SupportsStagingDestination, WithTableReflection):
     def __init__(
         self,
         schema: Schema,
