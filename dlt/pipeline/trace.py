@@ -197,27 +197,7 @@ class PipelineTrace(SupportsHumanize, _PipelineTrace):
         return self.asstr(verbosity=0)
 
 
-class SupportsTracking(Protocol):
-    def on_start_trace(
-        self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
-    ) -> None: ...
-
-    def on_start_trace_step(
-        self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
-    ) -> None: ...
-
-    def on_end_trace_step(
-        self,
-        trace: PipelineTrace,
-        step: PipelineStepTrace,
-        pipeline: SupportsPipeline,
-        step_info: Any,
-        send_state: bool,
-    ) -> None: ...
-
-    def on_end_trace(
-        self, trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool
-    ) -> None: ...
+from dlt.common.runtime.tracking import SupportsTracking
 
 
 # plug in your own tracking modules here

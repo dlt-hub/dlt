@@ -2,92 +2,30 @@ import os
 import sys
 import logging
 import time
-from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import (
     Any,
     ContextManager,
     Dict,
-    Type,
     TYPE_CHECKING,
     DefaultDict,
     NamedTuple,
     Optional,
     Union,
     TextIO,
-    TypeVar,
 )
-
-# from dlt.common.pipeline import SupportsPipeline
 
 if TYPE_CHECKING:
     from tqdm import tqdm
     import enlighten
     from enlighten import Counter as EnlCounter, StatusBar as EnlStatusBar, Manager as EnlManager
     from alive_progress import alive_bar
-
-    # from dlt.pipeline.typing import TPipelineStep
 else:
     tqdm = EnlCounter = EnlStatusBar = EnlManager = Any
-    TPipelineStep = Any
 
 from dlt.common import logger as dlt_logger
 from dlt.common.exceptions import MissingDependencyException
-
-# from dlt.pipeline.trace import PipelineStepTrace, PipelineTrace, SupportsTracking
-
-TCollector = TypeVar("TCollector", bound="Collector")
-
-
-class Collector(ABC):
-    step: str
-
-    @abstractmethod
-    def update(
-        self,
-        name: str,
-        inc: int = 1,
-        total: int = None,
-        inc_total: int = None,
-        message: str = None,
-        label: str = None,
-    ) -> None:
-        """Creates or updates a counter
-
-        This function updates a counter `name` with a value `inc`. If counter does not exist, it is created with optional total value of `total`.
-        Depending on implementation `label` may be used to create nested counters and message to display additional information associated with a counter.
-
-        Args:
-            name (str): An unique name of a counter, displayable.
-            inc (int, optional): Increase amount. Defaults to 1.
-            total (int, optional): Maximum value of a counter. Defaults to None which means unbound counter.
-            icn_total (int, optional): Increase the maximum value of the counter, does nothing if counter does not exit yet
-            message (str, optional): Additional message attached to a counter. Defaults to None.
-            label (str, optional): Creates nested counter for counter `name`. Defaults to None.
-        """
-        pass
-
-    @abstractmethod
-    def _start(self, step: str) -> None:
-        """Starts counting for a processing step with name `step`"""
-        pass
-
-    @abstractmethod
-    def _stop(self) -> None:
-        """Stops counting. Should close all counters and release resources ie. screen or push the results to a server."""
-        pass
-
-    def __call__(self: TCollector, step: str) -> TCollector:
-        """Syntactic sugar for nicer context managers"""
-        self.step = step
-        return self
-
-    def __enter__(self: TCollector) -> TCollector:
-        self._start(self.step)
-        return self
-
-    def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Any) -> None:
-        self._stop()
+from dlt.common.runtime.collector_base import Collector, TCollector
 
 
 class NullCollector(Collector):
@@ -217,16 +155,11 @@ class LogCollector(Collector):
             self.messages[counter_key] = message
         self.maybe_log()
 
-    @property
-    def should_report(self) -> bool:
-        """Check if it's time to report/log based on log_period."""
-        current_time = time.time()
-        return self.last_log_time is None or current_time - self.last_log_time >= self.log_period
-
     def maybe_log(self) -> None:
-        """Check if should report and if so, dump counters."""
-        if self.should_report:
-            self.dump_counters()
+        """Check if should report and if so, call self.on_log"""
+        current_time = time.time()
+        if self.last_log_time is None or current_time - self.last_log_time >= self.log_period:
+            self.on_log()
             self.last_log_time = time.time()
 
     def _counter_to_log_line(
@@ -312,14 +245,14 @@ class LogCollector(Collector):
         self.last_log_time = time.time()
 
     def _stop(self) -> None:
-        self.dump_counters()
+        self.on_log()
         self.counters = None
         self.counter_info = None
         self.messages = None
         self.last_log_time = None
 
     def on_log(self) -> None:
-        pass
+        self.dump_counters()
 
     # def on_start_trace(
     #     self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
