@@ -121,8 +121,10 @@ class IncrementalTransform:
 
     @staticmethod
     def _adapt_timezone(row_value: datetime, cursor_value: datetime, cursor_value_name: str) -> Any:
-        """Adapt last_value timezone to match row_value. This method is called only once in instance lifecycle
-        to catch incompatible initial values or a change of tz-awareness in the data itself."""
+        """Adapt cursor_value tz-awareness to match row_value. This method is called only once in instance lifecycle
+        to catch incompatible initial values or adapt to change of tz-awareness in the data itself.
+        Returns: adjusted cursor_value (with TZ added or removed)
+        """
         if (
             cursor_value.tzinfo is None or row_value.tzinfo is None
         ) and cursor_value.tzinfo != row_value.tzinfo:

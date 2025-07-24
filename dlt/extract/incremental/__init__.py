@@ -352,6 +352,9 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                     "unique_hashes": [],
                 }
             )
+        else:
+            # update initial value in existing state
+            self._cached_state["initial_value"] = self.initial_value
         return self._cached_state
 
     @staticmethod
@@ -380,7 +383,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 )
             elif last_value is not None:
                 last_value = apply_lag(
-                    self.lag, s["initial_value"], last_value, self.last_value_func
+                    self.lag, self.initial_value, last_value, self.last_value_func
                 )
 
         return last_value

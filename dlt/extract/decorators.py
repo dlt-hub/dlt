@@ -63,6 +63,7 @@ from dlt.common.utils import (
 )
 
 from dlt.extract.hints import TResourceNestedHints, make_hints
+from dlt.extract.state import get_current_pipe_name
 from dlt.extract.utils import dynstr
 from dlt.extract.exceptions import (
     CurrentSourceNotAvailable,
@@ -1030,6 +1031,15 @@ def get_source() -> DltSource:
         return Container()[SourceInjectableContext].source
     except ContextDefaultCannotBeCreated:
         raise CurrentSourceNotAvailable()
+
+
+def get_resource() -> DltResource:
+    """Should be executed from inside the function decorated with @dlt.resource
+
+    Returns:
+        DltResource: The resource object to which the currently executing pipe belongs
+    """
+    return Container()[SourceInjectableContext].source.resources[get_current_pipe_name()]
 
 
 TBoundItems = TypeVar("TBoundItems", bound=TDataItems)
