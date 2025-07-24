@@ -219,6 +219,7 @@ def _add_references(
     schema: dlt.Schema,
     dbml_schema: Database,
     *,
+    include_dlt_tables: bool,
     include_internal_dlt_ref: bool,
     include_parent_child_ref: bool,
     include_root_child_ref: bool,
@@ -282,7 +283,7 @@ def _add_references(
             dbml_schema.add_reference(dbml_root_reference)
 
     # generate links between internal dlt tables
-    if include_internal_dlt_ref is True:
+    if include_dlt_tables is True and include_internal_dlt_ref is True:
         # a schema version hash can have multiple runs in the loads table
         # schema version hash is unique
         # possible: cardinality: `-` (1-to-1) or `<` (1-to-m)
@@ -338,6 +339,7 @@ def schema_to_dbml(
     _add_references(
         schema,
         dbml_schema,
+        include_dlt_tables=include_internal_dlt_ref,
         include_internal_dlt_ref=include_internal_dlt_ref,
         include_parent_child_ref=include_parent_child_ref,
         include_root_child_ref=include_root_child_ref,
