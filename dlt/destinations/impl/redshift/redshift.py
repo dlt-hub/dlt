@@ -19,6 +19,7 @@ from dlt.common.destination.client import (
     PreparedTableSchema,
     SupportsStagingDestination,
     LoadJob,
+    WithTableReflection,
 )
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
@@ -163,7 +164,7 @@ class RedshiftMergeJob(SqlMergeFollowupJob):
         )
 
 
-class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
+class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination, WithTableReflection):
     def __init__(
         self,
         schema: Schema,

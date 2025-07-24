@@ -8,6 +8,7 @@ from dlt.common.schema.typing import (
     TColumnHint,
     TColumnSchema,
     TColumnSchemaBase,
+    TSchemaDrop,
 )
 from dlt.common.schema.typing import COLUMN_HINTS
 from dlt.common.schema.schema import Schema, DEFAULT_SCHEMA_CONTRACT_MODE
@@ -15,6 +16,7 @@ from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.schema.utils import verify_schema_hash
 
 __all__ = [
+    "TSchemaDrop",
     "TSchemaUpdate",
     "TSchemaTables",
     "TTableSchema",

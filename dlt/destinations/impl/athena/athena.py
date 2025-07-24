@@ -40,7 +40,12 @@ from dlt.common.schema.typing import (
     TTableSchema,
 )
 from dlt.common.destination import DestinationCapabilitiesContext, PreparedTableSchema
-from dlt.common.destination.client import FollowupJobRequest, SupportsStagingDestination, LoadJob
+from dlt.common.destination.client import (
+    FollowupJobRequest,
+    SupportsStagingDestination,
+    LoadJob,
+    WithTableReflection,
+)
 from dlt.destinations.sql_jobs import (
     SqlStagingCopyFollowupJob,
     SqlStagingReplaceFollowupJob,
@@ -194,7 +199,7 @@ class LfTagsManager:
         logger.debug(f"Success: {verb} LF tags {lf_tags} to " + resource_msg)
 
 
-class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
+class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination, WithTableReflection):
     def __init__(
         self,
         schema: Schema,

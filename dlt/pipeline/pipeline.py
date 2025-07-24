@@ -17,6 +17,7 @@ from typing import (
     ContextManager,
     Union,
     TYPE_CHECKING,
+    Iterable,
 )
 
 import dlt
@@ -43,6 +44,7 @@ from dlt.common.schema.typing import (
     TWriteDispositionConfig,
     TAnySchemaColumns,
     TSchemaContract,
+    TSchemaDrop,
 )
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.exceptions import LoadPackageNotFound
@@ -1046,7 +1048,9 @@ class Pipeline(SupportsPipeline):
             return client.update_stored_schema()
 
     @with_schemas_sync
-    def sync_schema_destructively(self, schema_name: str = None) -> None:
+    def sync_dlt_schema(
+        self, schema_name: str = None, table_names: Iterable[str] = None, dry_run: bool = False
+    ) -> Optional[TSchemaDrop]:
         """Synchronizes the schema `schema_name` with the destination. If no name is provided, the default schema will be synchronized."""
         if not schema_name and not self.default_schema_name:
             raise PipelineConfigMissing(
@@ -1058,7 +1062,8 @@ class Pipeline(SupportsPipeline):
             )
         schema = self.schemas[schema_name] if schema_name else self.default_schema
         with self._get_destination_clients(schema)[0] as client:
-            client.update_stored_schema_destructively()
+            client.initialize_storage()
+            return client.update_dlt_schema(table_names=table_names, dry_run=dry_run)
 
     def set_local_state_val(self, key: str, value: Any) -> None:
         """Sets value in local state. Local state is not synchronized with destination."""

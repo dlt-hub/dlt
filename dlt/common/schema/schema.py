@@ -397,11 +397,24 @@ class Schema:
 
         return result
 
-    def drop_columns(self, table_name: str, column_names: Sequence[str]) -> List[TColumnSchema]:
-        """Drops columns from the table schema and returns the dropped columns"""
+    def drop_columns(self, table_name: str, column_names: Sequence[str]) -> TPartialTableSchema:
+        """Drops columns from the table schema and returns the table schema with the dropped columns"""
+        table: TPartialTableSchema = {"name": table_name}
+        dropped_col_schemas: TTableSchemaColumns = {}
+
+        for col in column_names:
+            col_schema = self._schema_tables[table["name"]]["columns"].pop(col)
+            dropped_col_schemas[col] = col_schema
+
+        table["columns"] = dropped_col_schemas
+        return table
+
+    def get_child_tables(self, table_name: str) -> List[TTableSchema]:
+        """Returns child tables"""
         result = []
-        for col_name in column_names:
-            result.append(self._schema_tables[table_name]["columns"].pop(col_name))
+        for table in self.data_tables():
+            if table.get("parent", None) == table_name:
+                result.append(table)
         return result
 
     def filter_row_with_hint(

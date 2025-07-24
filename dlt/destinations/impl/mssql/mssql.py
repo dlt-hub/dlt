@@ -3,6 +3,7 @@ from typing import Dict, Optional, Sequence, List, Any
 from dlt.common.destination.client import (
     FollowupJobRequest,
     PreparedTableSchema,
+    WithTableReflection,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
@@ -76,7 +77,7 @@ class MsSqlMergeJob(SqlMergeFollowupJob):
         return SqlMergeFollowupJob._new_temp_table_name("#" + table_name, op, sql_client)
 
 
-class MsSqlJobClient(InsertValuesJobClient):
+class MsSqlJobClient(InsertValuesJobClient, WithTableReflection):
     def __init__(
         self,
         schema: Schema,

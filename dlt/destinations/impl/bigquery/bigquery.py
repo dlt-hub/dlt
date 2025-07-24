@@ -16,6 +16,7 @@ from dlt.common.destination.client import (
     RunnableLoadJob,
     SupportsStagingDestination,
     LoadJob,
+    WithTableReflection,
 )
 from dlt.common.json import json
 from dlt.common.runtime.signals import sleep
@@ -175,7 +176,9 @@ class BigQueryMergeJob(SqlMergeFollowupJob):
         return sql
 
 
-class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
+class BigQueryClient(
+    SqlJobClientWithStagingDataset, SupportsStagingDestination, WithTableReflection
+):
     def __init__(
         self,
         schema: Schema,

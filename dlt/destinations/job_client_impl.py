@@ -27,6 +27,7 @@ from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.destination.utils import resolve_replace_strategy
 from dlt.common.json import json
 from dlt.common.schema.typing import (
+    C_DLT_ID,
     C_DLT_LOAD_ID,
     C_DLT_LOADS_TABLE_LOAD_ID,
     COLUMN_HINTS,
@@ -44,7 +45,13 @@ from dlt.common.schema.utils import (
 from dlt.common.utils import read_dialect_and_sql
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName
-from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
+from dlt.common.schema import (
+    TColumnSchema,
+    Schema,
+    TTableSchemaColumns,
+    TSchemaTables,
+    TSchemaDrop,
+)
 from dlt.common.schema import TColumnHint
 from dlt.common.destination.client import (
     PreparedTableSchema,
@@ -60,6 +67,7 @@ from dlt.common.destination.client import (
     JobClientBase,
     HasFollowupJobs,
     CredentialsConfiguration,
+    WithTableReflection,
 )
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
@@ -240,7 +248,7 @@ class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._bucket_path = ReferenceFollowupJobRequest.resolve_reference(file_path)
 
 
-class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
+class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync, WithTableReflection):
     def __init__(
         self,
         schema: Schema,
@@ -319,9 +327,12 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             )
         return applied_update
 
-    def _get_actual_columns(self, table_name: str) -> List[str]:
-        actual_columns = list(self.get_storage_table(table_name)[1].keys())
-        return actual_columns
+    def update_dlt_schema(
+        self,
+        table_names: Iterable[str] = None,
+        dry_run: bool = False,
+    ) -> Optional[TSchemaDrop]:
+        return super().update_dlt_schema()
 
     def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
         """Drop tables in destination database and optionally delete the stored schema as well.
@@ -436,14 +447,6 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     def get_storage_tables(
         self, table_names: Iterable[str]
     ) -> Iterable[Tuple[str, TTableSchemaColumns]]:
-        """Uses INFORMATION_SCHEMA to retrieve table and column information for tables in `table_names` iterator.
-        Table names should be normalized according to naming convention and will be further converted to desired casing
-        in order to (in most cases) create case-insensitive name suitable for search in information schema.
-
-        The column names are returned as in information schema. To match those with columns in existing table, you'll need to use
-        `schema.get_new_table_columns` method and pass the correct casing. Most of the casing function are irreversible so it is not
-        possible to convert identifiers into INFORMATION SCHEMA back into case sensitive dlt schema.
-        """
         table_names = list(table_names)
         if len(table_names) == 0:
             # empty generator

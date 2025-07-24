@@ -14,6 +14,7 @@ from dlt.common.destination.client import (
     RunnableLoadJob,
     SupportsStagingDestination,
     LoadJob,
+    WithTableReflection,
 )
 from dlt.common.configuration.specs import (
     AwsCredentialsWithoutDefaults,
@@ -302,7 +303,9 @@ class DatabricksMergeJob(SqlMergeFollowupJob):
         """
 
 
-class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
+class DatabricksClient(
+    SqlJobClientWithStagingDataset, SupportsStagingDestination, WithTableReflection
+):
     def __init__(
         self,
         schema: Schema,
