@@ -43,6 +43,13 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2019-latest
+        env:
+          SA_PASSWORD: Strong!Passw0rd
+          ACCEPT_EULA: 'Y'
+        ports:
+          - 1433:1433
 
     steps:
       - name: Check out
