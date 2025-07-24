@@ -301,9 +301,9 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             cond = col.isnot(None)
         if table["columns"][col_name]["data_type"] == "bool":
             if invert:
-                cond = sa.or_(cond, col.is_(False))
+                cond = sa.or_(cond, col.eq_(False))
             else:
-                cond = col.is_(True)
+                cond = col.eq_(True)
         return col_name, cond
 
     @classmethod

@@ -26,7 +26,16 @@ class ListBuffer:
 class MigrationMaker:
     def __init__(self, dialect: sa.engine.Dialect) -> None:
         self._buf = ListBuffer()
-        self.ctx = MigrationContext(dialect, None, {"as_sql": True, "output_buffer": self._buf})
+        self.ctx = MigrationContext(
+            dialect,
+            None,
+            {
+                "as_sql": True,
+                "output_buffer": self._buf,
+                "mssql_batch_separator": None,
+                "oracle_batch_separator": None,
+            },
+        )
         self.ops = Operations(self.ctx)
 
     def add_column(self, table_name: str, column: sa.Column, schema: str) -> None:
