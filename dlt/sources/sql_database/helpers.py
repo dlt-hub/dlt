@@ -15,6 +15,7 @@ from typing import (
 import operator
 
 import dlt
+from dlt.common import logger
 from dlt.common.configuration.specs import (
     BaseConfiguration,
     ConnectionStringCredentials,
@@ -25,9 +26,10 @@ from dlt.common.schema import TTableSchemaColumns
 from dlt.common.schema.typing import TWriteDispositionDict
 from dlt.common.typing import TColumnNames, TDataItem, TSortOrder
 from dlt.common.jsonpath import extract_simple_field_name
-
 from dlt.common.utils import is_typeerror_due_to_wrong_call
+
 from dlt.extract import Incremental
+from dlt.extract.items_transform import LimitItem
 
 from .arrow_helpers import row_tuples_to_arrow
 from .schema_types import (
@@ -67,6 +69,7 @@ class TableLoader:
         chunk_size: int = 1000,
         incremental: Optional[Incremental[Any]] = None,
         query_adapter_callback: Optional[TQueryAdapter] = None,
+        limit: Optional[LimitItem] = None,
     ) -> None:
         self.engine = engine
         self.backend = backend
@@ -75,6 +78,7 @@ class TableLoader:
         self.chunk_size = chunk_size
         self.query_adapter_callback = query_adapter_callback
         self.incremental = incremental
+        self.limit = limit
         if incremental:
             column_name = extract_simple_field_name(incremental.cursor_path)
 
@@ -109,6 +113,14 @@ class TableLoader:
     def _make_query(self) -> SelectAny:
         table = self.table
         query = table.select()
+
+        # use limit step to limit the query
+        if self.limit:
+            # limit works with chunks (by default)
+            limit = self.limit.limit(self.chunk_size)
+            if limit is not None:
+                query = query.limit(limit)
+
         if not self.incremental:
             return query  # type: ignore[no-any-return]
         last_value_func = self.incremental.last_value_func
@@ -232,6 +244,7 @@ class TableLoader:
                 " on ConnectorX. If you are on SQLAlchemy 1.4.x the causing exception is due to"
                 f" literals that cannot be rendered, upgrade to 2.x: `{str(ex)}`"
             ) from ex
+        logger.info(f"Executing query on ConnectorX: {query_str}")
         df = cx.read_sql(conn, query_str, **backend_kwargs)
         yield df
 
@@ -298,6 +311,7 @@ def table_rows(
         hints["columns"],
         incremental=incremental,
         chunk_size=chunk_size,
+        limit=dlt.current.resource().limit,
         query_adapter_callback=query_adapter_callback,
     )
     try:

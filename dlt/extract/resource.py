@@ -246,6 +246,11 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         )
 
     @property
+    def limit(self) -> Optional[LimitItem]:
+        """Gets limit of pages/items on the resource"""
+        return cast(Optional[LimitItem], self._pipe.get_by_type(LimitItem))
+
+    @property
     def validator(self) -> Optional[ValidateItem]:
         """Gets validator transform if it is in the pipe"""
         return cast(Optional[ValidateItem], self._pipe.get_by_type(ValidateItem))
