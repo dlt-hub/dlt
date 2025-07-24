@@ -23,7 +23,7 @@ TABLE_ROW_COLOR = "#e7e2dd"
 
 def _get_column_html(column: TColumnSchema, column_idx: int) -> str:
     """Generate a segment of the node label using Graphviz HTML-like language
-    ref: https://graphviz.org/doc/info/shapes.html#html 
+    ref: https://graphviz.org/doc/info/shapes.html#html
     """
 
     # TODO port is how to align arrows
@@ -49,7 +49,7 @@ def _get_column_html(column: TColumnSchema, column_idx: int) -> str:
 
 def _get_table_html(table: TTableSchema) -> str:
     """Generate node label using Graphviz HTML-like language
-    ref: https://graphviz.org/doc/info/shapes.html#html 
+    ref: https://graphviz.org/doc/info/shapes.html#html
     """
     rendered_columns = ""
     for idx, column in enumerate(table.get("columns", {}).values()):
@@ -69,7 +69,7 @@ def _get_table_html(table: TTableSchema) -> str:
 def get_table_node(table: TTableSchema) -> str:
     """Generate graph nodes representing tables and columns"""
     name = table.get("name")
-    description = f'tooltip="{table.get("description")}";' if table.get("description") else ' '
+    description = f'tooltip="{table.get("description")}";' if table.get("description") else " "
     label = _get_table_html(table)
     return f'"{name}" [id="{name}";{description}label=<\n{label}>];\n\n'
 
@@ -91,7 +91,9 @@ def _get_reference_edges(
     )
 
 
-def get_table_references_edges(reference, table: TTableSchema, referenced_table: TTableSchema) -> str:
+def get_table_references_edges(
+    reference, table: TTableSchema, referenced_table: TTableSchema
+) -> str:
     """Generate graph edges representing column references"""
     # TODO determine relationship is `both` or `forward`
     from_table = table["name"]
@@ -140,10 +142,9 @@ def determine_references(table: TTableSchema, schema: Schema) -> list[TTableRefe
         dlt_root_key_reference = TTableReference(
             columns=[root_key],
             referenced_table=root_table["name"],
-            referenced_columns=[row_key_in_parent_table]
+            referenced_columns=[row_key_in_parent_table],
         )
         references.append(dlt_root_key_reference)
-
 
     columns = []
     for column in table["columns"].values():
