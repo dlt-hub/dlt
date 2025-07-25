@@ -5,7 +5,7 @@ import dlt
 import pytest
 
 import dlt.destinations.dataset
-from dlt.transformations.exceptions import LineageFailedException
+from dlt.destinations.dataset.exceptions import LineageFailedException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.schema.utils import new_table

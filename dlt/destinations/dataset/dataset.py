@@ -25,7 +25,7 @@ from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.destinations.dataset.utils import get_destination_clients
 from dlt.destinations.queries import build_row_counts_expr
 
-from dlt.transformations import lineage
+from dlt.destinations.dataset import lineage
 
 
 if TYPE_CHECKING:

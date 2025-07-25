@@ -22,7 +22,7 @@ from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TColumnSchema,
 )
-from dlt.transformations.exceptions import LineageFailedException
+from dlt.destinations.dataset.exceptions import LineageFailedException
 
 
 logger = logging.getLogger(__file__)
