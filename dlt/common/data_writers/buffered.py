@@ -63,10 +63,9 @@ class BufferedDataWriter(Generic[TWriter]):
         if self.file_max_bytes is None and _caps:
             self.file_max_bytes = _caps.recommended_file_size
         self.file_max_items = file_max_items
+        self.should_compress = self.writer_spec.supports_compression and not disable_compression
         # the open function is either gzip.open or open
-        self.open = (
-            gzip.open if self.writer_spec.supports_compression and not disable_compression else open
-        )
+        self.open = gzip.open if self.should_compress else open
 
         self._current_columns: TTableSchemaColumns = None
         self._file_name: str = None
@@ -148,7 +147,11 @@ class BufferedDataWriter(Generic[TWriter]):
         if with_extension:
             spec = self.writer_spec._replace(file_extension=with_extension)
         with self.alternative_spec(spec):
-            self._rotate_file()
+            (
+                self._rotate_file(mark_compressed=True)
+                if FileStorage.is_gzipped(file_path)
+                else self._rotate_file(mark_compressed=False)
+            )
         try:
             FileStorage.link_hard_with_fallback(file_path, self._file_name)
         except FileNotFoundError as f_ex:
@@ -226,11 +229,23 @@ class BufferedDataWriter(Generic[TWriter]):
                 new_rows_count = 1
         return new_rows_count
 
-    def _rotate_file(self, allow_empty_file: bool = False) -> DataWriterMetrics:
+    def _rotate_file(
+        self,
+        allow_empty_file: bool = False,
+        mark_compressed: Optional[bool] = None,
+    ) -> DataWriterMetrics:
         metrics = self._flush_and_close_file(allow_empty_file)
-        self._file_name = (
-            self.file_name_template % new_file_id() + "." + self.writer_spec.file_extension
-        )
+
+        base_filename = self.file_name_template % new_file_id()
+        file_extension = self.writer_spec.file_extension
+
+        # Add .gz extension if marked as a compressed imported file or
+        # or no imported file mark is provided and configs instruct to compress
+        if mark_compressed or (mark_compressed is None and self.should_compress):
+            self._file_name = f"{base_filename}.{file_extension}.gz"
+        else:
+            self._file_name = f"{base_filename}.{file_extension}"
+
         self._created = time.time()
         return metrics
 

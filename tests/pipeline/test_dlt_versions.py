@@ -1,3 +1,4 @@
+from typing import cast
 import sys
 from subprocess import CalledProcessError
 import pytest
@@ -23,8 +24,11 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.destinations import duckdb, filesystem
+from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
+from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
+from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
 
 from tests.pipeline.utils import airtable_emojis, load_table_counts
 from tests.utils import TEST_STORAGE_ROOT
@@ -218,6 +222,53 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                     GITHUB_PIPELINE_NAME, destination=duckdb(credentials=duckdb_cfg.credentials)
                 )
                 assert_github_pipeline_end_state(pipeline, github_schema, 2)
+
+
+def test_filesystem_with_gzip_extension_update(test_storage: FileStorage) -> None:
+    shutil.copytree("tests/pipeline/cases/github_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True)
+
+    def assert_no_gz_files() -> None:
+        for folder in [
+            "_storage/data/github_3/issues",
+            "_storage/data/github_3/issues__assignees",
+            "_storage/data/github_3/issues__labels",
+        ]:
+            files = test_storage.list_folder_files(folder)
+            assert all(not file.endswith(".gz") for file in files), f".gz file found in {folder}"
+
+    # execute in test storage
+    with set_working_dir(TEST_STORAGE_ROOT):
+        # store dlt data in test storage (like patch_home_dir)
+        with custom_environ({DLT_DATA_DIR: dlt.current.run_context().data_dir}):
+            # create virtual env with (1.14.0) where compressed files did not receive the .gz extension
+            with Venv.create(tempfile.mkdtemp(), ["dlt==1.14.0"]) as venv:
+                try:
+                    venv.run_script("github_pipeline.py", "filesystem", "20")
+                    # sanity check that indeed there are no .gz extensions with version 1.14.0
+                    assert_no_gz_files()
+
+                except CalledProcessError as cpe:
+                    print(f"script stdout: {cpe.stdout}")
+                    print(f"script stderr: {cpe.stderr}")
+                    raise
+
+            # rerun the pipeline with the current dlt version
+            venv = Venv.restore_current()
+            venv.run_script("github_pipeline.py", "filesystem", "20")
+            # ensure .gz extensions is still not added
+            assert_no_gz_files()
+
+            pipeline = dlt.attach(GITHUB_PIPELINE_NAME, destination=filesystem("_storage/data"))
+
+            # ensure duckdb reader handles compressed files without .gz extension
+            with pipeline.sql_client() as sql_client:
+                with sql_client.execute_query("SELECT * FROM issues") as curr:
+                    assert 40 == len(curr.df())
+
+            # ensure storage version 1, aka, the legacy version where .gz is not added
+            with pipeline.destination_client() as client:
+                assert isinstance(client, FilesystemClient)
+                assert client.get_storage_version() == 1
 
 
 def test_filesystem_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
