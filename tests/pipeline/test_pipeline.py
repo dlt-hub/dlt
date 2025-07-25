@@ -10,6 +10,7 @@ import threading
 from time import sleep
 from typing import Any, List, Tuple, cast
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
+from unittest.mock import patch
 
 import pytest
 from dlt.common.known_env import DLT_LOCAL_DIR
@@ -31,7 +32,7 @@ from dlt.common.destination.exceptions import (
     UnknownDestinationModule,
 )
 from dlt.common.exceptions import PipelineStateNotAvailable
-from dlt.common.pipeline import LoadInfo, PipelineContext
+from dlt.common.pipeline import LoadInfo, PipelineContext, SupportsPipeline
 from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.exceptions import TableIdentifiersFrozen
 from dlt.common.schema.typing import TColumnSchema
@@ -63,6 +64,9 @@ from dlt.pipeline.exceptions import (
 from dlt.pipeline.helpers import retry_load
 
 from dlt.pipeline.pipeline import Pipeline
+from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
+from dlt.pipeline.typing import TPipelineStep
+
 from tests.common.utils import TEST_SENTRY_DSN
 from tests.utils import TEST_STORAGE_ROOT
 from tests.pipeline.utils import assert_load_info, load_table_counts
@@ -1516,6 +1520,48 @@ def test_pipeline_log_progress() -> None:
     assert cast(LogCollector, p.collector).logger is not None
     p.extract(many_delayed(2, 10))
 
+
+def test_progress_collector_callbacks() -> None:
+    collector = dlt.progress.log()
+    
+    with patch.object(collector, 'on_start_trace') as mock_on_start_trace, \
+         patch.object(collector, 'on_start_trace_step') as mock_on_start_trace_step, \
+         patch.object(collector, 'on_end_trace_step') as mock_on_end_trace_step, \
+         patch.object(collector, 'on_end_trace') as mock_on_end_trace:
+        
+        pipeline = dlt.pipeline(pipeline_name="test_pipeline", destination="dummy", progress=collector)
+        pipeline.extract(many_delayed(2, 5))
+        
+        mock_on_start_trace.assert_called()
+        mock_on_start_trace_step.assert_called()
+        mock_on_end_trace_step.assert_called()
+        mock_on_end_trace.assert_called()
+        
+        # Verify on_start_trace args
+        call_args = mock_on_start_trace.call_args[0]
+        assert isinstance(call_args[0], PipelineTrace)
+        assert isinstance(call_args[1], str)
+        assert call_args[2].pipeline_name == "test_pipeline"
+        
+        # Verify on_start_trace_step args
+        call_args = mock_on_start_trace_step.call_args[0]
+        assert isinstance(call_args[0], PipelineTrace)
+        assert isinstance(call_args[1], str)
+        assert call_args[2].pipeline_name == "test_pipeline"
+        
+        # Verify on_end_trace_step args
+        call_args = mock_on_end_trace_step.call_args[0]
+        assert isinstance(call_args[0], PipelineTrace)
+        assert isinstance(call_args[1], PipelineStepTrace)
+        assert call_args[2].pipeline_name == "test_pipeline"
+        assert isinstance(call_args[4], bool)  # send_state
+        
+        # Verify on_end_trace args
+        call_args = mock_on_end_trace.call_args[0]
+        assert isinstance(call_args[0], PipelineTrace)
+        assert call_args[1].pipeline_name == "test_pipeline"
+        assert isinstance(call_args[2], bool)  # send_state
+        
 
 def test_pipeline_source_state_activation() -> None:
     appendix_yielded = None

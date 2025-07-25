@@ -88,4 +88,3 @@ class Collector(ABC, SupportsTracking):
         self, trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool
     ) -> None:
         pass
-

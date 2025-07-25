@@ -5,6 +5,9 @@ from typing import Any, Dict, List, Union, TextIO
 from dlt.common.runtime.collector import LogCollector
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common import logger
+from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
+from dlt.common.pipeline import SupportsPipeline
+from dlt.common.runtime.exec_info import get_execution_context
 
 try:
     import prefect
@@ -45,7 +48,7 @@ class PrefectCollector(LogCollector):
         super().__init__(log_period, logger, log_level, dump_system_stats)
         self.create_artifacts = create_artifacts
         self.progress_artifact_ids = {}  # Dict to store progress artifact IDs for each stage
-        print("yooooo")
+        self.pipeline_instance = None  # Store the pipeline instance for artifact creation
 
     def _counter_to_markdown_line(
         self, counter_key: str, count: int, info, current_time: float
@@ -94,7 +97,45 @@ class PrefectCollector(LogCollector):
         # Add bullet point
         return f"- {markdown_line}"
 
-    def _create_stage_summary_markdown_artifact(self) -> None:
+    def _add_pipeline_info_to_markdown(self, markdown_lines: List[str], pipeline: SupportsPipeline) -> None:
+        """Add pipeline and execution context information to markdown lines.
+        
+        Args:
+            markdown_lines: List of markdown lines to append to
+            pipeline: The pipeline object to get information from
+        """
+        markdown_lines.append("")
+        markdown_lines.append("## Pipeline Information:")
+        
+        # Pipeline basic info
+        markdown_lines.append(f"- **Pipeline Name**: {pipeline.pipeline_name}")
+        markdown_lines.append(f"- **Working Directory**: {pipeline.working_dir}")
+        markdown_lines.append(f"- **First Run**: {pipeline.first_run}")
+        markdown_lines.append(f"- **Default Schema**: {pipeline.default_schema_name}")
+        
+        # Destination info from pipeline state
+        state = pipeline.state
+        if state:
+            markdown_lines.append(f"- **Destination Name**: {state.get('destination_name', 'N/A')}")
+            markdown_lines.append(f"- **Destination Type**: {state.get('destination_type', 'N/A')}")
+            markdown_lines.append(f"- **Staging Name**: {state.get('staging_name', 'N/A')}")
+            markdown_lines.append(f"- **Staging Type**: {state.get('staging_type', 'N/A')}")
+        
+        # Execution context info
+        exec_context = get_execution_context()
+        markdown_lines.append("")
+        markdown_lines.append("## Execution Context:")
+        markdown_lines.append(f"- **Python Version**: {exec_context.get('python', 'N/A')}")
+        markdown_lines.append(f"- **OS**: {exec_context.get('os', {}).get('name', 'N/A')} {exec_context.get('os', {}).get('version', '')}")
+        markdown_lines.append(f"- **Library Version**: {exec_context.get('library', {}).get('name', 'N/A')} {exec_context.get('library', {}).get('version', '')}")
+        markdown_lines.append(f"- **CPU Cores**: {exec_context.get('cpu', 'N/A')}")
+        
+        # Execution environment info
+        exec_info = exec_context.get('exec_info', [])
+        if exec_info:
+            markdown_lines.append(f"- **Execution Environment**: {', '.join(exec_info)}")
+
+    def _create_stage_summary_markdown_artifact(self, pipeline: SupportsPipeline) -> None:
         """Create markdown artifact based on current stage and counters."""
         if not self.create_artifacts:
             return
@@ -103,22 +144,25 @@ class PrefectCollector(LogCollector):
             # Determine stage and create appropriate markdown artifact
             step = self.step
 
+            # Skip composite steps (run, sync) as they don't need their own artifacts
+            if step.startswith("run") or step.startswith("sync"):
+                return
+
             if step.startswith("Extract"):
-                self._create_extract_stage_summary_markdown_artifact()
+                self._create_extract_stage_summary_markdown_artifact(pipeline)
             elif step.startswith("Normalize"):
-                self._create_normalize_stage_summary_markdown_artifact()
+                self._create_normalize_stage_summary_markdown_artifact(pipeline)
             elif step.startswith("Load"):
-                self._create_load_stage_summary_markdown_artifact()
+                self._create_load_stage_summary_markdown_artifact(pipeline)
 
         except Exception as e:
             import logging
-
+            import traceback
             logging.warning(f"Failed to create markdown artifact: {e}")
+            logging.warning(f"Traceback: {traceback.format_exc()}")
 
-    def _create_extract_stage_summary_markdown_artifact(self) -> None:
+    def _create_extract_stage_summary_markdown_artifact(self, pipeline: SupportsPipeline) -> None:
         """Create markdown artifact for extract stage - rows added per table."""
-        # TODO: Create table artifact showing rows added per table
-
         # Use shared formatting methods to create detailed markdown
         current_time = time.time()
         markdown_lines = []
@@ -130,6 +174,7 @@ class PrefectCollector(LogCollector):
         # Add counter details using shared formatting
         total_rows = 0
         table_counts = {}
+
 
         for counter_key, count in self.counters.items():
             info = self.counter_info.get(counter_key)
@@ -155,13 +200,16 @@ class PrefectCollector(LogCollector):
             markdown_lines.append("## Summary:")
             markdown_lines.append(f"- **Total Rows**: {total_rows:,}")
             for table, count in table_counts.items():
-                markdown_lines.append(f"- **{table}**: {count:,} rows")
+                markdown_lines.append(f"- Table **{table}**: {count:,} rows")
 
         # Add system stats if enabled
         if self.dump_system_stats:
             markdown_lines.append("")
             markdown_lines.append("## System Stats:")
             markdown_lines.append(self._system_stats_to_markdown_line())
+
+        # Add pipeline and execution context info
+        self._add_pipeline_info_to_markdown(markdown_lines, pipeline)
 
         markdown_content = "\n".join(markdown_lines)
         create_markdown_artifact(
@@ -170,7 +218,7 @@ class PrefectCollector(LogCollector):
             description="Extract stage summary",
         )
 
-    def _create_normalize_stage_summary_markdown_artifact(self) -> None:
+    def _create_normalize_stage_summary_markdown_artifact(self, pipeline: SupportsPipeline) -> None:
         """Create markdown artifact for normalize stage - files and items processed."""
         # Use shared formatting methods to create detailed markdown
         current_time = time.time()
@@ -189,16 +237,14 @@ class PrefectCollector(LogCollector):
                     self._counter_to_markdown_line(counter_key, count, info, current_time)
                 )
 
-        # Add schema updates section
-        # markdown_lines.append("")
-        # markdown_lines.append("## Schema Updates:")
-        # markdown_lines.append("TODO: Add schema update tracking")
-
         # Add system stats if enabled
         if self.dump_system_stats:
             markdown_lines.append("")
             markdown_lines.append("## System Stats:")
             markdown_lines.append(self._system_stats_to_markdown_line())
+
+        # Add pipeline and execution context info
+        self._add_pipeline_info_to_markdown(markdown_lines, pipeline)
 
         markdown_content = "\n".join(markdown_lines)
         create_markdown_artifact(
@@ -207,7 +253,7 @@ class PrefectCollector(LogCollector):
             description="Normalize stage summary",
         )
 
-    def _create_load_stage_summary_markdown_artifact(self) -> None:
+    def _create_load_stage_summary_markdown_artifact(self, pipeline: SupportsPipeline) -> None:
         """Create markdown artifact for load stage - jobs processed."""
         # Use shared formatting methods to create detailed markdown
         current_time = time.time()
@@ -226,16 +272,14 @@ class PrefectCollector(LogCollector):
                     self._counter_to_markdown_line(counter_key, count, info, current_time)
                 )
 
-        # Add applied updates section
-        # markdown_lines.append("")
-        # markdown_lines.append("## Applied Updates:")
-        # markdown_lines.append("TODO: Add applied update tracking")
-
         # Add system stats if enabled
         if self.dump_system_stats:
             markdown_lines.append("")
             markdown_lines.append("## System Stats:")
             markdown_lines.append(self._system_stats_to_markdown_line())
+
+        # Add pipeline and execution context info
+        self._add_pipeline_info_to_markdown(markdown_lines, pipeline)
 
         markdown_content = "\n".join(markdown_lines)
         create_markdown_artifact(
@@ -243,6 +287,12 @@ class PrefectCollector(LogCollector):
             markdown=markdown_content,
             description="Load stage summary",
         )
+
+    def on_start_trace(
+        self, trace: PipelineTrace, step: PipelineStepTrace, pipeline: SupportsPipeline
+    ) -> None:
+        """Called when a pipeline trace starts - store the pipeline instance."""
+        self.pipeline_instance = pipeline
 
     def _start(self, step: str) -> None:
         """Start tracking with Prefect task tags."""
@@ -254,12 +304,11 @@ class PrefectCollector(LogCollector):
     def _stop(self) -> None:
         """Stop tracking and create stage summary markdown artifact."""
         # Create artifact before calling parent's _stop() which clears counters
-        if self.create_artifacts and self.counters is not None and len(self.counters) > 0:
+        if self.create_artifacts and self.counters is not None and len(self.counters) > 0 and self.pipeline_instance:
             try:
-                self._create_stage_summary_markdown_artifact()
+                self._create_stage_summary_markdown_artifact(self.pipeline_instance)
             except Exception as e:
                 import logging
-
                 logging.warning(f"PrefectCollector artifact creation error: {e}")
 
         # Update tags - if this was a load step, mark as completed
@@ -268,16 +317,32 @@ class PrefectCollector(LogCollector):
 
         super()._stop()
 
+    def on_end_trace_step(
+        self,
+        trace: PipelineTrace,
+        step: PipelineStepTrace,
+        pipeline: SupportsPipeline,
+        step_info: Any,
+        send_state: bool,
+    ) -> None:
+        """Called when a pipeline step ends - no action needed since artifacts are created in _stop()."""
+        # Artifacts are now created in _stop() method, so no action needed here
+        pass
+        # check if there is a schema update
+
     def on_log(self) -> None:
-        print()
-        # print self.class and type of instance
-        print(self)
         """Called when logging occurs - update progress artifacts."""
         if self.create_artifacts and self.counters:
             self._update_progress_artifacts()
+        # also print the counters
+        super().on_log()
 
     def _update_progress_artifacts(self) -> None:
         """Update or create progress artifacts for each stage."""
+        # Don't update progress artifacts if counters are None (already cleared)
+        if not self.counters:
+            return
+            
         try:
             # Update extract progress (Resources counter)
             self._update_stage_progress("Resources", "Extract")
@@ -327,7 +392,8 @@ class PrefectCollector(LogCollector):
     def _get_stage_progress_description(self, counter_name: str, stage_name: str) -> str:
         """Get description for a specific stage progress artifact."""
         # includ the total count in the description like this: `x of total Resources extracted`
-        total_count = self.counter_info.get(counter_name).total
+        counter_info = self.counter_info.get(counter_name)
+        total_count = counter_info.total if counter_info else "unknown"
         if counter_name == "Resources":
             return f"{stage_name} stage progress - x of {total_count} Resources extracted"
         elif counter_name == "Files":

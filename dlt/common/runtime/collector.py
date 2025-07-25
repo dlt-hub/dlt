@@ -236,7 +236,6 @@ class LogCollector(Collector):
             self.logger.log(log_level, log_message)
         else:
             print(log_message, file=self.logger or sys.stdout)  # noqa
-        self.on_log()
 
     def _start(self, step: str) -> None:
         self.counters = defaultdict(int)
@@ -253,31 +252,6 @@ class LogCollector(Collector):
 
     def on_log(self) -> None:
         self.dump_counters()
-
-    # def on_start_trace(
-    #     self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
-    # ) -> None:
-    #     pass
-
-    # def on_start_trace_step(
-    #     self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
-    # ) -> None:
-    #     pass
-
-    # def on_end_trace_step(
-    #     self,
-    #     trace: PipelineTrace,
-    #     step: PipelineStepTrace,
-    #     pipeline: SupportsPipeline,
-    #     step_info: Any,
-    #     send_state: bool,
-    # ) -> None:
-    #     pass
-
-    # def on_end_trace(
-    #     self, trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool
-    # ) -> None:
-    #     pass
 
 
 class TqdmCollector(Collector):
@@ -480,6 +454,5 @@ class EnlightenCollector(Collector):
         self._manager = None
         self._bars = None
         self._status = None
-
 
 NULL_COLLECTOR = NullCollector()
