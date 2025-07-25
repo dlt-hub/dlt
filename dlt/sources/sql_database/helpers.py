@@ -214,7 +214,7 @@ class TableLoader:
 
         # default settings
         backend_kwargs = {
-            "return_type": "arrow2",
+            "return_type": "arrow",
             "protocol": "binary",
             **backend_kwargs,
         }
@@ -338,7 +338,7 @@ def unwrap_json_connector_x(field: str) -> TDataItem:
         column = pc.replace_with_mask(
             column,
             pc.equal(column, "null").combine_chunks(),
-            pa.scalar(None, pa.large_string()),
+            pa.scalar(None, pa.string()),
         )
         return table.set_column(col_index, table.schema.field(col_index), column)
 
