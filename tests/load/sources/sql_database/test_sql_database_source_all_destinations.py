@@ -49,6 +49,9 @@ def test_load_sql_schema_loads_all_tables(
         "test_load_sql_schema_loads_all_tables", dev_mode=True
     )
 
+    os.environ["SOURCES__SQL_DATABASE__HAS_PRECISION__EXCLUDED_COLUMNS"] = '["time_col"]'
+    os.environ["SOURCES__SQL_DATABASE__HAS_PRECISION_NULLABLE__EXCLUDED_COLUMNS"] = '["time_col"]'
+
     source = sql_database(
         credentials=postgres_db.credentials,
         schema=postgres_db.schema,

@@ -7,7 +7,7 @@ import dlt
 from dlt.common import json
 from dlt.common.libs.pydantic import DltConfig
 from dlt.common.schema.exceptions import SchemaIdentifierNormalizationCollision
-from dlt.common.time import ensure_pendulum_datetime, pendulum
+from dlt.common.time import ensure_pendulum_datetime_utc, pendulum
 
 from dlt.destinations import duckdb
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -80,10 +80,10 @@ def test_duck_precision_types(destination_config: DestinationTestConfiguration) 
     # store timestamps without timezone adjustments
     os.environ["DATA_WRITER__TIMESTAMP_TIMEZONE"] = ""
 
-    now_s = ensure_pendulum_datetime("2022-05-23T13:26:46+01:00")
-    now_ms = ensure_pendulum_datetime("2022-05-23T13:26:46.167+01:00")
-    now_us = ensure_pendulum_datetime("2022-05-23T13:26:46.167231+01:00")
-    now_ns = ensure_pendulum_datetime("2022-05-23T13:26:46.167231+01:00")  # time.time_ns()
+    now_s = ensure_pendulum_datetime_utc("2022-05-23T13:26:46+01:00")
+    now_ms = ensure_pendulum_datetime_utc("2022-05-23T13:26:46.167+01:00")
+    now_us = ensure_pendulum_datetime_utc("2022-05-23T13:26:46.167231+01:00")
+    now_ns = ensure_pendulum_datetime_utc("2022-05-23T13:26:46.167231+01:00")  # time.time_ns()
 
     # TODO: we can't really handle integers > 64 bit (so nanoseconds and HUGEINT)
     pipeline = destination_config.setup_pipeline("test_duck_all_precision_types")
@@ -125,10 +125,10 @@ def test_duck_precision_types(destination_config: DestinationTestConfiguration) 
     assert table.schema.field(8).type == pa.decimal128(38, 0)
 
     table_row = table.to_pylist()[0]
-    table_row["col1_ts"] = ensure_pendulum_datetime(table_row["col1_ts"])
-    table_row["col2_ts"] = ensure_pendulum_datetime(table_row["col2_ts"])
-    table_row["col3_ts"] = ensure_pendulum_datetime(table_row["col3_ts"])
-    table_row["col4_ts"] = ensure_pendulum_datetime(table_row["col4_ts"])
+    table_row["col1_ts"] = ensure_pendulum_datetime_utc(table_row["col1_ts"])
+    table_row["col2_ts"] = ensure_pendulum_datetime_utc(table_row["col2_ts"])
+    table_row["col3_ts"] = ensure_pendulum_datetime_utc(table_row["col3_ts"])
+    table_row["col4_ts"] = ensure_pendulum_datetime_utc(table_row["col4_ts"])
     table_row.pop("_dlt_id")
     table_row.pop("_dlt_load_id")
     assert table_row == row[0]

@@ -137,6 +137,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self._args_bound = args_bound
         self._explicit_args: DictStrAny = None
         self.source_name = None
+        self._parent: DltResource = None
         super().__init__(hints)
         self._update_wrapper()
 
@@ -148,7 +149,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         section: str = None,
         hints: TResourceHints = None,
         selected: bool = True,
-        data_from: Union["DltResource", Pipe] = None,
+        data_from: "DltResource" = None,
         inject_config: bool = False,
     ) -> Self:
         """Creates an instance of DltResource from compatible `data` with a given `name` and `section`.
@@ -163,56 +164,60 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             raise InvalidResourceDataTypeIsNone(name, data, NoneType)
 
         if isinstance(data, DltResource):
-            return data  # type: ignore[return-value]
-
-        if isinstance(data, Pipe):
+            r_: Self = data  # type: ignore[assignment]
+        elif isinstance(data, Pipe):
             r_ = cls(data, hints, selected, section=section)
             if inject_config:
                 r_._inject_config()
-            return r_
-
-        if callable(data):
-            name = name or get_callable_name(data)
-
-        # if generator, take name from it
-        if inspect.isgenerator(data):
-            name = name or get_callable_name(data)  # type: ignore
-
-        # name is mandatory
-        if not name:
-            raise ResourceNameMissing()
-
-        # wrap additional types
-        data = wrap_additional_type(data)
-
-        # several iterable types are not allowed and must be excluded right away
-        if isinstance(data, (str, dict)):
-            raise InvalidResourceDataTypeBasic(name, data, type(data))
-
-        # check if depends_on is a valid resource
-        parent_pipe: Pipe = None
-        if data_from is not None:
-            DltResource._ensure_valid_transformer_resource(name, data)
-            parent_pipe = DltResource._get_parent_pipe(name, data_from)
-
-        # create resource from iterator, iterable or generator function
-        if isinstance(data, (Iterable, Iterator, AsyncIterable)) or callable(data):
-            pipe = Pipe.from_data(name, data, parent=parent_pipe)
-            r_ = cls(
-                pipe,
-                hints,
-                selected,
-                section=section,
-                args_bound=not callable(data),
-            )
-            if inject_config:
-                r_._inject_config()
-            return r_
         else:
-            # some other data type that is not supported
-            raise InvalidResourceDataType(
-                name, data, type(data), f"The data type of supplied type is {type(data).__name__}"
-            )
+            if callable(data):
+                name = name or get_callable_name(data)
+
+            # if generator, take name from it
+            if inspect.isgenerator(data):
+                name = name or get_callable_name(data)  # type: ignore
+
+            # name is mandatory
+            if not name:
+                raise ResourceNameMissing()
+
+            # wrap additional types
+            data = wrap_additional_type(data)
+
+            # several iterable types are not allowed and must be excluded right away
+            if isinstance(data, (str, dict)):
+                raise InvalidResourceDataTypeBasic(name, data, type(data))
+
+            # create resource from iterator, iterable or generator function
+            if isinstance(data, (Iterable, Iterator, AsyncIterable)) or callable(data):
+                # force unbounded transformer (data_From present) by setting empty pipe
+                if data_from:
+                    # verify transformer gen before populating steps
+                    DltResource._ensure_valid_transformer_resource(name, data)
+                    pipe = Pipe.from_data(name, data, parent=DltResource.Empty._pipe)
+                else:
+                    pipe = Pipe.from_data(name, data)
+
+                r_ = cls(
+                    pipe,
+                    hints,
+                    selected,
+                    section=section,
+                    args_bound=not callable(data),
+                )
+                if inject_config:
+                    r_._inject_config()
+            else:
+                # some other data type that is not supported
+                raise InvalidResourceDataType(
+                    name,
+                    data,
+                    type(data),
+                    f"The data type of supplied type is {type(data).__name__}",
+                )
+        if data_from:
+            r_.pipe_data_from(data_from)
+        return r_
 
     @property
     def name(self) -> str:
@@ -276,8 +281,10 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         else:
             normalizer["max_nesting"] = value
 
-    def pipe_data_from(self, data_from: Union[TDltResourceImpl, Pipe]) -> None:
-        """Replaces the parent in the transformer resource pipe from which the data is piped."""
+    def pipe_data_from(self, data_from: TDltResourceImpl) -> Self:
+        """Replaces the parent execution pipe in the transformer by pipe in `data_from` which typically a resource.
+        If resource was passed explicitly by the user, it will be stored as explicit parent
+        """
         if self.is_transformer:
             DltResource._ensure_valid_transformer_resource(self.name, self._pipe.gen)
         else:
@@ -286,10 +293,12 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             )
         parent_pipe = self._get_parent_pipe(self.name, data_from)
         self._pipe.parent = parent_pipe
+        self._parent = data_from
+        return self
 
     def add_pipe(self, data: Any) -> None:
         """Creates additional pipe for the resource from the specified data"""
-        # TODO: (1) self resource cannot be a transformer (2) if data is resource both self must and it must be selected/unselected + cannot be tranformer
+        # TODO: (1) self resource cannot be a transformer (2) if data is resource both self must and it must be selected/unselected + cannot be transformer
         raise InvalidResourceDataTypeMultiplePipes(self.name, data, type(data))
 
     def select_tables(self, *table_names: Iterable[str]) -> Self:
@@ -611,11 +620,28 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         state_context = StateInjectableContext(state=state)
         section_context = self._get_config_section_context()
 
+        # create single resource source
+        from dlt.common.schema import Schema
+        from dlt.extract.source import (
+            _DltSingleSource,
+            SourceInjectableContext,
+            SourceSchemaInjectableContext,
+        )
+
+        source = _DltSingleSource(Schema(section_context.source_state_key), self.section, [self])
+        source_context = SourceInjectableContext(source)
+        schema_context = SourceSchemaInjectableContext(source.discover_schema())
+
         # managed pipe iterator will set the context on each call to  __next__
-        with inject_section(section_context), Container().injectable_context(state_context):
+        with (
+            inject_section(section_context),
+            Container().injectable_context(state_context),
+            Container().injectable_context(source_context),
+            Container().injectable_context(schema_context),
+        ):
             pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipes([self._pipe])  # type: ignore
 
-        pipe_iterator.set_context([state_context, section_context])
+        pipe_iterator.set_context([state_context, section_context, schema_context, source_context])
         _iter = map(lambda item: item.item, pipe_iterator)
         return flatten_list_or_items(_iter)
 
@@ -695,6 +721,8 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         pipe = self._pipe
         if self._pipe and not self._pipe.is_empty:
             pipe = pipe._clone(new_name=new_name, with_parent=with_parent)
+            # assign new instance id
+            pipe.instance_id = uniq_id()
         # incremental and parent are already in the pipe (if any)
 
         incremental = self.incremental
@@ -709,6 +737,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             section=new_section or self.section,
             args_bound=self._args_bound,
         )
+        r_._parent = self._parent
         # try to eject and then inject configuration and incremental wrapper when resource is cloned
         # this makes sure that a take config values from a right section and wrapper has a separated
         # instance in the pipeline
@@ -748,10 +777,13 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             # only sources emit middle config section
             sections=(
                 known_sections.SOURCES,
-                self.section or pipeline_name or "",
+                self.section or pipeline_name or "s_" + uniq_id(4),
                 self.name,
             ),
-            source_state_key=self.source_name or default_schema_name or self.section or uniq_id(),
+            source_state_key=self.source_name
+            or default_schema_name
+            or self.section
+            or "schema_" + uniq_id(4),
         )
 
     def __repr__(self) -> str:
@@ -845,10 +877,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
 
     @staticmethod
     def _get_parent_pipe(name: str, data_from: Union["DltResource", Pipe]) -> Pipe:
-        # parent resource
-        if isinstance(data_from, Pipe):
-            return data_from
-        elif isinstance(data_from, DltResource):
+        if isinstance(data_from, DltResource):
             return data_from._pipe
         else:
             # if this is generator function provide nicer exception

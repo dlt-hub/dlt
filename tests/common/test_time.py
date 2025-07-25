@@ -7,7 +7,7 @@ from dlt.common.time import (
     parse_iso_like_datetime,
     timestamp_before,
     timestamp_within,
-    ensure_pendulum_datetime,
+    ensure_pendulum_datetime_utc,
     ensure_pendulum_date,
     datetime_to_timestamp,
     datetime_to_timestamp_ms,
@@ -91,7 +91,7 @@ def test_parse_iso_like_datetime() -> None:
 
 @pytest.mark.parametrize("date_value, expected", test_params)
 def test_ensure_pendulum_datetime(date_value: TAnyDateTime, expected: pendulum.DateTime) -> None:
-    dt = ensure_pendulum_datetime(date_value)
+    dt = ensure_pendulum_datetime_utc(date_value)
     assert dt == expected
     # always UTC
     assert dt.tz == UTC
@@ -169,7 +169,7 @@ def test_datetime_to_timestamp_helpers(
 )
 def test_detect_datetime_format(value, expected_format) -> None:
     assert detect_datetime_format(value) == expected_format
-    assert ensure_pendulum_datetime(value) is not None
+    assert ensure_pendulum_datetime_utc(value) is not None
 
 
 @pytest.mark.parametrize(
@@ -206,4 +206,4 @@ def test_datatime_obj_to_str(datetime_str, datetime_format, expected_value) -> N
 def test_detect_datetime_format_invalid(value) -> None:
     assert detect_datetime_format(value) is None
     with pytest.raises(ValueError):
-        ensure_pendulum_datetime(value)
+        ensure_pendulum_datetime_utc(value)

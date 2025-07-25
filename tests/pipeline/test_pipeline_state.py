@@ -485,7 +485,9 @@ def test_transformer_state_write(mocker: MockerFixture) -> None:
     # yielding transformer
     def _gen_inner(item):
         dlt.current.resource_state()["gen"] = True
-        assert dlt.current.resource().state["gen"] is True
+        r_ = dlt.current.resource()
+        assert r_.state["gen"] is True
+        assert dlt.current.source().state["resources"][r_.name]["gen"] is True
         yield map(lambda i: i * 2, item)
 
     # p = dlt.pipeline()

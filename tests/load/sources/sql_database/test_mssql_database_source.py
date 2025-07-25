@@ -4,7 +4,7 @@ import dlt
 from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.exceptions import MissingDependencyException
 
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.utils import uniq_id
 
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -107,7 +107,7 @@ def test_sql_table_incremental_datetime_ntz(
         reflection_level=reflection_level,
         incremental=dlt.sources.incremental(
             "some_smalldatetime",
-            initial_value=ensure_pendulum_datetime("1999-01-01T00:00:00+00:00").naive(),
+            initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00+00:00").naive(),
             row_order="asc",
             range_start="open",
         ),
@@ -133,7 +133,7 @@ def test_sql_table_incremental_datetime_tz(
         reflection_level=reflection_level,
         incremental=dlt.sources.incremental(
             "created_at",
-            initial_value=ensure_pendulum_datetime("1999-01-01T00:00:00+00:00"),
+            initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00+00:00"),
             row_order="asc",
             range_start="open",
         ),
@@ -162,7 +162,7 @@ def test_sql_table_high_datetime(
         backend="pyarrow",
         reflection_level="full_with_precision",
         incremental=dlt.sources.incremental(
-            "some_datetime2", initial_value=ensure_pendulum_datetime("2918-08-01 00:00:00.000")
+            "some_datetime2", initial_value=ensure_pendulum_datetime_utc("2918-08-01 00:00:00.000")
         ),
     )
 
@@ -182,7 +182,7 @@ def test_sql_table_high_datetime(
         assert_table_counts(pipeline, {"app_user": 1}, "app_user")
         assert (
             load_tables_to_dicts(pipeline, "app_user")["app_user"][0]["some_datetime2"]
-            == ensure_pendulum_datetime("2918-08-01 00:00:00.000").naive()
+            == ensure_pendulum_datetime_utc("2918-08-01 00:00:00.000").naive()
         )
 
 

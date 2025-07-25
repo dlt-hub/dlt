@@ -18,7 +18,7 @@ from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
 
 from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
-from dlt.destinations.impl.destination.factory import UnknownCustomDestinationCallable
+from dlt.destinations.impl.destination.factory import UnknownCustomDestinationCallable, destination
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.load.utils import (
@@ -85,7 +85,9 @@ def test_all_datatypes(loader_file_format: TLoaderFileFormat) -> None:
     # null values are not emitted
     data_types = {k: v for k, v in data_types.items() if v is not None}
 
-    assert_all_data_types_row(item, expect_filtered_null_columns=True)
+    assert_all_data_types_row(
+        destination()._raw_capabilities(), item, expect_filtered_null_columns=True
+    )
 
 
 @pytest.mark.parametrize("loader_file_format", SUPPORTED_LOADER_FORMATS)

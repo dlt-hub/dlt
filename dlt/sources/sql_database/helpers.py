@@ -261,6 +261,7 @@ def table_rows(
     backend_kwargs: Dict[str, Any],
     type_adapter_callback: Optional[TTypeAdapter],
     included_columns: Optional[List[str]],
+    excluded_columns: Optional[List[str]],
     query_adapter_callback: Optional[TQueryAdapter],
     resolve_foreign_keys: bool,
 ) -> Iterator[TDataItem]:
@@ -272,7 +273,9 @@ def table_rows(
             extend_existing=True,
             resolve_fks=resolve_foreign_keys,
         )
-        table = _execute_table_adapter(table, table_adapter_callback, included_columns)
+        table = _execute_table_adapter(
+            table, table_adapter_callback, included_columns, excluded_columns
+        )
         hints = table_to_resource_hints(
             table,
             reflection_level,
@@ -379,10 +382,13 @@ def _add_missing_columns(
 
 
 def _execute_table_adapter(
-    table: Table, adapter: Optional[TTableAdapter], included_columns: Optional[List[str]]
+    table: Table,
+    adapter: Optional[TTableAdapter],
+    included_columns: Optional[List[str]],
+    excluded_columns: Optional[List[str]],
 ) -> Table:
     """Executes default table adapter on `table` and then `adapter` if defined"""
-    default_table_adapter(table, included_columns)
+    default_table_adapter(table, included_columns, excluded_columns)
     if adapter:
         # backward compat: old adapters do not return a value
         maybe_query = adapter(table)
@@ -423,6 +429,7 @@ class SqlTableResourceConfiguration(BaseConfiguration):
     defer_table_reflect: Optional[bool] = False
     reflection_level: Optional[ReflectionLevel] = "full"
     included_columns: Optional[List[str]] = None
+    excluded_columns: Optional[List[str]] = None
     write_disposition: Optional[TWriteDispositionDict] = None
     primary_key: Optional[TColumnNames] = None
     merge_key: Optional[TColumnNames] = None

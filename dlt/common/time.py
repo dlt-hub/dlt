@@ -99,7 +99,7 @@ def ensure_pendulum_date(value: TAnyDateTime) -> pendulum.Date:
     raise TypeError(f"Cannot coerce `{value}` to `pendulum.DateTime` object.")
 
 
-def ensure_pendulum_datetime(value: TAnyDateTime) -> pendulum.DateTime:
+def ensure_pendulum_datetime_utc(value: TAnyDateTime) -> pendulum.DateTime:
     """Coerce a date/time value to a `pendulum.DateTime` object.
 
     UTC is assumed if the value is not timezone aware. Other timezones are shifted to UTC
@@ -110,26 +110,17 @@ def ensure_pendulum_datetime(value: TAnyDateTime) -> pendulum.DateTime:
     Returns:
         A timezone aware pendulum.DateTime object in UTC timezone.
     """
-    if isinstance(value, datetime.datetime):
-        # both py datetime and pendulum datetime are handled here
-        ret = pendulum.instance(value)
-        return ret.in_tz(UTC)
-    elif isinstance(value, datetime.date):
-        return pendulum.datetime(value.year, value.month, value.day, tz=UTC)
-    elif isinstance(value, (int, float, str)):
-        result = _datetime_from_ts_or_iso(value)
-        if isinstance(result, datetime.time):
-            raise ValueError(f"Cannot coerce `{value}` to `pendulum.DateTime` object.")
-        if isinstance(result, pendulum.DateTime):
-            return result.in_tz(UTC)
-        return pendulum.datetime(result.year, result.month, result.day, tz=UTC)
-    raise TypeError(f"Cannot coerce `{value}` to `pendulum.DateTime` object.")
+    return ensure_pendulum_datetime_non_utc(value).in_tz(UTC)
+
+
+# TODO: deprecate usage
+ensure_pendulum_datetime = ensure_pendulum_datetime_utc
 
 
 def ensure_pendulum_datetime_non_utc(value: TAnyDateTime) -> pendulum.DateTime:
     if isinstance(value, datetime.datetime):
-        ret = pendulum.instance(value)
-        return ret
+        # both py datetime and pendulum datetime are handled here
+        return pendulum.instance(value, tz=value.tzinfo)
     elif isinstance(value, datetime.date):
         return pendulum.datetime(value.year, value.month, value.day)
     elif isinstance(value, (int, float, str)):
