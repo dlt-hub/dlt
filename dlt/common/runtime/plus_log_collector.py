@@ -48,7 +48,7 @@ class PlusLogCollector(LogCollector):
         # for now we only care about schema changes during the load step
         if step.step == "load":
             if _has_schema_changes(trace):
-                self.on_schema_change(pipeline, trace, step.step)
+                self.on_schema_change(pipeline, trace)
 
     def on_schema_change(
         self,
