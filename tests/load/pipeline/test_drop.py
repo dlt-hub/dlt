@@ -1,5 +1,5 @@
 import os
-from typing import Iterator, Dict, Any, List
+from typing import Iterator, Dict, Any, List, Union
 from unittest import mock
 from itertools import chain
 
@@ -22,6 +22,7 @@ from tests.load.utils import FILE_BUCKET, destinations_configs, DestinationTestC
 from tests.pipeline.utils import assert_load_info, load_table_counts
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
+from dlt.pipeline.drop import _FromTableDropCols
 
 
 def _attach(pipeline: Pipeline) -> Pipeline:
@@ -592,3 +593,160 @@ def test_drop_staging_tables(destination_config: DestinationTestConfiguration) -
 
     load_info = attached.run(some_data_redefined, **destination_config.run_kwargs)
     assert_load_info(load_info)
+
+
+def assert_dropped_columns(pipeline: Pipeline, must_drop_infos: List[_FromTableDropCols]):
+    # Verify requested columns are dropped from destination
+    client: SqlJobClientBase
+    with pipeline.destination_client(pipeline.default_schema_name) as client:  # type: ignore
+        assert client.is_storage_initialized()
+        for must_drop_info in must_drop_infos:
+            from_table = must_drop_info["from_table"]
+            dropped_columns = must_drop_info["drop_columns"]
+
+            physical_columns: Union[Any] = None
+
+            # Check if this is a filesystem client with open table support
+            if hasattr(client, "is_open_table") and hasattr(client, "load_open_table"):
+                if client.is_open_table("iceberg", from_table):
+                    ice_tbl = client.load_open_table("iceberg", from_table)
+                    physical_columns = [field.name for field in ice_tbl.schema().fields]
+                if client.is_open_table("delta", from_table):
+                    delta_tbl = client.load_open_table("delta", from_table)
+                    physical_columns = [f.name for f in delta_tbl.schema().fields]
+            else:
+                # Fallback: information schema coming from destination
+                col_schema = list(client.get_storage_tables([from_table]))[0][1]
+                physical_columns = (
+                    list(col_schema.keys()) if isinstance(col_schema, dict) else list(col_schema)
+                )
+
+            assert all(dropped_col not in physical_columns for dropped_col in dropped_columns)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        table_format_filesystem_configs=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_drop_column_command_resources(destination_config: DestinationTestConfiguration) -> None:
+    """Test the drop command with resource and verify correct data is deleted from destination"""
+    source: Any = droppable_source()
+
+    pipeline = destination_config.setup_pipeline(
+        "test_drop_column_command_resources", dev_mode=True
+    )
+    info = pipeline.run(source, **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    from_resources = ["droppable_a", "droppable_b", "droppable_c", "droppable_d"]
+
+    # This should drop all droppable columns
+    # If the table's droppable columns leave only dlt tables, nothing will be dropped
+    drop_cmd = helpers.DropCommand(
+        pipeline,
+        from_resources=from_resources,
+    )
+
+    assert (
+        "After dropping matched droppable columns ['name', 'value'] from table"
+        " 'droppable_c__items__labels' only internal dlt columns will remain. This is not allowed."
+        in drop_cmd.info["warnings"]
+    )
+    assert (
+        "After dropping matched droppable columns ['k', 'r'] from table 'droppable_c__items' only"
+        " internal dlt columns will remain. This is not allowed."
+        in drop_cmd.info["warnings"]
+    )
+    assert (
+        "After dropping matched droppable columns ['m', 'n'] from table 'droppable_b__items' only"
+        " internal dlt columns will remain. This is not allowed."
+        in drop_cmd.info["warnings"]
+    )
+
+    must_drop_infos = drop_cmd.from_tables_drop_cols
+    drop_cmd()
+
+    for must_drop_info in must_drop_infos:
+        remaining_cols = pipeline.default_schema.get_table_columns(must_drop_info["from_table"])
+        for dropped_col in must_drop_info["drop_columns"]:
+            assert dropped_col not in remaining_cols
+
+    assert_dropped_columns(pipeline, must_drop_infos)
+
+    # Drop column from a child table
+    drop_cmd = helpers.DropCommand(
+        pipeline, from_resources=["droppable_b"], from_tables=["droppable_b__items"], columns=["m"]
+    )
+
+    must_drop_infos = drop_cmd.from_tables_drop_cols
+    assert [{"from_table": "droppable_b__items", "drop_columns": ["m"]}] == must_drop_infos
+
+    drop_cmd()
+
+    assert "m" not in pipeline.default_schema.get_table_columns("droppable_b__items")
+    assert_dropped_columns(pipeline, must_drop_infos)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        local_filesystem_configs=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_drop_columns_command_filesystem_without_table_format(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Test the drop column command doesn't drop columns from filesystem tables without table format"""
+    source: Any = droppable_source()
+
+    pipeline = destination_config.setup_pipeline(
+        "test_drop_columns_command_filesystem_without_table_format", dev_mode=True
+    )
+    info = pipeline.run(source, **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # Load resources with a table format
+    @dlt.resource(table_format="iceberg")
+    def iceberg_table():
+        yield {"id": 1, "name": "Bob"}
+
+    @dlt.resource(table_format="delta")
+    def delta_table():
+        yield {"id": 1, "name": "Sarah"}
+
+    info = pipeline.run([iceberg_table(), delta_table()])
+    assert_load_info(info)
+
+    drop_cmd = helpers.DropCommand(
+        pipeline,
+        from_resources=["droppable_a", "iceberg_table", "delta_table"],
+        columns=["b", "name"],
+    )
+
+    assert (
+        "Skipped table 'droppable_a' with selected column(s) 'b' because it does not use a"
+        " supported table format. Column dropping in filesystem destinations requires the table to"
+        " have an associated table format."
+        in drop_cmd.info["notes"]
+    )
+
+    # Ensure selected columns from tables with table format are correctly selected
+    must_drop_infos = drop_cmd.from_tables_drop_cols
+    assert [
+        {"from_table": "delta_table", "drop_columns": ["name"]},
+        {"from_table": "iceberg_table", "drop_columns": ["name"]},
+    ] == must_drop_infos
+
+    drop_cmd()
+
+    for must_drop_info in must_drop_infos:
+        remaining_cols = pipeline.default_schema.get_table_columns(must_drop_info["from_table"])
+        for dropped_col in must_drop_info["drop_columns"]:
+            assert dropped_col not in remaining_cols
+
+    assert_dropped_columns(pipeline, must_drop_infos)

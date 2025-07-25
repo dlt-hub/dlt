@@ -15,6 +15,7 @@ from typing import (
     Type,
     Iterable,
     Iterator,
+    Union,
 )
 import zlib
 import re
@@ -328,6 +329,24 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             self.sql_client.drop_tables(*tables)
             if delete_schema:
                 self._delete_schema_in_storage(self.schema)
+
+    def drop_columns(
+        self,
+        from_tables_drop_cols: List[Dict[str, Union[str, List[str]]]],
+        update_schema: bool = True,
+    ) -> None:
+        """Drop columns in destination database and optionally delete the stored schema as well.
+        Clients that support ddl transactions will have both operations performed in a single transaction.
+
+        Args:
+            from_tables: Names of tables from which columns are to be dropped.
+            from_tables_drop_cols: Names of columns to be dropped grouped by table.
+            delete_schema: If True, also delete all versions of the current schema from storage
+        """
+        with self.maybe_ddl_transaction():
+            self.sql_client.drop_columns(from_tables_drop_cols)
+            if update_schema:
+                self._update_schema_in_storage(self.schema)
 
     @contextlib.contextmanager
     def maybe_ddl_transaction(self) -> Iterator[None]:
