@@ -151,7 +151,7 @@ You can use the runner directly in your python code as well to finalize pending 
 
 ```py
 import dlt
-from dlt_plus.runner import PipelineRunner
+from dlt_plus
 from tenacity import Retrying, stop_after_attempt
 
 @dlt.resource(table_name="numbers")
@@ -164,12 +164,12 @@ pipeline = dlt.pipeline(
     dataset_name="my_dataset",
 )
 
-load_info = PipelineRunner(pipeline, run_from_clean_folder=True).run(my_resource())
+load_info = dlt_plus.PipelineRunner(pipeline, run_from_clean_folder=True).run(my_resource())
 print(load_info)
 
 # or just to finalize pending data reliably
 pipeline.extract(["a", "b", "c"], table_name="letters")
-load_info = PipelineRunner(
+load_info = dlt_plus.PipelineRunner(
     pipeline, 
     retry_policy=Retrying(stop=stop_after_attempt(2), reraise=True),
     store_trace_info=True,
