@@ -197,27 +197,7 @@ class PipelineTrace(SupportsHumanize, _PipelineTrace):
         return self.asstr(verbosity=0)
 
 
-class SupportsTracking(Protocol):
-    def on_start_trace(
-        self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
-    ) -> None: ...
-
-    def on_start_trace_step(
-        self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
-    ) -> None: ...
-
-    def on_end_trace_step(
-        self,
-        trace: PipelineTrace,
-        step: PipelineStepTrace,
-        pipeline: SupportsPipeline,
-        step_info: Any,
-        send_state: bool,
-    ) -> None: ...
-
-    def on_end_trace(
-        self, trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool
-    ) -> None: ...
+from dlt.common.runtime.tracking import SupportsTracking
 
 
 # plug in your own tracking modules here
@@ -236,6 +216,11 @@ def start_trace(step: TPipelineStep, pipeline: SupportsPipeline) -> PipelineTrac
     for module in TRACKING_MODULES:
         with suppress_and_warn(f"on_start_trace on module {module} failed"):
             module.on_start_trace(trace, step, pipeline)
+    with suppress_and_warn(
+        f"on_start_trace on collector `{pipeline.collector.__class__.__name__}` failed"
+    ):
+        pipeline.collector.on_start_trace(trace, step, pipeline)
+
     return trace
 
 
@@ -246,6 +231,10 @@ def start_trace_step(
     for module in TRACKING_MODULES:
         with suppress_and_warn(f"start_trace_step on module {module} failed"):
             module.on_start_trace_step(trace, step, pipeline)
+    with suppress_and_warn(
+        f"on_start_trace_step on collector `{pipeline.collector.__class__.__name__}` failed"
+    ):
+        pipeline.collector.on_start_trace_step(trace, step, pipeline)
     return trace_step
 
 
@@ -297,6 +286,10 @@ def end_trace_step(
     for module in TRACKING_MODULES:
         with suppress_and_warn(f"end_trace_step on module {module} failed"):
             module.on_end_trace_step(trace, step, pipeline, step_info, send_state)
+    with suppress_and_warn(
+        f"on_end_trace_step on collector `{pipeline.collector.__class__.__name__}` failed"
+    ):
+        pipeline.collector.on_end_trace_step(trace, step, pipeline, step_info, send_state)
     return trace
 
 
@@ -309,6 +302,10 @@ def end_trace(
     for module in TRACKING_MODULES:
         with suppress_and_warn(f"end_trace on module {module} failed"):
             module.on_end_trace(trace, pipeline, send_state)
+    with suppress_and_warn(
+        f"on_end_trace on collector `{pipeline.collector.__class__.__name__}` failed"
+    ):
+        pipeline.collector.on_end_trace(trace, pipeline, send_state)
     # clear collected config resolver traces
     get_resolved_traces().clear()
     return trace
