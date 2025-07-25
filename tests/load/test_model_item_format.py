@@ -93,7 +93,7 @@ def test_simple_incremental(destination_config: DestinationTestConfiguration) ->
     dataset = pipeline.dataset()
 
     # TODO: incremental is not supported for models yet
-    @dlt.transformation()
+    @dlt.resource()
     def copied_table(incremental_field=dlt.sources.incremental("a")) -> Any:
         yield dataset["example_table"].limit(8)
 
@@ -121,7 +121,7 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
     dataset = pipeline.dataset()
 
     # Define a resource that aliases column "a" as "b"
-    @dlt.transformation()
+    @dlt.resource()
     def copied_table_with_a_as_b() -> Any:
         rel = dataset("SELECT a as b, _dlt_load_id, _dlt_id FROM example_table")
         yield rel
@@ -179,7 +179,7 @@ def test_simple_relation_jobs(
     # The normalizer will add "b" as null since it is included in the schema hints,
     # without including "_dlt_id" into the schema and insert statement
     # because the addition of the column "_dlt_id" is disabled by default
-    @dlt.transformation(table_name="target_table")
+    @dlt.resource(table_name="target_table")
     def model_with_no_b() -> Any:
         hints = make_hints(
             columns={k: v for k, v in example_table_columns.items() if k != "_dlt_id"}
@@ -194,7 +194,7 @@ def test_simple_relation_jobs(
     # The normalizer will reorder the columns to match the schema's order,
     # add "_dlt_load_id" into the schema and as a constant value to the insert statement
     # because the addition of the column "_dlt_load_id" is enabled by default
-    @dlt.transformation(table_name="target_table")
+    @dlt.resource(table_name="target_table")
     def model_reversed_select() -> Any:
         hints = make_hints(
             columns={
@@ -317,11 +317,11 @@ def test_relation_from_two_tables(
 
     dataset = pipeline.dataset()
 
-    @dlt.transformation(table_name="merged_table")
+    @dlt.resource(table_name="merged_table")
     def insert_ab() -> Any:
         yield dataset["example_table_ab"][["a", "b"]]
 
-    @dlt.transformation(table_name="merged_table")
+    @dlt.resource(table_name="merged_table")
     def insert_ac() -> Any:
         yield dataset["example_table_ac"][["a", "c"]]  # only a,c
 
@@ -364,11 +364,11 @@ def test_relation_from_two_consecutive_tables(destination_config: DestinationTes
     relation_ab = dataset["example_table_ab"]
     relation_ac = dataset["example_table_ac"]
 
-    @dlt.transformation(table_name="result_table")
+    @dlt.resource(table_name="result_table")
     def insert_ab() -> Any:
         yield relation_ab[["a", "b"]]
 
-    @dlt.transformation(table_name="result_table")
+    @dlt.resource(table_name="result_table")
     def insert_ac() -> Any:
         yield relation_ac[["a", "c"]]
 
@@ -450,7 +450,7 @@ def test_write_dispositions(
     )
     relation = dataset(expression)
 
-    @dlt.transformation(
+    @dlt.resource(
         write_disposition=write_disposition,
         table_name="example_table_1",
         primary_key="a",
@@ -513,7 +513,7 @@ def test_multiple_statements_per_resource(
     # create a resource that generates sql statements to create 2 new tables
     # we also need to supply all hints so the table can be created,
     # note that we explicitly select "_dlt_id" as its addition is disabled by default
-    @dlt.transformation()
+    @dlt.resource()
     def copied_table() -> Any:
         yield dataset["example_table"][["a", "_dlt_id"]].limit(5)
         yield dataset["example_table"][["a", "_dlt_id"]].limit(7)
@@ -575,7 +575,7 @@ def test_copying_table_with_dropped_column(
     )
     dataset = pipeline.dataset()
 
-    @dlt.transformation(name=target_table_name)
+    @dlt.resource(name=target_table_name)
     def copied_table() -> Any:
         kept_columns = ["a", "b", "_dlt_load_id", "_dlt_id"]
         kept_columns.remove(drop_column)
@@ -660,7 +660,7 @@ def test_load_relation_with_all_types(
         exclude_types=exclude_types, exclude_columns=exclude_columns
     )
 
-    @dlt.transformation(table_name="data_types", columns=column_schemas)
+    @dlt.resource(table_name="data_types", columns=column_schemas)
     def my_resource() -> Any:
         nonlocal data_types
         yield [data_types] * 10
@@ -668,7 +668,7 @@ def test_load_relation_with_all_types(
     pipeline.run([my_resource()], **destination_config.run_kwargs)
     dataset = pipeline.dataset()
 
-    @dlt.transformation()
+    @dlt.resource()
     def copied_table() -> Any:
         yield dataset["data_types"][list(data_types.keys())]
 
@@ -713,7 +713,7 @@ def test_data_contract_on_tables(
     dataset = pipeline.dataset()
 
     # Define a resource to create a new copied table
-    @dlt.transformation(schema_contract={"tables": tables_contract})  # type: ignore
+    @dlt.resource(schema_contract={"tables": tables_contract})  # type: ignore
     def copied_table() -> Any:
         yield dataset["example_table"][["a", "b", "_dlt_id"]].limit(5)
 
@@ -767,7 +767,7 @@ def test_data_contract_on_columns(
     dataset = pipeline.dataset()
 
     # Define a resource to insert a new column into copied_table
-    @dlt.transformation(schema_contract={"columns": columns_contract})  # type: ignore
+    @dlt.resource(schema_contract={"columns": columns_contract})  # type: ignore
     def copied_table() -> Any:
         yield dataset["example_table"][["b", "_dlt_load_id", "_dlt_id"]].limit(5)
 
@@ -855,7 +855,7 @@ def test_data_contract_on_data_type(
     assert example_table_columns["a"]["data_type"] == "text"
 
     # Define model resource to insert string column into integer column
-    @dlt.transformation(schema_contract={"data_type": data_type_contract}, table_name="copied_table")  # type: ignore
+    @dlt.resource(schema_contract={"data_type": data_type_contract}, table_name="copied_table")  # type: ignore
     def copied_table() -> Any:
         yield dataset["example_table"][["a", "_dlt_load_id", "_dlt_id"]]
 
