@@ -7,7 +7,7 @@ from pydbml.classes import Reference, Table, Column  # type: ignore[import-untyp
 
 import dlt
 from dlt.common.schema.typing import TColumnSchema, TTableReference, TTableSchema
-from dlt.helpers.dbml import (
+from dlt.helpers._dbml import (
     export_to_dbml,
     schema_to_dbml,
     _to_dbml_column,

@@ -745,7 +745,7 @@ class Schema:
         include_root_child_ref: bool = True,
         group_by_resource: bool = False,
     ) -> str:
-        from dlt.helpers.dbml import schema_to_dbml
+        from dlt.helpers._dbml import schema_to_dbml
 
         dbml_schema = schema_to_dbml(
             self,

@@ -3,6 +3,7 @@ import pathlib
 from typing import Any, Literal, Union, overload, Optional, cast
 
 import dlt
+from dlt.common.json import json
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
@@ -34,25 +35,11 @@ TDBMLReferenceCardinality = Literal["<", ">", "-", "<>"]
 
 
 def _stringify_dict(d: Mapping[str, Any]) -> dict[str, str]:
-    return {k: str(v) for k, v in d.items()}
+    return {k:json.dumps(v) for k, v in d.items()}
 
 
 def _destringify_dict(d: Mapping[str, str]) -> dict[str, Union[bool, None, str]]:
-    output = {}
-    for k, v in d.items():
-        value: Union[bool, None, str]
-        if v == "True":
-            value = True
-        elif v == "False":
-            value = False
-        elif v == "None":
-            value = None
-        else:
-            value = v
-
-        output[k] = value
-
-    return output
+    return {k:json.loads(v) for k,v in d.items()}
 
 
 def _to_dbml_column(hints: TColumnSchema) -> Column:
