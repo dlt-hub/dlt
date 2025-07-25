@@ -12,7 +12,7 @@ from dlt.common.data_writers.writers import ArrowToParquetWriter, ParquetDataWri
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema.utils import new_column
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 
 from tests.common.data_writers.utils import get_writer
 from tests.cases import (
@@ -125,10 +125,7 @@ def test_parquet_writer_all_data_fields() -> None:
         table = pq.read_table(f)
 
     for key, value in data.items():
-        # what we have is pandas Timezone which is naive
         actual = table.column(key).to_pylist()[0]
-        if isinstance(value, datetime.datetime):
-            actual = ensure_pendulum_datetime(actual)
         if isinstance(value, dict):
             actual = json.loads(actual)
         assert actual == value

@@ -1818,8 +1818,9 @@ def test_last_value_func_on_dict() -> None:
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
-    """Resource has timezone naive datetime objects, but incremental stored state is
-    converted to tz aware pendulum dates. Can happen when loading e.g. from sql database"""
+    """Resource has timezone naive datetime objects and incremental state must always follow data
+    also including tz-awareness.
+    """
     start_dt = datetime.now()
     pendulum_start_dt = pendulum.instance(start_dt)  # With timezone
 
@@ -1831,7 +1832,6 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
         max_hours: int = 2,
         tz: str = None,
     ):
-        print("some_data", updated_at, dict(updated_at))
         data = [
             {"updated_at": start_dt + timedelta(hours=hour), "hour": hour}
             for hour in range(1, max_hours + 1)
@@ -1845,7 +1845,8 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
 
     pipeline = dlt.pipeline(pipeline_name=uniq_id())
     resource = some_data()
-    # print(list(resource))
+
+    # case with initial value which is tz-aware and resource data which is naive
     extract_info = pipeline.extract(resource)
     # print(extract_info.asdict())
     assert (
@@ -1854,56 +1855,105 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
         ].items_count
         == 2
     )
-    # last value has timezone added
     last_value = resource.state["incremental"]["updated_at"]["last_value"]
     assert isinstance(last_value, pendulum.DateTime)
-    assert last_value.tzname() == "+00:00"
-    # try again with more records
-    extract_info = pipeline.extract(some_data(max_hours=3))
+    # last value must be naive
+    assert last_value.tzinfo is None
+    assert last_value == pendulum_start_dt.add(hours=2).naive()
+
+    # try again with one more record
+    resource = some_data(max_hours=3)
+    extract_info = pipeline.extract(resource)
     assert (
         extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"][
             "some_data"
         ].items_count
         == 1
     )
+    assert (
+        resource.incremental.incremental._cached_state["last_value"]
+        == pendulum_start_dt.add(hours=3).naive()
+    )
 
-    # add end_value to incremental
+    # end value tz-awareness conflict
+    with pytest.raises(ConfigurationValueError):
+        dlt.sources.incremental(
+            "updated_at",
+            initial_value=pendulum_start_dt,
+            end_value=pendulum_start_dt.add(hours=3).naive(),
+        ).resolve()
+
+    # add end_value to incremental which is tz-aware, data is still naive
     resource = some_data(max_hours=10)
     # it should be merged
     resource.apply_hints(
         incremental=dlt.sources.incremental(
-            "updated_at", initial_value=pendulum_start_dt, end_value=pendulum_start_dt.add(hours=3)
+            "updated_at",
+            initial_value=pendulum_start_dt.add(hours=1),
+            end_value=pendulum_start_dt.add(hours=4),
         )
     )
-    print(resource.incremental.incremental, dict(resource.incremental.incremental))
     pipeline = pipeline.drop()
     extract_info = pipeline.extract(resource)
+    # we get 3 records (end range is open)
     assert (
         extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"][
             "some_data"
         ].items_count
-        == 2
+        == 3
     )
+    if item_type == "object":
+        assert (
+            resource.incremental.incremental._cached_state["last_value"]
+            == pendulum_start_dt.add(hours=3).naive()
+        )
+    else:
+        # for incremental working with tables we do not update the last value taking into account end value because
+        #  state is not saved anyway
+        assert (
+            resource.incremental.incremental._cached_state["last_value"]
+            == pendulum_start_dt.add(hours=10).naive()
+        )
 
     # initial value is naive
-    resource = some_data(max_hours=4).with_name("copy_1")  # also make new resource state
+    resource = some_data(max_hours=5).with_name("copy_1")  # also make new resource state
     resource.apply_hints(incremental=dlt.sources.incremental("updated_at", initial_value=start_dt))
     # and the data is naive. so it will work as expected with naive datetimes in the result set
-    data = list(resource)
-    if item_type == "object":
-        # we do not convert data in arrow tables
-        assert data[0]["updated_at"].tzinfo is None
+    data = data_item_to_list(item_type, list(resource))
+    assert len(data) == 5
+    # if item_type == "object":
+    #     # we do not convert data in arrow tables
+    assert data[0]["updated_at"].tzinfo is None
+    extract_info = pipeline.extract(resource)
+    # hours from 1 to 5 inclusive
+    assert (
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_1"].items_count
+        == 5
+    )
+    assert (
+        resource.incremental.incremental._cached_state["last_value"]
+        == pendulum_start_dt.add(hours=5).naive()
+    )
 
     # end value is naive
-    resource = some_data(max_hours=4).with_name("copy_2")  # also make new resource state
+    resource = some_data(max_hours=10).with_name("copy_2")  # also make new resource state
     resource.apply_hints(
         incremental=dlt.sources.incremental(
-            "updated_at", initial_value=start_dt, end_value=start_dt + timedelta(hours=3)
+            "updated_at",
+            initial_value=start_dt + timedelta(hours=5),
+            end_value=start_dt + timedelta(hours=8),
         )
     )
-    data = list(resource)
-    if item_type == "object":
-        assert data[0]["updated_at"].tzinfo is None
+    data = data_item_to_list(item_type, list(resource))
+    # if item_type == "object":
+    #     assert data[0]["updated_at"].tzinfo is None
+    assert len(data) == 3
+    extract_info = pipeline.extract(resource)
+    # hours from 5 to 7 inclusive
+    assert (
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_2"].items_count
+        == 3
+    )
 
     # now use naive initial value but data is UTC
     resource = some_data(max_hours=4, tz="UTC").with_name("copy_3")  # also make new resource state
@@ -1912,16 +1962,84 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
             "updated_at", initial_value=start_dt + timedelta(hours=3)
         )
     )
-    # will cause invalid comparison
-    if item_type == "object":
-        with pytest.raises(IncrementalCursorInvalidCoercion):
-            list(resource)
-    else:
-        data = data_item_to_list(item_type, list(resource))
-        # we select two rows by adding 3 hours to start_dt. rows have hours:
-        # 1, 2, 3, 4
-        # and we select >=3
-        assert len(data) == 2
+    data = data_item_to_list(item_type, list(resource))
+    # we select two rows by adding 3 hours to start_dt. rows have hours:
+    # 1, 2, 3, 4
+    # and we select >=3
+    assert len(data) == 2
+    assert [d["hour"] for d in data] == [3, 4]
+    # hours from 5 to 7 inclusive
+    extract_info = pipeline.extract(resource)
+    assert (
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_3"].items_count
+        == 2
+    )
+    # last value is tz-aware
+    assert resource.incremental.incremental._cached_state["last_value"] == pendulum_start_dt.add(
+        hours=4
+    )
+    # also stored in state
+    assert resource.state["incremental"]["updated_at"]["last_value"] == pendulum_start_dt.add(
+        hours=4
+    )
+
+    # switch from naive to UTC in data
+    resource = some_data(max_hours=4).with_name("copy_4")  # also make new resource state
+    extract_info = pipeline.extract(resource)
+    assert (
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_4"].items_count
+        == 4
+    )
+    assert (
+        resource.incremental.incremental._cached_state["last_value"]
+        == pendulum_start_dt.add(hours=4).naive()
+    )
+    assert (
+        resource.state["incremental"]["updated_at"]["last_value"]
+        == pendulum_start_dt.add(hours=4).naive()
+    )
+    # same resource name
+    resource = some_data(max_hours=5, tz="UTC").with_name("copy_4")
+    extract_info = pipeline.extract(resource)
+    assert (
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_4"].items_count
+        == 1
+    )
+    assert resource.incremental.incremental._cached_state["last_value"] == pendulum_start_dt.add(
+        hours=5
+    )
+    assert resource.state["incremental"]["updated_at"]["last_value"] == pendulum_start_dt.add(
+        hours=5
+    )
+
+    # switch from UTC to naive
+    resource = some_data(max_hours=4, tz="UTC").with_name("copy_5")  # also make new resource state
+    extract_info = pipeline.extract(resource)
+    assert (
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_5"].items_count
+        == 4
+    )
+    assert resource.incremental.incremental._cached_state["last_value"] == pendulum_start_dt.add(
+        hours=4
+    )
+    assert resource.state["incremental"]["updated_at"]["last_value"] == pendulum_start_dt.add(
+        hours=4
+    )
+    # same resource name
+    resource = some_data(max_hours=5).with_name("copy_5")
+    extract_info = pipeline.extract(resource)
+    assert (
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"]["copy_5"].items_count
+        == 1
+    )
+    assert (
+        resource.incremental.incremental._cached_state["last_value"]
+        == pendulum_start_dt.add(hours=5).naive()
+    )
+    assert (
+        resource.state["incremental"]["updated_at"]["last_value"]
+        == pendulum_start_dt.add(hours=5).naive()
+    )
 
 
 @dlt.resource

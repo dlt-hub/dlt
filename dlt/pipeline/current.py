@@ -7,6 +7,7 @@ from dlt.common.storages.load_package import (
 from dlt.common.runtime.run_context import active as _run_context
 
 from dlt.extract.decorators import (
+    get_resource,
     get_source_schema as _get_source_schema,
     get_source as _get_source,
 )
@@ -30,6 +31,7 @@ def pipeline() -> _Pipeline:
 state = source_state
 source_schema = _get_source_schema
 source = _get_source
+resource = get_resource
 pipe = _get_current_pipe
 resource_name = _get_current_pipe_name
 run_context = _run_context
@@ -43,4 +45,6 @@ __all__ = [
     "pipe",
     "resource_name",
     "run_context",
+    "source",
+    "resource",
 ]

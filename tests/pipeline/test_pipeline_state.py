@@ -363,6 +363,7 @@ def test_resource_state_in_pipeline(mocker: MockerFixture) -> None:
 
     def _gen_inner(tv="df"):
         dlt.current.resource_state()["gen"] = tv
+        assert dlt.current.resource().state["gen"] == tv
         yield 1
 
     r = dlt.resource(_gen_inner("gen_tf"), name="name_ovrd")
@@ -389,6 +390,7 @@ def test_resource_state_in_pipeline(mocker: MockerFixture) -> None:
         @dlt.defer
         def _run():
             dlt.current.resource_state()["gen"] = tv
+            assert dlt.current.resource().state["gen"] == tv
             return 1
 
         yield _run()
@@ -402,6 +404,7 @@ def test_resource_state_in_pipeline(mocker: MockerFixture) -> None:
         @dlt.defer
         def _run():
             dlt.current.resource_state(resource_name)["gen"] = tv
+            assert dlt.current.resource().state["gen"] == tv
             return 1
 
         yield _run()
@@ -419,6 +422,7 @@ def test_resource_state_in_pipeline(mocker: MockerFixture) -> None:
         @dlt.defer
         def _run():
             dlt.current.resource_state()["gen"] = tv
+            assert dlt.current.resource().state["gen"] == tv
             yield from [1, 2, 3]
 
         yield _run()
@@ -435,6 +439,7 @@ def test_resource_state_in_pipeline(mocker: MockerFixture) -> None:
     def _gen_inner_async(tv="async"):
         async def _run():
             dlt.current.resource_state()["agen-i"] = tv
+            assert dlt.current.resource().state["agen-i"] == tv
             return 1
 
         yield _run()
@@ -452,6 +457,7 @@ def test_resource_state_in_pipeline(mocker: MockerFixture) -> None:
         dlt.current.resource_state()["u-gen"] = "TV"
         async for u in async_generator_from_list([1, 2, 3]):
             yield u
+        assert dlt.current.resource().state["u-gen"] == "TV"
 
     r = dlt.resource(get_users(), name="get_users")
     p.extract(r)
@@ -460,6 +466,7 @@ def test_resource_state_in_pipeline(mocker: MockerFixture) -> None:
     # async function with async transformer
     async def enrich_users(uid):
         dlt.current.resource_state()["gen"] = "ER"
+        assert dlt.current.resource().state["gen"] == "ER"
         return {"uid": uid, "status": 1}
 
     r = dlt.resource(get_users, name="get_users_u")
@@ -478,6 +485,7 @@ def test_transformer_state_write(mocker: MockerFixture) -> None:
     # yielding transformer
     def _gen_inner(item):
         dlt.current.resource_state()["gen"] = True
+        assert dlt.current.resource().state["gen"] is True
         yield map(lambda i: i * 2, item)
 
     # p = dlt.pipeline()
@@ -494,6 +502,7 @@ def test_transformer_state_write(mocker: MockerFixture) -> None:
     # returning transformer
     def _gen_inner_rv(item):
         dlt.current.resource_state()["gen"] = True
+        assert dlt.current.resource().state["gen"] is True
         return item * 2
 
     r = some_data_resource_state()
@@ -513,6 +522,7 @@ def test_transformer_state_write(mocker: MockerFixture) -> None:
     @dlt.defer
     def _gen_inner_rv_defer(item):
         dlt.current.resource_state()["gen"] = True
+        assert dlt.current.resource().state["gen"] is True
         return item
 
     r = some_data_resource_state()
@@ -525,6 +535,7 @@ def test_transformer_state_write(mocker: MockerFixture) -> None:
     # async transformer
     async def _gen_inner_rv_async(item):
         dlt.current.resource_state()["agen"] = True
+        assert dlt.current.resource().state["agen"] is True
         return item
 
     r = some_data_resource_state()

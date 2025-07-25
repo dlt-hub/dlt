@@ -12,7 +12,8 @@ from dlt.common.wei import Wei
 from dlt.common.arithmetics import InvalidOperation, Decimal
 from dlt.common.data_types.typing import TDataType
 from dlt.common.time import (
-    ensure_pendulum_datetime,
+    ensure_pendulum_datetime_non_utc,
+    ensure_pendulum_datetime_utc,
     ensure_pendulum_date,
     ensure_pendulum_time,
 )
@@ -75,7 +76,7 @@ def json_to_str(value: Any) -> str:
 def coerce_from_date_types(
     to_type: TDataType, value: datetime.datetime
 ) -> Union[datetime.datetime, datetime.date, datetime.time, int, float, str]:
-    v = ensure_pendulum_datetime(value)
+    v = ensure_pendulum_datetime_non_utc(value)
     if to_type == "timestamp":
         return v
     if to_type == "text":
@@ -179,7 +180,7 @@ def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
 
     try:
         if to_type == "timestamp":
-            return ensure_pendulum_datetime(value)
+            return ensure_pendulum_datetime_non_utc(value)
 
         if to_type == "date":
             return ensure_pendulum_date(value)

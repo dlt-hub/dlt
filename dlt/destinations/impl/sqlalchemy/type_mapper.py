@@ -92,8 +92,9 @@ class SqlalchemyTypeMapper(DataTypeMapper):
             if length is None and column.get("unique"):
                 length = 128
             if length is None:
-                return sa.Text()
-            return sa.String(length=length)
+                return sa.Text().with_variant(sa.UnicodeText(), "mssql")  # type: ignore[no-any-return]
+            else:
+                return sa.String(length=length).with_variant(sa.Unicode(length=length), "mssql")  # type: ignore[no-any-return]
         elif sc_t == "double":
             return self._create_double_type()
         elif sc_t == "bool":

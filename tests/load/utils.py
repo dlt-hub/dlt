@@ -361,6 +361,17 @@ def destinations_configs(
                 destination_name="sqlalchemy_sqlite",
                 credentials="sqlite:///_storage/dl_data.sqlite",
             ),
+            # TODO: enable in sql alchemy destination test, 99% of tests work
+            # DestinationTestConfiguration(
+            #     destination_type="sqlalchemy",
+            #     supports_merge=True,
+            #     supports_dbt=False,
+            #     destination_name="sqlalchemy_mssql",
+            #     credentials=(  # Use root cause we need to create databases,
+            #         "mssql+pyodbc://sa:Strong%21Passw0rd@localhost:1433/master"
+            #         "?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+            #     ),
+            # ),
         ]
 
         destination_configs += [

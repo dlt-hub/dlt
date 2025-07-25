@@ -36,7 +36,7 @@ from dlt.common.destination.client import (
     DestinationClientConfiguration,
     WithStateSync,
 )
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 
 from tests.cases import table_update_and_row, assert_all_data_types_row
 from tests.utils import TEST_STORAGE_ROOT
@@ -232,7 +232,7 @@ def test_complete_load(naming: str, client: SqlJobClientBase) -> None:
     assert load_rows[0][2] == 0
     import datetime  # noqa: I251
 
-    assert isinstance(ensure_pendulum_datetime(load_rows[0][3]), datetime.datetime)
+    assert isinstance(ensure_pendulum_datetime_utc(load_rows[0][3]), datetime.datetime)
     assert load_rows[0][4] == client.schema.version_hash
     # make sure that hash in loads exists in schema versions table
     versions_table = client.sql_client.make_qualified_table_name(version_table_name)
@@ -686,16 +686,27 @@ def test_load_with_all_types(
         client, file_storage, query, table_name, file_format=client.destination_config.file_format  # type: ignore[attr-defined]
     )
     db_row = list(client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0])
+    print("DB ROW", db_row)
     assert len(db_row) == len(data_row)
     # assert_all_data_types_row has many hardcoded columns so for now skip that part
     if naming == "snake_case":
         # content must equal
         assert_all_data_types_row(
+            client.capabilities,
             db_row,
             data_row,
             schema=partial["columns"],
             allow_base64_binary=client.config.destination_type in ["clickhouse", "filesystem"],
         )
+    # get table def from storage
+    _, cols = client.get_storage_table(table_name)
+    cols = normalize_storage_table_cols(table_name, cols, client.schema)
+    if naming == "snake_case":
+        # make sure all datetime formats are set
+        assert cols["col4"]["data_type"] == "timestamp"
+        if "col4_precision" in cols:
+            assert cols["col4_precision"]["data_type"] == "timestamp"
+        assert cols["col12"]["data_type"] == "timestamp"
 
 
 @pytest.mark.parametrize(

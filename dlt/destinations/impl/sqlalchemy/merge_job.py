@@ -12,7 +12,7 @@ from dlt.common.schema.utils import (
     get_validity_column_names,
     get_active_record_timestamp,
 )
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.storages.load_package import load_package_state as current_load_package
 
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
@@ -301,9 +301,9 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             cond = col.isnot(None)
         if table["columns"][col_name]["data_type"] == "bool":
             if invert:
-                cond = sa.or_(cond, col.is_(False))
+                cond = sa.or_(cond, col.eq_(False))
             else:
-                cond = col.is_(True)
+                cond = col.eq_(True)
         return col_name, cond
 
     @classmethod
@@ -377,7 +377,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                 DestinationCapabilitiesContext.generic_capabilities().format_datetime_literal
             )
 
-        boundary_ts = ensure_pendulum_datetime(
+        boundary_ts = ensure_pendulum_datetime_utc(
             root_table.get("x-boundary-timestamp", current_load_package()["state"]["created_at"])  # type: ignore[arg-type]
         )
 
