@@ -441,7 +441,7 @@ The [`ConnectorX`](https://sfu-db.github.io/connector-x/intro.html) backend comp
 There are certain limitations when using this backend:
 * It will ignore `chunk_size`. `ConnectorX` cannot yield data in batches.
 * In many cases, it requires a connection string that differs from the `SQLAlchemy` connection string. Use the `conn` argument in `backend_kwargs` to set this.
-* It will convert **decimals** to **doubles**, so you will lose precision.
+* It will convert **decimals** to **doubles**, so you will lose precision (`connectorx < 0.4.2`).
 * Nullability of the columns is ignored (always true).
 * It uses different mappings for each data type. (Check [here](https://sfu-db.github.io/connector-x/databases.html) for more details.)
 * JSON fields (at least those coming from PostgreSQL) are double-wrapped in strings. To unwrap this, you can pass the in-built transformation function `unwrap_json_connector_x` (for example, with `add_map`):
