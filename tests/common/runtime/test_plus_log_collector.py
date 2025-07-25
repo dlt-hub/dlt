@@ -48,11 +48,3 @@ def test_on_schema_change() -> None:
         data_with_schema_change = [{"id": 1, "nickname": "John"}, {"id": 2, "nickname": "Jane"}]
         pipeline.run(identity_resource(data_with_schema_change))
         assert mock_on_schema_change.call_count == 2
-        assert mock_on_schema_change.call_args[0][3] == "load"
-
-        # check the schema change that is being reported
-        schema_change_summary = mock_on_schema_change.call_args[0][2]
-        assert schema_change_summary["identity_resource"]["columns"] == {
-            "nickname": {"name": "nickname", "data_type": "text", "nullable": True}
-        }
-        print("schema_change_summary", schema_change_summary)

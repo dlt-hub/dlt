@@ -9,7 +9,7 @@ from dlt.common.runtime.collector import (
 )
 from dlt.common.runtime.collector import Collector as _Collector, NULL_COLLECTOR as _NULL_COLLECTOR
 
-TSupportedCollectors = Literal["tqdm", "enlighten", "log", "alive_progress", "callback"]
+TSupportedCollectors = Literal["tqdm", "enlighten", "log", "alive_progress"]
 TCollectorArg = Union[_Collector, TSupportedCollectors]
 
 
