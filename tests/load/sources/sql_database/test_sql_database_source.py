@@ -12,7 +12,7 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.exceptions import MissingDependencyException
 
 from dlt.common.schema.typing import TColumnSchema, TSortOrder, TTableSchemaColumns
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.utils import uniq_id
 
 from dlt.extract.exceptions import ResourceExtractionError
@@ -1151,7 +1151,7 @@ def test_sql_table_incremental_datetime_ntz(
         schema=postgres_db.schema,
         backend=backend,
         incremental=dlt.sources.incremental(
-            "datetime_ntz_col", initial_value=ensure_pendulum_datetime("2023-01-01T00:00:00Z")
+            "datetime_ntz_col", initial_value=ensure_pendulum_datetime_utc("2023-01-01T00:00:00Z")
         ),
     )
 
@@ -1454,6 +1454,7 @@ def assert_no_precision_columns(
         expected = add_default_decimal_precision(expected)
     elif backend == "sqlalchemy":
         # no precision, no nullability, all hints inferred
+        expected = remove_default_precision(expected)
         # remove dlt columns
         actual = remove_dlt_columns(actual)
     elif backend == "pandas":
@@ -1462,17 +1463,17 @@ def assert_no_precision_columns(
         expected = convert_non_pandas_types(expected)
         # on one of the timestamps somehow there is timezone info..., we only remove values set to false
         # to be sure no bad data is coming in
-        actual = remove_timezone_info(actual, only_falsy=True)
+        # actual = remove_timezone_info(actual, only_falsy=True)
     elif backend == "connectorx":
         expected = cast(
             List[TColumnSchema],
             deepcopy(NULL_PRECISION_COLUMNS if nullable else NOT_NULL_PRECISION_COLUMNS),
         )
         expected = convert_connectorx_types(expected)
-        expected = remove_timezone_info(expected, only_falsy=False)
+        # expected = remove_timezone_info(expected, only_falsy=False)
         # on one of the timestamps somehow there is timezone info..., we only remove values set to false
         # to be sure no bad data is coming in
-        actual = remove_timezone_info(actual, only_falsy=True)
+        # actual = remove_timezone_info(actual, only_falsy=True)
 
     assert actual == expected
 
@@ -1494,7 +1495,9 @@ def remove_default_precision(columns: List[TColumnSchema]) -> List[TColumnSchema
             del column["precision"]
         if column["data_type"] == "text" and column.get("precision"):
             del column["precision"]
-    return remove_timezone_info(columns, only_falsy=False)
+        if column["data_type"] == "timestamp" and column.get("precision") == 6:
+            del column["precision"]
+    return columns
 
 
 def remove_timezone_info(columns: List[TColumnSchema], only_falsy: bool) -> List[TColumnSchema]:
@@ -1613,7 +1616,7 @@ NULL_PRECISION_COLUMNS: List[TColumnSchema] = [
 NO_PRECISION_COLUMNS: List[TColumnSchema] = [
     (
         {"name": column["name"], "data_type": column["data_type"]}  # type: ignore[misc]
-        if column["data_type"] != "decimal"
+        if column["data_type"] not in ("decimal", "timestamp")
         else dict(column)
     )
     for column in PRECISION_COLUMNS

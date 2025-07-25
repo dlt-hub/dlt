@@ -611,11 +611,28 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         state_context = StateInjectableContext(state=state)
         section_context = self._get_config_section_context()
 
+        # create single resource source
+        from dlt.common.schema import Schema
+        from dlt.extract.source import (
+            _DltSingleSource,
+            SourceInjectableContext,
+            SourceSchemaInjectableContext,
+        )
+
+        source = _DltSingleSource(Schema(self.name), self.section, [self])
+        source_context = SourceInjectableContext(source)
+        schema_context = SourceSchemaInjectableContext(source.discover_schema())
+
         # managed pipe iterator will set the context on each call to  __next__
-        with inject_section(section_context), Container().injectable_context(state_context):
+        with (
+            inject_section(section_context),
+            Container().injectable_context(state_context),
+            Container().injectable_context(source_context),
+            Container().injectable_context(schema_context),
+        ):
             pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipes([self._pipe])  # type: ignore
 
-        pipe_iterator.set_context([state_context, section_context])
+        pipe_iterator.set_context([state_context, section_context, schema_context, source_context])
         _iter = map(lambda item: item.item, pipe_iterator)
         return flatten_list_or_items(_iter)
 

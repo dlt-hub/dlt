@@ -3,6 +3,7 @@ from copy import copy
 from functools import partial
 import inspect
 from typing import (
+    ClassVar,
     Dict,
     Iterable,
     Iterator,
@@ -15,6 +16,7 @@ from typing_extensions import Self
 
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import known_sections
+from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext, configspec
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
@@ -461,11 +463,18 @@ class DltSource(Iterable[TDataItem]):
         mock_state, _ = pipeline_state(Container(), {})
         state_context = StateInjectableContext(state=mock_state)
         section_context = self._get_config_section_context()
+        source_context = SourceInjectableContext(self)
+        schema_context = SourceSchemaInjectableContext(self.schema)
 
         # managed pipe iterator will set the context on each call to  __next__
-        with inject_section(section_context), Container().injectable_context(state_context):
+        with (
+            inject_section(section_context),
+            Container().injectable_context(state_context),
+            Container().injectable_context(source_context),
+            Container().injectable_context(schema_context),
+        ):
             pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipes(self._resources.selected_pipes)  # type: ignore
-        pipe_iterator.set_context([section_context, state_context])
+        pipe_iterator.set_context([section_context, state_context, schema_context, source_context])
         _iter = map(lambda item: item.item, pipe_iterator)
         return flatten_list_or_items(_iter)
 
@@ -528,3 +537,29 @@ class DltSource(Iterable[TDataItem]):
         info += " Note that, like any iterator, you can iterate the source only once."
         info += f"\ninstance id: {id(self)}"
         return info
+
+
+@configspec
+class SourceSchemaInjectableContext(ContainerInjectableContext):
+    """A context containing the source schema, present when dlt.source/resource decorated function is executed"""
+
+    schema: Schema = None
+
+    can_create_default: ClassVar[bool] = False
+
+
+@configspec
+class SourceInjectableContext(ContainerInjectableContext):
+    """A context containing the source schema, present when dlt.resource decorated function is executed"""
+
+    source: DltSource = None
+
+    can_create_default: ClassVar[bool] = False
+
+
+class _DltSingleSource(DltSource):
+    """Used to register standalone (non-inner) resources"""
+
+    @property
+    def single_resource(self) -> DltResource:
+        return list(self.resources.values())[0]

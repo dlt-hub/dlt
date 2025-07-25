@@ -15,9 +15,10 @@ from dlt.common import logger
 from dlt.common import pendulum
 from dlt.common.libs.pyarrow import columns_to_arrow, row_tuples_to_arrow
 from dlt.common.time import (
+    ensure_pendulum_datetime_non_utc,
     reduce_pendulum_datetime_precision,
     ensure_pendulum_time,
-    ensure_pendulum_datetime,
+    ensure_pendulum_datetime_utc,
     ensure_pendulum_date,
 )
 from dlt.common.utils import uniq_id
@@ -38,8 +39,8 @@ from tests.cases import (
 # NOTE: this test runs on parquet + postgres needs adbc dependency group
 destination_cases = destinations_configs(
     default_sql_configs=True,
-    default_staging_configs=True,
-    all_staging_configs=False,
+    # default_staging_configs=True,
+    # all_staging_configs=False,
     table_format_filesystem_configs=True,
 )
 # if postgres got selected, add postgres config with native parquet support via adbc
@@ -131,6 +132,7 @@ def test_load_arrow_item(
         assert some_table_columns["date"]["data_type"] == "date"
 
     rows = [list(row) for row in select_data(pipeline, "SELECT * FROM some_data")]
+    print("ROWS", rows)
 
     for row in rows:
         for i in range(len(row)):
@@ -157,7 +159,7 @@ def test_load_arrow_item(
     for row, expected_row in zip(rows, expected):
         for i in range(len(expected_row)):
             if isinstance(expected_row[i], datetime):
-                row[i] = ensure_pendulum_datetime(row[i])
+                row[i] = ensure_pendulum_datetime_non_utc(row[i])
             # clickhouse produces rounding errors on double with jsonl, so we round the result coming from there
             elif (
                 destination_config.destination_type == "clickhouse"

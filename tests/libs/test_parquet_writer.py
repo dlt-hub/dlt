@@ -12,7 +12,7 @@ from dlt.common.data_writers.writers import ArrowToParquetWriter, ParquetDataWri
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema.utils import new_column
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 
 from tests.common.data_writers.utils import get_writer
 from tests.cases import (

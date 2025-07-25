@@ -55,6 +55,7 @@ class DuckDbTypeMapper(TypeMapperImpl):
         "INTEGER": "bigint",
         "BIGINT": "bigint",
         "HUGEINT": "bigint",
+        "TIMESTAMP": "timestamp",
         "TIMESTAMP_S": "timestamp",
         "TIMESTAMP_MS": "timestamp",
         "TIMESTAMP_NS": "timestamp",
