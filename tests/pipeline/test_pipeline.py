@@ -1566,6 +1566,61 @@ def test_progress_collector_callbacks() -> None:
         assert isinstance(call_args[2], bool)  # send_state
 
 
+def test_progress_subclass_receives_callbacks() -> None:
+    counters_accesible = False
+    callbacks_received = {
+        "on_start_trace": False,
+        "on_start_trace_step": False,
+        "on_end_trace_step": False,
+        "on_end_trace": False,
+    }
+
+    class MyCollector(LogCollector):
+        def on_start_trace(
+            self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
+        ) -> None:
+            nonlocal callbacks_received
+            callbacks_received["on_start_trace"] = True
+
+        def on_start_trace_step(
+            self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
+        ) -> None:
+            nonlocal callbacks_received
+            callbacks_received["on_start_trace_step"] = True
+
+        def on_end_trace_step(
+            self,
+            trace: PipelineTrace,
+            step: PipelineStepTrace,
+            pipeline: SupportsPipeline,
+            step_info: Any,
+            send_state: bool,
+        ) -> None:
+            nonlocal callbacks_received
+            callbacks_received["on_end_trace_step"] = True
+
+        def on_end_trace(
+            self, trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool
+        ) -> None:
+            nonlocal callbacks_received
+            callbacks_received["on_end_trace"] = True
+
+        def on_log(self) -> None:
+            nonlocal counters_accesible
+            if self.counters.keys():
+                counters_accesible = True
+
+    collector = MyCollector()
+    pipeline = dlt.pipeline(pipeline_name="test_pipeline", destination="dummy", progress=collector)
+    pipeline.extract([1, 2, 3], table_name="test_table")
+
+    assert counters_accesible
+    assert callbacks_received["on_start_trace"]
+    assert callbacks_received["on_start_trace_step"]
+    assert callbacks_received["on_end_trace_step"]
+    assert callbacks_received["on_end_trace"]
+
+
 def test_pipeline_source_state_activation() -> None:
     appendix_yielded = None
 
