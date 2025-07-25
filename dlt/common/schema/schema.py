@@ -739,6 +739,8 @@ class Schema:
 
     def to_dbml(
         self,
+        remove_defaults: bool = True,
+        remove_processing_hints: bool = False,
         include_dlt_tables: bool = True,
         include_internal_dlt_ref: bool = True,
         include_parent_child_ref: bool = True,
@@ -747,8 +749,12 @@ class Schema:
     ) -> str:
         from dlt.helpers._dbml import schema_to_dbml
 
+        stored_schema = self.to_dict(
+            remove_defaults=remove_defaults, remove_processing_hints=remove_processing_hints
+        )
+
         dbml_schema = schema_to_dbml(
-            self,
+            stored_schema,
             include_dlt_tables=include_dlt_tables,
             include_internal_dlt_ref=include_internal_dlt_ref,
             include_parent_child_ref=include_parent_child_ref,

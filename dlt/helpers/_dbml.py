@@ -11,11 +11,13 @@ from dlt.common.schema.typing import (
     TColumnSchema,
     TTableReference,
     TTableSchema,
+    TStoredSchema,
 )
 from dlt.common.schema.utils import (
     create_load_table_reference,
     create_version_and_loads_hash_reference,
     create_version_and_loads_schema_name_reference,
+    get_data_and_dlt_tables,
     get_first_column_name_with_prop,
     group_tables_by_resource,
     create_root_child_reference,
@@ -35,11 +37,11 @@ TDBMLReferenceCardinality = Literal["<", ">", "-", "<>"]
 
 
 def _stringify_dict(d: Mapping[str, Any]) -> dict[str, str]:
-    return {k:json.dumps(v) for k, v in d.items()}
+    return {k: json.dumps(v) for k, v in d.items()}
 
 
 def _destringify_dict(d: Mapping[str, str]) -> dict[str, Union[bool, None, str]]:
-    return {k:json.loads(v) for k,v in d.items()}
+    return {k: json.loads(v) for k, v in d.items()}
 
 
 def _to_dbml_column(hints: TColumnSchema) -> Column:
@@ -154,20 +156,26 @@ def _from_dbml_reference(reference: Reference) -> TTableReference:
 
 
 # NOTE `TableGroup` seem to not be displayed on `dbdiagram.io`
-def _group_tables_by_resource(schema: dlt.Schema, db: Database) -> list[TableGroup]:
+def _group_tables_by_resource(schema: TStoredSchema, db: Database) -> list[TableGroup]:
+    _, dlt_tables = get_data_and_dlt_tables(schema["tables"])
+    dlt_table_names = [t["name"] for t in dlt_tables]
     table_groups = []
-    data_tables = dict(zip(schema.data_table_names(), schema.data_tables()))
 
-    for resource, tables in group_tables_by_resource(data_tables).items():
-        table_names_in_group = [table["name"] for table in tables]
-        dbml_tables = [
-            dbml_table for dbml_table in db.tables if dbml_table.name in table_names_in_group
-        ]
-        table_groups.append(TableGroup(name=resource, items=dbml_tables))
+    for resource, tables in group_tables_by_resource(schema["tables"]).items():
+        group_members_table_name = [table["name"] for table in tables]
+        group_members_dbml_tables: list[Table] = []
+        for dbml_table in db.tables:
+            if dbml_table.name in dlt_table_names:
+                continue
 
-    dlt_dbml_tables = [
-        dbml_table for dbml_table in db.tables if dbml_table.name in schema.dlt_table_names()
-    ]
+            if dbml_table.name in group_members_table_name:
+                group_members_dbml_tables.append(dbml_table)
+
+        # avoid creating empty groups
+        if group_members_dbml_tables:
+            table_groups.append(TableGroup(name=resource, items=group_members_dbml_tables))
+
+    dlt_dbml_tables = [dbml_table for dbml_table in db.tables if dbml_table.name in dlt_table_names]
     dlt_group = TableGroup(name="_dlt", items=dlt_dbml_tables)
     table_groups.append(dlt_group)
 
@@ -175,7 +183,7 @@ def _group_tables_by_resource(schema: dlt.Schema, db: Database) -> list[TableGro
 
 
 def _add_tables(
-    schema: dlt.Schema,
+    schema: TStoredSchema,
     dbml_schema: Database,
     *,
     include_dlt_tables: bool,
@@ -184,12 +192,13 @@ def _add_tables(
 
     The operation is in-place and returns the `dbml_schema` object passed as input.
     """
-    tables: list[TTableSchema]
+    data_tables, dlt_tables = get_data_and_dlt_tables(schema["tables"])
+
     if include_dlt_tables is True:
-        # the unpacking order ensures dlt tables are at the end
-        tables = [*schema.data_tables(), *schema.dlt_tables()]
+        # order allows to keep _dlt tables at the end
+        tables = data_tables + dlt_tables
     else:
-        tables = schema.dlt_tables()
+        tables = data_tables
 
     for table in tables:
         # skip tables that have no columns; DBML table requires at least one column.
@@ -203,7 +212,7 @@ def _add_tables(
 
 
 def _add_references(
-    schema: dlt.Schema,
+    schema: TStoredSchema,
     dbml_schema: Database,
     *,
     include_dlt_tables: bool,
@@ -216,7 +225,7 @@ def _add_references(
     The operation is in-place and returns the `dbml_schema` object passed as input.
     """
     # need to create all tables first because `Reference` references `Table` objects
-    for table in schema.tables.values():
+    for table in schema["tables"].values():
         table_name: str = table["name"]
         for reference in table.get("references", []):
             # user-defined references can have arbitrary cardinality and may incorrectly describe the data
@@ -247,7 +256,7 @@ def _add_references(
             dbml_parent_reference = _to_dbml_reference(
                 tables=dbml_schema.tables,
                 from_table_name=table_name,
-                reference=create_parent_child_reference(schema.tables, table_name),
+                reference=create_parent_child_reference(schema["tables"], table_name),
                 cardinality=">",  # m-to-1
             )
             dbml_schema.add_reference(dbml_parent_reference)
@@ -264,7 +273,7 @@ def _add_references(
             dbml_root_reference = _to_dbml_reference(
                 tables=dbml_schema.tables,
                 from_table_name=table_name,
-                reference=create_root_child_reference(schema.tables, table_name),
+                reference=create_root_child_reference(schema["tables"], table_name),
                 cardinality=">",  # m-to-1
             )
             dbml_schema.add_reference(dbml_root_reference)
@@ -277,7 +286,7 @@ def _add_references(
         dbml_version_and_loads_hash_ref = _to_dbml_reference(
             tables=dbml_schema.tables,
             from_table_name=VERSION_TABLE_NAME,
-            reference=create_version_and_loads_hash_reference(schema.tables),
+            reference=create_version_and_loads_hash_reference(schema["tables"]),
             cardinality="<",
         )
         # a schema name can have multiple multiple runs in the loads table
@@ -286,7 +295,7 @@ def _add_references(
         dbml_version_and_loads_schema_name_ref = _to_dbml_reference(
             tables=dbml_schema.tables,
             from_table_name=VERSION_TABLE_NAME,
-            reference=create_version_and_loads_schema_name_reference(schema.tables),
+            reference=create_version_and_loads_schema_name_reference(schema["tables"]),
             cardinality="<>",
         )
 
@@ -296,7 +305,7 @@ def _add_references(
     return dbml_schema
 
 
-def _add_table_groups(schema: dlt.Schema, dbml_schema: Database) -> Database:
+def _add_table_groups(schema: TStoredSchema, dbml_schema: Database) -> Database:
     """Add a DBML TableGroup to group tables by resources
 
     The operation is in-place and returns the `dbml_schema` object passed as input.
@@ -309,7 +318,7 @@ def _add_table_groups(schema: dlt.Schema, dbml_schema: Database) -> Database:
 
 
 def schema_to_dbml(
-    schema: dlt.Schema,
+    schema: TStoredSchema,
     *,
     include_dlt_tables: bool = True,
     include_internal_dlt_ref: bool = True,
@@ -360,7 +369,8 @@ def export_to_dbml(
     If `path` is specified, write to file.
     Else, return the string.
     """
-    dbml_schema = schema_to_dbml(schema, **schema_to_dbml_kwargs)
+    stored_schema = schema.to_dict()
+    dbml_schema = schema_to_dbml(stored_schema, **schema_to_dbml_kwargs)
     dbml_string: str = dbml_schema.dbml
 
     if path is None:

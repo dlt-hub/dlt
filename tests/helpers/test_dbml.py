@@ -562,13 +562,16 @@ def test_schema_to_dbml(example_schema: dlt.Schema) -> None:
             "_dlt_loads"
             "_dlt_pipeline_state"
         }""")
-    dbml_schema = schema_to_dbml(example_schema, group_by_resource=True)
+
+    stored_schema = example_schema.to_dict()
+    dbml_schema = schema_to_dbml(stored_schema, group_by_resource=True)
     assert dbml_schema.dbml == expected_dbml
 
 
 def test_group_tables_by_resource(example_schema: dlt.Schema) -> None:
-    dbml_schema = schema_to_dbml(example_schema)
-    dbml_table_groups = _group_tables_by_resource(schema=example_schema, db=dbml_schema)
+    stored_schema = example_schema.to_dict()
+    dbml_schema = schema_to_dbml(stored_schema)
+    dbml_table_groups = _group_tables_by_resource(schema=stored_schema, db=dbml_schema)
 
     assert len(dbml_table_groups) == 3
 
@@ -600,7 +603,8 @@ def test_export_to_dbml_default_args(example_schema: dlt.Schema) -> None:
 
 
 def test_export_to_dbml_as_string(example_schema: dlt.Schema) -> None:
-    dbml_schema = schema_to_dbml(example_schema)
+    stored_schema = example_schema.to_dict()
+    dbml_schema = schema_to_dbml(stored_schema)
     expected_output = PyDBML(dbml_schema.dbml)
 
     output = export_to_dbml(example_schema, path=None)
@@ -615,7 +619,8 @@ def test_export_to_dbml_to_file(
     example_schema: dlt.Schema,
     tmp_path: pathlib.Path,
 ) -> None:
-    dbml_schema = schema_to_dbml(example_schema)
+    stored_schema = example_schema.to_dict()
+    dbml_schema = schema_to_dbml(stored_schema)
     expected_output = PyDBML(dbml_schema.dbml)
 
     file_path = tmp_path / "my_schema.dbml"

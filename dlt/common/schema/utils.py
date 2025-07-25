@@ -874,6 +874,22 @@ def table_schema_has_type_with_precision(table: TTableSchema, _typ: TDataType) -
     )
 
 
+def get_data_and_dlt_tables(tables: TSchemaTables) -> tuple[list[TTableSchema], list[TTableSchema]]:
+    """Separate a list of dlt TTableSchema into a two lists: data tables and internal dlt tables.
+
+    This should be equivalent to `dlt.Schema.data_tables()` and `dlt.Schema.dlt_tables()`
+    """
+    data_tables: list[TTableSchema] = []
+    dlt_tables: list[TTableSchema] = []
+    for table_name, table in tables.items():
+        if table_name in (VERSION_TABLE_NAME, LOADS_TABLE_NAME, PIPELINE_STATE_TABLE_NAME):
+            dlt_tables.append(table)
+        else:
+            data_tables.append(table)
+
+    return data_tables, dlt_tables
+
+
 def get_root_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
     """Finds root (without parent) of a `table_name` following the nested references (row_key - parent_key)."""
     table = tables[table_name]
