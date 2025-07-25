@@ -455,4 +455,5 @@ class EnlightenCollector(Collector):
         self._bars = None
         self._status = None
 
+
 NULL_COLLECTOR = NullCollector()
