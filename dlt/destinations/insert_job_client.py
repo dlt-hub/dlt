@@ -7,10 +7,10 @@ from dlt.common.destination.client import (
     LoadJob,
 )
 from dlt.common.storages import FileStorage
+from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import chunks
 
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset, SqlJobClientBase
-from dlt.destinations.path_utils import get_file_format_and_compression
 
 
 class InsertValuesLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -103,8 +103,8 @@ class InsertValuesJobClient(SqlJobClientWithStagingDataset):
     ) -> LoadJob:
         job = super().create_load_job(table, file_path, load_id, restore)
         if not job:
-            file_format, _ = get_file_format_and_compression(file_path)
+            parsed_file = ParsedLoadJobFileName.parse(file_path)
             # this is using sql_client internally and will raise a right exception
-            if file_format == "insert_values":
+            if parsed_file.file_format == "insert_values":
                 job = InsertValuesLoadJob(file_path)
         return job

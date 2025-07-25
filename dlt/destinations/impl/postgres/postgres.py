@@ -17,12 +17,12 @@ from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import is_nullable_column
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.destinations.impl.postgres.configuration import PostgresClientConfiguration
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.sql_jobs import SqlStagingReplaceFollowupJob
-from dlt.destinations.path_utils import get_file_format_and_compression
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
 
@@ -191,10 +191,10 @@ class PostgresClient(InsertValuesJobClient):
     ) -> LoadJob:
         job = super().create_load_job(table, file_path, load_id, restore)
         if not job:
-            file_format, _ = get_file_format_and_compression(file_path)
-            if file_format == "csv":
+            parsed_file = ParsedLoadJobFileName.parse(file_path)
+            if parsed_file.file_format == "csv":
                 job = PostgresCsvCopyJob(file_path)
-            elif file_format == "parquet":
+            elif parsed_file.file_format == "parquet":
                 job = PostgresParquetCopyJob(file_path)
         return job
 

@@ -14,6 +14,7 @@ from tenacity import retry_if_exception, Retrying, stop_after_attempt
 import pytest
 from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.storages import FileStorage
+from dlt.common.storages.load_storage import ParsedLoadJobFileName
 
 import dlt
 from dlt.common import json, pendulum, Decimal
@@ -42,7 +43,6 @@ from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
 from dlt.destinations import filesystem, redshift, dummy, duckdb
-from dlt.destinations.path_utils import get_file_format_and_compression
 import dlt.destinations.dataset
 from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME
 from dlt.extract.exceptions import (
@@ -3259,8 +3259,12 @@ def assert_imported_file(
     jobs = pipeline.last_trace.last_load_info.load_packages[0].jobs["completed_jobs"]
     job_extensions = []
     for job in jobs:
-        file_format, is_compressed = get_file_format_and_compression(job.job_file_info.file_name())
-        ext = f".{file_format}.gz" if is_compressed else f".{file_format}"
+        parsed_file = ParsedLoadJobFileName.parse(job.job_file_info.file_name())
+        ext = (
+            f".{parsed_file.file_format}.gz"
+            if parsed_file.is_compressed
+            else f".{parsed_file.file_format}"
+        )
         job_extensions.append(ext)
     assert ".jsonl" in job_extensions
     if expects_state:

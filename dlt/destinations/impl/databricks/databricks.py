@@ -45,8 +45,8 @@ from dlt.destinations.impl.databricks.configuration import DatabricksClientConfi
 from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
-from dlt.destinations.path_utils import get_file_format_and_compression
 from dlt.destinations.impl.databricks.typing import TDatabricksColumnHint
+from dlt.destinations.path_utils import get_file_format_and_compression
 
 SUPPORTED_BLOB_STORAGE_PROTOCOLS = AZURE_BLOB_STORAGE_PROTOCOLS + S3_PROTOCOLS + GCS_PROTOCOLS
 
@@ -234,7 +234,7 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
     def _determine_source_format(
         self, file_name: str, orig_bucket_path: str
     ) -> tuple[str, str, bool]:
-        file_format, is_compressed = get_file_format_and_compression(file_name)
+        file_format, _ = get_file_format_and_compression(file_name)
 
         if file_format == "parquet":
             return "PARQUET", "", False

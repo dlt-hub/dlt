@@ -289,7 +289,9 @@ def get_table_prefix_layout(
 
 
 def get_file_format_and_compression(file_path: str) -> Tuple[str, bool]:
-    """Return file format and whether an explicit .gz compression extension is present."""
+    """Return file format and whether an explicit .gz compression extension is present.
+    Primarily used in cases that ParsedLoadJobFileName.parse() can't handle, that is,
+    staging storage files that have a configurabe layout."""
     root, ext = os.path.splitext(file_path)
 
     file_format: str = None
