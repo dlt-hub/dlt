@@ -22,10 +22,13 @@ from dlt.common.destination.utils import resolve_merge_strategy, resolve_replace
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.schema.exceptions import TableNotFound
 from dlt.common.schema.typing import (
+    C_DLT_ID,
     C_DLT_LOAD_ID,
     C_DLT_LOADS_TABLE_LOAD_ID,
     TTableFormat,
     TTableSchemaColumns,
+    TSchemaDrop,
+    TPartialTableSchema,
 )
 from dlt.common.storages.exceptions import CurrentLoadPackageStateNotAvailable
 from dlt.common.storages.fsspec_filesystem import glob_files
@@ -55,6 +58,7 @@ from dlt.common.destination.client import (
     StorageSchemaInfo,
     StateInfo,
     LoadJob,
+    WithTableReflection,
 )
 from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
@@ -264,6 +268,7 @@ class FilesystemClient(
     WithStagingDataset,
     WithStateSync,
     SupportsOpenTables,
+    WithTableReflection,
 ):
     fs_client: AbstractFileSystem
     # a path (without the scheme) to a location in the bucket where dataset is present
@@ -360,7 +365,8 @@ class FilesystemClient(
     def get_storage_tables(
         self, table_names: Iterable[str]
     ) -> Iterable[Tuple[str, TTableSchemaColumns]]:
-        """Yields tables that have files in storage, returns columns from current schema"""
+        """Yields tables that have files in storage, returns columns from files in storage for regular delta/iceberg tables,
+        or from schema for regular tables without table format"""
         for table_name in table_names:
             table_dir = self.get_table_dir(table_name)
             if (
@@ -370,7 +376,40 @@ class FilesystemClient(
                 and len(self.list_table_files(table_name)) > 0
             ):
                 if table_name in self.schema.tables:
-                    yield (table_name, self.schema.get_table_columns(table_name))
+                    # If it's an open table, only actually exsiting columns
+                    if self.is_open_table("iceberg", table_name):
+                        from dlt.common.libs.pyiceberg import (
+                            get_table_columns as get_iceberg_table_columns,
+                        )
+
+                        iceberg_table = self.load_open_table("iceberg", table_name)
+                        actual_column_names = get_iceberg_table_columns(iceberg_table)
+
+                        col_schemas = {
+                            col: schema
+                            for col, schema in self.schema.get_table_columns(table_name).items()
+                            if col in actual_column_names
+                        }
+                        yield (table_name, col_schemas)
+
+                    elif self.is_open_table("delta", table_name):
+                        from dlt.common.libs.deltalake import (
+                            get_table_columns as get_delta_table_columns,
+                        )
+
+                        delta_table = self.load_open_table("delta", table_name)
+                        actual_column_names = get_delta_table_columns(delta_table)
+
+                        col_schemas = {
+                            col: schema
+                            for col, schema in self.schema.get_table_columns(table_name).items()
+                            if col in actual_column_names
+                        }
+                        yield (table_name, col_schemas)
+
+                    else:
+                        yield (table_name, self.schema.get_table_columns(table_name))
+
                 else:
                     yield (table_name, {"_column": {}})
             else:
@@ -430,6 +469,45 @@ class FilesystemClient(
             raise exceptions[0]
         return loaded_tables
 
+    def _diff_between_actual_and_dlt_schema(
+        self, table_name: str, actual_col_names: set[str], disregard_dlt_columns: bool = True
+    ) -> TPartialTableSchema:
+        """Returns a partial table schema containing columns that exist in the dlt schema
+        but are missing from the actual table. Skips dlt internal columns by default.
+        """
+        col_schemas = self.schema.get_table_columns(table_name)
+
+        # Map escaped -> original names (actual_col_names are escaped)
+        escaped_to_original = {
+            self.sql_client.escape_column_name(col, quote=False): col for col in col_schemas.keys()
+        }
+        dropped_col_names = set(escaped_to_original.keys()) - actual_col_names
+
+        if not dropped_col_names:
+            return {}
+
+        partial_table: TPartialTableSchema = {"name": table_name, "columns": {}}
+
+        for esc_name in dropped_col_names:
+            orig_name = escaped_to_original[esc_name]
+
+            # Athena doesn't have dlt columns in actual columns. Don't drop them anyway.
+            if disregard_dlt_columns and orig_name in [C_DLT_ID, C_DLT_LOAD_ID]:
+                continue
+
+            col_schema = col_schemas[orig_name]
+            if col_schema.get("increment"):
+                # We can warn within the for loop,
+                # since there's only one incremental field per table
+                logger.warning(
+                    f"An incremental field {orig_name} is being removed from schema."
+                    "You should unset the"
+                    " incremental with `incremental=dlt.sources.incremental.EMPTY`"
+                )
+            partial_table["columns"][orig_name] = col_schema
+
+        return partial_table if partial_table["columns"] else {}
+
     def update_stored_schema(
         self,
         only_tables: Iterable[str] = None,
@@ -457,6 +535,14 @@ class FilesystemClient(
         # we assume that expected_update == applied_update so table schemas in dest were not
         # externally changed
         return applied_update
+
+    def update_dlt_schema(
+        self,
+        table_names: Iterable[str] = None,
+        expected_removal_update: TSchemaDrop = None,
+        dry_run: bool = False,
+    ) -> Optional[TSchemaDrop]:
+        return super().update_dlt_schema(table_names, expected_removal_update, dry_run)
 
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
         table = super().prepare_load_table(table_name)
