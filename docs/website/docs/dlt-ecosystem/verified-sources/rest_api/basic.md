@@ -772,6 +772,36 @@ In the example below we reference the `posts` resource's `id` field in the JSON 
 }
 ```
 
+:::tip Escaping curly braces
+When your API requires literal curly braces in parameters (e.g., for JSON filters or GraphQL queries), escape them by doubling: `{{` and `}}`.
+
+Example with GraphQL query:
+```py
+{
+    "json": {
+        "query": """
+            query Artist {{
+                artist(id: "{resources.artist_list.id}") {{
+                    id
+                    name
+                }}
+            }}
+        """
+    }
+}
+```
+
+Use the same technique for GET request query string parameters:
+
+```py
+{
+    "params": {
+        "search": "{{'filters': [{{'id': 42}}]}}"
+    }
+}
+```
+
+:::
 
 #### Legacy syntax: `resolve` field in parameter configuration
 
