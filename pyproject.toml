@@ -180,6 +180,9 @@ workspace = [
     "pandas>=2.1.4",
     "marimo>=0.14.5",
 ]
+dbml = [
+    "pydbml"
+]
 
 [project.urls]
 Homepage = "https://github.com/dlt-hub"
