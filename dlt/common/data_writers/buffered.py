@@ -239,9 +239,9 @@ class BufferedDataWriter(Generic[TWriter]):
         base_filename = self.file_name_template % new_file_id()
         file_extension = self.writer_spec.file_extension
 
-        # Add .gz extension if compression is enabled and is not an imported file
-        # or if marked as a compressed file
-        if (mark_compressed is None and self.should_compress) or mark_compressed is True:
+        # Add .gz extension if marked as a compressed imported file or
+        # or no imported file mark is provided and configs instruct to compress
+        if mark_compressed or (mark_compressed is None and self.should_compress):
             self._file_name = f"{base_filename}.{file_extension}.gz"
         else:
             self._file_name = f"{base_filename}.{file_extension}"
