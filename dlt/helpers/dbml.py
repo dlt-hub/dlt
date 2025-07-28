@@ -1,9 +1,8 @@
-from collections.abc import Mapping
 import pathlib
+from collections.abc import Mapping
 from typing import Any, Literal, Union, overload, Optional, cast
 
 import dlt
-from dlt.common.json import json
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
@@ -23,6 +22,7 @@ from dlt.common.schema.utils import (
     create_root_child_reference,
     create_parent_child_reference,
     is_nested_table,
+    remove_column_defaults,
 )
 from dlt.common.utils import without_none
 
@@ -33,74 +33,112 @@ except ModuleNotFoundError:
     raise MissingDependencyException("PyDBML", ["pydbml>=1.2.0"])
 
 
+__all__ = (
+    "schema_to_dbml",
+    "export_to_dbml",
+)
+
+
 TDBMLReferenceCardinality = Literal["<", ">", "-", "<>"]
 
 
 def _stringify_dict(d: Mapping[str, Any]) -> dict[str, str]:
-    return {k: json.dumps(v) for k, v in d.items()}
+    return {k: str(v) for k, v in d.items()}
 
 
 def _destringify_dict(d: Mapping[str, str]) -> dict[str, Union[bool, None, str]]:
-    return {k: json.loads(v) for k, v in d.items()}
+    output = {}
+    for k, v in d.items():
+        value: Union[bool, None, str]
+        if v == "True":
+            value = True
+        elif v == "False":
+            value = False
+        elif v == "None":
+            value = None
+        else:
+            value = str(v)
+
+        output[k] = value
+
+    return output
 
 
-def _to_dbml_column(hints: TColumnSchema) -> Column:
-    """Convert a dlt column schema to a dbml column
+def _to_dbml_column(column_hints: TColumnSchema) -> Column:
+    """Convert a dlt column schema to a DBML column
 
-    `properties` are not rendered; we use them to store the original hints.
-
-    NOTE: dbml column has boolean properties and doesn't support `None`.
-    For example, we can't disambiguate `unique=False` in DBML from
-    `unique=False or `unique=None` in dlt.
+    `properties` include remaining dlt hints. They can be rendered by `PyDBML`, but
+    most DBML frontends will raised errors when included.
     """
+    # remove hints that can be retrieved from DBML `Column()`
+    properties = remove_column_defaults(
+        cast(
+            TColumnSchema,
+            {
+                k: v
+                for k, v in column_hints.items()
+                if k
+                not in ("name", "data_type", "unique", "nullable", "primary_key", "description")
+            },
+        )
+    )
     return Column(
-        name=hints["name"],
-        type=hints["data_type"],
-        unique=hints.get("unique") is True,
-        not_null=hints.get("nullable") is False,
-        pk=hints.get("primary_key") is True,
-        note=hints.get("description"),
-        # we stringify because of `pydbml` constraints
-        properties=_stringify_dict(hints),
+        name=column_hints["name"],
+        type=column_hints["data_type"],
+        unique=bool(column_hints.get("unique")),
+        not_null=not bool(column_hints.get("nullable", True)),
+        pk=bool(column_hints.get("primary_key")),
+        note=column_hints.get("description"),
+        properties=None if properties == {} else _stringify_dict(properties),
     )
 
 
 def _from_dbml_column(column: Column) -> TColumnSchema:
-    """Convert a dbml column to a dlt column schema"""
-    original_hints = _destringify_dict(column.properties)
-    retrieved_hints = {
-        "name": column.name,
-        "data_type": column.type,
-        "unique": None if original_hints.get("unique") is None else column.unique,
-        "nullable": None if original_hints.get("nullable") is None else not column.not_null,
-        "primary_key": None if original_hints.get("primary_key") is None else column.pk,
-        "description": None if original_hints.get("description") is None else column.note.text,
-    }
-    return cast(TColumnSchema, without_none(retrieved_hints))
+    """Convert a DBML column to a dlt column schema"""
+    hints = cast(
+        TColumnSchema,
+        {
+            "name": column.name,
+            "data_type": column.type,
+            "unique": column.unique,
+            "nullable": not column.not_null,
+            "primary_key": column.pk,
+            "description": None if column.note.text == "" else column.note.text,
+            # `column.properties` should contain keys mutually exclusive with the above
+            **_destringify_dict(column.properties),
+        },
+    )
+    return cast(TColumnSchema, remove_column_defaults(hints))
 
 
-def _to_dbml_table(table: TTableSchema) -> Table:
-    """Convert a dlt table schema to a dbml table
+def _to_dbml_table(table_hints: TTableSchema) -> Table:
+    """Convert a dlt table schema to a DBML table
 
-    `properties` are not rendered; we use them to store the original hints.
+    `properties` include remaining dlt hints. They can be rendered by `PyDBML`, but
+    most DBML frontends will raised errors when included.
     """
-    columns = [_to_dbml_column(col) for col in table["columns"].values()]
+    # remove hints that can be retrieved from DBML `Table()`
+    properties = {
+        k: v for k, v in table_hints.items() if k not in ("name", "columns", "description")
+    }
     return Table(
-        name=table["name"],
-        columns=columns,
-        note=table.get("description"),
-        properties=_stringify_dict(table),
+        name=table_hints["name"],
+        columns=[_to_dbml_column(col) for col in table_hints["columns"].values()],
+        note=table_hints.get("description"),
+        properties=None if properties == {} else _stringify_dict(properties),
     )
 
 
 def _from_dbml_table(table: Table) -> TTableSchema:
-    """Convert a dbml table to a dlt table schema"""
+    """Convert a DBML table to a dlt table schema"""
     original_hints = _destringify_dict(table.properties)
+    original_hints.pop("columns", None)
     columns = {col.name: _from_dbml_column(col) for col in table.columns}
     retrieved_hints = {
         "name": table.name,
         "columns": columns,
-        "description": None if original_hints.get("description") is None else table.note.text,
+        "description": None if table.note.text == "" else table.note.text,
+        **original_hints,
     }
     return cast(TTableSchema, without_none(retrieved_hints))
 
@@ -114,10 +152,10 @@ def _to_dbml_reference(
     tables: list[Table],
     cardinality: TDBMLReferenceCardinality,
 ) -> Reference:
-    """Convert a dlt table reference to a dbml reference
+    """Convert a dlt table reference to a DBML reference
 
-    NOTE DBML doesn't have a concept of `from` and `to` columns. DBML can represent
-    relationship cardinality, but `dlt` doesn't store this information. We default to `"-"`
+    NOTE DBML can represent relationship cardinality, but `dlt` doesn't store this information.
+    The calling function specifies the loosest possible cardinality.
     """
     from_columns = reference["columns"]
     to_table = reference["referenced_table"]
@@ -147,7 +185,7 @@ def _to_dbml_reference(
 
 
 def _from_dbml_reference(reference: Reference) -> TTableReference:
-    """Convert a dbml reference to a dlt table reference"""
+    """Convert a DBML reference to a dlt table reference"""
     return TTableReference(
         referenced_table=reference.col2[0].table.name,
         columns=[col.name for col in reference.col1],
@@ -157,10 +195,16 @@ def _from_dbml_reference(reference: Reference) -> TTableReference:
 
 # NOTE `TableGroup` seem to not be displayed on `dbdiagram.io`
 def _group_tables_by_resource(schema: TStoredSchema, db: Database) -> list[TableGroup]:
+    """Create DBML table groups for dlt tables.
+
+    Data tables are grouped by resource.
+    Internal dlt tables are grouped together despite each having its own resource.
+    """
     _, dlt_tables = get_data_and_dlt_tables(schema["tables"])
     dlt_table_names = [t["name"] for t in dlt_tables]
     table_groups = []
 
+    # data tables groups
     for resource, tables in group_tables_by_resource(schema["tables"]).items():
         group_members_table_name = [table["name"] for table in tables]
         group_members_dbml_tables: list[Table] = []
@@ -175,6 +219,7 @@ def _group_tables_by_resource(schema: TStoredSchema, db: Database) -> list[Table
         if group_members_dbml_tables:
             table_groups.append(TableGroup(name=resource, items=group_members_dbml_tables))
 
+    # internal dlt tables group
     dlt_dbml_tables = [dbml_table for dbml_table in db.tables if dbml_table.name in dlt_table_names]
     dlt_group = TableGroup(name="_dlt", items=dlt_dbml_tables)
     table_groups.append(dlt_group)
@@ -191,6 +236,14 @@ def _add_tables(
     """Add a DBML Table for each dlt table.
 
     The operation is in-place and returns the `dbml_schema` object passed as input.
+
+    Args:
+        schema: dlt schema to convert
+        dbml_schema: DBML schema
+        include_dlt_tables: If True, include data tables and internal dlt tables.
+
+    Returns:
+        DBML schema
     """
     data_tables, dlt_tables = get_data_and_dlt_tables(schema["tables"])
 
@@ -215,7 +268,6 @@ def _add_references(
     schema: TStoredSchema,
     dbml_schema: Database,
     *,
-    include_dlt_tables: bool,
     include_internal_dlt_ref: bool,
     include_parent_child_ref: bool,
     include_root_child_ref: bool,
@@ -223,6 +275,17 @@ def _add_references(
     """Add a DBML Reference for each dlt reference.
 
     The operation is in-place and returns the `dbml_schema` object passed as input.
+
+    Args:
+        schema: dlt schema to convert
+        dbml_schema: DBML schema to add references to
+        include_internal_dlt_ref: If True, include references from `root._dlt_load_id` to `_dlt_loads.load_id`
+            If `_dlt_version` and `_dlt_loads` are present, include references between them.
+        include_parent_child_ref: If True, include references from `child._dlt_parent_id` to `parent._dlt_id`
+        include_root_child_ref: If True, include references from `child._dlt_root_id` to `root._dlt_id`
+
+    Returns:
+        DBML schema
     """
     # need to create all tables first because `Reference` references `Table` objects
     for table in schema["tables"].values():
@@ -279,7 +342,11 @@ def _add_references(
             dbml_schema.add_reference(dbml_root_reference)
 
     # generate links between internal dlt tables
-    if include_dlt_tables is True and include_internal_dlt_ref is True:
+    if (
+        VERSION_TABLE_NAME in schema["tables"]
+        and VERSION_TABLE_NAME in schema["tables"]
+        and include_internal_dlt_ref is True
+    ):
         # a schema version hash can have multiple runs in the loads table
         # schema version hash is unique
         # possible: cardinality: `-` (1-to-1) or `<` (1-to-m)
@@ -309,6 +376,13 @@ def _add_table_groups(schema: TStoredSchema, dbml_schema: Database) -> Database:
     """Add a DBML TableGroup to group tables by resources
 
     The operation is in-place and returns the `dbml_schema` object passed as input.
+
+    Args:
+        schema: dlt schema to convert
+        dbml_schema: DBML schema
+
+    Returns:
+        DBML schema
     """
     for table_group in _group_tables_by_resource(schema, dbml_schema):
         # operation is inplace
@@ -320,22 +394,37 @@ def _add_table_groups(schema: TStoredSchema, dbml_schema: Database) -> Database:
 def schema_to_dbml(
     schema: TStoredSchema,
     *,
+    allow_custom_dbml_properties: bool = False,
     include_dlt_tables: bool = True,
     include_internal_dlt_ref: bool = True,
     include_parent_child_ref: bool = True,
     include_root_child_ref: bool = True,
     group_by_resource: bool = False,
-    **kwargs: Any,
 ) -> Database:
-    """Convert a dlt.Schema object to a PyDBML representation."""
+    """Convert a dlt.Schema object to a PyDBML representation.
 
-    dbml_schema = Database()
+    Args:
+        schema: dlt schema to convert
+        allow_custom_dbml_properties: If True, store all dlt metadata on DBML properties. This will
+            cause rendering errors in most DBML frontends. If True, dlt to DBML all metadata is preserved.
+            If False, the conversion loses some details to reconstruct the dlt schema.
+        include_dlt_tables: If True, include data tables and internal dlt tables. This will influence table
+            references and groups produced.
+        include_internal_dlt_ref: If True, include references between tables `_dlt_version`, `_dlt_loads` and `_dlt_pipeline_state`
+        include_parent_child_ref: If True, include references from `child._dlt_parent_id` to `parent._dlt_id`
+        include_root_child_ref: If True, include references from `child._dlt_root_id` to `root._dlt_id`
+        group_by_resource: If True, group tables by resource.
+
+    Returns:
+        DBML schema
+    """
+
+    dbml_schema = Database(allow_properties=allow_custom_dbml_properties)
 
     _add_tables(schema, dbml_schema, include_dlt_tables=include_dlt_tables)
     _add_references(
         schema,
         dbml_schema,
-        include_dlt_tables=include_internal_dlt_ref,
         include_internal_dlt_ref=include_internal_dlt_ref,
         include_parent_child_ref=include_parent_child_ref,
         include_root_child_ref=include_root_child_ref,
@@ -346,6 +435,11 @@ def schema_to_dbml(
     return dbml_schema
 
 
+# TODO convert DBML back to dlt schema
+# def dbml_to_schema(dbml_schema: Union[Database, str]) -> TStoredSchema:
+#     return
+
+
 @overload
 def export_to_dbml(schema: dlt.Schema, *, path: None = None) -> str:
     """Convert `dlt.Schema` to DBML and return the string"""
@@ -353,7 +447,7 @@ def export_to_dbml(schema: dlt.Schema, *, path: None = None) -> str:
 
 
 @overload
-def export_to_dbml(schema: dlt.Schema, *, path: Union[pathlib.Path, str]) -> None:
+def export_to_dbml(schema: dlt.Schema, *, path: Union[pathlib.Path, str]) -> str:
     """Convert `dlt.Schema` to DBML and write result to path at specified `path`"""
     ...
 
@@ -363,14 +457,41 @@ def export_to_dbml(
     schema: dlt.Schema,
     *,
     path: Optional[Union[pathlib.Path, str]] = None,
-    **schema_to_dbml_kwargs: Any,
-) -> Optional[str]:
-    """Convert a `dlt.Schema` to a a DBML string.
-    If `path` is specified, write to file.
-    Else, return the string.
+    allow_custom_dbml_properties: bool = False,
+    include_dlt_tables: bool = True,
+    include_internal_dlt_ref: bool = True,
+    include_parent_child_ref: bool = True,
+    include_root_child_ref: bool = True,
+    group_by_resource: bool = False,
+) -> str:
+    """Convert a `dlt.Schema` to a a DBML string and return its value.
+
+    Args:
+        schema: dlt schema to convert
+        path: If specified, write the DBML string to the file at the specified path.
+        allow_custom_dbml_properties: If True, store all dlt metadata on DBML properties. This will
+            cause rendering errors in most DBML frontends. If True, dlt to DBML all metadata is preserved.
+            If False, the conversion loses some details to reconstruct the dlt schema.
+        include_dlt_tables: If True, include data tables and internal dlt tables. This will influence table
+            references and groups produced.
+        include_internal_dlt_ref: If True, include references between tables `_dlt_version`, `_dlt_loads` and `_dlt_pipeline_state`
+        include_parent_child_ref: If True, include references from `child._dlt_parent_id` to `parent._dlt_id`
+        include_root_child_ref: If True, include references from `child._dlt_root_id` to `root._dlt_id`
+        group_by_resource: If True, group tables by resource.
+
+    Returns:
+        DBML string
     """
     stored_schema = schema.to_dict()
-    dbml_schema = schema_to_dbml(stored_schema, **schema_to_dbml_kwargs)
+    dbml_schema = schema_to_dbml(
+        stored_schema,
+        allow_custom_dbml_properties=allow_custom_dbml_properties,
+        include_dlt_tables=include_dlt_tables,
+        include_internal_dlt_ref=include_internal_dlt_ref,
+        include_parent_child_ref=include_parent_child_ref,
+        include_root_child_ref=include_root_child_ref,
+        group_by_resource=group_by_resource,
+    )
     dbml_string: str = dbml_schema.dbml
 
     if path is None:
@@ -384,4 +505,4 @@ def export_to_dbml(
         path = path.with_suffix(".dbml")
 
     path.write_text(dbml_string)
-    return None
+    return dbml_string

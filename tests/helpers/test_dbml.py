@@ -1,3 +1,4 @@
+from copy import deepcopy
 import pathlib
 import textwrap
 
@@ -7,7 +8,8 @@ from pydbml.classes import Reference, Table, Column  # type: ignore[import-untyp
 
 import dlt
 from dlt.common.schema.typing import TColumnSchema, TTableReference, TTableSchema
-from dlt.helpers._dbml import (
+from dlt.common.schema.utils import remove_column_defaults
+from dlt.helpers.dbml import (
     export_to_dbml,
     schema_to_dbml,
     _to_dbml_column,
@@ -276,6 +278,7 @@ def assert_equal_dbml_columns(col1: Column, col2: Column) -> None:
     assert col1.autoinc == col2.autoinc
     assert col1.comment == col2.comment
     assert col1.default == col2.default
+    assert col1.properties == col2.properties
     # we dont't compare `.table` because of circular references
     # between PyDBML `Column` and `Table` objects.
     # assert col1.table == col2.table
@@ -295,6 +298,7 @@ def assert_equal_dbml_tables(table1: Table, table2: Table) -> None:
     assert table1.alias == table2.alias
     assert table1.header_color == table2.header_color
     assert table1.abstract == table2.abstract
+    assert table1.properties == table2.properties
 
     for col1, col2 in zip(table1.columns, table2.columns):
         assert_equal_dbml_columns(col1, col2)
@@ -320,24 +324,40 @@ def assert_equal_dbml_references(ref1: Reference, ref2: Reference) -> None:
     "hints,dbml_col",
     [
         (
-            {"name": "simple_column", "data_type": "text"},
-            Column(name="simple_column", type="text"),
+            {"name": "simple_col", "data_type": "text"},
+            Column(name="simple_col", type="text"),
         ),
         (
-            {"name": "nullable_column", "data_type": "text", "nullable": False},
-            Column(name="nullable_column", type="text", not_null=True),
+            {"name": "nullable_col", "data_type": "text", "nullable": False},
+            Column(name="nullable_col", type="text", not_null=True),
         ),
         (
-            {"name": "unique_column", "data_type": "text", "unique": True},
-            Column(name="unique_column", type="text", unique=True),
+            {"name": "nullable_col", "data_type": "text", "nullable": True},  # default value
+            Column(name="nullable_col", type="text", not_null=False),
         ),
         (
-            {"name": "primary_key_column", "data_type": "text", "primary_key": True},
-            Column(name="primary_key_column", type="text", pk=True),
+            {"name": "unique_col", "data_type": "text", "unique": True},  # default value
+            Column(name="unique_col", type="text", unique=True),
         ),
         (
-            {"name": "description_column", "data_type": "text", "description": "foo"},
-            Column(name="description_column", type="text", note="foo"),
+            {"name": "unique_col", "data_type": "text", "unique": False},
+            Column(name="unique_col", type="text", unique=False),
+        ),
+        (
+            {"name": "primary_key_col", "data_type": "text", "primary_key": True},
+            Column(name="primary_key_col", type="text", pk=True),
+        ),
+        (
+            {"name": "description_col", "data_type": "text", "description": "foo"},
+            Column(name="description_col", type="text", note="foo"),
+        ),
+        (
+            {"name": "custom_bool_col", "data_type": "text", "x-pii": True},
+            Column(name="custom_bool_col", type="text", properties={"x-pii": "True"}),
+        ),
+        (
+            {"name": "custom_str_col", "data_type": "text", "x-label": "custom"},
+            Column(name="custom_str_col", type="text", properties={"x-label": "custom"}),
         ),
     ],
 )
@@ -347,22 +367,19 @@ def test_to_and_from_dbml_column(hints: TColumnSchema, dbml_col: Column) -> None
     This is different from `dbml -> dlt` because we assume that the dbml column
     includes some metadata stored on `properties` field.
     """
+    hints_without_defaults = remove_column_defaults(deepcopy(hints))
+
     # dlt -> dbml
     inferred_dbml_col = _to_dbml_column(hints)
     assert_equal_dbml_columns(dbml_col, inferred_dbml_col)
 
-    # we expect the conversion from original `pydbml.Column` to dlt
-    # to fail when it includes other keys than `name` and `data_type`.
-    # the conversion requires metadata stored on the `properties` field.
-    # TODO support this case more robustly
-    if hints.keys() != {"name", "data_type"}:
-        # dbml -> dlt
-        with pytest.raises(AssertionError):
-            assert hints == _from_dbml_column(dbml_col)
+    # dbml -> dlt
+    inferred_hints = _from_dbml_column(dbml_col)
+    assert inferred_hints == hints_without_defaults
 
     # dlt -> dbml -> dlt
-    inferred_hints = _from_dbml_column(inferred_dbml_col)
-    assert hints == inferred_hints
+    inferred_hints_from_inferred_col = _from_dbml_column(inferred_dbml_col)
+    assert inferred_hints_from_inferred_col == hints_without_defaults
 
 
 # NOTE this test doesn't include `references` field because creating `references`
@@ -378,7 +395,10 @@ def test_to_and_from_dbml_column(hints: TColumnSchema, dbml_col: Column) -> None
                     "bar": {"name": "bar", "data_type": "bigint"},
                 },
             },
-            Table(name="simple_table", columns=[Column(name="foo", type="text")]),
+            Table(
+                name="simple_table",
+                columns=[Column(name="foo", type="text"), Column(name="bar", type="bigint")],
+            ),
         ),
         (
             {
@@ -410,9 +430,13 @@ def test_to_and_from_dbml_table(table_schema: TTableSchema, dbml_table: Table) -
     inferred_dbml_table = _to_dbml_table(table_schema)
     assert_equal_dbml_tables(dbml_table, inferred_dbml_table)
 
-    # dlt -> dbml -> dlt
-    inferred_hints = _from_dbml_table(inferred_dbml_table)
+    # dbml -> dlt
+    inferred_hints = _from_dbml_table(dbml_table)
     assert table_schema == inferred_hints
+
+    # dlt -> dbml -> dlt
+    inferred_hints_from_inferred_table = _from_dbml_table(inferred_dbml_table)
+    assert table_schema == inferred_hints_from_inferred_table
 
 
 def test_to_and_from_dbml_reference() -> None:
@@ -449,13 +473,13 @@ def test_to_and_from_dbml_reference() -> None:
     )
     assert_equal_dbml_references(expected_dbml_reference, inferred_dbml_reference)
 
-    # dlt -> dbml -> dlt
-    inferred_dlt_reference = _from_dbml_reference(inferred_dbml_reference)
-    assert expected_dlt_reference == inferred_dlt_reference
-
     # dbml -> dlt
     inferred_dlt_reference = _from_dbml_reference(expected_dbml_reference)
     assert expected_dlt_reference == inferred_dlt_reference
+
+    # dlt -> dbml -> dlt
+    inferred_dlt_reference_from_inferred_reference = _from_dbml_reference(inferred_dbml_reference)
+    assert expected_dlt_reference == inferred_dlt_reference_from_inferred_reference
 
 
 def test_schema_to_dbml(example_schema: dlt.Schema) -> None:
@@ -596,12 +620,6 @@ def test_group_tables_by_resource(example_schema: dlt.Schema) -> None:
     assert dlt_group_members == {"_dlt_loads", "_dlt_version", "_dlt_pipeline_state"}
 
 
-def test_export_to_dbml_default_args(example_schema: dlt.Schema) -> None:
-    """Assert a string is returned when no path is provided"""
-    output = export_to_dbml(example_schema)
-    assert isinstance(output, str)
-
-
 def test_export_to_dbml_as_string(example_schema: dlt.Schema) -> None:
     stored_schema = example_schema.to_dict()
     dbml_schema = schema_to_dbml(stored_schema)
@@ -615,10 +633,7 @@ def test_export_to_dbml_as_string(example_schema: dlt.Schema) -> None:
     assert expected_output.dbml == loaded_dbml.dbml
 
 
-def test_export_to_dbml_to_file(
-    example_schema: dlt.Schema,
-    tmp_path: pathlib.Path,
-) -> None:
+def test_export_to_dbml_to_file(example_schema: dlt.Schema, tmp_path: pathlib.Path) -> None:
     stored_schema = example_schema.to_dict()
     dbml_schema = schema_to_dbml(stored_schema)
     expected_output = PyDBML(dbml_schema.dbml)
@@ -628,6 +643,18 @@ def test_export_to_dbml_to_file(
     # PyDBML can directly load from file
     loaded_dbml = PyDBML(file_path)
 
-    assert output is None
+    assert isinstance(output, str)
     # for some reason, the PyDBML objects are not directly equal
     assert expected_output.dbml == loaded_dbml.dbml
+
+
+@pytest.mark.parametrize("remove_processing_hints", (True, False))
+def test_schema_to_dbml_method(example_schema: dlt.Schema, remove_processing_hints: bool) -> None:
+    """Test that export method and functions are equivalent.
+    Assert if `Schema.to_dbml()` should impact DBML output.
+    """
+    # `export_to_dbml()` implicitly calls `Schema.to_dict()` with default kwargs.
+    dbml_from_function = export_to_dbml(example_schema)
+    dbml_from_method = example_schema.to_dbml(remove_processing_hints=remove_processing_hints)
+
+    assert dbml_from_function == dbml_from_method
