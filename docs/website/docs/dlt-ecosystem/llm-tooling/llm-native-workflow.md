@@ -56,7 +56,7 @@ Go to `Cursor Settings > Indexing & Docs` to see all your added documentation. Y
 ### Install dlt Workspace
 
 ```sh
-pip install dlt[workspace]
+pip install "dlt[workspace]"
 ```
 
 ### Initialize workspace
@@ -151,6 +151,10 @@ The dashboard shows:
 - Data itself, you can even write custom queries
 
 The dashboard helps detect silent failures due to pagination errors, schema drift, or incremental load misconfigurations.
+
+<div style={{textAlign: 'center'}}>
+![dashboard](https://storage.googleapis.com/dlt-blog-images/llm-native-dashboard.png)
+</div>
 
 ## Use the data in a Notebook
 
