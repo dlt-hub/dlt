@@ -165,16 +165,10 @@ class LogCollector(Collector):
     def _counter_to_log_line(
         self, counter_key: str, count: int, info: CounterInfo, current_time: float
     ) -> str:
-        """Convert a single counter to a log line format.
-
-        Args:
-            counter_key: The counter key
-            count: Current count value
-            info: CounterInfo object
-            current_time: Current timestamp
-
-        Returns:
-            str: Formatted log line for this counter
+        """
+        Convert a single counter to a log line.
+        Example:
+            Resources: 0/1 (0.0%) | Time: 0.01s | Rate: 0.00/s
         """
         elapsed_time = current_time - info.start_time
         items_per_second = (count / elapsed_time) if elapsed_time > 0 else 0
