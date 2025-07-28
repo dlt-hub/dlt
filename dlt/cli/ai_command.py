@@ -1,25 +1,41 @@
 import os
 import shutil
 from pathlib import Path
-from typing import List, Tuple, get_args, Literal, Set, Union
+from typing import List, Tuple, get_args, Literal, Set, Union, Dict
 
 from dlt.cli import echo as fmt
 from dlt.common import git
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.runtime import run_context
 
-
 TSupportedIde = Literal[
+    "amp",
+    "codex",
+    "cody",
     "cursor",
     "continue",
     "cline",
-    "claude_desktop",
+    "claude",
+    "windsurf",
+    "copilot",
 ]
 
-SUPPORTED_IDES: Set[TSupportedIde] = list(get_args(TSupportedIde))  # type: ignore
+LOCATION_IN_BASE_DIR: Dict[TSupportedIde, str] = {
+    "amp": "AGENT.md",
+    "codex": "AGENT.md",
+    "cody": ".sourcegraph",
+    "cursor": ".cursor",
+    "continue": ".continue",
+    "cline": ".clinerules",
+    "claude": "CLAUDE.md",
+    "windsurf": ".windsurf",
+    "copilot": ".github",
+}
+
+SUPPORTED_IDES: Set[TSupportedIde] = set(get_args(TSupportedIde))
 VERIFIED_SOURCES_AI_BASE_DIR = "ai"
 
-# TODO Claude Desktop: rules need to be named `CLAUDE.md`, allow command to append to it
+# TODO Claude: rules need to be named `CLAUDE.md`, allow command to append to it
 # TODO Continue: rules need to be in YAML file, allow command to properly edit it
 # TODO generate more files based on the specifics of the source README and the destination
 
@@ -27,31 +43,43 @@ VERIFIED_SOURCES_AI_BASE_DIR = "ai"
 def _copy_repo_files(
     src_dir: Path, dest_dir: Path, warn_on_overwrite: bool = True
 ) -> Tuple[List[str], int]:
+    """
+    Copy either a single .md file or all files under a directory into dest_dir.
+    1. Single .md files (e.g. CLAUDE.md) are directly copied.
+    2. Rule files that follow a specific a folder structure (e.g .cursor/rules/) follow that structure.
+    """
     copied_files = []
     count_files = 0
 
-    for src_sub_path in src_dir.rglob("*"):
-        if src_sub_path.is_dir():
-            continue
+    if src_dir.is_file() and src_dir.suffix == ".md":
+        files = [src_dir]
+        src_root = src_dir.parent  # strip parent so relative_path == 'file.md'
+        dest_root = dest_dir  # single .md file goes directly under dest_dir
+    else:
+        files = [path for path in src_dir.rglob("*") if path.is_file()]
+        src_root = src_dir
+        dest_root = dest_dir / src_dir.name  # preserve top-level folder
 
-        if src_sub_path.name == ".message":
+    for src_path in files:
+        if src_path.name == ".message":
             # display message, do not copy
-            fmt.echo(src_sub_path.read_text(encoding="utf-8"))
+            fmt.echo(src_path.read_text(encoding="utf-8"))
             continue
 
         count_files += 1
-        dest_file_path = dest_dir / src_sub_path.relative_to(src_dir)
+
+        relative_path = src_path.relative_to(src_root)
+        dest_file_path = dest_root / relative_path
+
         if dest_file_path.exists():
             if warn_on_overwrite:
                 fmt.warning(f"Existing rules file found at {dest_file_path.absolute()}; Skipping.")
             continue
 
-        copied_files.append(src_sub_path.name)
+        dest_file_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src_path, dest_file_path)
+        copied_files.append(src_path.name)
 
-        if not dest_file_path.parent.exists():
-            dest_file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        shutil.copy2(src_sub_path, dest_file_path)
     return copied_files, count_files
 
 
@@ -75,7 +103,9 @@ def ai_setup_command(
             % (fmt.bold(location), fmt.bold(branch or "<default>"))
         )
         return
-    src_dir = Path(src_storage.make_full_path(VERIFIED_SOURCES_AI_BASE_DIR)) / ide
+
+    suffix = LOCATION_IN_BASE_DIR.get(ide)
+    src_dir = Path(src_storage.make_full_path(VERIFIED_SOURCES_AI_BASE_DIR)) / suffix
 
     # where the command is ran, i.e., project root
     dest_dir = Path(run_context.active().run_dir)
