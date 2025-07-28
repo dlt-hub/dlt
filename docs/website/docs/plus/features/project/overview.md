@@ -1,6 +1,6 @@
 ---
-title: Project Overview
-description: Generate dlt projects in yaml
+title: Project overview
+description: Define dlt+ Projects in YAML
 ---
 
 # Project
@@ -41,9 +41,11 @@ The main component of a dlt+ Project is the dlt manifest file (`dlt.yml`). It ma
 
 ### Sources
 
-This section lets you define [sources](../project/source-configuration.md)  either declaratively or by referencing an implementation from a Python module inside `sources/`. In the example below, two sources are declared:
+[Sources](../project/source-configuration.md) can either be defined declaratively or by referencing an implementation from a Python module inside `sources/`. In the example below, two sources are declared:
 1. a dlt REST API source whose parameters are passed within the manifest
 2. a GitHub source defined in a function `source` whose source code inside `sources/github.py` is referenced
+
+For more detailed documentation on the core sources in dlt+, visit the [source configuration](../project/source-configuration.md) page. 
 
 ```yaml
 sources:
@@ -62,6 +64,8 @@ sources:
   github:
     type: github.source
 ```
+
+ 
 
 ### Destinations
 
@@ -297,5 +301,5 @@ The `dlt.yml` marks the root of a project. Projects can also be nested. If you r
 
 ## Packaging and distributing the projects
 
-Projects can be distributed as Python packages to share with your organization and enable data access. Instructions on how to build these Python packages are coming soon. Join our [early access](https://info.dlthub.com/waiting-list) program to learn more!
+Projects can be distributed as Python packages to share with your organization and enable data access. [Python package](../../getting-started/advance_tutorial.md)
 

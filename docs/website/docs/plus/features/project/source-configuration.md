@@ -1,9 +1,9 @@
 ---
-title: Source Configuration
-description: Initialize ore sources in yaml file
+title: Source configuration
+description: Initialize core sources in YAML file
 ---
 
-# Source Configuration
+# Source configuration
 
 <img src="https://storage.googleapis.com/dlt-blog-images/plus/dlt_plus_projects.png" width="500"/>
 
@@ -49,15 +49,15 @@ sources:
 * The `encounter-condition` resource uses an advanced configuration:
   * `path`: Point to the `/encounter-condition`endpoint.
   * `params.offset`: Enables incremental loading using the `name` field as the cursor.
-  * `write_disposition: append`: Ensures new data is appended rather than overwriting previous loads.
+  * `write_disposition: replace`: Replaces the destination dataset with whatever the source produced on this run.
 
 
 
 ## SQL database
 
-For SQL-base extractions that require no table-specific parameter configuration, it's possible to initialize `type = sql_database` and declare multiple tables at once.
+For SQL-base extractions that require no table-specific parameter configuration, it's possible to initialize `type: sql_database` and declare multiple tables at once.
  
-### General SQL Database Source
+### General SQL database source
 
 ```yaml 
 sources:
@@ -79,7 +79,7 @@ This defines a connection to a SQL database with incremental loading applied acr
 
 * `incremental`: Global configuration for incremental extraction.
 
-### Table-Specific Configuration
+### Table-specific configuration
 
 For table specific configurationssettings such as different `primary_key`s, individual tables can be defined as standalone sources using the `sql_table` type.
 
