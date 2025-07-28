@@ -81,7 +81,17 @@ def _to_dbml_column(column_hints: TColumnSchema) -> Column:
                 k: v
                 for k, v in column_hints.items()
                 if k
-                not in ("name", "data_type", "unique", "nullable", "primary_key", "description", "x-normalizer", "x-loader", "x-extractor")
+                not in (
+                    "name",
+                    "data_type",
+                    "unique",
+                    "nullable",
+                    "primary_key",
+                    "description",
+                    "x-normalizer",
+                    "x-loader",
+                    "x-extractor",
+                )
             },
         )
     )

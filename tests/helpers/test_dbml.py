@@ -361,7 +361,11 @@ def assert_equal_dbml_references(ref1: Reference, ref2: Reference) -> None:
         ),
         (
             # we ignore `x-normalizer` because it's a processing hint to indicate `data_type` is not set yet
-            {"name": "unknown_data_type_col", "nullable": True, "x-normalizer": {"seen-null-first": True}},
+            {
+                "name": "unknown_data_type_col",
+                "nullable": True,
+                "x-normalizer": {"seen-null-first": True},
+            },
             Column(name="unknown_data_type_col", type="UNKNOWN", not_null=False),
         ),
     ],
@@ -374,7 +378,7 @@ def test_to_and_from_dbml_column(hints: TColumnSchema, dbml_col: Column) -> None
     """
     hints_without_defaults_and_procesing_hints = remove_column_defaults(deepcopy(hints))
     for hint in ("x-normalizer", "x-loader", "x-extractor"):
-        hints_without_defaults_and_procesing_hints.pop(hint, None)
+        hints_without_defaults_and_procesing_hints.pop(hint, None)  # type: ignore[misc]
 
     # dlt -> dbml
     inferred_dbml_col = _to_dbml_column(hints)
