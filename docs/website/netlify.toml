@@ -49,7 +49,3 @@ to = "/docs/intro"
 [[redirects]]
 from = "/docs/visualizations"
 to = "/docs/general-usage/dataset-access"
-
-[[redirects]]
-from = "/docs/devel/dlt-ecosystem/llm-tooling/cursor-restapi"
-to = "/docs/devel/dlt-ecosystem/llm-tooling/llm-native-workflow"

@@ -313,7 +313,7 @@ const sidebars = {
           },
           items: [
             "dlt-ecosystem/llm-tooling/mcp-server",
-            "dlt-ecosystem/llm-tooling/cursor-restapi",
+            "dlt-ecosystem/llm-tooling/llm-native-workflow",
           ]
         },
         {
