@@ -290,7 +290,7 @@ will display the load info instead.
         )
         pipe_cmd_schema.add_argument(
             "--format",
-            choices=["json", "yaml"],
+            choices=["json", "yaml", "dbml"],
             default="yaml",
             help="Display schema in this format",
         )
@@ -463,7 +463,7 @@ The `dlt schema` command will load, validate and print out a dlt schema: `dlt sc
         )
         parser.add_argument(
             "--format",
-            choices=["json", "yaml"],
+            choices=["json", "yaml", "dbml"],
             default="yaml",
             help="Display schema in this format",
         )
