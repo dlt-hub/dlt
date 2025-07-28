@@ -38,7 +38,10 @@ __all__ = (
     "export_to_dbml",
 )
 
-
+# dlt sets no `data_type` field for columns that haven't seen data yet.
+# Since DBML doesn't support empty `type` field, we set a constant
+# NOTE should we use `UNKNOWN` or `None` or something else?
+UNKNOWN_DATA_TYPE = "UNKNOWN"
 TDBMLReferenceCardinality = Literal["<", ">", "-", "<>"]
 
 
@@ -78,13 +81,13 @@ def _to_dbml_column(column_hints: TColumnSchema) -> Column:
                 k: v
                 for k, v in column_hints.items()
                 if k
-                not in ("name", "data_type", "unique", "nullable", "primary_key", "description")
+                not in ("name", "data_type", "unique", "nullable", "primary_key", "description", "x-normalizer", "x-loader", "x-extractor")
             },
         )
     )
     return Column(
         name=column_hints["name"],
-        type=column_hints["data_type"],
+        type=column_hints.get("data_type", UNKNOWN_DATA_TYPE),
         unique=bool(column_hints.get("unique")),
         not_null=not bool(column_hints.get("nullable", True)),
         pk=bool(column_hints.get("primary_key")),
@@ -99,7 +102,7 @@ def _from_dbml_column(column: Column) -> TColumnSchema:
         TColumnSchema,
         {
             "name": column.name,
-            "data_type": column.type,
+            "data_type": None if column.type == UNKNOWN_DATA_TYPE else column.type,
             "unique": column.unique,
             "nullable": not column.not_null,
             "primary_key": column.pk,

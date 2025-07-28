@@ -359,6 +359,11 @@ def assert_equal_dbml_references(ref1: Reference, ref2: Reference) -> None:
             {"name": "custom_str_col", "data_type": "text", "x-label": "custom"},
             Column(name="custom_str_col", type="text", properties={"x-label": "custom"}),
         ),
+        (
+            # we ignore `x-normalizer` because it's a processing hint to indicate `data_type` is not set yet
+            {"name": "unknown_data_type_col", "nullable": True, "x-normalizer": {"seen-null-first": True}},
+            Column(name="unknown_data_type_col", type="UNKNOWN", not_null=False),
+        ),
     ],
 )
 def test_to_and_from_dbml_column(hints: TColumnSchema, dbml_col: Column) -> None:
@@ -367,7 +372,9 @@ def test_to_and_from_dbml_column(hints: TColumnSchema, dbml_col: Column) -> None
     This is different from `dbml -> dlt` because we assume that the dbml column
     includes some metadata stored on `properties` field.
     """
-    hints_without_defaults = remove_column_defaults(deepcopy(hints))
+    hints_without_defaults_and_procesing_hints = remove_column_defaults(deepcopy(hints))
+    for hint in ("x-normalizer", "x-loader", "x-extractor"):
+        hints_without_defaults_and_procesing_hints.pop(hint, None)
 
     # dlt -> dbml
     inferred_dbml_col = _to_dbml_column(hints)
@@ -375,11 +382,11 @@ def test_to_and_from_dbml_column(hints: TColumnSchema, dbml_col: Column) -> None
 
     # dbml -> dlt
     inferred_hints = _from_dbml_column(dbml_col)
-    assert inferred_hints == hints_without_defaults
+    assert inferred_hints == hints_without_defaults_and_procesing_hints
 
     # dlt -> dbml -> dlt
     inferred_hints_from_inferred_col = _from_dbml_column(inferred_dbml_col)
-    assert inferred_hints_from_inferred_col == hints_without_defaults
+    assert inferred_hints_from_inferred_col == hints_without_defaults_and_procesing_hints
 
 
 # NOTE this test doesn't include `references` field because creating `references`
