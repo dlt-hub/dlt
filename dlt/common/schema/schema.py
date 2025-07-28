@@ -833,11 +833,16 @@ class Schema:
         if existing_column and utils.is_complete_column(existing_column):
             if not utils.is_nullable_column(existing_column):
                 raise CannotCoerceNullException(self.name, table_name, col_name)
-        elif not existing_column:
-            inferred_unbounded_col = self._infer_column(
-                k=col_name, v=None, data_type=None, table_name=table_name
-            )
-            return inferred_unbounded_col
+        else:
+            # generate unbounded column only if it does not exist or it does not
+            # contain seen null
+            if not existing_column or not existing_column.get("x-normalizer", {}).get(
+                "seen-null-first"
+            ):
+                inferred_unbounded_col = self._infer_column(
+                    k=col_name, v=None, data_type=None, table_name=table_name
+                )
+                return inferred_unbounded_col
         return None
 
     def _coerce_non_null_value(
