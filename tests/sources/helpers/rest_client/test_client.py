@@ -132,6 +132,19 @@ class TestRESTClient:
 
         assert_pagination(pages)
 
+    def test_paginator_with_null_data_in_final_page(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts_cursor_null_terminated",
+            paginator=JSONResponseCursorPaginator(cursor_path="next_token", cursor_param="cursor"),
+            data_selector="users",
+        )
+
+        pages = list(pages_iter)
+        assert len(pages) == 3
+        assert len(pages[0]) == 10
+        assert len(pages[1]) == 4
+        assert pages[2] == []
+
     def test_paginate_with_hooks(self, rest_client: RESTClient):
         def response_hook(response: Response, *args: Any, **kwargs: Any) -> None:
             if response.status_code == 404:
