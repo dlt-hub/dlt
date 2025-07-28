@@ -131,7 +131,7 @@ const sidebars = {
               label: 'Project',
               link: {
                 type: 'doc',
-                id: 'plus/features/project/project-index',
+                id: 'plus/features/project/index',
               },
               items: [
                 'plus/features/project/overview',

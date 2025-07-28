@@ -15,7 +15,7 @@ With dlt+ Project, you can efficiently manage your data workflows by:
 1. [Using a declarative `dlt.yml` file](#the-dlt-manifest-file-dltyml) to define sources, destinations, pipelines, and transformations.
 2. Configuring [different profiles](../../core-concepts/profiles.md) for various use cases and environments.
 3. Ensuring data quality by defining tests with [dlt+ tests utils](../quality/tests.md).
-4. Packaging your project as a Python package and distributing it via PyPI or a git repository [Coming Soon!]
+4. Packaging your project as a [Python package](../../getting-started/advance_tutorial.md) and distributing it via PyPI or a git repository.
 
 This structured approach allows teams to work efficiently while maintaining flexibility and control over their data workflows.
 

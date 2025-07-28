@@ -1,9 +1,9 @@
 ---
-title: Configuration of Source
+title: Source Configuration
 description: Initialize ore sources in yaml file
 ---
 
-# Configuration of Sources
+# Source Configuration
 
 <img src="https://storage.googleapis.com/dlt-blog-images/plus/dlt_plus_projects.png" width="500"/>
 
