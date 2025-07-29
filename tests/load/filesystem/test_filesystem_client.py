@@ -20,6 +20,7 @@ from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName
+from dlt.common.storages.exceptions import UnsupportedStorageVersionException
 
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import (
@@ -339,34 +340,83 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
 def test_get_storage_version_current() -> None:
     filesystem_ = filesystem("random_location")
     client = _client_factory(filesystem_)
-    # If storage is initialized with current code, then version must always be current
+    # If storage is initialized with current code, then initial and current versions must always up to date
     client.initialize_storage()
-    assert client.get_storage_version() == CURRENT_VERSION
+    initial_version, current_version = client.get_storage_versions()
+    assert initial_version == CURRENT_VERSION
+    assert current_version == CURRENT_VERSION
 
 
 @pytest.mark.parametrize(
-    "content",
+    "version_info",
     [
-        "",  # Legacy empty content
-        *[{"version": version} for version in SUPPORTED_VERSIONS],
-        "random",  # Completely invalid JSON
-        {"unexpected": 2},  # Valid JSON but no key "version"
+        "",  # legacy empty content
+        {"initial_version": 1, "current_version": 1},
+        {"initial_version": 1, "current_version": 2},
+        {"initial_version": 2, "current_version": 2},
     ],
 )
-def test_get_storage_version(content: Union[str, Dict[str, int]]) -> None:
+def test_get_storage_version_valid(version_info: Union[str, Dict[str, int]]) -> None:
     filesystem_ = filesystem("random_location")
     client = _client_factory(filesystem_)
     init_file = client.pathlib.join(client.dataset_path, INIT_FILE_NAME)
     client.fs_client.mkdirs(client.dataset_path)
     client.fs_client.touch(init_file)
     client.fs_client.write_text(
-        init_file, json.dumps(content) if isinstance(content, Dict) else content, encoding="utf-8"
+        init_file,
+        json.dumps(version_info) if isinstance(version_info, Dict) else version_info,
+        encoding="utf-8",
     )
 
-    if content == "":
-        assert client.get_storage_version() == 1
-    elif isinstance(content, Dict) and "version" in content:
-        assert client.get_storage_version() == content["version"]
+    initial_version, current_version = client.get_storage_versions()
+
+    if version_info == "":
+        assert initial_version == 1
+        assert current_version == 1
     else:
+        assert isinstance(version_info, Dict)
+        assert initial_version == version_info["initial_version"]
+        assert current_version == version_info["current_version"]
+
+
+@pytest.mark.parametrize(
+    "invalid_version_info",
+    [
+        "random",
+        {"unexpected": 2, "current_version": 2},
+        {"initial_version": 1},
+        {"current_version": 2},
+        {"initial_version": 2, "current_version": 3},
+    ],
+)
+def test_get_storage_version_invalid(invalid_version_info: Union[str, Dict[str, int]]) -> None:
+    filesystem_ = filesystem("random_location")
+    client = _client_factory(filesystem_)
+    init_file = client.pathlib.join(client.dataset_path, INIT_FILE_NAME)
+    client.fs_client.mkdirs(client.dataset_path)
+    client.fs_client.touch(init_file)
+    client.fs_client.write_text(
+        init_file,
+        (
+            json.dumps(invalid_version_info)
+            if isinstance(invalid_version_info, Dict)
+            else invalid_version_info
+        ),
+        encoding="utf-8",
+    )
+
+    # If random text
+    if invalid_version_info == "random":
         with pytest.raises(ValueError):
-            client.get_storage_version()
+            client.get_storage_versions()
+    # If unexpected key
+    elif invalid_version_info == {"unexpected": 2, "current_version": 2}:
+        with pytest.raises(ValueError):
+            client.get_storage_versions()
+    # If one key is missing
+    elif invalid_version_info in [{"initial_version": 1}, {"current_version": 2}]:
+        with pytest.raises(ValueError):
+            client.get_storage_versions()
+    else:
+        with pytest.raises(UnsupportedStorageVersionException):
+            client.get_storage_versions()

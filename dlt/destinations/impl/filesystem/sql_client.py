@@ -223,7 +223,7 @@ class FilesystemSqlClient(WithTableScanners):
                 # we need to check configs
                 if (
                     table_name not in dlt_table_names
-                    and self.remote_client.get_storage_version() == 1
+                    and self.remote_client.storage_versions[0] == 1
                     and not is_compression_disabled()
                 ):
                     from_statement = from_statement[:-1] + ", compression = 'gzip')"

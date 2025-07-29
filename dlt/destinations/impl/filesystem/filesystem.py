@@ -28,7 +28,11 @@ from dlt.common.schema.typing import (
     TTableFormat,
     TTableSchemaColumns,
 )
-from dlt.common.storages.exceptions import CurrentLoadPackageStateNotAvailable
+from dlt.common.storages.exceptions import (
+    CurrentLoadPackageStateNotAvailable,
+    NoMigrationPathException,
+    UnsupportedStorageVersionException,
+)
 from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.typing import DictStrAny
@@ -100,7 +104,7 @@ class FilesystemLoadJob(RunnableLoadJob):
         remote_path = self.make_remote_path()
         if (
             not self._job_client.config.as_staging_destination
-            and self._job_client.storage_version == 1
+            and self._job_client.storage_versions[0] == 1
             and remote_path.endswith(".gz")
         ):
             remote_path = remote_path[:-3]
@@ -305,7 +309,8 @@ class FilesystemClient(
         # iceberg catalog
         self._catalog: Any = None
 
-        # storage version
+        # storage versions
+        self._cached_initial_storage_version: int = None
         self._cached_storage_version: int = None
 
     @property
@@ -329,11 +334,13 @@ class FilesystemClient(
         self._sql_client = client
 
     @property
-    def storage_version(self) -> int:
-        """Returns cached storage version, loading it once from filesystem if not already cached"""
-        if self._cached_storage_version is None:
-            self._cached_storage_version = self.get_storage_version()
-        return self._cached_storage_version
+    def storage_versions(self) -> Tuple[int, int]:
+        """Returns cached storage versions, loading it once from filesystem if not already cached"""
+        if self._cached_initial_storage_version is None or self._cached_storage_version is None:
+            self._cached_initial_storage_version, self._cached_storage_version = (
+                self.get_storage_versions()
+            )
+        return self._cached_initial_storage_version, self._cached_storage_version
 
     @property
     def init_file_path(self) -> str:
@@ -369,46 +376,84 @@ class FilesystemClient(
             logger.info(f"Will truncate tables {truncate_tables}")
             self.truncate_tables(list(truncate_tables))
 
-        # if the init file already exists, we return
+        # check if init file already exists
         if self.fs_client.exists(self.init_file_path):
+            current_version = self.get_storage_versions()[0]
+
+            # check if migration is needed
+            if current_version != CURRENT_VERSION:
+                if current_version > CURRENT_VERSION:
+                    # version cannot be downgraded
+                    raise NoMigrationPathException(
+                        self.dataset_path, current_version, current_version, CURRENT_VERSION
+                    )
+
+                # migrate and verify
+                self.migrate_storage(current_version, CURRENT_VERSION)
+                migrated_version = self.get_storage_versions()[1]
+                if migrated_version != CURRENT_VERSION:
+                    raise ValueError(
+                        f"Migration failed: expected {CURRENT_VERSION}, got {migrated_version}"
+                    )
+
             return
 
         # we mark the storage folder as initialized
         self.fs_client.makedirs(self.dataset_path, exist_ok=True)
-        self.fs_client.touch(self.init_file_path)
 
         # we set the version to "2" to indicate that .gz extension is added by default
         # version "1" corresponds to an empty init file and indicates that .gz is not added to compressed files
         self.fs_client.write_text(
             self.init_file_path,
-            json.dumps({"version": CURRENT_VERSION}),
+            json.dumps({"initial_version": CURRENT_VERSION, "current_version": CURRENT_VERSION}),
             encoding="utf-8",
         )
 
-    def get_storage_version(self) -> int:
-        """Returns storage version
+    def migrate_storage(self, from_version: int, to_version: int) -> None:
+        """Migrate storage from one version to another"""
+
+        if from_version == 1 and from_version < to_version:
+            # Migration from version 1 to 2,
+            # which is basically replacing the empty init file with:
+            # {"initial_version": 1, "current_version": 2}
+            self.fs_client.write_text(
+                self.init_file_path,
+                json.dumps({"initial_version": 1, "current_version": 2}),
+                encoding="utf-8",
+            )
+
+        # Reset cached current version, initial version may stay
+        self._cached_storage_version = None
+
+    def get_storage_versions(self) -> Tuple[int, int]:
+        """Returns initial and current storage versions.
         1. If the init file is empty, we assume legacy version 1 where .gz extension was not added to compressed files.
-        2. For any other non-empty content we parse it as json, expect "version" key to have a supported value.
+        2. For any other non-empty content we parse it as json, expect version key to have a supported value.
         """
         version_info_str = self.fs_client.read_text(self.init_file_path, encoding="utf-8")
 
+        # If empty, both initial and current versions are 1
         if not version_info_str.strip():
-            return 1
+            return 1, 1
 
         try:
-            version: int = json.loads(version_info_str)["version"]
+            version_dict: Dict[str, int] = json.loads(version_info_str)
+            initial_version: int = version_dict["initial_version"]
+            current_version: int = version_dict["current_version"]
         except (KeyError, orjson.JSONDecodeError) as exc:
             raise ValueError(
                 f"Invalid content in {self.init_file_path}: {version_info_str!r}"
             ) from exc
 
-        if version not in SUPPORTED_VERSIONS:
-            raise ValueError(
-                f"Unsupported filesystem version {version!r} "
-                f"(supported: {sorted(SUPPORTED_VERSIONS)})"
+        if initial_version not in SUPPORTED_VERSIONS or current_version not in SUPPORTED_VERSIONS:
+            raise UnsupportedStorageVersionException(
+                self.dataset_path,
+                initial_version,
+                current_version,
+                SUPPORTED_VERSIONS,
             )
 
-        return version
+        return initial_version, current_version
 
     def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
         self.truncate_tables(list(tables))
