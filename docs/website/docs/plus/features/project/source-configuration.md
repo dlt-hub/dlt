@@ -1,21 +1,19 @@
 ---
 title: Source configuration
-description: Initialize core sources in YAML file
+description: How to setup sources in YAML file
 ---
 
 # Source configuration
 
-<img src="https://storage.googleapis.com/dlt-blog-images/plus/dlt_plus_projects.png" width="500"/>
 
+The `dlt.yml` file enables a fully declarative setup of your data source and its parameters. It supports built-in sources such as REST APIs, SQL databases, and cloud storage, as well as any custom source you define.
 
-The `dlt.yml` file is used to declaratively configure data sources for use with the dlt CLI. This setup provides a flexible way to manage data extraction for the core sources REST APIs, SQL databases and file systems using YAML syntax.
-
-Credential placeholders for the defined sources are automatically generated in `.dlt/secrets.toml`. Alternatively, credentials may also be provided directly within `dlt.yml`.
+Credential placeholders for the defined sources are automatically generated in `.dlt/secrets.toml`. Alternatively, configuration may also be provided directly within `dlt.yml`.
 
 
 ## REST API
 
-The built-in `rest_api` type enables configuration of REST-based integrations. Multiple endpoints can be defined under a single source.
+The built-in `rest_api`-type enables configuration of [REST-based integrations](../../../dlt-ecosystem/verified-sources/rest_api/basic.md). Multiple endpoints can be defined under a single source.
 
 
 ```yaml
@@ -33,7 +31,7 @@ sources:
       - 
         name: encounter_conditions
         endpoint:
-          path: encounter-condition
+          path: encounter-conditions
           params:
             offset:
               type: incremental
@@ -45,9 +43,9 @@ sources:
 * `client.base_url`: Sets the root URL for all API requests.
 * `paginator: auto`: Enables automatic detection and handling of pagination.
 * `resource_defaults`: Contains the default values to configure the dlt resources. This configuration is applied to all resources unless overridden by the resource-specific configuration.
-* Each item in `resources`defines an endpoint to extract. Simple entries like `pokemon`and `berry` will fetch from `/pokemon` and `/berry`, respectively.
-* The `encounter-condition` resource uses an advanced configuration:
-  * `path`: Point to the `/encounter-condition`endpoint.
+* Each item in `resources`defines an endpoint to extract. Simple entries like `pokemon` and `berry` will fetch from `/pokemon` and `/berry`, respectively.
+* The `encounter-conditios` resource uses an advanced configuration:
+  * `path`: Point to the `/encounter-condition` endpoint.
   * `params.offset`: Enables incremental loading using the `name` field as the cursor.
   * `write_disposition: replace`: Replaces the destination dataset with whatever the source produced on this run.
 

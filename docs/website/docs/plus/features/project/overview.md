@@ -301,5 +301,5 @@ The `dlt.yml` marks the root of a project. Projects can also be nested. If you r
 
 ## Packaging and distributing the projects
 
-Projects can be distributed as Python packages to share with your organization and enable data access. [Python package](../../getting-started/advance_tutorial.md)
+Projects can be distributed as Python packages to share with your organization and enable data access. [Python package](../../getting-started/advanced_tutorial.md)
 

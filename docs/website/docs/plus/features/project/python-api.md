@@ -1,14 +1,12 @@
 ---
 title: Python API
-description: Use of Python interface to access dlt+ project
+description:  Python interface of dlt+ Project
 ---
 
-# Python API to interact with dlt-plus project
-
-<img src="https://storage.googleapis.com/dlt-blog-images/plus/dlt_plus_projects.png" width="500"/>
+# Python API to interact with dlt+ Project
 
 You can access any [dlt+ Project](../../core-concepts/project.md) entity or function via the Python interface.
-The current module provides access to various parts of your active dlt+ project.
+The current module provides access to various parts of your active dlt+ Project.
 
 Import statement:
 ```py
