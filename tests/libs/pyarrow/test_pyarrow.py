@@ -7,8 +7,8 @@ import pytest
 import pyarrow as pa
 
 from dlt.common import pendulum
-from dlt.common import logger
 from dlt.common.libs.pyarrow import (
+    _type_has_offset_timezone,
     columns_to_arrow,
     deserialize_type,
     fill_empty_source_column_values_with_placeholder,
@@ -510,13 +510,35 @@ def test_fill_empty_source_column_values_with_placeholder() -> None:
 
 
 @pytest.mark.parametrize(
+    "pyarrow_type,expected_check",
+    (
+        (pa.timestamp("s"), False),
+        (pa.timestamp("s", tz="UTC"), False),
+        (pa.timestamp("s", tz="+00:00"), True),
+        (pa.timestamp("s", tz="-01:00"), True),
+        (pa.timestamp("s", tz=None), False),
+        (pa.timestamp("s", tz="+01:30"), True),
+        (pa.timestamp("s", tz="Etc/GMT+1"), False),
+        (pa.timestamp("s", tz="America/Goose_Bay"), False),
+    )
+)
+def test_type_has_offset_timezone(pyarrow_type: pa.DataType, expected_check: bool) -> None:
+    """Ensure `_type_has_offset_timezone()` can handle any value gracefully"""
+    check_result = _type_has_offset_timezone(pyarrow_type)
+    assert check_result == expected_check
+
+
+@pytest.mark.parametrize(
     "offset_tzinfo,expected_iana",
     [
         ("+14:00", "Etc/GMT-14"),
         ("+11:00", "Etc/GMT-11"),
+        ("+02:45", "Etc/GMT-3"),  # expected to round up
+        ("+02:30", "Etc/GMT-2"),  # expected to round down
         ("+00:00", "Etc/GMT+0"),
         ("-01:00", "Etc/GMT+1"),
-        ("-02:30", ValueError()),
+        ("-02:30", "Etc/GMT+2"),  # expected to round up
+        ("-02:45", "Etc/GMT+3"),  # expected to round down
         ("-10:00", "Etc/GMT+10"),
         ("-12:00", "Etc/GMT+12"),
     ],

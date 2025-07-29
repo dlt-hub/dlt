@@ -564,7 +564,7 @@ class ArrowToCsvWriter(DataWriter):
     def write_data(self, items: Sequence[TDataItem]) -> None:
         from dlt.common.libs.pyarrow import (
             pyarrow,
-            _has_offset_timezones,
+            _table_has_offset_timezones,
             _convert_offset_timezones_table,
         )
         import pyarrow.csv
@@ -611,7 +611,7 @@ class ArrowToCsvWriter(DataWriter):
                         f" schema:\n{self._first_schema}\n\nCurrent schema:\n{item.schema}",
                     )
 
-                if _has_offset_timezones(item):
+                if _table_has_offset_timezones(item):
                     item = _convert_offset_timezones_table(item)
 
                 # write headers only on the first write
