@@ -272,15 +272,27 @@ def test_write_empty_file(disable_compression: bool, writer_type: Type[DataWrite
             assert writer._file_name.endswith(f".{extension}")
 
 
+@pytest.mark.parametrize(
+    "imported_file",
+    (
+        "imported.any",
+        "compressed.gz",
+        "compressed.any",
+    ),
+)
 @pytest.mark.parametrize("writer_type", ALL_WRITERS)
-def test_import_file(writer_type: Type[DataWriter]) -> None:
+def test_import_file(imported_file: str, writer_type: Type[DataWriter]) -> None:
     now = time.time()
     with get_writer(writer_type) as writer:
         # won't destroy the original
         metrics = writer.import_file(
-            "tests/extract/cases/imported.any", DataWriterMetrics("", 1, 231, 0, 0)
+            os.path.join("tests/extract/cases", imported_file), DataWriterMetrics("", 1, 231, 0, 0)
         )
         assert len(writer.closed_files) == 1
+        if imported_file in ["compressed.gz", "compressed.any"]:
+            assert metrics.file_path.endswith(".gz")
+        else:
+            assert not metrics.file_path.endswith(".gz")
         assert os.path.isfile(metrics.file_path)
         assert writer.closed_files[0] == metrics
         assert metrics.created <= metrics.last_modified
@@ -289,20 +301,31 @@ def test_import_file(writer_type: Type[DataWriter]) -> None:
         assert metrics.file_size == 231
 
 
+@pytest.mark.parametrize(
+    "imported_file",
+    (
+        "imported.any",
+        "compressed.gz",
+        "compressed.any",
+    ),
+)
 @pytest.mark.parametrize("writer_type", ALL_WRITERS)
-def test_import_file_with_extension(writer_type: Type[DataWriter]) -> None:
+def test_import_file_with_extension(imported_file: str, writer_type: Type[DataWriter]) -> None:
     now = time.time()
     with get_writer(writer_type) as writer:
         # won't destroy the original
         metrics = writer.import_file(
-            "tests/extract/cases/imported.any",
+            os.path.join("tests/extract/cases", imported_file),
             DataWriterMetrics("", 1, 231, 0, 0),
             with_extension="any",
         )
         assert len(writer.closed_files) == 1
         assert os.path.isfile(metrics.file_path)
         # extension is correctly set
-        assert metrics.file_path.endswith(".any")
+        if imported_file in ["compressed.gz", "compressed.any"]:
+            assert metrics.file_path.endswith(".any.gz")
+        else:
+            assert metrics.file_path.endswith(".any")
         assert writer.closed_files[0] == metrics
         assert metrics.created <= metrics.last_modified
         assert metrics.created >= now
@@ -348,10 +371,20 @@ def test_gather_metrics(disable_compression: bool, writer_type: Type[DataWriter]
 
 
 @pytest.mark.parametrize(
+    "imported_file",
+    (
+        "imported.any",
+        "compressed.gz",
+        "compressed.any",
+    ),
+)
+@pytest.mark.parametrize(
     "disable_compression", [True, False], ids=["no_compression", "compression"]
 )
 @pytest.mark.parametrize("writer_type", ALL_OBJECT_WRITERS)
-def test_special_write_rotates(disable_compression: bool, writer_type: Type[DataWriter]) -> None:
+def test_special_write_rotates(
+    imported_file: str, disable_compression: bool, writer_type: Type[DataWriter]
+) -> None:
     c1 = new_column("col1", "bigint")
     t1 = {"col1": c1}
     with get_writer(
@@ -371,7 +404,7 @@ def test_special_write_rotates(disable_compression: bool, writer_type: Type[Data
         # also import rotates
         assert writer.write_data_item({"col1": 182812}, t1) == 1
         metrics = writer.import_file(
-            "tests/extract/cases/imported.any", DataWriterMetrics("", 1, 231, 0, 0)
+            os.path.join("tests/extract/cases", imported_file), DataWriterMetrics("", 1, 231, 0, 0)
         )
         assert len(writer.closed_files) == 4
         assert writer.closed_files[3] == metrics
@@ -379,23 +412,20 @@ def test_special_write_rotates(disable_compression: bool, writer_type: Type[Data
 
         assert writer.write_data_item({"col1": 182812}, t1) == 1
         metrics = writer.import_file(
-            "tests/extract/cases/imported.any", DataWriterMetrics("", 1, 231, 0, 0)
+            os.path.join("tests/extract/cases", imported_file), DataWriterMetrics("", 1, 231, 0, 0)
         )
-        if not disable_compression and writer.writer_spec.supports_compression:
-            assert all(
-                closed_file.file_path.endswith(".gz")
-                for i, closed_file in enumerate(writer.closed_files)
-                if i in [0, 1, 2, 4]
-            )
-            assert not any(
-                closed_file.file_path.endswith(".gz")
-                for i, closed_file in enumerate(writer.closed_files)
-                if i in [3, 5]
-            )
-        else:
-            assert not any(
-                closed_file.file_path.endswith(".gz") for closed_file in writer.closed_files
-            )
+        for i, closed_file in enumerate(writer.closed_files):
+            # 3, 5 are imported files
+            if i in [3, 5]:
+                if imported_file in ["compressed.gz", "compressed.any"]:
+                    assert closed_file.file_path.endswith(".gz")
+                else:
+                    assert not closed_file.file_path.endswith(".gz")
+            else:
+                if not disable_compression and writer.writer_spec.supports_compression:
+                    assert closed_file.file_path.endswith(".gz")
+                else:
+                    assert not closed_file.file_path.endswith(".gz")
 
 
 @pytest.mark.parametrize(
