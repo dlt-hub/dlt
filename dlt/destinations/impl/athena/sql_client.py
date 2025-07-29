@@ -9,6 +9,9 @@ from typing import (
     Dict,
     Callable,
     Type,
+    List,
+    Union,
+    cast,
 )
 from copy import deepcopy
 import re
@@ -141,6 +144,53 @@ class AthenaSQLClient(SqlClientBase[Connection]):
             f"DROP TABLE IF EXISTS {self.make_qualified_ddl_table_name(table)};" for table in tables
         ]
         self.execute_many(statements)
+
+    def drop_columns(self, from_tables_drop_cols: List[Dict[str, Union[str, List[str]]]]) -> None:
+        """Drops specified columns from specified tables if they exist"""
+        statements = []
+        for from_table_drop_cols in from_tables_drop_cols:
+            table = cast(str, from_table_drop_cols["from_table"])
+            for column in from_table_drop_cols["drop_columns"]:
+                statements.append(
+                    f"ALTER TABLE {self.make_qualified_ddl_table_name(table)} DROP COLUMN"
+                    f" {self.escape_ddl_identifier(column)};"
+                )
+
+        self.execute_many(statements)
+
+    def drop_columns_hive(self, table_name: str, columns_to_drop: List[str]) -> None:
+        """Drop columns from Hive table using ALTER TABLE REPLACE COLUMNS"""
+        qualified_table_name = self.make_qualified_ddl_table_name(table_name)
+
+        # Get current table schema
+        describe_query = f"DESCRIBE {qualified_table_name}"
+        result = self.execute_sql(describe_query)
+
+        current_columns = []
+        if result:
+            for row in result:
+                # DESCRIBE returns: [('col_name  \tdata_type  \t. ',)
+                parts = row[0].split()
+                current_columns.append(
+                    {
+                        "name": parts[0],
+                        "type": parts[1],
+                    }
+                )
+
+        remaining_columns = [col for col in current_columns if col["name"] not in columns_to_drop]
+
+        # Build column definitions for REPLACE COLUMNS
+        column_definitions = []
+        for col in remaining_columns:
+            col_name = self.escape_ddl_identifier(col["name"])
+            col_type = col["type"]
+            column_definitions.append(f"{col_name} {col_type}")
+
+        replace_sql = (
+            f"ALTER TABLE {qualified_table_name} REPLACE COLUMNS ({', '.join(column_definitions)})"
+        )
+        self.execute_sql(replace_sql)
 
     @contextmanager
     @raise_database_error

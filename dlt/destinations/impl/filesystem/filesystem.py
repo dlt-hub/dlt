@@ -14,6 +14,7 @@ from typing import (
     cast,
     Any,
     Dict,
+    Union,
 )
 from fsspec import AbstractFileSystem
 
@@ -926,3 +927,32 @@ class FilesystemClient(
             return False
         detected_format = prepared_table.get("table_format")
         return table_format == detected_format
+
+    def drop_columns(
+        self,
+        from_tables_drop_cols: List[Dict[str, Union[str, List[str]]]],
+        update_schema: bool = True,
+    ) -> None:
+        for table_spec in from_tables_drop_cols:
+            table_name = cast(str, table_spec["from_table"])
+            columns_to_drop = list(table_spec["drop_columns"])
+
+            if self.is_open_table("iceberg", table_name):
+                ice_table = self.load_open_table("iceberg", table_name)
+                # Alter schema – delete columns one by one (requires incompatible changes flag)
+                with ice_table.update_schema(allow_incompatible_changes=True) as update:
+                    for col in columns_to_drop:
+                        update.delete_column(col)
+
+            elif self.is_open_table("delta", table_name):
+                from dlt.common.libs.deltalake import drop_columns_delta_table
+
+                delta_table = self.load_open_table("delta", table_name)
+                # Drop columns by rewriting the table
+                drop_columns_delta_table(
+                    table=delta_table,
+                    columns_to_drop=columns_to_drop,
+                )
+
+        if update_schema:
+            self._update_schema_in_storage(self.schema)
