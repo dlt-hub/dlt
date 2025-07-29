@@ -29,16 +29,24 @@ class Collector(ABC, SupportsTracking):
     ) -> None:
         """Creates or updates a counter
 
-        This function updates a counter `name` with a value `inc`. If counter does not exist, it is created with optional total value of `total`.
-        Depending on implementation `label` may be used to create nested counters and message to display additional information associated with a counter.
+        This function updates a counter `name` with a value `inc`. If counter does not exist, it is
+        created with optional total value of `total`. Labels are used to create sub-counters.
 
-        Args:
-            name (str): An unique name of a counter, displayable.
-            inc (int, optional): Increase amount. Defaults to 1.
-            total (int, optional): Maximum value of a counter. Defaults to None which means unbound counter.
-            icn_total (int, optional): Increase the maximum value of the counter, does nothing if counter does not exit yet
-            message (str, optional): Additional message attached to a counter. Defaults to None.
-            label (str, optional): Creates nested counter for counter `name`. Defaults to None.
+        Examples for counters by stage:
+        ```python
+        # Extract Stage
+        collector.update("users", inc=5)           # 5 rows added to users table
+        collector.update("Resources", inc=1)       # 1 resource processed
+        collector.update("Resources", inc=1, label="Completed")  # 1 resource completed
+
+        # Normalize Stage
+        collector.update("Files", inc=1, total=10)     # 1/10 files processed
+        collector.update("Items", inc=100)             # 100 items processed
+
+        # Load Stage
+        collector.update("Jobs", inc=1, total=5)       # 1/5 jobs processed
+        collector.update("Jobs", inc=1, label="Failed")  # 1 job failed
+        ```
         """
         pass
 
