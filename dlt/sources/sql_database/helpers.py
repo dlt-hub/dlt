@@ -233,7 +233,19 @@ class TableLoader:
                 f" literals that cannot be rendered, upgrade to 2.x: `{str(ex)}`"
             ) from ex
         df = cx.read_sql(conn, query_str, **backend_kwargs)
-        yield df
+        yield self._maybe_fix_0000_timezone(df)
+
+    def _maybe_fix_0000_timezone(self, df: Any) -> Any:
+        """Optionally convert +00:00 timezone to UTC"""
+        try:
+            from dlt.common.libs.pyarrow import set_plus0000_timezone_to_utc, pyarrow
+
+            # TODO: skip when Arrow releases timezone fix
+            if isinstance(df, pyarrow.Table):
+                return set_plus0000_timezone_to_utc(df)
+        except MissingDependencyException:
+            pass
+        return df
 
 
 def table_rows(
