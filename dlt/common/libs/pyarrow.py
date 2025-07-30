@@ -1099,3 +1099,70 @@ def add_arrow_metadata(
         return pyarrow.Table.from_arrays(item.columns, schema=new_schema)
     else:  # RecordBatch
         return pyarrow.RecordBatch.from_arrays(item.columns, schema=new_schema)
+
+
+def _type_has_offset_timezone(type_: pyarrow.DataType) -> bool:
+    tzinfo = getattr(type_, "tz", None)
+    # check if `tz` attribute is a string if found
+    if isinstance(tzinfo, str):
+        # do a check against `tz` values that are strings
+        if tzinfo.startswith(("+", "-")):
+            return True
+    return False
+
+
+def _table_has_offset_timezones(item: TAnyArrowItem) -> bool:
+    """Eager check to identify if the table contains fields with offset-based timezones."""
+    for field in item.schema:
+        if _type_has_offset_timezone(field.type):
+            return True
+    return False
+
+
+def _offset_to_iana(offset_tzinfo: str) -> str:
+    """Convert an offset-based time zone to IANA time zone.
+
+    This function assumes that the offset time zone is valid.
+
+    Facts:
+    - Time zones go from `-12:00` to `+14:00`
+    - Neutral time zone is `+00:00`
+    - The sign used in UTC is reversed for GMT; for example: UTC+05:00 == Etc/GMT-5
+    ref: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+    """
+    hours, _, minutes = offset_tzinfo[1:].partition(":")
+    sign = "-" if offset_tzinfo[0] == "+" and hours != "00" else "+"
+    if int(minutes) != 0:
+        from dlt.common import logger
+
+        # rounding logic: if minutes are <=30, truncate minutes; if >30, increment hour
+        hours = int(hours) + round(int(minutes) / 60)
+        logger.warn(
+            f"dlt had to round and convert time zone from `{offset_tzinfo}` to `'Etc/GMT{sign}{int(hours)}'`."
+            " If you're using `connectorx`, switch to another backend to avoid conversion errors."
+            " Read more: https://github.com/apache/arrow/issues/47043"
+        )
+    return f"Etc/GMT{sign}{int(hours)}"
+
+
+def _convert_offset_timezones_field(field: pyarrow.Field) -> pyarrow.Field:
+    """Convert an offset-based timezone to IANA timezone for a single field.
+    This is a no-op for non-timestamp fields. Timestamp unit is preserved.
+    """
+    if not pyarrow.types.is_timestamp(field.type):
+        return field
+
+    if _type_has_offset_timezone(field.type):
+        new_tzinfo = _offset_to_iana(field.type.tz)
+        new_type = pyarrow.timestamp(field.type.unit, tz=new_tzinfo)
+        new_field = pyarrow.field(field.name, type=new_type)
+        return new_field
+
+    return field
+
+
+def _convert_offset_timezones_table(item: TAnyArrowItem) -> TAnyArrowItem:
+    """Convert fields that use offset-based timezones to IANA timezones"""
+    new_fields = [_convert_offset_timezones_field(field) for field in item.schema]
+    new_schema = pyarrow.schema(new_fields, metadata=item.schema.metadata)
+    return item.cast(new_schema)

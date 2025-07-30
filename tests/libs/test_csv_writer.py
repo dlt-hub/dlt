@@ -1,8 +1,12 @@
 import csv
+import datetime
 from copy import copy
 from typing import Any, Dict, Type
 from unittest.mock import Mock, patch
+
 import pytest
+
+import pyarrow
 import pyarrow.csv as acsv
 import pyarrow.parquet as pq
 
@@ -194,6 +198,27 @@ def test_arrow_struct() -> None:
     with pytest.raises(InvalidDataItem):
         with get_writer(ArrowToCsvWriter, disable_compression=True) as writer:
             writer.write_data_item(item, TABLE_UPDATE_COLUMNS_SCHEMA)
+
+
+def test_pyarrow_timestamp_offset_timezone() -> None:
+    """Verify that `pyarrow.timestamp()` with a time zone specified as offset (e.g., `"+00:00"`)
+    are properly handled. The `pyarrow._csc.CSVWriter()` that we use can't handle them by default.
+    see issue: https://github.com/apache/arrow/issues/47043
+
+    Pyarrow uses Arrow C and typically doesn't produce offset-based time zones. On the other hand,
+    Arrow Rust defaults to offset-based time zones, which affects Python libraries using it (e.g., `connectorx`)
+    see docs: https://docs.rs/arrow/latest/arrow/datatypes/enum.DataType.html#timezone-representation
+    see issue: https://github.com/dlt-hub/dlt/issues/2699
+    """
+    col_name = "col_timestamptz"
+    datetimes = [datetime.datetime(2020, 1, 1, 8, 0, 0), datetime.datetime(2020, 1, 2, 9, 30, 0)]
+    array = pyarrow.array(datetimes, type=pyarrow.timestamp("s", tz="+10:00"))
+    table = pyarrow.Table.from_arrays([array], names=[col_name])
+    dlt_schema: TTableSchemaColumns = {col_name: {"name": col_name, "data_type": "timestamp"}}
+
+    # should not encounter errors
+    with get_writer(ArrowToCsvWriter, disable_compression=True) as writer:
+        writer.write_data_item(table, dlt_schema)
 
 
 @pytest.mark.parametrize("item_type", ["object", "arrow-table"])
