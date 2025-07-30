@@ -386,10 +386,10 @@ transformation = entities.get_transformation("stressed_transformation")
 ```
 Here, we access the entities manager, which allows you to create sources, destinations, pipelines, and other objects.
 
-### Running pipelines with the runner
+### Running pipelines
 
-`dlt+` includes a pipeline runner which will instantiate your pipeline from the `dlt.yml` file
-and run it, which is exactly what happens when you run pipelines from the CLI.
+`dlt+` includes a project runner which will instantiate pipelines from the `dlt.yml` file
+and run them, which is exactly what happens when you run pipelines from the CLI.
 
 ```py
 from dlt_plus import current
@@ -398,26 +398,6 @@ from dlt_plus import current
 runner = current.runner()
 # run the "my_pipeline" pipeline from the currently active project
 runner.run_pipeline("my_pipeline")
-```
-
-If you already have your pipeline instance, you can also use the `PipelineRunner` directly:
-
-```py
-import dlt
-from dlt_plus.runner import PipelineRunner
-
-# your pipeline instance
-pipeline = dlt.pipeline(
-  pipeline_name="my_pipeline",
-  destination="duckdb",
-  dataset_name="my_dataset"
-)
-
-# instantiate the runner and pass any args that you would usually pass to pipeline.run()
-load_info = PipelineRunner(
-  pipeline,
-  store_trace_info=True,
-).run(data=[1,2,3], table_name="numbers")
 ```
 
 ### Accessing the catalog

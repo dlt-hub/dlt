@@ -164,12 +164,12 @@ pipeline = dlt.pipeline(
     dataset_name="my_dataset",
 )
 
-load_info = dlt_plus.PipelineRunner(pipeline, run_from_clean_folder=True).run(my_resource())
+load_info = dlt_plus.runner(pipeline, run_from_clean_folder=True).run(my_resource())
 print(load_info)
 
 # or just to finalize pending data reliably
 pipeline.extract(["a", "b", "c"], table_name="letters")
-load_info = dlt_plus.PipelineRunner(
+load_info = dlt_plus.runner(
     pipeline, 
     retry_policy=Retrying(stop=stop_after_attempt(2), reraise=True),
     store_trace_info=True,
