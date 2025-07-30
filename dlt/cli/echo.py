@@ -74,7 +74,13 @@ def confirm(text: str, default: Optional[bool] = None) -> bool:
     return click.confirm(text, default=default)
 
 
-def prompt(text: str, choices: Iterable[str], default: Optional[Any] = None) -> Any:
+def prompt(
+    text: str,
+    choices: Iterable[str],
+    default: Optional[Any] = None,
+    show_choices: bool = True,
+    show_default: bool = True,
+) -> Any:
     if ALWAYS_CHOOSE_VALUE:
         assert ALWAYS_CHOOSE_VALUE in choices
         return ALWAYS_CHOOSE_VALUE
@@ -82,7 +88,13 @@ def prompt(text: str, choices: Iterable[str], default: Optional[Any] = None) -> 
         assert default is not None
         return default
     click_choices = click.Choice(choices)
-    return click.prompt(text, type=click_choices, default=default)
+    return click.prompt(
+        text,
+        type=click_choices,
+        default=default,
+        show_choices=show_choices,
+        show_default=show_default,
+    )
 
 
 def text_input(text: str) -> str:
