@@ -2,7 +2,7 @@ import dataclasses
 from pathlib import Path
 from typing import Final, Optional, Any, Dict, ClassVar, List
 
-from dlt.common.data_writers.configuration import CsvFormatConfiguration
+from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.libs.cryptography import decode_private_key
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs import ConnectionStringCredentials

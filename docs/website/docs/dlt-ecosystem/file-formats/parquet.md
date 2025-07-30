@@ -24,6 +24,7 @@ pip install "dlt[parquet]"
 - [Athena](../destinations/athena.md)
 - [Databricks](../destinations/databricks.md)
 - [Synapse](../destinations/synapse.md)
+- [LanceDB](../destinations/lancedb.md)
 
 ## How to configure
 

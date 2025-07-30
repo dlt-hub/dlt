@@ -10,6 +10,7 @@ from dlt.common import logger
 from dlt.common.libs.pyarrow import (
     columns_to_arrow,
     deserialize_type,
+    fill_empty_source_column_values_with_placeholder,
     get_column_type_from_py_arrow,
     py_arrow_to_table_schema_columns,
     from_arrow_scalar,
@@ -479,3 +480,27 @@ def test_remove_null_columns_from_schema() -> None:
     assert contains_null is True
     assert new_schema.names == ["col1", "col3"]
     assert all(not pa.types.is_null(f.type) for f in new_schema)
+
+
+def test_fill_empty_source_column_values_with_placeholder() -> None:
+    data = [
+        pa.array(["", "hello", ""]),
+        pa.array(["hello", None, ""]),
+        pa.array([1, 2, 3]),
+        pa.array(["world", "", "arrow"]),
+    ]
+    table = pa.Table.from_arrays(data, names=["A", "B", "C", "D"])
+
+    source_columns = ["A", "B"]
+    placeholder = "placeholder"
+
+    new_table = fill_empty_source_column_values_with_placeholder(table, source_columns, placeholder)
+
+    expected_data = [
+        pa.array(["placeholder", "hello", "placeholder"]),
+        pa.array(["hello", "placeholder", "placeholder"]),
+        pa.array([1, 2, 3]),
+        pa.array(["world", "", "arrow"]),
+    ]
+    expected_table = pa.Table.from_arrays(expected_data, names=["A", "B", "C", "D"])
+    assert new_table.equals(expected_table)

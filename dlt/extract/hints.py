@@ -40,6 +40,7 @@ from dlt.common.schema.utils import (
     migrate_complex_types,
     new_column,
     new_table,
+    merge_table,
 )
 from dlt.common.typing import TAny, TDataItem, TColumnNames
 from dlt.common.time import ensure_pendulum_datetime
@@ -55,9 +56,11 @@ from dlt.extract.items import TFunHintTemplate, TTableHintTemplate, TableNameMet
 from dlt.extract.items_transform import ValidateItem
 from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_columns_hint
 from dlt.extract.validation import create_item_validator
-from dlt.common.data_writers import TDataItemFormat
 
 import sqlglot
+
+
+DLT_HINTS_METADATA_KEY = "dlt_resource_hints"
 
 
 class TResourceNestedHints(TypedDict, total=False):
@@ -99,9 +102,23 @@ class HintsMeta:
         self.create_table_variant = create_table_variant
 
 
-class SqlModel(NamedTuple):
-    query: str
-    dialect: Optional[str] = None
+class SqlModel:
+    """
+    A SqlModel is a named tuple that contains a query and a dialect.
+    It is used to represent a SQL query and the dialect to use for parsing it.
+    """
+
+    __slots__ = ("_query", "_dialect")
+
+    def __init__(self, query: str, dialect: Optional[str] = None) -> None:
+        self._query = query
+        self._dialect = dialect
+
+    def to_sql(self) -> str:
+        return self._query
+
+    def query_dialect(self) -> str:
+        return self._dialect
 
     @classmethod
     def from_query_string(cls, query: str, dialect: Optional[str] = None) -> "SqlModel":
@@ -237,6 +254,16 @@ class DltResourceHints:
     @table_name.setter
     def table_name(self, value: TTableHintTemplate[str]) -> None:
         self.apply_hints(table_name=value)
+
+    @property
+    def has_dynamic_table_name(self) -> bool:
+        """Tells the extractor wether computed table name may change based on invididual data items"""
+        return self._table_name_hint_fun is not None
+
+    @property
+    def has_other_dynamic_hints(self) -> bool:
+        """Tells the extractor wether computed hints may change based on invididual data items"""
+        return self._table_has_other_dynamic_hints
 
     @property
     def write_disposition(self) -> TTableHintTemplate[TWriteDispositionConfig]:

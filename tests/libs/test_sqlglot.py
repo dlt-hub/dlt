@@ -20,7 +20,6 @@ from dlt.common.schema.typing import TDataType, TColumnType
         ("binary", sge.DataType.Type.VARBINARY),
         ("time", sge.DataType.Type.TIME),
         ("decimal", sge.DataType.Type.DECIMAL),
-        ("wei", sge.DataType.Type.UINT256),
     ],
 )
 @pytest.mark.parametrize("use_named_type", [True, False])
@@ -171,38 +170,6 @@ def test_to_sqlglot_integer_with_precision(
     assert sqlglot_type == sge.DataType.build(expected_sqlglot_type)
 
 
-@pytest.mark.parametrize(
-    "sqlglot_type, expected_precision",
-    [
-        (sge.DataType.Type.TINYINT, 3),
-        (sge.DataType.Type.SMALLINT, 5),
-        (sge.DataType.Type.MEDIUMINT, 8),
-        (sge.DataType.Type.INT, 10),
-        (sge.DataType.Type.BIGINT, None),  # expect None because BIGINT is default
-        (sge.DataType.Type.INT128, 39),
-        (sge.DataType.Type.INT256, 78),
-        (sge.DataType.Type.UTINYINT, 3),
-        (sge.DataType.Type.USMALLINT, 5),
-        (sge.DataType.Type.UMEDIUMINT, 8),
-        (sge.DataType.Type.UINT, 10),
-        (sge.DataType.Type.UBIGINT, 19),
-        (sge.DataType.Type.UINT128, 39),
-        (sge.DataType.Type.UINT256, 78),
-    ],
-)
-def test_from_sqlglot_integer_with_precision(
-    sqlglot_type: sge.DataType.Type,
-    expected_precision: int,
-) -> None:
-    """Test named SQLGlot type to dlt hints (precision)"""
-    dlt_hints = from_sqlglot_type(sqlglot_type)
-    expected_hints: TColumnType = {"data_type": "bigint"}
-    if expected_precision:
-        expected_hints["precision"] = expected_precision
-
-    assert dlt_hints == expected_hints
-
-
 @pytest.mark.parametrize("nullable", [None, True, False])
 @pytest.mark.parametrize("use_named_type", [True, False])
 def test_to_sqlglot_with_nullable(nullable: Optional[bool], use_named_type: bool) -> None:
@@ -320,9 +287,9 @@ def test_to_sqlglot_timestamp_with_precision(
     "sqlglot_type, expected_precision",
     [
         (sge.DataType.Type.TIMESTAMP, None),  # default value
-        (sge.DataType.Type.TIMESTAMP_S, 0),
-        (sge.DataType.Type.TIMESTAMP_MS, 3),
-        (sge.DataType.Type.TIMESTAMP_NS, 9),
+        (sge.DataType.Type.TIMESTAMP_S, None),
+        (sge.DataType.Type.TIMESTAMP_MS, None),
+        (sge.DataType.Type.TIMESTAMP_NS, None),
     ],
 )
 def test_from_sqlglot_timestamp_with_precision(

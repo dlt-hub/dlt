@@ -2,7 +2,7 @@ from typing import Any, Optional, Sequence, Tuple, Type, Union, Dict, TYPE_CHECK
 
 from dlt.common import logger
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.data_writers.configuration import CsvFormatConfiguration
+from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.data_writers.escape import escape_postgres_identifier, escape_postgres_literal
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema

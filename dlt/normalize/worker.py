@@ -69,7 +69,7 @@ def w_normalize_files(
 ) -> TWorkerRV:
     destination_caps = config.destination_capabilities
     schema_updates: List[TSchemaUpdate] = []
-    # normalizers are cached per table name
+    # normalizers are cached per {table_name}.{item_format}
     item_normalizers: Dict[str, ItemsNormalizer] = {}
 
     preferred_file_format = (
@@ -91,8 +91,10 @@ def w_normalize_files(
             item_format = DataWriter.item_format_from_file_extension(parsed_file_name.file_format)
 
             table_name = table_schema["name"]
-            if table_name in item_normalizers:
-                return item_normalizers[table_name]
+            normalizer_key = f"{table_name}.{item_format}"
+
+            if normalizer_key in item_normalizers:
+                return item_normalizers[normalizer_key]
 
             # TODO: extract code that resolves file_format from preferred to utils
 
@@ -166,6 +168,7 @@ def w_normalize_files(
                     f" {item_storage.writer_cls.__name__} writer is used that internally"
                     f" converts {item_format}. This will degrade performance."
                 )
+
             cls: Type[ItemsNormalizer]
             if item_format == "arrow":
                 cls = ArrowItemsNormalizer
@@ -180,7 +183,8 @@ def w_normalize_files(
                 f" {item_storage.writer_cls.__name__} for item format {item_format} and file"
                 f" format {item_storage.writer_spec.file_format}"
             )
-            norm = item_normalizers[table_name] = cls(
+
+            norm = item_normalizers[normalizer_key] = cls(
                 item_storage,
                 normalize_storage,
                 schema,

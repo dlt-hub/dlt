@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Set, Sequence, Generator
+from typing import Any, Dict, List, Set, Sequence, Generator, cast
 import pytest
 import random
 from os import environ
@@ -12,7 +12,7 @@ from dlt.common.pipeline import LoadInfo
 from dlt.common.typing import DictStrAny
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.exceptions import DestinationUndefinedEntity
-
+from dlt.destinations.dataset.dataset import ReadableDBAPIRelation
 from dlt.common.schema.typing import TTableSchema
 
 
@@ -501,7 +501,7 @@ def select_data(
     sql: str,
     schema_name: str = None,
     dataset_name: str = None,
-    normalize_query: bool = True,
+    _execute_raw_query: bool = False,
 ) -> List[Sequence[Any]]:
     """Execute *sql* against the pipeline's dataset and return all rows.
 
@@ -512,16 +512,16 @@ def select_data(
         dataset_name (str, optional): Temporary override for the dataset name –
             useful when the test needs to query a different dataset created by
             the same pipeline.
-        normalize_query (bool, optional): Whether to run the query as is or perform query normalization and lineage. Experimental.
+        _execute_raw_query (bool, optional): Whether to run the query as (raw) is or perform query normalization and lineage. Experimental.
 
     Returns:
         List[Sequence[Any]]: All rows returned by the query.
     """
     dataset = p.dataset(schema=schema_name)
-    # a hack to change the dataset name for the purposes of this test
+    # TODO: fix multiple dataset layout and remove hack
     if dataset_name:
-        dataset._dataset_name = dataset_name
-    return list(dataset(sql, normalize_query=normalize_query).fetchall())
+        dataset._dataset_name = dataset_name  # type: ignore[attr-defined]
+    return list(dataset(sql, _execute_raw_query=_execute_raw_query).fetchall())
 
 
 def assert_table_column(
@@ -549,10 +549,12 @@ def assert_table_column(
         assert table_exists(p, table_name, schema_name)
         return
 
+    dataset = p.dataset(schema=schema_name)
+
     # select full table
     assert_query_column(
         p,
-        p.dataset(schema=schema_name)[table_name].query(),
+        cast(ReadableDBAPIRelation, dataset[table_name]).to_sql(),
         table_data,
         schema_name,
         info,
@@ -579,7 +581,7 @@ def assert_query_column(
         info (LoadInfo, optional): When provided, the second query column must
             contain only IDs that belong to *info*.
     """
-    rows = select_data(p, sql, schema_name, normalize_query=False)
+    rows = select_data(p, sql, schema_name, _execute_raw_query=True)
     assert len(rows) == len(table_data)
 
     # check load id

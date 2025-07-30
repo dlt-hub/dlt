@@ -41,6 +41,7 @@ const sidebars = {
         'tutorial/sql-database',
         'tutorial/filesystem',
         'tutorial/load-data-from-an-api',
+        'tutorial/playground',
       ]
     },
     {
@@ -312,7 +313,7 @@ const sidebars = {
           },
           items: [
             "dlt-ecosystem/llm-tooling/mcp-server",
-            "dlt-ecosystem/llm-tooling/cursor-restapi",
+            "dlt-ecosystem/llm-tooling/llm-native-workflow",
           ]
         },
         {
@@ -540,6 +541,7 @@ for (const item of sidebars.tutorialSidebar) {
   if (item.label === 'Code examples') {
     for (let examplePath of walkSync("./docs_processed/examples")) {
       examplePath = examplePath.replace("docs_processed/", "");
+      examplePath = examplePath.replace(".mdx", "");
       examplePath = examplePath.replace(".md", "");
       item.items.push(examplePath);
     }

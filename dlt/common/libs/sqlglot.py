@@ -1,13 +1,43 @@
-from typing import Optional, Union, Set, Any, Iterable
+from typing import Optional, Union, Set, Any, Iterable, Literal
 
 from dlt.common.utils import without_none
-from dlt.common.exceptions import MissingDependencyException, TerminalValueError
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema.typing import TColumnType, TDataType, TColumnSchema
 
 import sqlglot.expressions as sge
 from sqlglot.expressions import DataType, DATA_TYPE
 from sqlglot.optimizer.scope import build_scope
 
+
+TSqlGlotDialect = Literal[
+    "athena",
+    "bigquery",
+    "clickhouse",
+    "databricks",
+    "doris",
+    "drill",
+    "druid",
+    "duckdb",
+    "dune",
+    "hive",
+    "materialize",
+    "mysql",
+    "oracle",
+    "postgres",
+    "presto",
+    "prql",
+    "redshift",
+    "risingwave",
+    "snowflake",
+    "spark",
+    "spark2",
+    "sqlite",
+    "starrocks",
+    "tableau",
+    "teradata",
+    "trino",
+    "tsql",
+]
 
 SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, TDataType] = {
     # NESTED_TYPES
@@ -110,45 +140,6 @@ try:
 except AttributeError:
     pass
 
-SQLGLOT_INT_PRECISION = {
-    DataType.Type.TINYINT: 3,
-    DataType.Type.SMALLINT: 5,
-    DataType.Type.MEDIUMINT: 8,
-    DataType.Type.INT: 10,
-    DataType.Type.BIGINT: None,  # 19
-    DataType.Type.INT128: 39,
-    DataType.Type.INT256: 78,
-    DataType.Type.UTINYINT: 3,
-    DataType.Type.USMALLINT: 5,
-    DataType.Type.UMEDIUMINT: 8,
-    DataType.Type.UINT: 10,
-    DataType.Type.UBIGINT: 19,
-    DataType.Type.UINT128: 39,
-    DataType.Type.UINT256: 78,
-}
-
-SQLGLOT_DECIMAL_PRECISION_AND_SCALE = {
-    DataType.Type.BIGDECIMAL: (38, 10),
-    DataType.Type.DECIMAL: (38, 10),
-    DataType.Type.MONEY: (19, 4),
-    DataType.Type.SMALLMONEY: (10, 4),
-    DataType.Type.UDECIMAL: (38, 10),
-}
-
-try:
-    SQLGLOT_DECIMAL_PRECISION_AND_SCALE[DataType.Type.DECIMAL32] = (7, 2)
-    SQLGLOT_DECIMAL_PRECISION_AND_SCALE[DataType.Type.DECIMAL64] = (16, 4)
-    SQLGLOT_DECIMAL_PRECISION_AND_SCALE[DataType.Type.DECIMAL128] = (34, 10)
-    SQLGLOT_DECIMAL_PRECISION_AND_SCALE[DataType.Type.DECIMAL256] = (76, 20)
-except AttributeError:
-    pass
-
-SQLGLOT_TEMPORAL_PRECISION = {
-    DataType.Type.TIMESTAMP: None,  # default value; default precision varies across DB
-    DataType.Type.TIMESTAMP_S: 0,
-    DataType.Type.TIMESTAMP_MS: 3,
-    DataType.Type.TIMESTAMP_NS: 9,
-}
 
 # NOTE in Snowflake, TIMESTAMPNTZ == DATETIME; is this true for dlt?
 SQLGLOT_HAS_TIMEZONE = {
@@ -178,7 +169,6 @@ DLT_TO_SQLGLOT = {
     "binary": DataType.Type.VARBINARY,
     "time": DataType.Type.TIME,
     "decimal": DataType.Type.DECIMAL,
-    "wei": DataType.Type.UINT256,
 }
 
 
@@ -220,15 +210,14 @@ def _from_integer_type(sqlglot_type: sge.DataType) -> TColumnSchema:
     if sqlglot_type.expressions:  # from parameterized type
         assert len(sqlglot_type.expressions) == 1
         assert isinstance(sqlglot_type.expressions[0], sge.DataTypeParam)
-        precision = sqlglot_type.expressions[0].this.to_py()
+        return {"precision": sqlglot_type.expressions[0].this.to_py()}
 
-    else:  # from named type
-        precision = SQLGLOT_INT_PRECISION.get(sqlglot_type.this)
-    return {"precision": precision}
+    return {}
 
 
 def _from_decimal_type(sqlglot_type: sge.DataType) -> TColumnSchema:
-    if sqlglot_type.expressions:  # from parameterized type
+    hints = {}
+    if sqlglot_type.expressions:
         assert all(isinstance(e, sge.DataTypeParam) for e in sqlglot_type.expressions)
         assert len(sqlglot_type.expressions) in (1, 2)
         if len(sqlglot_type.expressions) == 1:
@@ -243,26 +232,18 @@ def _from_decimal_type(sqlglot_type: sge.DataType) -> TColumnSchema:
                 "Expected 1 or 2 `DataTypeParam` attached to expression. "
                 f"Found {len(sqlglot_type.expressions)}: {sqlglot_type.expressions}"
             )
-    else:  # from named type
-        precision_and_scale = SQLGLOT_DECIMAL_PRECISION_AND_SCALE.get(sqlglot_type.this)
-        if precision_and_scale is not None:
-            precision, scale = precision_and_scale
-            hints = {"precision": precision, "scale": scale}
-        else:
-            hints = {}
 
     return hints  # type: ignore[return-value]
 
 
 def _from_timezone_type(sqlglot_type: sge.DataType) -> TColumnSchema:
     timezone = SQLGLOT_HAS_TIMEZONE.get(sqlglot_type.this)
+    precision = None
 
     if sqlglot_type.expressions:  # from parameterized type
         assert len(sqlglot_type.expressions) == 1
         assert isinstance(sqlglot_type.expressions[0], sge.DataTypeParam)
         precision = sqlglot_type.expressions[0].this.to_py()
-    else:  # from named type
-        precision = SQLGLOT_TEMPORAL_PRECISION.get(sqlglot_type.this)
 
     return {"precision": precision, "timezone": timezone}
 
@@ -412,7 +393,8 @@ def _build_parameterized_sqlglot_type(
 
     elif dlt_type == "binary" and precision is not None:
         sqlglot_type = sge.DataType.build(f"VARBINARY({precision})", **hints)
-
+    elif dlt_type == "wei":
+        sqlglot_type = sge.DataType.build("DECIMAL(38, 0)", **hints)
     else:
         sqlglot_type = sge.DataType.build(DLT_TO_SQLGLOT[dlt_type], **hints)
 

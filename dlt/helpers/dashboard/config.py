@@ -7,7 +7,7 @@ from dlt.common.configuration.specs import BaseConfiguration
 
 
 @configspec
-class StudioConfiguration(BaseConfiguration):
+class DashboardConfiguration(BaseConfiguration):
     table_list_fields: List[str] = dataclasses.field(
         default_factory=lambda: ["parent", "resource", "write_disposition", "description"]
     )

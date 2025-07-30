@@ -258,7 +258,7 @@ class Endpoint(TypedDict, total=False):
     headers: Optional[Dict[str, Any]]
 
 
-class ProcessingSteps(TypedDict):
+class ProcessingSteps(TypedDict, total=False):
     filter: Optional[Callable[[Any], bool]]  # noqa: A003
     map: Optional[Callable[[Any], Any]]  # noqa: A003
 

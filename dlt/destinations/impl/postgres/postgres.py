@@ -1,7 +1,7 @@
 from typing import Dict, Iterator, Optional, Sequence, List, Any
 
 from dlt.common import logger
-from dlt.common.data_writers.configuration import CsvFormatConfiguration
+from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
     DestinationInvalidFileFormat,

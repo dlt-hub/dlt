@@ -39,16 +39,25 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --all-extras --group airflow --group providers --group pipeline --group sentry-sdk --group dbt --group marimo --group streamlit
+        run: uv sync --all-extras --group airflow --group providers --group pipeline --group sources --group sentry-sdk --group dbt --group streamlit
 
       - name: Run make lint
         run: |
           export PATH=$PATH:"/c/Program Files/usr/bin" # needed for Windows
           make lint
-      
+
       - name: Check that cli docs are up to date
         run: make check-cli-docs
         if: ${{ matrix.python-version == '3.11' }}
+
+      - name: Check filesizes
+        uses: ppremk/lfs-warning@v3.2
+        with:
+          filesizelimit: 50000
+          exclusionPatterns: |
+            **/*.py
+            **/*.lock
+            **/*.md
 
   matrix_job_required_check:
     name: lint | code & tests

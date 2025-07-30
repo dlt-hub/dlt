@@ -21,6 +21,7 @@ import re
 
 import sqlglot.expressions
 
+from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common import pendulum, logger
 from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.destination.utils import resolve_replace_strategy
@@ -160,7 +161,7 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         sql_client.execute_sql(insert_statement)
 
     def _insert_statement_from_select_statement(
-        self, select_dialect: str, select_statement: str
+        self, select_dialect: TSqlGlotDialect, select_statement: str
     ) -> str:
         """
         Generates an INSERT statement from a SELECT statement using sqlglot.
@@ -181,18 +182,18 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
                 parts = list(table.parts)
                 if target_catalog:
                     if len(parts) == 3:
-                        table.set("catalog", sqlglot.exp.to_identifier(target_catalog))
-                        table.set("db", sqlglot.exp.to_identifier(parts[1].name))
-                        table.set("this", sqlglot.exp.to_identifier(parts[2].name))
+                        table.set("catalog", sqlglot.to_identifier(target_catalog))
+                        table.set("db", sqlglot.to_identifier(parts[1].name))
+                        table.set("this", sqlglot.to_identifier(parts[2].name))
                     elif len(parts) == 2:
-                        table.set("catalog", sqlglot.exp.to_identifier(target_catalog))
-                        table.set("db", sqlglot.exp.to_identifier(parts[0].name))
-                        table.set("this", sqlglot.exp.to_identifier(parts[1].name))
+                        table.set("catalog", sqlglot.to_identifier(target_catalog))
+                        table.set("db", sqlglot.to_identifier(parts[0].name))
+                        table.set("this", sqlglot.to_identifier(parts[1].name))
                 else:
                     if len(parts) == 3:
                         table.set("catalog", None)
-                        table.set("db", sqlglot.exp.to_identifier(parts[1].name))
-                        table.set("this", sqlglot.exp.to_identifier(parts[2].name))
+                        table.set("db", sqlglot.to_identifier(parts[1].name))
+                        table.set("this", sqlglot.to_identifier(parts[2].name))
 
         # Ensure there's a top-level SELECT, otherwise it doesn't make sense
         top_level_select = parsed_select.find(sqlglot.exp.Select)
@@ -207,7 +208,7 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         columns = []
         for _, expr in enumerate(top_level_select.expressions):
             alias_name = expr.alias
-            columns.append(sqlglot.exp.to_identifier(alias_name))
+            columns.append(sqlglot.to_identifier(alias_name, quoted=True))
 
         # Build final INSERT
         query = sqlglot.expressions.insert(
