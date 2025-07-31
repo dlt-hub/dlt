@@ -1,7 +1,7 @@
 import os
 import ast
 import shutil
-from typing import Dict, Sequence, Tuple
+from typing import Dict, Sequence, Tuple, Optional
 from pathlib import Path
 
 
@@ -41,6 +41,7 @@ from dlt.cli.pipeline_files import (
     TVerifiedSourceFileIndex,
 )
 from dlt.cli.exceptions import CliCommandInnerException
+from dlt.cli.ai_command import SUPPORTED_IDES, TSupportedIde
 
 
 DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
@@ -104,7 +105,7 @@ def init_command(
     sources_dir = run_ctx.get_run_entity("sources")
 
     is_dlthub_source, display_source_name, _ = _get_source_display_name(source_name)
-    copied_files, source_type = init_pipeline_at_destination(
+    copied_files, source_type, selected_ide = init_pipeline_at_destination(
         source_name,
         destination_type,
         repo_location,
@@ -116,13 +117,18 @@ def init_command(
         settings_dir,
         sources_dir,
     )
-    if is_dlthub_source and copied_files is not None:
+    if is_dlthub_source and copied_files is not None and selected_ide:
         from dlt.cli import DEFAULT_VIBE_SOURCES_REPO, DEFAULT_VERIFIED_SOURCES_REPO
         from dlt.cli.ai_command import ai_setup_command, vibe_source_setup
 
         fmt.echo()
         fmt.echo()
-        ai_setup_command("cursor", DEFAULT_VERIFIED_SOURCES_REPO, branch=branch, hide_warnings=True)
+        ai_setup_command(
+            selected_ide,
+            DEFAULT_VERIFIED_SOURCES_REPO,
+            branch=branch,
+            hide_warnings=True,
+        )
         fmt.echo()
         fmt.echo()
         # swap default repo location
@@ -145,7 +151,7 @@ def init_pipeline_at_destination(
     settings_dir: str = None,
     sources_dir: str = None,
     target_dependency_system: str = None,
-) -> Tuple[Dict[str, str], files_ops.TSourceType]:
+) -> Tuple[Dict[str, str], files_ops.TSourceType, Optional[TSupportedIde]]:
     """
     Initializes a pipeline at the specified destination by setting up the required files, configurations, and dependencies.
 
@@ -173,7 +179,7 @@ def init_pipeline_at_destination(
             A tuple containing:
             - A dictionary of copied files (destination path -> source path).
             - The type of the source (e.g., "template", "core", "verified").
-            - Extracted display name for the source
+            - Name of the selected ide for dlthub sources (defaults to "cursor")
     """
     # try to import the destination and get config spec
     if destination_type:
@@ -245,7 +251,7 @@ def init_pipeline_at_destination(
             )
         if not remote_deleted and not remote_modified:
             fmt.echo("No files to update, exiting")
-            return None, source_type
+            return None, source_type, None
 
         if remote_index["is_dirty"]:
             fmt.warning(
@@ -284,7 +290,7 @@ def init_pipeline_at_destination(
                 "Pipeline script %s already exists, exiting"
                 % source_configuration.dest_pipeline_script
             )
-            return None, source_type
+            return None, source_type, None
 
     # add .dlt/*.toml files to be copied
     # source_configuration.files.extend(
@@ -310,7 +316,7 @@ def init_pipeline_at_destination(
                 "You can update dlt with: pip3 install -U"
                 f' "{source_configuration.requirements.dlt_requirement_base}"'
             )
-            return None, source_type
+            return None, source_type, None
 
     # read module source and parse it
     visitor = utils.parse_init_script(
@@ -414,6 +420,8 @@ def init_pipeline_at_destination(
     # validate by parsing
     ast.parse(source=dest_script_source)
 
+    selected_ide: TSupportedIde = None
+
     # ask for confirmation
     if is_new_source:
         if source_configuration.source_type == "core":
@@ -449,11 +457,21 @@ def init_pipeline_at_destination(
                     " to see all available sources and templates."
                 )
             if is_dlthub_source:
+                fmt.echo("dlt will generate useful project rules tailored to your assistant/IDE.")
+                selected_ide = fmt.prompt(
+                    "Press Enter to accept the default (cursor), or type a name",
+                    choices=SUPPORTED_IDES,
+                    default="cursor",
+                    show_choices=False,
+                    show_default=False,
+                )
+
                 fmt.echo(
-                    "Initializing pipeline %s, adding cursor rules, code snippets and docs for %s"
+                    "Initializing pipeline %s, adding %s rules, code snippets and docs for %s"
                     " source."
                     % (
                         fmt.bold(source_configuration.dest_pipeline_script),
+                        fmt.bold(selected_ide),
                         fmt.bold(display_source_name),
                     )
                 )
@@ -516,7 +534,7 @@ def init_pipeline_at_destination(
         if add_example_pipeline_script:
             files_to_create[pipeline_script_target_path] = dest_script_source
         # todo: handle remote index changes?
-        return files_to_create, source_type
+        return files_to_create, source_type, None
 
     # modify storage
     else:
@@ -555,7 +573,7 @@ def init_pipeline_at_destination(
             dest_storage.save(utils.REQUIREMENTS_TXT, requirements_txt)
 
         copied_files: Dict[str, str] = {dest_path: src_path for src_path, dest_path in copy_files}
-        return copied_files, source_type
+        return copied_files, source_type, selected_ide
 
 
 def _get_source_display_name(source_name: str) -> Tuple[bool, str, str]:
