@@ -1099,3 +1099,28 @@ def add_arrow_metadata(
         return pyarrow.Table.from_arrays(item.columns, schema=new_schema)
     else:  # RecordBatch
         return pyarrow.RecordBatch.from_arrays(item.columns, schema=new_schema)
+
+
+def set_plus0000_timezone_to_utc(tbl: pyarrow.Table) -> pyarrow.Table:
+    """
+    Convert any +00:00 timestamp columns to UTC.
+    Returns the original table object if nothing needed fixing.
+    """
+    arrays, fields = [], []
+    changed = False
+
+    for col, fld in zip(tbl.columns, tbl.schema):
+        if pyarrow.types.is_timestamp(fld.type) and fld.type.tz == "+00:00":
+            changed = True
+            new_type = pyarrow.timestamp(fld.type.unit, "UTC")
+            arrays.append(pyarrow.compute.cast(col, new_type))
+            fields.append(pyarrow.field(fld.name, new_type, fld.nullable, fld.metadata))
+        else:
+            arrays.append(col)
+            fields.append(fld)
+
+    if not changed:
+        return tbl  # perfect no-op
+
+    new_schema = pyarrow.schema(fields, metadata=tbl.schema.metadata)
+    return pyarrow.Table.from_arrays(arrays, schema=new_schema)
