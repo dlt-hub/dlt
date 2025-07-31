@@ -26,9 +26,7 @@ def test_ai_setup_command(
     ide: TSupportedIde, expected_relative_path: str, is_single_file: bool
 ) -> None:
     with set_working_dir(TEST_STORAGE_ROOT):
-        ai_command.ai_setup_command(
-            ide=ide, location=DEFAULT_VERIFIED_SOURCES_REPO, branch="feat/continue-rules"
-        )
+        ai_command.ai_setup_command(ide=ide, location=DEFAULT_VERIFIED_SOURCES_REPO)
 
     base_path = Path(TEST_STORAGE_ROOT).resolve()
     expected_location = base_path / expected_relative_path

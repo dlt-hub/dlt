@@ -126,7 +126,7 @@ def init_command(
         ai_setup_command(
             selected_ide,
             DEFAULT_VERIFIED_SOURCES_REPO,
-            branch="feat/continue-rules",
+            branch=branch,
             hide_warnings=True,
         )
         fmt.echo()
