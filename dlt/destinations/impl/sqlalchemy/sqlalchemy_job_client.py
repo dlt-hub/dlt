@@ -246,7 +246,7 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
 
         schema_mapping = StorageSchemaInfo(
             version=schema.version,
-            engine_version=str(schema.ENGINE_VERSION),
+            engine_version=schema.ENGINE_VERSION,
             schema_name=schema.name,
             version_hash=schema.stored_version_hash,
             schema=schema_str,
