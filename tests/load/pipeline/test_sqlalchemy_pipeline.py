@@ -58,3 +58,93 @@ def test_sqlalchemy_create_indexes(
                 assert indexes[0]["column_names"][0] == "_dlt_id"
             else:
                 assert len(indexes) == 0
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["sqlalchemy"]),
+    ids=lambda x: x.name,
+)
+def test_custom_type_mapper(destination_config: DestinationTestConfiguration) -> None:
+    from dlt.common import json
+
+    import dlt
+    import sqlalchemy as sa
+    from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
+
+    class JSONString(sa.TypeDecorator):
+        """
+        A custom SQLAlchemy type that stores JSON data as a string in the database.
+        Automatically serializes Python objects to JSON strings on write and
+        deserializes JSON strings back to Python objects on read.
+        """
+
+        impl = sa.String
+        cache_ok = True
+
+        def process_bind_param(self, value, dialect):
+            if value is None:
+                return None
+
+            return json.dumps(value)
+
+        def process_result_value(self, value, dialect):
+            if value is None:
+                return None
+
+            return json.loads(value)
+
+    class TrinoTypeMapper(SqlalchemyTypeMapper):
+        """Example mapper that plugs custom string type that serialized to from/json
+
+        Note that instance of TypeMapper contains dialect and destination capabilities instance
+        for a deeper integration
+        """
+
+        def to_destination_type(self, column, table=None):
+            if column["data_type"] == "json":
+                return JSONString(length=345)
+            return super().to_destination_type(column, table)
+
+    # pass dest_ in `destination` argument to dlt.pipeline
+    dest_ = dlt.destinations.sqlalchemy(type_mapper=TrinoTypeMapper)
+
+    pipeline = destination_config.setup_pipeline("test_custom_type_mapper", destination=dest_)
+
+    # run pipeline with resource that has json data type hint
+    @dlt.resource(columns={"json_field": {"data_type": "json"}})
+    def json_data():
+        yield {
+            "id": 1,
+            "json_field": {"key": "value", "nested": {"num": 42}},
+            "regular_field": "some text",
+        }
+
+    pipeline.run(json_data(), table_name="test_json_mapping")
+
+    # read data with pipeline.dataset()
+    dataset = pipeline.dataset()
+    result = dataset.test_json_mapping.fetchall()
+    assert len(result) == 1
+    assert result[0]["id"] == 1  # type: ignore
+    assert result[0]["regular_field"] == "some text"  # type: ignore
+
+    # The json field should be stored as a string representation of the JSON
+    json_value = result[0]["json_field"]  # type: ignore
+    if isinstance(json_value, str):
+        parsed_json = json.loads(json_value)
+        assert parsed_json["key"] == "value"
+        assert parsed_json["nested"]["num"] == 42
+    else:
+        raise NotImplementedError("must be string")
+
+    # reflect table and check if string field length is exactly 345
+    from dlt.common.libs.sql_alchemy import Table, MetaData
+
+    with pipeline.sql_client() as client:
+        reflected_table: Table = client.reflect_table("test_json_mapping", metadata=MetaData())
+        json_column = reflected_table.c.json_field
+
+        # Check that the json field was mapped to String with length 345
+        assert isinstance(json_column.type, sa.String)
+        assert json_column.type.length == 345
