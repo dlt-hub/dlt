@@ -277,7 +277,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             sqla_statements.append(insert_statement)
 
         return [
-            x + ";" if not x.endswith(";") else x
+            x
             for x in (
                 str(stmt.compile(sql_client.engine, compile_kwargs={"literal_binds": True}))
                 for stmt in sqla_statements
