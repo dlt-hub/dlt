@@ -23,7 +23,7 @@ from dlt.common.utils import digest128
 
 
 TSchemaFileFormat = Literal["json", "yaml", "dbml"]
-SchemaFileExtensions = get_args(TSchemaFileFormat)
+SCHEMA_FILES_EXTENSIONS = get_args(TSchemaFileFormat)
 
 
 @configspec

@@ -833,5 +833,5 @@ TableGroup "_dlt" {
 </details>
 
 
-![chartdb dbml render](./static/chartdb_schema.png)
+![chartdb dbml render](https://storage.googleapis.com/dlt-blog-images/chartdb_schema.png)
 

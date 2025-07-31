@@ -9,7 +9,7 @@ from dlt.common.schema.utils import get_processing_hints, to_pretty_json, to_pre
 from dlt.common.storages.configuration import (
     SchemaStorageConfiguration,
     TSchemaFileFormat,
-    SchemaFileExtensions,
+    SCHEMA_FILES_EXTENSIONS,
 )
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import Schema, verify_schema_hash
@@ -258,7 +258,7 @@ class SchemaStorage(Mapping[str, Schema]):
     def load_schema_file(
         path: str,
         name: str,
-        extensions: Tuple[TSchemaFileFormat, ...] = SchemaFileExtensions,
+        extensions: Tuple[TSchemaFileFormat, ...] = SCHEMA_FILES_EXTENSIONS,
         remove_processing_hints: bool = False,
     ) -> Schema:
         storage = FileStorage(path)
