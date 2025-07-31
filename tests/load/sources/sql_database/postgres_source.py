@@ -47,7 +47,7 @@ from dlt.sources.credentials import ConnectionStringCredentials
 from dlt.common.typing import TypedDict
 
 
-class SQLAlchemySourceDB:
+class PostgresSourceDB:
     def __init__(
         self,
         credentials: ConnectionStringCredentials,

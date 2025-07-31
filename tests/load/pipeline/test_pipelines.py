@@ -654,14 +654,12 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         db_row = list(db_rows[0])
         # "snowflake" and "bigquery" do not parse JSON form parquet string so double parse
         assert_all_data_types_row(
+            sql_client.capabilities,
             db_row,
             schema=column_schemas,
             parse_json_strings=destination_config.destination_type
             in ["snowflake", "bigquery", "redshift"],
             allow_string_binary=destination_config.destination_type == "clickhouse",
-            timestamp_precision=(
-                3 if destination_config.destination_type in ("athena", "dremio") else 6
-            ),
         )
 
 
@@ -869,45 +867,62 @@ def test_query_all_info_tables_fallback(destination_config: DestinationTestConfi
 
 
 # @pytest.mark.skip(reason="Finalize the test: compare some_data values to values from database")
-# @pytest.mark.parametrize(
-#     "destination_config",
-#     destinations_configs(all_staging_configs=True, default_sql_configs=True, file_format=["insert_values", "jsonl", "parquet"]),
-#     ids=lambda x: x.name,
-# )
-# def test_load_non_utc_timestamps_with_arrow(destination_config: DestinationTestConfiguration) -> None:
-#     """Checks if dates are stored properly and timezones are not mangled"""
-#     from datetime import timedelta, datetime, timezone
-#     start_dt = datetime.now()
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        # with_file_format=["insert_values", "jsonl", "parquet"],
+    ),
+    ids=lambda x: x.name,
+)
+def test_load_non_utc_timestamps(destination_config: DestinationTestConfiguration) -> None:
+    """Checks if dates are stored properly and timezones are not mangled"""
+    from datetime import timedelta, datetime, timezone
+    from dlt.common import pendulum
 
-#     # columns=[{"name": "Hour", "data_type": "bool"}]
-#     @dlt.resource(standalone=True, primary_key="Hour")
-#     def some_data(
-#         max_hours: int = 2,
-#     ):
-#         data = [
-#             {
-#                 "naive_dt": start_dt + timedelta(hours=hour), "hour": hour,
-#                 "utc_dt": pendulum.instance(start_dt + timedelta(hours=hour)), "hour": hour,
-#                 # tz="Europe/Berlin"
-#                 "berlin_dt": pendulum.instance(start_dt + timedelta(hours=hour), tz=timezone(offset=timedelta(hours=-8))), "hour": hour,
-#             }
-#             for hour in range(0, max_hours)
-#         ]
-#         data = data_to_item_format("arrow-table", data)
-#         # print(py_arrow_to_table_schema_columns(data[0].schema))
-#         # print(data)
-#         yield data
+    start_dt = datetime.now()
 
-#     pipeline = destination_config.setup_pipeline(
-#         "test_load_non_utc_timestamps",
-#         dataset_name="test_load_non_utc_timestamps",
-#         dev_mode=True,
-#     )
-#     info = pipeline.run(some_data())
-#     # print(pipeline.default_schema.to_pretty_yaml())
-#     assert_load_info(info)
-#     table_name = pipeline.sql_client().make_qualified_table_name("some_data")
-#     print(select_data(pipeline, f"SELECT * FROM {table_name}"))
+    @dlt.resource(
+        standalone=True, primary_key="Hour", columns=[{"name": "naive_dt", "timezone": False}]
+    )
+    def date_data(
+        max_hours: int = 2,
+    ):
+        data = [
+            {
+                "naive_dt": start_dt + timedelta(hours=hour),
+                "utc_dt": pendulum.instance(start_dt + timedelta(hours=hour)),
+                # tz="Europe/Berlin", timezone(offset=timedelta(hours=-8)
+                "berlin_dt": pendulum.instance(
+                    start_dt + timedelta(hours=hour), tz="Europe/Berlin"
+                ),
+                "hour": hour,
+            }
+            for hour in range(0, max_hours)
+        ]
+        # data = data_to_item_format("arrow-table", data)
+        # # print(py_arrow_to_table_schema_columns(data[0].schema))
+        # # print(data)
+        yield data
+
+    pipeline = destination_config.setup_pipeline(
+        "test_load_non_utc_timestamps",
+        dataset_name="test_load_non_utc_timestamps",
+        dev_mode=True,
+    )
+    info = pipeline.run(date_data())
+    assert_load_info(info)
+    date_table = pipeline.default_schema.tables["date_data"]
+    assert date_table["columns"]["naive_dt"]["timezone"] is False
+    with pipeline.dataset() as dataset:
+        # read with fetch
+        object_data = dataset["date_data"].fetchall()
+        print(object_data)
+        # read with arrow
+        arrow_data = dataset["date_data"].arrow()
+        print(arrow_data)
+    # table_name = pipeline.sql_client().make_qualified_table_name("some_data")
+    # print(select_data(pipeline, f"SELECT * FROM {table_name}"))
 
 
 def simple_nested_pipeline(

@@ -10,9 +10,23 @@ import Header from '../_source-info-header.md';
 
 <Header/>
 
+## Timezone aware and non-aware data types
+
+### I see UTC datetime column in my destination, but my data source has naive datetime column
+Use `full` or `full_with_precision` reflection level to get explicit `timezone` hint in reflected table schemas and use `pyarrow` or `connectorx`
+backends. `sqlalchemy` sends data to Python object normalizer which will convert all datetime fields to UTC regardless of timezone settings.
+Note that some destinations (ie. Athena) do not support naive datetimes at all.
+
+### I have incremental cursor on datetime column and I see query errors
+Queries used to query data in the `sql_database` are created from `Incremental` instance attached to table resource. [Initial end and last values
+must match tz-awareness of the cursor column](setup.md) because they will be used as parameters to the `WHERE` clause. 
+
+In rate cases where last value is already stored in pipeline state and has wrong tz-awareness you may not be able to recover your pipeline automatically. You may 
+modify local pipeline state (after syncing with destination) to add/remove timezone.
+
 ## Troubleshooting connection
 
-#### Connecting to MySQL with SSL 
+### Connecting to MySQL with SSL 
 Here, we use the `mysql` and `pymysql` dialects to set up an SSL connection to a server, with all information taken from the [SQLAlchemy docs](https://docs.sqlalchemy.org/en/14/dialects/mysql.html#ssl-connections).
 
 1. To enforce SSL on the client without a client certificate, you may pass the following DSN:
@@ -33,7 +47,7 @@ Here, we use the `mysql` and `pymysql` dialects to set up an SSL connection to a
    sources.sql_database.credentials="mysql+pymysql://root:<pass>@35.203.96.191:3306/mysql?ssl_ca=&ssl_cert=client-cert.pem&ssl_key=client-key.pem"
    ```
 
-#### SQL Server connection options
+### SQL Server connection options
 
 **To connect to an `mssql` server using Windows authentication**, include `trusted_connection=yes` in the connection string.
 

@@ -308,11 +308,11 @@ def test_snowflake_use_vectorized_scanner(
         db_row = list(db_rows[0])
         # "snowflake" does not parse JSON from parquet string so double parse
         assert_all_data_types_row(
+            sql_client.capabilities,
             db_row,
             expected_row=expected_rows,
             schema=column_schemas,
             parse_json_strings=True,
-            timestamp_precision=6,
         )
 
 
