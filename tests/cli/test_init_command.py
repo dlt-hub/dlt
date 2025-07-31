@@ -3,6 +3,7 @@ from copy import deepcopy
 import hashlib
 import os
 import contextlib
+import shutil
 from subprocess import CalledProcessError
 from typing import List, Tuple, Optional
 from hexbytes import HexBytes
@@ -19,13 +20,20 @@ import cryptography.hazmat.bindings._rust
 import dlt
 
 from dlt.common import git
+from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, SecretsTomlProvider
 from dlt.common.runners import Venv
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.utils import set_working_dir
+from dlt.common.utils import set_working_dir, uniq_id
 
 
-from dlt.cli import init_command, echo, utils, DEFAULT_VERIFIED_SOURCES_REPO
+from dlt.cli import (
+    init_command,
+    echo,
+    utils,
+    DEFAULT_VERIFIED_SOURCES_REPO,
+    DEFAULT_VIBE_SOURCES_REPO,
+)
 from dlt.cli.init_command import (
     SOURCES_MODULE_NAME,
     SourceConfiguration,
@@ -36,22 +44,26 @@ from dlt.cli.init_command import (
     _list_template_sources,
     _list_verified_sources,
 )
+from dlt.cli.ai_command import SUPPORTED_IDES
 from dlt.cli.exceptions import CliCommandInnerException
 from dlt.cli.requirements import SourceRequirements
 from dlt.reflection.script_visitor import PipelineScriptVisitor
 from dlt.reflection import names as n
 from dlt.cli.config_toml_writer import TYPE_EXAMPLES
+from dlt.cli.pipeline_files import TSourceType
 
 from tests.cli.utils import (
     echo_default_choice,
     repo_dir,
+    vibe_repo_dir,
     project_files,
     cloned_init_repo,
+    clonet_init_vibe_repo,
     get_repo_dir,
     get_project_files,
 )
 from tests.common.utils import modify_and_commit_file
-from tests.utils import IMPLEMENTED_DESTINATIONS, clean_test_storage
+from tests.utils import IMPLEMENTED_DESTINATIONS, clean_test_storage, TEST_STORAGE_ROOT
 
 # we hardcode the core sources here so we can check that the init script picks
 # up the right source
@@ -78,10 +90,14 @@ TEMPLATES = [
 SOME_KNOWN_VERIFIED_SOURCES = ["chess", "google_sheets", "pipedrive"]
 
 
-def get_verified_source_candidates(repo_dir: str) -> List[str]:
-    sources_storage = FileStorage(os.path.join(repo_dir, SOURCES_MODULE_NAME))
-    # enumerate all candidate verified sources
-    return files_ops.get_sources_names(sources_storage, source_type="verified")
+def get_source_candidates(repo_dir: str, source_type: TSourceType = "verified") -> List[str]:
+    # vibe sources are in the root folder, so no module name
+    if source_type == "vibe":
+        sources_storage = FileStorage(repo_dir)
+    else:
+        sources_storage = FileStorage(os.path.join(repo_dir, SOURCES_MODULE_NAME))
+    # enumerate all candidate sources
+    return files_ops.get_sources_names(sources_storage, source_type=source_type)
 
 
 def test_init_command_pipeline_template(repo_dir: str, project_files: FileStorage) -> None:
@@ -248,7 +264,7 @@ def test_init_list_sources_update_warning(repo_dir: str, project_files: FileStor
 
 
 def test_init_all_sources_together(repo_dir: str, project_files: FileStorage) -> None:
-    source_candidates = [*get_verified_source_candidates(repo_dir), *CORE_SOURCES, *TEMPLATES]
+    source_candidates = [*get_source_candidates(repo_dir), *CORE_SOURCES, *TEMPLATES]
 
     # source_candidates = [source_name for source_name in source_candidates if source_name == "salesforce"]
     for source_name in source_candidates:
@@ -270,14 +286,14 @@ def test_init_all_sources_together(repo_dir: str, project_files: FileStorage) ->
 
 
 def test_init_all_sources_isolated(cloned_init_repo: FileStorage) -> None:
-    repo_dir = get_repo_dir(cloned_init_repo)
+    repo_dir = get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
     # ensure we test both sources form verified sources and core sources
     source_candidates = (
-        set(get_verified_source_candidates(repo_dir)).union(set(CORE_SOURCES)).union(set(TEMPLATES))
+        set(get_source_candidates(repo_dir)).union(set(CORE_SOURCES)).union(set(TEMPLATES))
     )
     for candidate in source_candidates:
         clean_test_storage()
-        repo_dir = get_repo_dir(cloned_init_repo)
+        repo_dir = get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
         files = get_project_files(clear_all_sources=False)
         with set_working_dir(files.storage_path):
             init_command.init_command(candidate, "bigquery", repo_dir)
@@ -288,12 +304,12 @@ def test_init_all_sources_isolated(cloned_init_repo: FileStorage) -> None:
 
 
 def test_init_core_sources_ejected(cloned_init_repo: FileStorage) -> None:
-    repo_dir = get_repo_dir(cloned_init_repo)
+    repo_dir = get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
     # ensure we test both sources form verified sources and core sources
     source_candidates = set(CORE_SOURCES)
     for candidate in source_candidates:
         clean_test_storage()
-        repo_dir = get_repo_dir(cloned_init_repo)
+        repo_dir = get_repo_dir(cloned_init_repo, f"verified_sources_repo_{uniq_id()}")
         files = get_project_files(clear_all_sources=False)
         with set_working_dir(files.storage_path):
             init_command.init_command(candidate, "bigquery", repo_dir, eject_source=True)
@@ -617,6 +633,54 @@ def test_incompatible_dlt_version_warning(repo_dir: str, project_files: FileStor
     )
 
 
+def test_init_vibe_source_editor_choice(vibe_repo_dir: str, project_files: FileStorage) -> None:
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        init_command.init_command("dlthub:github", "duckdb", vibe_repo_dir)
+        _out = buf.getvalue()
+
+    # Check prompt to select ide
+    assert "dlt will generate useful project rules tailored to your assistant/IDE." in _out
+
+    assert "file(s) supporting github were copied:\ngithub-docs.yaml\n" in _out
+
+
+@pytest.mark.parametrize(
+    "ide_choice",
+    SUPPORTED_IDES,
+)
+def test_init_vibe_source_editor_choice_ux(
+    ide_choice: str, vibe_repo_dir: str, project_files: FileStorage
+) -> None:
+    # Second yes/no prompt also receives the ide_choice, but it doesn't matter
+    with echo.always_choose(False, ide_choice):
+        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+            init_command.init_command("dlthub:github", "duckdb", vibe_repo_dir)
+            _out = buf.getvalue()
+
+    assert "dlt will generate useful project rules tailored to your assistant/IDE." in _out
+    assert f"adding {ide_choice} rules, code snippets and docs" in _out
+    # Check that vibe source files are copied correctly
+    assert "file(s) supporting github were copied:\ngithub-docs.yaml\n" in _out
+
+
+def test_init_all_vibe_sources_together(vibe_repo_dir: str, project_files: FileStorage) -> None:
+    vibe_source_candidates = [*get_source_candidates(vibe_repo_dir, source_type="vibe")]
+
+    for source_name in vibe_source_candidates:
+        init_command.init_command(f"dlthub:{source_name}", "bigquery", vibe_repo_dir)
+        # all must install correctly
+        _, secrets = assert_source_files(
+            project_files, source_name, "bigquery", has_source_section=True, is_vibe_source=True
+        )
+
+    for source_name in vibe_source_candidates:
+        assert secrets.get_value(source_name, type, None, "sources") is not None
+
+    # credentials for all destinations
+    for destination_name in ["bigquery", "postgres", "redshift"]:
+        assert secrets.get_value(destination_name, type, None, "destination") is not None
+
+
 def assert_init_files(
     project_files: FileStorage,
     pipeline_name: str,
@@ -659,26 +723,36 @@ def assert_source_files(
     source_name: str,
     destination_name: str,
     has_source_section: bool = True,
+    is_vibe_source: bool = False,
 ) -> Tuple[PipelineScriptVisitor, SecretsTomlProvider]:
     visitor, secrets = assert_common_files(
         project_files, source_name + "_pipeline.py", destination_name
     )
-    assert project_files.has_folder(source_name) == (source_name not in [*CORE_SOURCES, *TEMPLATES])
+    assert project_files.has_folder(source_name) == (
+        source_name not in [*CORE_SOURCES, *TEMPLATES] and not is_vibe_source
+    )
     source_secrets = secrets.get_value(source_name, type, None, source_name)
     if has_source_section:
         assert source_secrets is not None
     else:
         assert source_secrets is None
-    local_index = files_ops.load_verified_sources_local_index(source_name)
-    for file_entry in local_index["files"].values():
-        # all files have the newest commit (first time clone)
-        assert file_entry["commit_sha"] == local_index["last_commit_sha"]
-        # sha1
-        assert len(HexBytes(file_entry["commit_sha"])) == 20
-        # git sha
-        assert len(HexBytes(file_entry["git_sha"])) == 20
-        # sha3
-        assert len(HexBytes(file_entry["sha3_256"])) == 32
+    # no .sources files for vibe sources
+    if not is_vibe_source:
+        local_index = files_ops.load_verified_sources_local_index(source_name)
+        for file_entry in local_index["files"].values():
+            # all files have the newest commit (first time clone)
+            assert file_entry["commit_sha"] == local_index["last_commit_sha"]
+            # sha1
+            assert len(HexBytes(file_entry["commit_sha"])) == 20
+            # git sha
+            assert len(HexBytes(file_entry["git_sha"])) == 20
+            # sha3
+            assert len(HexBytes(file_entry["sha3_256"])) == 32
+    else:
+        # Ensure the yaml file is there for vibe sources
+        assert project_files.has_file(f"{source_name}-docs.yaml")
+        # Ensure rules are there (cursor by default)
+        assert project_files.has_folder(".cursor")
 
     return visitor, secrets
 
