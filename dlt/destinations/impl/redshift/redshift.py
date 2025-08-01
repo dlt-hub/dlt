@@ -51,7 +51,7 @@ class RedshiftSqlClient(Psycopg2SqlClient):
         # returned by INFORMATION_SCHEMA.SCHEMATA query, so we handle it as a special case
         if self.dataset_name == "public":
             return True
-        
+
         return super().has_dataset()
 
     @staticmethod
