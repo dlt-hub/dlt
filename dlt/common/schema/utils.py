@@ -963,7 +963,12 @@ def loads_table() -> TTableSchema:
     table = new_table(
         LOADS_TABLE_NAME,
         columns=[
-            {"name": C_DLT_LOADS_TABLE_LOAD_ID, "data_type": "text", "nullable": False},
+            {
+                "name": C_DLT_LOADS_TABLE_LOAD_ID,
+                "data_type": "text",
+                "nullable": False,
+                "precision": 64,
+            },
             {"name": "schema_name", "data_type": "text", "nullable": True},
             {"name": "status", "data_type": "bigint", "nullable": False},
             {"name": "inserted_at", "data_type": "timestamp", "nullable": False},
@@ -987,12 +992,13 @@ def dlt_id_column() -> TColumnSchema:
         "nullable": False,
         "unique": True,
         "row_key": True,
+        "precision": 64,
     }
 
 
 def dlt_load_id_column() -> TColumnSchema:
     """Definition of dlt load id column"""
-    return {"name": "_dlt_load_id", "data_type": "text", "nullable": False}
+    return {"name": "_dlt_load_id", "data_type": "text", "nullable": False, "precision": 64}
 
 
 def pipeline_state_table(add_dlt_id: bool = False) -> TTableSchema:
