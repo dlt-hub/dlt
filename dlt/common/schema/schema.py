@@ -687,6 +687,17 @@ class Schema:
             "version_hash": self.version_hash,
         }
         return simple_repr("dlt.Schema", **without_none(kwargs))
+    
+    def _repr_html_(self) -> str:
+        """Render the Schema has a graphviz graph and display it using HTML
+
+        This method is automatically called by notebooks renderers (IPython, marimo, etc.)
+        ref: https://ipython.readthedocs.io/en/stable/config/integrating.html
+
+        `dlt.helpers.graphviz.render_with_html()` has not external Python or system dependencies.
+        """
+        from dlt.helpers.graphviz import render_with_html
+        return render_with_html(self.to_dot())
 
     def to_dict(
         self,
@@ -767,6 +778,34 @@ class Schema:
             group_by_resource=group_by_resource,
         )
         return str(dbml_schema.dbml)
+    
+    def to_dot(
+        self,
+        remove_processing_hints: bool = False,
+        include_dlt_tables: bool = True,
+        include_internal_dlt_ref: bool = True,
+        include_parent_child_ref: bool = True,
+        include_root_child_ref: bool = True,
+        group_by_resource: bool = False,
+    ) -> str:
+        from dlt.helpers.graphviz import schema_to_graphviz
+
+        stored_schema = self.to_dict(
+            # setting this to `True` removes `name` fields that are used in `schema_to_dbml()`
+            # if required, we can refactor `dlt.helpers.dbml` to support this
+            remove_defaults=False,
+            remove_processing_hints=remove_processing_hints,
+        )
+
+        dot = schema_to_graphviz(
+            stored_schema,
+            include_dlt_tables=include_dlt_tables,
+            include_internal_dlt_ref=include_internal_dlt_ref,
+            include_parent_child_ref=include_parent_child_ref,
+            include_root_child_ref=include_root_child_ref,
+            group_by_resource=group_by_resource,
+        )
+        return dot
 
     def clone(
         self,

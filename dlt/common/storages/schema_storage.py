@@ -281,7 +281,9 @@ class SchemaStorage(Mapping[str, Schema]):
         elif extension == "yaml":
             imported_schema = yaml.safe_load(schema_str)
         elif extension == "dbml":
-            raise ValueError(extension, "Schema parser for dbml not yet implemented")
+            raise ValueError(extension, "Schema parser for `dbml` not yet implemented")
+        elif extension == "dot":
+            raise ValueError(extension, "Schema parser for `dot` not yet implemented")
         else:
             raise ValueError(extension)
         return imported_schema
