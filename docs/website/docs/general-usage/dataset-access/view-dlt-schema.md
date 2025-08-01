@@ -10,7 +10,7 @@ During the first `dlt.Pipeline` run, dlt produces a `dlt.Schema` from the data p
 
 You can access the live `dlt.Schema` via the property `dlt.Pipeline.default_schema`.
 
-```python
+```py
 pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination="duckdb")
 pipeline.run(chess_source())
 
@@ -25,14 +25,14 @@ Export to a Python dictionary. This is ideal for programmatic use (data validati
 
 The conversion is lossless and allows you to reconstruct the `dlt.Schema` object. This is not available via the CLI.
 
-```python
+```py
 schema_dict = pipeline.default_schema.to_dict()
 ```
 
 <details>
   <summary>See <code>dict</code></summary>
 
-  ```python
+  ```py
 {
     "version": 2,
     "version_hash": "iW0MtTw8NXm1r/amMiYpOF63Of44Mx5VfYOh5DM6/7s=",
@@ -216,7 +216,7 @@ schema_dict = pipeline.default_schema.to_dict()
 ## Export to JSON
 Export to a JSON string. This is useful for passing between services, store to a file, or add to documentation. The conversion is lossless.
 
-```python
+```py
 # it's "pretty" JSON because the output is indented for human-readability
 schema_json = pipeline.default_schema.to_pretty_json()
 ```
@@ -500,7 +500,7 @@ dlt pipeline chess_pipeline schema --format json
 ## Export to YAML
 Export to a YAML string. It serves the same purposes a JSON export. The conversion is lossless.
 
-```python
+```py
 # it's "pretty" YAML because the output is indented for human-readability
 schema_yaml = pipeline.default_schema.to_pretty_yaml()
 ```
@@ -713,7 +713,7 @@ previous_hashes:
 
 Note that the conversion is lossy. You can't fully recreate `dlt.Schema` from a DBML schema. However, this is a planned feature!
 
-```python
+```py
 schema_dbml = pipeline.default_schema.to_dbml()
 ```
 
