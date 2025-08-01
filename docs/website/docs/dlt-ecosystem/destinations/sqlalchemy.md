@@ -138,6 +138,13 @@ some work to recognize those for most of the popular dialects (look for `db_api_
 
 Please report issues with particular dialects. We'll try to make them work.
 
+### Trino limitations
+* Trino dialect does not case fold identifiers. Use `snake_case` naming convention only.
+* Trino does not support merge/scd2 write disposition (or you somehow create PRIMARY KEYs on engine tables) 
+* We convert JSON and BINARY types are cast to STRING (dialect seems to have a conversion bug)
+* Trino does not support PRIMARY/UNIQUE constraints
+
+
 ### Adapting destination for a dialect
 You can adapt destination capabilities for a particular dialect [by passing your custom settings](../../general-usage/destination.md#pass-additional-parameters-and-change-destination-capabilities). In the example below we pass custom `TypeMapper` that
 converts `json` data into `text` on the fly.
@@ -179,7 +186,7 @@ class TrinoTypeMapper(SqlalchemyTypeMapper):
 
     def to_destination_type(self, column, table=None):
         if column["data_type"] == "json":
-            return JSONString(length=345)
+            return JSONString()
         return super().to_destination_type(column, table)
 
 # pass dest_ in `destination` argument to dlt.pipeline

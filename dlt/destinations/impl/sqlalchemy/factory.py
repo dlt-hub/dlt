@@ -11,6 +11,11 @@ from dlt.destinations.impl.sqlalchemy.configuration import (
     SqlalchemyClientConfiguration,
 )
 from dlt.common.data_writers.escape import format_datetime_literal
+from dlt.destinations.impl.sqlalchemy.type_mapper import (
+    MssqlVariantTypeMapper,
+    MysqlVariantTypeMapper,
+    TrinoVariantTypeMapper,
+)
 
 if TYPE_CHECKING:
     # from dlt.destinations.impl.sqlalchemy.sqlalchemy_client import SqlalchemyJobClient
@@ -91,6 +96,11 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
                 caps.format_datetime_literal = _format_mysql_datetime_literal
                 caps.enforces_nulls_on_alter = False
                 caps.sqlglot_dialect = "mysql"
+                caps.type_mapper = MysqlVariantTypeMapper
+            elif dialect.name == "trino":
+                caps.sqlglot_dialect = "trino"
+                caps.timestamp_precision = 3
+                caps.type_mapper = TrinoVariantTypeMapper
 
             elif backend_name in [
                 "oracle",
@@ -117,8 +127,13 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
                 caps.sqlglot_dialect = "athena"
             elif backend_name == "mssql":
                 caps.sqlglot_dialect = "tsql"
+                caps.type_mapper = MssqlVariantTypeMapper
             elif backend_name == "teradatasql":
                 caps.sqlglot_dialect = "teradata"
+
+            if dialect.requires_name_normalize:  # type: ignore[attr-defined]
+                caps.has_case_sensitive_identifiers = False
+                caps.casefold_identifier = str.lower
 
         return super(sqlalchemy, cls).adjust_capabilities(caps, config, naming)
 
