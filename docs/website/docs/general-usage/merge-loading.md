@@ -461,6 +461,12 @@ pipeline.run(some_data())  # third run — 2024-01-03 10:30:05.750356
 | 2024-01-03 03:01:11.943703 | NULL | 2024-01-02 | d |
 | **2024-01-03 10:30:05.750356** | **NULL** | **2024-01-01** | **bb** |
 
+### Handling nested structures with SCD type 2
+To explore how SCD Type 2 handles nested JSON structures, refer to the hands-on demonstration provided in the Colab Notebook linked below.
+
+Execute all steps directly in your browser:
+[Open in Colab.](https://colab.research.google.com/drive/1GpG3JKGWveB-kR7eNvlJLr6oO0nM7Fbv?usp=sharing)
+
 
 ### Example: configure validity column names
 `_dlt_valid_from` and `_dlt_valid_to` are used by default as validity column names. Other names can be configured as follows:
