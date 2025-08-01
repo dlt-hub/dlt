@@ -1,7 +1,9 @@
 import semver
-from typing import Iterable
+from typing import Iterable, Union, List
 
 from dlt.common.exceptions import DltException, TerminalValueError
+
+VersionLike = Union[semver.Version, int]
 
 
 class StorageException(DltException):
@@ -13,9 +15,9 @@ class NoMigrationPathException(StorageException):
     def __init__(
         self,
         storage_path: str,
-        initial_version: semver.Version,
-        migrated_version: semver.Version,
-        target_version: semver.Version,
+        initial_version: VersionLike,
+        migrated_version: VersionLike,
+        target_version: VersionLike,
     ) -> None:
         self.storage_path = storage_path
         self.initial_version = initial_version
@@ -40,6 +42,25 @@ class WrongStorageVersionException(StorageException):
         super().__init__(
             f"Expected storage `{storage_path}` with `{target_version=:}` but found"
             f" `{initial_version=:}`"
+        )
+
+
+class UnsupportedStorageVersionException(StorageException):
+    def __init__(
+        self,
+        storage_path: str,
+        initial_version: int,
+        current_version: int,
+        supported_versions: set[int],
+    ) -> None:
+        self.storage_path = storage_path
+        self.initial_version = initial_version
+        self.current_version = current_version
+        self.supported_versions = supported_versions
+        supported_str = ", ".join(str(v) for v in supported_versions)
+        super().__init__(
+            f"Expected storage `{storage_path}` with version in [{supported_str}] "
+            f"but found `{initial_version=}`; `{current_version=}`."
         )
 
 

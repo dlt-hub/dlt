@@ -1,5 +1,8 @@
+from typing import Union, Dict
 import posixpath
 import os
+import json
+import orjson
 from unittest import mock
 from pathlib import Path
 from urllib.parse import urlparse
@@ -17,12 +20,15 @@ from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName
+from dlt.common.storages.exceptions import UnsupportedStorageVersionException
 
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import (
     FilesystemClient,
     FilesystemDestinationClientConfiguration,
     INIT_FILE_NAME,
+    CURRENT_VERSION,
+    SUPPORTED_VERSIONS,
 )
 
 from dlt.destinations.path_utils import create_path, prepare_datetime_params
@@ -50,6 +56,14 @@ NORMALIZED_FILES = [
 ]
 
 
+def _client_factory(fs: filesystem) -> FilesystemClient:
+    client = fs.client(
+        Schema("test"),
+        initial_config=FilesystemDestinationClientConfiguration()._bind_dataset_name("test"),
+    )
+    return client
+
+
 @pytest.mark.parametrize(
     "url, exp",
     (
@@ -71,10 +85,7 @@ def test_filesystem_factory_buckets(with_gdrive_buckets_env: str) -> None:
 
     # test factory figuring out the right credentials
     filesystem_ = filesystem(with_gdrive_buckets_env)
-    client = filesystem_.client(
-        Schema("test"),
-        initial_config=FilesystemDestinationClientConfiguration()._bind_dataset_name("test"),
-    )
+    client = _client_factory(filesystem_)
     assert client.config.protocol == proto or "file"
     assert isinstance(client.config.credentials, credentials_type)
     assert issubclass(client.config.credentials_type(client.config), credentials_type)
@@ -82,10 +93,7 @@ def test_filesystem_factory_buckets(with_gdrive_buckets_env: str) -> None:
 
     # factory gets initial credentials
     filesystem_ = filesystem(with_gdrive_buckets_env, credentials=credentials_type())
-    client = filesystem_.client(
-        Schema("test"),
-        initial_config=FilesystemDestinationClientConfiguration()._bind_dataset_name("test"),
-    )
+    client = _client_factory(filesystem_)
     assert isinstance(client.config.credentials, credentials_type)
 
 
@@ -327,3 +335,88 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
                         continue
                     paths.append(Path(posixpath.join(basedir, f)))
             assert list(sorted(paths)) == expected_files
+
+
+def test_get_storage_version_current() -> None:
+    filesystem_ = filesystem("random_location")
+    client = _client_factory(filesystem_)
+    # If storage is initialized with current code, then initial and current versions must always up to date
+    client.initialize_storage()
+    initial_version, current_version = client.get_storage_versions()
+    assert initial_version == CURRENT_VERSION
+    assert current_version == CURRENT_VERSION
+
+
+@pytest.mark.parametrize(
+    "version_info",
+    [
+        "",  # legacy empty content
+        {"initial_version": 1, "current_version": 1},
+        {"initial_version": 1, "current_version": 2},
+        {"initial_version": 2, "current_version": 2},
+    ],
+)
+def test_get_storage_version_valid(version_info: Union[str, Dict[str, int]]) -> None:
+    filesystem_ = filesystem("random_location")
+    client = _client_factory(filesystem_)
+    init_file = client.pathlib.join(client.dataset_path, INIT_FILE_NAME)
+    client.fs_client.mkdirs(client.dataset_path)
+    client.fs_client.touch(init_file)
+    client.fs_client.write_text(
+        init_file,
+        json.dumps(version_info) if isinstance(version_info, Dict) else version_info,
+        encoding="utf-8",
+    )
+
+    initial_version, current_version = client.get_storage_versions()
+
+    if version_info == "":
+        assert initial_version == 1
+        assert current_version == 1
+    else:
+        assert isinstance(version_info, Dict)
+        assert initial_version == version_info["initial_version"]
+        assert current_version == version_info["current_version"]
+
+
+@pytest.mark.parametrize(
+    "invalid_version_info",
+    [
+        "random",
+        {"unexpected": 2, "current_version": 2},
+        {"initial_version": 1},
+        {"current_version": 2},
+        {"initial_version": 2, "current_version": 3},
+    ],
+)
+def test_get_storage_version_invalid(invalid_version_info: Union[str, Dict[str, int]]) -> None:
+    filesystem_ = filesystem("random_location")
+    client = _client_factory(filesystem_)
+    init_file = client.pathlib.join(client.dataset_path, INIT_FILE_NAME)
+    client.fs_client.mkdirs(client.dataset_path)
+    client.fs_client.touch(init_file)
+    client.fs_client.write_text(
+        init_file,
+        (
+            json.dumps(invalid_version_info)
+            if isinstance(invalid_version_info, Dict)
+            else invalid_version_info
+        ),
+        encoding="utf-8",
+    )
+
+    # If random text
+    if invalid_version_info == "random":
+        with pytest.raises(ValueError):
+            client.get_storage_versions()
+    # If unexpected key
+    elif invalid_version_info == {"unexpected": 2, "current_version": 2}:
+        with pytest.raises(ValueError):
+            client.get_storage_versions()
+    # If one key is missing
+    elif invalid_version_info in [{"initial_version": 1}, {"current_version": 2}]:
+        with pytest.raises(ValueError):
+            client.get_storage_versions()
+    else:
+        with pytest.raises(UnsupportedStorageVersionException):
+            client.get_storage_versions()
