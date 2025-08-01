@@ -131,7 +131,7 @@ class SqlLoadJob(RunnableLoadJob):
         return False
 
     def _split_fragments(self, sql: str) -> List[str]:
-        return [s + (";" if not s.endswith(";") else "") for s in sql.split(";") if s.strip()]
+        return [s.strip() for line in sql.split("\n") for s in line.split(";") if s.strip()]
 
     @staticmethod
     def is_sql_job(file_path: str) -> bool:

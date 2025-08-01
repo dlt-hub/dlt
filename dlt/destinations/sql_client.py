@@ -185,7 +185,7 @@ SELECT 1
         ret = []
         if self.capabilities.supports_multiple_statements:
             for sql_fragment in concat_strings_with_limit(
-                list(statements), "\n", self.capabilities.max_query_length // 2
+                list(statements), ";\n", self.capabilities.max_query_length // 2
             ):
                 ret.append(self.execute_sql(sql_fragment, *args, **kwargs))
         else:

@@ -71,7 +71,7 @@ class SqlaDbApiCursor(DBApiCursorImpl):
         try:
             return list(cast(sa.engine.CursorResult, self.native_cursor).keys())
         except ResourceClosedError:
-            # this happens if now rows are returned
+            # this happens if no rows are returned
             return []
 
     # @property
@@ -339,8 +339,6 @@ class SqlalchemyClient(SqlClientBase[Connection]):
     def make_qualified_table_name_path(
         self, table_name: Optional[str], quote: bool = True, casefold: bool = True
     ) -> List[str]:
-        from sqlalchemy.sql import quoted_name
-
         path: List[str] = []
         # no catalog for sqlalchemy
         if catalog_name := self.catalog_name(quote=quote, casefold=casefold):
@@ -366,7 +364,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         if self.migrations is None:
             self.migrations = MigrationMaker(self.dialect)
         for column in columns:
-            self.migrations.add_column(column.table.name, column, self.dataset_name)
+            self.migrations.add_column(column.table.name, column, schema=self.dataset_name)
         statements = self.migrations.consume_statements()
         for statement in statements:
             self.execute_sql(statement)
