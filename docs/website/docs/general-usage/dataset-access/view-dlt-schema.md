@@ -709,7 +709,7 @@ previous_hashes:
 </details>
 
 ## Export to DBML
-[DBML (Database Markup Language)](https://dbml.dbdiagram.io/home) is an open-source DSL to define and document database schemas and structures. Exporting your `dlt.Schema` to DBML, allows you to view it in a DBML frontend such as [dbdiagram.io](https://dbdiagram.io/) or [chartdb.io](https://chartdb.io/).
+[DBML (Database Markup Language)](https://dbml.dbdiagram.io/home) is an open-source DSL to define and document database schemas and structures. Exporting your `dlt.Schema` to DBML, allows you to view it in a DBML frontend such as [dbdiagram.io](https://dbdiagram.io/), [chartdb.io](https://chartdb.io/), or [VSCode extensions](https://marketplace.visualstudio.com/items?itemName=bocovo.dbml-erd-visualizer).
 
 Note that the conversion is lossy. You can't fully recreate `dlt.Schema` from a DBML schema. However, this is a planned feature!
 
