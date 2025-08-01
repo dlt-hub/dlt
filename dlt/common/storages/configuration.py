@@ -22,8 +22,8 @@ from dlt.common.typing import Annotated, DictStrAny, DictStrOptionalStr, get_arg
 from dlt.common.utils import digest128
 
 
-TSchemaFileFormat = Literal["json", "yaml"]
-SchemaFileExtensions = get_args(TSchemaFileFormat)
+TSchemaFileFormat = Literal["json", "yaml", "dbml"]
+SCHEMA_FILES_EXTENSIONS = get_args(TSchemaFileFormat)
 
 
 @configspec

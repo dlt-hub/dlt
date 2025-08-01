@@ -44,6 +44,17 @@ export_schema_path="schemas/export"
 import_schema_path="schemas/import"
 ```
 
+:::tip
+You can pick other import/export formats using config file:
+```toml
+external_schema_format="dbml"
+```
+will export **dbml** schema. Other supported formats are: **yaml** (default) and **json**.
+
+Note: import from **dbml** is not yet implemented.
+:::
+
+
 ## 2. Run the pipeline to see the schemas
 
 To see the schemas, you must run your pipeline again. The `schemas` and `import`/`export`
@@ -205,6 +216,10 @@ players_games:
       nullable: false
       data_type: json
 ```
+
+:::note
+It is possible to adjust schemas in Python, [for example in @dlt.source decorated function](../general-usage/schema.md#schema-is-modified-in-the-source-function-body)
+:::
 
 ## 4. Keep your import schema
 

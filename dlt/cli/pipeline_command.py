@@ -349,9 +349,14 @@ def pipeline_command(
         remove_defaults_ = command_kwargs.get("remove_defaults")
         s = p.default_schema
         if format_ == "json":
-            schema_str = json.dumps(s.to_dict(remove_defaults=remove_defaults_), pretty=True)
+            schema_str = s.to_pretty_json(remove_defaults=remove_defaults_)
+        elif format_ == "yaml":
+            schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults_)
+        elif format_ == "dbml":
+            schema_str = s.to_dbml()
         else:
             schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults_)
+
         fmt.echo(schema_str)
 
     if operation == "drop":
