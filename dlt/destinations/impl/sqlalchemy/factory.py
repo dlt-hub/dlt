@@ -11,11 +11,6 @@ from dlt.destinations.impl.sqlalchemy.configuration import (
     SqlalchemyClientConfiguration,
 )
 from dlt.common.data_writers.escape import format_datetime_literal
-from dlt.destinations.impl.sqlalchemy.type_mapper import (
-    MssqlVariantTypeMapper,
-    MysqlVariantTypeMapper,
-    TrinoVariantTypeMapper,
-)
 
 if TYPE_CHECKING:
     # from dlt.destinations.impl.sqlalchemy.sqlalchemy_client import SqlalchemyJobClient
@@ -80,6 +75,25 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         config: SqlalchemyClientConfiguration,
         naming: Optional[NamingConvention],
     ) -> DestinationCapabilitiesContext:
+        # lazy import to avoid sqlalchemy dep
+        MssqlVariantTypeMapper: Type[DataTypeMapper]
+        MysqlVariantTypeMapper: Type[DataTypeMapper]
+        TrinoVariantTypeMapper: Type[DataTypeMapper]
+
+        try:
+            from dlt.destinations.impl.sqlalchemy.type_mapper import (
+                MssqlVariantTypeMapper,
+                MysqlVariantTypeMapper,
+                TrinoVariantTypeMapper,
+            )
+        except ModuleNotFoundError:
+            # assign mock type mapper if no sqlalchemy
+            from dlt.common.destination.capabilities import (
+                UnsupportedTypeMapper as MssqlVariantTypeMapper,
+                UnsupportedTypeMapper as MysqlVariantTypeMapper,
+                UnsupportedTypeMapper as TrinoVariantTypeMapper,
+            )
+
         dialect = config.get_dialect()
         if dialect is not None:
             backend_name = config.get_backend_name()
