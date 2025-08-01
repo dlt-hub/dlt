@@ -143,6 +143,8 @@ class TestRESTClient:
         assert len(pages) == 3
         assert len(pages[0]) == 10
         assert len(pages[1]) == 4
+        # The third page is expected to be an empty list because the paginator
+        # converts null data in the final page to an empty list.
         assert pages[2] == []
 
     def test_paginate_with_hooks(self, rest_client: RESTClient):
