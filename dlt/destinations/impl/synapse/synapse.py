@@ -14,7 +14,6 @@ from dlt.common.destination.client import (
 
 from dlt.common.schema import TColumnSchema, Schema, TColumnHint
 from dlt.common.schema.utils import (
-    table_schema_has_type,
     get_inherited_table_hint,
 )
 
@@ -24,9 +23,7 @@ from dlt.common.configuration.specs import (
     AzureServicePrincipalCredentialsWithoutDefaults,
 )
 
-from dlt.destinations.impl.mssql.factory import MsSqlTypeMapper
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
-from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import (
     SqlJobClientBase,
     CopyRemoteFileLoadJob,
@@ -97,7 +94,7 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
             # Even if the staging table has index type "heap", we still adjust
             # the column data types to prevent errors when writing into the
             # final table that has index type "clustered_columnstore_index".
-            new_columns = self._get_columstore_valid_columns(new_columns)
+            new_columns = self._get_columstore_valid_columns(table, new_columns)
 
         _sql_result = SqlJobClientBase._get_table_update_sql(
             self, table_name, new_columns, generate_alter
@@ -110,11 +107,13 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
         return sql_result
 
     def _get_columstore_valid_columns(
-        self, columns: Sequence[TColumnSchema]
+        self, table: PreparedTableSchema, new_columns: Sequence[TColumnSchema]
     ) -> Sequence[TColumnSchema]:
-        return [self._get_columstore_valid_column(c) for c in columns]
+        return [self._get_columstore_valid_column(table, c) for c in new_columns]
 
-    def _get_columstore_valid_column(self, c: TColumnSchema) -> TColumnSchema:
+    def _get_columstore_valid_column(
+        self, table: PreparedTableSchema, c: TColumnSchema
+    ) -> TColumnSchema:
         """
         Returns TColumnSchema that maps to a Synapse data type that can participate in a columnstore index.
 
@@ -123,20 +122,17 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
         n equals the user-specified precision, or the maximum allowed
         value if the user did not specify a precision.
         """
-        varchar_source_types = [
-            sct
-            for sct, dbt in MsSqlTypeMapper.sct_to_unbound_dbt.items()
-            if dbt in ("varchar(max)", "nvarchar(max)")
-        ]
-        varbinary_source_types = [
-            sct
-            for sct, dbt in MsSqlTypeMapper.sct_to_unbound_dbt.items()
-            if dbt == "varbinary(max)"
-        ]
-        if c["data_type"] in varchar_source_types and "precision" not in c:
-            return {**c, **{"precision": VARCHAR_MAX_N}}
-        elif c["data_type"] in varbinary_source_types and "precision" not in c:
-            return {**c, **{"precision": VARBINARY_MAX_N}}
+        dbt = self.capabilities.get_type_mapper().to_destination_type(c, table)
+        if "(max)" in dbt and "precision" not in c:
+            if c["data_type"] in ("text", "json"):
+                return {**c, **{"precision": VARCHAR_MAX_N}}
+            elif c["data_type"] in ("binary"):
+                return {**c, **{"precision": VARBINARY_MAX_N}}
+            else:
+                raise ValueError(
+                    dbt, f"Unexpected database type `{dbt}` on dlt type `{c['data_type']}`"
+                )
+
         return c
 
     def _create_replace_followup_jobs(

@@ -38,7 +38,7 @@ class SynapseTypeMapper(MsSqlTypeMapper):
     def to_destination_type(self, column: TColumnSchema, table: PreparedTableSchema) -> str:
         sc_t = column["data_type"]
         if sc_t == "json":
-            return "nvarchar(max)"
+            return "nvarchar(%s)" % column.get("precision", "max")
         return super().to_destination_type(column, table)
 
 
