@@ -155,7 +155,7 @@ class BigQueryMergeJob(SqlMergeFollowupJob):
         for table in table_chain:
             if should_autodetect_schema(table):
                 table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
-                sql.append(f"CREATE TABLE IF NOT EXISTS {table_name} LIKE {staging_table_name};")
+                sql.append(f"CREATE TABLE IF NOT EXISTS {table_name} LIKE {staging_table_name}")
         return sql
 
     @classmethod
@@ -449,7 +449,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
             # placeholder for each table
             table_placeholders = ",".join(["%s"] * len(folded_table_names))
             query += f"WHERE table_name IN ({table_placeholders}) "
-        query += "ORDER BY table_name, ordinal_position;"
+        query += "ORDER BY table_name, ordinal_position"
 
         return query, folded_table_names
 

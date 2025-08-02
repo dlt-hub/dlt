@@ -187,7 +187,7 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
         return (
             f"DROP TABLE IF EXISTS {temp_table_name} SYNC; CREATE TABLE {temp_table_name} ENGINE ="
-            f" Memory AS {select_sql};"
+            f" Memory AS {select_sql}"
         )
 
     @classmethod

@@ -20,7 +20,7 @@ from dlt.common.destination.dataset import DBApiCursor
 from dlt.common.typing import TFun
 
 from dlt.destinations.typing import DBTransaction
-from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_client import SqlClientBase, raise_database_error
 from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyCredentials
 from dlt.destinations.impl.sqlalchemy.alter_table import MigrationMaker
 from dlt.destinations.sql_client import DBApiCursorImpl
@@ -37,26 +37,6 @@ class SqlaTransactionWrapper(DBTransaction):
     def rollback_transaction(self) -> None:
         if self.sqla_transaction.is_active:
             self.sqla_transaction.rollback()
-
-
-def raise_database_error(f: TFun) -> TFun:
-    @wraps(f)
-    def _wrap_gen(self: "SqlalchemyClient", *args: Any, **kwargs: Any) -> Any:
-        try:
-            return (yield from f(self, *args, **kwargs))
-        except Exception as e:
-            raise self._make_database_exception(e) from e
-
-    @wraps(f)
-    def _wrap(self: "SqlalchemyClient", *args: Any, **kwargs: Any) -> Any:
-        try:
-            return f(self, *args, **kwargs)
-        except Exception as e:
-            raise self._make_database_exception(e) from e
-
-    if inspect.isgeneratorfunction(f):
-        return _wrap_gen  # type: ignore[return-value]
-    return _wrap  # type: ignore[return-value]
 
 
 class SqlaDbApiCursor(DBApiCursorImpl):
