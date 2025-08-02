@@ -132,13 +132,13 @@ def test_custom_type_mapper(destination_config: DestinationTestConfiguration) ->
 
     # read data with pipeline.dataset()
     dataset = pipeline.dataset()
-    result = dataset.test_json_mapping.fetchall()
+    result = dataset.test_json_mapping.select("id", "json_field", "regular_field").fetchall()
     assert len(result) == 1
-    assert result[0]["id"] == 1  # type: ignore
-    assert result[0]["regular_field"] == "some text"  # type: ignore
+    assert result[0][0] == 1
+    assert result[0][2] == "some text"
 
     # The json field should be stored as a string representation of the JSON
-    json_value = result[0]["json_field"]  # type: ignore
+    json_value = result[0][1]
     if isinstance(json_value, str):
         parsed_json = json.loads(json_value)
         assert parsed_json["key"] == "value"

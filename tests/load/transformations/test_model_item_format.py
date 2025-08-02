@@ -469,7 +469,7 @@ def test_write_dispositions(
     # )
     # staging_table_1 = staging_dataset.example_table_1.df()
     # print(staging_table_1)
-    
+
     table_1 = dataset["example_table_1"].df()
     result_items = table_1["a"].tolist()
     result_items.sort()
