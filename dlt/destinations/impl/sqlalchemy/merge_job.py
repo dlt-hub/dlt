@@ -297,10 +297,11 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
         else:
             cond = col.isnot(None)
         if table["columns"][col_name]["data_type"] == "bool":
+            # do not use is below
             if invert:
-                cond = sa.or_(cond, col.eq_(False))
+                cond = sa.or_(cond, col == False)  # noqa
             else:
-                cond = col.eq_(True)
+                cond = col == True  # noqa
         return col_name, cond
 
     @classmethod

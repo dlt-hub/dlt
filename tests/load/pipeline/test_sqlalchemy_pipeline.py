@@ -1,5 +1,7 @@
-from typing import cast
+from typing import Type, cast
 import pytest
+
+from dlt.common.typing import TypeAlias
 
 from tests.load.utils import (
     destinations_configs,
@@ -70,7 +72,7 @@ def test_custom_type_mapper(destination_config: DestinationTestConfiguration) ->
 
     import dlt
     import sqlalchemy as sa
-    from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
+    from dlt.destinations.type_mapping import DataTypeMapper
 
     class JSONString(sa.TypeDecorator):
         """
@@ -94,7 +96,11 @@ def test_custom_type_mapper(destination_config: DestinationTestConfiguration) ->
 
             return json.loads(value)
 
-    class TrinoTypeMapper(SqlalchemyTypeMapper):
+    pipeline = destination_config.setup_pipeline("test_custom_type_mapper")
+    with pipeline._maybe_destination_capabilities() as caps:
+        type_mapper_: TypeAlias[Type[DataTypeMapper]] = caps.type_mapper  # type: ignore
+
+    class TrinoTypeMapper(type_mapper_):
         """Example mapper that plugs custom string type that serialized to from/json
 
         Note that instance of TypeMapper contains dialect and destination capabilities instance
@@ -109,7 +115,9 @@ def test_custom_type_mapper(destination_config: DestinationTestConfiguration) ->
     # pass dest_ in `destination` argument to dlt.pipeline
     dest_ = dlt.destinations.sqlalchemy(type_mapper=TrinoTypeMapper)
 
-    pipeline = destination_config.setup_pipeline("test_custom_type_mapper", destination=dest_)
+    pipeline = destination_config.setup_pipeline(
+        "test_custom_type_mapper", destination=dest_, dev_mode=True
+    )
 
     # run pipeline with resource that has json data type hint
     @dlt.resource(columns={"json_field": {"data_type": "json"}})
