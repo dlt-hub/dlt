@@ -93,7 +93,7 @@ class FilesystemSqlClient(WithTableScanners):
         if first_connection:
             # TODO: we need to frontload the httpfs extension for abfss for some reason
             if self.is_abfss:
-                self._conn.sql("INSTALL httpfs; LOAD httpfs;")
+                self._conn.sql("INSTALL httpfs; LOAD httpfs")
 
             # create single authentication for the whole client
             self.create_secret(

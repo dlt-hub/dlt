@@ -104,8 +104,11 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
             # create mock credentials to avoid credentials being resolved
             init_config = self.spec()
             init_config.update(self.config_params)
-            credentials = self.spec.credentials_type(init_config)()
-            credentials.__is_resolved__ = True
+            if not init_config.credentials:
+                credentials = self.spec.credentials_type(init_config)()
+                credentials.__is_resolved__ = True
+            else:
+                credentials = init_config.credentials
             config = self.spec(credentials=credentials)
             try:
                 config = self.configuration(config, accept_partial=True)
@@ -113,7 +116,10 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
                 # in rare cases partial may fail ie. when invalid native value is present
                 # in that case we fallback to "empty" config
                 pass
-        return self.adjust_capabilities(caps, config, naming)
+        caps = self.adjust_capabilities(caps, config, naming)
+        # update again, explicit caps have prio
+        caps.update(self.caps_params)
+        return caps
 
     @abstractmethod
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:

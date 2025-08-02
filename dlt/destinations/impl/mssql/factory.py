@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 class MsSqlTypeMapper(TypeMapperImpl):
     sct_to_unbound_dbt = {
-        "json": "nvarchar(max)",
+        "json": "json",
         "text": "nvarchar(max)",
         "double": "float",
         "bool": "bit",
@@ -29,7 +29,6 @@ class MsSqlTypeMapper(TypeMapperImpl):
     }
 
     sct_to_dbt = {
-        "json": "nvarchar(%i)",
         "text": "nvarchar(%i)",
         "timestamp": "datetimeoffset(%i)",
         "binary": "varbinary(%i)",
@@ -51,6 +50,7 @@ class MsSqlTypeMapper(TypeMapperImpl):
         "tinyint": "bigint",
         "smallint": "bigint",
         "int": "bigint",
+        "json": "json",
     }
 
     def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:

@@ -69,7 +69,7 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
                     # load extensions in config
                     if self.extensions:
                         for extension in self.extensions:
-                            self._conn.sql(f"LOAD {extension};")
+                            self._conn.sql(f"LOAD {extension}")
 
                     self._apply_config(self._conn, "GLOBAL", global_config)
                     # apply local config to original connection
@@ -143,7 +143,7 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
         # set pragmas
         pragmas = [*(self.pragmas or {}), *(pragmas or {})]
         for pragma in pragmas:
-            conn.sql(f"PRAGMA {pragma};")
+            conn.sql(f"PRAGMA {pragma}")
         # calculate local config
         local_config = {**(self.local_config or {}), **(local_config or {})}
         self._apply_config(conn, "SESSION", local_config)

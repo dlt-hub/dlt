@@ -288,7 +288,7 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
 class DatabricksMergeJob(SqlMergeFollowupJob):
     @classmethod
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
-        return f"CREATE TEMPORARY VIEW {temp_table_name} AS {select_sql};"
+        return f"CREATE TEMPORARY VIEW {temp_table_name} AS {select_sql}"
 
     @classmethod
     def gen_delete_from_sql(
@@ -298,7 +298,7 @@ class DatabricksMergeJob(SqlMergeFollowupJob):
         return f"""MERGE INTO {table_name}
         USING {temp_table_name}
         ON {table_name}.{column_name} = {temp_table_name}.{temp_table_column}
-        WHEN MATCHED THEN DELETE;
+        WHEN MATCHED THEN DELETE
         """
 
 

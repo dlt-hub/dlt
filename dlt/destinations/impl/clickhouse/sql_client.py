@@ -190,8 +190,7 @@ class ClickHouseSqlClient(
         if not tables:
             return
         statements = [
-            f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)} SYNC;"
-            for table in tables
+            f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)} SYNC" for table in tables
         ]
         self.execute_many(statements)
 

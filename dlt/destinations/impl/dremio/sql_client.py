@@ -147,7 +147,7 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
     def create_dataset(self) -> None:
         # We create a sentinel table which defines wether we consider the dataset created
         sentinel_table_name = self.make_qualified_table_name(self.SENTINEL_TABLE_NAME)
-        self.execute_sql(f"CREATE TABLE {sentinel_table_name} (_dlt_id BIGINT);")
+        self.execute_sql(f"CREATE TABLE {sentinel_table_name} (_dlt_id BIGINT)")
 
     def _get_table_names(self) -> List[str]:
         query = """
@@ -168,7 +168,7 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
         table_names = self._get_table_names()
         for table_name in table_names:
             full_table_name = self.make_qualified_table_name(table_name)
-            self.execute_sql("DROP TABLE IF EXISTS %s;" % full_table_name)
+            self.execute_sql("DROP TABLE IF EXISTS %s" % full_table_name)
 
     def has_dataset(self) -> bool:
         return len(self._get_table_names()) > 0
