@@ -468,17 +468,9 @@ class ArrowExtractor(Extractor):
                     e.table_name = str(arrow_table.get("name"))
                     raise
 
-                # Add load_id column if needed
-                dlt_load_id = self.naming.normalize_identifier(C_DLT_LOAD_ID)
-                if (
-                    self._normalize_config.add_dlt_load_id
-                    and dlt_load_id not in arrow_table["columns"]
-                ):
-                    # will be normalized line below
-                    arrow_table["columns"][C_DLT_LOAD_ID] = utils.dlt_load_id_column()
-
                 # normalize arrow table before merging
                 arrow_table = utils.normalize_table_identifiers(arrow_table, self.schema.naming)
+
                 # issue warnings when overriding computed with arrow
                 override_warn: bool = False
                 for col_name, column in arrow_table["columns"].items():
@@ -503,6 +495,20 @@ class ArrowExtractor(Extractor):
                 utils.merge_columns(
                     arrow_table["columns"], computed_table["columns"], merge_columns=True
                 )
+
+                # Add load_id column if needed
+                dlt_load_id = self.naming.normalize_identifier(C_DLT_LOAD_ID)
+                if (
+                    self._normalize_config.add_dlt_load_id
+                    and dlt_load_id not in arrow_table["columns"]
+                ):
+                    # will be normalized line below
+                    logger.debug(
+                        f"Arrow Extractor added `{dlt_load_id}` to table `{arrow_table['name']}`"
+                        " due to parquet normalizer config"
+                    )
+                    arrow_table["columns"][dlt_load_id] = utils.dlt_load_id_column()
+
                 arrow_tables[computed_table["name"]] = arrow_table
 
         return list(arrow_tables.values())
