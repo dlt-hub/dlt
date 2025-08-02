@@ -439,16 +439,18 @@ class WithTableScanners(DuckDbSqlClient):
                 }
             )
 
+    @raise_database_error
     def open_connection(self) -> duckdb.DuckDBPyConnection:
+        # NOTE: do not self.execute*** methods when opening connection, may end in endless recursion
         # we keep the in memory instance around, so if this prop is set, return it
         first_connection = self.credentials.never_borrowed
         super().open_connection()
 
         if first_connection:
             # set up dataset
-            if not self.has_dataset():
-                self.create_dataset()
-            self._conn.sql(f"USE {self.fully_qualified_dataset_name()}")
+            q_dataset_name = self.fully_qualified_dataset_name()
+            create_schema_sql = "CREATE SCHEMA IF NOT EXISTS %s" % q_dataset_name
+            self._conn.sql(f"{create_schema_sql};USE {self.fully_qualified_dataset_name()}")
 
         return self._conn
 

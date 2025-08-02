@@ -439,7 +439,6 @@ def raise_database_error(f: TFun) -> TFun:
     @wraps(f)
     def _wrap_gen(self: SqlClientBase[Any], *args: Any, **kwargs: Any) -> Any:
         try:
-            self._ensure_native_conn()
             return (yield from f(self, *args, **kwargs))
         except Exception as ex:
             db_ex = self._make_database_exception(ex)
@@ -448,7 +447,6 @@ def raise_database_error(f: TFun) -> TFun:
     @wraps(f)
     def _wrap(self: SqlClientBase[Any], *args: Any, **kwargs: Any) -> Any:
         try:
-            self._ensure_native_conn()
             return f(self, *args, **kwargs)
         except Exception as ex:
             db_ex = self._make_database_exception(ex)
