@@ -287,7 +287,7 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
 
 class DatabricksMergeJob(SqlMergeFollowupJob):
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
+    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
         return f"CREATE TEMPORARY VIEW {temp_table_name} AS {select_sql}"
 
     @classmethod

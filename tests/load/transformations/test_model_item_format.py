@@ -464,7 +464,14 @@ def test_write_dispositions(
         table_format=destination_config.run_kwargs["table_format"],
     )
 
-    result_items = dataset["example_table_1"].df()["a"].tolist()
+    # staging_dataset = dlt.dataset(
+    #     pipeline.destination, pipeline.dataset_name + "_staging", schema=pipeline.default_schema
+    # )
+    # staging_table_1 = staging_dataset.example_table_1.df()
+    # print(staging_table_1)
+    
+    table_1 = dataset["example_table_1"].df()
+    result_items = table_1["a"].tolist()
     result_items.sort()
 
     if write_disposition == "merge":
