@@ -5,6 +5,7 @@ import sqlalchemy as sa
 from sqlalchemy import TypeDecorator
 from sqlalchemy.sql import sqltypes
 
+from dlt.common import json
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.typing import TLoaderFileFormat
 from dlt.common.destination.capabilities import DataTypeMapper, DestinationCapabilitiesContext
@@ -210,9 +211,6 @@ class HexVarBinary(TypeDecorator):
         import binascii
 
         return lambda v: None if v is None else binascii.hexlify(v).decode()
-
-
-from dlt.common import json
 
 
 class JSONString(sa.TypeDecorator):

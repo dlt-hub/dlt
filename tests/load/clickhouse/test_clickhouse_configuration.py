@@ -102,7 +102,7 @@ def test_client_table_name_and_paths(client: ClickHouseClient) -> None:
     dataset_name = client.sql_client.dataset_name
 
     # we have could and local database names different
-    databases = ["dlt", "dlt_data"]
+    databases = ["default", "dlt", "dlt_data"]
 
     assert client.sql_client.make_qualified_table_name_path(None, quote=False)[0] in databases
     parts = client.sql_client.make_qualified_table_name_path("test_table", quote=False)
