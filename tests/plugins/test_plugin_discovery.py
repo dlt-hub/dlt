@@ -81,11 +81,17 @@ def test_run_context_passthrough() -> None:
     context = run_context.active()
     assert context.name == "dlt-test"
 
-    container = Container()
-    container[PluggableRunContext].reload(context.run_dir, dict(passthrough=True))
+    try:
+        container = Container()
+        container[PluggableRunContext].reload(context.run_dir, dict(passthrough=True))
 
-    context = run_context.active()
-    assert context.name == "dlt"
+        context = run_context.active()
+        assert context.name == "dlt"
+
+    finally:
+        container[PluggableRunContext].reload(context.run_dir, dict(passthrough=False))
+        context = run_context.active()
+        assert context.name == "dlt-test"
 
 
 def test_import_references() -> None:
