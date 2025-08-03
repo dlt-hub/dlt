@@ -130,7 +130,7 @@ class RunContext(SupportsRunContext):
 @plugins.hookspec(firstresult=True)
 def plug_run_context(
     run_dir: Optional[str], runtime_kwargs: Optional[Dict[str, Any]]
-) -> SupportsRunContext:
+) -> Optional[SupportsRunContext]:
     """Spec for plugin hook that returns current run context.
 
     Args:
@@ -145,7 +145,7 @@ def plug_run_context(
 @plugins.hookimpl(specname="plug_run_context")
 def plug_run_context_impl(
     run_dir: Optional[str], runtime_kwargs: Optional[Dict[str, Any]]
-) -> SupportsRunContext:
+) -> Optional[SupportsRunContext]:
     return RunContext(run_dir)
 
 

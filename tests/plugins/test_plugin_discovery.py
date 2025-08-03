@@ -77,6 +77,17 @@ def test_example_plugin() -> None:
     assert context.local_dir.endswith("tmp")
 
 
+def test_run_context_passthrough() -> None:
+    context = run_context.active()
+    assert context.name == "dlt-test"
+
+    container = Container()
+    container[PluggableRunContext].reload(context.run_dir, dict(passthrough=True))
+
+    context = run_context.active()
+    assert context.name == "dlt"
+
+
 def test_import_references() -> None:
     # unknown
     with pytest.raises(KeyError):
