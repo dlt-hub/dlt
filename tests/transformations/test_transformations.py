@@ -1,3 +1,4 @@
+from unittest import mock
 import pytest
 
 from typing import Any
@@ -296,3 +297,23 @@ def test_multiple_transformations_in_function(
         assert job_types == {"multiple_transformations": {"model": 2}}
     elif transformation_type == "mixed":
         assert job_types == {"multiple_transformations": {"model": 1, "parquet": 1}}
+
+
+def test_transformation_repr() -> None:
+    @dlt.transformation
+    def my_transformation(dataset: dlt.Dataset):
+        yield "SELECT * FROM my_table"
+
+    sentinel = object()
+    mock_dataset = mock.MagicMock()
+    transformation = my_transformation(mock_dataset)
+
+    repr_ = transformation.__repr__()
+    assert isinstance(repr_, str)
+    assert "dlt.transformation(" in repr_
+
+    # check that properties used by `__repr__` exist
+    assert getattr(transformation, "name", sentinel) is not sentinel
+    assert getattr(transformation, "_hints", sentinel) is not sentinel
+    assert getattr(transformation, "incremental", sentinel) is not sentinel
+    assert getattr(transformation, "validator", sentinel) is not sentinel
