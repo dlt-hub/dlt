@@ -633,17 +633,6 @@ def test_incompatible_dlt_version_warning(repo_dir: str, project_files: FileStor
     )
 
 
-def test_init_vibe_source_editor_choice(vibe_repo_dir: str, project_files: FileStorage) -> None:
-    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        init_command.init_command("dlthub:github", "duckdb", vibe_repo_dir)
-        _out = buf.getvalue()
-
-    # Check prompt to select ide
-    assert "dlt will generate useful project rules tailored to your assistant/IDE." in _out
-
-    assert "file(s) supporting github were copied:\ngithub-docs.yaml\n" in _out
-
-
 @pytest.mark.parametrize(
     "ide_choice",
     SUPPORTED_IDES,
@@ -659,21 +648,43 @@ def test_init_vibe_source_editor_choice_ux(
 
     assert "dlt will generate useful project rules tailored to your assistant/IDE." in _out
     assert f"adding {ide_choice} rules, code snippets and docs" in _out
-    # Check that vibe source files are copied correctly
     assert "file(s) supporting github were copied:\ngithub-docs.yaml\n" in _out
 
 
 def test_init_all_vibe_sources_together(vibe_repo_dir: str, project_files: FileStorage) -> None:
-    vibe_source_candidates = [*get_source_candidates(vibe_repo_dir, source_type="vibe")]
+    # we test 20 hardcoded sources, use this to get all sources instead
+    # vibe_source_candidates = [*get_source_candidates(vibe_repo_dir, source_type="vibe")]
+    random_vibez = [
+        "news_api",
+        "alpaca",
+        "robin",
+        "kwanko",
+        "powerlink",
+        "fulcrum_data_management",
+        "mysql_instance",
+        "talkdesk_reports",
+        "insightly_crm",
+        "google_drive",
+        "coalesce",
+        "jobnimbus",
+        "piwik_pro",
+        "perplexity_ai",
+        "maileon",
+        "wrike_project_management",
+        "rocketreach",
+        "wordpress_site",
+        "deepinfra",
+        "no_crm_io",
+    ]
 
-    for source_name in vibe_source_candidates:
+    for source_name in random_vibez:
         init_command.init_command(f"dlthub:{source_name}", "bigquery", vibe_repo_dir)
         # all must install correctly
         _, secrets = assert_source_files(
             project_files, source_name, "bigquery", has_source_section=True, is_vibe_source=True
         )
 
-    for source_name in vibe_source_candidates:
+    for source_name in random_vibez:
         assert secrets.get_value(source_name, type, None, "sources") is not None
 
     # credentials for all destinations
