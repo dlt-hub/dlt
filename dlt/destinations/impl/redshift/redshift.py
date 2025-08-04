@@ -45,6 +45,14 @@ HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
 
 
 class RedshiftSqlClient(Psycopg2SqlClient):
+    def has_dataset(self) -> bool:
+        # In Redshift, the 'public' schema always exists but may not be
+        # returned by INFORMATION_SCHEMA.SCHEMATA query, so we handle it as a special case
+        if self.dataset_name == "public":
+            return True
+
+        return super().has_dataset()
+
     @staticmethod
     def _maybe_make_terminal_exception_from_data_error(
         pg_ex: psycopg2.DataError,
