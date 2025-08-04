@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from copy import copy, deepcopy
 from typing import (
     Callable,
@@ -736,6 +738,35 @@ class Schema:
             remove_defaults=remove_defaults, remove_processing_hints=remove_processing_hints
         )
         return utils.to_pretty_yaml(d)
+
+    def to_dbml(
+        self,
+        remove_processing_hints: bool = False,
+        include_dlt_tables: bool = True,
+        include_internal_dlt_ref: bool = True,
+        include_parent_child_ref: bool = True,
+        include_root_child_ref: bool = True,
+        group_by_resource: bool = False,
+    ) -> str:
+        from dlt.helpers.dbml import schema_to_dbml
+
+        stored_schema = self.to_dict(
+            # setting this to `True` removes `name` fields that are used in `schema_to_dbml()`
+            # if required, we can refactor `dlt.helpers.dbml` to support this
+            remove_defaults=False,
+            remove_processing_hints=remove_processing_hints,
+        )
+
+        # NOTE `allow_custom_dbml_properties` is not exposed because it produces invalid DBML
+        dbml_schema = schema_to_dbml(
+            stored_schema,
+            include_dlt_tables=include_dlt_tables,
+            include_internal_dlt_ref=include_internal_dlt_ref,
+            include_parent_child_ref=include_parent_child_ref,
+            include_root_child_ref=include_root_child_ref,
+            group_by_resource=group_by_resource,
+        )
+        return str(dbml_schema.dbml)
 
     def clone(
         self,

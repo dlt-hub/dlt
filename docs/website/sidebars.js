@@ -78,7 +78,6 @@ const sidebars = {
             'general-usage/schema-contracts',
             'general-usage/schema-evolution',
             'general-usage/naming-convention',
-            'walkthroughs/adjust-a-schema',
           ]
         },
         'general-usage/glossary'
@@ -356,6 +355,7 @@ const sidebars = {
             'walkthroughs/add_credentials'
           ]
         },
+        'walkthroughs/adjust-a-schema',
         {
           type: 'category',
           label: 'Access loaded data',
