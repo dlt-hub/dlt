@@ -835,3 +835,446 @@ TableGroup "_dlt" {
 
 ![chartdb dbml render](https://storage.googleapis.com/dlt-blog-images/chartdb_schema.png)
 
+
+## Export to Graphviz
+[Graphviz](https://www.graphviz.org/) is an open soruce graph visualization engine which uses the [DOT language](https://graphviz.org/doc/info/lang.html). dlt allows you to export your `dlt.Schema` as DOT string, which can be rendered using the Python `graphviz` library, lightweight JS libraries (e.g., [d3-graphviz](https://github.com/magjac/d3-graphviz)), or IDE extensions.
+
+Note that the conversion is lossy. You can't fully recreate `dlt.Schema` from a DOT string.
+
+```py
+schema_dot = pipeline.default_schema.to_dot()
+```
+
+```sh
+# `chess_pipeline` is the name of the pipeline
+dlt pipeline chess_pipeline schema --format dot
+```
+
+<details>
+  <summary>See DOT</summary>
+
+  This uses the DOT [HTML-like language](https://graphviz.org/doc/info/shapes.html#html) to render nodes as tables.
+
+  ```dot
+digraph fruit_with_ref {
+    rankdir=LR;
+    graph [fontname="helvetica", fontcolor="{TABLE_BORDER_COLOR}", layout="twopi", ranksep=5, root="_dlt_loads"];
+    node [penwidth=0, margin=0, fontname="helvetica"];
+    edge [fontname="helvetica", fontcolor="{TABLE_BORDER_COLOR}", color="{TABLE_BORDER_COLOR}"];
+
+"customers" [id="customers"; label=<
+    <table border="0" color="#1c1c34" cellborder="1" cellspacing="0" cellpadding="6">
+                <tr>
+            <td port="p0" bgcolor="#bbca06">
+                <font color="#1c1c34"><b>customers</b></font>
+            </td>
+        </tr>
+
+        <tr>
+            <td align="left" port="f1" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left"><B>id🔑</B></td>
+                        <td align="right"><font>bigint <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f2" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">name</td>
+                        <td align="right"><font>text</font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f3" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">city</td>
+                        <td align="right"><font>text</font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f4" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">_dlt_load_id</td>
+                        <td align="right"><font>text <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f5" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">_dlt_id</td>
+                        <td align="right"><font>text <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+>];
+
+"purchases" [id="purchases"; label=<
+    <table border="0" color="#1c1c34" cellborder="1" cellspacing="0" cellpadding="6">
+                <tr>
+            <td port="p0" bgcolor="#bbca06">
+                <font color="#1c1c34"><b>purchases</b></font>
+            </td>
+        </tr>
+
+        <tr>
+            <td align="left" port="f1" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left"><B>id🔑</B></td>
+                        <td align="right"><font>bigint <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f2" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">customer_id</td>
+                        <td align="right"><font>bigint</font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f3" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">inventory_id</td>
+                        <td align="right"><font>bigint</font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f4" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">quantity</td>
+                        <td align="right"><font>bigint</font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f5" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">date</td>
+                        <td align="right"><font>text</font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f6" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">_dlt_load_id</td>
+                        <td align="right"><font>text <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f7" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">_dlt_id</td>
+                        <td align="right"><font>text <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+>];
+
+"purchases__items" [id="purchases__items"; label=<
+    <table border="0" color="#1c1c34" cellborder="1" cellspacing="0" cellpadding="6">
+                <tr>
+            <td port="p0" bgcolor="#bbca06">
+                <font color="#1c1c34"><b>purchases__items</b></font>
+            </td>
+        </tr>
+
+        <tr>
+            <td align="left" port="f1" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">name</td>
+                        <td align="right"><font>text</font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f2" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">price</td>
+                        <td align="right"><font>bigint</font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f3" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">_dlt_parent_id</td>
+                        <td align="right"><font>text <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f4" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">_dlt_list_idx</td>
+                        <td align="right"><font>bigint <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f5" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">_dlt_id</td>
+                        <td align="right"><font>text <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+>];
+
+"_dlt_version" [id="_dlt_version";tooltip="Created by DLT. Tracks schema updates";label=<
+    <table border="0" color="#1c1c34" cellborder="1" cellspacing="0" cellpadding="6">
+                <tr>
+            <td port="p0" bgcolor="#bbca06">
+                <font color="#1c1c34"><b>_dlt_version</b></font>
+            </td>
+        </tr>
+
+        <tr>
+            <td align="left" port="f1" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">version</td>
+                        <td align="right"><font>bigint <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f2" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">engine_version</td>
+                        <td align="right"><font>bigint <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f3" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">inserted_at</td>
+                        <td align="right"><font>timestamp <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f4" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">schema_name</td>
+                        <td align="right"><font>text <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f5" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">version_hash</td>
+                        <td align="right"><font>text <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f6" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">schema</td>
+                        <td align="right"><font>text <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+>];
+
+"_dlt_loads" [id="_dlt_loads";tooltip="Created by DLT. Tracks completed loads";label=<
+    <table border="0" color="#1c1c34" cellborder="1" cellspacing="0" cellpadding="6">
+                <tr>
+            <td port="p0" bgcolor="#bbca06">
+                <font color="#1c1c34"><b>_dlt_loads</b></font>
+            </td>
+        </tr>
+
+        <tr>
+            <td align="left" port="f1" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">load_id</td>
+                        <td align="right"><font>text <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f2" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">schema_name</td>
+                        <td align="right"><font>text</font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f3" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">status</td>
+                        <td align="right"><font>bigint <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f4" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">inserted_at</td>
+                        <td align="right"><font>timestamp <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f5" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">schema_version_hash</td>
+                        <td align="right"><font>text</font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+>];
+
+"_dlt_pipeline_state" [id="_dlt_pipeline_state"; label=<
+    <table border="0" color="#1c1c34" cellborder="1" cellspacing="0" cellpadding="6">
+                <tr>
+            <td port="p0" bgcolor="#bbca06">
+                <font color="#1c1c34"><b>_dlt_pipeline_state</b></font>
+            </td>
+        </tr>
+
+        <tr>
+            <td align="left" port="f1" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">version</td>
+                        <td align="right"><font>bigint <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f2" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">engine_version</td>
+                        <td align="right"><font>bigint <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f3" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">pipeline_name</td>
+                        <td align="right"><font>text <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f4" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">state</td>
+                        <td align="right"><font>text <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f5" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">created_at</td>
+                        <td align="right"><font>timestamp <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f6" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">version_hash</td>
+                        <td align="right"><font>text</font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f7" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">_dlt_load_id</td>
+                        <td align="right"><font>text <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr><tr>
+            <td align="left" port="f8" bgcolor="#e7e2dd">
+                <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td align="left">_dlt_id</td>
+                        <td align="right"><font>text <B>NN</B></font></td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+>];
+
+customers:p0 -> _dlt_loads:p0 [style=invis]
+customers:f4:_ -> _dlt_loads:f1:_ [dir=both, penwidth=1, color="#1c1c34", arrowtail="vee", arrowhead="dot"];
+purchases:p0 -> customers:p0 [style=invis]
+purchases:f2:_ -> customers:f1:_ [dir=both, penwidth=1, color="#1c1c34", arrowtail="vee", arrowhead="dot"];
+purchases:p0 -> _dlt_loads:p0 [style=invis]
+purchases:f6:_ -> _dlt_loads:f1:_ [dir=both, penwidth=1, color="#1c1c34", arrowtail="vee", arrowhead="dot"];
+_dlt_pipeline_state:p0 -> _dlt_loads:p0 [style=invis]
+_dlt_pipeline_state:f7:_ -> _dlt_loads:f1:_ [dir=both, penwidth=1, color="#1c1c34", arrowtail="vee", arrowhead="dot"];
+purchases__items:p0 -> purchases:p0 [style=invis]
+purchases__items:f3:_ -> purchases:f7:_ [dir=both, penwidth=1, color="#1c1c34", arrowtail="vee", arrowhead="dot"];
+_dlt_version:p0 -> _dlt_loads:p0 [style=invis]
+_dlt_version:f5:_ -> _dlt_loads:f5:_ [dir=both, penwidth=1, color="#1c1c34", arrowtail="vee", arrowhead="dot"];
+_dlt_version:p0 -> _dlt_loads:p0 [style=invis]
+_dlt_version:f4:_ -> _dlt_loads:f2:_ [dir=both, penwidth=1, color="#1c1c34", arrowtail="vee", arrowhead="dot"];
+}
+  ```
+
+</details>
+
+![graphviz dot render](https://storage.googleapis.com/dlt-blog-images/schema_dot_export.svg)
