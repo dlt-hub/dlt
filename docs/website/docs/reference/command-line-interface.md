@@ -702,7 +702,7 @@ Generate IDE-specific configuration and rules files.
 **Usage**
 ```sh
 dlt ai setup [-h] [--location LOCATION] [--branch BRANCH]
-    {cursor,continue,cline,claude_desktop}
+    {amp,codex,claude,cody,cline,cursor,continue,windsurf,copilot}
 ```
 
 **Description**
