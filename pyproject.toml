@@ -262,7 +262,7 @@ pipeline = [
     # this pandas and above has functional numpy dependency
     "pandas>=2.1.4",
     # keep last duckdb version that works with azure and iceberg correctly
-    "duckdb<1.2.1",
+    "duckdb<1.4",
 ]
 airflow = ["apache-airflow>=2.8.0,<3 ; python_version < '3.12'"]
 ibis = [
