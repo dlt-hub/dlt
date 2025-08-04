@@ -59,7 +59,7 @@ class StorageSchemaInfo(NamedTuple):
     version_hash: str
     schema_name: str
     version: int
-    engine_version: str
+    engine_version: int
     inserted_at: datetime.datetime
     schema: str
 

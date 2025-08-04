@@ -75,6 +75,25 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         config: SqlalchemyClientConfiguration,
         naming: Optional[NamingConvention],
     ) -> DestinationCapabilitiesContext:
+        # lazy import to avoid sqlalchemy dep
+        MssqlVariantTypeMapper: Type[DataTypeMapper]
+        MysqlVariantTypeMapper: Type[DataTypeMapper]
+        TrinoVariantTypeMapper: Type[DataTypeMapper]
+
+        try:
+            from dlt.destinations.impl.sqlalchemy.type_mapper import (
+                MssqlVariantTypeMapper,
+                MysqlVariantTypeMapper,
+                TrinoVariantTypeMapper,
+            )
+        except ModuleNotFoundError:
+            # assign mock type mapper if no sqlalchemy
+            from dlt.common.destination.capabilities import (
+                UnsupportedTypeMapper as MssqlVariantTypeMapper,
+                UnsupportedTypeMapper as MysqlVariantTypeMapper,
+                UnsupportedTypeMapper as TrinoVariantTypeMapper,
+            )
+
         dialect = config.get_dialect()
         if dialect is not None:
             backend_name = config.get_backend_name()
@@ -91,6 +110,11 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
                 caps.format_datetime_literal = _format_mysql_datetime_literal
                 caps.enforces_nulls_on_alter = False
                 caps.sqlglot_dialect = "mysql"
+                caps.type_mapper = MysqlVariantTypeMapper
+            elif dialect.name == "trino":
+                caps.sqlglot_dialect = "trino"
+                caps.timestamp_precision = 3
+                caps.type_mapper = TrinoVariantTypeMapper
 
             elif backend_name in [
                 "oracle",
@@ -117,8 +141,13 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
                 caps.sqlglot_dialect = "athena"
             elif backend_name == "mssql":
                 caps.sqlglot_dialect = "tsql"
+                caps.type_mapper = MssqlVariantTypeMapper
             elif backend_name == "teradatasql":
                 caps.sqlglot_dialect = "teradata"
+
+            if dialect.requires_name_normalize:  # type: ignore[attr-defined]
+                caps.has_case_sensitive_identifiers = False
+                caps.casefold_identifier = str.lower
 
         return super(sqlalchemy, cls).adjust_capabilities(caps, config, naming)
 

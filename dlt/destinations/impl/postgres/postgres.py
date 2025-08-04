@@ -41,12 +41,12 @@ class PostgresStagingReplaceJob(SqlStagingReplaceFollowupJob):
             table_name = sql_client.make_qualified_table_name(table["name"])
             sql.extend(
                 (
-                    f"DROP TABLE IF EXISTS {table_name};",
+                    f"DROP TABLE IF EXISTS {table_name}",
                     (
                         f"ALTER TABLE {staging_table_name} SET SCHEMA"
-                        f" {sql_client.fully_qualified_dataset_name()};"
+                        f" {sql_client.fully_qualified_dataset_name()}"
                     ),
-                    f"CREATE TABLE {staging_table_name} (like {table_name} including all);",
+                    f"CREATE TABLE {staging_table_name} (like {table_name} including all)",
                 )
             )
         return sql

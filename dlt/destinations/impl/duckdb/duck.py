@@ -48,7 +48,7 @@ class DuckDbCopyJob(RunnableLoadJob, HasFollowupJobs):
         with self._sql_client.begin_transaction():
             self._sql_client.execute_sql(
                 f"INSERT INTO {qualified_table_name} BY NAME SELECT * FROM"
-                f" {source_format}('{self._file_path}' {options});"
+                f" {source_format}('{self._file_path}' {options})"
             )
 
 

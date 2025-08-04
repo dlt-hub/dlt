@@ -35,14 +35,14 @@ class MsSqlStagingReplaceJob(SqlStagingReplaceFollowupJob):
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
             table_name = sql_client.make_qualified_table_name(table["name"])
             # drop destination table
-            sql.append(f"DROP TABLE IF EXISTS {table_name};")
+            sql.append(f"DROP TABLE IF EXISTS {table_name}")
             # moving staging table to destination schema
             sql.append(
                 f"ALTER SCHEMA {sql_client.fully_qualified_dataset_name()} TRANSFER"
-                f" {staging_table_name};"
+                f" {staging_table_name}"
             )
             # recreate staging table
-            sql.append(f"SELECT * INTO {staging_table_name} FROM {table_name} WHERE 1 = 0;")
+            sql.append(f"SELECT * INTO {staging_table_name} FROM {table_name} WHERE 1 = 0")
         return sql
 
 
@@ -68,8 +68,8 @@ class MsSqlMergeJob(SqlMergeFollowupJob):
         )
 
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
-        return f"SELECT * INTO {temp_table_name} FROM ({select_sql}) as t;"
+    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
+        return f"SELECT * INTO {temp_table_name} FROM ({select_sql}) as t"
 
     @classmethod
     def _new_temp_table_name(cls, table_name: str, op: str, sql_client: SqlClientBase[Any]) -> str:
