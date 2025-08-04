@@ -1,10 +1,11 @@
 import pathlib
+from typing import Any, Optional
 
 import pytest
-import graphviz
+import graphviz  # type: ignore[import-untyped]
 
 import dlt
-from dlt.helpers.graphviz import schema_to_graphviz
+from dlt.helpers.graphviz import _render_with_graphviz, schema_to_graphviz
 
 
 @pytest.fixture
@@ -249,9 +250,9 @@ def example_schema() -> dlt.Schema:
 
 
 def test_generate_valid_graphviz(example_schema: dlt.Schema, tmp_path: pathlib.Path) -> None:
-    """Validate the generated DOT graph can be rendered. If it can be rendered to `.png`, 
+    """Validate the generated DOT graph can be rendered. If it can be rendered to `.png`,
     it can be rendered to any other format supported by Graphviz (jpeg, pdf, svg, html, etc.)
-    
+
     Calling `graphviz.Source(dot).render()` will validate the DOT.
     """
     file_name = "dlt-schema-graphviz"
@@ -265,3 +266,44 @@ def test_generate_valid_graphviz(example_schema: dlt.Schema, tmp_path: pathlib.P
     graph.render(filename=file_name, directory=tmp_path, format=format_, cleanup=True)
 
     assert expected_file_path.exists()
+
+
+@pytest.mark.parametrize(
+    ("path", "format_", "render_kwargs", "expected_relative_path"),
+    [
+        ("./sub/from_suffix.svg", None, None, "./sub/from_suffix.svg"),
+        ("./sub/from_arg", "svg", None, "./sub/from_arg.svg"),
+        ("./sub/matching_suffix_arg.svg", "svg", None, "./sub/matching_suffix_arg.svg"),
+        ("./sub/arg_appended.png", "svg", None, "./sub/arg_appended.png.svg"),
+        ("./sub/kwargs_ignored.png", None, {"format": "svg"}, "./sub/kwargs_ignored.png"),
+    ],
+)
+def test_resolved_path(
+    path: str,
+    format_: str,
+    render_kwargs: Optional[dict[str, Any]],
+    expected_relative_path: str,
+    tmp_path: pathlib.Path,
+) -> None:
+    path_arg = tmp_path / path
+    expected_output_path = tmp_path / expected_relative_path
+
+    dot_string = """\
+strict digraph {
+    base;
+    driver;
+
+    base -> "node";
+    driver -> base;
+    driver -> "graph";
+    driver -> "node";
+}"""
+    output_path = _render_with_graphviz(
+        dot_source=graphviz.Source(dot_string),
+        path=path_arg,
+        format_=format_,
+        save_dot_file=False,
+        render_kwargs=render_kwargs,
+    )
+
+    assert pathlib.Path(output_path) == expected_output_path
