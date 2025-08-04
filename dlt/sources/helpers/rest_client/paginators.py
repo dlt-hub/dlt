@@ -144,7 +144,7 @@ class RangePaginator(BasePaginator):
                 " must be provided."
             )
 
-        if (not param_name and not param_body_path) or (param_name and param_body_path):
+        if bool(param_name) == bool(param_body_path):
             raise ValueError("Either 'param_name' or 'param_body_path' must be provided, not both.")
 
         self.param_name = param_name
