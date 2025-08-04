@@ -87,7 +87,7 @@ Shows, converts and upgrades schemas.
 
 **Usage**
 ```sh
-dlt schema [-h] [--format {json,yaml}] [--remove-defaults] file
+dlt schema [-h] [--format {json,yaml,dbml}] [--remove-defaults] file
 ```
 
 **Description**
@@ -105,7 +105,7 @@ Inherits arguments from [`dlt`](#dlt).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--format {json,yaml}` - Display schema in this format
+* `--format {json,yaml,dbml}` - Display schema in this format
 * `--remove-defaults` - Does not show default hint values
 
 </details>
@@ -330,7 +330,7 @@ Displays default schema.
 
 **Usage**
 ```sh
-dlt pipeline [pipeline_name] schema [-h] [--format {json,yaml}]
+dlt pipeline [pipeline_name] schema [-h] [--format {json,yaml,dbml}]
     [--remove-defaults]
 ```
 
@@ -346,7 +346,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--format {json,yaml}` - Display schema in this format
+* `--format {json,yaml,dbml}` - Display schema in this format
 * `--remove-defaults` - Does not show default hint values
 
 </details>
