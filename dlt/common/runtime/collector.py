@@ -2,20 +2,17 @@ import os
 import sys
 import logging
 import time
-from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import (
     Any,
     ContextManager,
     Dict,
-    Type,
     TYPE_CHECKING,
     DefaultDict,
     NamedTuple,
     Optional,
     Union,
     TextIO,
-    TypeVar,
 )
 
 if TYPE_CHECKING:
@@ -28,59 +25,7 @@ else:
 
 from dlt.common import logger as dlt_logger
 from dlt.common.exceptions import MissingDependencyException
-
-TCollector = TypeVar("TCollector", bound="Collector")
-
-
-class Collector(ABC):
-    step: str
-
-    @abstractmethod
-    def update(
-        self,
-        name: str,
-        inc: int = 1,
-        total: int = None,
-        inc_total: int = None,
-        message: str = None,
-        label: str = None,
-    ) -> None:
-        """Creates or updates a counter
-
-        This function updates a counter `name` with a value `inc`. If counter does not exist, it is created with optional total value of `total`.
-        Depending on implementation `label` may be used to create nested counters and message to display additional information associated with a counter.
-
-        Args:
-            name (str): An unique name of a counter, displayable.
-            inc (int, optional): Increase amount. Defaults to 1.
-            total (int, optional): Maximum value of a counter. Defaults to None which means unbound counter.
-            icn_total (int, optional): Increase the maximum value of the counter, does nothing if counter does not exit yet
-            message (str, optional): Additional message attached to a counter. Defaults to None.
-            label (str, optional): Creates nested counter for counter `name`. Defaults to None.
-        """
-        pass
-
-    @abstractmethod
-    def _start(self, step: str) -> None:
-        """Starts counting for a processing step with name `step`"""
-        pass
-
-    @abstractmethod
-    def _stop(self) -> None:
-        """Stops counting. Should close all counters and release resources ie. screen or push the results to a server."""
-        pass
-
-    def __call__(self: TCollector, step: str) -> TCollector:
-        """Syntactic sugar for nicer context managers"""
-        self.step = step
-        return self
-
-    def __enter__(self: TCollector) -> TCollector:
-        self._start(self.step)
-        return self
-
-    def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Any) -> None:
-        self._stop()
+from dlt.common.runtime.collector_base import Collector, TCollector
 
 
 class NullCollector(Collector):
@@ -211,12 +156,55 @@ class LogCollector(Collector):
         self.maybe_log()
 
     def maybe_log(self) -> None:
+        """Check if should report and if so, call self.on_log"""
         current_time = time.time()
         if self.last_log_time is None or current_time - self.last_log_time >= self.log_period:
-            self.dump_counters()
-            self.last_log_time = current_time
+            self.on_log()
+            self.last_log_time = time.time()
+
+    def _counter_to_log_line(
+        self, counter_key: str, count: int, info: CounterInfo, current_time: float
+    ) -> str:
+        """
+        Convert a single counter to a log line.
+        Example:
+            Resources: 0/1 (0.0%) | Time: 0.01s | Rate: 0.00/s
+        """
+        elapsed_time = current_time - info.start_time
+        items_per_second = (count / elapsed_time) if elapsed_time > 0 else 0
+
+        progress = f"{count}/{info.total}" if info.total else f"{count}"
+        percentage = f"({count / info.total * 100:.1f}%)" if info.total else ""
+        elapsed_time_str = f"{elapsed_time:.2f}s"
+        items_per_second_str = f"{items_per_second:.2f}/s"
+        message = (
+            f"[{self.messages[counter_key]}]" if self.messages[counter_key] is not None else ""
+        )
+
+        return (
+            f"{info.description}: {progress} {percentage} | Time: {elapsed_time_str} | Rate:"
+            f" {items_per_second_str} {message}"
+        ).strip()
+
+    def _system_stats_to_log_line(self) -> str:
+        """Convert system stats to a log line format."""
+        try:
+            import psutil
+
+            process = psutil.Process(os.getpid())
+            mem_info = process.memory_info()
+            current_mem = mem_info.rss / (1024**2)  # Convert to MB
+            mem_percent = psutil.virtual_memory().percent
+            cpu_percent = process.cpu_percent()
+            return (
+                f"Memory usage: {current_mem:.2f} MB ({mem_percent:.2f}%) | CPU usage:"
+                f" {cpu_percent:.2f}%"
+            )
+        except ImportError:
+            return "System stats unavailable (psutil not installed)"
 
     def dump_counters(self) -> None:
+        """Dump all counters to log using the shared formatting methods."""
         current_time = time.time()
         log_lines = []
 
@@ -225,33 +213,10 @@ class LogCollector(Collector):
 
         for name, count in self.counters.items():
             info = self.counter_info[name]
-            elapsed_time = current_time - info.start_time
-            items_per_second = (count / elapsed_time) if elapsed_time > 0 else 0
-
-            progress = f"{count}/{info.total}" if info.total else f"{count}"
-            percentage = f"({count / info.total * 100:.1f}%)" if info.total else ""
-            elapsed_time_str = f"{elapsed_time:.2f}s"
-            items_per_second_str = f"{items_per_second:.2f}/s"
-            message = f"[{self.messages[name]}]" if self.messages[name] is not None else ""
-
-            counter_line = (
-                f"{info.description}: {progress} {percentage} | Time: {elapsed_time_str} | Rate:"
-                f" {items_per_second_str} {message}"
-            )
-            log_lines.append(counter_line.strip())
+            log_lines.append(self._counter_to_log_line(name, count, info, current_time))
 
         if self.dump_system_stats:
-            import psutil
-
-            process = psutil.Process(os.getpid())
-            mem_info = process.memory_info()
-            current_mem = mem_info.rss / (1024**2)  # Convert to MB
-            mem_percent = psutil.virtual_memory().percent
-            cpu_percent = process.cpu_percent()
-            log_lines.append(
-                f"Memory usage: {current_mem:.2f} MB ({mem_percent:.2f}%) | CPU usage:"
-                f" {cpu_percent:.2f}%"
-            )
+            log_lines.append(self._system_stats_to_log_line())
 
         log_lines.append("")
         log_message = "\n".join(log_lines)
@@ -273,11 +238,14 @@ class LogCollector(Collector):
         self.last_log_time = time.time()
 
     def _stop(self) -> None:
-        self.dump_counters()
+        self.on_log()
         self.counters = None
         self.counter_info = None
         self.messages = None
         self.last_log_time = None
+
+    def on_log(self) -> None:
+        self.dump_counters()
 
 
 class TqdmCollector(Collector):

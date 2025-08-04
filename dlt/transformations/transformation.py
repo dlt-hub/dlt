@@ -29,7 +29,7 @@ from dlt.common.schema.typing import (
     TTableReferenceParam,
 )
 from dlt.transformations.configuration import TransformationConfiguration
-from dlt.common.utils import get_callable_name
+from dlt.common.utils import get_callable_name, simple_repr, without_none
 from dlt.extract.exceptions import CurrentSourceNotAvailable
 from dlt.extract.pipe_iterator import DataItemWithMeta
 from dlt.extract.hints import DLT_HINTS_METADATA_KEY, make_hints
@@ -86,6 +86,27 @@ class DltTransformationResource(DltResource):
             self.merge_hints(original_hints)
 
         return super().compute_table_schema(item, meta)
+
+    def __repr__(self) -> str:
+        kwargs = {
+            "name": self.name,
+            #  "section": self.section,  should this be explicitly passed?
+            "table_name": self._hints.get("table_name"),
+            "primary_key": self._hints.get("primary_key"),
+            "merge_key": self._hints.get("merge_key"),
+            "columns": "{...}" if self._hints.get("columns") else None,
+            "parent_table_name": self._hints.get("parent_table_name"),
+            "references": "{...}" if self._hints.get("references") else None,
+            "nested_hints": "{...}" if self._hints.get("nested_hints") else None,
+            "max_table_nesting": self._hints.get("max_table_nesting"),
+            "write_disposition": self._hints.get("write_disposition"),
+            "table_format": self._hints.get("table_format"),
+            "file_format": self._hints.get("file_format"),
+            "schema_contract": "{...}" if self._hints.get("schema_contract") else None,
+            "incremental": self.incremental,
+            "validator": self.validator,
+        }
+        return simple_repr("@dlt.transformation", **without_none(kwargs))
 
 
 def make_transformation_resource(

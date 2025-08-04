@@ -335,6 +335,28 @@ def mock_api_server():
             context.status_code = 401
             return {"error": "Unauthorized"}
 
+        @router.get(r"/posts_cursor_null_terminated(\?cursor=.*)?$")
+        def posts_cursor_null_terminated(request, context):
+            # Demonstrates the issue where the final page returns null data
+            # https://github.com/dlt-hub/dlt/issues/2932
+            cursor_param = request.qs.get("cursor", [None])[0]
+
+            if cursor_param is None:
+                # First page - return 10 items with next cursor
+                return {
+                    "users": [{"id": i, "name": f"User {i}"} for i in range(10)],
+                    "next_token": "cursor_page_2",
+                }
+            elif cursor_param == "cursor_page_2":
+                # Second page - return 4 items with next cursor
+                return {
+                    "users": [{"id": i, "name": f"User {i}"} for i in range(10, 14)],
+                    "next_token": "cursor_final",
+                }
+            elif cursor_param == "cursor_final":
+                # Final page - return null data and null cursor
+                return {"users": None, "next_token": None}
+
         router.register_routes(m)
 
         yield m

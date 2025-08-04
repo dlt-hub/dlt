@@ -24,6 +24,7 @@ from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfigu
 from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
+from dlt.destinations.path_utils import get_file_format_and_compression
 
 SUPPORTED_HINTS: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
 
@@ -73,7 +74,7 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
         )
         # take file name
         file_name = FileStorage.get_file_name_from_file_path(file_url)
-        file_format = file_name.rsplit(".", 1)[-1]
+        file_format, _ = get_file_format_and_compression(file_name)
 
         qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
         # this means we have a local file
