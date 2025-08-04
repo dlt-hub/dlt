@@ -166,8 +166,7 @@ class DataValidationError(SchemaException):
 
         Schema, table and column names are given as a context and full `schema_contract` and causing `data_item` as an evidence.
         """
-        msg = ""
-        msg += f"Table: `{table_name}` "
+        msg = f"Table: `{table_name}` "
         if column_name:
             msg += f"Column: `{column_name}`"
         msg = (
