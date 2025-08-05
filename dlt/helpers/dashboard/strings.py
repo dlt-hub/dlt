@@ -20,6 +20,7 @@ app_intro = """
 """
 app_pipeline_select_label = "Pipeline:"
 app_no_pipeline_selected = "No pipeline selected"
+app_schema_select_label = "Schema:"
 
 #
 # Home section
@@ -91,17 +92,15 @@ overview_remote_state_subtitle = (
 #
 # Schema page
 #
-schema_title = "Schema Browser"
+schema_title = "Dataset Browser: Schema"
 schema_subtitle = "Browse the default schema of the selected pipeline"
 schema_subtitle_long = (
-    "Browse the default schema of the selected pipeline. The following list shows all tables "
-    "found in the dlt schema of the selected pipeline. Note that in some cases the dlt "
+    "Browse the selected schema of the current pipeline. The following list shows all tables "
+    "found in the dlt schema of the current pipeline. Note that in some cases the dlt "
     "schema may differ from the actual schema materialized in the destination."
 )
 
-schema_no_default_available_text = (
-    "No default schema available. Does your pipeline have a completed load?"
-)
+schema_no_default_available_text = "No schemas available. Does your pipeline have a completed load?"
 schema_table_details_title = "Table Details for Selected Tables"
 schema_table_columns_title = "`{}` columns"
 schema_raw_yaml_title = "Raw Schema as YAML"
@@ -121,7 +120,7 @@ ui_limit_to_1000_rows = "Limit to 1000 rows"
 #
 # Browse data page
 #
-browse_data_title = "Browse Pipeline Data"
+browse_data_title = "Dataset Browser: Data"
 browse_data_subtitle = "Browse data from the current pipeline."
 browse_data_subtitle_long = (
     "Browse data from the current pipeline. Select a table from the list to start or write a SQL"
@@ -161,7 +160,7 @@ state_subtitle = "A raw view of the currently stored pipeline state."
 #
 # Last trace page
 #
-trace_title = "Last Trace"
+trace_title = "Last Pipeline Run Trace"
 trace_subtitle = (
     "An overview of the last load trace from the most recent successful run of the selected"
     " pipeline, if available."

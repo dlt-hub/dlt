@@ -141,6 +141,8 @@ def section_schema(
     dlt_schema_show_type_hints: mo.ui.switch,
     dlt_schema_table_list: mo.ui.table,
     dlt_section_schema_switch: mo.ui.switch,
+    dlt_schema_select: mo.ui.multiselect,
+    dlt_selected_schema_name: str,
 ):
     """
     Show schema of the currently selected pipeline
@@ -164,7 +166,10 @@ def section_schema(
     elif dlt_pipeline and dlt_section_schema_switch.value:
         # build table overview
         _result.append(
-            mo.hstack([dlt_schema_show_dlt_tables, dlt_schema_show_child_tables], justify="start")
+            mo.hstack(
+                [dlt_schema_select, dlt_schema_show_dlt_tables, dlt_schema_show_child_tables],
+                justify="start",
+            )
         )
         _result.append(dlt_schema_table_list)
 
@@ -189,6 +194,7 @@ def section_schema(
                 dlt_config,
                 dlt_pipeline,
                 _table_name,
+                dlt_selected_schema_name,
                 show_internals=dlt_schema_show_dlt_columns.value,
                 show_type_hints=dlt_schema_show_type_hints.value,
                 show_other_hints=dlt_schema_show_other_hints.value,
@@ -229,6 +235,8 @@ def section_browse_data_table_list(
     dlt_schema_show_dlt_tables: mo.ui.switch,
     dlt_schema_show_row_counts: mo.ui.run_button,
     dlt_section_browse_data_switch: mo.ui.switch,
+    dlt_schema_select: mo.ui.multiselect,
+    dlt_selected_schema_name: str,
 ):
     """
     Show data of the currently selected pipeline
@@ -250,6 +258,7 @@ def section_browse_data_table_list(
             _result.append(
                 mo.hstack(
                     [
+                        dlt_schema_select,
                         dlt_schema_show_dlt_tables,
                         dlt_schema_show_child_tables,
                     ],
@@ -262,7 +271,9 @@ def section_browse_data_table_list(
             _sql_query = ""
             if dlt_data_table_list.value:
                 _table_name = dlt_data_table_list.value[0]["name"]  # type: ignore[index,unused-ignore]
-                _dataset = cast(ReadableDBAPIDataset, dlt_pipeline.dataset())
+                _dataset = cast(
+                    ReadableDBAPIDataset, dlt_pipeline.dataset(schema=dlt_selected_schema_name)
+                )
                 _sql_query = (
                     cast(ReadableDBAPIRelation, _dataset.table(_table_name))
                     .limit(1000 if dlt_restrict_to_last_1000.value else None)
@@ -703,6 +714,20 @@ def utils_discover_pipelines(
 
 
 @app.cell(hide_code=True)
+def utils_discover_schemas(dlt_pipeline: dlt.Pipeline):
+    """
+    Create schema multiselect widget
+    """
+    dlt_schema_select: mo.ui.multiselect = mo.ui.multiselect(
+        options=[s.name for s in dlt_pipeline.schemas.values()],
+        value=[dlt_pipeline.default_schema_name] if dlt_pipeline.default_schema_name else [],
+        max_selections=1,
+        label=strings.app_schema_select_label,
+    )
+    return dlt_schema_select
+
+
+@app.cell(hide_code=True)
 def utils_caches_and_state(
     dlt_clear_query_cache: mo.ui.run_button,
     dlt_pipeline: dlt.Pipeline,
@@ -813,19 +838,25 @@ def ui_primary_controls(
     dlt_section_schema_switch: mo.ui.switch,
     dlt_section_trace_switch: mo.ui.switch,
     dlt_config: DashboardConfiguration,
+    dlt_schema_select: mo.ui.multiselect,
 ):
     """
     Helper cell for creating certain controls based on selected sections
     """
 
+    dlt_selected_schema_name = (
+        cast(str, dlt_schema_select.value[0]) if dlt_schema_select.value else None
+    )
+
     #
     # Schema controls
     #
     dlt_schema_table_list: mo.ui.table = None
-    if dlt_section_schema_switch.value and dlt_pipeline and dlt_pipeline.default_schema_name:
+    if dlt_section_schema_switch.value and dlt_pipeline and dlt_selected_schema_name:
         _table_list = utils.create_table_list(
             dlt_config,
             dlt_pipeline,
+            dlt_selected_schema_name,
             show_internals=dlt_schema_show_dlt_tables.value,
             show_child_tables=dlt_schema_show_child_tables.value,
         )
@@ -840,10 +871,11 @@ def ui_primary_controls(
     # Browse data controls
     #
     dlt_data_table_list: mo.ui.table = None
-    if dlt_section_browse_data_switch.value and dlt_pipeline and dlt_pipeline.default_schema_name:
+    if dlt_section_browse_data_switch.value and dlt_pipeline and dlt_selected_schema_name:
         table_list = utils.create_table_list(
             dlt_config,
             dlt_pipeline,
+            dlt_selected_schema_name,
             show_internals=dlt_schema_show_dlt_tables.value,
             show_child_tables=dlt_schema_show_child_tables.value,
             show_row_counts=dlt_schema_show_row_counts.value,
@@ -863,8 +895,12 @@ def ui_primary_controls(
         dlt_trace_steps_table = mo.ui.table(
             utils.trace_steps_overview(dlt_config, dlt_pipeline.last_trace.asdict())
         )
-
-    return dlt_data_table_list, dlt_schema_table_list, dlt_trace_steps_table
+    return (
+        dlt_data_table_list,
+        dlt_schema_table_list,
+        dlt_trace_steps_table,
+        dlt_selected_schema_name,
+    )
 
 
 @app.cell(hide_code=True)
