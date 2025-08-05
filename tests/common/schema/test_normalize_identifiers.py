@@ -412,6 +412,7 @@ def assert_schema_identifiers_case(schema: Schema, casing: Callable[[str], str])
 
     # make sure table prefixes are set
     assert schema._dlt_tables_prefix == casing("_dlt")
+    assert schema._dlt_column_prefix == casing("_dlt")
     assert schema.loads_table_name == casing("_dlt_loads")
     assert schema.version_table_name == casing("_dlt_version")
     assert schema.state_table_name == casing("_dlt_pipeline_state")
