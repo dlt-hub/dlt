@@ -81,7 +81,7 @@ class RunContext(SupportsRunContext):
     def module(self) -> Optional[ModuleType]:
         try:
             return self.import_run_dir_module(self.run_dir)
-        except ImportError:
+        except (ImportError, TypeError):
             return None
 
     @property
