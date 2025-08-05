@@ -4,7 +4,12 @@ import sqlglot
 import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema
 
-from dlt.common.schema.typing import C_DLT_LOAD_ID, TTableReference, TTableReferenceParam, TTableSchema
+from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
+    TTableReference,
+    TTableReferenceParam,
+    TTableSchema,
+)
 from dlt.destinations.sql_client import SqlClientBase
 
 
@@ -134,7 +139,7 @@ def _create_column_alias(
     *,
     prefix: Optional[str] = None,
     separator: str = "__",
-):
+) -> str:
     if prefix is None:
         prefix = table_name
 
@@ -150,10 +155,7 @@ def _create_join_condition_from_reference(table_name: str, reference: TTableRefe
     other_table_name = reference["referenced_table"]
     join_conditions = [
         _create_join_condition(
-            table=table_name,
-            column=col,
-            other_table=other_table_name,
-            other_column=referenced_col
+            table=table_name, column=col, other_table=other_table_name, other_column=referenced_col
         )
         for col, referenced_col in zip(reference["columns"], reference["referenced_columns"])
     ]
@@ -162,7 +164,7 @@ def _create_join_condition_from_reference(table_name: str, reference: TTableRefe
         return join_conditions[0]
     else:
         return " AND ".join(join_conditions)
-    
+
 
 def _get_valid_reference(
     *,

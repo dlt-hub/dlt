@@ -1,4 +1,4 @@
-from typing import Any, Generator, Optional, Sequence, Tuple, Type, TYPE_CHECKING
+from typing import Any, Generator, Optional, Sequence, Tuple, Type, TYPE_CHECKING, cast
 
 from textwrap import indent
 from typing import (
@@ -33,7 +33,14 @@ from dlt.common.typing import Self, TSortOrder
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.transformations import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
-from dlt.destinations.queries import _create_column_alias, _create_join_condition, _create_join_condition_from_reference, _get_valid_reference, normalize_query, build_select_expr
+from dlt.destinations.queries import (
+    _create_column_alias,
+    _create_join_condition,
+    _create_join_condition_from_reference,
+    _get_valid_reference,
+    normalize_query,
+    build_select_expr,
+)
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination.dataset import DataAccess
 
@@ -439,11 +446,12 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
     ) -> Self:
         """Join two tables based on Reference"""
         rel = self.__copy__()
-        other_rel: Relation
+        other_rel: ReadableDBAPIRelation
         if isinstance(other, str):
             if "." in other:
                 other, *_ = other.split(".")
-            other_rel = self._dataset.table(other)
+            # TODO simplify this by removing protocol typing
+            other_rel = cast(ReadableDBAPIRelation, self._dataset.table(other))
         elif isinstance(other, ReadableDBAPIRelation):
             other_rel = other
         else:
@@ -457,14 +465,13 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
 
         other_table_name = other_rel._sqlglot_expression.find(sge.From).name
         other_table_schema = self._dataset.schema.tables[other_table_name]
-        
+
         reference = _get_valid_reference(
             other_table_name=other_table_name,
             # other_col_name=other_col_name,
-            references=references
+            references=references,
         )
         join_condition = _create_join_condition_from_reference(current_table_name, reference)
-
 
         meta_cols_aliases = []
         current_cols_aliases = []
@@ -496,15 +503,13 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
                 *current_cols_aliases,
                 *other_cols_aliases,
             )
-            .from_(sge.to_identifier(current_table_name))
-            .join(
-                sge.to_identifier(other_table_name, quoted=True),
-                on=join_condition,
-                join_type=how,
-            )
+            .from_(current_table_name)
+            .join(other_table_name, on=join_condition, join_type=how)
         )
         return rel
 
+    # TODO using `dlt.common.schema.utils.create_parent_child_reference()` on `dlt.Schema`
+    # first, we could unify the logic of `.join()` and `.join_child()`
     def join_child(self, other: Union[Relation, str]) -> Self:
         """Join two tables based on child-parent relationship produced by
         the dlt normalization.
@@ -513,9 +518,10 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
         typically one-to-many.
         """
         rel = self.__copy__()
-        other_rel: Relation
+        other_rel: ReadableDBAPIRelation
         if isinstance(other, str):
-            other_rel = self._dataset.table(other)
+            # TODO simplify this by removing protocol typing
+            other_rel = cast(ReadableDBAPIRelation, self._dataset.table(other))
         elif isinstance(other, ReadableDBAPIRelation):
             other_rel = other
         else:
@@ -582,12 +588,8 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
                 *parent_cols_aliases,
                 *child_cols_aliases,
             )
-            .from_(sge.to_identifier(parent_table_name))
-            .join(
-                sge.to_identifier(child_table_name, quoted=True),
-                on=join_condition,
-                join_type="left",
-            )
+            .from_(parent_table_name)
+            .join(child_table_name, on=join_condition, join_type="left")
         )
         return rel
 

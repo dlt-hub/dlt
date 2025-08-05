@@ -1,6 +1,6 @@
 # flake8: noqa
 
-from typing import Any, cast, Tuple, List
+from typing import Any, Union, cast, Tuple, List
 import re
 import pytest
 import dlt
@@ -11,11 +11,15 @@ from dlt.common import Decimal
 
 from typing import List
 from functools import reduce
+import sqlglot
+import sqlglot.optimizer
+from sqlglot.diff import diff as sqlglot_diff
+from sqlglot import expressions as sge
 
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.schema.schema import Schema
-from dlt.common.schema.typing import TTableFormat
+from dlt.common.schema.typing import TTableFormat, TTableReference
 
 from dlt.extract.source import DltSource
 from dlt.destinations.dataset import dataset as _dataset
@@ -128,6 +132,20 @@ def create_test_source(destination_type: str, table_format: TTableFormat) -> Dlt
         return [items, double_items, orderable_in_chain]
 
     return source()
+
+
+def queries_are_equivalent(
+    query1: Union[str, sge.Query],
+    query2: Union[str, sge.Query],
+) -> bool:
+    query1 = sqlglot.maybe_parse(query1)
+    query2 = sqlglot.maybe_parse(query2)
+
+    query1_optimized = sqlglot.optimizer.optimize(query1)
+    query2_optimized = sqlglot.optimizer.optimize(query2)
+
+    edits = sqlglot_diff(query1_optimized, query2_optimized, delta_only=True)
+    return edits == []
 
 
 @pytest.fixture(scope="module")
@@ -969,22 +987,7 @@ def test_join_on_child_parent_relation():
             },
         ]
 
-    pipeline = dlt.pipeline("parent_child_relation", destination="duckdb")
-    pipeline.run([purchases])
-
-    schema = pipeline.default_schema
-    assert "purchases" in schema.tables
-    assert "purchases__items" in schema.tables
-    assert schema.tables["purchases"].get("references") is None
-
-    dataset = pipeline.dataset()
-    purchases_rel = dataset.table("purchases")
-
-    # NOTE this only works when removing `qualify()` from `lineage.compute_columns_schema()`
-    joined_rel = purchases_rel.join_child("purchases__items")
-    df = joined_rel.df()
-
-    expected_columns = [
+    expected_columns = (
         "_dlt_load_id",  # from parent table
         "_dlt_id",  # from parent table
         "_dlt_list_idx",  # from child table
@@ -994,9 +997,41 @@ def test_join_on_child_parent_relation():
         "purchases__city",
         "items__name",
         "items__price",
-    ]
+    )
+    expected_sql_query = """
+SELECT
+    "purchases"."_dlt_load_id" AS "_dlt_load_id",
+    "purchases"."_dlt_id" AS "_dlt_id",
+    "purchases__items"."_dlt_list_idx" AS "_dlt_list_idx",
+    "purchases__items"."_dlt_id" AS "items___dlt_id",
+    "purchases"."id" AS "purchases__id",
+    "purchases"."name" AS "purchases__name",
+    "purchases"."city" AS "purchases__city",
+    "purchases__items"."name" AS "items__name",
+    "purchases__items"."price" AS "items__price"
+FROM "parent_child_relation_dataset"."purchases" AS "purchases"
+LEFT JOIN "parent_child_relation_dataset"."purchases__items" AS "purchases__items"
+ON "purchases"."_dlt_id" = "purchases__items"."_dlt_parent_id"
+"""
+
+    pipeline = dlt.pipeline("parent_child_relation", destination="duckdb")
+    pipeline.run([purchases])
+
+    schema = pipeline.default_schema
+    assert "purchases" in schema.tables
+    assert "purchases__items" in schema.tables
+    assert schema.tables["purchases"].get("references") is None
+
+    dataset = pipeline.dataset()
+    purchases_rel = cast(ReadableDBAPIRelation, dataset.table("purchases"))
+
+    joined_rel = purchases_rel.join_child("purchases__items")
+    df = joined_rel.df()
+    sql_query = joined_rel.to_sql()
+
     assert all(col in expected_columns for col in joined_rel.schema["columns"].keys())
     assert all(col in expected_columns for col in df.columns)
+    assert queries_are_equivalent(sql_query, expected_sql_query)
 
 
 def test_join_on_references():
@@ -1004,7 +1039,7 @@ def test_join_on_references():
     from datetime import datetime, timedelta
 
     references = [
-        dict(
+        TTableReference(
             columns=["customer_id"],
             referenced_table="customers",
             referenced_columns=["id"],
@@ -1052,6 +1087,35 @@ def test_join_on_references():
             for i in range(20)
         ]
 
+    expected_columns = (
+        "purchases___dlt_id",
+        "customers___dlt_id",
+        "purchases__id",
+        "purchases__customer_id",
+        "purchases__inventory_id",
+        "purchases__quantity",
+        "purchases__date",
+        "customers__id",
+        "customers__name",
+        "customers__city",
+    )
+    expected_sql_query = """\
+SELECT
+    "purchases"."_dlt_id" AS "purchases___dlt_id",
+    "customers"."_dlt_id" AS "customers___dlt_id",
+    "purchases"."id" AS "purchases__id",
+    "purchases"."customer_id" AS "purchases__customer_id",
+    "purchases"."inventory_id" AS "purchases__inventory_id",
+    "purchases"."quantity" AS "purchases__quantity",
+    "purchases"."date" AS "purchases__date",
+    "customers"."id" AS "customers__id",
+    "customers"."name" AS "customers__name",
+    "customers"."city" AS "customers__city"
+FROM "fruit_with_ref_dataset"."purchases" AS "purchases"
+INNER JOIN "fruit_with_ref_dataset"."customers" AS "customers"
+ON "purchases"."customer_id" = "customers"."id"
+"""
+
     pipeline = dlt.pipeline("fruit_with_ref", destination="duckdb")
     pipeline.run([customers, purchases])
 
@@ -1061,13 +1125,16 @@ def test_join_on_references():
 
     dataset = pipeline.dataset()
 
-    purchases_rel = dataset.table("purchases")
-    customers_rel = dataset.table("customers")
+    purchases_rel = cast(ReadableDBAPIRelation, dataset.table("purchases"))
+    customers_rel = cast(ReadableDBAPIRelation, dataset.table("customers"))
 
-    joined_rel = purchases_rel.join("customers.id")
-    joined_rel.to_sql()
+    joined_rel = purchases_rel.join(customers_rel)
+    df = joined_rel.df()
+    sql_query = joined_rel.to_sql()
 
-    assert False
+    assert all(col in expected_columns for col in joined_rel.schema["columns"].keys())
+    assert all(col in expected_columns for col in df.columns)
+    assert queries_are_equivalent(sql_query, expected_sql_query)
 
 
 @pytest.mark.no_load
