@@ -200,6 +200,7 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
                     data=arrow_rbr,
                     schema=self._load_table,
                     load_table_name=self.load_table_name,
+                    streamed_exec=self._job_client.config.deltalake_streamed_exec,
                 )
             else:
                 location = self._job_client.get_open_table_location("delta", self.load_table_name)

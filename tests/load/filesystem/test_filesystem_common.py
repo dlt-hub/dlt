@@ -59,6 +59,7 @@ def test_filesystem_configuration() -> None:
         "kwargs": None,
         "deltalake_storage_options": None,
         "deltalake_configuration": None,
+        "deltalake_streamed_exec": True,
     }
 
 
@@ -234,6 +235,7 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
             "delta.minWriterVersion": "7",
             "delta.enableChangeDataFeed": "true",
         },
+        deltalake_streamed_exec=False,
     )
     assert dict(config) == {
         "read_only": False,
@@ -247,6 +249,7 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
             "delta.minWriterVersion": "7",
             "delta.enableChangeDataFeed": "true",
         },
+        "deltalake_streamed_exec": False,
     }
 
 
