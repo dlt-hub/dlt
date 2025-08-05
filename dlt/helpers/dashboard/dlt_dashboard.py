@@ -707,6 +707,7 @@ def utils_discover_pipelines(
     dlt_pipelines_dir: str = ""
     dlt_all_pipelines: List[Dict[str, Any]] = []
     dlt_pipelines_dir, dlt_all_pipelines = utils.get_local_pipelines(mo_cli_arg_pipelines_dir)
+
     dlt_pipeline_select: mo.ui.multiselect = mo.ui.multiselect(
         options=[p["name"] for p in dlt_all_pipelines],
         value=(
@@ -896,7 +897,7 @@ def utils_cli_args_and_query_vars_config():
     try:
         mo_query_var_pipeline_name: str = cast(str, mo.query_params().get("pipeline")) or None
         mo_cli_arg_pipeline: str = cast(str, mo.cli_args().get("pipeline")) or None
-        mo_cli_arg_pipelines_dir: str = cast(str, mo.cli_args().get("pipelines_dir")) or None
+        mo_cli_arg_pipelines_dir: str = cast(str, mo.cli_args().get("pipelines-dir")) or None
         mo_cli_arg_with_test_identifiers: bool = (
             cast(bool, mo.cli_args().get("with_test_identifiers")) or False
         )
