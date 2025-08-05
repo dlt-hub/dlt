@@ -237,8 +237,6 @@ def _get_ibis_to_sqlglot_compiler(dialect: TSqlGlotDialect) -> SQLGlotCompiler:
         compiler = sc.PostgresCompiler()
     elif dialect == "presto":
         compiler = sc.TrinoCompiler()
-    elif dialect == "prql":
-        compiler = sc.DuckDBCompiler()
     elif dialect == "redshift":
         compiler = sc.PostgresCompiler()
     elif dialect == "risingwave":
