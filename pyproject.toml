@@ -355,6 +355,7 @@ include = [
 ]
 exclude = [
     "tests/reflection/module_cases/syntax_error.py",
+    "docs/website/docs/general-usage/transformations/transformation-snippets.py",
 ]
 
 [tool.ruff.lint]
