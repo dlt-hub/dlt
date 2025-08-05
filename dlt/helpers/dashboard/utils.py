@@ -102,6 +102,10 @@ def schemas_to_table_items(
     """
     Convert a list of schemas to a list of table items.
     """
+    # Sort schemas so that the default schema is at the top
+    schemas = sorted(
+        schemas, key=lambda s: 0 if getattr(s, "name", None) == default_schema_name else 1
+    )
     table_items = []
     count = 0
     for schema in schemas:
@@ -170,6 +174,7 @@ def remote_state_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
 def create_table_list(
     c: DashboardConfiguration,
     pipeline: dlt.Pipeline,
+    selected_schema_name: str,
     show_internals: bool = False,
     show_child_tables: bool = True,
     show_row_counts: bool = False,
@@ -182,15 +187,17 @@ def create_table_list(
 
     # get tables and filter as needed
     tables = list(
-        pipeline.default_schema.data_tables(seen_data_only=True, include_incomplete=False)
+        pipeline.schemas[selected_schema_name].data_tables(
+            seen_data_only=True, include_incomplete=False
+        )
     )
     if not show_child_tables:
         tables = [t for t in tables if t.get("parent") is None]
 
     if show_internals:
-        tables = tables + list(pipeline.default_schema.dlt_tables())
+        tables = tables + list(pipeline.schemas[selected_schema_name].dlt_tables())
 
-    row_counts = get_row_counts(pipeline) if show_row_counts else {}
+    row_counts = get_row_counts(pipeline, selected_schema_name) if show_row_counts else {}
     table_list: List[Dict[str, Union[str, int, None]]] = [
         {
             **{prop: table.get(prop, None) for prop in ["name", *c.table_list_fields]},  # type: ignore[misc]
@@ -207,6 +214,7 @@ def create_column_list(
     c: DashboardConfiguration,
     pipeline: dlt.Pipeline,
     table_name: str,
+    dlt_selected_schema_name: str,
     show_internals: bool = False,
     show_type_hints: bool = True,
     show_other_hints: bool = False,
@@ -219,9 +227,11 @@ def create_column_list(
         table_name (str): The name of the table to create the column list for.
     """
     column_list: List[Dict[str, Any]] = []
-    for column in pipeline.default_schema.get_table_columns(
-        table_name, include_incomplete=False
-    ).values():
+    for column in (
+        pipeline.schemas[dlt_selected_schema_name]
+        .get_table_columns(table_name, include_incomplete=False)
+        .values()
+    ):
         column_dict: Dict[str, Any] = {
             "name": column["name"],
         }
@@ -278,7 +288,9 @@ def get_query_result(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
     return pipeline.dataset()(query).df()
 
 
-def get_row_counts(pipeline: dlt.Pipeline, load_id: str = None) -> Dict[str, int]:
+def get_row_counts(
+    pipeline: dlt.Pipeline, selected_schema_name: str, load_id: str = None
+) -> Dict[str, int]:
     """Get the row counts for a pipeline.
 
     Args:
@@ -287,7 +299,7 @@ def get_row_counts(pipeline: dlt.Pipeline, load_id: str = None) -> Dict[str, int
     """
     return {
         i["table_name"]: i["row_count"]
-        for i in pipeline.dataset()
+        for i in pipeline.dataset(schema=selected_schema_name)
         .row_counts(dlt_tables=True, load_id=load_id)
         .df()
         .to_dict(orient="records")
