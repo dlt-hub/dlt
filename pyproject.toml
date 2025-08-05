@@ -343,6 +343,44 @@ include = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+src = ["dlt"]
+include = [
+    "dlt/**/*.py",
+    "tests/**/*.py",
+    "docs/**/*.py",
+]
+exclude = [
+    "tests/reflection/module_cases/syntax_error.py",
+]
+
+[tool.ruff.lint]
+preview = true
+ignore = [
+    # from tox.ini
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "F401",
+    "W391",
+    "W292",
+    "E501",
+    # additional ignores to appease ruff
+    "E713",
+    "E721",
+    "E731",
+    "E741",
+    "E999",
+    "F601",
+    "F821",
+    "F841",
+    "F811",
+]
+
 [tool.black]
 line-length = 100
 preview = true
