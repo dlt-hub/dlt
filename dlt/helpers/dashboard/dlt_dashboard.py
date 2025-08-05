@@ -88,40 +88,6 @@ def home(
 
 
 @app.cell(hide_code=True)
-def section_sync_status(
-    dlt_pipeline: dlt.Pipeline,
-    dlt_section_sync_switch: mo.ui.switch,
-):
-    """
-    Returns the status of the pipeline
-    """
-    _result = ui.build_page_header(
-        dlt_pipeline,
-        strings.sync_status_title,
-        strings.sync_status_subtitle,
-        strings.sync_status_subtitle_long,
-        dlt_section_sync_switch,
-    )
-
-    if dlt_pipeline and dlt_section_sync_switch.value:
-        # sync pipeline
-        with mo.status.spinner(title=strings.sync_status_spinner_text):
-            try:
-                dlt_pipeline.sync_destination()
-                _credentials = str(utils.get_destination_config(dlt_pipeline).credentials)
-                _result.append(
-                    mo.callout(
-                        mo.vstack([mo.md(strings.sync_status_success_text.format(_credentials))]),
-                        kind="success",
-                    )
-                )
-            except Exception:
-                _result.append(ui.build_error_callout(strings.sync_status_error_text))
-    mo.vstack(_result) if _result else None
-    return
-
-
-@app.cell(hide_code=True)
 def section_overview(
     dlt_pipeline: dlt.Pipeline,
     dlt_section_overview_switch: mo.ui.switch,
@@ -139,13 +105,26 @@ def section_overview(
     )
 
     if dlt_pipeline and dlt_section_overview_switch.value:
-        _result += [
-            mo.ui.table(
-                utils.pipeline_details(dlt_pipeline),
-                selection=None,
-                style_cell=utils.style_cell,
-            ),
-        ]
+        with mo.status.spinner(title=strings.sync_status_spinner_text):
+            _result += [
+                mo.ui.table(
+                    utils.pipeline_details(dlt_pipeline),
+                    selection=None,
+                    style_cell=utils.style_cell,
+                ),
+            ]
+            _result.append(
+                ui.build_title_and_subtitle(
+                    strings.overview_remote_state_title, strings.overview_remote_state_subtitle
+                )
+            )
+            _result += [
+                mo.ui.table(
+                    utils.remote_state_details(dlt_pipeline),
+                    selection=None,
+                    style_cell=utils.style_cell,
+                ),
+            ]
     mo.vstack(_result) if _result else None
     return
 
