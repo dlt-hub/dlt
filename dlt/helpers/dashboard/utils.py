@@ -19,6 +19,8 @@ from dlt.common.destination.client import DestinationClientConfiguration
 
 from dlt.helpers.dashboard import ui_elements as ui
 from dlt.helpers.dashboard.config import DashboardConfiguration
+from dlt.destinations.exceptions import DatabaseUndefinedRelation
+from dlt.pipeline.exceptions import PipelineConfigMissing
 
 PICKLE_TRACE_FILE = "trace.pickle"
 
@@ -154,7 +156,11 @@ def remote_state_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
     """
     Get the remote state details of a pipeline.
     """
-    remote_state = pipeline._restore_state_from_destination()
+    try:
+        remote_state = pipeline._restore_state_from_destination()
+    except (DatabaseUndefinedRelation, PipelineConfigMissing):
+        remote_state = None
+
     if not remote_state:
         return _dict_to_table_items({"Info": "Could not restore state from destination"})
     remote_schemas = pipeline._get_schemas_from_destination(
