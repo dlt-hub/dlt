@@ -94,7 +94,7 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
         self,
         *,
         readable_dataset: "ReadableDBAPIDataset",
-        query: Optional[Union[str, sge.Select, IbisExpr]] = None,
+        query: Optional[Union[str, sge.Query, IbisExpr]] = None,
         query_dialect: Optional[str] = None,
         table_name: Optional[str] = None,
         _execute_raw_query: bool = False,
@@ -108,8 +108,8 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
         # derived / cached properties
         self._opened_sql_client: SqlClientBase[Any] = None
         self._columns_schema: TTableSchemaColumns = None
-        self.__qualified_query: sge.Select = None
-        self.__normalized_query: sge.Select = None
+        self.__qualified_query: sge.Query = None
+        self.__normalized_query: sge.Query = None
 
         # parse incoming query object
         self._sqlglot_expression: sge.Query = None
