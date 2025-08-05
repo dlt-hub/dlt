@@ -1,7 +1,7 @@
 import functools
 from itertools import chain
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Tuple, Union, cast
+from typing import Any, Dict, Iterable, List, Mapping, Tuple, Union, cast
 
 import dlt
 import marimo as mo
@@ -96,6 +96,29 @@ def get_destination_config(pipeline: dlt.Pipeline) -> DestinationClientConfigura
     return cast(DestinationClientConfiguration, pipeline.dataset().destination_client.config)  # type: ignore[attr-defined]
 
 
+def schemas_to_table_items(
+    schemas: Iterable[Schema], default_schema_name: str
+) -> List[Dict[str, Any]]:
+    """
+    Convert a list of schemas to a list of table items.
+    """
+    table_items = []
+    count = 0
+    for schema in schemas:
+        table_items.append(
+            {
+                "name": "schemas" if count == 0 else "",
+                "value": (
+                    schema.name
+                    + f" ({schema.version}, {schema.version_hash[:8]}) "
+                    + (" (default)" if schema.name == default_schema_name else "")
+                ),
+            }
+        )
+        count += 1
+    return table_items
+
+
 def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
     """
     Get the details of a pipeline.
@@ -114,15 +137,29 @@ def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
         ),
         "credentials": credentials,
         "dataset_name": pipeline.dataset_name,
-        "schema": (
-            pipeline.default_schema_name
-            if pipeline.default_schema_name
-            else "No default schema set"
-        ),
         "working_dir": pipeline.working_dir,
+        "state_version": pipeline.state["_state_version"] if pipeline.state else "No state found",
     }
 
-    return _dict_to_table_items(details_dict)
+    table_items = _dict_to_table_items(details_dict)
+    table_items += schemas_to_table_items(pipeline.schemas.values(), pipeline.default_schema_name)
+    return table_items
+
+
+def remote_state_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
+    """
+    Get the remote state details of a pipeline.
+    """
+    remote_state = pipeline._restore_state_from_destination()
+    if not remote_state:
+        return _dict_to_table_items({"Info": "Could not restore state from destination"})
+    remote_schemas = pipeline._get_schemas_from_destination(
+        remote_state["schema_names"], always_download=True
+    )
+
+    table_items = _dict_to_table_items({"state_version": remote_state["_state_version"]})
+    table_items += schemas_to_table_items(remote_schemas, pipeline.default_schema_name)
+    return table_items
 
 
 #

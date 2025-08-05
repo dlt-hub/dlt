@@ -83,6 +83,10 @@ sync_status_error_text = (
 #
 overview_title = "Pipeline Overview"
 overview_subtitle = "Overview of the selected pipeline"
+overview_remote_state_title = "Remote state"
+overview_remote_state_subtitle = (
+    "The remote state and schemas of the pipeline as discovered on the destination"
+)
 
 #
 # Schema page
