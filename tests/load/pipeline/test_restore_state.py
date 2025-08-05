@@ -90,9 +90,6 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         stored_schema = job_client.get_stored_schema(job_client.schema.name)
         assert stored_schema is not None
-        # dataset exists, still no table
-        with pytest.raises(DestinationUndefinedEntity):
-            load_pipeline_state_from_destination(p.pipeline_name, job_client)
         initial_state = p._get_state()
         # now add table to schema and sync
         initial_state["_local"]["_last_extracted_at"] = pendulum.now()

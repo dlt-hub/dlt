@@ -79,7 +79,6 @@ const sidebars = {
             'general-usage/schema-contracts',
             'general-usage/schema-evolution',
             'general-usage/naming-convention',
-            'walkthroughs/adjust-a-schema',
           ]
         },
         'general-usage/glossary'
@@ -126,8 +125,20 @@ const sidebars = {
           type: 'category',
           label: 'Features',
           items: [
-            'plus/features/projects',
             'plus/features/data-access',
+            {
+              type: 'category',
+              label: 'Project',
+              link: {
+                type: 'doc',
+                id: 'plus/features/project/index',
+              },
+              items: [
+                'plus/features/project/overview',
+                'plus/features/project/source-configuration',
+                'plus/features/project/python-api',
+              ]
+            },
             {
               type: 'category',
               label: 'Local transformations',
@@ -314,7 +325,7 @@ const sidebars = {
           },
           items: [
             "dlt-ecosystem/llm-tooling/mcp-server",
-            "dlt-ecosystem/llm-tooling/cursor-restapi",
+            "dlt-ecosystem/llm-tooling/llm-native-workflow",
           ]
         },
         {
@@ -345,6 +356,7 @@ const sidebars = {
             'walkthroughs/add_credentials'
           ]
         },
+        'walkthroughs/adjust-a-schema',
         {
           type: 'category',
           label: 'Access loaded data',

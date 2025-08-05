@@ -70,9 +70,9 @@ class AthenaMergeJob(SqlMergeFollowupJob):
             )
 
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
+    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
         # regular table because Athena does not support temporary tables
-        return f"CREATE TABLE {temp_table_name} AS {select_sql};"
+        return f"CREATE TABLE {temp_table_name} AS {select_sql}"
 
     @classmethod
     def gen_insert_temp_table_sql(
@@ -99,7 +99,7 @@ class AthenaMergeJob(SqlMergeFollowupJob):
             skip_dedup,
         )
         # DROP needs backtick as escape identifier
-        sql.insert(0, f"""DROP TABLE IF EXISTS {temp_table_name.replace('"', '`')};""")
+        sql.insert(0, f"""DROP TABLE IF EXISTS {temp_table_name.replace('"', '`')}""")
         return sql, temp_table_name
 
     @classmethod
@@ -114,7 +114,7 @@ class AthenaMergeJob(SqlMergeFollowupJob):
             table_name, unique_column, key_table_clauses, sql_client
         )
         # DROP needs backtick as escape identifier
-        sql.insert(0, f"""DROP TABLE IF EXISTS {temp_table_name.replace('"', '`')};""")
+        sql.insert(0, f"""DROP TABLE IF EXISTS {temp_table_name.replace('"', '`')}""")
         return sql, temp_table_name
 
     @classmethod
@@ -292,7 +292,7 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         qualified_table_name = self.sql_client.make_qualified_ddl_table_name(table_name)
         if generate_alter:
             # alter table to add new columns at the end
-            sql.append(f"""ALTER TABLE {qualified_table_name} ADD COLUMNS ({columns});""")
+            sql.append(f"""ALTER TABLE {qualified_table_name} ADD COLUMNS ({columns})""")
         else:
             table_prefix = self.table_prefix_layout.format(table_name=table_name)
             if create_iceberg:
@@ -314,12 +314,12 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
                         ({columns})
                         {partition_clause}
                         LOCATION '{location.rstrip('/')}'
-                        TBLPROPERTIES ({table_properties});""")
+                        TBLPROPERTIES ({table_properties})""")
             # elif table_format == "jsonl":
             #     sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}
             #             ({columns})
             #             ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
-            #             LOCATION '{location}';""")
+            #             LOCATION '{location}'""")
             else:
                 # external tables always here
                 location = f"{bucket}/{dataset}/{table_prefix}"
@@ -327,7 +327,7 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
                 sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}
                         ({columns})
                         STORED AS PARQUET
-                        LOCATION '{location}';""")
+                        LOCATION '{location}'""")
         return sql
 
     def update_stored_schema(

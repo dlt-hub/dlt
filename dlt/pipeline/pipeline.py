@@ -806,11 +806,10 @@ class Pipeline(SupportsPipeline):
                         if self.has_pending_data:
                             logger.warning(
                                 f"Pipeline {self.pipeline_name} got restored from destination"
-                                " including new version",
-                                "of pipeline state but it has pending load packages that were not"
-                                " yet normalized or loaded. If those packages contain extracted"
-                                " state or schema migrations - those will not be affected and will"
-                                " still be loaded to destination.",
+                                " including new version of pipeline state but it has pending load"
+                                " packages that were not yet normalized or loaded. If those"
+                                " packages contain extracted state or schema migrations - those"
+                                " will not be affected and will still be loaded to destination."
                             )
                 # if we didn't full refresh schemas, get only missing schemas
                 if restored_schemas is None:

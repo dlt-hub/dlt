@@ -95,7 +95,7 @@ source.deals.add_filter(lambda deal: deal["created_at"] > yesterday)
 
 Find more on transforms [here](resource.md#filter-transform-and-pivot-data).
 
-### Load data partially
+### Load data partially with `add_limit`
 
 You can limit the number of items produced by each resource by calling the `add_limit` method on a source. This is useful for testing, debugging, and generating sample datasets for experimentation. You can easily get your test dataset in a few minutes, when otherwise you'd need to wait hours for the full loading to complete. Below, we limit the `pipedrive` source to just get **10 pages** of data from each endpoint. Mind that the transformers will be evaluated fully:
 

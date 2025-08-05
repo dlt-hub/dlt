@@ -11,7 +11,7 @@ from dlt.common.time import ensure_pendulum_datetime
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.data_types import TDataType
-from dlt.common.exceptions import DictValidationException
+from dlt.common.exceptions import DictValidationException, ValueErrorWithKnownValues
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCase
 from dlt.common.typing import DictStrAny, REPattern
@@ -19,6 +19,7 @@ from dlt.common.validation import TCustomValidator, validate_dict_ignoring_xkeys
 from dlt.common.schema import detections
 from dlt.common.schema.typing import (
     C_DLT_ID,
+    C_DLT_LOAD_ID,
     C_DLT_LOADS_TABLE_LOAD_ID,
     SCHEMA_ENGINE_VERSION,
     LOADS_TABLE_NAME,
@@ -35,6 +36,7 @@ from dlt.common.schema.typing import (
     TStoredSchema,
     TTableProcessingHints,
     TColumnProcessingHints,
+    TTableReferenceParam,
     TTableSchema,
     TColumnSchemaBase,
     TColumnSchema,
@@ -872,6 +874,22 @@ def table_schema_has_type_with_precision(table: TTableSchema, _typ: TDataType) -
     )
 
 
+def get_data_and_dlt_tables(tables: TSchemaTables) -> tuple[list[TTableSchema], list[TTableSchema]]:
+    """Separate a list of dlt TTableSchema into a two lists: data tables and internal dlt tables.
+
+    This should be equivalent to `dlt.Schema.data_tables()` and `dlt.Schema.dlt_tables()`
+    """
+    data_tables: list[TTableSchema] = []
+    dlt_tables: list[TTableSchema] = []
+    for table_name, table in tables.items():
+        if table_name in (VERSION_TABLE_NAME, LOADS_TABLE_NAME, PIPELINE_STATE_TABLE_NAME):
+            dlt_tables.append(table)
+        else:
+            data_tables.append(table)
+
+    return data_tables, dlt_tables
+
+
 def get_root_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
     """Finds root (without parent) of a `table_name` following the nested references (row_key - parent_key)."""
     table = tables[table_name]
@@ -911,6 +929,102 @@ def group_tables_by_resource(
             resource_tables = result.setdefault(resource, [])
             resource_tables.extend(get_nested_tables(tables, table["name"]))
     return result
+
+
+def create_root_child_reference(tables: TSchemaTables, table_name: str) -> TTableReference:
+    """Create a Reference between `{table}.{root_key}` and `{root}.{row_key}`"""
+    child_table = tables.get(table_name)
+    if child_table is None:
+        raise ValueErrorWithKnownValues(
+            key="table_name", value_received=table_name, valid_values=list(tables.keys())
+        )
+
+    if is_nested_table(child_table) is False:
+        raise ValueError(f"Table `{table_name}` is already a root table.")
+
+    root_table = get_root_table(tables, table_name)
+
+    child_root_key: str = get_first_column_name_with_prop(child_table, "root_key")
+    if child_root_key is None:
+        raise ValueError(
+            "No `root_key` found for table `{table_name}`. Set `root_key=True` on"
+            " the `@dlt.source` producing this data to generate a `_dlt_root_id` column."
+        )
+    root_row_key: str = get_first_column_name_with_prop(root_table, "row_key")
+
+    return TTableReference(
+        columns=[child_root_key],
+        referenced_table=root_table["name"],
+        referenced_columns=[root_row_key],
+    )
+
+
+def create_parent_child_reference(tables: TSchemaTables, table_name: str) -> TTableReference:
+    """Create a Reference between `{table}.{parent_key}` and `{parent}.{row_key}`"""
+    child_table = tables.get(table_name)
+    if child_table is None:
+        raise ValueErrorWithKnownValues(
+            key="table_name", value_received=table_name, valid_values=list(tables.keys())
+        )
+
+    parent_table_name = child_table.get("parent")
+    if parent_table_name is None:
+        raise ValueError(f"No parent table found for `{table_name=:}`")
+    parent_table = tables.get(parent_table_name)
+
+    child_parent_key: str = get_first_column_name_with_prop(child_table, "parent_key")
+    parent_row_key: str = get_first_column_name_with_prop(parent_table, "row_key")
+
+    return TTableReference(
+        columns=[child_parent_key],
+        referenced_table=parent_table_name,
+        referenced_columns=[parent_row_key],
+    )
+
+
+def create_load_table_reference(table: TTableSchema) -> TTableReference:
+    """Create a Reference between `{table}._dlt_oad_id` and `_dlt_loads.load_id`"""
+    if table["columns"].get(C_DLT_LOAD_ID) is None:
+        raise ValueError(f"Column `{C_DLT_LOAD_ID}` not found for `table_name={table['name']}`")
+
+    return TTableReference(
+        columns=[C_DLT_LOAD_ID],
+        referenced_table=LOADS_TABLE_NAME,
+        referenced_columns=[C_DLT_LOADS_TABLE_LOAD_ID],
+    )
+
+
+def create_version_and_loads_hash_reference(tables: TSchemaTables) -> TTableReference:
+    if VERSION_TABLE_NAME not in tables:
+        raise ValueError(
+            f"Table `{VERSION_TABLE_NAME}` not found in tables: `{list(tables.keys())}`"
+        )
+
+    if LOADS_TABLE_NAME not in tables:
+        raise ValueError(f"Table `{LOADS_TABLE_NAME}` not found in tables: `{list(tables.keys())}`")
+
+    return TTableReference(
+        columns=["version_hash"],
+        referenced_table=LOADS_TABLE_NAME,
+        referenced_columns=["schema_version_hash"],
+    )
+
+
+def create_version_and_loads_schema_name_reference(tables: TSchemaTables) -> TTableReference:
+    if VERSION_TABLE_NAME not in tables:
+        raise ValueError(
+            f"Table `{VERSION_TABLE_NAME}` not found in tables: `{list(tables.keys())}`"
+        )
+
+    if LOADS_TABLE_NAME not in tables:
+        raise ValueError(f"Table `{LOADS_TABLE_NAME}` not found in tables: `{list(tables.keys())}`")
+
+    loads_and_version_hash_schema_name_ref = TTableReference(
+        columns=["schema_name"],
+        referenced_table=LOADS_TABLE_NAME,
+        referenced_columns=["schema_name"],
+    )
+    return loads_and_version_hash_schema_name_ref
 
 
 def migrate_complex_types(table: TTableSchema, warn: bool = False) -> None:
@@ -963,7 +1077,12 @@ def loads_table() -> TTableSchema:
     table = new_table(
         LOADS_TABLE_NAME,
         columns=[
-            {"name": C_DLT_LOADS_TABLE_LOAD_ID, "data_type": "text", "nullable": False},
+            {
+                "name": C_DLT_LOADS_TABLE_LOAD_ID,
+                "data_type": "text",
+                "nullable": False,
+                "precision": 64,
+            },
             {"name": "schema_name", "data_type": "text", "nullable": True},
             {"name": "status", "data_type": "bigint", "nullable": False},
             {"name": "inserted_at", "data_type": "timestamp", "nullable": False},
@@ -987,12 +1106,13 @@ def dlt_id_column() -> TColumnSchema:
         "nullable": False,
         "unique": True,
         "row_key": True,
+        "precision": 64,
     }
 
 
 def dlt_load_id_column() -> TColumnSchema:
     """Definition of dlt load id column"""
-    return {"name": "_dlt_load_id", "data_type": "text", "nullable": False}
+    return {"name": "_dlt_load_id", "data_type": "text", "nullable": False, "precision": 64}
 
 
 def pipeline_state_table(add_dlt_id: bool = False) -> TTableSchema:

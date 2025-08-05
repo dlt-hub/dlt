@@ -1,25 +1,29 @@
 import os
 import shutil
 from pathlib import Path
-from typing import List, Tuple, get_args, Literal, Set, Union
+from typing import List, Tuple, get_args, Literal, Union, cast
 
 from dlt.cli import echo as fmt
 from dlt.common import git
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.runtime import run_context
 
-
 TSupportedIde = Literal[
+    "amp",
+    "codex",
+    "claude",
+    "cody",
+    "cline",
     "cursor",
     "continue",
-    "cline",
-    "claude_desktop",
+    "windsurf",
+    "copilot",
 ]
 
-SUPPORTED_IDES: Set[TSupportedIde] = list(get_args(TSupportedIde))  # type: ignore
+SUPPORTED_IDES = cast(Tuple[TSupportedIde, ...], get_args(TSupportedIde))
 VERIFIED_SOURCES_AI_BASE_DIR = "ai"
 
-# TODO Claude Desktop: rules need to be named `CLAUDE.md`, allow command to append to it
+# TODO Claude: rules need to be named `CLAUDE.md`, allow command to append to it
 # TODO Continue: rules need to be in YAML file, allow command to properly edit it
 # TODO generate more files based on the specifics of the source README and the destination
 
@@ -27,6 +31,11 @@ VERIFIED_SOURCES_AI_BASE_DIR = "ai"
 def _copy_repo_files(
     src_dir: Path, dest_dir: Path, warn_on_overwrite: bool = True
 ) -> Tuple[List[str], int]:
+    """
+    Copy either a single .md file or all files under a directory into dest_dir.
+    1. Single .md files (e.g. CLAUDE.md) are directly copied.
+    2. Rule files that follow a specific a folder structure (e.g .cursor/rules/) follow that structure.
+    """
     copied_files = []
     count_files = 0
 
@@ -46,12 +55,10 @@ def _copy_repo_files(
                 fmt.warning(f"Existing rules file found at {dest_file_path.absolute()}; Skipping.")
             continue
 
+        dest_file_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src_sub_path, dest_file_path)
         copied_files.append(src_sub_path.name)
 
-        if not dest_file_path.parent.exists():
-            dest_file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        shutil.copy2(src_sub_path, dest_file_path)
     return copied_files, count_files
 
 

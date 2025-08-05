@@ -13,6 +13,7 @@ from dlt.common.destination.client import (
 from dlt.common.schema.typing import TColumnSchema, TColumnType, TTableFormat
 from dlt.common.schema.utils import has_default_column_prop_value
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.storages.load_storage import ParsedLoadJobFileName
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
@@ -32,20 +33,22 @@ class DuckDbCopyJob(RunnableLoadJob, HasFollowupJobs):
         self._sql_client = self._job_client.sql_client
 
         qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
-        if self._file_path.endswith("parquet"):
+
+        parsed_file = ParsedLoadJobFileName.parse(self._file_path)
+        if parsed_file.file_format == "parquet":
             source_format = "read_parquet"
             options = ", union_by_name=true"
-        elif self._file_path.endswith("jsonl"):
+        elif parsed_file.file_format in ["jsonl", "typed-jsonl"]:
             # NOTE: loading JSON does not work in practice on duckdb: the missing keys fail the load instead of being interpreted as NULL
             source_format = "read_json"  # newline delimited, compression auto
-            options = ", COMPRESSION=GZIP" if FileStorage.is_gzipped(self._file_path) else ""
+            options = ""
         else:
             raise ValueError(self._file_path)
 
         with self._sql_client.begin_transaction():
             self._sql_client.execute_sql(
                 f"INSERT INTO {qualified_table_name} BY NAME SELECT * FROM"
-                f" {source_format}('{self._file_path}' {options});"
+                f" {source_format}('{self._file_path}' {options})"
             )
 
 
