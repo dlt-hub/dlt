@@ -45,7 +45,7 @@ def resolve_dashboard_config(p: dlt.Pipeline) -> DashboardConfiguration:
 
 
 def get_local_pipelines(
-    pipelines_dir: str = None, sort_by_trace: bool = True, addtional_pipeline: str = None
+    pipelines_dir: str = None, sort_by_trace: bool = True, addtional_pipelines: List[str] = None
 ) -> Tuple[str, List[Dict[str, Any]]]:
     """Get the local pipelines directory and the list of pipeline names in it.
 
@@ -63,8 +63,10 @@ def get_local_pipelines(
     except Exception:
         pipelines = []
 
-    if addtional_pipeline and addtional_pipeline not in pipelines:
-        pipelines.append(addtional_pipeline)
+    if addtional_pipelines:
+        for pipeline in addtional_pipelines:
+            if pipeline and pipeline not in pipelines:
+                pipelines.append(pipeline)
 
     # check last trace timestamp and create dict
     pipelines_with_timestamps = []
@@ -160,7 +162,7 @@ def pipeline_details(
             if pipeline.destination
             else "No destination set"
         ),
-        "last executed": pendulum.from_timestamp(pipeline_timestamp).format(c.datetime_format),
+        "last executed": _date_from_timestamp_with_ago(c, pipeline_timestamp),
         "credentials": credentials,
         "dataset_name": pipeline.dataset_name,
         "working_dir": pipeline.working_dir,
@@ -497,6 +499,37 @@ def get_local_data_path(pipeline: dlt.Pipeline) -> str:
     if isinstance(config, WithLocalFiles):
         return config.local_dir
     return None
+
+
+def build_pipeline_link_list(
+    config: DashboardConfiguration, pipelines: List[Dict[str, Any]]
+) -> str:
+    """Build a list of links to the pipeline."""
+    if not pipelines:
+        return "No local pipelines found."
+
+    count = 0
+    link_list: str = ""
+    for _p in pipelines:
+        link = f"* [{_p['name']}](?pipeline={_p['name']})"
+        link = link + " - last executed: " + _date_from_timestamp_with_ago(config, _p["timestamp"])
+
+        link_list += f"{link}\n"
+        count += 1
+        if count == 5:
+            break
+
+    return link_list
+
+
+def _date_from_timestamp_with_ago(config: DashboardConfiguration, timestamp: int) -> str:
+    """Return a date with ago if it is less than 1 day old"""
+    if not timestamp or timestamp == 0:
+        return "never"
+    p_ts = pendulum.from_timestamp(timestamp)
+    time_formatted = p_ts.format(config.datetime_format)
+    ago = p_ts.diff_for_humans()
+    return f"{ago} ({time_formatted})"
 
 
 #

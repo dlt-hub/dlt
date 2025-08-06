@@ -60,7 +60,7 @@ def home(
                     [
                         mo.md(
                             strings.home_quick_start_title.format(
-                                ui.build_pipeline_link_list(dlt_config, dlt_all_pipelines)
+                                utils.build_pipeline_link_list(dlt_config, dlt_all_pipelines)
                             )
                         ),
                         dlt_pipeline_select,
@@ -724,7 +724,8 @@ def utils_discover_pipelines(
     dlt_pipelines_dir: str = ""
     dlt_all_pipelines: List[Dict[str, Any]] = []
     dlt_pipelines_dir, dlt_all_pipelines = utils.get_local_pipelines(
-        mo_cli_arg_pipelines_dir, addtional_pipeline=mo_cli_arg_pipeline
+        mo_cli_arg_pipelines_dir,
+        addtional_pipelines=[mo_cli_arg_pipeline, mo_query_var_pipeline_name],
     )
 
     dlt_pipeline_select: mo.ui.multiselect = mo.ui.multiselect(
