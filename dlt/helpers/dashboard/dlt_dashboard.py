@@ -616,6 +616,7 @@ def section_loads_results(
         and dlt_loads_table.value
     ):
         _load_id = dlt_loads_table.value[0]["load_id"]  # type: ignore[unused-ignore,index]
+        _schema = dlt_loads_table.value[0]["schema_name"]
         _result.append(mo.md(strings.loads_details_title.format(_load_id)))
 
         try:
@@ -625,7 +626,7 @@ def section_loads_results(
                 )
 
                 # prepare and sort row counts
-                _row_counts_dict = utils.get_row_counts(dlt_pipeline, _load_id)
+                _row_counts_dict = utils.get_row_counts(dlt_pipeline, _schema, _load_id)
                 _row_counts = [{"name": k, "row_count": v} for k, v in _row_counts_dict.items()]
                 _row_counts.sort(key=lambda x: str(x["name"]))
 
