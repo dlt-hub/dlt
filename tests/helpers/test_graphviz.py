@@ -5,7 +5,12 @@ import pytest
 import graphviz  # type: ignore[import-untyped]
 
 import dlt
-from dlt.helpers.graphviz import _render_with_graphviz, schema_to_graphviz
+from dlt.common.schema.typing import (
+    PIPELINE_STATE_TABLE_NAME,
+    VERSION_TABLE_NAME,
+    LOADS_TABLE_NAME
+)
+from dlt.helpers.graphviz import _render_with_graphviz, schema_to_graphviz, TABLE_HEADER_PORT
 
 
 @pytest.fixture
@@ -198,6 +203,12 @@ def example_schema() -> dlt.Schema:
                     "columns": {
                         "name": {"name": "name", "data_type": "text", "nullable": True},
                         "price": {"name": "price", "data_type": "bigint", "nullable": True},
+                        "_dlt_root_id": {
+                            "name": "_dlt_root_id",
+                            "data_type": "text",
+                            "nullable": False,
+                            "root_key": True,
+                        },
                         "_dlt_parent_id": {
                             "name": "_dlt_parent_id",
                             "data_type": "text",
@@ -266,6 +277,83 @@ def test_generate_valid_graphviz(example_schema: dlt.Schema, tmp_path: pathlib.P
     graph.render(filename=file_name, directory=tmp_path, format=format_, cleanup=True)
 
     assert expected_file_path.exists()
+
+
+@pytest.mark.parametrize("include_dlt_tables", (True, False))
+def test_include_dlt_tables(example_schema: dlt.Schema, include_dlt_tables: bool) -> None:
+    stored_schema = example_schema.to_dict()
+    dot = schema_to_graphviz(stored_schema, include_dlt_tables=include_dlt_tables)
+
+    # ensures the table name doesn't appear in tables (nodes) or references (edges)
+    assert (LOADS_TABLE_NAME in dot) is include_dlt_tables
+    assert (VERSION_TABLE_NAME in dot) is include_dlt_tables
+    assert (PIPELINE_STATE_TABLE_NAME in dot) is include_dlt_tables
+
+
+@pytest.mark.parametrize("include_internal_dlt_ref", (True, False))
+def test_include_internal_dlt_ref(example_schema: dlt.Schema, include_internal_dlt_ref: bool) -> None:
+    expected_refs = [
+        f"{VERSION_TABLE_NAME}:{TABLE_HEADER_PORT} -> {LOADS_TABLE_NAME}:{TABLE_HEADER_PORT}",
+        f"{PIPELINE_STATE_TABLE_NAME}:{TABLE_HEADER_PORT} -> {LOADS_TABLE_NAME}:{TABLE_HEADER_PORT}",
+    ]
+
+    stored_schema = example_schema.to_dict()
+    dot = schema_to_graphviz(
+        stored_schema,
+        include_dlt_tables=True,  # must be True to produce references
+        include_internal_dlt_ref=include_internal_dlt_ref,
+        # disable other refs to isolate tested behavior
+        include_parent_child_ref=False,
+        include_root_child_ref=False,
+    )
+
+    for ref in expected_refs:
+        assert (ref in dot) is include_internal_dlt_ref
+
+
+@pytest.mark.parametrize("include_parent_child_ref", (True, False))
+def test_include_parent_child_ref(example_schema: dlt.Schema, include_parent_child_ref: bool) -> None:
+    expected_refs = [
+        # table edge
+        f"purchases__items:{TABLE_HEADER_PORT} -> purchases:{TABLE_HEADER_PORT}",
+        # column edge; `f4` points to `purchases__items._dlt_parent_id`, the 4th column (1-indexed)
+        "purchases__items:f4:_ -> purchases:f7:_",
+    ]
+
+    stored_schema = example_schema.to_dict()
+    dot = schema_to_graphviz(
+        stored_schema,
+        include_parent_child_ref=include_parent_child_ref,
+        # disable other refs to isolate tested behavior
+        include_root_child_ref=False,
+        include_internal_dlt_ref=False,
+    )
+
+    for ref in expected_refs:
+        assert (ref in dot) is include_parent_child_ref
+
+
+@pytest.mark.parametrize("include_root_child_ref", (True, False))
+def test_include_root_child_ref(example_schema: dlt.Schema, include_root_child_ref: bool) -> None:
+    expected_refs = [
+        # table edge
+        f"purchases__items:{TABLE_HEADER_PORT} -> purchases:{TABLE_HEADER_PORT}",
+        # column edge; `f3` points to `purchases__items._dlt_root_id`, the 3rd column (1-indexed)
+        "purchases__items:f3:_ -> purchases:f7:_",
+    ]
+    
+
+    stored_schema = example_schema.to_dict()
+    dot = schema_to_graphviz(
+        stored_schema,
+        include_root_child_ref=include_root_child_ref,
+        # disable other refs to isolate tested behavior
+        include_parent_child_ref=False,
+        include_internal_dlt_ref=False,
+    )
+
+    for ref in expected_refs:
+        assert (ref in dot) is include_root_child_ref
 
 
 @pytest.mark.parametrize(
