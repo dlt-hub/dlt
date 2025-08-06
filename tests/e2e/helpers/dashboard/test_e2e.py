@@ -16,6 +16,8 @@ from dlt.sources._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
 )
 
+from dlt import Schema
+
 from dlt.helpers.dashboard import strings as app_strings
 
 
@@ -35,6 +37,19 @@ def setup_pipelines() -> Any:
     # no destination pipeline
     pnd = dlt.pipeline(pipeline_name="no_destination_pipeline")
     pnd.extract(fruitshop_source())
+
+    # multi schema pipeline
+    # multi schema pipeline
+    pms = dlt.pipeline(pipeline_name="multi_schema_pipeline", destination="duckdb")
+    pms.run(
+        fruitshop_source().with_resources("customers"), schema=Schema(name="fruitshop_customers")
+    )
+    pms.run(
+        fruitshop_source().with_resources("inventory"), schema=Schema(name="fruitshop_inventory")
+    )
+    pms.run(
+        fruitshop_source().with_resources("purchases"), schema=Schema(name="fruitshop_purchases")
+    )
 
 
 #
