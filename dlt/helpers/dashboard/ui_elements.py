@@ -35,34 +35,6 @@ def build_error_callout(message: str, code: str = None) -> Any:
     )
 
 
-def build_pipeline_link_list(
-    config: DashboardConfiguration, pipelines: List[Dict[str, Any]]
-) -> str:
-    """Build a list of links to the pipeline."""
-    if not pipelines:
-        return "No local pipelines found."
-
-    count = 0
-    link_list: str = ""
-    for _p in pipelines:
-        link = f"* [{_p['name']}](?pipeline={_p['name']})"
-        if _p["timestamp"] == 0:
-            link = link + " - never used"
-        else:
-            link = (
-                link
-                + " - last executed"
-                f" {pendulum.from_timestamp(_p['timestamp']).format(config.datetime_format)}"
-            )
-
-        link_list += f"{link}\n"
-        count += 1
-        if count == 5:
-            break
-
-    return link_list
-
-
 def build_title_and_subtitle(title: str, subtitle: str = None, title_level: int = 2) -> Any:
     """Build a title and a subtitle block"""
     _result = []
