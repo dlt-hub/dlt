@@ -2,6 +2,9 @@ import functools
 from itertools import chain
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Tuple, Union, cast
+import os
+import platform
+import subprocess
 
 import dlt
 import marimo as mo
@@ -21,6 +24,8 @@ from dlt.helpers.dashboard import ui_elements as ui
 from dlt.helpers.dashboard.config import DashboardConfiguration
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.pipeline.exceptions import PipelineConfigMissing
+
+from dlt.common.storages.configuration import WithLocalFiles
 
 PICKLE_TRACE_FILE = "trace.pickle"
 
@@ -125,7 +130,9 @@ def schemas_to_table_items(
     return table_items
 
 
-def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
+def pipeline_details(
+    c: DashboardConfiguration, pipeline: dlt.Pipeline, all_pipelines: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
     """
     Get the details of a pipeline.
     """
@@ -134,6 +141,11 @@ def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
     except Exception:
         credentials = "Could not resolve credentials"
 
+    # find the pipeline in all_pipelines and get the timestamp
+    pipeline_timestamp = next(
+        (p["timestamp"] for p in all_pipelines if p["name"] == pipeline.pipeline_name), 0
+    )
+
     details_dict = {
         "pipeline_name": pipeline.pipeline_name,
         "destination": (
@@ -141,6 +153,7 @@ def pipeline_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
             if pipeline.destination
             else "No destination set"
         ),
+        "last executed": pendulum.from_timestamp(pipeline_timestamp).format(c.datetime_format),
         "credentials": credentials,
         "dataset_name": pipeline.dataset_name,
         "working_dir": pipeline.working_dir,
@@ -291,7 +304,7 @@ def get_query_result(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
     """
     Get the result of a query.
     """
-    return pipeline.dataset()(query).df()
+    return pipeline.dataset()(query, _execute_raw_query=True).df()
 
 
 def get_row_counts(
@@ -456,6 +469,29 @@ def style_cell(row_id: str, name: str, __: Any) -> Dict[str, str]:
     if name.lower() == "name":
         style["font-weight"] = "bold"
     return style
+
+
+def open_local_folder(folder: str) -> None:
+    """Open a folder in the file explorer"""
+    system = platform.system()
+    if system == "Windows":
+        os.startfile(folder)
+    elif system == "Darwin":
+        subprocess.run(["open", folder], check=True)
+    else:
+        subprocess.run(["xdg-open", folder], check=True)
+
+
+def get_local_data_path(pipeline: dlt.Pipeline) -> str:
+    """Get the local data path of a pipeline"""
+    if not pipeline.destination:
+        return None
+    config = pipeline._get_destination_clients()[0].config
+    if isinstance(config, WithLocalFiles):
+        return config.local_dir
+    print(type(config))
+    print(type(config.credentials))
+    return None
 
 
 #

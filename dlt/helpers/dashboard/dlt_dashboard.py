@@ -91,6 +91,8 @@ def home(
 def section_overview(
     dlt_pipeline: dlt.Pipeline,
     dlt_section_overview_switch: mo.ui.switch,
+    dlt_all_pipelines: List[Dict[str, Any]],
+    dlt_config: DashboardConfiguration,
 ):
     """
     Overview page of currently selected pipeline
@@ -108,11 +110,26 @@ def section_overview(
         with mo.status.spinner(title=strings.sync_status_spinner_text):
             _result += [
                 mo.ui.table(
-                    utils.pipeline_details(dlt_pipeline),
+                    utils.pipeline_details(dlt_config, dlt_pipeline, dlt_all_pipelines),
                     selection=None,
                     style_cell=utils.style_cell,
                 ),
             ]
+            _buttons = []
+            _buttons.append(
+                mo.ui.button(
+                    label="<small>Open pipeline working dir</small>",
+                    on_click=lambda _: utils.open_local_folder(dlt_pipeline.working_dir),
+                )
+            )
+            if local_dir := utils.get_local_data_path(dlt_pipeline):
+                _buttons.append(
+                    mo.ui.button(
+                        label="<small>Open local data location</small>",
+                        on_click=lambda _: utils.open_local_folder(local_dir),
+                    )
+                )
+            _result.append(mo.hstack(_buttons, justify="start"))
             _result.append(
                 ui.build_title_and_subtitle(
                     strings.overview_remote_state_title, strings.overview_remote_state_subtitle
@@ -287,7 +304,7 @@ def section_browse_data_table_list(
                 debounce=True,
             )
             dlt_run_query_button: mo.ui.run_button = mo.ui.run_button(
-                label=strings.browse_data_run_query_button,
+                label=f"<small>{strings.browse_data_run_query_button}</small>",
                 tooltip=strings.browse_data_run_query_tooltip,
             )
 
