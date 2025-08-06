@@ -6,14 +6,16 @@ from unittest.mock import MagicMock
 import pytest
 import dlt
 
-from dlt.extract.hints import make_hints, SqlModel
+from dlt.extract.hints import make_hints
 
+from dlt.normalize.exceptions import NormalizeJobFailed
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.load.exceptions import LoadClientJobException
 
 from dlt.common.data_writers.writers import ModelWriter
 from dlt.common.schema.typing import TWriteDisposition, TDataType
 from dlt.common.schema.exceptions import DataValidationError
+from dlt.common.utils import uniq_id
 
 from tests.cases import table_update_and_row, assert_all_data_types_row
 
@@ -66,18 +68,6 @@ UNSUPPORTED_MODEL_QUERIES = [
 
 
 @pytest.mark.parametrize(
-    "unsupported_relation_query",
-    UNSUPPORTED_MODEL_QUERIES,
-    ids=[f"query-{q.strip().split()[0].lower()}" for q in UNSUPPORTED_MODEL_QUERIES],
-)
-def test_relation_builder_with_non_select_query(unsupported_relation_query: str) -> None:
-    with pytest.raises(
-        ValueError, match="Only SELECT statements are allowed to create a `SqlModel`."
-    ):
-        SqlModel.from_query_string(query=unsupported_relation_query)
-
-
-@pytest.mark.parametrize(
     "destination_config",
     destination_configs,
     ids=lambda x: x.name,
@@ -92,10 +82,16 @@ def test_simple_incremental(destination_config: DestinationTestConfiguration) ->
     )
     dataset = pipeline.dataset()
 
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+
     # TODO: incremental is not supported for models yet
-    @dlt.transformation()
+    @dlt.resource()
     def copied_table(incremental_field=dlt.sources.incremental("a")) -> Any:
-        yield dataset["example_table"].limit(8)
+        rel = dataset["example_table"].limit(8)
+        yield dlt.mark.with_hints(
+            rel,
+            hints=make_hints(columns=example_table_columns),
+        )
 
     with pytest.raises(PipelineStepFailed):
         pipeline.run([copied_table()])
@@ -119,12 +115,30 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
     )
 
     dataset = pipeline.dataset()
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
     # Define a resource that aliases column "a" as "b"
-    @dlt.transformation()
+    @dlt.resource()
     def copied_table_with_a_as_b() -> Any:
         rel = dataset("SELECT a as b, _dlt_load_id, _dlt_id FROM example_table")
-        yield rel
+        # parsed = rel._qualified_query
+
+        # # sqlglot.parse_one(query, read=select_dialect)
+        # # Get first expression in the SELECT statement (e.g "a")
+        # first_expr = parsed.expressions[0]
+        # # Clickhouse aliases by default, so special handling is needed
+        # if isinstance(first_expr, sqlglot.exp.Alias):
+        #     original_expr = first_expr.this
+        # else:
+        #     original_expr = first_expr
+        # # Wrap the first expression with an alias: "a AS b"
+        # parsed.expressions[0] = sqlglot.exp.Alias(this=original_expr, alias="b")
+        # # Convert back to an SQL
+        # query = rel.to_sql()
+        yield dlt.mark.with_hints(
+            rel,
+            hints=make_hints(columns={k: v for k, v in example_table_columns.items() if k != "a"}),
+        )
 
     pipeline.run(
         [copied_table_with_a_as_b()],
@@ -154,16 +168,16 @@ def test_aliased_column(destination_config: DestinationTestConfiguration) -> Non
     destination_configs,
     ids=lambda x: x.name,
 )
-def test_simple_relation_jobs(
+def test_simple_model_jobs(
     destination_config: DestinationTestConfiguration,
 ) -> None:
     """
-    Test creating relation jobs for various scenarios:
+    Test creating SQL model jobs for various scenarios:
     - Copying a table using a query without a specific column ("b") which will be added as null by the normalizer.
-    - Copying a table using a query with reversed select order can still in inserted in a target table with the correct column order.
+    - Copying a table using a query with reversed select order which will be reordered by the normalizer.
     """
     # populate a table with two columns each with 10 items and retrieve dataset
-    pipeline = destination_config.setup_pipeline("test_simple_relation_jobs", dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_simple_model_jobs", dev_mode=True)
 
     pipeline.run(
         [{"a": i, "b": i + 1} for i in range(10)],
@@ -179,107 +193,94 @@ def test_simple_relation_jobs(
     # The normalizer will add "b" as null since it is included in the schema hints,
     # without including "_dlt_id" into the schema and insert statement
     # because the addition of the column "_dlt_id" is disabled by default
-    @dlt.transformation(table_name="target_table")
+    @dlt.resource()
     def model_with_no_b() -> Any:
-        hints = make_hints(
-            columns={k: v for k, v in example_table_columns.items() if k != "_dlt_id"}
-        )
-        relation = dataset["example_table"][["a", "_dlt_load_id"]].order_by("a").limit(5)
+        rel = dataset["example_table"][["a", "_dlt_load_id"]].order_by("a").limit(5)
         yield dlt.mark.with_hints(
-            relation,
-            hints=hints,
+            rel,
+            hints=make_hints(
+                columns={k: v for k, v in example_table_columns.items() if k != "_dlt_id"}
+            ),
         )
 
     # Define a resource for a SQL model that reverses the column order in the query
     # The normalizer will reorder the columns to match the schema's order,
     # add "_dlt_load_id" into the schema and as a constant value to the insert statement
     # because the addition of the column "_dlt_load_id" is enabled by default
-    @dlt.transformation(table_name="target_table")
+    @dlt.resource()
     def model_reversed_select() -> Any:
-        hints = make_hints(
-            columns={
-                k: {**v, "nullable": True}
-                for k, v in example_table_columns.items()
-                if k != "_dlt_load_id"
-            }
-        )
-        relation = dataset["example_table"][["_dlt_id", "b", "a"]].order_by("a").limit(7)
+        rel = dataset["example_table"][["_dlt_id", "b", "a"]].order_by("a").limit(7)
         yield dlt.mark.with_hints(
-            relation,
-            hints=hints,
+            rel,
+            hints=make_hints(
+                columns={k: v for k, v in example_table_columns.items() if k != "_dlt_load_id"}
+            ),
         )
 
     # Run model jobs
     load_info = pipeline.run(
-        [model_with_no_b()],
+        [model_with_no_b(), model_reversed_select()],
         loader_file_format="model",
         table_format=destination_config.run_kwargs["table_format"],
     )
 
     # Validate row counts for all tables
-    assert load_table_counts(pipeline, "target_table", "example_table") == {
-        "target_table": 5,
+    assert load_table_counts(
+        pipeline, "model_with_no_b", "model_reversed_select", "example_table"
+    ) == {
+        "model_with_no_b": 5,
+        "model_reversed_select": 7,
         "example_table": 10,
     }
 
     # Validate that all tables were created
-    assert "target_table" in pipeline.default_schema.tables
+    assert "model_with_no_b" in pipeline.default_schema.tables
+    assert "model_reversed_select" in pipeline.default_schema.tables
 
-    # Validate that the table "target_table" includes all columns in the schema
+    # Validate that the table "model_with_no_b" includes all columns in the schema
     # except for "_dlt_id"
-    assert set(pipeline.default_schema.tables["target_table"]["columns"].keys()) == {
+    assert set(pipeline.default_schema.tables["model_with_no_b"]["columns"].keys()) == {
         "a",
         "b",
         "_dlt_load_id",
     }
 
-    # Validate results in the "target_table" table,
-    # making sure column b is empty
-    # and _dlt_id was created anew
-    model_with_no_b_df = dataset["target_table"].df()
-    assert set([0, 1, 2, 3, 4]) == set(model_with_no_b_df["a"].to_list())
-    assert [] == model_with_no_b_df["b"].dropna().to_list()
-
-    # Run second job
-    load_info = pipeline.run(
-        [model_reversed_select()],
-        loader_file_format="model",
-        table_format=destination_config.run_kwargs["table_format"],
-    )
-
-    # Validate row counts for all tables
-    assert load_table_counts(pipeline, "target_table", "example_table") == {
-        "target_table": 12,  # 5 + 7
-        "example_table": 10,
-    }
-
     # Validate that the table "model_reversed_select" includes all columns in the schema
-    assert set(pipeline.default_schema.tables["target_table"]["columns"].keys()) == {
+    assert set(pipeline.default_schema.tables["model_reversed_select"]["columns"].keys()) == {
         "a",
         "b",
         "_dlt_id",
         "_dlt_load_id",
     }
 
+    # Validate results in the "model_with_no_b" table,
+    # making sure column b is empty
+    # and _dlt_id was created anew
+    model_with_no_b_df = dataset["model_with_no_b"].df()
+    assert set([0, 1, 2, 3, 4]) == set(model_with_no_b_df["a"].to_list())
+    assert [] == model_with_no_b_df["b"].dropna().to_list()
+
     # Validate the column order in the table created with a query with reversed column order,
     # ensuring _dlt_load_id was added and created anew
-    model_reversed_select_df = dataset["target_table"].df()
-    expected_columns = ["a", "b", "_dlt_load_id", "_dlt_id"]
+    model_reversed_select_df = dataset["model_reversed_select"].df()
+    expected_columns = ["a", "b", "_dlt_id", "_dlt_load_id"]
     actual_columns = list(model_reversed_select_df.columns)
     assert (
         actual_columns == expected_columns
     ), f"Column mismatch: {actual_columns} != {expected_columns}"
-    assert len(set(model_reversed_select_df["_dlt_load_id"])) == 2
-    assert load_info.loads_ids[0] in model_reversed_select_df["_dlt_load_id"].to_list()
+    assert len(set(model_reversed_select_df["_dlt_load_id"])) == 1
+    assert set(model_reversed_select_df["_dlt_load_id"]).pop() == load_info.loads_ids[0]
 
     # Validate that each table has exactly one model job
     if destination_config.destination_type == "athena":
         assert count_job_types(pipeline) == {
-            "target_table": {"model": 1, "sql": 1},
+            "model_with_no_b": {"model": 1, "sql": 1},
+            "model_reversed_select": {"model": 1, "sql": 1},
         }
     else:
         assert count_job_types(pipeline) == {
-            "target_table": {"model": 1},
+            "model_with_no_b": {"model": 1},
+            "model_reversed_select": {"model": 1},
         }
 
 
@@ -288,14 +289,12 @@ def test_simple_relation_jobs(
     destination_configs,
     ids=lambda x: x.name,
 )
-def test_relation_from_two_tables(
-    destination_config: DestinationTestConfiguration, preserve_environ
-):
+def test_model_from_two_tables(destination_config: DestinationTestConfiguration, preserve_environ):
     # adding dlt id is disabled by default, so we set it to true
     # because here we insert to a pre-existing table "merged_table" for which "_dlt_id" column is present
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(True)
 
-    pipeline = destination_config.setup_pipeline("test_relation_from_two_tables", dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_model_from_two_tables", dev_mode=True)
 
     pipeline.run(
         [{"a": i, "b": i + 10} for i in range(5)],
@@ -316,14 +315,23 @@ def test_relation_from_two_tables(
     )
 
     dataset = pipeline.dataset()
+    merged_cols = dataset.schema.tables["merged_table"]["columns"]
 
-    @dlt.transformation(table_name="merged_table")
+    @dlt.resource(table_name="merged_table")
     def insert_ab() -> Any:
-        yield dataset["example_table_ab"][["a", "b"]]
+        rel = dataset["example_table_ab"][["a", "b"]]  # only a,b
+        yield dlt.mark.with_hints(
+            rel,
+            hints=make_hints(columns={k: v for k, v in merged_cols.items() if k in ("a", "b")}),
+        )
 
-    @dlt.transformation(table_name="merged_table")
+    @dlt.resource(table_name="merged_table")
     def insert_ac() -> Any:
-        yield dataset["example_table_ac"][["a", "c"]]  # only a,c
+        rel = dataset["example_table_ac"][["a", "c"]]  # only a,c
+        yield dlt.mark.with_hints(
+            rel,
+            hints=make_hints(columns={k: v for k, v in merged_cols.items() if k in ("a", "c")}),
+        )
 
     pipeline.run(
         [insert_ab(), insert_ac()],
@@ -344,8 +352,8 @@ def test_relation_from_two_tables(
     destination_configs,
     ids=lambda x: x.name,
 )
-def test_relation_from_two_consecutive_tables(destination_config: DestinationTestConfiguration):
-    pipeline = destination_config.setup_pipeline("test_relation_from_joined_table", dev_mode=True)
+def test_model_from_two_consecutive_tables(destination_config: DestinationTestConfiguration):
+    pipeline = destination_config.setup_pipeline("test_model_from_joined_table", dev_mode=True)
 
     pipeline.run(
         [{"a": i, "b": i + 10} for i in range(5)],
@@ -363,14 +371,24 @@ def test_relation_from_two_consecutive_tables(destination_config: DestinationTes
 
     relation_ab = dataset["example_table_ab"]
     relation_ac = dataset["example_table_ac"]
+    ab_cols = dataset.schema.tables["example_table_ab"]["columns"]
+    ac_cols = dataset.schema.tables["example_table_ac"]["columns"]
 
-    @dlt.transformation(table_name="result_table")
+    @dlt.resource(table_name="result_table")
     def insert_ab() -> Any:
-        yield relation_ab[["a", "b"]]
+        rel = relation_ab[["a", "b"]]
+        yield dlt.mark.with_hints(
+            rel,
+            hints=make_hints(columns={k: v for k, v in ab_cols.items() if k in ["a", "b"]}),
+        )
 
-    @dlt.transformation(table_name="result_table")
+    @dlt.resource(table_name="result_table")
     def insert_ac() -> Any:
-        yield relation_ac[["a", "c"]]
+        rel = relation_ac[["a", "c"]]
+        yield dlt.mark.with_hints(
+            rel,
+            hints=make_hints(columns={k: v for k, v in ac_cols.items() if k in ["a", "c"]}),
+        )
 
     pipeline.run(
         [insert_ab()],
@@ -440,23 +458,26 @@ def test_write_dispositions(
     # we now run a select of items 3-10 from example_table_2 into example_table_1
     # each w_d should have a different outcome
     dataset = pipeline.dataset()
+    example_table_columns = dataset.schema.tables["example_table_1"]["columns"]
     # In Databricks, Ibis adds a helper column to emulate offset, causing a schema mismatch
     # when the query attempts to insert it. We explicitly select only the expected columns.
     # Note that we also explicitly select "_dlt_id" because its addition is disabled by default
-
     example_table_2 = dataset.table("example_table_2", table_type="ibis")
     expression = (
         example_table_2.filter(example_table_2.a >= 3).order_by("a").limit(7)[["a", "_dlt_id"]]
     )
     relation = dataset(expression)
 
-    @dlt.transformation(
+    @dlt.resource(
         write_disposition=write_disposition,
         table_name="example_table_1",
         primary_key="a",
     )
     def copied_table() -> Any:
-        yield relation
+        yield dlt.mark.with_hints(
+            relation,
+            hints=make_hints(columns=example_table_columns),
+        )
 
     pipeline.run(
         [copied_table()],
@@ -487,12 +508,6 @@ def test_write_dispositions(
         raise ValueError(f"Unknown write disposition: {write_disposition}")
 
 
-@pytest.mark.skip(
-    reason=(
-        "For now we only support yielding one relation for a transformation, this might change in"
-        " the future"
-    )
-)
 @pytest.mark.parametrize(
     "destination_config",
     destination_configs,
@@ -517,13 +532,24 @@ def test_multiple_statements_per_resource(
     )
     dataset = pipeline.dataset()
 
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+
     # create a resource that generates sql statements to create 2 new tables
     # we also need to supply all hints so the table can be created,
     # note that we explicitly select "_dlt_id" as its addition is disabled by default
-    @dlt.transformation()
+    @dlt.resource()
     def copied_table() -> Any:
-        yield dataset["example_table"][["a", "_dlt_id"]].limit(5)
-        yield dataset["example_table"][["a", "_dlt_id"]].limit(7)
+        rel1 = dataset["example_table"][["a", "_dlt_id"]].limit(5)
+        yield dlt.mark.with_hints(
+            rel1,
+            hints=make_hints(columns=example_table_columns),
+        )
+
+        rel2 = dataset["example_table"][["a", "_dlt_id"]].limit(7)
+        yield dlt.mark.with_hints(
+            rel2,
+            hints=make_hints(columns=example_table_columns),
+        )
 
     pipeline.run(
         [copied_table()],
@@ -581,12 +607,20 @@ def test_copying_table_with_dropped_column(
         **destination_config.run_kwargs,
     )
     dataset = pipeline.dataset()
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
 
-    @dlt.transformation(name=target_table_name)
+    @dlt.resource(name=target_table_name)
     def copied_table() -> Any:
         kept_columns = ["a", "b", "_dlt_load_id", "_dlt_id"]
         kept_columns.remove(drop_column)
-        yield dataset["example_table"][kept_columns].limit(5)
+
+        rel = dataset["example_table"][kept_columns].limit(5)
+        yield dlt.mark.with_hints(
+            rel,
+            hints=make_hints(
+                columns={k: v for k, v in example_table_columns.items() if k != drop_column}
+            ),
+        )
 
     load_info = pipeline.run(
         [copied_table()],
@@ -639,13 +673,13 @@ def test_copying_table_with_dropped_column(
     destination_configs,
     ids=lambda x: x.name,
 )
-def test_load_relation_with_all_types(
+def test_load_model_with_all_types(
     destination_config: DestinationTestConfiguration, preserve_environ
 ) -> None:
     # adding dlt id is disabled by default, so we set it to true
     os.environ["NORMALIZE__MODEL_NORMALIZER__ADD_DLT_ID"] = str(True)
 
-    pipeline = destination_config.setup_pipeline("test_load_relation_with_all_types", dev_mode=True)
+    pipeline = destination_config.setup_pipeline("test_load_model_with_all_types", dev_mode=True)
 
     exclude_types: List[TDataType] = []
     exclude_columns: List[str] = []
@@ -667,17 +701,22 @@ def test_load_relation_with_all_types(
         exclude_types=exclude_types, exclude_columns=exclude_columns
     )
 
-    @dlt.transformation(table_name="data_types", columns=column_schemas)
+    @dlt.resource(table_name="data_types", columns=column_schemas)
     def my_resource() -> Any:
         nonlocal data_types
         yield [data_types] * 10
 
     pipeline.run([my_resource()], **destination_config.run_kwargs)
     dataset = pipeline.dataset()
+    example_table_columns = dataset.schema.tables["data_types"]["columns"]
 
-    @dlt.transformation()
+    @dlt.resource()
     def copied_table() -> Any:
-        yield dataset["data_types"][list(data_types.keys())]
+        rel = dataset["data_types"][list(data_types.keys())]
+        yield dlt.mark.with_hints(
+            rel,
+            hints=make_hints(columns=example_table_columns),
+        )
 
     info = pipeline.run(
         [copied_table()],
@@ -719,10 +758,17 @@ def test_data_contract_on_tables(
     )
     dataset = pipeline.dataset()
 
+    # Retrieve the SQL dialect and schema information
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+
     # Define a resource to create a new copied table
-    @dlt.transformation(schema_contract={"tables": tables_contract})  # type: ignore
+    @dlt.resource(schema_contract={"tables": tables_contract})  # type: ignore
     def copied_table() -> Any:
-        yield dataset["example_table"][["a", "b", "_dlt_id"]].limit(5)
+        rel = dataset["example_table"][["a", "b", "_dlt_id"]].limit(5)
+        yield dlt.mark.with_hints(
+            rel,
+            hints=make_hints(columns=example_table_columns),
+        )
 
     if tables_contract == "evolve":
         info = pipeline.run(
@@ -773,10 +819,17 @@ def test_data_contract_on_columns(
     )  # Two columns a, b
     dataset = pipeline.dataset()
 
+    # Retrieve the SQL dialect and schema information
+    example_table_columns = dataset.schema.tables["example_table"]["columns"]
+
     # Define a resource to insert a new column into copied_table
-    @dlt.transformation(schema_contract={"columns": columns_contract})  # type: ignore
+    @dlt.resource(schema_contract={"columns": columns_contract})  # type: ignore
     def copied_table() -> Any:
-        yield dataset["example_table"][["b", "_dlt_load_id", "_dlt_id"]].limit(5)
+        rel = dataset["example_table"][["b", "_dlt_load_id", "_dlt_id"]].limit(5)
+        yield dlt.mark.with_hints(
+            rel,
+            hints=make_hints(columns=example_table_columns),
+        )
 
     if columns_contract == "evolve":
         info = pipeline.run(
@@ -862,9 +915,13 @@ def test_data_contract_on_data_type(
     assert example_table_columns["a"]["data_type"] == "text"
 
     # Define model resource to insert string column into integer column
-    @dlt.transformation(schema_contract={"data_type": data_type_contract}, table_name="copied_table")  # type: ignore
+    @dlt.resource(schema_contract={"data_type": data_type_contract}, table_name="copied_table")  # type: ignore
     def copied_table() -> Any:
-        yield dataset["example_table"][["a", "_dlt_load_id", "_dlt_id"]]
+        rel = dataset["example_table"][["a", "_dlt_load_id", "_dlt_id"]]
+        yield dlt.mark.with_hints(
+            rel,
+            hints=make_hints(columns={k: v for k, v in example_table_columns.items() if k != "b"}),
+        )
 
     if data_type_contract in ["freeze", "discard_row", "discard_value", "evolve"]:
         with pytest.raises(PipelineStepFailed) as py_exc:

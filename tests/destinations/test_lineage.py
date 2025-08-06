@@ -7,8 +7,8 @@ import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema, ensure_schema
 
 from dlt.common.schema import TTableSchemaColumns
-from dlt.transformations import lineage
-from dlt.transformations.exceptions import LineageFailedException
+from dlt.destinations.dataset import lineage
+from dlt.destinations.dataset.exceptions import LineageFailedException
 
 
 @pytest.fixture

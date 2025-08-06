@@ -30,7 +30,7 @@ from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGl
 from dlt.common.schema.typing import TTableSchemaColumns, TTableSchema
 from dlt.common.typing import Self, TSortOrder
 from dlt.common.exceptions import ValueErrorWithKnownValues
-from dlt.transformations import lineage
+from dlt.destinations.dataset import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.queries import normalize_query, build_select_expr
 from dlt.common.exceptions import MissingDependencyException
