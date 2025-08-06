@@ -235,12 +235,13 @@ def sql_table(
             set transaction isolation level.
 
         write_disposition (TWriteDispositionConfig): write disposition of the table resource, defaults to `append`.
-        primary_key (TColumnNames): A list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
-        merge_key (TColumnNames): A list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to
-            keep a single record for a given day.
 
         table_loader_class (Optional[Type[BaseTableLoader]]): Custom TableLoader class to use for loading data from this table.
             Must inherit from BaseTableLoader and implement the required abstract methods.
+
+        primary_key (TColumnNames): A list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
+        merge_key (TColumnNames): A list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to
+            keep a single record for a given day.
 
     Returns:
         DltResource: The dlt resource for loading data from the SQL database table.
