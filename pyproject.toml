@@ -354,6 +354,7 @@ include = [
     "docs/**/*.py",
 ]
 exclude = [
+    "docs/website/.dlt-repo",
     "tests/reflection/module_cases/syntax_error.py",
     "docs/website/docs/general-usage/transformations/transformation-snippets.py",
 ]
