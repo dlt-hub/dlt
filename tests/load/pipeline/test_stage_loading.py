@@ -356,10 +356,10 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
         )
         # content must equal
         assert_all_data_types_row(
+            sql_client.capabilities,
             db_row[:-2],
             parse_json_strings=parse_json_strings,
             allow_base64_binary=allow_base64_binary,
             allow_string_binary=allow_string_binary,
-            timestamp_precision=sql_client.capabilities.timestamp_precision,
             schema=column_schemas,
         )

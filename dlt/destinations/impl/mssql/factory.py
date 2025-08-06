@@ -1,5 +1,6 @@
 from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING
 
+from dlt.common import logger
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
@@ -42,6 +43,7 @@ class MsSqlTypeMapper(TypeMapperImpl):
         "float": "double",
         "bit": "bool",
         "datetimeoffset": "timestamp",
+        "datetime2": "timestamp",
         "date": "date",
         "bigint": "bigint",
         "varbinary": "binary",
@@ -52,6 +54,29 @@ class MsSqlTypeMapper(TypeMapperImpl):
         "int": "bigint",
         "json": "json",
     }
+
+    def to_db_datetime_type(
+        self,
+        column: TColumnSchema,
+        table: PreparedTableSchema = None,
+    ) -> str:
+        column_name = column["name"]
+        table_name = table["name"]
+        timezone = column.get("timezone", True)
+        precision = column.get("precision", 7)  # Default precision in Synapse is 7
+
+        # Synapse DATETIME2 allows precision from 0-7
+        if precision is not None and (precision < 0 or precision > 7):
+            logger.warn(
+                "Azure Synapse/MSSQL only supports precision between 0-7 for column"
+                f" '{column_name}' in table '{table_name}'. Will use precision 7."
+            )
+            precision = 7
+
+        if timezone:
+            return f"datetimeoffset({precision})"  # Synapse's timezone-aware datetime type
+        else:
+            return f"datetime2({precision})"  # Synapse's high-precision datetime without timezone
 
     def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         precision = column.get("precision")
@@ -75,6 +100,8 @@ class MsSqlTypeMapper(TypeMapperImpl):
         if db_type == "decimal":
             if (precision, scale) == self.capabilities.wei_precision:
                 return dict(data_type="wei")
+        if db_type == "datetime2":
+            return {"data_type": "timestamp", "timezone": False}
         return super().from_destination_type(db_type, precision, scale)
 
 

@@ -164,6 +164,7 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         caps.replace_strategies_selector = athena_replace_strategies_selector
         caps.enforces_nulls_on_alter = False
         caps.sqlglot_dialect = "athena"
+        caps.supports_naive_datetime = False
 
         return caps
 

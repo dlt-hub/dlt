@@ -172,6 +172,8 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supports_truncate_command: bool = True
     schema_supports_numeric_precision: bool = True
     timestamp_precision: int = 6
+    """Default precision of the timestamp type"""
+
     max_rows_per_insert: Optional[int] = None
     insert_values_writer_type: str = "default"
     supports_multiple_statements: bool = True
@@ -208,6 +210,9 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
 
     parquet_format: Optional[ParquetFormatConfiguration] = None
     """Parquet format preferred by this destination"""
+
+    supports_naive_datetime: bool = True
+    """The destination can store datetime without timezone"""
 
     def generates_case_sensitive_identifiers(self) -> bool:
         """Tells if capabilities as currently adjusted, will generate case sensitive identifiers"""

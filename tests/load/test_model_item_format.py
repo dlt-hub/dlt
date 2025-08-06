@@ -729,10 +729,10 @@ def test_load_model_with_all_types(
     assert len(rows) == 10
 
     assert_all_data_types_row(
+        pipeline.destination.capabilities(),
         rows[0],
         schema=column_schemas,
         allow_base64_binary=destination_config.destination_type == "clickhouse",
-        timestamp_precision=pipeline.destination.capabilities().timestamp_precision,
     )
 
 

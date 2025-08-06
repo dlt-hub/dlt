@@ -7,7 +7,7 @@ from copy import deepcopy, copy
 from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional, Union
 
 from dlt.common.pendulum import pendulum
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.data_types import TDataType
@@ -589,6 +589,8 @@ def merge_diff(table: TTableSchema, table_diff: TPartialTableSchema) -> TPartial
     * nothing gets deleted
     """
 
+    # TODO: add prop merging strategy to ColumnPropInfo: incremental is a single prop and replaces old one
+    #   so this exception is no longer needed
     incremental_a_col = get_first_column_name_with_prop(
         table, "incremental", include_incomplete=True
     )
@@ -781,7 +783,7 @@ def get_active_record_timestamp(table: TTableSchema) -> Optional[pendulum.DateTi
     # method assumes a column with "x-active-record-timestamp" property exists
     cname = get_first_column_name_with_prop(table, "x-active-record-timestamp")
     hint_val = table["columns"][cname]["x-active-record-timestamp"]  # type: ignore[typeddict-item]
-    return None if hint_val is None else ensure_pendulum_datetime(hint_val)
+    return None if hint_val is None else ensure_pendulum_datetime_utc(hint_val)
 
 
 def merge_schema_updates(schema_updates: Sequence[TSchemaUpdate]) -> TSchemaTables:
