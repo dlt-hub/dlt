@@ -44,6 +44,14 @@ def resolve_dashboard_config(p: dlt.Pipeline) -> DashboardConfiguration:
     )
 
 
+def get_pipeline_last_run(pipeline_name: str, pipelines_dir: str) -> int:
+    """Get the last run of a pipeline"""
+    trace_file = Path(pipelines_dir) / pipeline_name / PICKLE_TRACE_FILE
+    if trace_file.exists():
+        return os.path.getmtime(trace_file)
+    return 0
+
+
 def get_local_pipelines(
     pipelines_dir: str = None, sort_by_trace: bool = True, addtional_pipelines: List[str] = None
 ) -> Tuple[str, List[Dict[str, Any]]]:
@@ -71,13 +79,9 @@ def get_local_pipelines(
     # check last trace timestamp and create dict
     pipelines_with_timestamps = []
     for pipeline in pipelines:
-        trace_file = Path(pipelines_dir) / pipeline / PICKLE_TRACE_FILE
-        if trace_file.exists():
-            pipelines_with_timestamps.append(
-                {"name": pipeline, "timestamp": trace_file.stat().st_mtime}
-            )
-        else:
-            pipelines_with_timestamps.append({"name": pipeline, "timestamp": 0})
+        pipelines_with_timestamps.append(
+            {"name": pipeline, "timestamp": get_pipeline_last_run(pipeline, pipelines_dir)}
+        )
 
     pipelines_with_timestamps.sort(key=lambda x: cast(float, x["timestamp"]), reverse=True)
 
@@ -140,7 +144,7 @@ def schemas_to_table_items(
 
 
 def pipeline_details(
-    c: DashboardConfiguration, pipeline: dlt.Pipeline, all_pipelines: List[Dict[str, Any]]
+    c: DashboardConfiguration, pipeline: dlt.Pipeline, pipelines_dir: str
 ) -> List[Dict[str, Any]]:
     """
     Get the details of a pipeline.
@@ -151,9 +155,7 @@ def pipeline_details(
         credentials = "Could not resolve credentials"
 
     # find the pipeline in all_pipelines and get the timestamp
-    pipeline_timestamp = next(
-        (p["timestamp"] for p in all_pipelines if p["name"] == pipeline.pipeline_name), 0
-    )
+    pipeline_timestamp = get_pipeline_last_run(pipeline.pipeline_name, pipeline.pipelines_dir)
 
     details_dict = {
         "pipeline_name": pipeline.pipeline_name,

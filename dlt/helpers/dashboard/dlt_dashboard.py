@@ -28,10 +28,15 @@ def home(
     dlt_all_pipelines: List[Dict[str, Any]],
     dlt_pipeline_select: mo.ui.multiselect,
     dlt_pipelines_dir: str,
+    dlt_refresh_button: mo.ui.run_button,
 ):
     """
     Displays the welcome page with the pipeline select widget, will only display pipeline title if a pipeline is selected
     """
+
+    # NOTE: keep this
+    if dlt_refresh_button:
+        pass
 
     # provide pipeline object to the following cells
     dlt_pipeline_name: str = (
@@ -71,16 +76,39 @@ def home(
             mo.md(strings.home_basics_text.format(len(dlt_all_pipelines), dlt_pipelines_dir)),
         ]
     else:
+        _buttons = []
+        _buttons.append(dlt_refresh_button)
+        if dlt_pipeline:
+            _buttons.append(
+                mo.ui.button(
+                    label="<small>Open pipeline working dir</small>",
+                    on_click=lambda _: utils.open_local_folder(dlt_pipeline.working_dir),
+                )
+            )
+        if dlt_pipeline and (local_dir := utils.get_local_data_path(dlt_pipeline)):
+            _buttons.append(
+                mo.ui.button(
+                    label="<small>Open local data location</small>",
+                    on_click=lambda _: utils.open_local_folder(local_dir),
+                )
+            )
         _stack = [
-            mo.hstack(
+            mo.vstack(
                 [
-                    mo.image(
-                        "https://dlthub.com/docs/img/dlthub-logo.png", width=100, alt="dltHub logo"
-                    ).style(padding_bottom="1em"),
-                    mo.center(mo.md(f"## {strings.app_title_pipeline.format(dlt_pipeline_name)}")),
-                    dlt_pipeline_select,
-                ],
-            ),
+                    mo.hstack(
+                        [
+                            mo.image(
+                                "https://dlthub.com/docs/img/dlthub-logo.png",
+                                width=100,
+                                alt="dltHub logo",
+                            ).style(padding_bottom="1em"),
+                            mo.center(mo.md(strings.app_title_pipeline.format(dlt_pipeline_name))),
+                            dlt_pipeline_select,
+                        ],
+                    ),
+                    mo.hstack(_buttons, justify="start"),
+                ]
+            )
         ]
         if not dlt_pipeline and dlt_pipeline_name:
             _stack.append(
@@ -102,6 +130,8 @@ def section_overview(
     dlt_section_overview_switch: mo.ui.switch,
     dlt_all_pipelines: List[Dict[str, Any]],
     dlt_config: DashboardConfiguration,
+    dlt_pipelines_dir: str,
+    dlt_refresh_button: mo.ui.run_button,
 ):
     """
     Overview page of currently selected pipeline
@@ -113,32 +143,18 @@ def section_overview(
         strings.overview_subtitle,
         strings.overview_subtitle,
         dlt_section_overview_switch,
+        dlt_refresh_button,
     )
 
     if dlt_pipeline and dlt_section_overview_switch.value:
         with mo.status.spinner(title=strings.sync_status_spinner_text):
             _result += [
                 mo.ui.table(
-                    utils.pipeline_details(dlt_config, dlt_pipeline, dlt_all_pipelines),
+                    utils.pipeline_details(dlt_config, dlt_pipeline, dlt_pipelines_dir),
                     selection=None,
                     style_cell=utils.style_cell,
                 ),
             ]
-            _buttons = []
-            _buttons.append(
-                mo.ui.button(
-                    label="<small>Open pipeline working dir</small>",
-                    on_click=lambda _: utils.open_local_folder(dlt_pipeline.working_dir),
-                )
-            )
-            if local_dir := utils.get_local_data_path(dlt_pipeline):
-                _buttons.append(
-                    mo.ui.button(
-                        label="<small>Open local data location</small>",
-                        on_click=lambda _: utils.open_local_folder(local_dir),
-                    )
-                )
-            _result.append(mo.hstack(_buttons, justify="start"))
             _result.append(
                 ui.build_title_and_subtitle(
                     strings.overview_remote_state_title, strings.overview_remote_state_subtitle
@@ -169,6 +185,7 @@ def section_schema(
     dlt_section_schema_switch: mo.ui.switch,
     dlt_schema_select: mo.ui.multiselect,
     dlt_selected_schema_name: str,
+    dlt_refresh_button: mo.ui.run_button,
 ):
     """
     Show schema of the currently selected pipeline
@@ -180,6 +197,7 @@ def section_schema(
         strings.schema_subtitle,
         strings.schema_subtitle_long,
         dlt_section_schema_switch,
+        dlt_refresh_button,
     )
 
     if dlt_pipeline and dlt_section_schema_switch.value and dlt_schema_table_list is None:
@@ -263,6 +281,7 @@ def section_browse_data_table_list(
     dlt_section_browse_data_switch: mo.ui.switch,
     dlt_schema_select: mo.ui.multiselect,
     dlt_selected_schema_name: str,
+    dlt_refresh_button: mo.ui.run_button,
 ):
     """
     Show data of the currently selected pipeline
@@ -274,6 +293,7 @@ def section_browse_data_table_list(
         strings.browse_data_subtitle,
         strings.browse_data_subtitle_long,
         dlt_section_browse_data_switch,
+        dlt_refresh_button,
     )
 
     dlt_query_editor: mo.ui.code_editor = None
@@ -444,6 +464,7 @@ def section_browse_data_query_history(
 def section_state(
     dlt_pipeline: dlt.Pipeline,
     dlt_section_state_switch: mo.ui.switch,
+    dlt_refresh_button: mo.ui.run_button,
 ):
     """
     Show state of the currently selected pipeline
@@ -454,6 +475,7 @@ def section_state(
         strings.state_subtitle,
         strings.state_subtitle,
         dlt_section_state_switch,
+        dlt_refresh_button,
     )
 
     if dlt_pipeline and dlt_section_state_switch.value:
@@ -473,6 +495,7 @@ def section_trace(
     dlt_section_trace_switch: mo.ui.switch,
     dlt_trace_steps_table: mo.ui.table,
     dlt_config: DashboardConfiguration,
+    dlt_refresh_button: mo.ui.run_button,
 ):
     """
     Show last trace of the currently selected pipeline
@@ -484,6 +507,7 @@ def section_trace(
         strings.trace_subtitle,
         strings.trace_subtitle,
         dlt_section_trace_switch,
+        dlt_refresh_button,
     )
 
     if dlt_pipeline and dlt_section_trace_switch.value:
@@ -574,6 +598,7 @@ def section_loads(
     dlt_pipeline: dlt.Pipeline,
     dlt_restrict_to_last_1000: mo.ui.switch,
     dlt_section_loads_switch: mo.ui.switch,
+    dlt_refresh_button: mo.ui.run_button,
 ):
     """
     Show loads of the currently selected pipeline
@@ -585,6 +610,7 @@ def section_loads(
         strings.loads_subtitle,
         strings.loads_subtitle_long,
         dlt_section_loads_switch,
+        dlt_refresh_button,
     )
 
     if dlt_pipeline and dlt_section_loads_switch.value:
@@ -685,6 +711,7 @@ def section_loads_results(
 def section_ibis_backend(
     dlt_pipeline: dlt.Pipeline,
     dlt_section_ibis_browser_switch: mo.ui.switch,
+    dlt_refresh_button: mo.ui.run_button,
 ):
     """
     Connects to ibis backend and makes it available in the datasources panel
@@ -695,6 +722,7 @@ def section_ibis_backend(
         strings.ibis_backend_subtitle,
         strings.ibis_backend_subtitle,
         dlt_section_ibis_browser_switch,
+        dlt_refresh_button,
     )
 
     if dlt_pipeline and dlt_section_ibis_browser_switch.value:
@@ -786,6 +814,10 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
     """
     Control elements for various parts of the app
     """
+
+    dlt_refresh_button: mo.ui.run_button = mo.ui.run_button(
+        label=f"<small>Refresh</small>",
+    )
 
     # page switches
     dlt_section_sync_switch: mo.ui.switch = mo.ui.switch(
