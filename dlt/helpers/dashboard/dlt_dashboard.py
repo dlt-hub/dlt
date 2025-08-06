@@ -719,14 +719,13 @@ def utils_discover_schemas(dlt_pipeline: dlt.Pipeline):
     Create schema multiselect widget
     """
     schemas = dlt_pipeline.schemas.values() if (dlt_pipeline and dlt_pipeline.schemas) else []
-    dlt_schema_select: mo.ui.multiselect = mo.ui.multiselect(
+    dlt_schema_select: mo.ui.dropdown = mo.ui.dropdown(
         options=[s.name for s in schemas],
         value=(
-            [dlt_pipeline.default_schema_name]
+            dlt_pipeline.default_schema_name
             if (dlt_pipeline and dlt_pipeline.default_schema_name)
-            else []
+            else None
         ),
-        max_selections=1,
         label=strings.app_schema_select_label,
     )
     return dlt_schema_select
@@ -850,7 +849,7 @@ def ui_primary_controls(
     """
 
     dlt_selected_schema_name = (
-        cast(str, dlt_schema_select.value[0]) if dlt_schema_select.value else None
+        cast(str, dlt_schema_select.value) if dlt_schema_select.value else None
     )
 
     #
