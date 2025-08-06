@@ -19,7 +19,7 @@ from dlt.common.schema.typing import TTableFormat
 
 from dlt.extract.source import DltSource
 from dlt.destinations.dataset import dataset as _dataset
-from dlt.transformations.exceptions import LineageFailedException
+from dlt.destinations.dataset.exceptions import LineageFailedException
 from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
 
 from tests.load.utils import (

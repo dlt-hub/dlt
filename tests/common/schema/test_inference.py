@@ -396,8 +396,35 @@ def test_coerce_null_value_over_existing(schema: Schema) -> None:
     new_row, new_table = schema.coerce_row("event_user", None, row)
     schema.update_table(new_table)
     row = {"timestamp": None}
-    new_row, _ = schema.coerce_row("event_user", None, row)
+    new_row, new_table = schema.coerce_row("event_user", None, row)
+    # do not generate table update on existing column
+    assert new_table is None
     assert "timestamp" not in new_row
+
+
+def test_coerce_null_value_over_existing_incomplete(schema: Schema) -> None:
+    row = {"timestamp": 82178.1298812, "null_col": None}
+    _, new_table = schema.coerce_row("event_user_2", None, row)
+    schema.update_table(new_table)
+    # same row again
+    _, new_table = schema.coerce_row("event_user_2", None, row)
+    # do not generate table update on existing column
+    assert new_table is None
+
+
+def test_coerce_null_value_over_existing_predefined(schema: Schema) -> None:
+    # create "null_col" upfront
+    new_table = utils.new_table("event_user_2", columns=[{"name": "null_col"}])
+    schema.update_table(new_table)
+    # we should get new table with "seen-null-first"
+    row = {"timestamp": 82178.1298812, "null_col": None}
+    _, new_table = schema.coerce_row("event_user_2", None, row)
+    assert new_table["columns"]["null_col"]["x-normalizer"]["seen-null-first"] is True
+    schema.update_table(new_table)
+    # same row again
+    _, new_table = schema.coerce_row("event_user_2", None, row)
+    # do not generate table update on existing column
+    assert new_table is None
 
 
 def test_coerce_null_value_over_not_null(schema: Schema) -> None:

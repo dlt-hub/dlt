@@ -36,10 +36,10 @@ class DremioMergeJob(SqlMergeFollowupJob):
             )
 
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
+    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
         return (
             f"DROP TABLE IF EXISTS {temp_table_name}; CREATE TABLE {temp_table_name} AS"
-            f" {select_sql};"
+            f" {select_sql}"
         )
 
     @classmethod

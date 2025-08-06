@@ -57,6 +57,7 @@ from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize, TColumnNames
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.utils import RowCounts, merge_row_counts
 from dlt.common.versioned_state import TVersionedState
+from dlt.common.runtime.collector_base import Collector
 
 
 # TRefreshMode = Literal["full", "replace"]
@@ -507,6 +508,8 @@ class SupportsPipeline(Protocol):
     """Indicates a first run of the pipeline, where run ends with successful loading of the data"""
     last_run_context: TLastRunContext
     """Stores last "good" run context, where run ends with successful loading of the data"""
+    collector: Collector
+    """A collector that tracks the progress of the pipeline"""
 
     @property
     def state(self) -> TPipelineState:

@@ -121,7 +121,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
                     "Nested transactions not supported on BigQuery"
                 )
             job = self._client.query(
-                "BEGIN TRANSACTION;",
+                "BEGIN TRANSACTION",
                 job_config=bigquery.QueryJobConfig(
                     create_session=True,
                     default_dataset=self.fully_qualified_dataset_name(quote=False),
@@ -152,13 +152,13 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         if not self._session_query:
             # allow committing without transaction
             return
-        self.execute_sql("COMMIT TRANSACTION;CALL BQ.ABORT_SESSION();")
+        self.execute_sql("COMMIT TRANSACTION;CALL BQ.ABORT_SESSION()")
         self._session_query = None
 
     def rollback_transaction(self) -> None:
         if not self._session_query:
             raise dbapi_exceptions.ProgrammingError("Transaction was not started")
-        self.execute_sql("ROLLBACK TRANSACTION;CALL BQ.ABORT_SESSION();")
+        self.execute_sql("ROLLBACK TRANSACTION;CALL BQ.ABORT_SESSION()")
         self._session_query = None
 
     @property
@@ -278,16 +278,16 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
 
     def truncate_tables_if_exist(self, *tables: str) -> None:
         """NOTE: We only truncate tables that exist, for auto-detect schema we don't know which tables exist"""
-        statements: List[str] = ["DECLARE table_exists BOOL;"]
+        statements: List[str] = ["DECLARE table_exists BOOL"]
         for t in tables:
             table_name = self.make_qualified_table_name(t)
             statements.append(
                 "SET table_exists = (SELECT COUNT(*) > 0 FROM"
                 f" `{self.project_id}.{self.dataset_name}.INFORMATION_SCHEMA.TABLES` WHERE"
-                f" table_name = '{t}');"
+                f" table_name = '{t}')"
             )
-            truncate_stmt = self._truncate_table_sql(table_name).replace(";", "")
-            statements.append(f"IF table_exists THEN EXECUTE IMMEDIATE '{truncate_stmt}'; END IF;")
+            truncate_stmt = self._truncate_table_sql(table_name)
+            statements.append(f"IF table_exists THEN EXECUTE IMMEDIATE '{truncate_stmt}'; END IF")
         self.execute_many(statements)
 
     @staticmethod

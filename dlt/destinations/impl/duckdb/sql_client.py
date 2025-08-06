@@ -239,7 +239,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
 
         secrets_path = Path(
             self._conn.sql(
-                "SELECT current_setting('secret_directory') AS secret_directory;"
+                "SELECT current_setting('secret_directory') AS secret_directory"
             ).fetchone()[0]
         )
 
@@ -293,13 +293,13 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                     SCOPE '{scope}',
                     URL_STYLE '{s3_url_style}',
                     USE_SSL {use_ssl}
-                );""")
+                )""")
 
         # azure with storage account creds
         elif protocol in ["az", "abfss"]:
             # the line below solves problems with certificate path lookup on linux
             # see duckdb docs
-            sql.append("SET azure_transport_option_type = 'curl';")
+            sql.append("SET azure_transport_option_type = 'curl'")
 
             if isinstance(credentials, AzureCredentialsWithoutDefaults):
                 sql.append(f"""
@@ -307,7 +307,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                     TYPE AZURE,
                     CONNECTION_STRING 'AccountName={credentials.azure_storage_account_name};AccountKey={credentials.azure_storage_account_key}',
                     SCOPE '{scope}'
-                );""")
+                )""")
 
             # azure with service principal creds
             elif isinstance(credentials, AzureServicePrincipalCredentialsWithoutDefaults):
@@ -320,7 +320,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                     CLIENT_SECRET '{credentials.azure_client_secret}',
                     ACCOUNT_NAME '{credentials.azure_storage_account_name}',
                     SCOPE '{scope}'
-                );""")
+                )""")
         elif self.persist_secrets:
             raise ValueError(
                 "Cannot create persistent secret for filesystem protocol"
@@ -330,7 +330,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         else:
             # could not create secret
             return False
-        self._conn.sql("\n".join(sql))
+        self._conn.sql(";\n".join(sql))
         return True
 
     @classmethod
@@ -439,16 +439,18 @@ class WithTableScanners(DuckDbSqlClient):
                 }
             )
 
+    @raise_database_error
     def open_connection(self) -> duckdb.DuckDBPyConnection:
+        # NOTE: do not self.execute*** methods when opening connection, may end in endless recursion
         # we keep the in memory instance around, so if this prop is set, return it
         first_connection = self.credentials.never_borrowed
         super().open_connection()
 
         if first_connection:
             # set up dataset
-            if not self.has_dataset():
-                self.create_dataset()
-            self._conn.sql(f"USE {self.fully_qualified_dataset_name()}")
+            q_dataset_name = self.fully_qualified_dataset_name()
+            create_schema_sql = "CREATE SCHEMA IF NOT EXISTS %s" % q_dataset_name
+            self._conn.sql(f"{create_schema_sql};USE {self.fully_qualified_dataset_name()}")
 
         return self._conn
 
@@ -533,12 +535,12 @@ class WithTableScanners(DuckDbSqlClient):
             )
         # needed to make persistent secrets work in new connection
         # https://github.com/duckdb/duckdb_iceberg/issues/83
-        conn.execute("FROM duckdb_secrets();")
+        conn.execute("FROM duckdb_secrets()")
 
         # `duckdb_iceberg` extension does not support autoloading
         # https://github.com/duckdb/duckdb_iceberg/issues/71
         if semver.Version.parse(duckdb.__version__) < semver.Version.parse("1.2.0"):
-            conn.execute("INSTALL Iceberg FROM core_nightly; LOAD iceberg;")
+            conn.execute("INSTALL Iceberg FROM core_nightly; LOAD iceberg")
 
     def __del__(self) -> None:
         if self.memory_db:

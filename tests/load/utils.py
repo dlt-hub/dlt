@@ -372,6 +372,15 @@ def destinations_configs(
             #         "?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
             #     ),
             # ),
+            # DestinationTestConfiguration(
+            #     destination_type="sqlalchemy",
+            #     supports_merge=True,
+            #     supports_dbt=False,
+            #     destination_name="sqlalchemy_trino",
+            #     credentials=(  # Use root cause we need to create databases,
+            #         "trino://admin:@127.0.0.1:8080/postgres"
+            #     ),
+            # ),
         ]
 
         destination_configs += [
@@ -487,7 +496,6 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=AWS_BUCKET,
                 extra_info="s3-authorization",
-                disable_compression=True,
             ),
             DestinationTestConfiguration(
                 destination_type="databricks",
@@ -495,7 +503,6 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
-                disable_compression=True,
             ),
             DestinationTestConfiguration(
                 destination_type="databricks",
@@ -873,10 +880,10 @@ def expect_load_file(
         if isinstance(job, RunnableLoadJob):
             job.set_run_vars(load_id=load_id, schema=client.schema, load_table=table)
             job.run_managed(client)
+        # TODO: use semaphore
         while job.state() == "running":
-            sleep(0.5)
+            sleep(0.1)
 
-        # assert job.file_name() == file_name_
         assert job.state() == status, f"Got {job.state()} with ({job.exception()})"
 
         return job

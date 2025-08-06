@@ -166,10 +166,7 @@ class DataValidationError(SchemaException):
 
         Schema, table and column names are given as a context and full `schema_contract` and causing `data_item` as an evidence.
         """
-        msg = ""
-        if schema_name:
-            msg = f"Schema: `{schema_name}` "
-        msg += f"Table: `{table_name}` "
+        msg = f"Table: `{table_name}` "
         if column_name:
             msg += f"Column: `{column_name}`"
         msg = (
@@ -178,6 +175,25 @@ class DataValidationError(SchemaException):
             + f" . Contract on `{schema_entity}` with `{contract_mode=:}` is violated. "
             + (extended_info or "")
         )
+        data_item_str = ""
+        if (
+            data_item
+            and hasattr(data_item, "get")
+            and table_schema
+            and hasattr(table_schema, "get")
+        ):
+            identifier_columns = [
+                x.get("name")
+                for x in table_schema.get("columns", {}).values()
+                if x.get("primary_key") or x.get("merge_key") or x.get("unique")
+            ]
+            if identifier_columns:
+                data_item_str += "Offending data item: "
+                data_item_keys = [
+                    f"{column}: {data_item.get(column)}" for column in identifier_columns
+                ]
+                data_item_str += ", ".join(data_item_keys)
+                msg += f" {data_item_str}"
         super().__init__(schema_name, msg)
         self.table_name = table_name
         self.column_name = column_name

@@ -277,6 +277,22 @@ class TestOffsetPaginator:
         paginator.update_state(response)
         assert paginator.has_next_page is False
 
+    def test_page_param_initialization(self):
+        # Test that offset_param defaults to 'offset' when offset_param and offset_body_path are None
+        paginator = OffsetPaginator(limit=100)
+        assert paginator.param_name == "offset"
+        assert paginator.param_body_path is None
+
+        # Test that page_param is set to the provided value
+        paginator = OffsetPaginator(limit=100, offset_param="offset_param")
+        assert paginator.param_name == "offset_param"
+        assert paginator.param_body_path is None
+
+        # Test that page_body_path is set to the provided value
+        paginator = OffsetPaginator(limit=100, offset_body_path="offset_body_path")
+        assert paginator.param_name is None
+        assert paginator.param_body_path == "offset_body_path"
+
     def test_update_state_with_string_total(self):
         paginator = OffsetPaginator(0, 10)
         response = Mock(Response, json=lambda: {"total": "20"})
@@ -343,6 +359,38 @@ class TestOffsetPaginator:
         assert next_request.params["offset"] == 165
         assert next_request.params["limit"] == 42
 
+    def test_both_offset_param_and_offset_body_path_raises_error(self):
+        # Test that an error is raised when both offset_param and offset_body_path are provided
+        with pytest.raises(ValueError) as excinfo:
+            OffsetPaginator(limit=100, offset_param="cursor", offset_body_path="page")
+        assert "Either 'offset_param' or 'offset_body_path' must be provided, not both" in str(
+            excinfo.value
+        )
+
+    def test_update_request_json(self):
+        paginator = OffsetPaginator(limit=100, offset_body_path="offset")
+        paginator.current_value = 2
+        request = Request(method="POST", url="http://example.com/api/resource")
+        paginator.update_request(request)
+        assert request.json["offset"] == 2
+
+    def test_update_request_json_nested(self):
+        paginator = OffsetPaginator(limit=100, offset_body_path="pagination.offset")
+        paginator.current_value = 2
+        request = Request(method="POST", url="http://example.com/api/resource")
+        paginator.update_request(request)
+        assert request.json["pagination"]["offset"] == 2
+
+    def test_update_request_json_with_existing_json(self):
+        paginator = OffsetPaginator(limit=100, offset_body_path="offset")
+        paginator.current_value = 2
+        request = Request(
+            method="POST", url="http://example.com/api/resource", json={"existing": "data"}
+        )
+        paginator.update_request(request)
+        assert request.json["existing"] == "data"
+        assert request.json["offset"] == 2
+
     def test_maximum_offset(self):
         paginator = OffsetPaginator(offset=0, limit=50, maximum_offset=100, total_path=None)
         response = Mock(Response, json=lambda: {"items": []})
@@ -358,6 +406,24 @@ class TestOffsetPaginator:
         pages_iter = rest_client.paginate(
             "/posts_offset_limit",
             paginator=OffsetPaginator(offset=0, limit=5, total_path="total_records"),
+        )
+
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
+
+    def test_client_pagination_with_json(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts_offset_limit_via_json_body",
+            method="POST",
+            json={"limit": 5, "offset": 0, "ids_greater_than": -1},
+            paginator=OffsetPaginator(
+                offset=0,
+                limit=5,
+                offset_body_path="offset",
+                limit_body_path="limit",
+                total_path="total_records",
+            ),
         )
 
         pages = list(pages_iter)
@@ -451,6 +517,22 @@ class TestPageNumberPaginator:
         paginator.update_state(response, data=NON_EMPTY_PAGE)
         assert paginator.has_next_page is False
 
+    def test_page_param_initialization(self):
+        # Test that page_param defaults to 'page' when page_param and page_body_path are None
+        paginator = PageNumberPaginator()
+        assert paginator.param_name == "page"
+        assert paginator.param_body_path is None
+
+        # Test that page_param is set to the provided value
+        paginator = PageNumberPaginator(page_param="page_param")
+        assert paginator.param_name == "page_param"
+        assert paginator.param_body_path is None
+
+        # Test that page_body_path is set to the provided value
+        paginator = PageNumberPaginator(page_body_path="page_body_path")
+        assert paginator.param_name is None
+        assert paginator.param_body_path == "page_body_path"
+
     def test_init_request(self):
         paginator = PageNumberPaginator(base_page=1, total_path=None)
         request = Mock(Request)
@@ -477,6 +559,14 @@ class TestPageNumberPaginator:
         paginator.init_request(request)
         assert paginator.current_value == 1
         assert paginator.has_next_page is True
+
+    def test_both_page_param_and_page_body_path_raises_error(self):
+        # Test that an error is raised when both page_param and page_body_path are provided
+        with pytest.raises(ValueError) as excinfo:
+            PageNumberPaginator(page_param="cursor", page_body_path="page")
+        assert "Either 'page_param' or 'page_body_path' must be provided, not both" in str(
+            excinfo.value
+        )
 
     def test_update_state_with_string_total_pages(self):
         paginator = PageNumberPaginator(base_page=1, page=1)
@@ -521,7 +611,7 @@ class TestPageNumberPaginator:
         with pytest.raises(ValueError):
             paginator.update_state(response, data=NON_EMPTY_PAGE)
 
-    def test_update_request(self):
+    def test_update_request_param(self):
         paginator = PageNumberPaginator(base_page=1, page=1, page_param="page")
         request = Mock(Request)
         response = Mock(Response, json=lambda: {"total": 3})
@@ -532,6 +622,30 @@ class TestPageNumberPaginator:
         paginator.update_state(response, data=NON_EMPTY_PAGE)
         paginator.update_request(request)
         assert request.params["page"] == 3
+
+    def test_update_request_json(self):
+        paginator = PageNumberPaginator(base_page=1, page=1, page_body_path="page")
+        paginator.current_value = 2
+        request = Request(method="POST", url="http://example.com/api/resource")
+        paginator.update_request(request)
+        assert request.json["page"] == 2
+
+    def test_update_request_json_nested(self):
+        paginator = PageNumberPaginator(base_page=1, page=1, page_body_path="page.next")
+        paginator.current_value = 2
+        request = Request(method="POST", url="http://example.com/api/resource")
+        paginator.update_request(request)
+        assert request.json["page"]["next"] == 2
+
+    def test_update_request_json_with_existing_json(self):
+        paginator = PageNumberPaginator(base_page=1, page=1, page_body_path="page")
+        paginator.current_value = 2
+        request = Request(
+            method="POST", url="http://example.com/api/resource", json={"existing": "data"}
+        )
+        paginator.update_request(request)
+        assert request.json["existing"] == "data"
+        assert request.json["page"] == 2
 
     def test_maximum_page(self):
         paginator = PageNumberPaginator(base_page=1, page=1, maximum_page=3, total_path=None)
@@ -583,6 +697,20 @@ class TestPageNumberPaginator:
         pages_iter = rest_client.paginate(
             "/posts_zero_based",
             paginator=PageNumberPaginator(base_page=0, page=0, total_path="total_pages"),
+        )
+
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
+
+    def test_client_pagination_with_json(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts/search",
+            method="POST",
+            json={"page_size": 5, "page": 1, "ids_greater_than": -1},
+            paginator=PageNumberPaginator(
+                base_page=1, page_body_path="page", total_path="total_pages"
+            ),
         )
 
         pages = list(pages_iter)
@@ -733,37 +861,6 @@ class TestJSONResponseCursorPaginator:
         pages = list(pages_iter)
 
         assert_pagination(pages)
-
-    def test_set_value_at_path(self):
-        paginator = JSONResponseCursorPaginator()
-
-        # Test setting value in empty dict
-        test_obj: dict[str, Any] = {}
-        paginator._set_value_at_path(test_obj, "key", "value")
-        assert test_obj == {"key": "value"}
-
-        # Test setting value in nested path
-        test_obj = {}
-        paginator._set_value_at_path(test_obj, "parent.child", "value")
-        assert test_obj == {"parent": {"child": "value"}}
-
-        # Test setting value in deeply nested path
-        test_obj = {}
-        paginator._set_value_at_path(test_obj, "level1.level2.level3", "value")
-        assert test_obj == {"level1": {"level2": {"level3": "value"}}}
-
-        # Test setting value with existing structure
-        test_obj = {"existing": "data", "parent": {"existing_child": "data"}}
-        paginator._set_value_at_path(test_obj, "parent.new_child", "value")
-        assert test_obj == {
-            "existing": "data",
-            "parent": {"existing_child": "data", "new_child": "value"},
-        }
-
-        # Test overwriting existing value
-        test_obj = {"key": "old_value"}
-        paginator._set_value_at_path(test_obj, "key", "new_value")
-        assert test_obj == {"key": "new_value"}
 
 
 @pytest.mark.usefixtures("mock_api_server")

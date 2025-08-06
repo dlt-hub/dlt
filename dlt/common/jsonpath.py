@@ -90,3 +90,22 @@ def extract_simple_field_name(path: Union[str, JSONPath]) -> Optional[str]:
         return cast(str, path.fields[0])
 
     return None
+
+
+def set_value_at_path(obj: dict[str, Any], path: TJsonPath, value: Any) -> None:
+    """Sets a value in a nested dictionary at the specified path.
+
+    Args:
+        obj: The dictionary to modify
+        path: The dot-separated path to the target location
+        value: The value to set
+    """
+    path_parts = str(path).split(".")
+    current = obj
+
+    for part in path_parts[:-1]:
+        if part not in current:
+            current[part] = {}
+        current = current[part]
+
+    current[path_parts[-1]] = value

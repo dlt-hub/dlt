@@ -1,5 +1,5 @@
 from typing import Any, TYPE_CHECKING, Tuple, List
-import os
+import semver
 import duckdb
 
 from dlt.common import logger
@@ -14,6 +14,7 @@ from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
 from dlt.destinations.impl.duckdb.factory import DuckDbCredentials
 
 from dlt.destinations.utils import is_compression_disabled
+from dlt.destinations.path_utils import get_file_format_and_compression
 
 SUPPORTED_PROTOCOLS = ["gs", "gcs", "s3", "file", "memory", "az", "abfss"]
 
@@ -50,12 +51,15 @@ class FilesystemSqlClient(WithTableScanners):
         # checking file type is expensive so we optimistically allow to create view and prune later
         return True
 
-    def get_file_format_and_files(self, table_schema: PreparedTableSchema) -> Tuple[str, List[str]]:
+    def get_file_format_and_files(
+        self, table_schema: PreparedTableSchema
+    ) -> Tuple[str, List[str], bool]:
         table_name = table_schema["name"]
         files = self.remote_client.list_table_files(table_name)
         if len(files) == 0:
             raise DestinationUndefinedEntity(table_name)
-        return os.path.splitext(files[0])[1][1:], files
+        file_format, is_compressed = get_file_format_and_compression(files[0])
+        return file_format, files, is_compressed
 
     def create_secret(
         self,
@@ -93,7 +97,7 @@ class FilesystemSqlClient(WithTableScanners):
         if first_connection:
             # TODO: we need to frontload the httpfs extension for abfss for some reason
             if self.is_abfss:
-                self._conn.sql("INSTALL httpfs; LOAD httpfs;")
+                self._conn.sql("INSTALL httpfs; LOAD httpfs")
 
             # create single authentication for the whole client
             self.create_secret(
@@ -121,9 +125,6 @@ class FilesystemSqlClient(WithTableScanners):
         protocol = self.remote_client.config.protocol
         table_location = self.remote_client.get_open_table_location(table_format, table_name)
 
-        # discover whether compression is enabled
-        compression = "" if is_compression_disabled() else ", compression = 'gzip'"
-
         dlt_table_names = self.remote_client.schema.dlt_table_names()
 
         def _escape_column_name(col_name: str) -> str:
@@ -135,10 +136,6 @@ class FilesystemSqlClient(WithTableScanners):
 
         # get columns to select from table schema
         columns = [_escape_column_name(c) for c in self.schema.get_table_columns(table_name).keys()]
-
-        if table_name in dlt_table_names:
-            # dlt tables are never compressed for now...
-            compression = ""
 
         # create from statement
         from_statement = ""
@@ -162,9 +159,12 @@ class FilesystemSqlClient(WithTableScanners):
             else:
                 compression = ""
 
-            from_statement = (
-                f"iceberg_scan('{last_metadata_file}'{compression}, skip_schema_inference=false)"
-            )
+            if semver.Version.parse(duckdb.__version__) > semver.Version.parse("1.3.0"):
+                scanner_options = "union_by_name=true"
+            else:
+                scanner_options = "skip_schema_inference=false"
+
+            from_statement = f"iceberg_scan('{last_metadata_file}'{compression}, {scanner_options})"
             # TODO: on duckdb > 1.2.1 register self.remote_client.fs_client as abfss fsspec filesystem
             #   this will enable iceberg but with lower performance
         else:
@@ -172,12 +172,14 @@ class FilesystemSqlClient(WithTableScanners):
             # NOTE: this does not support cases where table contains many different file formats
             # NOTE: since we must list all the files anyway we just pass them to duckdb without further globbing
             #   list is in the memory already and query size in duckdb is very large
-            first_file_type, files = self.get_file_format_and_files(table_schema)
+            first_file_type, files, _ = self.get_file_format_and_files(table_schema)
             if protocol == "file":
                 resolved_files_string = ",".join(map(lambda f: f"'{f}'", files))
             else:
                 resolved_files_string = ",".join(map(lambda f: f"'{protocol}://{f}'", files))
 
+            # NOTE: duckdb automatically handles compression based on the .gz extension
+            # so we don't need to specify it
             if first_file_type == "parquet":
                 from_statement = f"read_parquet([{resolved_files_string}], union_by_name=true)"
             elif first_file_type in ("jsonl", "csv"):
@@ -199,8 +201,7 @@ class FilesystemSqlClient(WithTableScanners):
                         if column_def["data_type"] == "binary":
                             columns[idx] = f"from_base64(decode({columns[idx]})) as {columns[idx]}"
                     from_statement = (
-                        f"read_json([{resolved_files_string}], columns ="
-                        f" {{{column_types}}}{compression})"
+                        f"read_json([{resolved_files_string}], columns = {{{column_types}}})"
                     )
                 if first_file_type == "csv":
                     # TODO: use default csv_format config to set params below
@@ -218,8 +219,17 @@ class FilesystemSqlClient(WithTableScanners):
                     # autodetect and lock schema for all files
                     from_statement = (
                         f"read_csv([{resolved_files_string}],{force_not_null} union_by_name=true,header=true,null_padding=true,types="
-                        f" {{{column_types}}}{compression})"
+                        f" {{{column_types}}})"
                     )
+
+                # if the dataset is a legacy version where .gz is not added by default,
+                # we need to check configs
+                if (
+                    table_name not in dlt_table_names
+                    and self.remote_client.storage_versions[0] == 1
+                    and not is_compression_disabled()
+                ):
+                    from_statement = from_statement[:-1] + ", compression = 'gzip')"
 
             else:
                 # we skipped checking file type in can_create_view to not repeat globs which are expensive

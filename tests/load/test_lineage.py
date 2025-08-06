@@ -3,10 +3,10 @@ import sqlglot
 
 from dlt import Schema
 from dlt.common.schema.typing import TColumnSchema
-from dlt.transformations import lineage
+from dlt.destinations.dataset import lineage
 
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
-from dlt.transformations.exceptions import LineageFailedException
+from dlt.destinations.dataset.exceptions import LineageFailedException
 
 
 # TODO: add all data types for one table

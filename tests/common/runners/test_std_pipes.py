@@ -9,6 +9,7 @@ from dlt.common.runners.stdout import iter_std, iter_stdout, iter_stdout_with_re
 from dlt.common.runners.synth_pickle import encode_obj, decode_obj, decode_last_obj
 
 from dlt.common.utils import digest128b
+from tests.common.utils import case_path
 
 
 class _TestPickler(NamedTuple):
@@ -86,6 +87,22 @@ def test_synth_pickler_unknown_types() -> None:
     # print(encode_obj(obj))
     # obj = _TestClassUnkField(_TestPicklex("Y", 23), "U")
     # print(encode_obj(obj))
+
+
+def test_synth_pickler_with_enums() -> None:
+    try:
+        import dbt
+
+        pytest.skip("dbt IS installed, cannot test synth pickler with dbt enums")
+    except ImportError:
+        pass
+
+    with open(case_path("dbt_test_result_pickle.b64"), mode="rt", encoding="utf-8") as f:
+        encoded_pickle = f.read()
+    # this is dbt.test result
+    obj = decode_obj(encoded_pickle, ignore_pickle_errors=False)
+    # should synthesize TestStatus enum
+    assert obj.dbt_results.results[0].status == "Pass"
 
 
 def test_iter_stdout() -> None:

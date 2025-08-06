@@ -29,7 +29,6 @@ from dlt.common.schema import Schema
 from dlt import sources
 from dlt.extract.decorators import source, resource, transformer, defer
 from dlt.destinations.decorators import destination
-from dlt.transformations.decorators import transformation
 from dlt.common.destination.dataset import Dataset, Relation
 from dlt.destinations.dataset import dataset
 
@@ -84,7 +83,6 @@ __all__ = [
     "Dataset",
     "Relation",
     "dataset",
-    "transformation",
 ]
 
 # verify that no injection context was created

@@ -32,6 +32,7 @@ from dlt.cli.deploy_command import (
     COMMAND_DEPLOY_REPO_LOCATION,
     SecretFormats,
 )
+from dlt.common.storages.configuration import SCHEMA_FILES_EXTENSIONS
 
 try:
     import pipdeptree
@@ -290,7 +291,7 @@ will display the load info instead.
         )
         pipe_cmd_schema.add_argument(
             "--format",
-            choices=["json", "yaml"],
+            choices=SCHEMA_FILES_EXTENSIONS,
             default="yaml",
             help="Display schema in this format",
         )
@@ -463,7 +464,7 @@ The `dlt schema` command will load, validate and print out a dlt schema: `dlt sc
         )
         parser.add_argument(
             "--format",
-            choices=["json", "yaml"],
+            choices=SCHEMA_FILES_EXTENSIONS,
             default="yaml",
             help="Display schema in this format",
         )

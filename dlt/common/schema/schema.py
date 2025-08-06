@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from copy import copy, deepcopy
 from typing import (
     Callable,
@@ -737,6 +739,35 @@ class Schema:
         )
         return utils.to_pretty_yaml(d)
 
+    def to_dbml(
+        self,
+        remove_processing_hints: bool = False,
+        include_dlt_tables: bool = True,
+        include_internal_dlt_ref: bool = True,
+        include_parent_child_ref: bool = True,
+        include_root_child_ref: bool = True,
+        group_by_resource: bool = False,
+    ) -> str:
+        from dlt.helpers.dbml import schema_to_dbml
+
+        stored_schema = self.to_dict(
+            # setting this to `True` removes `name` fields that are used in `schema_to_dbml()`
+            # if required, we can refactor `dlt.helpers.dbml` to support this
+            remove_defaults=False,
+            remove_processing_hints=remove_processing_hints,
+        )
+
+        # NOTE `allow_custom_dbml_properties` is not exposed because it produces invalid DBML
+        dbml_schema = schema_to_dbml(
+            stored_schema,
+            include_dlt_tables=include_dlt_tables,
+            include_internal_dlt_ref=include_internal_dlt_ref,
+            include_parent_child_ref=include_parent_child_ref,
+            include_root_child_ref=include_root_child_ref,
+            group_by_resource=group_by_resource,
+        )
+        return str(dbml_schema.dbml)
+
     def clone(
         self,
         with_name: str = None,
@@ -833,12 +864,17 @@ class Schema:
         if existing_column and utils.is_complete_column(existing_column):
             if not utils.is_nullable_column(existing_column):
                 raise CannotCoerceNullException(self.name, table_name, col_name)
-            return None
         else:
-            inferred_unbounded_col = self._infer_column(
-                k=col_name, v=None, data_type=None, table_name=table_name
-            )
-            return inferred_unbounded_col
+            # generate unbounded column only if it does not exist or it does not
+            # contain seen null
+            if not existing_column or not existing_column.get("x-normalizer", {}).get(
+                "seen-null-first"
+            ):
+                inferred_unbounded_col = self._infer_column(
+                    k=col_name, v=None, data_type=None, table_name=table_name
+                )
+                return inferred_unbounded_col
+        return None
 
     def _coerce_non_null_value(
         self,
