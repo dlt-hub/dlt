@@ -31,7 +31,7 @@ Be it a Google Colab notebook, AWS Lambda function, an Airflow DAG, your local l
 
 ## Installation
 
-dlt supports Python 3.9 through Python 3.14 (beta 4). Note that some optional extras are not yet available for Python 3.14, so support for this version is considered experimental.
+dlt supports Python 3.9 through Python 3.14 (rc1). Note that some optional extras are not yet available for Python 3.14, so support for this version is considered experimental.
 
 ```sh
 pip install dlt

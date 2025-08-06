@@ -44,7 +44,7 @@ jobs:
             shell: bash
 
           - os: ubuntu-latest
-            python-version: "3.14.0-beta.4"
+            python-version: "3.14"
             shell: bash
 
           # linux test with minimal dependencies
