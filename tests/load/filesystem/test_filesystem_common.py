@@ -55,9 +55,11 @@ def test_filesystem_configuration() -> None:
         "bucket_url": "az://root",
         "credentials": None,
         "client_kwargs": None,
+        "config_kwargs": None,
         "kwargs": None,
         "deltalake_storage_options": None,
         "deltalake_configuration": None,
+        "deltalake_streamed_exec": True,
     }
 
 
@@ -233,6 +235,7 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
             "delta.minWriterVersion": "7",
             "delta.enableChangeDataFeed": "true",
         },
+        deltalake_streamed_exec=False,
     )
     assert dict(config) == {
         "read_only": False,
@@ -240,11 +243,13 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
         "credentials": None,
         "kwargs": {"use_ssl": True},
         "client_kwargs": {"verify": "public.crt"},
+        "config_kwargs": None,
         "deltalake_storage_options": {"AWS_S3_LOCKING_PROVIDER": "dynamodb"},
         "deltalake_configuration": {
             "delta.minWriterVersion": "7",
             "delta.enableChangeDataFeed": "true",
         },
+        "deltalake_streamed_exec": False,
     }
 
 

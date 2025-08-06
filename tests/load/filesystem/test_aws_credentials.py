@@ -142,6 +142,10 @@ def test_aws_credentials_with_endpoint_url(environment: Dict[str, str]) -> None:
         "profile": None,
         "endpoint_url": "https://123.r2.cloudflarestorage.com",
         "client_kwargs": {"region_name": "eu-central-1"},
+        "config_kwargs": {
+            "request_checksum_calculation": "when_required",
+            "response_checksum_validation": "when_required",
+        },
     }
 
 

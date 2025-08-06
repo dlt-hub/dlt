@@ -110,6 +110,13 @@ def my_upsert_resource():
 - Deleting records from nested tables not supported
   - This means updates to JSON columns that involve element removals are not propagated. For example, if you first load `{"key": 1, "nested": [1, 2]}` and then load `{"key": 1, "nested": [1]}`, then the record for element `2` will not be deleted from the nested table.
 
+By default, dlt runs Delta table upserts in streamed mode to reduce memory pressure. To enable the use of source table statistics to derive an early pruning predicate, set:
+
+```toml
+[destination.filesystem]
+deltalake_streamed_exec = false
+```
+
 ## Delta table format storage options and configuration
 You can pass storage options and configuration by configuring both `destination.filesystem.deltalake_storage_options` and
 `destination.filesystem.deltalake_configuration`:

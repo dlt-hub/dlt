@@ -35,6 +35,12 @@ class SynapseTypeMapper(MsSqlTypeMapper):
                 "time",
             )
 
+    def to_destination_type(self, column: TColumnSchema, table: PreparedTableSchema) -> str:
+        sc_t = column["data_type"]
+        if sc_t == "json":
+            return "nvarchar(%s)" % column.get("precision", "max")
+        return super().to_destination_type(column, table)
+
 
 class synapse(Destination[SynapseClientConfiguration, "SynapseClient"]):
     spec = SynapseClientConfiguration

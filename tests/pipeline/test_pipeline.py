@@ -10,10 +10,12 @@ import threading
 from time import sleep
 from typing import Any, List, Tuple, cast
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
+from unittest.mock import patch
 
 import pytest
 from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.storages import FileStorage
+from dlt.common.storages.load_storage import ParsedLoadJobFileName
 
 import dlt
 from dlt.common import json, pendulum, Decimal
@@ -31,7 +33,7 @@ from dlt.common.destination.exceptions import (
     UnknownDestinationModule,
 )
 from dlt.common.exceptions import PipelineStateNotAvailable
-from dlt.common.pipeline import LoadInfo, PipelineContext
+from dlt.common.pipeline import LoadInfo, PipelineContext, SupportsPipeline
 from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.exceptions import TableIdentifiersFrozen
 from dlt.common.schema.typing import TColumnSchema
@@ -63,6 +65,9 @@ from dlt.pipeline.exceptions import (
 from dlt.pipeline.helpers import retry_load
 
 from dlt.pipeline.pipeline import Pipeline
+from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
+from dlt.pipeline.typing import TPipelineStep
+
 from tests.common.utils import TEST_SENTRY_DSN
 from tests.utils import TEST_STORAGE_ROOT
 from tests.pipeline.utils import assert_load_info, load_table_counts
@@ -1517,6 +1522,106 @@ def test_pipeline_log_progress() -> None:
     p.extract(many_delayed(2, 10))
 
 
+def test_progress_collector_callbacks() -> None:
+    collector = dlt.progress.log()
+
+    with (
+        patch.object(collector, "on_start_trace") as mock_on_start_trace,
+        patch.object(collector, "on_start_trace_step") as mock_on_start_trace_step,
+        patch.object(collector, "on_end_trace_step") as mock_on_end_trace_step,
+        patch.object(collector, "on_end_trace") as mock_on_end_trace,
+    ):
+        pipeline = dlt.pipeline(
+            pipeline_name="test_pipeline", destination="dummy", progress=collector
+        )
+        pipeline.extract(many_delayed(2, 5))
+
+        mock_on_start_trace.assert_called()
+        mock_on_start_trace_step.assert_called()
+        mock_on_end_trace_step.assert_called()
+        mock_on_end_trace.assert_called()
+
+        # Verify on_start_trace args
+        call_args = mock_on_start_trace.call_args[0]
+        assert isinstance(call_args[0], PipelineTrace)
+        assert isinstance(call_args[1], str)
+        assert call_args[2].pipeline_name == "test_pipeline"
+
+        # Verify on_start_trace_step args
+        call_args = mock_on_start_trace_step.call_args[0]
+        assert isinstance(call_args[0], PipelineTrace)
+        assert isinstance(call_args[1], str)
+        assert call_args[2].pipeline_name == "test_pipeline"
+
+        # Verify on_end_trace_step args
+        call_args = mock_on_end_trace_step.call_args[0]
+        assert isinstance(call_args[0], PipelineTrace)
+        assert isinstance(call_args[1], PipelineStepTrace)
+        assert call_args[2].pipeline_name == "test_pipeline"
+        assert isinstance(call_args[4], bool)  # send_state
+
+        # Verify on_end_trace args
+        call_args = mock_on_end_trace.call_args[0]
+        assert isinstance(call_args[0], PipelineTrace)
+        assert call_args[1].pipeline_name == "test_pipeline"
+        assert isinstance(call_args[2], bool)  # send_state
+
+
+def test_progress_subclass_receives_callbacks() -> None:
+    counters_accesible = False
+    callbacks_received = {
+        "on_start_trace": False,
+        "on_start_trace_step": False,
+        "on_end_trace_step": False,
+        "on_end_trace": False,
+    }
+
+    class MyCollector(LogCollector):
+        def on_start_trace(
+            self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
+        ) -> None:
+            nonlocal callbacks_received
+            callbacks_received["on_start_trace"] = True
+
+        def on_start_trace_step(
+            self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
+        ) -> None:
+            nonlocal callbacks_received
+            callbacks_received["on_start_trace_step"] = True
+
+        def on_end_trace_step(
+            self,
+            trace: PipelineTrace,
+            step: PipelineStepTrace,
+            pipeline: SupportsPipeline,
+            step_info: Any,
+            send_state: bool,
+        ) -> None:
+            nonlocal callbacks_received
+            callbacks_received["on_end_trace_step"] = True
+
+        def on_end_trace(
+            self, trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool
+        ) -> None:
+            nonlocal callbacks_received
+            callbacks_received["on_end_trace"] = True
+
+        def on_log(self) -> None:
+            nonlocal counters_accesible
+            if self.counters.keys():
+                counters_accesible = True
+
+    collector = MyCollector()
+    pipeline = dlt.pipeline(pipeline_name="test_pipeline", destination="dummy", progress=collector)
+    pipeline.extract([1, 2, 3], table_name="test_table")
+
+    assert counters_accesible
+    assert callbacks_received["on_start_trace"]
+    assert callbacks_received["on_start_trace_step"]
+    assert callbacks_received["on_end_trace_step"]
+    assert callbacks_received["on_end_trace"]
+
+
 def test_pipeline_source_state_activation() -> None:
     appendix_yielded = None
 
@@ -2749,12 +2854,12 @@ def test_local_filesystem_destination(local_path: str) -> None:
     assert expected_dataset.joinpath(INIT_FILE_NAME).is_file()
     # one numbers table (replaced)
     assert len(list(expected_dataset.joinpath("numbers").glob("*"))) == 1
-    # two loads + init
-    assert len(list(expected_dataset.joinpath("_dlt_loads").glob("*"))) == 3
+    # two loads
+    assert len(list(expected_dataset.joinpath("_dlt_loads").glob("*"))) == 2
     # one schema (dedup on hash)
-    assert len(list(expected_dataset.joinpath("_dlt_version").glob("*"))) == 2
+    assert len(list(expected_dataset.joinpath("_dlt_version").glob("*"))) == 1
     # one state (not sent twice)
-    assert len(list(expected_dataset.joinpath("_dlt_pipeline_state").glob("*"))) == 2
+    assert len(list(expected_dataset.joinpath("_dlt_pipeline_state").glob("*"))) == 1
 
     fs_client = pipeline._fs_client()
     # all path formats we use must lead to "_storage" relative to tests
@@ -3224,7 +3329,7 @@ def test_exceed_job_file_name_length() -> None:
     assert isinstance(os_err.value.__cause__, OSError)
 
     # fit into 255 + 1
-    suffix_len = len(".b61d3af76c.0.insert-values")
+    suffix_len = len(".b61d3af76c.0.insert-values.gz")
     pipeline = dlt.pipeline(
         pipeline_name="test_exceed_job_file_name_length",
         destination=duckdb(
@@ -3256,10 +3361,18 @@ def assert_imported_file(
     assert len(rows[table_name]) == expected_rows
     # we should have twp files loaded
     jobs = pipeline.last_trace.last_load_info.load_packages[0].jobs["completed_jobs"]
-    job_extensions = [os.path.splitext(job.job_file_info.file_name())[1] for job in jobs]
+    job_extensions = []
+    for job in jobs:
+        parsed_file = ParsedLoadJobFileName.parse(job.job_file_info.file_name())
+        ext = (
+            f".{parsed_file.file_format}.gz"
+            if parsed_file.is_compressed
+            else f".{parsed_file.file_format}"
+        )
+        job_extensions.append(ext)
     assert ".jsonl" in job_extensions
     if expects_state:
-        assert ".insert_values" in job_extensions
+        assert ".insert_values.gz" in job_extensions
     # check extract trace if jsonl is really there
     extract_info = pipeline.last_trace.last_extract_info
     jobs = extract_info.load_packages[0].jobs["new_jobs"]
@@ -3502,7 +3615,7 @@ def test_nested_hints_file_format() -> None:
     norm_metrics = normalize_info.metrics[load_id][0]
     for file_name, _ in norm_metrics["job_metrics"].items():
         # always jsonl
-        assert file_name.endswith("jsonl")
+        assert file_name.endswith("jsonl.gz")
 
 
 def test_nested_hints_write_disposition_append_replace() -> None:

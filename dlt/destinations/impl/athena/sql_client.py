@@ -128,17 +128,17 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         )
         # HIVE escaping for DDL
         self.execute_sql(
-            f"CREATE DATABASE {self.fully_qualified_ddl_dataset_name()}{db_location_clause};"
+            f"CREATE DATABASE {self.fully_qualified_ddl_dataset_name()}{db_location_clause}"
         )
 
     def drop_dataset(self) -> None:
-        self.execute_sql(f"DROP DATABASE {self.fully_qualified_ddl_dataset_name()} CASCADE;")
+        self.execute_sql(f"DROP DATABASE {self.fully_qualified_ddl_dataset_name()} CASCADE")
 
     def drop_tables(self, *tables: str) -> None:
         if not tables:
             return
         statements = [
-            f"DROP TABLE IF EXISTS {self.make_qualified_ddl_table_name(table)};" for table in tables
+            f"DROP TABLE IF EXISTS {self.make_qualified_ddl_table_name(table)}" for table in tables
         ]
         self.execute_many(statements)
 

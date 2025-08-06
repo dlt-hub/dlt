@@ -214,7 +214,7 @@ class TableLoader:
 
         # default settings
         backend_kwargs = {
-            "return_type": "arrow2",
+            "return_type": "arrow",
             "protocol": "binary",
             **backend_kwargs,
         }
@@ -233,7 +233,19 @@ class TableLoader:
                 f" literals that cannot be rendered, upgrade to 2.x: `{str(ex)}`"
             ) from ex
         df = cx.read_sql(conn, query_str, **backend_kwargs)
-        yield df
+        yield self._maybe_fix_0000_timezone(df)
+
+    def _maybe_fix_0000_timezone(self, df: Any) -> Any:
+        """Optionally convert +00:00 timezone to UTC"""
+        try:
+            from dlt.common.libs.pyarrow import set_plus0000_timezone_to_utc, pyarrow
+
+            # TODO: skip when Arrow releases timezone fix
+            if isinstance(df, pyarrow.Table):
+                return set_plus0000_timezone_to_utc(df)
+        except MissingDependencyException:
+            pass
+        return df
 
 
 def table_rows(
@@ -338,7 +350,7 @@ def unwrap_json_connector_x(field: str) -> TDataItem:
         column = pc.replace_with_mask(
             column,
             pc.equal(column, "null").combine_chunks(),
-            pa.scalar(None, pa.large_string()),
+            pa.scalar(None, pa.string()),
         )
         return table.set_column(col_index, table.schema.field(col_index), column)
 

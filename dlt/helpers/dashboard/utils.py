@@ -80,7 +80,9 @@ def get_pipeline(pipeline_name: str, pipelines_dir: str) -> dlt.Pipeline:
     Returns:
         dlt.Pipeline: The pipeline.
     """
-    return dlt.attach(pipeline_name, pipelines_dir=pipelines_dir)
+    p = dlt.attach(pipeline_name, pipelines_dir=pipelines_dir)
+    p.config.use_single_dataset = False
+    return p
 
 
 #

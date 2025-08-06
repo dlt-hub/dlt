@@ -69,7 +69,7 @@ def create_ibis_backend(
 
         # make sure we can access tables from current dataset without qualification
         dataset_name = client.sql_client.fully_qualified_dataset_name()
-        con.raw_sql(f"SET search_path = '{dataset_name}';")
+        con.raw_sql(f"SET search_path = '{dataset_name}'")
     elif issubclass(destination.spec, PostgresClientConfiguration):
         from dlt.destinations.impl.postgres.postgres import PostgresClient
         from dlt.destinations.impl.redshift.redshift import RedshiftClient
