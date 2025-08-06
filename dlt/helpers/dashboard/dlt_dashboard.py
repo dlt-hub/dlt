@@ -323,7 +323,7 @@ def section_browse_data_table_list(
                 _sql_query = (
                     cast(ReadableDBAPIRelation, _dataset.table(_table_name))
                     .limit(1000 if dlt_restrict_to_last_1000.value else None)
-                    .to_sql(pretty=True)
+                    .to_sql(pretty=True, _raw_query=True)
                 )
 
             dlt_query_editor = mo.ui.code_editor(
