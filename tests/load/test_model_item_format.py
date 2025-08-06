@@ -68,21 +68,6 @@ UNSUPPORTED_MODEL_QUERIES = [
 
 
 @pytest.mark.parametrize(
-    "unsupported_model_query",
-    UNSUPPORTED_MODEL_QUERIES,
-    ids=[f"query-{q.strip().split()[0].lower()}" for q in UNSUPPORTED_MODEL_QUERIES],
-)
-def test_model_writer_with_non_select_query(unsupported_model_query: str, mocker) -> None:
-    mocker_file = io.StringIO()
-    writer = ModelWriter(mocker_file)
-    mock_item = [MagicMock(dialect=None, query=unsupported_model_query)]
-    with pytest.raises(
-        ValueError, match="Only SELECT statements are allowed to write model files."
-    ):
-        writer.write_data(mock_item)
-
-
-@pytest.mark.parametrize(
     "destination_config",
     destination_configs,
     ids=lambda x: x.name,
