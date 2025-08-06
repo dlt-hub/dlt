@@ -52,6 +52,15 @@ def pipeline_command(
             fmt.secho(_dir, fg="green")
         return
 
+    # we may open the dashboard for a pipeline without checking if it exists
+    if operation == "show" and command_kwargs.get("dashboard"):
+        from dlt.common.utils import custom_environ
+        from dlt.common.known_env import DLT_DATA_DIR
+
+        from dlt.helpers.dashboard.runner import run_dashboard
+
+        run_dashboard(pipeline_name, edit=command_kwargs.get("edit"), pipelines_dir=pipelines_dir)
+
     try:
         if verbosity > 0:
             fmt.echo("Attaching to pipeline %s" % fmt.bold(pipeline_name))
@@ -117,40 +126,30 @@ def pipeline_command(
     fmt.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
 
     if operation == "show":
-        if command_kwargs.get("dashboard"):
-            from dlt.common.utils import custom_environ
-            from dlt.common.known_env import DLT_DATA_DIR
+        from dlt.common.runtime import signals
+        from dlt.helpers.streamlit_app import index
 
-            from dlt.helpers.dashboard.runner import run_dashboard
+        with signals.delayed_signals():
+            streamlit_cmd = [
+                "streamlit",
+                "run",
+                index.__file__,
+                "--client.showSidebarNavigation",
+                "false",
+            ]
 
-            run_dashboard(
-                pipeline_name, edit=command_kwargs.get("edit"), pipelines_dir=p.pipelines_dir
-            )
-        else:
-            from dlt.common.runtime import signals
-            from dlt.helpers.streamlit_app import index
+            if hot_reload:
+                streamlit_cmd.append("--server.runOnSave")
+                streamlit_cmd.append("true")
 
-            with signals.delayed_signals():
-                streamlit_cmd = [
-                    "streamlit",
-                    "run",
-                    index.__file__,
-                    "--client.showSidebarNavigation",
-                    "false",
-                ]
+            streamlit_cmd.append("--")
+            streamlit_cmd.append(pipeline_name)
+            streamlit_cmd.append("--pipelines-dir")
+            streamlit_cmd.append(p.pipelines_dir)
 
-                if hot_reload:
-                    streamlit_cmd.append("--server.runOnSave")
-                    streamlit_cmd.append("true")
-
-                streamlit_cmd.append("--")
-                streamlit_cmd.append(pipeline_name)
-                streamlit_cmd.append("--pipelines-dir")
-                streamlit_cmd.append(p.pipelines_dir)
-
-                venv = Venv.restore_current()
-                for line in iter_stdout(venv, *streamlit_cmd):
-                    fmt.echo(line)
+            venv = Venv.restore_current()
+            for line in iter_stdout(venv, *streamlit_cmd):
+                fmt.echo(line)
 
     if operation == "info":
         state: TSourceState = p.state  # type: ignore

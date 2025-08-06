@@ -24,6 +24,7 @@ from dlt.helpers.dashboard import ui_elements as ui
 from dlt.helpers.dashboard.config import DashboardConfiguration
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.pipeline.exceptions import PipelineConfigMissing
+from dlt.pipeline.exceptions import CannotRestorePipelineException
 
 from dlt.common.storages.configuration import WithLocalFiles
 
@@ -44,7 +45,7 @@ def resolve_dashboard_config(p: dlt.Pipeline) -> DashboardConfiguration:
 
 
 def get_local_pipelines(
-    pipelines_dir: str = None, sort_by_trace: bool = True
+    pipelines_dir: str = None, sort_by_trace: bool = True, addtional_pipeline: str = None
 ) -> Tuple[str, List[Dict[str, Any]]]:
     """Get the local pipelines directory and the list of pipeline names in it.
 
@@ -61,6 +62,9 @@ def get_local_pipelines(
         pipelines = storage.list_folder_dirs(".", to_root=False)
     except Exception:
         pipelines = []
+
+    if addtional_pipeline and addtional_pipeline not in pipelines:
+        pipelines.append(addtional_pipeline)
 
     # check last trace timestamp and create dict
     pipelines_with_timestamps = []
@@ -87,9 +91,12 @@ def get_pipeline(pipeline_name: str, pipelines_dir: str) -> dlt.Pipeline:
     Returns:
         dlt.Pipeline: The pipeline.
     """
-    p = dlt.attach(pipeline_name, pipelines_dir=pipelines_dir)
-    p.config.use_single_dataset = False
-    return p
+    try:
+        p = dlt.attach(pipeline_name, pipelines_dir=pipelines_dir)
+        p.config.use_single_dataset = False
+        return p
+    except CannotRestorePipelineException:
+        pass
 
 
 #
@@ -484,7 +491,7 @@ def open_local_folder(folder: str) -> None:
 
 def get_local_data_path(pipeline: dlt.Pipeline) -> str:
     """Get the local data path of a pipeline"""
-    if not pipeline.destination:
+    if not pipeline.destination or not pipeline.default_schema_name:
         return None
     config = pipeline._get_destination_clients()[0].config
     if isinstance(config, WithLocalFiles):
