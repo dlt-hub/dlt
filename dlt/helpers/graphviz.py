@@ -10,6 +10,7 @@ from dlt.destinations.dataset import ReadableDBAPIDataset
 from dlt.common.exceptions import MissingDependencyException, TypeErrorWithKnownTypes
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
+    LOADS_TABLE_NAME,
     VERSION_TABLE_NAME,
     TColumnSchema,
     TSchemaTables,
@@ -143,7 +144,7 @@ def _to_dot_reference(
 
 
 # NOTE if changing `rankdir` to `TB`, need to change how edges are built
-def _get_graph_header(schema_name: str) -> str:
+def _get_graph_header(schema_name: str, include_dlt_tables: bool) -> str:
     # don't forget the double `{{` to escape `{` inside an f-string; your IDE might wrongly complain
     """
     ref for graph layout: https://graphviz.org/pdf/dot.1.pdf
@@ -157,9 +158,10 @@ def _get_graph_header(schema_name: str) -> str:
     Another important property is how stable the layout is when modifying the
     graph.
     """
+    layout_root_table = f', root="{LOADS_TABLE_NAME}"' if include_dlt_tables else ""
     return f"""digraph {schema_name} {{
     rankdir=LR;
-    graph [fontname="helvetica", fontcolor="{{TABLE_BORDER_COLOR}}", layout="twopi", ranksep=5, root="_dlt_loads"];
+    graph [fontname="helvetica", fontcolor="{{TABLE_BORDER_COLOR}}", layout="twopi"{layout_root_table}];
     node [penwidth=0, margin=0, fontname="helvetica"];
     edge [fontname="helvetica", fontcolor="{{TABLE_BORDER_COLOR}}", color="{{TABLE_BORDER_COLOR}}"];
 
@@ -239,6 +241,7 @@ def _add_references(
     schema: TStoredSchema,
     graphviz_dot: str,
     *,
+    include_dlt_tables: bool,
     include_internal_dlt_ref: bool,
     include_parent_child_ref: bool,
     include_root_child_ref: bool,
@@ -260,7 +263,7 @@ def _add_references(
             )
 
         # link root -> loads table
-        if include_internal_dlt_ref is True and bool(table["columns"].get(C_DLT_LOAD_ID)):
+        if include_dlt_tables and include_internal_dlt_ref and bool(table["columns"].get(C_DLT_LOAD_ID)):
             # root table contains 1 to many rows associated with a single row in loads table
             # possible cardinality: `-` (1-to-1) or `>` (m-to-1)
             graphviz_dot += _to_dot_reference(
@@ -271,7 +274,7 @@ def _add_references(
             )
 
         # link child -> parent
-        if include_parent_child_ref is True and is_nested_table(table):
+        if include_dlt_tables and include_parent_child_ref and is_nested_table(table):
             # child table contains 1 to many rows associated with has a single row in parent table
             # possible cardinality: `-` (1-to-1) or `>` (m-to-1)
             graphviz_dot += _to_dot_reference(
@@ -283,7 +286,7 @@ def _add_references(
 
         # link child -> root
         if (
-            include_root_child_ref is True
+            include_root_child_ref
             and is_nested_table(table)
             # the table must have a root key column; can be enabled via `@dlt.source(root_key=True)` or write_disposition
             and get_first_column_name_with_prop(table, "root_key")
@@ -297,7 +300,7 @@ def _add_references(
             )
 
     # generate links between internal dlt tables
-    if include_internal_dlt_ref is True:
+    if include_dlt_tables and include_internal_dlt_ref:
         # a schema version hash can have multiple runs in the loads table
         # schema version hash is unique
         # possible: cardinality: `-` (1-to-1) or `<` (1-to-m)
@@ -346,7 +349,7 @@ def schema_to_graphviz(
     """
 
     # TODO use the cluster attribute to group tables by resource: https://www.graphviz.org/docs/clusters/
-    graphviz_dot = _get_graph_header(schema["name"])
+    graphviz_dot = _get_graph_header(schema["name"], include_dlt_tables)
 
     if group_by_resource:
         graphviz_dot = _add_table_clusters(
@@ -358,6 +361,7 @@ def schema_to_graphviz(
     graphviz_dot = _add_references(
         schema,
         graphviz_dot,
+        include_dlt_tables=include_dlt_tables,
         include_internal_dlt_ref=include_internal_dlt_ref,
         include_parent_child_ref=include_parent_child_ref,
         include_root_child_ref=include_root_child_ref,
