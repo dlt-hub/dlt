@@ -40,9 +40,10 @@ def home(
     dlt_pipeline: dlt.Pipeline = None
     if dlt_pipeline_name:
         dlt_pipeline = utils.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
+
     dlt_config = utils.resolve_dashboard_config(dlt_pipeline)
 
-    if not dlt_pipeline:
+    if not dlt_pipeline and not dlt_pipeline_name:
         _stack = [
             mo.hstack(
                 [
@@ -76,13 +77,21 @@ def home(
                     mo.image(
                         "https://dlthub.com/docs/img/dlthub-logo.png", width=100, alt="dltHub logo"
                     ).style(padding_bottom="1em"),
-                    mo.center(
-                        mo.md(f"## {strings.app_title_pipeline.format(dlt_pipeline.pipeline_name)}")
-                    ),
+                    mo.center(mo.md(f"## {strings.app_title_pipeline.format(dlt_pipeline_name)}")),
                     dlt_pipeline_select,
                 ],
             ),
         ]
+        if not dlt_pipeline and dlt_pipeline_name:
+            _stack.append(
+                mo.callout(
+                    mo.md(
+                        strings.app_pipeline_not_found.format(dlt_pipeline_name, dlt_pipelines_dir)
+                    ),
+                    kind="warn",
+                )
+            )
+
     mo.vstack(_stack)
     return (dlt_pipeline,)
 
@@ -714,7 +723,9 @@ def utils_discover_pipelines(
     # discover pipelines and build selector
     dlt_pipelines_dir: str = ""
     dlt_all_pipelines: List[Dict[str, Any]] = []
-    dlt_pipelines_dir, dlt_all_pipelines = utils.get_local_pipelines(mo_cli_arg_pipelines_dir)
+    dlt_pipelines_dir, dlt_all_pipelines = utils.get_local_pipelines(
+        mo_cli_arg_pipelines_dir, addtional_pipeline=mo_cli_arg_pipeline
+    )
 
     dlt_pipeline_select: mo.ui.multiselect = mo.ui.multiselect(
         options=[p["name"] for p in dlt_all_pipelines],

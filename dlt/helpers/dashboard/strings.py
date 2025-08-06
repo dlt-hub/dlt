@@ -22,6 +22,19 @@ app_pipeline_select_label = "Pipeline:"
 app_no_pipeline_selected = "No pipeline selected"
 app_schema_select_label = "Schema:"
 
+app_pipeline_not_found = """
+## Pipeline not found
+
+You requested a pipeline named `{}` but it does not exist in pipelines directory `{}`. To fix this, you can do one of the following:
+
+1. Select a different pipeline in the dropdown above
+2. Run a pipeline on this machine with this name
+3. Ensure you have set the correct pipelines directory (pipelines_dir CLI argument)
+4. Restore a pipeline of this name from a destination with sync_pipeline
+
+"""
+
+
 #
 # Home section
 #
