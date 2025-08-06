@@ -28,7 +28,7 @@ app_pipeline_not_found = """
 You requested to view a pipeline named `{}` but it does not exist in the pipelines directory at `{}`. To fix this, you can do one of the following:
 
 1. Select a different pipeline in the dropdown above
-2. Run a pipeline on this machine with this name
+2. Run a pipeline on this machine with this name and then click the refresh button
 3. Ensure you have set the correct pipelines directory (using the `pipelines_dir` CLI argument)
 4. Restore a pipeline of this name from a destination with sync_pipeline
 
@@ -74,7 +74,9 @@ If the dltHub pipeline dashboard can't connect to the destination, you will rece
 </small>
 
 """
-app_title_pipeline = "Pipeline `{}`"
+app_title_pipeline = """
+## Pipeline `{}`
+"""
 
 #
 # Sync status section
