@@ -601,7 +601,6 @@ class Pipeline(SupportsPipeline):
                 runner.run_pool(load_step.config, load_step)
             info: LoadInfo = self._get_step_info(load_step)
             self._update_last_run_context()
-            raise Exception("test")
             return info
         except Exception as l_ex:
             step_info = self._get_step_info(load_step)
