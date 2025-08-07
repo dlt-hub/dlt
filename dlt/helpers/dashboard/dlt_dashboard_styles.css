@@ -86,3 +86,9 @@
 #App .marimo-cell:nth-child(12) .output-area {
   margin-top: 0.5rem;
 }
+
+
+marimo-callout-output .border {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}

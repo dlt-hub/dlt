@@ -20,7 +20,7 @@ from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage
 from dlt.common.destination.client import DestinationClientConfiguration
 
-from dlt.helpers.dashboard import ui_elements as ui
+from dlt.helpers.dashboard import dlt_dashboard, ui_elements as ui
 from dlt.helpers.dashboard.config import DashboardConfiguration
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.pipeline.exceptions import PipelineConfigMissing
@@ -428,9 +428,7 @@ def trace_resolved_config_values(
     return [v.asdict() for v in trace.resolved_config_values]  # type: ignore[misc]
 
 
-def trace_step_details(
-    c: DashboardConfiguration, trace: PipelineTrace, step_id: str
-) -> List[Dict[str, Any]]:
+def trace_step_details(c: DashboardConfiguration, trace: PipelineTrace, step_id: str) -> List[Any]:
     """
     Get the details of a step.
     """
@@ -541,21 +539,63 @@ def build_pipeline_link_list(
     return link_list
 
 
+def build_exception_section(p: dlt.Pipeline) -> List[Any]:
+    """Build an exception section for a pipeline"""
+    if not p or not p.last_trace:
+        return []
+
+    exception_step = None
+    for step in p.last_trace.steps:
+        if step.step_exception:
+            exception_step = step
+            break
+
+    if not exception_step:
+        return []
+
+    _result = []
+    _result.append(
+        ui.build_title_and_subtitle(
+            f"Exception encountered during last load in step '{step.step}'",
+            title_level=2,
+        )
+    )
+
+    _exception_traces = []
+    for trace in reversed(exception_step.exception_traces):
+        _exception_traces.extend(trace["stack_trace"])
+        _exception_traces.append(f"{trace['exception_type']}: {trace['message']}")
+        _exception_traces.append("\n")
+        _exception_traces.append("\n")
+
+    _result.append(
+        mo.accordion(
+            {
+                "Show full stacktrace": mo.ui.code_editor(
+                    "".join(_exception_traces), language="shell"
+                )
+            },
+            lazy=True,
+        )
+    )
+    return [mo.callout(mo.vstack(_result), kind="danger")]
+
+
+#
+# internal utils
+#
+
+
 def _date_from_timestamp_with_ago(
     config: DashboardConfiguration, timestamp: Union[int, float]
 ) -> str:
-    """Return a date with ago if it is less than 1 day old"""
+    """Return a date with ago section"""
     if not timestamp or timestamp == 0:
         return "never"
     p_ts = pendulum.from_timestamp(timestamp)
     time_formatted = p_ts.format(config.datetime_format)
     ago = p_ts.diff_for_humans()
     return f"{ago} ({time_formatted})"
-
-
-#
-# internal utils
-#
 
 
 def _without_none_or_empty_string(d: Mapping[Any, Any]) -> Mapping[Any, Any]:
