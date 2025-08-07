@@ -103,6 +103,7 @@ overview_remote_state_title = "Remote state"
 overview_remote_state_subtitle = (
     "The remote state and schemas of the pipeline as discovered on the destination"
 )
+overview_remote_state_button = "Load and show remote state"
 
 #
 # Schema page
