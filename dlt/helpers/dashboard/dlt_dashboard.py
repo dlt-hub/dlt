@@ -15,13 +15,13 @@ with app.setup:
 
     import pandas as pd
     import sqlglot
+    import yaml
 
     import dlt
     from dlt.common.json import json
     from dlt.helpers.dashboard import strings, utils, ui_elements as ui
     from dlt.helpers.dashboard.config import DashboardConfiguration
     from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
-
 
 
 @app.cell(hide_code=True)
@@ -260,7 +260,7 @@ def section_schema(
             mo.accordion(
                 {
                     strings.schema_show_raw_yaml_text: mo.ui.code_editor(
-                        dlt_pipeline.default_schema.to_pretty_yaml(),
+                        dlt_pipeline.schemas[dlt_selected_schema_name].to_pretty_yaml(),
                         language="yaml",
                     )
                 }
@@ -304,6 +304,7 @@ def section_browse_data_table_list(
                 mo.hstack(
                     [
                         dlt_schema_select,
+                        dlt_schema_show_row_counts,
                         dlt_schema_show_dlt_tables,
                         dlt_schema_show_child_tables,
                     ],
@@ -311,11 +312,55 @@ def section_browse_data_table_list(
                 ),
             )
             _result.append(dlt_data_table_list)
-            _result.append(dlt_schema_show_row_counts)
 
             _sql_query = ""
             if dlt_data_table_list.value:
                 _table_name = dlt_data_table_list.value[0]["name"]  # type: ignore[index,unused-ignore]
+                _schema_table = dlt_pipeline.schemas[dlt_selected_schema_name].tables[_table_name]
+
+                # state section
+                _state_section_content = []
+
+                # get source and resource state for correct resources from pipeline
+                _converted_state = json.loads(json.dumps(dlt_pipeline.state))
+                _source_state = _converted_state.get("sources", {}).get(
+                    dlt_selected_schema_name, {}
+                )
+                _resources_state = _source_state.pop("resources", {})
+                _resource_state = _resources_state.get(_schema_table["resource"], {})
+
+                # render
+                _state_section_content.append(
+                    mo.hstack(
+                        [
+                            mo.ui.code_editor(
+                                yaml.safe_dump(_source_state),
+                                label=f"<small>Source state for {dlt_selected_schema_name}</small>",
+                                language="yaml",
+                            ),
+                            mo.ui.code_editor(
+                                yaml.safe_dump(_resource_state),
+                                label=(
+                                    f"<small>Resource state for {_schema_table['resource']}</small>"
+                                ),
+                                language="yaml",
+                            ),
+                        ],
+                        justify="start",
+                        widths="equal",
+                    )
+                )
+
+                _result.append(
+                    mo.accordion(
+                        {
+                            f"<small>Show source and resource state resource {_schema_table['resource']} which created table {_table_name}</small>": mo.vstack(
+                                _state_section_content
+                            )
+                        }
+                    )
+                )
+
                 _dataset = cast(
                     ReadableDBAPIDataset, dlt_pipeline.dataset(schema=dlt_selected_schema_name)
                 )
@@ -478,8 +523,8 @@ def section_state(
     if dlt_pipeline and dlt_section_state_switch.value:
         _result.append(
             mo.ui.code_editor(
-                json.dumps(dlt_pipeline.state, pretty=True),
-                language="json",
+                yaml.safe_dump(json.loads(json.dumps(dlt_pipeline.state))),
+                language="yaml",
             ),
         )
     mo.vstack(_result) if _result else None
@@ -882,8 +927,8 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
         dlt_section_sync_switch,
         dlt_section_trace_switch,
     )
-    
-    
+
+
 @app.cell(hide_code=True)
 def watch_changes(
     dlt_pipeline_select: mo.ui.multiselect,
