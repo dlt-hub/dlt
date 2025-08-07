@@ -136,12 +136,13 @@ ui_limit_to_1000_rows = "Limit to 1000 rows"
 #
 # Browse data page
 #
-browse_data_title = "Dataset Browser: Data"
+browse_data_title = "Dataset Browser: Data and source / resource state"
 browse_data_subtitle = "Browse data from the current pipeline."
 browse_data_subtitle_long = (
     "Browse data from the current pipeline. Select a table from the list to start or write a SQL"
     " query in the text area below. Clicking the row counts button will load the row counts for all"
     " tables from the destination. To reload the row count, just click the button again."
+    " The resource state of the currently selected table will also be displayed if it is available"
 )
 
 browse_data_error_text = f"Error connecting to destination. {_credentials_info}"
