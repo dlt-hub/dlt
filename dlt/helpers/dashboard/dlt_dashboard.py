@@ -160,13 +160,18 @@ def section_overview(
                     strings.overview_remote_state_title, strings.overview_remote_state_subtitle
                 )
             )
-            _result += [
-                mo.ui.table(
-                    utils.remote_state_details(dlt_pipeline),
-                    selection=None,
-                    style_cell=utils.style_cell,
-                ),
-            ]
+            _result.append(
+                    mo.accordion(
+                        {
+                            strings.overview_remote_state_button: mo.ui.table(
+                                utils.remote_state_details(dlt_pipeline),
+                                selection=None,
+                                style_cell=utils.style_cell,
+                            )
+                        },
+                        lazy=True,
+                    )
+                )
     mo.vstack(_result) if _result else None
     return
 
