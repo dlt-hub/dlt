@@ -25,20 +25,18 @@ async def initialize():
 
 @app.cell
 def run(dlt):
-    import dlt
+    import dlt, requests
+    
 
-    @dlt.resource(table_name="items")
-    def foo():
-        for i in range(50):
-            yield {"id": i, "name": f"This is item {i}"}
+    
+    @dlt.resource(table_name="users")
+    def users():
+        resp = requests.get("https://dummyjson.com/users", timeout=30)
+        yield from resp.json()["users"]
 
-    pipeline = dlt.pipeline(
-        pipeline_name="python_data_example",
-        destination="duckdb",
-        dev_mode=True,
-    )
-
-    load_info = pipeline.run(foo)
+    pipe = dlt.pipeline("dummy_users", "duckdb")
+    info = pipe.run(users())
+    print(info)
     return (pipeline,)
 
 
