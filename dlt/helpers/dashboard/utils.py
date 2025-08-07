@@ -25,6 +25,7 @@ from dlt.helpers.dashboard.config import DashboardConfiguration
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.pipeline.exceptions import PipelineConfigMissing
 from dlt.pipeline.exceptions import CannotRestorePipelineException
+from dlt.pipeline.trace import PipelineTrace
 
 from dlt.common.storages.configuration import WithLocalFiles
 
@@ -44,7 +45,7 @@ def resolve_dashboard_config(p: dlt.Pipeline) -> DashboardConfiguration:
     )
 
 
-def get_pipeline_last_run(pipeline_name: str, pipelines_dir: str) -> int:
+def get_pipeline_last_run(pipeline_name: str, pipelines_dir: str) -> float:
     """Get the last run of a pipeline"""
     trace_file = Path(pipelines_dir) / pipeline_name / PICKLE_TRACE_FILE
     if trace_file.exists():
@@ -102,7 +103,7 @@ def get_pipeline(pipeline_name: str, pipelines_dir: str) -> dlt.Pipeline:
         p.config.use_single_dataset = False
         return p
     except CannotRestorePipelineException:
-        pass
+        return None
 
 
 #
@@ -204,7 +205,7 @@ def remote_state_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
 def create_table_list(
     c: DashboardConfiguration,
     pipeline: dlt.Pipeline,
-    selected_schema_name: str,
+    selected_schema_name: str = None,
     show_internals: bool = False,
     show_child_tables: bool = True,
     show_row_counts: bool = False,
@@ -244,7 +245,7 @@ def create_column_list(
     c: DashboardConfiguration,
     pipeline: dlt.Pipeline,
     table_name: str,
-    dlt_selected_schema_name: str,
+    select_schema_name: str = None,
     show_internals: bool = False,
     show_type_hints: bool = True,
     show_other_hints: bool = False,
@@ -258,7 +259,7 @@ def create_column_list(
     """
     column_list: List[Dict[str, Any]] = []
     for column in (
-        pipeline.schemas[dlt_selected_schema_name]
+        pipeline.schemas[select_schema_name]
         .get_table_columns(table_name, include_incomplete=False)
         .values()
     ):
@@ -319,7 +320,7 @@ def get_query_result(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
 
 
 def get_row_counts(
-    pipeline: dlt.Pipeline, selected_schema_name: str, load_id: str = None
+    pipeline: dlt.Pipeline, selected_schema_name: str = None, load_id: str = None
 ) -> Dict[str, int]:
     """Get the row counts for a pipeline.
 
@@ -372,7 +373,7 @@ def get_schema_by_version(pipeline: dlt.Pipeline, version_hash: str) -> Schema:
 #
 
 
-def trace_overview(c: DashboardConfiguration, trace: Dict[str, Any]) -> List[Dict[str, Any]]:
+def trace_overview(c: DashboardConfiguration, trace: PipelineTrace) -> List[Dict[str, Any]]:
     """
     Get the overview of a trace.
     """
@@ -380,55 +381,63 @@ def trace_overview(c: DashboardConfiguration, trace: Dict[str, Any]) -> List[Dic
         _humanize_datetime_values(
             c,
             {
-                k: v
-                for k, v in trace.items()
-                if k in ["transaction_id", "pipeline_name", "started_at", "finished_at"]
+                "transaction_id": trace.transaction_id,
+                "pipeline_name": trace.pipeline_name,
+                "started_at": trace.started_at,
+                "finished_at": trace.finished_at,
             },
         )
     )
 
 
 def trace_execution_context(
-    c: DashboardConfiguration, trace: Dict[str, Any]
+    c: DashboardConfiguration, trace: PipelineTrace
 ) -> List[Dict[str, Any]]:
     """
     Get the execution context of a trace.
     """
-    return _dict_to_table_items(trace.get("execution_context", {}))
+    return _dict_to_table_items(dict(trace.execution_context) or {})
 
 
-def trace_steps_overview(c: DashboardConfiguration, trace: Dict[str, Any]) -> List[Dict[str, Any]]:
+def trace_steps_overview(c: DashboardConfiguration, trace: PipelineTrace) -> List[Dict[str, Any]]:
     """
     Get the steps overview of a trace.
     """
 
     result = []
-    for step in trace.get("steps", []):
+    for step_obj in trace.steps:
+        if step_obj.step == "run":
+            continue
+        # NOTE: use typing and not asdict here
+        step = step_obj.asdict()
         step = _humanize_datetime_values(c, step)
-        result.append(
-            {k: step[k] for k in ["step", "started_at", "finished_at", "duration"] if k in step}
-        )
+        step_dict = {
+            k: step[k] for k in ["step", "started_at", "finished_at", "duration"] if k in step
+        }
+        step_dict["result"] = "failed" if step.get("step_exception") else "completed"
+        result.append(step_dict)
     return result
 
 
 def trace_resolved_config_values(
-    c: DashboardConfiguration, trace: Dict[str, Any]
+    c: DashboardConfiguration, trace: PipelineTrace
 ) -> List[Dict[str, Any]]:
     """
     Get the resolved config values of a trace.
     """
-    return [v.asdict() for v in trace.get("resolved_config_values", [])]
+    return [v.asdict() for v in trace.resolved_config_values]  # type: ignore[misc]
 
 
 def trace_step_details(
-    c: DashboardConfiguration, trace: Dict[str, Any], step_id: str
+    c: DashboardConfiguration, trace: PipelineTrace, step_id: str
 ) -> List[Dict[str, Any]]:
     """
     Get the details of a step.
     """
     _result = []
-    for step in trace.get("steps", []):
-        if step.get("step") == step_id:
+    for step_obj in trace.steps:
+        if step_obj.step == step_id:
+            step = step_obj.asdict()
             info_section = step.get(f"{step_id}_info", {})
             if "table_metrics" in info_section:
                 _result.append(
@@ -440,7 +449,11 @@ def trace_step_details(
                 table_metrics = _align_dict_keys(info_section.get("table_metrics", []))
                 table_metrics = [_humanize_datetime_values(c, t) for t in table_metrics]
                 _result.append(
-                    mo.ui.table(table_metrics, selection=None, freeze_columns_left=["table_name"])
+                    mo.ui.table(
+                        table_metrics,
+                        selection=None,
+                        freeze_columns_left=(["table_name"] if table_metrics else None),
+                    )
                 )
 
             if "job_metrics" in info_section:
@@ -453,7 +466,11 @@ def trace_step_details(
                 job_metrics = _align_dict_keys(info_section.get("job_metrics", []))
                 job_metrics = [_humanize_datetime_values(c, j) for j in job_metrics]
                 _result.append(
-                    mo.ui.table(job_metrics, selection=None, freeze_columns_left=["table_name"])
+                    mo.ui.table(
+                        job_metrics,
+                        selection=None,
+                        freeze_columns_left=(["table_name"] if job_metrics else None),
+                    )
                 )
 
     return _result
@@ -524,7 +541,9 @@ def build_pipeline_link_list(
     return link_list
 
 
-def _date_from_timestamp_with_ago(config: DashboardConfiguration, timestamp: int) -> str:
+def _date_from_timestamp_with_ago(
+    config: DashboardConfiguration, timestamp: Union[int, float]
+) -> str:
     """Return a date with ago if it is less than 1 day old"""
     if not timestamp or timestamp == 0:
         return "never"

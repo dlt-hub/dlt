@@ -170,9 +170,10 @@ def test_get_pipeline(test_pipeline):
     assert pipeline.dataset_name == test_pipeline.dataset_name
 
 
-def test_pipeline_details(test_pipeline):
+def test_pipeline_details(test_pipeline, temp_pipelines_dir):
     """Test getting pipeline details from a real pipeline"""
-    result = pipeline_details(test_pipeline)
+    config = DashboardConfiguration()
+    result = pipeline_details(config, test_pipeline, temp_pipelines_dir)
 
     assert isinstance(result, list)
     assert len(result) == 6
@@ -482,10 +483,12 @@ def test_integration_get_local_pipelines_with_sorting(temp_pipelines_dir):
     assert most_recent["timestamp"] == 2000000
 
 
-def test_integration_pipeline_workflow(test_pipeline):
+def test_integration_pipeline_workflow(test_pipeline, temp_pipelines_dir):
     """Test integration scenario with complete pipeline workflow"""
     # Test pipeline details
-    details = pipeline_details(test_pipeline)
+    config = DashboardConfiguration()
+
+    details = pipeline_details(config, test_pipeline, temp_pipelines_dir)
     details_dict = {item["name"]: item["value"] for item in details}
     assert details_dict["pipeline_name"] == "test_pipeline"
 
