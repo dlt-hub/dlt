@@ -548,6 +548,30 @@ In the example above, we use `dlt.mark.with_hints` and `dlt.mark.make_hints` to 
 You can emit columns as a Pydantic model and use dynamic hints (i.e., lambda for table name) as well. You should avoid redefining `Incremental` this way.
 :::
 
+### Materialize schema without data
+If you need to create a table without inserting any data, use `dlt.mark.materialize_table_schema()` together with `dlt.mark.with_hints()`. This is helpful for defining schema-only resources and making sure tables are created in the destination even if no rows are loaded.
+
+```py
+@dlt.resource(table_name="raw_events")
+def raw_events():
+    yield dlt.mark.with_hints(
+        dlt.mark.materialize_table_schema(),
+        dlt.mark.make_hints(columns=[
+            {"name": "id", "data_type": "bigint", "primary_key": True},
+            {"name": "event_type", "data_type": "text"},
+        ])
+    )
+```
+:::note
+Tables in dlt are only materialized if data is yielded or if you explicitly call `dlt.mark.materialize_table_schema()`.
+
+- `yield {}` creates a table with one empty row containing `_dlt_id` and `_dlt_load_id`, but may fail if non-nullable columns exist.
+- `yield []`, schema hints, and Pydantic models update `schema.yml` but do not materialize the table.
+
+Use `materialize_table_schema()` to safely create tables without loading any data.
+:::
+
+
 ### Import external files
 You can import external files, i.e., CSV, Parquet, and JSONL, by yielding items marked with `with_file_import`, optionally passing a table schema corresponding to the imported file. dlt will not read, parse, or normalize any names (i.e., CSV or Arrow headers) and will attempt to copy the file into the destination as is.
 ```py
