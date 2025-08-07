@@ -9,7 +9,7 @@ app = marimo.App(
 )
 
 with app.setup:
-    from typing import Any, Dict, List, Callable, cast
+    from typing import Any, Dict, List, cast
 
     import marimo as mo
 
@@ -23,25 +23,24 @@ with app.setup:
     from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
 
 
+
 @app.cell(hide_code=True)
 def home(
     dlt_all_pipelines: List[Dict[str, Any]],
     dlt_pipeline_select: mo.ui.multiselect,
     dlt_pipelines_dir: str,
     dlt_refresh_button: mo.ui.run_button,
+    dlt_pipeline_name: str,
+    dlt_file_watcher: Any,
 ):
     """
     Displays the welcome page with the pipeline select widget, will only display pipeline title if a pipeline is selected
     """
 
-    # NOTE: keep this
-    if dlt_refresh_button:
-        pass
+    # NOTE: keep these two lines for refreshing
+    dlt_refresh_button
+    dlt_file_watcher
 
-    # provide pipeline object to the following cells
-    dlt_pipeline_name: str = (
-        str(dlt_pipeline_select.value[0]) if dlt_pipeline_select.value else None
-    )
     dlt_pipeline: dlt.Pipeline = None
     if dlt_pipeline_name:
         dlt_pipeline = utils.get_pipeline(dlt_pipeline_name, dlt_pipelines_dir)
@@ -131,7 +130,6 @@ def section_overview(
     dlt_all_pipelines: List[Dict[str, Any]],
     dlt_config: DashboardConfiguration,
     dlt_pipelines_dir: str,
-    dlt_refresh_button: mo.ui.run_button,
 ):
     """
     Overview page of currently selected pipeline
@@ -143,7 +141,6 @@ def section_overview(
         strings.overview_subtitle,
         strings.overview_subtitle,
         dlt_section_overview_switch,
-        dlt_refresh_button,
     )
 
     if dlt_pipeline and dlt_section_overview_switch.value:
@@ -191,7 +188,6 @@ def section_schema(
     dlt_section_schema_switch: mo.ui.switch,
     dlt_schema_select: mo.ui.multiselect,
     dlt_selected_schema_name: str,
-    dlt_refresh_button: mo.ui.run_button,
 ):
     """
     Show schema of the currently selected pipeline
@@ -203,7 +199,6 @@ def section_schema(
         strings.schema_subtitle,
         strings.schema_subtitle_long,
         dlt_section_schema_switch,
-        dlt_refresh_button,
     )
 
     if dlt_pipeline and dlt_section_schema_switch.value and dlt_schema_table_list is None:
@@ -287,7 +282,6 @@ def section_browse_data_table_list(
     dlt_section_browse_data_switch: mo.ui.switch,
     dlt_schema_select: mo.ui.multiselect,
     dlt_selected_schema_name: str,
-    dlt_refresh_button: mo.ui.run_button,
 ):
     """
     Show data of the currently selected pipeline
@@ -299,7 +293,6 @@ def section_browse_data_table_list(
         strings.browse_data_subtitle,
         strings.browse_data_subtitle_long,
         dlt_section_browse_data_switch,
-        dlt_refresh_button,
     )
 
     dlt_query_editor: mo.ui.code_editor = None
@@ -470,7 +463,6 @@ def section_browse_data_query_history(
 def section_state(
     dlt_pipeline: dlt.Pipeline,
     dlt_section_state_switch: mo.ui.switch,
-    dlt_refresh_button: mo.ui.run_button,
 ):
     """
     Show state of the currently selected pipeline
@@ -481,7 +473,6 @@ def section_state(
         strings.state_subtitle,
         strings.state_subtitle,
         dlt_section_state_switch,
-        dlt_refresh_button,
     )
 
     if dlt_pipeline and dlt_section_state_switch.value:
@@ -501,7 +492,6 @@ def section_trace(
     dlt_section_trace_switch: mo.ui.switch,
     dlt_trace_steps_table: mo.ui.table,
     dlt_config: DashboardConfiguration,
-    dlt_refresh_button: mo.ui.run_button,
 ):
     """
     Show last trace of the currently selected pipeline
@@ -513,7 +503,6 @@ def section_trace(
         strings.trace_subtitle,
         strings.trace_subtitle,
         dlt_section_trace_switch,
-        dlt_refresh_button,
     )
 
     if dlt_pipeline and dlt_section_trace_switch.value:
@@ -603,7 +592,6 @@ def section_loads(
     dlt_pipeline: dlt.Pipeline,
     dlt_restrict_to_last_1000: mo.ui.switch,
     dlt_section_loads_switch: mo.ui.switch,
-    dlt_refresh_button: mo.ui.run_button,
 ):
     """
     Show loads of the currently selected pipeline
@@ -615,7 +603,6 @@ def section_loads(
         strings.loads_subtitle,
         strings.loads_subtitle_long,
         dlt_section_loads_switch,
-        dlt_refresh_button,
     )
 
     if dlt_pipeline and dlt_section_loads_switch.value:
@@ -716,7 +703,6 @@ def section_loads_results(
 def section_ibis_backend(
     dlt_pipeline: dlt.Pipeline,
     dlt_section_ibis_browser_switch: mo.ui.switch,
-    dlt_refresh_button: mo.ui.run_button,
 ):
     """
     Connects to ibis backend and makes it available in the datasources panel
@@ -727,7 +713,6 @@ def section_ibis_backend(
         strings.ibis_backend_subtitle,
         strings.ibis_backend_subtitle,
         dlt_section_ibis_browser_switch,
-        dlt_refresh_button,
     )
 
     if dlt_pipeline and dlt_section_ibis_browser_switch.value:
@@ -897,6 +882,26 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
         dlt_section_sync_switch,
         dlt_section_trace_switch,
     )
+    
+    
+@app.cell(hide_code=True)
+def watch_changes(
+    dlt_pipeline_select: mo.ui.multiselect,
+    dlt_pipelines_dir: str,
+):
+    """
+    Watch changes in the trace file and trigger reload in the home cell and all following cells on change
+    """
+    # provide pipeline object to the following cells
+    dlt_pipeline_name: str = (
+        str(dlt_pipeline_select.value[0]) if dlt_pipeline_select.value else None
+    )
+    dlt_file_watcher = None
+    if dlt_pipeline_name:
+        dlt_file_watcher = mo.watch.file(
+            utils.get_trace_file_path(dlt_pipeline_name, dlt_pipelines_dir)
+        )
+    return dlt_pipeline_name
 
 
 @app.cell(hide_code=True)

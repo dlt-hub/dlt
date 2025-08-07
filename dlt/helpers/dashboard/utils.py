@@ -45,9 +45,14 @@ def resolve_dashboard_config(p: dlt.Pipeline) -> DashboardConfiguration:
     )
 
 
+def get_trace_file_path(pipeline_name: str, pipelines_dir: str) -> Path:
+    """Get the path to the pickle file for a pipeline"""
+    return Path(pipelines_dir) / pipeline_name / PICKLE_TRACE_FILE
+
+
 def get_pipeline_last_run(pipeline_name: str, pipelines_dir: str) -> float:
     """Get the last run of a pipeline"""
-    trace_file = Path(pipelines_dir) / pipeline_name / PICKLE_TRACE_FILE
+    trace_file = get_trace_file_path(pipeline_name, pipelines_dir)
     if trace_file.exists():
         return os.path.getmtime(trace_file)
     return 0
@@ -556,7 +561,7 @@ def build_exception_section(p: dlt.Pipeline) -> List[Any]:
     _result = []
     _result.append(
         ui.build_title_and_subtitle(
-            f"Exception encountered during last load in step '{step.step}'",
+            f"Exception encountered during last pipeline run in step '{step.step}'",
             title_level=2,
         )
     )
