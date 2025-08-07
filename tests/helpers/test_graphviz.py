@@ -5,11 +5,7 @@ import pytest
 import graphviz  # type: ignore[import-untyped]
 
 import dlt
-from dlt.common.schema.typing import (
-    PIPELINE_STATE_TABLE_NAME,
-    VERSION_TABLE_NAME,
-    LOADS_TABLE_NAME
-)
+from dlt.common.schema.typing import PIPELINE_STATE_TABLE_NAME, VERSION_TABLE_NAME, LOADS_TABLE_NAME
 from dlt.helpers.graphviz import _render_with_graphviz, schema_to_graphviz, TABLE_HEADER_PORT
 
 
@@ -291,10 +287,15 @@ def test_include_dlt_tables(example_schema: dlt.Schema, include_dlt_tables: bool
 
 
 @pytest.mark.parametrize("include_internal_dlt_ref", (True, False))
-def test_include_internal_dlt_ref(example_schema: dlt.Schema, include_internal_dlt_ref: bool) -> None:
+def test_include_internal_dlt_ref(
+    example_schema: dlt.Schema, include_internal_dlt_ref: bool
+) -> None:
     expected_refs = [
         f"{VERSION_TABLE_NAME}:{TABLE_HEADER_PORT} -> {LOADS_TABLE_NAME}:{TABLE_HEADER_PORT}",
-        f"{PIPELINE_STATE_TABLE_NAME}:{TABLE_HEADER_PORT} -> {LOADS_TABLE_NAME}:{TABLE_HEADER_PORT}",
+        (
+            f"{PIPELINE_STATE_TABLE_NAME}:{TABLE_HEADER_PORT} ->"
+            f" {LOADS_TABLE_NAME}:{TABLE_HEADER_PORT}"
+        ),
     ]
 
     stored_schema = example_schema.to_dict()
@@ -312,7 +313,9 @@ def test_include_internal_dlt_ref(example_schema: dlt.Schema, include_internal_d
 
 
 @pytest.mark.parametrize("include_parent_child_ref", (True, False))
-def test_include_parent_child_ref(example_schema: dlt.Schema, include_parent_child_ref: bool) -> None:
+def test_include_parent_child_ref(
+    example_schema: dlt.Schema, include_parent_child_ref: bool
+) -> None:
     expected_refs = [
         # table edge
         f"purchases__items:{TABLE_HEADER_PORT} -> purchases:{TABLE_HEADER_PORT}",
@@ -341,7 +344,6 @@ def test_include_root_child_ref(example_schema: dlt.Schema, include_root_child_r
         # column edge; `f3` points to `purchases__items._dlt_root_id`, the 3rd column (1-indexed)
         "purchases__items:f3:_ -> purchases:f7:_",
     ]
-    
 
     stored_schema = example_schema.to_dict()
     dot = schema_to_graphviz(

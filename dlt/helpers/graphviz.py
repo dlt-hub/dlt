@@ -262,7 +262,11 @@ def _add_references(
             )
 
         # link root -> loads table
-        if include_dlt_tables and include_internal_dlt_ref and bool(table["columns"].get(C_DLT_LOAD_ID)):
+        if (
+            include_dlt_tables
+            and include_internal_dlt_ref
+            and bool(table["columns"].get(C_DLT_LOAD_ID))
+        ):
             # root table contains 1 to many rows associated with a single row in loads table
             # possible cardinality: `-` (1-to-1) or `>` (m-to-1)
             graphviz_dot += _to_dot_reference(
