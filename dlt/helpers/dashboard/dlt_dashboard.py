@@ -76,7 +76,7 @@ def home(
             mo.md(strings.home_basics_text.format(len(dlt_all_pipelines), dlt_pipelines_dir)),
         ]
     else:
-        _buttons = []
+        _buttons: List[Any] = []
         _buttons.append(dlt_refresh_button)
         if dlt_pipeline:
             _buttons.append(
@@ -161,17 +161,17 @@ def section_overview(
                 )
             )
             _result.append(
-                    mo.accordion(
-                        {
-                            strings.overview_remote_state_button: mo.ui.table(
-                                utils.remote_state_details(dlt_pipeline),
-                                selection=None,
-                                style_cell=utils.style_cell,
-                            )
-                        },
-                        lazy=True,
-                    )
+                mo.accordion(
+                    {
+                        strings.overview_remote_state_button: mo.ui.table(
+                            utils.remote_state_details(dlt_pipeline),
+                            selection=None,
+                            style_cell=utils.style_cell,
+                        )
+                    },
+                    lazy=True,
                 )
+            )
     mo.vstack(_result) if _result else None
     return
 
@@ -525,16 +525,13 @@ def section_trace(
                 )
             )
         else:
-            trace_dict = dlt_trace.asdict()
             _result.append(
                 ui.build_title_and_subtitle(
                     strings.trace_overview_title,
                     title_level=3,
                 )
             )
-            _result.append(
-                mo.ui.table(utils.trace_overview(dlt_config, trace_dict), selection=None)
-            )
+            _result.append(mo.ui.table(utils.trace_overview(dlt_config, dlt_trace), selection=None))
             _result.append(
                 ui.build_title_and_subtitle(
                     strings.trace_execution_context_title,
@@ -543,7 +540,7 @@ def section_trace(
                 )
             )
             _result.append(
-                mo.ui.table(utils.trace_execution_context(dlt_config, trace_dict), selection=None)
+                mo.ui.table(utils.trace_execution_context(dlt_config, dlt_trace), selection=None)
             )
             _result.append(
                 ui.build_title_and_subtitle(
@@ -561,7 +558,7 @@ def section_trace(
                         title_level=3,
                     )
                 )
-                _result += utils.trace_step_details(dlt_config, trace_dict, step_id)
+                _result += utils.trace_step_details(dlt_config, dlt_trace, step_id)
 
             # config values
             _result.append(
@@ -573,7 +570,7 @@ def section_trace(
             )
             _result.append(
                 mo.ui.table(
-                    utils.trace_resolved_config_values(dlt_config, trace_dict), selection=None
+                    utils.trace_resolved_config_values(dlt_config, dlt_trace), selection=None
                 )
             )
             _result.append(
@@ -656,7 +653,7 @@ def section_loads_results(
         and dlt_loads_table.value
     ):
         _load_id = dlt_loads_table.value[0]["load_id"]  # type: ignore[unused-ignore,index]
-        _schema = dlt_loads_table.value[0]["schema_name"]
+        _schema = dlt_loads_table.value[0]["schema_name"]  # type: ignore[unused-ignore,index]
         _result.append(mo.md(strings.loads_details_title.format(_load_id)))
 
         try:
@@ -964,7 +961,7 @@ def ui_primary_controls(
     dlt_trace_steps_table: mo.ui.table = None
     if dlt_section_trace_switch.value and dlt_pipeline and dlt_pipeline.last_trace:
         dlt_trace_steps_table = mo.ui.table(
-            utils.trace_steps_overview(dlt_config, dlt_pipeline.last_trace.asdict())
+            utils.trace_steps_overview(dlt_config, dlt_pipeline.last_trace)
         )
     return (
         dlt_data_table_list,
