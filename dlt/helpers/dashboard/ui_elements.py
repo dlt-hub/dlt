@@ -47,7 +47,6 @@ def build_page_header(
     subtitle: str,
     subtitle_long: str,
     button: Any = None,
-    refresh_button: Any = None,
 ) -> Any:
     """Build a page header with a title, a subtitle, button and conditional longer subtitle"""
     if not dlt_pipeline:
@@ -56,7 +55,6 @@ def build_page_header(
         mo.hstack(
             [
                 build_title_and_subtitle(title, subtitle if not button.value else subtitle_long),
-                refresh_button if button.value else "",
                 button,
             ],
             align="center",
