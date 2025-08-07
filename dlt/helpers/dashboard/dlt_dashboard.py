@@ -147,31 +147,32 @@ def section_overview(
     )
 
     if dlt_pipeline and dlt_section_overview_switch.value:
-        with mo.status.spinner(title=strings.sync_status_spinner_text):
-            _result += [
-                mo.ui.table(
-                    utils.pipeline_details(dlt_config, dlt_pipeline, dlt_pipelines_dir),
-                    selection=None,
-                    style_cell=utils.style_cell,
-                ),
-            ]
-            _result.append(
-                ui.build_title_and_subtitle(
-                    strings.overview_remote_state_title, strings.overview_remote_state_subtitle
-                )
+        if _exception_section := utils.build_exception_section(dlt_pipeline):
+            _result.extend(_exception_section)
+        _result += [
+            mo.ui.table(
+                utils.pipeline_details(dlt_config, dlt_pipeline, dlt_pipelines_dir),
+                selection=None,
+                style_cell=utils.style_cell,
+            ),
+        ]
+        _result.append(
+            ui.build_title_and_subtitle(
+                strings.overview_remote_state_title, strings.overview_remote_state_subtitle
             )
-            _result.append(
-                mo.accordion(
-                    {
-                        strings.overview_remote_state_button: mo.ui.table(
-                            utils.remote_state_details(dlt_pipeline),
-                            selection=None,
-                            style_cell=utils.style_cell,
-                        )
-                    },
-                    lazy=True,
-                )
+        )
+        _result.append(
+            mo.accordion(
+                {
+                    strings.overview_remote_state_button: mo.ui.table(
+                        utils.remote_state_details(dlt_pipeline),
+                        selection=None,
+                        style_cell=utils.style_cell,
+                    )
+                },
+                lazy=True,
             )
+        )
     mo.vstack(_result) if _result else None
     return
 
@@ -516,6 +517,8 @@ def section_trace(
     )
 
     if dlt_pipeline and dlt_section_trace_switch.value:
+        if _exception_section := utils.build_exception_section(dlt_pipeline):
+            _result.extend(_exception_section)
         dlt_trace = dlt_pipeline.last_trace
         if not dlt_trace:
             _result.append(
