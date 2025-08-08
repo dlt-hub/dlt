@@ -11,12 +11,13 @@ from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS
 
-from paramiko.auth_strategy import Password
-from paramiko import RSAKey, Transport
-from paramiko.ssh_exception import SSHException
 
 if "sftp" not in ALL_FILESYSTEM_DRIVERS:
     pytest.skip("sftp filesystem driver not configured", allow_module_level=True)
+
+from paramiko.auth_strategy import Password
+from paramiko import RSAKey, Transport
+from paramiko.ssh_exception import SSHException
 
 
 @with_config(spec=FilesystemConfiguration, sections=("sources", "filesystem"))
