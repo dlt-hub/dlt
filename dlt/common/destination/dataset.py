@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 TFilterOperation = Literal["eq", "ne", "gt", "lt", "gte", "lte", "in", "not_in"]
 
 
-class DataAccess(Protocol):
+class SupportsDataAccess(Protocol):
     """Common data access protocol shared between dbapi cursors and relations"""
 
     @property
@@ -129,7 +129,7 @@ class DataAccess(Protocol):
         ...
 
 
-class Relation(DataAccess, Protocol):
+class SupportsRelation(SupportsDataAccess, Protocol):
     """A readable relation retrieved from a destination that supports it"""
 
     schema: TTableSchema
@@ -281,7 +281,7 @@ class Relation(DataAccess, Protocol):
         ...
 
 
-class DBApiCursorProtocol(DataAccess, Protocol):
+class DBApiCursorProtocol(SupportsDataAccess, Protocol):
     """Protocol for the DBAPI cursor"""
 
     description: tuple[Any, ...]
@@ -326,7 +326,7 @@ class DBApiCursor(abc.ABC, DBApiCursorProtocol):
         """Close the cursor"""
 
 
-class Dataset(Protocol):
+class SupportsDataset(Protocol):
     """A readable dataset retrieved from a destination, has support for creating readable relations for a query or table"""
 
     @property
@@ -361,7 +361,7 @@ class Dataset(Protocol):
         query: Union[str, sge.Select, IbisExpr],
         query_dialect: Optional[TSqlGlotDialect] = None,
         _execute_raw_query: bool = False,
-    ) -> Relation:
+    ) -> SupportsRelation:
         """Returns a readable relation for a given sql query
 
         Args:
@@ -380,7 +380,7 @@ class Dataset(Protocol):
         query: Union[str, sge.Select, IbisExpr],
         query_dialect: Optional[TSqlGlotDialect] = None,
         _execute_raw_query: bool = False,
-    ) -> Relation:
+    ) -> SupportsRelation:
         """Returns a readable relation for a given sql query
 
         Args:
@@ -395,17 +395,17 @@ class Dataset(Protocol):
         ...
 
     @overload
-    def table(self, table_name: str) -> Relation: ...
+    def table(self, table_name: str) -> SupportsRelation: ...
 
     @overload
-    def table(self, table_name: str, table_type: Literal["relation"]) -> Relation: ...
+    def table(self, table_name: str, table_type: Literal["relation"]) -> SupportsRelation: ...
 
     @overload
     def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
 
     def table(
         self, table_name: str, table_type: Literal["relation", "ibis"] = "relation"
-    ) -> Union[Relation, IbisTable]:
+    ) -> Union[SupportsRelation, IbisTable]:
         """Returns an object representing a table named `table_name`
 
         Args:
@@ -417,7 +417,7 @@ class Dataset(Protocol):
         """
         ...
 
-    def __getitem__(self, table: str) -> Relation:
+    def __getitem__(self, table: str) -> SupportsRelation:
         """Returns a readable relation for the table named `table`
 
         Args:
@@ -428,7 +428,7 @@ class Dataset(Protocol):
         """
         ...
 
-    def __getattr__(self, table: str) -> Relation:
+    def __getattr__(self, table: str) -> SupportsRelation:
         """Returns a readable relation for the table named `table`
 
         Args:
@@ -464,7 +464,7 @@ class Dataset(Protocol):
         dlt_tables: bool = False,
         table_names: Optional[list[str]] = None,
         load_id: Optional[str] = None,
-    ) -> Relation:
+    ) -> SupportsRelation:
         """Returns the row counts of the dataset
 
         Args:

@@ -9,7 +9,7 @@ from sqlglot.expressions import ExpOrStr as SqlglotExprOrStr
 
 import sqlglot.expressions as sge
 
-from dlt.common.destination.dataset import Relation, TFilterOperation
+from dlt.common.destination.dataset import SupportsRelation, TFilterOperation
 
 from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGlotDialect
 from dlt.common.schema.typing import TTableSchemaColumns, TTableSchema
@@ -19,7 +19,7 @@ from dlt.dataset import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.queries import normalize_query, build_select_expr
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.destination.dataset import DataAccess
+from dlt.common.destination.dataset import SupportsDataAccess
 
 try:
     from dlt.helpers.ibis import Expr as IbisExpr
@@ -48,7 +48,7 @@ _FILTER_OP_MAP = {
 }
 
 
-class ReadableDBAPIRelation(Relation, WithSqlClient):
+class ReadableDBAPIRelation(SupportsRelation, WithSqlClient):
     @overload
     def __init__(
         self,
@@ -189,7 +189,7 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
     # Cursor Management
     #
     @contextmanager
-    def cursor(self) -> Generator[DataAccess, Any, Any]:
+    def cursor(self) -> Generator[SupportsDataAccess, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
         try:
             self._opened_sql_client = self.sql_client

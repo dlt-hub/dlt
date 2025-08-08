@@ -13,8 +13,8 @@ from dlt.common.json import json
 from dlt.common.destination.reference import TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase, SupportsOpenTables, WithStateSync
 from dlt.common.destination.dataset import (
-    Relation,
-    Dataset,
+    SupportsRelation,
+    SupportsDataset,
 )
 from dlt.common.schema import Schema
 from dlt.common.typing import Self
@@ -38,7 +38,7 @@ else:
     IbisExpr = Any
 
 
-class ReadableDBAPIDataset(Dataset):
+class ReadableDBAPIDataset(SupportsDataset):
     """Access to dataframes and arrow tables in the destination dataset via dbapi"""
 
     def __init__(
@@ -184,7 +184,7 @@ class ReadableDBAPIDataset(Dataset):
         query: Union[str, sge.Select, IbisExpr],
         query_dialect: TSqlGlotDialect = None,
         _execute_raw_query: bool = False,
-    ) -> Relation:
+    ) -> SupportsRelation:
         return ReadableDBAPIRelation(
             readable_dataset=self,
             query=query,
@@ -197,14 +197,14 @@ class ReadableDBAPIDataset(Dataset):
         query: Union[str, sge.Select, IbisExpr],
         query_dialect: TSqlGlotDialect = None,
         _execute_raw_query: bool = False,
-    ) -> Relation:
+    ) -> SupportsRelation:
         return self.query(query, query_dialect, _execute_raw_query)
 
     @overload
-    def table(self, table_name: str) -> Relation: ...
+    def table(self, table_name: str) -> SupportsRelation: ...
 
     @overload
-    def table(self, table_name: str, table_type: Literal["relation"]) -> Relation: ...
+    def table(self, table_name: str, table_type: Literal["relation"]) -> SupportsRelation: ...
 
     @overload
     def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
@@ -238,7 +238,7 @@ class ReadableDBAPIDataset(Dataset):
         dlt_tables: bool = False,
         table_names: List[str] = None,
         load_id: str = None,
-    ) -> Relation:
+    ) -> SupportsRelation:
         """Returns a dictionary of table names and their row counts, returns counts of all data tables by default"""
         """If table_names is provided, only the tables in the list are returned regardless of the data_tables and dlt_tables flags"""
 
@@ -274,7 +274,7 @@ class ReadableDBAPIDataset(Dataset):
 
         return self.query(query=union_all_expr)
 
-    def __getitem__(self, table_name: str) -> Relation:
+    def __getitem__(self, table_name: str) -> SupportsRelation:
         """access of table via dict notation"""
         if table_name not in self.tables:
             raise KeyError(

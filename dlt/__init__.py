@@ -29,7 +29,7 @@ from dlt.common.schema import Schema
 from dlt import sources
 from dlt.extract.decorators import source, resource, transformer, defer
 from dlt.destinations.decorators import destination
-from dlt.common.destination.dataset import Dataset, Relation
+from dlt.common.destination.dataset import SupportsDataset, SupportsRelation
 from dlt.dataset import dataset, ReadableDBAPIRelation, ReadableDBAPIDataset
 
 from dlt.pipeline import (
@@ -80,8 +80,8 @@ __all__ = [
     "TCredentials",
     "sources",
     "destinations",
-    "Dataset",
-    "Relation",
+    "SupportsDataset",
+    "SupportsRelation",
     "dataset",
     "ReadableDBAPIRelation",
     "ReadableDBAPIDataset",

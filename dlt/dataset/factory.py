@@ -6,14 +6,14 @@ from dlt.common.schema import Schema
 from dlt.dataset.dataset import ReadableDBAPIDataset
 
 if TYPE_CHECKING:
-    from dlt import Dataset
+    from dlt import SupportsDataset
 else:
-    Dataset = Any
+    SupportsDataset = Any
 
 
 def dataset(
     destination: TDestinationReferenceArg,
     dataset_name: str,
     schema: Union[Schema, str, None] = None,
-) -> Dataset:
+) -> SupportsDataset:
     return ReadableDBAPIDataset(destination, dataset_name, schema)
