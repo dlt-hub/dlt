@@ -21,11 +21,11 @@ from dlt.common.typing import Self
 from dlt.common.schema.typing import C_DLT_LOAD_ID
 from dlt.common.utils import simple_repr, without_none
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
-from dlt.destinations.dataset.relation import ReadableDBAPIRelation
-from dlt.destinations.dataset.utils import get_destination_clients
+from dlt.dataset.relation import ReadableDBAPIRelation
+from dlt.dataset.utils import get_destination_clients
 from dlt.destinations.queries import build_row_counts_expr
 
-from dlt.destinations.dataset import lineage
+from dlt.dataset import lineage
 
 
 if TYPE_CHECKING:

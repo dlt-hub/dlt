@@ -2,9 +2,8 @@ from typing import Union, TYPE_CHECKING, Any
 
 from dlt.common.destination import TDestinationReferenceArg
 from dlt.common.schema import Schema
-from dlt.common import logger
 
-from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+from dlt.dataset.dataset import ReadableDBAPIDataset
 
 if TYPE_CHECKING:
     from dlt import Dataset

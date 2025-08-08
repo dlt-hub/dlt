@@ -1,21 +1,6 @@
-from typing import Any, Generator, Optional, Sequence, Tuple, Type, TYPE_CHECKING
-
+from typing import overload, Union, Any, Generator, Optional, Sequence, Tuple, Type, TYPE_CHECKING
 from textwrap import indent
-from typing import (
-    overload,
-    Any,
-    get_args,
-    Generator,
-    Optional,
-    Sequence,
-    Tuple,
-    Type,
-    Literal,
-    Union,
-    TYPE_CHECKING,
-)
 from contextlib import contextmanager
-from textwrap import indent
 from dlt.common.utils import simple_repr, without_none
 
 from sqlglot import maybe_parse
@@ -30,7 +15,7 @@ from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGl
 from dlt.common.schema.typing import TTableSchemaColumns, TTableSchema
 from dlt.common.typing import Self, TSortOrder
 from dlt.common.exceptions import ValueErrorWithKnownValues
-from dlt.destinations.dataset import lineage
+from dlt.dataset import lineage
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.queries import normalize_query, build_select_expr
 from dlt.common.exceptions import MissingDependencyException
@@ -43,7 +28,7 @@ except (ImportError, MissingDependencyException):
     IbisExpr = None
 
 if TYPE_CHECKING:
-    from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+    from dlt.dataset.dataset import ReadableDBAPIDataset
     from dlt.helpers.ibis import Expr as IbisExpr
 else:
     ReadableDBAPIDataset = Any
