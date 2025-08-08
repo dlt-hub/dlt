@@ -53,6 +53,23 @@ When you're ready to contribute, follow these steps:
 
 **Note:** for some special cases, you'd need to contact us to create a branch in this repository (not fork). See below.
 
+### Writing Tickets and PR Descriptions
+
+When writing feature tickets (or opening PRs without an attached ticket), please ensure that the following items are included in your ticket or PR. Always assume that the reviewer may not know exactly what you are working on or what your motivations are. This should be clear from the ticket or PR comment. When in doubt, feel free to use ChatGPT to help formulate clear descriptions :) You can also check our GitHub ticket templates.
+
+Required:
+
+1. Clear, concise title describing the feature
+2. TL;DR block at the top: Short summary of what the feature is about, including motivation/problem statement explaining why this feature is needed and what it solves
+3. If applicable and not already part of point 2: User stories or acceptance criteria (e.g., "As a user, I want...") that define expected behavior
+4. Links and references to related or prior work, which can include docs pages, other PRs, other tickets, or Notion documents
+5. Checklist of tasks that need to be implemented or were implemented
+
+Optional:
+
+6. Defined scope – what is included and explicitly out of scope
+7. Mockups, diagrams, or links to related designs or discussions (if applicable)
+
 ### Active branches
 
 We use **devel** (which is our default Github branch) to prepare a next release of `dlt`. We accept all regular contributions there (including most of the bugfixes).
