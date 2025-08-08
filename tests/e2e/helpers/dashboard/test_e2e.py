@@ -16,6 +16,8 @@ from dlt.sources._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
 )
 
+from dlt import Schema
+
 from dlt.helpers.dashboard import strings as app_strings
 
 
@@ -36,6 +38,19 @@ def setup_pipelines() -> Any:
     pnd = dlt.pipeline(pipeline_name="no_destination_pipeline")
     pnd.extract(fruitshop_source())
 
+    # multi schema pipeline
+    # multi schema pipeline
+    pms = dlt.pipeline(pipeline_name="multi_schema_pipeline", destination="duckdb")
+    pms.run(
+        fruitshop_source().with_resources("customers"), schema=Schema(name="fruitshop_customers")
+    )
+    pms.run(
+        fruitshop_source().with_resources("inventory"), schema=Schema(name="fruitshop_inventory")
+    )
+    pms.run(
+        fruitshop_source().with_resources("purchases"), schema=Schema(name="fruitshop_purchases")
+    )
+
 
 #
 # helpers
@@ -47,7 +62,6 @@ def _go_home(page: Page) -> None:
 
 
 known_sections = [
-    "sync",
     "overview",
     "schema",
     "data",
@@ -60,7 +74,7 @@ known_sections = [
 
 def _open_section(
     page: Page,
-    section: Literal["sync", "overview", "schema", "data", "state", "trace", "loads", "ibis"],
+    section: Literal["overview", "schema", "data", "state", "trace", "loads", "ibis"],
     close_other_sections: bool = True,
 ) -> None:
     if close_other_sections:
@@ -87,13 +101,6 @@ def test_page_loads(page: Page):
 
     # simple check for  one two three pipeline
     page.get_by_role("link", name="one_two_three").click()
-
-    # sync page
-    _open_section(page, "sync", close_other_sections=False)
-    html = page.content()
-    print(html)
-
-    expect(page.get_by_text(app_strings.sync_status_success_text.split("from")[0])).to_be_visible()
 
     # overview page
     _open_section(page, "overview")
@@ -147,10 +154,6 @@ def test_page_loads(page: Page):
     _go_home(page)
     page.get_by_role("link", name="fruit_pipeline").click()
 
-    # sync page
-    _open_section(page, "sync", close_other_sections=False)
-    expect(page.get_by_text(app_strings.sync_status_success_text.split("from")[0])).to_be_visible()
-
     # overview page
     _open_section(page, "overview")
     expect(page.get_by_text("_storage/.dlt/pipelines/fruit_pipeline")).to_be_visible()
@@ -192,7 +195,6 @@ def test_page_loads(page: Page):
     _go_home(page)
     page.get_by_role("link", name="never_run_pipeline").click()
 
-    expect(page.get_by_text(app_strings.sync_status_success_text.split("from")[0])).to_be_visible()
     expect(page.get_by_text("_storage/.dlt/pipelines/never_run_pipeline")).to_be_visible()
 
     # check schema info (this is the yaml part)
@@ -225,7 +227,6 @@ def test_page_loads(page: Page):
     _go_home(page)
     page.get_by_role("link", name="no_destination_pipeline").click()
 
-    expect(page.get_by_text(app_strings.sync_status_error_text)).to_be_visible()
     expect(page.get_by_text("_storage/.dlt/pipelines/no_destination_pipeline")).to_be_visible()
 
     # check schema info (this is the yaml part)

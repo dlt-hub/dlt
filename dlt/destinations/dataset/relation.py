@@ -234,10 +234,10 @@ class ReadableDBAPIRelation(Relation, WithSqlClient):
     #
     # Query  / Expression Management
     #
-    def to_sql(self, pretty: bool = False) -> str:
+    def to_sql(self, pretty: bool = False, _raw_query: bool = False) -> str:
         """Returns an executable sql query string in the correct sql dialect for this relation"""
 
-        if self.__execute_raw_query:
+        if self.__execute_raw_query or _raw_query:
             query = self._sqlglot_expression
         else:
             query = self._normalized_query
