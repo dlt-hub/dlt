@@ -1,4 +1,5 @@
 import pathlib
+import tempfile
 from typing import Any, Optional
 
 import pytest
@@ -256,11 +257,19 @@ def example_schema() -> dlt.Schema:
     )
 
 
+def is_valid_dot(dot: str) -> bool:
+    """Pass the DOT to the Graphviz render engine; throws exception if invalid DOT"""
+    try:
+        graphviz.Source(dot).pipe()
+    except Exception:
+        return False
+
+    return True
+
+
 def test_generate_valid_graphviz(example_schema: dlt.Schema, tmp_path: pathlib.Path) -> None:
     """Validate the generated DOT graph can be rendered. If it can be rendered to `.png`,
     it can be rendered to any other format supported by Graphviz (jpeg, pdf, svg, html, etc.)
-
-    Calling `graphviz.Source(dot).render()` will validate the DOT.
     """
     file_name = "dlt-schema-graphviz"
     format_ = "png"
@@ -271,7 +280,6 @@ def test_generate_valid_graphviz(example_schema: dlt.Schema, tmp_path: pathlib.P
     graph = graphviz.Source(source=dot)
 
     graph.render(filename=file_name, directory=tmp_path, format=format_, cleanup=True)
-
     assert expected_file_path.exists()
 
 
@@ -284,6 +292,7 @@ def test_include_dlt_tables(example_schema: dlt.Schema, include_dlt_tables: bool
     assert (LOADS_TABLE_NAME in dot) is include_dlt_tables
     assert (VERSION_TABLE_NAME in dot) is include_dlt_tables
     assert (PIPELINE_STATE_TABLE_NAME in dot) is include_dlt_tables
+    assert is_valid_dot(dot)
 
 
 @pytest.mark.parametrize("include_internal_dlt_ref", (True, False))
@@ -310,6 +319,8 @@ def test_include_internal_dlt_ref(
 
     for ref in expected_refs:
         assert (ref in dot) is include_internal_dlt_ref
+    
+    assert is_valid_dot(dot)
 
 
 @pytest.mark.parametrize("include_parent_child_ref", (True, False))
@@ -334,6 +345,8 @@ def test_include_parent_child_ref(
 
     for ref in expected_refs:
         assert (ref in dot) is include_parent_child_ref
+    
+    assert is_valid_dot(dot)
 
 
 @pytest.mark.parametrize("include_root_child_ref", (True, False))
@@ -356,6 +369,8 @@ def test_include_root_child_ref(example_schema: dlt.Schema, include_root_child_r
 
     for ref in expected_refs:
         assert (ref in dot) is include_root_child_ref
+    
+    assert is_valid_dot(dot)
 
 
 @pytest.mark.parametrize(
