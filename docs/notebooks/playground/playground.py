@@ -24,40 +24,40 @@ async def initialize():
 
 
 @app.cell
-def run(dlt):
+def run():
     import dlt, requests
-    
 
-    
     @dlt.resource(table_name="users")
     def users():
-        resp = requests.get("https://dummyjson.com/users", timeout=30)
-        yield from resp.json()["users"]
+        yield from requests.get("https://jsonplaceholder.typicode.com/users").json()
 
-    pipe = dlt.pipeline("dummy_users", "duckdb")
-    info = pipe.run(users())
-    print(info)
+    pipeline = dlt.pipeline(
+        pipeline_name="users_pipeline", 
+        destination="duckdb", 
+        dataset_name="raw_data",
+        dev_mode=True
+    )
+    print(pipeline.run(users(),refresh=True))
     return (pipeline,)
 
 
 @app.cell
 def view(pipeline):
-    # NOTE: This line displays the data of the items table in a marimo table
-    pipeline.dataset().items.df()
-    return
+    # NOTE: This line displays the data of the users table in a marimo table
+    return pipeline.dataset().users.df()
 
 
 @app.cell
 def connect(pipeline):
     # NOTE: This line allows your data to be explored in the marimo datasources which is the third item from the top in the left sidebar
     con = pipeline.dataset().ibis()
-    return
+    return (con,)
 
 
 @app.cell(hide_code=True)
 def tests(pipeline):
     # NOTE: this cell is only needed for testing this notebook on ci
-    assert pipeline.dataset().items.df().shape[0] == 50
+    assert pipeline.dataset().users.df().shape[0] == 10  
     return
 
 
