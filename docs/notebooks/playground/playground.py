@@ -37,7 +37,7 @@ def run():
         dataset_name="raw_data",
         dev_mode=True
     )
-    print(pipeline.run(users(),refresh=True))
+    print(pipeline.run(users()))
     return (pipeline,)
 
 
