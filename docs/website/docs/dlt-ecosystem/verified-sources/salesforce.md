@@ -12,17 +12,15 @@ import Header from './_source-info-header.md';
 [Salesforce](https://www.salesforce.com) is a cloud platform that streamlines business operations
 and customer relationship management, encompassing sales, marketing, and customer service.
 
-This Salesforce `dlt` verified source and
-[pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/salesforce_pipeline.py)
-loads data using the “Salesforce API” to the destination of your choice.
+This [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/salesforce_pipeline.py) demonstrates how to use the Salesforce `dlt` verified source to load data from the Salesforce API into any destination of your choice. 
 
 The resources that this verified source supports are:
 
 | Name           | Mode    | Description                                                                                       |
 |----------------|---------|---------------------------------------------------------------------------------------------------|
-| User           | replace | Refers to an individual who has access to a Salesforce org or instance                            |
+| User           | replace | Refers to an individual who has access to a Salesforce organization or instance                            |
 | UserRole       | replace | A standard object that represents a role within the organization's hierarchy                      |
-| Lead           | replace | Prospective customer/individual/org. that has shown interest in a company's products/services     |
+| Lead           | replace | Prospective customer/individual/organization that has shown interest in a company's products/services     |
 | Contact        | replace | An individual person associated with an account or organization                                   |
 | Campaign       | replace | Marketing initiative or project designed to achieve specific goals, such as generating leads etc. |
 | Product2       | replace | For managing and organizing your product-related data within the Salesforce ecosystem             |
@@ -30,13 +28,13 @@ The resources that this verified source supports are:
 | PricebookEntry | replace | An object that represents a specific price for a product in a price book                          |
 | Opportunity            | merge | Represents a sales opportunity for a specific account or contact                                                            |
 | OpportunityLineItem    | merge | Represents individual line items or products associated with an opportunity                                                 |
-| OpportunityContactRole | merge | Represents the association between an Opportunity and a contact                                                             |
+| OpportunityContactRole | merge | Represents the association between an opportunity and a contact                                                             |
 | Account                | merge | Individual or organization that interacts with your business                                                                |
 | CampaignMember         | merge | Association between a contact or lead and a campaign                                                                        |
 | Task                   | merge | Used to track and manage various activities and tasks within the Salesforce platform                                        |
 | Event                  | merge | Used to track and manage calendar-based events, such as meetings, appointments, calls, or any other time-specific activities |
 
-* Note that formula fields are included - these function like views in Salesforce and will not be back-updated when their definitions change in Salesforce! The recommended handling is to ignore these fields and reproduce yourself any calculations from the base data fields.
+> Note that formula fields are included - these function like views in Salesforce and will not be retroactively updated when their definitions change in Salesforce! The recommended handling is to ignore these fields and instead reproduce any calculations from the underlying base data fields.
 
 ## Setup guide
 
@@ -44,26 +42,24 @@ The resources that this verified source supports are:
 
 ### Grab credentials
 
-To set up your pipeline, you'll need your Salesforce `user_name`, `password`, and `security_token`.
-Use your login credentials for `user_name` and `password`.
+To set up your pipeline, you'll need one of the following credential sets:
 
-To obtain the `security_token`, follow these steps:
+1. `user_name`, `password`, `security_token`
+   
+   For `user_name` and `password`, use your login credentials. To get the `security_token`, follow [Salesforce's guide.](https://help.salesforce.com/s/articleView?id=xcloud.user_security_token.htm&type=5)
 
-1. Log into Salesforce with your credentials.
+2. `user_name`, `password`, `organization_id`
 
-1. Click your profile picture/avatar at the top-right.
+   Ensure your IP address is in [Salesforce's trusted IP addresses](https://help.salesforce.com/s/articleView?id=xcloud.security_networkaccess.htm&type=5).
 
-1. Select "Settings" from the drop-down.
+3. `user_name`, `consumer_key`, `privatekey_file`
 
-1. Under "Personal Setup" in the sidebar, choose "My Personal Information" > "Reset My Security
-   Token".
+   Set up a Connected App and configure OAuth 2.0 JWT Bearer Flow. Use this [Salesforce guide](https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_auth_jwt_flow.htm#sfdx_dev_auth_jwt_flow) to get the `consumer_key` and generate the `privatekey_file`.
+   
+4. `user_name`, `password`, `consumer_key`, `consumer_secret`
 
-1. Click "Reset Security Token".
+   Create a Connected App to obtain the `consumer_key` and `consumer_secret`. If you need to rotate or retrieve them, see [Salesforce's guides](https://help.salesforce.com/s/articleView?id=xcloud.connected_app_rotate_consumer_details.htm&type=5).
 
-1. Check your email for the token sent by Salesforce.
-
-> Note: The Salesforce UI, which is described here, might change. The full guide is available at
-> [this link.](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/quickstart_oauth.htm)
 
 ### Initialize the verified source
 
@@ -103,10 +99,12 @@ For more information, read the guide on
    security_token = "please set me up!" # Salesforce security token
    ```
 
-1. In `secrets.toml`, replace `user_name` and `password` with your Salesforce credentials.
+2. In `secrets.toml`, replace `user_name` and `password` with your Salesforce credentials. 
 
-1. Update the `security_token` value with the token you
-   [copied earlier](salesforce.md#grab-credentials) for secure Salesforce access.
+3. Update `security_token` with your token. If you're using another authentication method described [earlier](salesforce.md#grab-credentials),
+remove `security_token` and add the needed fields (e.g., `organization_id`).
+
+4. To connect to a sandbox environment, add `domain = "test"`.
 
 1. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
    add credentials for your chosen destination, ensuring proper routing of your data to the final
@@ -148,18 +146,19 @@ opportunity_line_item, account, etc., data from the Salesforce API.
 ```py
 @dlt.source(name="salesforce")
 def salesforce_source(
+    *,
     user_name: str = dlt.secrets.value,
-    password: str = dlt.secrets.value,
-    security_token: str = dlt.secrets.value,
+    password: Union[str, None] = dlt.secrets.value,
+    security_token: Union[str, None] = dlt.secrets.value,
+    organization_id: Union[str, None] = dlt.secrets.value,
+    consumer_key: Union[str, None] = dlt.secrets.value,
+    consumer_secret: Union[str, None] = dlt.secrets.value,
+    privatekey_file: Union[str, None] = dlt.secrets.value,
+    domain: Union[str, None] = dlt.secrets.value,
 ) -> Iterable[DltResource]:
-   ...
 ```
 
-- `user_name`: Your Salesforce account username.
-
-- `password`: Corresponding Salesforce password.
-
-- `security_token`: Token for Salesforce API authentication, configured in ".dlt/secrets.toml".
+Parameters correspond to the credential sets described in [Grab credentials](salesforce.md#grab-credentials) (plus optional `domain`). Exactly one set is used. `dlt` loads the values from `.dlt/secrets.toml`, so `salesforce_source()` typically needs no arguments.
 
 ### Resource `sf_user` (replace mode):
 
