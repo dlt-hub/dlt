@@ -62,7 +62,7 @@ class DestinationClient(JobClientBase):
         skipped_columns: List[str] = []
         if self.config.skip_dlt_columns_and_tables:
             for column in list(self.schema.get_table(table["name"])["columns"].keys()):
-                if column.startswith(self.schema._dlt_tables_prefix):
+                if column.startswith(self.schema._dlt_column_prefix):
                     skipped_columns.append(column)
 
         # save our state in destination name scope
@@ -91,7 +91,7 @@ class DestinationClient(JobClientBase):
         table = super().prepare_load_table(table_name)
         if self.config.skip_dlt_columns_and_tables:
             for column in list(table["columns"].keys()):
-                if column.startswith(self.schema._dlt_tables_prefix):
+                if column.startswith(self.schema._dlt_column_prefix):
                     table["columns"].pop(column)
         return table
 
