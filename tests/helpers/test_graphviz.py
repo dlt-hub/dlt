@@ -319,7 +319,7 @@ def test_include_internal_dlt_ref(
 
     for ref in expected_refs:
         assert (ref in dot) is include_internal_dlt_ref
-    
+
     assert is_valid_dot(dot)
 
 
@@ -345,7 +345,7 @@ def test_include_parent_child_ref(
 
     for ref in expected_refs:
         assert (ref in dot) is include_parent_child_ref
-    
+
     assert is_valid_dot(dot)
 
 
@@ -369,7 +369,7 @@ def test_include_root_child_ref(example_schema: dlt.Schema, include_root_child_r
 
     for ref in expected_refs:
         assert (ref in dot) is include_root_child_ref
-    
+
     assert is_valid_dot(dot)
 
 
