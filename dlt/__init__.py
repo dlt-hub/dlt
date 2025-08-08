@@ -30,7 +30,7 @@ from dlt import sources
 from dlt.extract.decorators import source, resource, transformer, defer
 from dlt.destinations.decorators import destination
 from dlt.common.destination.dataset import SupportsDataset, SupportsRelation
-from dlt.dataset import dataset, ReadableDBAPIRelation, ReadableDBAPIDataset
+from dlt.dataset import dataset, Relation, Dataset
 
 from dlt.pipeline import (
     pipeline as _pipeline,
@@ -83,8 +83,8 @@ __all__ = [
     "SupportsDataset",
     "SupportsRelation",
     "dataset",
-    "ReadableDBAPIRelation",
-    "ReadableDBAPIDataset",
+    "Relation",
+    "Dataset",
 ]
 
 # verify that no injection context was created

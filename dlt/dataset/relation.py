@@ -28,10 +28,10 @@ except (ImportError, MissingDependencyException):
     IbisExpr = None
 
 if TYPE_CHECKING:
-    from dlt.dataset.dataset import ReadableDBAPIDataset
+    from dlt.dataset.dataset import Dataset
     from dlt.helpers.ibis import Expr as IbisExpr
 else:
-    ReadableDBAPIDataset = Any
+    Dataset = Any
     IbisTable = Any
     BaseReadableDBAPIDataset = Any
 
@@ -48,12 +48,12 @@ _FILTER_OP_MAP = {
 }
 
 
-class ReadableDBAPIRelation(SupportsRelation, WithSqlClient):
+class Relation(SupportsRelation, WithSqlClient):
     @overload
     def __init__(
         self,
         *,
-        readable_dataset: "ReadableDBAPIDataset",
+        readable_dataset: "Dataset",
         query: Union[str, sge.Query],
         query_dialect: Optional[str] = None,
         _execute_raw_query: bool = False,
@@ -63,14 +63,14 @@ class ReadableDBAPIRelation(SupportsRelation, WithSqlClient):
     def __init__(
         self,
         *,
-        readable_dataset: "ReadableDBAPIDataset",
+        readable_dataset: "Dataset",
         table_name: str,
     ) -> None: ...
 
     def __init__(
         self,
         *,
-        readable_dataset: "ReadableDBAPIDataset",
+        readable_dataset: "Dataset",
         query: Optional[Union[str, sge.Query, IbisExpr]] = None,
         query_dialect: Optional[str] = None,
         table_name: Optional[str] = None,

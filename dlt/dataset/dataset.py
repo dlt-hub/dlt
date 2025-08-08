@@ -21,7 +21,7 @@ from dlt.common.typing import Self
 from dlt.common.schema.typing import C_DLT_LOAD_ID
 from dlt.common.utils import simple_repr, without_none
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
-from dlt.dataset.relation import ReadableDBAPIRelation
+from dlt.dataset.relation import Relation
 from dlt.dataset.utils import get_destination_clients
 from dlt.destinations.queries import build_row_counts_expr
 
@@ -38,7 +38,7 @@ else:
     IbisExpr = Any
 
 
-class ReadableDBAPIDataset(SupportsDataset):
+class Dataset(SupportsDataset):
     """Access to dataframes and arrow tables in the destination dataset via dbapi"""
 
     def __init__(
@@ -129,7 +129,7 @@ class ReadableDBAPIDataset(SupportsDataset):
                 )
         return self._table_client
 
-    def is_same_physical_destination(self, other: "ReadableDBAPIDataset") -> bool:
+    def is_same_physical_destination(self, other: "Dataset") -> bool:
         """
         Returns true if the other dataset is on the same physical destination
         helpful if we want to run sql queries without extracting the data
@@ -185,7 +185,7 @@ class ReadableDBAPIDataset(SupportsDataset):
         query_dialect: TSqlGlotDialect = None,
         _execute_raw_query: bool = False,
     ) -> SupportsRelation:
-        return ReadableDBAPIRelation(
+        return Relation(
             readable_dataset=self,
             query=query,
             query_dialect=query_dialect,
@@ -226,7 +226,7 @@ class ReadableDBAPIDataset(SupportsDataset):
             return create_unbound_ibis_table(self.schema, self.dataset_name, table_name)
 
         # fallback to the standard dbapi relation
-        return ReadableDBAPIRelation(
+        return Relation(
             readable_dataset=self,
             table_name=table_name,
         )
