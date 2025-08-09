@@ -1,9 +1,8 @@
 from types import TracebackType
 from typing import Any, Type, Union, TYPE_CHECKING, List, Literal, overload
 
-
+from sqlglot import expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema
-import sqlglot.expressions as sge
 
 from dlt.common.destination.exceptions import (
     OpenTableClientNotAvailable,
