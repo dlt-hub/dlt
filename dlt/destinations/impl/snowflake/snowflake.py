@@ -10,6 +10,7 @@ from dlt.common.destination.client import (
     RunnableLoadJob,
     CredentialsConfiguration,
     SupportsStagingDestination,
+    WithTableReflection,
 )
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages.file_storage import FileStorage
@@ -116,7 +117,9 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
                 self._sql_client.execute_sql(f"REMOVE {stage_file_path}")
 
 
-class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
+class SnowflakeClient(
+    SqlJobClientWithStagingDataset, SupportsStagingDestination, WithTableReflection
+):
     def __init__(
         self,
         schema: Schema,
