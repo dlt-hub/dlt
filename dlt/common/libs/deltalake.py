@@ -113,6 +113,40 @@ def write_delta_table(
     )
 
 
+def drop_columns_delta_table(
+    table: DeltaTable,
+    columns_to_drop: List[str],
+) -> None:
+    """Drops columns from a Delta table by rewriting it with the remaining columns.
+
+    This function reads the entire table, removes the specified columns, and rewrites
+    the table with the remaining columns. This is a workaround for the limitation
+    that delta-rs cannot natively drop columns without column mapping enabled.
+
+    Args:
+        table: The DeltaTable to modify (should already have storage options configured)
+        columns_to_drop: List of column names to drop
+    """
+    arrow_table = table.to_pyarrow_table()
+
+    current_schema = arrow_table.schema
+    remaining_columns = [col for col in current_schema.names if col not in columns_to_drop]
+
+    filtered_table = arrow_table.select(remaining_columns)
+
+    partition_columns = []
+    metadata = table.metadata()
+    partition_columns = [col for col in metadata.partition_columns if col in remaining_columns]
+
+    write_deltalake(
+        table_or_uri=table,
+        data=ensure_delta_compatible_arrow_data(filtered_table, partition_columns or None),
+        partition_by=partition_columns or None,
+        mode="overwrite",
+        schema_mode="overwrite",
+    )
+
+
 def merge_delta_table(
     table: DeltaTable,
     data: Union[pa.Table, pa.RecordBatchReader],
