@@ -1,4 +1,5 @@
 import dataclasses
+import os
 from pathlib import Path
 from typing import Final, Optional, Any, Dict, ClassVar, List
 
@@ -48,6 +49,23 @@ class SnowflakeCredentials(ConnectionStringCredentials):
                 setattr(self, param, self.query.get(param))
 
     def on_resolved(self) -> None:
+        # Auto-detect Snowpark Container Services token
+        token_path = "/snowflake/session/token"
+        if (
+            not self.token
+            and os.path.exists(token_path)
+        ):
+            try:
+                with open(token_path, "r") as f:
+                    self.token = f.read().strip()
+                # Use env vars if host not set
+                self.host = self.host or os.getenv("SNOWFLAKE_HOST") or os.getenv("SNOWFLAKE_ACCOUNT")
+                self.authenticator = self.authenticator or "oauth"
+            except Exception as ex:
+                raise ConfigurationValueError(
+                    f"Failed to read Snowpark Container Services token: {ex}"
+                )
+
         if self.private_key_path:
             try:
                 self.private_key = Path(self.private_key_path).read_text("ascii")
@@ -56,10 +74,12 @@ class SnowflakeCredentials(ConnectionStringCredentials):
                     "Make sure that `private_key` in dlt recognized format is at"
                     f" `{self.private_key_path}`. Note that binary formats are not supported"
                 )
-        if not self.password and not self.private_key and not self.authenticator:
+
+        # Update validation to include token authentication
+        if not (self.password or self.private_key or self.authenticator or self.token):
             raise ConfigurationValueError(
                 "`SnowflakeCredentials` requires one of the following to be specified: `password`,"
-                " `private_key`, `authenticator` (OAuth2)."
+                " `private_key`, `authenticator` (OAuth2), or a Snowpark Container Services token."
             )
 
     def get_query(self) -> Dict[str, Any]:
@@ -70,21 +90,31 @@ class SnowflakeCredentials(ConnectionStringCredentials):
         return query
 
     def to_connector_params(self) -> Dict[str, Any]:
-        # gather all params in query
         query = self.get_query()
         if self.private_key:
             query["private_key"] = decode_private_key(self.private_key, self.private_key_passphrase)
-
-        # we do not want passphrase to be passed
         query.pop("private_key_passphrase", None)
 
-        conn_params: Dict[str, Any] = dict(
-            query,
-            user=self.username,
-            password=self.password,
-            account=self.host,
-            database=self.database,
-        )
+        # Support token-based authentication
+        if self.token:
+            conn_params = dict(
+                query,
+                token=self.token,
+                account=self.host,
+                authenticator=self.authenticator or "oauth",
+                database=self.database,
+            )
+            # Remove user/password when using token auth
+            conn_params.pop("user", None)
+            conn_params.pop("password", None)
+        else:
+            conn_params = dict(
+                query,
+                user=self.username,
+                password=self.password,
+                account=self.host,
+                database=self.database,
+            )
 
         if self.application != "" and "application" not in conn_params:
             conn_params["application"] = self.application
