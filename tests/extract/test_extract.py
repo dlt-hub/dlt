@@ -131,7 +131,7 @@ def test_extract_hints_mark(extract_step: Extract) -> None:
         assert table["columns"]["pk"]["primary_key"] is True
         assert table["columns"]["id"]["data_type"] == "bigint"
         # get the resource
-        resource = dlt.current.source().resources[dlt.current.resource_name()]
+        resource = dlt.current.resource()
         table = resource.compute_table_schema()
         # also there we see the hints
         assert table["columns"]["pk"]["primary_key"] is True
@@ -212,7 +212,7 @@ def test_extract_hints_table_variant(extract_step: Extract) -> None:
             create_table_variant=True,
         )
         # get the resource
-        resource = dlt.current.source().resources[dlt.current.resource_name()]
+        resource = dlt.current.resource()
         assert "table_a" in resource._hints_variants
         # get table
         table = resource.compute_table_schema(meta=TableNameMeta("table_a"))
@@ -259,7 +259,7 @@ def test_extract_hints_mark_incremental(extract_step: Extract) -> None:
         yield [{"id": id_, "pk": "A"} for id_ in range(1, 10)]
 
         # get the resource
-        resource = dlt.current.source().resources[dlt.current.resource_name()]
+        resource = dlt.current.resource()
         table = resource.compute_table_schema()
         # also there we see the hints
         assert table["columns"]["id"]["primary_key"] is True
@@ -272,7 +272,7 @@ def test_extract_hints_mark_incremental(extract_step: Extract) -> None:
         )
 
         # get the resource
-        resource = dlt.current.source().resources[dlt.current.resource_name()]
+        resource = dlt.current.resource()
         assert resource.incremental.cursor_path == "created_at"  # type: ignore[attr-defined]
         assert resource.incremental.primary_key == "id"
         # we are able to add the incremental to the pipe. but it won't

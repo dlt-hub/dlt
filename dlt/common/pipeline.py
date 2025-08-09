@@ -52,7 +52,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.storages.load_storage import LoadPackageInfo
-from dlt.common.time import ensure_pendulum_datetime, precise_time
+from dlt.common.time import ensure_pendulum_datetime_utc, precise_time
 from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize, TColumnNames
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.utils import RowCounts, merge_row_counts
@@ -413,8 +413,8 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
             f"Current load id mismatch {self._current_load_id} != {load_id} when completing step"
             " info"
         )
-        metrics["started_at"] = ensure_pendulum_datetime(self._current_load_started)
-        metrics["finished_at"] = ensure_pendulum_datetime(precise_time())
+        metrics["started_at"] = ensure_pendulum_datetime_utc(self._current_load_started)
+        metrics["finished_at"] = ensure_pendulum_datetime_utc(precise_time())
         self._load_id_metrics[load_id].append(metrics)
         self._current_load_id = None
         self._current_load_started = None

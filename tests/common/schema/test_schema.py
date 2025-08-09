@@ -1,21 +1,21 @@
 import os
-from typing import Dict, List, Sequence
+from typing import Dict
 from types import MethodType
 
 import pytest
 from copy import deepcopy
 
-from dlt.common import pendulum
 from dlt.common.json import json
 from dlt.common.data_types.typing import TDataType
 from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers.naming import snake_case
-from dlt.common.typing import DictStrAny, StrAny
+from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
-from dlt.common.schema import TColumnSchema, Schema, TStoredSchema, utils
+from dlt.common.schema import Schema, TStoredSchema, utils
 from dlt.common.schema.exceptions import (
     InvalidSchemaName,
     ParentTableNotFoundException,
+    SchemaCorruptedException,
 )
 from dlt.common.schema.typing import (
     C_DLT_LOADS_TABLE_LOAD_ID,
@@ -24,6 +24,7 @@ from dlt.common.schema.typing import (
     TColumnName,
     TSimpleRegex,
     COLUMN_HINTS,
+    TTableSchemaColumns,
 )
 from dlt.common.storages import SchemaStorage
 
@@ -282,29 +283,6 @@ def test_clone(schema: Schema) -> None:
     assert cloned._normalizers_config["names"] == "direct"
 
 
-@pytest.mark.parametrize(
-    "columns,hint,value",
-    [
-        (
-            ["_dlt_id", "_dlt_root_id", "_dlt_load_id", "_dlt_parent_id", "_dlt_list_idx"],
-            "nullable",
-            False,
-        ),
-        (["_dlt_id"], "row_key", True),
-        (["_dlt_id"], "unique", True),
-        (["_dlt_parent_id"], "parent_key", True),
-    ],
-)
-def test_relational_normalizer_schema_hints(
-    columns: Sequence[str], hint: str, value: bool, schema_storage: SchemaStorage
-) -> None:
-    schema = schema_storage.load_schema("event")
-    for name in columns:
-        # infer column hints
-        c = schema._infer_column(name, "x")
-        assert c[hint] is value  # type: ignore[literal-required]
-
-
 def test_new_schema_alt_name() -> None:
     schema = Schema("model")
     assert schema.name == "model"
@@ -324,78 +302,9 @@ def test_save_store_schema(schema: Schema, schema_storage: SchemaStorage) -> Non
     assert_new_schema_props(schema_copy)
 
 
-def test_preserve_column_order(schema: Schema, schema_storage: SchemaStorage) -> None:
-    # python dicts are ordered from v3.6, add 50 column with random names
-    update: List[TColumnSchema] = [
-        schema._infer_column("t" + uniq_id(), pendulum.now().timestamp()) for _ in range(50)
-    ]
-    schema.update_table(utils.new_table("event_test_order", columns=update))
-
-    def verify_items(table, update) -> None:
-        assert [i[0] for i in table.items()] == list(table.keys()) == [u["name"] for u in update]
-        assert [i[1] for i in table.items()] == list(table.values()) == update
-
-    table = schema.get_table_columns("event_test_order")
-    verify_items(table, update)
-    # save and load
-    schema_storage.save_schema(schema)
-    loaded_schema = schema_storage.load_schema("event")
-    table = loaded_schema.get_table_columns("event_test_order")
-    verify_items(table, update)
-    # add more columns
-    update2: List[TColumnSchema] = [
-        schema._infer_column("t" + uniq_id(), pendulum.now().timestamp()) for _ in range(50)
-    ]
-    loaded_schema.update_table(utils.new_table("event_test_order", columns=update2))
-    table = loaded_schema.get_table_columns("event_test_order")
-    verify_items(table, update + update2)
-    # save and load
-    schema_storage.save_schema(loaded_schema)
-    loaded_schema = schema_storage.load_schema("event")
-    table = loaded_schema.get_table_columns("event_test_order")
-    verify_items(table, update + update2)
-
-
 def test_get_schema_new_exist(schema_storage: SchemaStorage) -> None:
     with pytest.raises(FileNotFoundError):
         schema_storage.load_schema("wrongschema")
-
-
-@pytest.mark.parametrize(
-    "columns,hint,value",
-    [
-        (
-            [
-                "timestamp",
-                "_timestamp",
-                "_dist_key",
-                "_dlt_id",
-                "_dlt_root_id",
-                "_dlt_load_id",
-                "_dlt_parent_id",
-                "_dlt_list_idx",
-                "sender_id",
-            ],
-            "nullable",
-            False,
-        ),
-        (["confidence", "_sender_id"], "nullable", True),
-        (["timestamp", "_timestamp"], "partition", True),
-        (["_dist_key", "sender_id"], "cluster", True),
-        (["_dlt_id"], "row_key", True),
-        (["_dlt_id"], "unique", True),
-        (["_dlt_parent_id"], "parent_key", True),
-        (["timestamp", "_timestamp"], "sort", True),
-    ],
-)
-def test_rasa_event_hints(
-    columns: Sequence[str], hint: str, value: bool, schema_storage: SchemaStorage
-) -> None:
-    schema = schema_storage.load_schema("event")
-    for name in columns:
-        # infer column hints
-        c = schema._infer_column(name, "x")
-        assert c[hint] is value  # type: ignore[literal-required]
 
 
 def test_filter_hints_table() -> None:
@@ -425,32 +334,6 @@ def test_filter_hints_table() -> None:
     bot_case["_dlt_id"] = uniq_id()
     rows = schema.filter_row_with_hint("event_bot", "primary_key", bot_case)
     assert list(rows.keys()) == ["_dlt_id"]
-
-
-def test_filter_hints_no_table(schema_storage: SchemaStorage) -> None:
-    # this is empty schema without any tables
-    schema = schema_storage.load_schema("event")
-    bot_case: StrAny = load_json_case("mod_bot_case")
-    # actually the empty `event_bot` table exists (holds exclusion filters)
-    rows = schema.filter_row_with_hint("event_bot", "not_null", bot_case)
-    assert list(rows.keys()) == []
-
-    # must be exactly in order of fields in row: timestamp is first
-    rows = schema.filter_row_with_hint("event_action", "not_null", bot_case)
-    assert list(rows.keys()) == ["timestamp", "sender_id"]
-
-    rows = schema.filter_row_with_hint("event_action", "primary_key", bot_case)
-    assert list(rows.keys()) == []
-
-    # infer table, update schema for the empty bot table
-    coerced_row, update = schema.coerce_row("event_bot", None, bot_case)
-    schema.update_table(update)
-    # not empty anymore
-    assert schema.get_table_columns("event_bot") is not None
-
-    # make sure the column order is the same when inferring from newly created table
-    rows = schema.filter_row_with_hint("event_bot", "not_null", coerced_row)
-    assert list(rows.keys()) == ["timestamp", "sender_id"]
 
 
 def test_merge_hints(schema: Schema) -> None:
@@ -893,3 +776,59 @@ def test_schema_repr() -> None:
     assert getattr(schema, "version_hash", sentinel) is not sentinel
     assert isinstance(getattr(schema, "data_table_names", sentinel), MethodType)
     assert isinstance(getattr(schema, "dlt_table_names", sentinel), MethodType)
+
+
+def test_get_new_columns(schema: Schema) -> None:
+    # allow for casing in names
+    os.environ["SCHEMA__NAMING"] = "direct"
+    schema.update_normalizers()
+
+    empty_table = utils.new_table("events")
+    schema.update_table(empty_table)
+    assert schema.get_new_table_columns("events", {}, case_sensitive=True) == []
+    name_column = utils.new_column("name", "text")
+    id_column = utils.new_column("ID", "text")
+    existing_columns: TTableSchemaColumns = {
+        "id": id_column,
+        "name": name_column,
+    }
+    # no new columns
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == []
+    # one new column
+    address_column = utils.new_column("address", "json")
+    schema.update_table(utils.new_table("events", columns=[address_column]))
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == [
+        address_column
+    ]
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=False) == [
+        address_column
+    ]
+    # name is already present
+    schema.update_table(utils.new_table("events", columns=[name_column]))
+    # so it is not detected
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == [
+        address_column
+    ]
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=False) == [
+        address_column
+    ]
+    # id is added with different casing
+    ID_column = utils.new_column("ID", "text")
+    schema.update_table(utils.new_table("events", columns=[ID_column]))
+    # case sensitive will detect
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == [
+        address_column,
+        ID_column,
+    ]
+    # insensitive doesn't
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=False) == [
+        address_column
+    ]
+
+    # existing columns are case sensitive
+    existing_columns["ID"] = ID_column
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == [
+        address_column
+    ]
+    with pytest.raises(SchemaCorruptedException):
+        schema.get_new_table_columns("events", existing_columns, case_sensitive=False)

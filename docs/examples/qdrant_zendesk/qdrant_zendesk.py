@@ -32,7 +32,7 @@ from typing import Optional, Dict, Any, Tuple, Iterable, List
 
 import dlt
 from dlt.common import pendulum
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.typing import TAnyDateTime
 from dlt.sources.helpers.requests import client
 from dlt.destinations.adapters import qdrant_adapter
@@ -61,8 +61,8 @@ def zendesk_support(
         DltResource: a resource with ticket data
     """
     # Convert start_date and end_date to Pendulum datetime objects
-    start_date_obj = ensure_pendulum_datetime(start_date)
-    end_date_obj = ensure_pendulum_datetime(end_date) if end_date else None
+    start_date_obj = ensure_pendulum_datetime_utc(start_date)
+    end_date_obj = ensure_pendulum_datetime_utc(end_date) if end_date else None
 
     # Extract credentials from secrets dictionary
     auth = (credentials["email"], credentials["password"])
@@ -106,7 +106,7 @@ def zendesk_support(
 def _parse_date_or_none(value: Optional[str]) -> Optional[pendulum.DateTime]:
     if not value:
         return None
-    return ensure_pendulum_datetime(value)
+    return ensure_pendulum_datetime_utc(value)
 
 
 # modify dates to return datetime objects instead

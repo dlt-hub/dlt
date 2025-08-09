@@ -9,9 +9,9 @@ from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import PipelineStepFailed
+from tests.load.pipeline.utils import simple_nested_pipeline
 from tests.load.snowflake.test_snowflake_client import QUERY_TAG
 
-from tests.load.pipeline.test_pipelines import simple_nested_pipeline
 from tests.pipeline.utils import assert_load_info, assert_query_column
 from tests.load.utils import (
     TABLE_UPDATE_COLUMNS_SCHEMA,
@@ -308,11 +308,11 @@ def test_snowflake_use_vectorized_scanner(
         db_row = list(db_rows[0])
         # "snowflake" does not parse JSON from parquet string so double parse
         assert_all_data_types_row(
+            sql_client.capabilities,
             db_row,
             expected_row=expected_rows,
             schema=column_schemas,
             parse_json_strings=True,
-            timestamp_precision=6,
         )
 
 

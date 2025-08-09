@@ -3,6 +3,7 @@ from copy import copy
 from functools import partial
 import inspect
 from typing import (
+    ClassVar,
     Dict,
     Iterable,
     Iterator,
@@ -15,6 +16,7 @@ from typing_extensions import Self
 
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import known_sections
+from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext, configspec
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
@@ -37,14 +39,14 @@ from dlt.common.utils import (
     without_none,
 )
 
-from dlt.extract.items import TDecompositionStrategy
+from dlt.extract.items import SupportsPipe, TDecompositionStrategy
 from dlt.extract.state import source_state
 from dlt.extract.pipe_iterator import ManagedPipeIterator
 from dlt.extract.pipe import Pipe
-from dlt.extract.hints import make_hints
 from dlt.extract.resource import DltResource
 from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
+    ResourceNotFoundError,
     ResourcesNotFoundError,
     DeletingResourcesNotSupported,
     InvalidParallelResourceDataType,
@@ -61,6 +63,7 @@ class DltResourceDict(Dict[str, DltResource]):
         self._new_pipes: List[Pipe] = []
         # pipes already cloned by __setitem__ id(original Pipe):cloned(Pipe)
         self._cloned_pairs: Dict[int, Pipe] = {}
+        self._resource_pipes: Dict[str, DltResource] = {}
 
     @property
     def selected(self) -> Dict[str, DltResource]:
@@ -70,27 +73,15 @@ class DltResourceDict(Dict[str, DltResource]):
     # NOTE the name `extracted` suggests that the resources were ran and data was extracted
     # this is not what the docstring implies. Could rename to "`to_extract`". Or `selected` vs. `user_selected`
     @property
-    def extracted(self) -> Dict[str, DltResource]:
-        """Returns a dictionary of all resources that will be extracted. That includes selected resources and all their parents.
-        For parents that are not added explicitly to the source, a mock resource object is created that holds the parent pipe and derives the table
-        schema from the child resource
+    def extracted(self) -> List[DltResource]:
+        """Returns a all resources that will be extracted. That includes selected resources and all their parents.
+        Note that several resources with the same name may be included if there were several parent instances of the
+        same resource.
         """
-        extracted = self.selected
-        for resource in self.selected.values():
-            while (pipe := resource._pipe.parent) is not None:
-                if not pipe.is_empty:
-                    try:
-                        resource = self[pipe.name]
-                    except KeyError:
-                        # resource for pipe not found: return mock resource
-                        mock_template = make_hints(
-                            pipe.name, write_disposition=resource.write_disposition
-                        )
-                        resource = DltResource(pipe, mock_template, False, section=resource.section)
-                        resource.source_name = resource.source_name
-                    extracted[resource.name] = resource
-                else:
-                    break
+        extracted = []
+        for pipe in self.extracted_pipes:
+            with contextlib.suppress(ResourceNotFoundError):
+                extracted.append(self.with_pipe(pipe))
         return extracted
 
     @property
@@ -111,6 +102,8 @@ class DltResourceDict(Dict[str, DltResource]):
                 # NOTE a node pointing to itself creates a cycle / is not a DAG
                 # the implementation doesn't match the function name and docstring
                 # add isolated element
+                # TODO: it is not node pointing to itself. change to (pipe.name, None)
+                #   to indicate isolated node
                 dag.append((pipe.name, pipe.name))
         return dag
 
@@ -121,6 +114,17 @@ class DltResourceDict(Dict[str, DltResource]):
     @property
     def selected_pipes(self) -> Sequence[Pipe]:
         return [r._pipe for r in self.values() if r.selected]
+
+    @property
+    def extracted_pipes(self) -> Sequence[Pipe]:
+        """Returns all execution pipes in the source including all parent pipes"""
+        extracted = []
+        for resource in self.selected.values():
+            pipe = resource._pipe
+            while pipe is not None:
+                extracted.append(pipe)
+                pipe = pipe.parent
+        return extracted
 
     def select(self, *resource_names: str) -> Dict[str, DltResource]:
         """Selects `resource_name` to be extracted, and unselects remaining resources."""
@@ -134,6 +138,25 @@ class DltResourceDict(Dict[str, DltResource]):
         for resource in self.values():
             self[resource.name].selected = resource.name in resource_names
         return self.selected
+
+    def with_pipe(self, pipe: SupportsPipe) -> DltResource:
+        """Gets resource with given execution pipe matching by pipe id.
+        Note that we do not use names to match pipe to resource as many resources
+        with the same name may be extracted at the same time: ie. when transformers
+        with different names depend on several instances of the same resource.
+        Note that ad hoc resources for parent pipes without resource won't be created
+        """
+        try:
+            return self._resource_pipes[pipe.instance_id]
+        except KeyError:
+            assert pipe.name not in self, (
+                f"consistency of search by pipe id failed, {pipe.name} was found,"
+                f" {pipe.instance_id} not."
+            )
+            raise ResourceNotFoundError(
+                pipe.name,
+                f"Resource with pipe with `{pipe.instance_id} could not be found in source",
+            )
 
     def add(self, *resources: DltResource) -> None:
         try:
@@ -160,7 +183,6 @@ class DltResourceDict(Dict[str, DltResource]):
     def _clone_new_pipes(self, resource_names: Sequence[str]) -> None:
         # clone all new pipes and keep
         _, self._cloned_pairs = ManagedPipeIterator.clone_pipes(self._new_pipes, self._cloned_pairs)
-        # self._cloned_pairs.update(cloned_pairs)
         # replace pipes in resources, the cloned_pipes preserve parent connections
         for name in resource_names:
             resource = self[name]
@@ -175,21 +197,32 @@ class DltResourceDict(Dict[str, DltResource]):
                 f"The index name `{resource_name}` does not correspond to resource name"
                 f" `{resource.name}`"
             )
-        pipe_id = id(resource._pipe)
+        pipe_instance_id = id(resource._pipe)
         # make shallow copy of the resource
         resource = copy(resource)
         # resource.section = self.source_section
         resource.source_name = self.source_name
-        if pipe_id in self._cloned_pairs:
+        if pipe_instance_id in self._cloned_pairs:
             # if resource_name in self:
             #     raise ValueError(f"Resource with name {resource_name} and pipe id {id(pipe_id)} is already present in the source. "
             #                      "Modify the resource pipe directly instead of setting a possibly modified instance.")
             # TODO: instead of replacing pipe with existing one we should clone and replace the existing one in all resources that have it
-            resource._pipe = self._cloned_pairs[pipe_id]
+            resource._pipe = self._cloned_pairs[pipe_instance_id]
         else:
             self._new_pipes.append(resource._pipe)
         # now set it in dict
         super().__setitem__(resource_name, resource)
+        # store pipes of all resources including parents
+        self._resource_pipes[resource._pipe.instance_id] = resource
+        parent = resource._parent
+        while parent:
+            if parent._pipe:
+                parent_copy = copy(parent)
+                # remove pipe from copy so we cannot access it by mistake
+                parent_copy._pipe = Pipe(parent.name)
+                self._resource_pipes[parent._pipe.instance_id] = parent_copy
+            parent = parent._parent
+
         # immediately clone pipe if not suppressed
         if not self._suppress_clone_on_setitem:
             self._clone_new_pipes([resource.name])
@@ -207,8 +240,8 @@ class DltResourceDict(Dict[str, DltResource]):
         s += "\n  }"
 
         s += "\n  'extracted': {"
-        for name, r in self.extracted.items():
-            s += f"\n    '{name}': {r.__repr__()}, "
+        for r in self.extracted:
+            s += f"\n    '{r.name}': {r.__repr__()}, "
         s += "\n  }"
         s += "\n}"
 
@@ -322,8 +355,8 @@ class DltSource(Iterable[TDataItem]):
     @property
     def exhausted(self) -> bool:
         """Check all selected pipes whether one of them has started. if so, the source is exhausted."""
-        for resource in self._resources.extracted.values():
-            item = resource._pipe.gen
+        for pipe in self._resources.selected_pipes:
+            item = pipe.gen
             if inspect.isgenerator(item):
                 if inspect.getgeneratorstate(item) != "GEN_CREATED":
                     return True
@@ -461,11 +494,18 @@ class DltSource(Iterable[TDataItem]):
         mock_state, _ = pipeline_state(Container(), {})
         state_context = StateInjectableContext(state=mock_state)
         section_context = self._get_config_section_context()
+        source_context = SourceInjectableContext(self)
+        schema_context = SourceSchemaInjectableContext(self.schema)
 
         # managed pipe iterator will set the context on each call to  __next__
-        with inject_section(section_context), Container().injectable_context(state_context):
+        with (
+            inject_section(section_context),
+            Container().injectable_context(state_context),
+            Container().injectable_context(source_context),
+            Container().injectable_context(schema_context),
+        ):
             pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipes(self._resources.selected_pipes)  # type: ignore
-        pipe_iterator.set_context([section_context, state_context])
+        pipe_iterator.set_context([section_context, state_context, schema_context, source_context])
         _iter = map(lambda item: item.item, pipe_iterator)
         return flatten_list_or_items(_iter)
 
@@ -482,7 +522,11 @@ class DltSource(Iterable[TDataItem]):
         try:
             return self._resources[resource_name]
         except KeyError:
-            raise AttributeError(f"Resource `{resource_name}` not found in source `{self.name}`")
+            all_resources = ", ".join(self._resources.keys())
+            raise AttributeError(
+                f"Resource `{resource_name}` not found in source `{self.name}`. Available"
+                f" resources: {all_resources}"
+            )
 
     def __setattr__(self, name: str, value: Any) -> None:
         if isinstance(value, DltResource):
@@ -493,7 +537,7 @@ class DltSource(Iterable[TDataItem]):
     def __repr__(self) -> str:
         kwargs = {
             "name": self.name,
-            # "section": self.section,  should this be explicitly passed?
+            "section": self.section,
             "schema_contract": "{...}" if self.schema_contract else None,
             "exhausted": self.exhausted if self.exhausted else None,
             "n_resources": len(self.resources),
@@ -528,3 +572,29 @@ class DltSource(Iterable[TDataItem]):
         info += " Note that, like any iterator, you can iterate the source only once."
         info += f"\ninstance id: {id(self)}"
         return info
+
+
+@configspec
+class SourceSchemaInjectableContext(ContainerInjectableContext):
+    """A context containing the source schema, present when dlt.source/resource decorated function is executed"""
+
+    schema: Schema = None
+
+    can_create_default: ClassVar[bool] = False
+
+
+@configspec
+class SourceInjectableContext(ContainerInjectableContext):
+    """A context containing the source schema, present when dlt.resource decorated function is executed"""
+
+    source: DltSource = None
+
+    can_create_default: ClassVar[bool] = False
+
+
+class _DltSingleSource(DltSource):
+    """Used to register standalone (non-inner) resources"""
+
+    @property
+    def single_resource(self) -> DltResource:
+        return list(self.resources.values())[0]

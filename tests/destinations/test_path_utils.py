@@ -515,7 +515,7 @@ def test_create_path_uses_load_package_timestamp_as_current_datetime(
     now_timestamp = now
     logger_spy = mocker.spy(logger, "info")
     ensure_pendulum_datetime_spy = mocker.spy(
-        dlt.destinations.path_utils, "ensure_pendulum_datetime"
+        dlt.destinations.path_utils, "ensure_pendulum_datetime_utc"
     )
     path = create_path(
         "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",

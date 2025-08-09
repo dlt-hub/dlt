@@ -34,7 +34,7 @@ from dlt.common.storages.exceptions import (
     UnsupportedStorageVersionException,
 )
 from dlt.common.storages.fsspec_filesystem import glob_files
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.utils import get_columns_names_with_prop
@@ -884,7 +884,7 @@ class FilesystemClient(
 
             if selected_path:
                 info = json.loads(self.fs_client.read_text(selected_path, encoding="utf-8"))
-                info["inserted_at"] = ensure_pendulum_datetime(info["inserted_at"])
+                info["inserted_at"] = ensure_pendulum_datetime_utc(info["inserted_at"])
                 return StorageSchemaInfo(**info)
         except DestinationUndefinedEntity:
             # ignore missing table

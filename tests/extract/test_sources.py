@@ -34,6 +34,7 @@ from dlt.extract.exceptions import (
     InvalidTransformerGeneratorFunction,
     ParametrizedResourceUnbound,
     ResourceNotATransformer,
+    ResourceNotFoundError,
     ResourcesNotFoundError,
 )
 from dlt.extract.pipe import Pipe
@@ -524,6 +525,8 @@ def test_multiple_parametrized_transformers() -> None:
         def _t2(items, mul):
             yield items * mul
 
+        assert _t2._parent is _t1
+
         if test_set == 1:
             return _r1, _t1, _t2
         if test_set == 2:
@@ -534,13 +537,21 @@ def test_multiple_parametrized_transformers() -> None:
         if test_set == 4:
             # true pipelining fun
             return _r1() | _t1("2") | _t2(2)
+        if test_set == 5:
+            # ad hoc resource
+            return ["a", "b", "c"] | _t1("2") | _t2(2)
+        if test_set == 6:
+            partial_pipe = _t1("2")
+            # emulate manually created pipe with parents
+            partial_pipe._pipe.parent = Pipe.from_data("ersatz", ["a", "b", "c"])
+            return partial_pipe | _t2(2)
 
     expected_data = ["a_2", "b_2", "c_2", "a_2", "b_2", "c_2"]
 
     # this s contains all resources
     s = _source(1)
     # all resources will be extracted (even if just the _t2 is selected)
-    assert set(s.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
+    assert sorted([r.name for r in s.resources.extracted]) == sorted(["_t2", "_r1", "_t1"])
     assert set(s.resources.selected_dag) == {("_r1", "_t1"), ("_t1", "_t2")}
     components = s.decompose("scc")
     # only one isolated component
@@ -552,23 +563,23 @@ def test_multiple_parametrized_transformers() -> None:
     s.resources["_t1"].bind("2")
     s._t2.bind(2)
     assert list(s) == expected_data
-    assert set(s.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
+    assert sorted([r.name for r in s.resources.extracted]) == sorted(["_t2", "_r1", "_t1"])
     # deselect _t2 and now nothing is selected
     s._t2.selected = False
-    assert set(s.resources.extracted.keys()) == set()
+    assert [r.name for r in s.resources.extracted] == []
     assert set(s.resources.selected_dag) == set()
     assert s.decompose("scc") == []
 
     s._r1.selected = True
     # now only _r1
-    assert set(s.resources.extracted.keys()) == {"_r1"}
+    assert sorted([r.name for r in s.resources.extracted]) == ["_r1"]
     assert set(s.resources.selected_dag) == {("_r1", "_r1")}
     assert set(s.decompose("scc")[0].selected_resources.keys()) == {"_r1"}
 
     # this s contains only transformers
     s2 = _source(2)
     # the _r will be extracted but it is not in the resources list so we create a mock resource for it
-    assert set(s2.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
+    assert sorted([r.name for r in s2.resources.extracted]) == sorted(["_t2", "_r1", "_t1"])
     s2._t1.bind("2")
     s2._t2.bind(2)
     assert list(s2) == expected_data
@@ -581,16 +592,36 @@ def test_multiple_parametrized_transformers() -> None:
 
     s3 = _source(3)
     # here _t1 and _r1 are not in the source
-    assert set(s3.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
+    assert sorted([r.name for r in s3.resources.extracted]) == sorted(["_t2", "_r1", "_t1"])
     s3._t2.bind(2)
     assert list(s3) == expected_data
     assert set(s3.resources.selected_dag) == {("_r1", "_t1"), ("_t1", "_t2")}
 
     s4 = _source(4)
     # here we return a pipe
-    assert set(s4.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
+    assert sorted([r.name for r in s4.resources.extracted]) == sorted(["_t2", "_r1", "_t1"])
     assert list(s4) == expected_data
     assert set(s4.resources.selected_dag) == {("_r1", "_t1"), ("_t1", "_t2")}
+
+    s5 = _source(5)
+    # get auto resource name for piped in list
+    iter_resource = s5._t2._parent._pipe.parent.name
+    assert sorted([r.name for r in s5.resources.extracted]) == sorted(["_t2", iter_resource, "_t1"])
+    assert set(s5) == set(expected_data)
+
+    # with ad hoc pipe connected to transformer
+    print(6)
+    s6 = _source(6)
+    assert sorted([r.name for r in s6.resources.extracted_pipes]) == sorted(
+        ["_t2", "ersatz", "_t1"]
+    )
+    assert sorted([r.name for r in s6.resources.extracted]) == ["_t1", "_t2"]
+    assert sorted(list(s6)) == sorted(expected_data)
+    top_pipe = s6._t2._parent._pipe.parent
+    assert top_pipe.name == "ersatz"
+    with pytest.raises(ResourceNotFoundError) as r_ex:
+        s6.resources.with_pipe(top_pipe)
+    assert r_ex.value.resource_name == "ersatz"
 
 
 def test_extracted_resources_selector() -> None:
@@ -615,14 +646,16 @@ def test_extracted_resources_selector() -> None:
 
     s = _source(1)
     # t1 not selected
-    assert set(s.resources.extracted.keys()) == {"_t2", "_r1"}
+    extracted_dict = {r.name: r for r in s.resources.extracted}
+    assert sorted(extracted_dict.keys()) == sorted(["_t2", "_r1"])
     # append and replace
-    assert s.resources.extracted["_r1"].write_disposition == "append"
-    assert s.resources.extracted["_t2"].write_disposition == "merge"
+    assert extracted_dict["_r1"].write_disposition == "append"
+    assert extracted_dict["_t2"].write_disposition == "merge"
     # # select _t1
     s._t1.bind("x").selected = True
-    assert set(s.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
-    assert s.resources.extracted["_t1"].write_disposition == "replace"
+    extracted_dict = {r.name: r for r in s.resources.extracted}
+    assert sorted(extracted_dict.keys()) == sorted(["_t2", "_r1", "_t1"])
+    assert extracted_dict["_t1"].write_disposition == "replace"
 
     s2 = _source(1)
     # are we a clone?
@@ -630,17 +663,23 @@ def test_extracted_resources_selector() -> None:
 
     s3 = _source(2)
     # only _t2 is enabled
-    assert set(s3.resources.extracted.keys()) == {"_t2", "_r1"}
-    # _r1 is merge (inherits from _t2)
-    assert s3.resources.extracted["_r1"].write_disposition == "merge"
-    # we have _r1 as parent for _t1 with "replace" and _t2 with "merge", the write disposition of _r1 is de facto undefined...
+    extracted_dict = {r.name: r for r in s3.resources.extracted}
+    assert sorted(extracted_dict.keys()) == sorted(["_t2", "_r1"])
+    # _r1 is append
+    assert extracted_dict["_r1"].write_disposition == "append"
+
     s3._t1.selected = True
-    assert set(s3.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
-    assert s3.resources.extracted["_r1"].write_disposition == "merge"
+    extracted_dict = {r.name: r for r in s3.resources.extracted}
+    assert sorted(extracted_dict.keys()) == sorted(["_t2", "_r1", "_t1"])
+    assert extracted_dict["_r1"].write_disposition == "append"
     s3._t2.selected = False
-    assert set(s3.resources.extracted.keys()) == {"_r1", "_t1"}
+    extracted_dict = {r.name: r for r in s3.resources.extracted}
+    assert sorted(extracted_dict.keys()) == sorted(["_r1", "_t1"])
     # inherits from _t1
-    assert s3.resources.extracted["_r1"].write_disposition == "replace"
+    assert extracted_dict["_r1"].write_disposition == "append"
+
+
+# TODO: test _r1 | _t1 and _r1(wd=merge) | _t2 with different merge dispositions
 
 
 def test_source_decompose() -> None:

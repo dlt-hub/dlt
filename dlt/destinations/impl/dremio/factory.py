@@ -112,6 +112,7 @@ class dremio(Destination[DremioClientConfiguration, "DremioClient"]):
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
         caps.enforces_nulls_on_alter = False
         caps.sqlglot_dialect = "presto"
+        caps.supports_naive_datetime = False
 
         return caps
 
