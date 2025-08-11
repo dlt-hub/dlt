@@ -17,7 +17,6 @@ async def initialize():
         await micropip.install("dlt[duckdb]")
         await micropip.install("pandas")
         # dependencies needed for ibis
-        await micropip.install("sqlite3")
         await micropip.install("ibis-framework[duckdb]")
 
     return sys, mo
