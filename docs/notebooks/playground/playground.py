@@ -58,9 +58,7 @@ def connect(pipeline):
 @app.cell(hide_code=True)
 def tests(pipeline):
     # NOTE: this cell is only needed for testing this notebook on ci
-    count = pipeline.dataset().users.df().shape[0]
-    if count != 10:
-        raise AssertionError(f"expected 10 rows, got {count}")
+    assert pipeline.dataset().users.df().shape[0] == 10
     return
 
 
