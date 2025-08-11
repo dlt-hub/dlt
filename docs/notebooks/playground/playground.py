@@ -17,6 +17,7 @@ async def initialize():
         await micropip.install("dlt[duckdb]")
         await micropip.install("pandas")
         # dependencies needed for ibis
+        await micropip.install("requests")
         await micropip.install("ibis-framework[duckdb]")
 
     return sys, mo
@@ -24,19 +25,20 @@ async def initialize():
 
 @app.cell
 def run():
-    import dlt, requests
+    import dlt
+    import requests
 
     @dlt.resource(table_name="users")
     def users():
         yield from requests.get("https://jsonplaceholder.typicode.com/users").json()
 
     pipeline = dlt.pipeline(
-        pipeline_name="users_pipeline", 
-        destination="duckdb", 
+        pipeline_name="users_pipeline",
+        destination="duckdb",
         dataset_name="raw_data",
-        dev_mode=True
+        dev_mode=True,
     )
-    print(pipeline.run(users(),refresh=True))
+    print(pipeline.run(users(), refresh=True))
     return (pipeline,)
 
 
@@ -56,7 +58,9 @@ def connect(pipeline):
 @app.cell(hide_code=True)
 def tests(pipeline):
     # NOTE: this cell is only needed for testing this notebook on ci
-    assert pipeline.dataset().users.df().shape[0] == 10  
+    count = pipeline.dataset().users.df().shape[0]
+    if count != 10:
+        raise AssertionError(f"expected 10 rows, got {count}")
     return
 
 
