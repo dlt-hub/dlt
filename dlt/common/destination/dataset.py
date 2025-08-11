@@ -371,7 +371,7 @@ class SupportsDataset(Protocol):
             _execute_raw_query (bool, optional): Whether to run the query as is (raw)or perform query normalization and lineage. Experimental.
 
         Returns:
-            Relation: The readable relation for the query
+            SupportsRelation: The readable relation for the query
         """
         ...
 
@@ -390,7 +390,7 @@ class SupportsDataset(Protocol):
             _execute_raw_query (bool, optional): Whether to run the query as is (raw)or perform query normalization and lineage. Experimental.
 
         Returns:
-            Relation: The readable relation for the query
+            SupportsRelation: The readable relation for the query
         """
         ...
 
@@ -413,7 +413,7 @@ class SupportsDataset(Protocol):
             table_type (Literal["relation", "ibis"], optional): The type of the table. Defaults to "relation" if not specified. If "ibis" is specified, you will get an unbound ibis table.
 
         Returns:
-            Union[Relation, IbisTable]: The object representing the table
+            Union[SupportsRelation, IbisTable]: The object representing the table
         """
         ...
 
@@ -424,7 +424,7 @@ class SupportsDataset(Protocol):
             table (str): The name of the table
 
         Returns:
-            Relation: The readable relation for the table
+            SupportsRelation: The readable relation for the table
         """
         ...
 
@@ -435,7 +435,7 @@ class SupportsDataset(Protocol):
             table (str): The name of the table
 
         Returns:
-            Relation: The readable relation for the table
+            SupportsRelation: The readable relation for the table
         """
         ...
 
@@ -473,6 +473,6 @@ class SupportsDataset(Protocol):
             table_names (Optional[list[str]]): The names of the tables to include. Defaults to None. Will override data_tables and dlt_tables if set
             load_id (Optional[str]): If set, only count rows associated with a given load id. Will exclude tables that do not have a load id.
         Returns:
-            Relation: The row counts of the dataset as ReadableRelation
+            SupportsRelation: The row counts of the dataset as ReadableRelation
         """
         ...

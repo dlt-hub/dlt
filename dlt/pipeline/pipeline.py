@@ -1812,7 +1812,7 @@ class Pipeline(SupportsPipeline):
         Args:
             schema (Union[Schema, str, None]): Schema name or Schema object to use. If None, uses the default schema if set.
         Returns:
-            Dataset: A dataset object that supports querying the destination data.
+            SupportsDataset: A dataset object that supports querying the destination data.
         """
 
         if not self._destination:

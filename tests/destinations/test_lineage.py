@@ -7,8 +7,8 @@ import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema, ensure_schema
 
 from dlt.common.schema import TTableSchemaColumns
-from dlt.destinations.dataset import lineage
-from dlt.destinations.dataset.exceptions import LineageFailedException
+from dlt.dataset import lineage
+from dlt.dataset.exceptions import LineageFailedException
 
 
 @pytest.fixture
@@ -175,7 +175,7 @@ def test_compute_columns_schema(
             lineage.compute_columns_schema(
                 expression=sqlglot.parse_one(sql_query),
                 sqlglot_schema=sqlglot_schema,
-                dialect=sqlglot_schema.dialect,  # type: ignore
+                dialect=sqlglot_schema.dialect,  # type: ignore[arg-type]
                 **config,
             )
     else:
@@ -184,7 +184,7 @@ def test_compute_columns_schema(
             == lineage.compute_columns_schema(
                 expression=sqlglot.parse_one(sql_query),
                 sqlglot_schema=sqlglot_schema,
-                dialect=sqlglot_schema.dialect,  # type: ignore
+                dialect=sqlglot_schema.dialect,  # type: ignore[arg-type]
                 **config,
             )[0]
         )
