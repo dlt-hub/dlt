@@ -125,7 +125,7 @@ def test_page_loads(page: Page):
     # state page
     _open_section(page, "state")
     expect(
-        page.get_by_text('"dataset_name": "one_two_three_dataset"')
+        page.get_by_text("dataset_name: one_two_three_dataset")
     ).to_be_visible()  # this is part of the state yaml
 
     # last trace page
@@ -168,7 +168,7 @@ def test_page_loads(page: Page):
     expect(page.get_by_text(app_strings.browse_data_query_result_title).nth(1)).to_be_visible()
 
     _open_section(page, "state")
-    expect(page.get_by_text('"dataset_name": "fruit_pipeline_dataset"')).to_be_visible()
+    expect(page.get_by_text("dataset_name: fruit_pipeline_dataset")).to_be_visible()
 
     # last trace page
     _open_section(page, "trace")
@@ -206,7 +206,7 @@ def test_page_loads(page: Page):
     expect(page.get_by_text(app_strings.browse_data_error_text)).to_be_visible()
 
     _open_section(page, "state")
-    expect(page.get_by_text('"dataset_name": "never_run_pipeline_dataset"')).to_be_visible()
+    expect(page.get_by_text("dataset_name: never_run_pipeline_dataset")).to_be_visible()
 
     _open_section(page, "trace")
     expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
@@ -239,7 +239,7 @@ def test_page_loads(page: Page):
     expect(page.get_by_text(app_strings.browse_data_error_text)).to_be_visible()
 
     _open_section(page, "state")
-    expect(page.get_by_text('"dataset_name": null')).to_be_visible()
+    expect(page.get_by_text("dataset_name: null")).to_be_visible()
 
     # loads page
     _open_section(page, "loads")
