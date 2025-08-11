@@ -1,5 +1,5 @@
 ---
-title: View data with Streamlit
+title: The legacy streamlit app
 description: Viewing your data with streamlit
 keywords: [data, dataset, streamlit]
 ---
