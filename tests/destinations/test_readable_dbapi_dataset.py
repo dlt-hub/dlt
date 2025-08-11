@@ -4,12 +4,12 @@ from typing import cast
 import dlt
 import pytest
 
-import dlt.destinations.dataset
-from dlt.destinations.dataset.exceptions import LineageFailedException
+from dlt.dataset.exceptions import LineageFailedException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.schema.utils import new_table
-from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
+from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 
 
 @pytest.fixture
@@ -25,7 +25,7 @@ def mock_dataset() -> ReadableDBAPIDataset:
     s.update_table(t)
     dataset = cast(
         ReadableDBAPIDataset,
-        dlt.destinations.dataset.dataset(
+        dlt.dataset(
             dlt.destinations.duckdb(destination_name="duck_db"),
             "pipeline_dataset",
             schema=s,
@@ -92,7 +92,7 @@ def test_query_builder(mock_dataset: ReadableDBAPIDataset) -> None:
 def test_copy_and_chaining() -> None:
     dataset = cast(
         ReadableDBAPIDataset,
-        dlt.destinations.dataset.dataset(
+        dlt.dataset(
             dlt.destinations.duckdb(destination_name="duck_db"),
             "pipeline_dataset",
         ),
@@ -124,7 +124,7 @@ def test_copy_and_chaining() -> None:
 
 
 def test_computed_schema_columns() -> None:
-    dataset = dlt.destinations.dataset.dataset(
+    dataset = dlt.dataset(
         dlt.destinations.duckdb(destination_name="duck_db"),
         "pipeline_dataset",
     )
@@ -179,7 +179,7 @@ def test_changing_relation_with_query() -> None:
     s.update_table(t)
     dataset = cast(
         ReadableDBAPIDataset,
-        dlt.destinations.dataset.dataset(
+        dlt.dataset(
             dlt.destinations.duckdb(destination_name="duck_db"),
             "pipeline_dataset",
             schema=s,

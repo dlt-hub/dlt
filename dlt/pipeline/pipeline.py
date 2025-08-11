@@ -108,10 +108,7 @@ from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
-from dlt.destinations.dataset import (
-    dataset,
-    get_destination_clients,
-)
+from dlt.destinations.dataset import get_destination_clients
 
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
@@ -1845,7 +1842,7 @@ class Pipeline(SupportsPipeline):
         elif self.default_schema_name:
             schema = self.default_schema
 
-        return dataset(
+        return dlt.dataset(
             self._destination,
             self.dataset_name,
             schema=schema,
