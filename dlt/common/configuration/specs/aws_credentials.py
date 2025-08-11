@@ -183,8 +183,7 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
             return None
         self.aws_access_key_id = default.access_key
         self.aws_secret_access_key = TSecretStrValue(default.secret_key)
-        if default.token is not None:
-            self.aws_session_token = TSecretStrValue(default.token)
+        self.aws_session_token = cast(TSecretStrValue, default.token)
         return default
 
     def to_native_credentials(self) -> Optional[Any]:
