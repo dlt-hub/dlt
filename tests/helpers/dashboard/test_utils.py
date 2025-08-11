@@ -176,7 +176,7 @@ def test_pipeline_details(test_pipeline, temp_pipelines_dir):
     result = pipeline_details(config, test_pipeline, temp_pipelines_dir)
 
     assert isinstance(result, list)
-    assert len(result) == 6
+    assert len(result) == 8
 
     # Convert to dict for easier testing
     details_dict = {item["name"]: item["value"] for item in result}
@@ -184,7 +184,7 @@ def test_pipeline_details(test_pipeline, temp_pipelines_dir):
     assert details_dict["pipeline_name"] == "test_pipeline"
     assert details_dict["destination"] == "duckdb (dlt.destinations.duckdb)"
     assert details_dict["dataset_name"] == test_pipeline.dataset_name
-    assert details_dict["schema"] == "fruitshop"
+    assert details_dict["schemas"].startswith("fruitshop")
     assert details_dict["working_dir"].endswith(test_pipeline.pipeline_name)
 
 
@@ -192,13 +192,23 @@ def test_create_table_list(test_pipeline):
     """Test creating a basic table list with real schema"""
     config = DashboardConfiguration()
 
-    result = create_table_list(config, test_pipeline, show_child_tables=False)
+    result = create_table_list(
+        config,
+        test_pipeline,
+        selected_schema_name=test_pipeline.default_schema_name,
+        show_child_tables=False,
+    )
 
     # Should exclude _dlt_loads by default
     table_names = {table["name"] for table in result}
     assert table_names == {"inventory", "purchases", "customers", "inventory_categories"}
 
-    result = create_table_list(config, test_pipeline, show_child_tables=True)
+    result = create_table_list(
+        config,
+        test_pipeline,
+        selected_schema_name=test_pipeline.default_schema_name,
+        show_child_tables=True,
+    )
     table_names = {table["name"] for table in result}
     assert table_names == {
         "inventory",
@@ -208,7 +218,13 @@ def test_create_table_list(test_pipeline):
         "inventory_categories",
     }
 
-    result = create_table_list(config, test_pipeline, show_internals=True, show_child_tables=False)
+    result = create_table_list(
+        config,
+        test_pipeline,
+        selected_schema_name=test_pipeline.default_schema_name,
+        show_internals=True,
+        show_child_tables=False,
+    )
     table_names = {table["name"] for table in result}
     assert table_names == {
         "customers",
@@ -226,11 +242,22 @@ def test_create_column_list_basic(test_pipeline):
     config = DashboardConfiguration()
 
     # Should exclude _dlt columns by default, will also not show incomplete columns
-    result = create_column_list(config, test_pipeline, "purchases")
+    result = create_column_list(
+        config,
+        test_pipeline,
+        selected_schema_name=test_pipeline.default_schema_name,
+        table_name="purchases",
+    )
     column_names = {col["name"] for col in result}
     assert column_names == {"customer_id", "quantity", "id", "inventory_id", "date"}
 
-    result = create_column_list(config, test_pipeline, "purchases", show_internals=True)
+    result = create_column_list(
+        config,
+        test_pipeline,
+        selected_schema_name=test_pipeline.default_schema_name,
+        table_name="purchases",
+        show_internals=True,
+    )
     column_names = {col["name"] for col in result}
     assert column_names == {
         "_dlt_load_id",
@@ -246,7 +273,13 @@ def test_create_column_list_basic(test_pipeline):
 def test_create_column_list_type_hints(test_pipeline):
     """Test creating column list with type hints"""
     config = DashboardConfiguration()
-    result = create_column_list(config, test_pipeline, "purchases", show_type_hints=True)
+    result = create_column_list(
+        config,
+        test_pipeline,
+        selected_schema_name=test_pipeline.default_schema_name,
+        table_name="purchases",
+        show_type_hints=True,
+    )
 
     # Find the id column
     id_column = next(col for col in result if col["name"] == "id")
@@ -300,7 +333,7 @@ def test_get_loads(test_pipeline):
 def test_trace(test_pipeline):
     """Test trace overview with real trace data"""
     config = DashboardConfiguration()
-    trace = test_pipeline.last_trace.asdict()
+    trace = test_pipeline.last_trace
 
     # overview
     result = trace_overview(config, trace)

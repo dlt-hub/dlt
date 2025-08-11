@@ -250,7 +250,7 @@ def create_column_list(
     c: DashboardConfiguration,
     pipeline: dlt.Pipeline,
     table_name: str,
-    select_schema_name: str = None,
+    selected_schema_name: str = None,
     show_internals: bool = False,
     show_type_hints: bool = True,
     show_other_hints: bool = False,
@@ -264,7 +264,7 @@ def create_column_list(
     """
     column_list: List[Dict[str, Any]] = []
     for column in (
-        pipeline.schemas[select_schema_name]
+        pipeline.schemas[selected_schema_name]
         .get_table_columns(table_name, include_incomplete=False)
         .values()
     ):
