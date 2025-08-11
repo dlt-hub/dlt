@@ -1,7 +1,7 @@
 ---
-title: "Dlt Pipeline Runner"
-description: Run pipelines with 
-keywords: ["data access", "security", "contracts", "data sharing"]
+title: "Dlt+ Runner"
+description: Run pipelines with the Dlt+ Runner
+keywords: ["runner", "pipeline", "retry", "trace"]
 ---
 # Runner
 
@@ -108,7 +108,14 @@ The Runner supports configurable retry policies to handle errors during pipeline
 
 - Finalizing pending data from previous loads
 - Running the pipeline with the given data
-- Loading trace information
+
+:::note
+The runner will alternate between trying to load the pipeline and loading the trace. So after the
+first attempt failed, it will try to load the trace of the first attempt. If that also fails, the
+trace file will be kept as `traces/<transaction_id>_attempt_1_trace.json` in the pipelines
+working directory and the pipeline will be retried. Failures to load the trace will logged, but
+do not affect the main pipelines execution.
+:::
 
 ### Available retry policies
 
