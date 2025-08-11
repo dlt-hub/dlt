@@ -406,6 +406,28 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
             return True
         return super().should_load_data_to_staging_dataset_on_staging_destination(table_name)
 
+    def drop_columns(
+        self,
+        from_tables_drop_cols: List[Dict[str, Union[str, List[str]]]],
+        update_schema: bool = True,
+    ) -> None:
+        """Drops specified columns from specified tables, using appropriate method based on table format"""
+        for from_table_drop_cols in from_tables_drop_cols:
+            table_name = cast(str, from_table_drop_cols["from_table"])
+            columns_to_drop = cast(List[str], from_table_drop_cols["drop_columns"])
+
+            table_schema = self.prepare_load_table(table_name)
+
+            if self._is_iceberg_table(table_schema):
+                # For Iceberg tables, use the base SQL client method (ALTER TABLE DROP COLUMN)
+                self.sql_client.drop_columns([from_table_drop_cols])
+            else:
+                # For Hive tables, use the special REPLACE COLUMNS method
+                self.sql_client.drop_columns_hive(table_name, columns_to_drop)
+
+        if update_schema:
+            self._update_schema_in_storage(self.schema)
+
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
         from pyathena.error import Error
