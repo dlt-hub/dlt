@@ -53,7 +53,7 @@ def pipeline_command(
         return
 
     # we may open the dashboard for a pipeline without checking if it exists
-    if operation == "show" and command_kwargs.get("dashboard"):
+    if operation == "show" and not command_kwargs.get("streamlit"):
         from dlt.common.utils import custom_environ
         from dlt.common.known_env import DLT_DATA_DIR
 

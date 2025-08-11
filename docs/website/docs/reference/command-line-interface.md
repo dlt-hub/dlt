@@ -187,16 +187,18 @@ Generates and launches Streamlit app with the loading status and dataset explore
 
 **Usage**
 ```sh
-dlt pipeline [pipeline_name] show [-h] [--dashboard] [--edit]
+dlt pipeline [pipeline_name] show [-h] [--streamlit] [--edit]
 ```
 
 **Description**
 
-Generates and launches Streamlit (https://streamlit.io/) app with the loading status and dataset explorer.
+Launches the pipeline dashboard app with a comprehensive interface to inspect the pipeline state, schemas, and data in the destination.
 
-This is a simple app that you can use to inspect the schemas and data in the destination as well as your pipeline state and loading status/stats. It should be executed from the same folder from which you ran the pipeline script to access destination credentials.
+This app should be executed from the same folder from which you ran the pipeline script to be able access destination credentials.
 
-Requires `streamlit` to be installed in the current environment: `pip install streamlit`. Using --dashboard flag to launch pipeline dashboard preview instead of streamlit.
+If the --edit flag is used, will launch the editable version of the app if it exists in the current directory, or create this version and launch it in edit mode.
+
+Requires `marimo` to be installed in the current environment: `pip install marimo`. Use the --streamlit flag to launch the legacy streamlit app.
 
 <details>
 
@@ -206,8 +208,8 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--dashboard` - Launch pipeline dashboard instead of streamlit. will launch editable version of app (created with the --edit flag) if it exists in the current directory.
-* `--edit` - Creates editable version of pipeline dashboard in current directory if it does not exist there yet and launches it in edit mode. only works when using the pipeline dashboard (--dashboard flag).
+* `--streamlit` - Launch the legacy streamlit dashboard instead of the new pipeline dashboard.
+* `--edit` - Creates editable version of pipeline dashboard in current directory if it does not exist there yet and launches it in edit mode. will have no effect when using the streamlit flag.
 
 </details>
 

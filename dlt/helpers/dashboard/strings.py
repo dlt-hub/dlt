@@ -56,14 +56,14 @@ We have found `{}` pipelines in local directory `{}`. When you select a pipeline
 * Browse information about past loads and traces
 * Browse the data in the pipeline's dataset (requires credentials available to the dltHub pipeline dashboard)
 
-To sync the current schema and state from the destination dataset or inspect data in the destination dataset, your destination credentials need to be available to the dltHub pipeline dashboard. Either provide them as environment variables or start the dltHub pipeline dashboard from the directory containing your `.dlt` folder where the credentials are stored.
+To inspect data in the destination dataset, your destination credentials need to be available to the dltHub pipeline dashboard. Either provide them as environment variables or start the dltHub pipeline dashboard from the directory containing your `.dlt` folder where the credentials are stored.
 
 If the dltHub pipeline dashboard can't connect to the destination, you will receive a warning and can browse the locally stored information about the pipeline.
 
 ## dltHub pipeline dashboard CLI commands
 
-* `dlt pipeline <pipeline_name> show --dashboard` - Start the pipeline dashboard for the selected pipeline
-* `dlt pipeline <pipeline_name> show --dashboard --edit` - Start a local copy of the pipeline dashboard for the selected pipeline in edit mode
+* `dlt pipeline <pipeline_name> show` - Start the pipeline dashboard for the selected pipeline
+* `dlt pipeline <pipeline_name> show --edit` - Start a local copy of the pipeline dashboard for the selected pipeline in edit mode
 
 ## Learn more
 
