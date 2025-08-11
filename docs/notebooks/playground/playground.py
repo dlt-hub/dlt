@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.13.15"
+__generated_with = "0.14.10"
 app = marimo.App()
 
 
@@ -20,7 +20,7 @@ async def initialize():
         await micropip.install("requests")
         await micropip.install("ibis-framework[duckdb]")
 
-    return sys, mo
+    return
 
 
 @app.cell
@@ -30,7 +30,7 @@ def run():
 
     @dlt.resource(table_name="users")
     def users():
-        yield from requests.get("https://jsonplaceholder.typicode.com/users").json()
+        yield requests.get("https://jsonplaceholder.typicode.com/users").json()
 
     pipeline = dlt.pipeline(
         pipeline_name="users_pipeline",
@@ -45,14 +45,15 @@ def run():
 @app.cell
 def view(pipeline):
     # NOTE: This line displays the data of the users table in a marimo table
-    return pipeline.dataset().users.df()
+    pipeline.dataset().users.df()
+    return
 
 
 @app.cell
 def connect(pipeline):
     # NOTE: This line allows your data to be explored in the marimo datasources which is the third item from the top in the left sidebar
     con = pipeline.dataset().ibis()
-    return (con,)
+    return
 
 
 @app.cell(hide_code=True)
