@@ -52,7 +52,7 @@ def setup_pipelines() -> Any:
 
     # failed pipeline
     fp = dlt.pipeline(
-        pipeline_name="test_pipeline",
+        pipeline_name="failed_pipeline",
         destination="duckdb",
     )
 
