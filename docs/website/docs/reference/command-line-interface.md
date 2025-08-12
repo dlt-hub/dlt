@@ -31,7 +31,7 @@ Creates, adds, inspects and deploys dlt pipelines. Further help is available at 
 ```sh
 dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
     [--non-interactive] [--debug]
-    {telemetry,schema,pipeline,init,render-docs,deploy,ai} ...
+    {telemetry,schema,pipeline,init,render-docs,deploy,dashboard,ai} ...
 ```
 
 <details>
@@ -53,6 +53,7 @@ dlt [-h] [--version] [--disable-telemetry] [--enable-telemetry]
 * [`init`](#dlt-init) - Creates a pipeline project in the current folder by adding existing verified source or creating a new one from template.
 * [`render-docs`](#dlt-render-docs) - Renders markdown version of cli docs
 * [`deploy`](#dlt-deploy) - Creates a deployment package for a selected pipeline script
+* [`dashboard`](#dlt-dashboard) - Starts the dlt pipeline dashboard
 * [`ai`](#dlt-ai) - Use ai-powered development tools and utilities
 
 </details>
@@ -667,6 +668,35 @@ Inherits arguments from [`dlt deploy`](#dlt-deploy).
 * `--location LOCATION` - Advanced. uses a specific url or local path to pipelines repository.
 * `--branch BRANCH` - Advanced. uses specific branch of the deploy repository to fetch the template.
 * `--secrets-format {env,toml}` - Format of the secrets
+
+</details>
+
+## `dlt dashboard`
+
+Starts the dlt pipeline dashboard.
+
+**Usage**
+```sh
+dlt dashboard [-h]
+```
+
+**Description**
+
+The `dlt dashboard` command starts the dlt pipeline dashboard. You can use the dashboard:
+
+* to list and inspect local pipelines
+* browse the full pipeline schema and all hints
+* browse the data in the destination
+* inspect the pipeline state.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt`](#dlt).
+
+**Options**
+* `-h, --help` - Show this help message and exit
 
 </details>
 

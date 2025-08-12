@@ -743,9 +743,9 @@ def plug_cli_schema() -> Type[SupportsCliCommand]:
 
 
 # TODO: define actual command and re-enable
-# @plugins.hookimpl(specname="plug_cli")
-# def plug_cli_dashboard() -> Type[SupportsCliCommand]:
-#     return DashboardCommand
+@plugins.hookimpl(specname="plug_cli")
+def plug_cli_dashboard() -> Type[SupportsCliCommand]:
+    return DashboardCommand
 
 
 @plugins.hookimpl(specname="plug_cli")

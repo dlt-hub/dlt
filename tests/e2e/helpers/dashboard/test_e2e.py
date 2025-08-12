@@ -39,7 +39,6 @@ def setup_pipelines() -> Any:
     pnd.extract(fruitshop_source())
 
     # multi schema pipeline
-    # multi schema pipeline
     pms = dlt.pipeline(pipeline_name="multi_schema_pipeline", destination="duckdb")
     pms.run(
         fruitshop_source().with_resources("customers"), schema=Schema(name="fruitshop_customers")
@@ -50,6 +49,19 @@ def setup_pipelines() -> Any:
     pms.run(
         fruitshop_source().with_resources("purchases"), schema=Schema(name="fruitshop_purchases")
     )
+
+    # failed pipeline
+    fp = dlt.pipeline(
+        pipeline_name="test_pipeline",
+        destination="duckdb",
+    )
+
+    @dlt.resource
+    def broken_resource():
+        raise AssertionError("I am broken")
+
+    with pytest.raises(Exception):
+        fp.run(broken_resource())
 
 
 #
