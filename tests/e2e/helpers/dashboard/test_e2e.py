@@ -105,13 +105,51 @@ def test_page_loads(page: Page):
     # check top heading
     expect(
         page.get_by_role("heading", name="Welcome to the dltHub pipeline dashboard...")
-    ).to_contain_text("Welcome to the dltHub pipeline dashboard...")
+    ).to_contain_text(
+        "Welcome to the dltHub pipeline dashboard..."
+    )  #
 
+    #
+    # Exception pipeline
+    #
+    _go_home(page)
+    page.get_by_role("link", name="failed_pipeline").click()
+
+    # overview page
+    _open_section(page, "overview")
+    expect(page.get_by_text("_storage/.dlt/pipelines/failed_pipeline")).to_be_visible()
+    expect(
+        page.get_by_text("Exception encountered during last pipeline run in step").nth(0)
+    ).to_be_visible()
+
+    _open_section(page, "schema")
+    expect(page.get_by_text(app_strings.schema_no_default_available_text)).to_be_visible()
+
+    # browse data
+    _open_section(page, "data")
+    expect(page.get_by_text(app_strings.browse_data_error_text)).to_be_visible()
+
+    _open_section(page, "state")
+    expect(page.get_by_text("dataset_name: failed_pipeline_dataset")).to_be_visible()
+
+    _open_section(page, "trace")
+    expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
+    expect(
+        page.get_by_text("Exception encountered during last pipeline run in step").nth(0)
+    ).to_be_visible()
+
+    # loads page
+    _open_section(page, "loads")
+    expect(page.get_by_text(app_strings.loads_loading_failed_text)).to_be_visible()
+
+    _open_section(page, "ibis")
+    expect(page.get_by_text(app_strings.ibis_backend_error_text)).to_be_visible()
     #
     # One two three pipeline
     #
 
     # simple check for  one two three pipeline
+    _go_home(page)
     page.get_by_role("link", name="one_two_three").click()
 
     # overview page
