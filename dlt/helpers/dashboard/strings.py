@@ -94,7 +94,8 @@ sync_status_success_text = "Pipeline state synced successfully from `{}`."
 sync_status_spinner_text = "Syncing pipeline state from destination..."
 
 sync_status_error_text = (
-    f"Error syncing pipeline state from the destination. {_credentials_info} Switching to local mode."
+    f"Error syncing pipeline state from the destination. {_credentials_info} Switching to local"
+    " mode."
 )
 
 #
@@ -164,9 +165,9 @@ browse_data_query_history_subtitle = (
 
 browse_data_query_error = "Error executing SQL query:"
 
-browse_data_query_hint = """SELECT 
-  * 
-FROM dataset.table 
+browse_data_query_hint = """SELECT
+  *
+FROM dataset.table
 LIMIT 1000"""
 
 browse_data_run_query_button = "Run Query"
@@ -239,7 +240,8 @@ loads_details_row_counts_subtitle = (
 )
 loads_details_schema_version_title = "Schema Details"
 loads_details_schema_version_subtitle = (
-    "The full schema that was the result of this load. This schema version <strong>{}</strong> the current default schema."
+    "The full schema that was the result of this load. This schema version <strong>{}</strong> the"
+    " current default schema."
 )
 loads_details_loading_spinner_text = "Loading row counts and schema..."
 

@@ -59,13 +59,14 @@ class ReadableDBAPIDataset(Dataset):
         self._opened_sql_client: SqlClientBase[Any] = None
         self._table_client: SupportsOpenTables = None
 
-    def ibis(self) -> IbisBackend:
-        """return a connected ibis backend"""
+    def ibis(self, read_only: bool = False) -> IbisBackend:
+        """return a connected ibis backend, read_only flag is only used for duckdb"""
         from dlt.helpers.ibis import create_ibis_backend
 
         return create_ibis_backend(
             self._destination,
             self._get_destination_client(self.schema),
+            read_only=read_only,
         )
 
     @property

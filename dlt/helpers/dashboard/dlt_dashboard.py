@@ -763,7 +763,7 @@ def section_ibis_backend(
     if dlt_pipeline and dlt_section_ibis_browser_switch.value:
         try:
             with mo.status.spinner(title=strings.ibis_backend_connecting_spinner_text):
-                con = dlt_pipeline.dataset().ibis()
+                con = dlt_pipeline.dataset().ibis(read_only=True)
             _result.append(
                 mo.callout(mo.vstack([mo.md(strings.ibis_backend_connected_text)]), kind="success")
             )
