@@ -354,6 +354,8 @@ def pipeline_command(
             schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults_)
         elif format_ == "dbml":
             schema_str = s.to_dbml()
+        elif format_ == "dot":
+            schema_str = s.to_dot()
         else:
             schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults_)
 
