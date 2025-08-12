@@ -5,7 +5,7 @@ import marimo as _mo
 
 # Reusable string parts
 _credentials_info = (
-    "Have you run your pipeline and are your credentials available to the dltHub pipeline"
+    "Have you run your pipeline, and are your credentials available to the dltHub pipeline"
     " dashboard?"
 )
 
@@ -27,10 +27,12 @@ app_pipeline_not_found = """
 
 You requested to view a pipeline named `{}` but it does not exist in the pipelines directory at `{}`. To fix this, you can do one of the following:
 
-1. Select a different pipeline in the dropdown above
-2. Run a pipeline on this machine with this name and then click the refresh button
-3. Ensure you have set the correct pipelines directory (using the `pipelines_dir` CLI argument)
-4. Restore a pipeline of this name from a destination with sync_pipeline
+1. Select a different pipeline in the dropdown above.
+2. Run a pipeline with this name on this machine, then click the refresh button.
+3. Ensure you have set the correct pipelines directory (using the `pipelines_dir` CLI argument).
+4. Restore a pipeline with this name from a destination using `sync_pipeline`.
+
+This page will automatically refresh with your pipeline data once you have run a pipeline with this name on this machine.
 
 """
 
@@ -39,7 +41,7 @@ You requested to view a pipeline named `{}` but it does not exist in the pipelin
 # Home section
 #
 home_quick_start_title = """
-### Quick start - Select one of your recently used pipelines:
+### Quick start: select one of your recently used pipelines:
 
 {}
 
@@ -49,16 +51,17 @@ home_quick_start_title = """
 home_basics_text = """
 ## dltHub pipeline dashboard basics
 
-We have found `{}` pipelines in local directory `{}`. When you select a pipeline to inspect, you will be able to:
+We found `{}` pipelines in the local directory `{}`. When you select a pipeline to inspect, you can:
 
-* See the current pipeline schema
-* See the pipeline state
+* See an overview of your pipeline
+* See the current pipeline schema and incremental state
+* Browse the data in the pipeline's dataset (requires credentials to be available to the dltHub pipeline dashboard)
+* View the pipeline state locally and on the destination
 * Browse information about past loads and traces
-* Browse the data in the pipeline's dataset (requires credentials available to the dltHub pipeline dashboard)
 
-To inspect data in the destination dataset, your destination credentials need to be available to the dltHub pipeline dashboard. Either provide them as environment variables or start the dltHub pipeline dashboard from the directory containing your `.dlt` folder where the credentials are stored.
+To inspect data in the destination dataset, ensure your destination credentials are available to the dltHub pipeline dashboard. Either provide them as environment variables, or start the dltHub pipeline dashboard from the directory that contains your `.dlt` folder, where the credentials are stored.
 
-If the dltHub pipeline dashboard can't connect to the destination, you will receive a warning and can browse the locally stored information about the pipeline.
+If the dltHub pipeline dashboard cannot connect to the destination, you will receive a warning and will only be able to browse the locally stored information about the pipeline.
 
 ## dltHub pipeline dashboard CLI commands
 
@@ -67,7 +70,7 @@ If the dltHub pipeline dashboard can't connect to the destination, you will rece
 
 ## Learn more
 
-* [marimo docs](https://docs.marimo.io/) - Learn all about marimo, the amazing framework that powers the dltHub pipeline dashboard
+* [Marimo docs](https://docs.marimo.io/) - Learn more about Marimo, the framework that powers the dltHub pipeline dashboard
 
 <small>
 2025 [dltHub](https://dlthub.com)
@@ -91,14 +94,14 @@ sync_status_success_text = "Pipeline state synced successfully from `{}`."
 sync_status_spinner_text = "Syncing pipeline state from destination..."
 
 sync_status_error_text = (
-    f"Error syncing pipeline from destination. {_credentials_info} Switching to local mode."
+    f"Error syncing pipeline state from the destination. {_credentials_info} Switching to local mode."
 )
 
 #
 # Overview section
 #
 overview_title = "Pipeline Overview"
-overview_subtitle = "Overview of the selected pipeline"
+overview_subtitle = "An overview of the selected pipeline"
 overview_remote_state_title = "Remote state"
 overview_remote_state_subtitle = (
     "The remote state and schemas of the pipeline as discovered on the destination"
@@ -112,13 +115,13 @@ schema_title = "Dataset Browser: Schema"
 schema_subtitle = "Browse the default schema of the selected pipeline"
 schema_subtitle_long = (
     "Browse the selected schema of the current pipeline. The following list shows all tables "
-    "found in the dlt schema of the current pipeline. Note that in some cases the dlt "
-    "schema may differ from the actual schema materialized in the destination."
+    "found in the dlt schema of the current pipeline. In some cases, the dlt schema may differ "
+    "from the actual schema materialized in the destination."
 )
 
 schema_no_default_available_text = "No schemas available. Does your pipeline have a completed load?"
 schema_table_details_title = "Table Details for Selected Tables"
-schema_table_columns_title = "`{}` columns"
+schema_table_columns_title = "`{}` Columns"
 schema_raw_yaml_title = "Raw Schema as YAML"
 schema_show_raw_yaml_text = "Show raw schema as YAML"
 
@@ -136,19 +139,19 @@ ui_limit_to_1000_rows = "Limit to 1000 rows"
 #
 # Browse data page
 #
-browse_data_title = "Dataset Browser: Data and source / resource state"
+browse_data_title = "Dataset Browser: Data and Source/Resource State"
 browse_data_subtitle = "Browse data from the current pipeline."
 browse_data_subtitle_long = (
-    "Browse data from the current pipeline. Select a table from the list to start or write a SQL"
+    "Browse data from the current pipeline. Select a table from the list to start, or write an SQL"
     " query in the text area below. Clicking the row counts button will load the row counts for all"
-    " tables from the destination. To reload the row count, just click the button again."
-    " The resource state of the currently selected table will also be displayed if it is available"
+    " tables from the destination. To reload the row counts, click the button again."
+    " The resource state of the currently selected table will also be displayed if it is available."
 )
 
 browse_data_error_text = f"Error connecting to destination. {_credentials_info}"
 
 browse_data_explorer_title = """
-<small>Select a table above or write a SQL query in the text area below to explore the data in the destination. The query will be executed on the destination and the results will be displayed in a table. All queries are cached, please clear the cache if you need to refresh the results for a query.</small>
+<small>Select a table above or write an SQL query in the text area below to explore the data in the destination. The query will be executed on the destination and the results will be displayed in a table. All queries are cached. Please clear the cache if you need to refresh the results for a query.</small>
 """
 
 browse_data_query_result_title = "Query Result"
@@ -161,11 +164,14 @@ browse_data_query_history_subtitle = (
 
 browse_data_query_error = "Error executing SQL query:"
 
-browse_data_query_hint = """SELECT \n  * \nFROM dataset.table \nLIMIT 1000"""
+browse_data_query_hint = """SELECT 
+  * 
+FROM dataset.table 
+LIMIT 1000"""
 
 browse_data_run_query_button = "Run Query"
 browse_data_run_query_tooltip = "Run the query in the editor"
-browse_data_loading_spinner_text = "Loading data from destination"
+browse_data_loading_spinner_text = "Loading data from destination..."
 
 #
 # State page
@@ -195,14 +201,14 @@ trace_execution_context_subtitle = (
 trace_steps_overview_title = "Steps Overview"
 trace_steps_overview_subtitle = (
     "Select a step to see execution details, such as rows processed, "
-    "running times, and information about load jobs."
+    "run times, and information about load jobs."
 )
 trace_step_details_title = "{} Details"
 trace_resolved_config_title = "Resolved Config Values"
 trace_resolved_config_subtitle = (
     "A list of config values that were resolved for this pipeline run. You can use "
     "this to find errors in your configuration, such as config values that you set "
-    "up but were not used. The values of the resolved configs are not displayed "
+    "up but that were not used. The values of the resolved configs are not displayed "
     "for security reasons."
 )
 trace_raw_trace_title = "Raw Trace"
@@ -233,8 +239,7 @@ loads_details_row_counts_subtitle = (
 )
 loads_details_schema_version_title = "Schema Details"
 loads_details_schema_version_subtitle = (
-    "The full schema that was the result of this load. This schema and version <strong>{}</strong>"
-    " the current default schema."
+    "The full schema that was the result of this load. This schema version <strong>{}</strong> the current default schema."
 )
 loads_details_loading_spinner_text = "Loading row counts and schema..."
 
@@ -245,12 +250,12 @@ loads_details_error_text = "Error loading load details"
 #
 ibis_backend_title = "Ibis Backend"
 ibis_backend_subtitle = (
-    "Select to automatically connect to the Ibis backend of the selected pipeline. This will make "
-    "the destination available in the marimo datasources panel."
+    "Connect to the Ibis backend for the selected pipeline. This will make "
+    "the destination available in the Marimo datasources panel."
 )
 ibis_backend_connected_text = (
-    "Ibis Backend connected successfully. If you are in marimo edit mode, you can now see "
+    "The Ibis backend connected successfully. If you are in Marimo edit mode, you can now see "
     "the connected database in the datasources panel."
 )
-ibis_backend_error_text = f"Error connecting to Ibis Backend. {_credentials_info}"
-ibis_backend_connecting_spinner_text = "Connecting to Ibis Backend..."
+ibis_backend_error_text = f"Error connecting to Ibis backend. {_credentials_info}"
+ibis_backend_connecting_spinner_text = "Connecting to Ibis backend..."
