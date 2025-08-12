@@ -677,7 +677,7 @@ Starts the dlt pipeline dashboard.
 
 **Usage**
 ```sh
-dlt dashboard [-h]
+dlt dashboard [-h] [--pipelines-dir PIPELINES_DIR] [--edit]
 ```
 
 **Description**
@@ -697,6 +697,8 @@ Inherits arguments from [`dlt`](#dlt).
 
 **Options**
 * `-h, --help` - Show this help message and exit
+* `--pipelines-dir PIPELINES_DIR` - Pipelines working directory
+* `--edit` - Eject dashboard and start editable version
 
 </details>
 
