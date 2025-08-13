@@ -21,24 +21,34 @@ from dlt import Schema
 from dlt.helpers.dashboard import strings as app_strings
 
 
-@pytest.fixture(autouse=True)
-def setup_pipelines() -> Any:
-    # simple pipeline
+@pytest.fixture()
+def simple_pipeline() -> Any:
     po = dlt.pipeline(pipeline_name="one_two_three", destination="duckdb")
     po.run([1, 2, 3], table_name="one_two_three")
+    return po
 
-    # fruit pipeline
+
+@pytest.fixture()
+def fruit_pipeline() -> Any:
     pf = dlt.pipeline(pipeline_name="fruit_pipeline", destination="duckdb")
     pf.run(fruitshop_source())
+    return pf
 
-    # never run pipeline
-    dlt.pipeline(pipeline_name="never_run_pipeline", destination="duckdb")
 
-    # no destination pipeline
+@pytest.fixture()
+def never_run_pipeline() -> Any:
+    return dlt.pipeline(pipeline_name="never_run_pipeline", destination="duckdb")
+
+
+@pytest.fixture()
+def no_destination_pipeline() -> Any:
     pnd = dlt.pipeline(pipeline_name="no_destination_pipeline")
     pnd.extract(fruitshop_source())
+    return pnd
 
-    # multi schema pipeline
+
+@pytest.fixture()
+def multi_schema_pipeline() -> Any:
     pms = dlt.pipeline(pipeline_name="multi_schema_pipeline", destination="duckdb")
     pms.run(
         fruitshop_source().with_resources("customers"), schema=Schema(name="fruitshop_customers")
@@ -49,8 +59,11 @@ def setup_pipelines() -> Any:
     pms.run(
         fruitshop_source().with_resources("purchases"), schema=Schema(name="fruitshop_purchases")
     )
+    return pms
 
-    # failed pipeline
+
+@pytest.fixture()
+def failed_pipeline() -> Any:
     fp = dlt.pipeline(
         pipeline_name="failed_pipeline",
         destination="duckdb",
@@ -62,6 +75,7 @@ def setup_pipelines() -> Any:
 
     with pytest.raises(Exception):
         fp.run(broken_resource())
+    return fp
 
 
 #
@@ -96,7 +110,7 @@ def _open_section(
     page.get_by_role("switch", name=section).check()
 
 
-def test_page_loads(page: Page):
+def test_page_overview(page: Page):
     _go_home(page)
 
     # check title
@@ -112,6 +126,9 @@ def test_page_loads(page: Page):
     #
     # Exception pipeline
     #
+
+
+def test_exception_pipeline(page: Page, failed_pipeline: Any):
     _go_home(page)
     page.get_by_role("link", name="failed_pipeline").click()
 
@@ -144,6 +161,9 @@ def test_page_loads(page: Page):
 
     _open_section(page, "ibis")
     expect(page.get_by_text(app_strings.ibis_backend_error_text)).to_be_visible()
+
+
+def test_successful_pipeline(page: Page, simple_pipeline: Any):
     #
     # One two three pipeline
     #
@@ -196,10 +216,8 @@ def test_page_loads(page: Page):
     _open_section(page, "ibis")
     expect(page.get_by_text(app_strings.ibis_backend_connected_text)).to_be_visible()
 
-    #
-    # Fruit pipeline
-    #
 
+def test_fruit_pipeline(page: Page, fruit_pipeline: Any):
     # check fruit pipeline
     _go_home(page)
     page.get_by_role("link", name="fruit_pipeline").click()
@@ -238,10 +256,8 @@ def test_page_loads(page: Page):
     _open_section(page, "ibis")
     expect(page.get_by_text(app_strings.ibis_backend_connected_text)).to_be_visible()
 
-    #
-    # Never run pipeline
-    #
 
+def test_never_run_pipeline(page: Page, never_run_pipeline: Any):
     _go_home(page)
     page.get_by_role("link", name="never_run_pipeline").click()
 
@@ -269,10 +285,8 @@ def test_page_loads(page: Page):
     _open_section(page, "ibis")
     expect(page.get_by_text(app_strings.ibis_backend_error_text)).to_be_visible()
 
-    #
-    # No destination pipeline
-    #
 
+def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any):
     # check no destination pipeline
     _go_home(page)
     page.get_by_role("link", name="no_destination_pipeline").click()
