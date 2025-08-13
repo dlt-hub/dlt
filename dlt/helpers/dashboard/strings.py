@@ -4,10 +4,17 @@
 import marimo as _mo
 
 # Reusable string parts
+
+_help_url = "https://dlthub.com/docs/general-usage/dataset-access/dashboard"
+_credentials_help_url = _help_url + "#credentials"
+_sync_help_url = "https://dlthub.com/docs/reference/command-line-interface#dlt-pipeline-sync"
+
+
 _credentials_info = (
     "Have you run your pipeline, and are your credentials available to the dltHub pipeline"
-    " dashboard?"
+    f" dashboard? Learn more in the [Dashboard Credentials Docs]({_credentials_help_url})."
 )
+
 
 #
 # App general
@@ -22,15 +29,15 @@ app_pipeline_select_label = "Pipeline:"
 app_no_pipeline_selected = "No pipeline selected"
 app_schema_select_label = "Schema:"
 
-app_pipeline_not_found = """
+app_pipeline_not_found = f"""
 ## Pipeline not found
 
-You requested to view a pipeline named `{}` but it does not exist in the pipelines directory at `{}`. To fix this, you can do one of the following:
+You requested to view a pipeline named `{{}}` but it does not exist in the pipelines directory at `{{}}`. To fix this, you can do one of the following:
 
 1. Select a different pipeline in the dropdown above.
 2. Run a pipeline with this name on this machine, then click the refresh button.
 3. Ensure you have set the correct pipelines directory (using the `pipelines_dir` CLI argument).
-4. Restore a pipeline with this name from a destination using `sync_pipeline`.
+4. Restore a pipeline with this name from a destination using [`dlt pipeline sync`]({_sync_help_url})
 
 This page will automatically refresh with your pipeline data once you have run a pipeline with this name on this machine.
 
@@ -48,10 +55,10 @@ home_quick_start_title = """
 ### Or select from all available pipelines:
 """
 
-home_basics_text = """
+home_basics_text = f"""
 ## dltHub pipeline dashboard basics
 
-We found `{}` pipelines in the local directory `{}`. When you select a pipeline to inspect, you can:
+We found `{{}}` pipelines in the local directory `{{}}`. When you select a pipeline to inspect, you can:
 
 * See an overview of your pipeline
 * See the current pipeline schema and incremental state
@@ -70,6 +77,8 @@ If the dltHub pipeline dashboard cannot connect to the destination, you will rec
 
 ## Learn more
 
+* [dlt dashboard docs]({_help_url}) - Dashboard docs
+* [dlt pipeline sync]({_sync_help_url}) command - Learn how to restore a pipeline locally to be able to see it in the dashboard
 * [Marimo docs](https://docs.marimo.io/) - Learn more about Marimo, the framework that powers the dltHub pipeline dashboard
 
 <small>

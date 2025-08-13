@@ -33,10 +33,16 @@ To install Marimo, run the following command:
 pip install marimo
 ```
 
-## Launching the dashboard app
+## 
+
+You can start the dashboard with an overview of all locally found pipelines with:
+
+```sh
+dlt dashboard
+```
 
 You can use the `show` [CLI command](../../reference/command-line-interface.md#dlt-pipeline-show)
-with your pipeline name:
+with your pipeline name to directly jump to the dashboard page of this pipeline:
 
 ```sh
 dlt pipeline {pipeline_name} show
@@ -46,7 +52,14 @@ Use the pipeline name you defined in your Python code with the `pipeline_name` a
 
 ## Credentials
 
-`dlt` will look for `secrets.toml` and `config.toml` in the `.dlt` folder of the current working directory (CWD) and the global `dlt` folder at `~/.dlt`. Environment variables will also be picked up. It is best to run the dashboard from the same folder where you ran your pipeline, or to keep your credentials in the global folder.
+`dlt` will resolve your destination credentials from:
+* `secrets.toml` and `config.toml` in the `.dlt` folder of the current working directory (CWD), which is the directory you started the dashboard from 
+* `secrets.toml` and `config.toml` in the the global `dlt` folder at `~/.dlt`. 
+* Environment variables
+
+It is best to run the dashboard from the same folder where you ran your pipeline, or to keep your credentials in the global folder.
+
+`dlt` will NOT be able to pick up any credentials that you have configured in your code, since the dlt dashboard app runs independent of any pipeline scripts you have.
 
 ## Using the dashboard
 
@@ -58,6 +71,8 @@ You can eject the code for the pipeline dashboard into your current working dire
 
 ```sh
 dlt pipeline {pipeline_name} show --edit
+# or for the overview
+dlt dashboard --edit
 ```
 
 This will copy the dashboard code to the local folder and start Marimo in edit mode. If a local copy already exists, it will not overwrite it but will start it in edit mode. Once you have the local version, you can also use the regular Marimo commands to run or edit this notebook. This way, you can maintain multiple versions of your dashboard or other Marimo apps in your project:
