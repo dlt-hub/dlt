@@ -201,7 +201,7 @@ dev = [
     "sqlfluff>=2.3.2,<3",
     "types-deprecated>=1.2.9.2,<2",
     "pytest-console-scripts>=1.4.1,<2",
-    "pytest>=7.4.4,<8",
+    "pytest>=8.2.2",
     "mypy>=1.11.0,<1.13.0",
     "flake8>=7.0.0,<8",
     "bandit>=1.7.0,<2",
@@ -236,6 +236,7 @@ dev = [
     "pydoclint>=0.6.5,<0.7",
     "types-paramiko>=3.5.0.20250708",
     "graphviz>=0.21",
+    "pytest-dlt>=1.15.0",
 ]
 
 # NOTE: those dependencies are used to test built in sources
@@ -319,6 +320,8 @@ docs = [
 
 [tool.uv.sources]
 flake8-encodings = { git = "https://github.com/dlt-hub/flake8-encodings.git", branch = "disable_jedi_support" }
+pytest-dlt = { path = "./pytest-dlt", editable = true }
+
 
 [tool.hatch.build.targets.sdist]
 packages = ["dlt"]

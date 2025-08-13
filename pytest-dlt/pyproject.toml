@@ -1,0 +1,49 @@
+[project]
+name = "pytest-dlt"
+version = "1.15.0"
+description = "pytest-dlt is a package that provides pytest fixtures, utilities, and configurations specifically designed to simplify testing for dlt+ projects."
+requires-python = ">=3.9,<3.14"
+authors = [
+  { name = "dltHub Inc.", email = "services@dlthub.com" },
+]
+maintainers = [
+  { name = "Marcin Rudolf", email = "marcin@dlthub.com" },
+  { name = "Adrian Brudaru", email = "adrian@dlthub.com" },
+  { name = "Anton Burnashev", email = "anton@dlthub.com" },
+  { name = "David Scharf", email = "david@dlthub.com" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Testing",
+    "Typing :: Typed",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+  ]
+readme = "README.md"
+license = { file = "LICENSE.txt" }
+dependencies = [
+    "pytest>=8.2.2",
+    "pytest-mock>=3",
+]
+keywords = [ "etl", "testing"]
+
+# register the plugin with pytest
+[project.entry-points.pytest11]
+dlt-plus-tests = "pytest_dlt.plugin"
+
+[tool.hatch.build.targets.sdist]
+packages = ["pytest_dlt"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["pytest_dlt"]
+
+[build-system]
+requires = ["hatchling>=1.20.0"]
+build-backend = "hatchling.build"
