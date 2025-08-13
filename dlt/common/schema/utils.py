@@ -677,15 +677,23 @@ def remove_processing_hints(tables: TSchemaTables) -> TSchemaTables:
     table_hints, col_hints = get_processing_hints(tables)
 
     # Remove table-level hints
-    for table_name, hints in table_hints.items():
-        for hint in hints:
-            tables[table_name].pop(hint, None)  # type: ignore[misc]
+    for table_name, hint_groups in table_hints.items():
+        for hint_group in hint_groups:
+            if hint_group == "x-normalizer":
+                # Keep only max_nesting in x-normalizer, remove all other keys
+                hints: Dict[str, Any] = tables[table_name].get(hint_group)  # type: ignore[assignment]
+                if "max_nesting" in hints:
+                    max_nesting_value = hints["max_nesting"]
+                    tables[table_name]["x-normalizer"] = {"max_nesting": max_nesting_value}
+                    continue
+            # Remove the hint entirely
+            tables[table_name].pop(hint_group, None)  # type: ignore[misc]
 
     # Remove column-level hints
     for table_name, cols in col_hints.items():
-        for col_name, hints in cols.items():
-            for hint in hints:
-                tables[table_name]["columns"][col_name].pop(hint, None)  # type: ignore[misc]
+        for col_name, hint_groups in cols.items():
+            for hint_group in hint_groups:
+                tables[table_name]["columns"][col_name].pop(hint_group, None)  # type: ignore[misc]
 
     return tables
 
