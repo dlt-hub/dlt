@@ -125,35 +125,40 @@ class DuckDbTypeMapper(TypeMapperImpl):
         return super().from_destination_type(db_type, precision, scale)
 
 
+def _set_duckdb_raw_capabilities(caps: DestinationCapabilitiesContext) -> DestinationCapabilitiesContext:
+    caps.preferred_loader_file_format = "insert_values"
+    caps.supported_loader_file_formats = ["insert_values", "parquet", "jsonl", "model"]
+    caps.preferred_staging_file_format = None  # TODO remove because is default value
+    caps.supported_staging_file_formats = []  # TODO is this different from default `None`?
+    caps.type_mapper = DuckDbTypeMapper
+    caps.escape_identifier = escape_postgres_identifier
+    # all identifiers are case insensitive but are stored as is
+    caps.escape_literal = escape_duckdb_literal
+    caps.has_case_sensitive_identifiers = False
+    caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
+    caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
+    caps.max_identifier_length = 65536
+    caps.max_column_identifier_length = 65536
+    caps.max_query_length = 32 * 1024 * 1024
+    caps.is_max_query_length_in_bytes = True
+    caps.max_text_data_type_length = 1024 * 1024 * 1024
+    caps.is_max_text_data_type_length_in_bytes = True
+    caps.supports_ddl_transactions = True
+    caps.alter_add_multi_column = False
+    caps.supports_truncate_command = False
+    caps.supported_merge_strategies = ["delete-insert", "scd2"]
+    caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
+    caps.sqlglot_dialect = "duckdb"
+
+    return caps
+
+
 class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
     spec = DuckDbClientConfiguration
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext()
-        caps.preferred_loader_file_format = "insert_values"
-        caps.supported_loader_file_formats = ["insert_values", "parquet", "jsonl", "model"]
-        caps.preferred_staging_file_format = None
-        caps.supported_staging_file_formats = []
-        caps.type_mapper = DuckDbTypeMapper
-        caps.escape_identifier = escape_postgres_identifier
-        # all identifiers are case insensitive but are stored as is
-        caps.escape_literal = escape_duckdb_literal
-        caps.has_case_sensitive_identifiers = False
-        caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
-        caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
-        caps.max_identifier_length = 65536
-        caps.max_column_identifier_length = 65536
-        caps.max_query_length = 32 * 1024 * 1024
-        caps.is_max_query_length_in_bytes = True
-        caps.max_text_data_type_length = 1024 * 1024 * 1024
-        caps.is_max_text_data_type_length_in_bytes = True
-        caps.supports_ddl_transactions = True
-        caps.alter_add_multi_column = False
-        caps.supports_truncate_command = False
-        caps.supported_merge_strategies = ["delete-insert", "scd2"]
-        caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
-        caps.sqlglot_dialect = "duckdb"
-
+        caps = _set_duckdb_raw_capabilities(caps)
         return caps
 
     @property
