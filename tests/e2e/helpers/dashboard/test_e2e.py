@@ -22,9 +22,16 @@ from dlt.helpers.dashboard import strings as app_strings
 
 
 @pytest.fixture()
-def simple_pipeline() -> Any:
+def simple_incremental_pipeline() -> Any:
     po = dlt.pipeline(pipeline_name="one_two_three", destination="duckdb")
-    po.run([1, 2, 3], table_name="one_two_three")
+
+    @dlt.resource(table_name="one_two_three")
+    def resource(inc_id=dlt.sources.incremental("id")):
+        yield [{"id": 1, "name": "one"}, {"id": 2, "name": "two"}, {"id": 3, "name": "three"}]
+        yield [{"id": 4, "name": "four"}, {"id": 5, "name": "five"}, {"id": 6, "name": "six"}]
+        yield [{"id": 7, "name": "seven"}, {"id": 8, "name": "eight"}, {"id": 9, "name": "nine"}]
+
+    po.run(resource())
     return po
 
 
@@ -163,7 +170,37 @@ def test_exception_pipeline(page: Page, failed_pipeline: Any):
     expect(page.get_by_text(app_strings.ibis_backend_error_text)).to_be_visible()
 
 
-def test_successful_pipeline(page: Page, simple_pipeline: Any):
+def test_multi_schema_selection(page: Page, multi_schema_pipeline: Any):
+    _go_home(page)
+    page.get_by_role("link", name="multi_schema_pipeline").click()
+
+    _open_section(page, "schema")
+    page.get_by_text("Show raw schema as yaml").click()
+    expect(page.get_by_text("name: fruitshop_customers").nth(1)).to_be_attached()
+
+    # select each schema and see if the right tables are shown
+    # do this both for schema and data section
+    for section in ["schema", "data"]:
+        _open_section(page, section)  # type: ignore[arg-type]
+
+        schema_selector = page.get_by_role("combobox")
+        schema_selector.select_option("fruitshop_customers")
+        expect(page.get_by_text("customers", exact=True).nth(0)).to_be_visible()
+        expect(page.get_by_text("inventory", exact=True)).to_have_count(0)
+        expect(page.get_by_text("purchases", exact=True)).to_have_count(0)
+
+        schema_selector.select_option("fruitshop_inventory")
+        expect(page.get_by_text("inventory", exact=True).nth(0)).to_be_visible()
+        expect(page.get_by_text("customers", exact=True)).to_have_count(0)
+        expect(page.get_by_text("purchases", exact=True)).to_have_count(0)
+
+        schema_selector.select_option("fruitshop_purchases")
+        expect(page.get_by_text("purchases", exact=True).nth(0)).to_be_visible()
+        expect(page.get_by_text("inventory", exact=True)).to_have_count(0)
+        expect(page.get_by_text("customers", exact=True)).to_have_count(0)
+
+
+def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: Any):
     #
     # One two three pipeline
     #
@@ -181,12 +218,26 @@ def test_successful_pipeline(page: Page, simple_pipeline: Any):
     page.get_by_text("Show raw schema as yaml").click()
     expect(page.get_by_text("name: one_two_three").nth(1)).to_be_attached()
 
+    # check first table and columns
+    page.get_by_role("checkbox").nth(0).check()
+    expect(page.get_by_text("id", exact=True)).to_be_visible()
+
     # browse data
     _open_section(page, "data")
     expect(page.get_by_text(app_strings.browse_data_query_result_title).nth(1)).to_be_visible()
 
     # check first table
     page.get_by_role("checkbox").nth(0).check()
+
+    # check state (we check some info from the incremental state here)
+    page.get_by_text("Show source and resource state").click()
+    expect(
+        page.get_by_label("Show source and resource").get_by_text("incremental:")
+    ).to_be_visible()
+    expect(
+        page.get_by_label("Show source and resource").get_by_text("last_value: 9")
+    ).to_be_visible()
+
     page.get_by_role("button", name="Run Query").click()
 
     # enable dlt tables
