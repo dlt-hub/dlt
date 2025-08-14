@@ -115,7 +115,7 @@ def fs_creds() -> Dict[str, Any]:
     creds: Dict[str, Any] = dlt.secrets.get("destination.filesystem.credentials")
     if creds is None:
         pytest.skip(
-            msg="`destination.filesystem.credentials` must be configured for these tests.",
+            reason="`destination.filesystem.credentials` must be configured for these tests.",
         )
     return creds
 
