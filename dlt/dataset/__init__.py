@@ -1,4 +1,4 @@
-from dlt.dataset.factory import dataset
+from dlt.dataset.dataset import dataset
 from dlt.dataset.dataset import Dataset
 from dlt.dataset.relation import Relation
 
