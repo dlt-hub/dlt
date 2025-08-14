@@ -28,24 +28,28 @@ def run():
     import dlt
     import requests
 
-    @dlt.resource(table_name="users")
-    def users():
-        yield requests.get("https://jsonplaceholder.typicode.com/users").json()
+    @dlt.resource(name="customers")
+    def fetch_customers():
+        response = requests.get(
+            "https://jaffle-shop.dlthub.com/api/v1/customers"
+        )
+        yield from response.json()
 
     pipeline = dlt.pipeline(
-        pipeline_name="users_pipeline",
+        pipeline_name="customers_pipeline",
         destination="duckdb",
         dataset_name="raw_data",
         dev_mode=True,
     )
-    print(pipeline.run(users()))
+    load_info = pipeline.run(fetch_customers())
+    print(load_info)
     return (pipeline,)
 
 
 @app.cell
 def view(pipeline):
-    # NOTE: This line displays the data of the users table in a marimo table
-    pipeline.dataset().users.df()
+    # NOTE: This line displays the data of the customers table in a marimo table
+    pipeline.dataset().customers.df()
     return
 
 
@@ -59,7 +63,7 @@ def connect(pipeline):
 @app.cell(hide_code=True)
 def tests(pipeline):
     # NOTE: this cell is only needed for testing this notebook on ci
-    assert pipeline.dataset().users.df().shape[0] == 10
+    assert pipeline.dataset().customers.df().shape[0] > 0
     return
 
 
