@@ -1358,14 +1358,11 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
 
     # check dataset factory
-    dataset = cast(
-        ReadableDBAPIDataset,
-        dlt.dataset(
-            destination=populated_pipeline.destination,
-            dataset_name=populated_pipeline.dataset_name,
-            # use name otherwise aleph schema is loaded
-            schema=populated_pipeline.default_schema_name,
-        ),
+    dataset = dlt.dataset(
+        destination=populated_pipeline.destination,
+        dataset_name=populated_pipeline.dataset_name,
+        # use name otherwise aleph schema is loaded
+        schema=populated_pipeline.default_schema_name,
     )
     # verify that sql client and schema are lazy loaded
     assert not dataset._schema
@@ -1376,24 +1373,18 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     assert dataset.schema.tables["items"]["write_disposition"] == "replace"
 
     # check that schema is not loaded when wrong name given
-    dataset = cast(
-        ReadableDBAPIDataset,
-        dlt.dataset(
-            destination=populated_pipeline.destination,
-            dataset_name=populated_pipeline.dataset_name,
-            schema="wrong_schema_name",
-        ),
+    dataset = dlt.dataset(
+        destination=populated_pipeline.destination,
+        dataset_name=populated_pipeline.dataset_name,
+        schema="wrong_schema_name",
     )
     assert "items" not in dataset.schema.tables
     assert dataset.schema.name == "wrong_schema_name"
 
     # check that schema is loaded if no schema name given
-    dataset = cast(
-        ReadableDBAPIDataset,
-        dlt.dataset(
-            destination=populated_pipeline.destination,
-            dataset_name=populated_pipeline.dataset_name,
-        ),
+    dataset = dlt.dataset(
+        destination=populated_pipeline.destination,
+        dataset_name=populated_pipeline.dataset_name,
     )
     # aleph is a secondary schema in the pipeline but because it was stored second
     # will be retrieved by default
@@ -1401,12 +1392,9 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     assert dataset.schema.tables["digits"]["write_disposition"] == "append"
 
     # check that there is no error when creating dataset without schema table
-    dataset = cast(
-        ReadableDBAPIDataset,
-        dlt.dataset(
-            destination=populated_pipeline.destination,
-            dataset_name="unknown_dataset",
-        ),
+    dataset = dlt.dataset(
+        destination=populated_pipeline.destination,
+        dataset_name="unknown_dataset",
     )
     assert dataset.schema.name == "unknown_dataset"
     assert "items" not in dataset.schema.tables
@@ -1424,12 +1412,9 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     with populated_pipeline.destination_client() as client:
         client.update_stored_schema()
 
-    dataset = cast(
-        ReadableDBAPIDataset,
-        dlt.dataset(
-            destination=populated_pipeline.destination,
-            dataset_name=populated_pipeline.dataset_name,
-        ),
+    dataset = dlt.dataset(
+        destination=populated_pipeline.destination,
+        dataset_name=populated_pipeline.dataset_name,
     )
     assert dataset.schema.name == "some_other_schema"
     assert "other_table" in dataset.schema.tables
