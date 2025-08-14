@@ -7,7 +7,6 @@ app = marimo.App()
 @app.cell(hide_code=True)
 async def initialize():
     import sys
-    import marimo as mo
 
     # NOTE: this installs the dependencies for the notebook if run on pyodide
     if sys.platform == "emscripten":
@@ -30,9 +29,7 @@ def run():
 
     @dlt.resource(name="customers")
     def fetch_customers():
-        response = requests.get(
-            "https://jaffle-shop.dlthub.com/api/v1/customers"
-        )
+        response = requests.get("https://jaffle-shop.dlthub.com/api/v1/customers")
         yield from response.json()
 
     pipeline = dlt.pipeline(
@@ -57,7 +54,7 @@ def view(pipeline):
 def connect(pipeline):
     # NOTE: This line allows your data to be explored in the marimo datasources which is the third item from the top in the left sidebar
     con = pipeline.dataset().ibis()
-    return
+    return (con,)
 
 
 @app.cell(hide_code=True)
