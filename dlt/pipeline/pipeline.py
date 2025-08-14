@@ -30,7 +30,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
     ContextDefaultCannotBeCreated,
 )
-from dlt.common.destination.dataset import Dataset
+from dlt.common.destination.dataset import SupportsDataset
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.destination.exceptions import (
     DestinationIncompatibleLoaderFileFormatException,
@@ -108,10 +108,7 @@ from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
-from dlt.destinations.dataset import (
-    dataset,
-    get_destination_clients,
-)
+from dlt.destinations.dataset import get_destination_clients
 
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
@@ -150,9 +147,9 @@ from dlt.common.storages.load_package import TLoadPackageState
 from dlt.pipeline.helpers import refresh_source
 
 if TYPE_CHECKING:
-    from dlt import Dataset
+    from dlt import SupportsDataset
 else:
-    Dataset = Any
+    SupportsDataset = Any
 
 
 TWithLocalFiles = TypeVar("TWithLocalFiles", bound=WithLocalFiles)
@@ -1809,13 +1806,13 @@ class Pipeline(SupportsPipeline):
     # NOTE: I expect that we'll merge all relations into one. and then we'll be able to get rid
     #  of overload and dataset_type
 
-    def dataset(self, schema: Union[Schema, str, None] = None) -> Dataset:
+    def dataset(self, schema: Union[Schema, str, None] = None) -> SupportsDataset:
         """Returns a dataset object for querying the destination data.
 
         Args:
             schema (Union[Schema, str, None]): Schema name or Schema object to use. If None, uses the default schema if set.
         Returns:
-            Dataset: A dataset object that supports querying the destination data.
+            SupportsDataset: A dataset object that supports querying the destination data.
         """
 
         if not self._destination:
@@ -1845,7 +1842,7 @@ class Pipeline(SupportsPipeline):
         elif self.default_schema_name:
             schema = self.default_schema
 
-        return dataset(
+        return dlt.dataset(
             self._destination,
             self.dataset_name,
             schema=schema,

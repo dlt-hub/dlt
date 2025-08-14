@@ -2230,6 +2230,7 @@ dev = [
     { name = "types-cachetools" },
     { name = "types-click" },
     { name = "types-deprecated" },
+    { name = "types-paramiko" },
     { name = "types-protobuf" },
     { name = "types-psutil" },
     { name = "types-psycopg2" },
@@ -2443,6 +2444,7 @@ dev = [
     { name = "types-cachetools", specifier = ">=4.2.9" },
     { name = "types-click", specifier = ">=7.1.8,<8" },
     { name = "types-deprecated", specifier = ">=1.2.9.2,<2" },
+    { name = "types-paramiko", specifier = ">=3.5.0.20250708" },
     { name = "types-protobuf", specifier = ">=3.19.8" },
     { name = "types-psutil", specifier = ">=5.9.5.16,<6" },
     { name = "types-psycopg2", specifier = ">=2.9.21.14,<3" },
@@ -9086,6 +9088,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/0e/67/eeefaaabb03b288aad85483d410452c8bbcbf8b2bd876b0e467ebd97415b/types_deprecated-1.2.15.20250304.tar.gz", hash = "sha256:c329030553029de5cc6cb30f269c11f4e00e598c4241290179f63cda7d33f719", size = 8015 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4d/e3/c18aa72ab84e0bc127a3a94e93be1a6ac2cb281371d3a45376ab7cfdd31c/types_deprecated-1.2.15.20250304-py3-none-any.whl", hash = "sha256:86a65aa550ea8acf49f27e226b8953288cd851de887970fbbdf2239c116c3107", size = 8553 },
+]
+
+[[package]]
+name = "types-paramiko"
+version = "3.5.0.20250708"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8e/7e/a50c3538a088eb3dbf167d16f5b0d8b62c821496df7488af4d7841c06bc5/types_paramiko-3.5.0.20250708.tar.gz", hash = "sha256:45125bff40766db2d7d53bd1a4f329868293e512f2e6b7fe11c335111df027f2", size = 28877, upload-time = "2025-07-08T03:15:04.769Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6f/42/0a052da12277848f44825532d97858d2ba8851b603b0a4923356f503e31c/types_paramiko-3.5.0.20250708-py3-none-any.whl", hash = "sha256:c761ecff3445d847a40c0d831a0daaba2bddbd2bdc74315659be5ff4835bb434", size = 39758, upload-time = "2025-07-08T03:15:03.95Z" },
 ]
 
 [[package]]

@@ -53,13 +53,7 @@ def import_module_with_missing(name: str, missing_modules: Tuple[str, ...] = ())
         while True:
             try:
                 return import_module(name)
-            except ImportError as ie:
-                if ie.name is None:
-                    raise
-                # print(f"ADD {ie.name} {ie.path} vs {name} vs {str(ie)}")
-                if ie.name in missing_modules:
-                    raise
-                missing_modules += (ie.name,)
+            # `MissingDependencyException` is an `ImportError`
             except MissingDependencyException as me:
                 if isinstance(me.__context__, ImportError):
                     if me.__context__.name is None:
@@ -71,6 +65,14 @@ def import_module_with_missing(name: str, missing_modules: Tuple[str, ...] = ())
                     missing_modules += (me.__context__.name,)
                 else:
                     raise
+            # catch `ImportError` that are not `MissingDependencyException`
+            except ImportError as ie:
+                if ie.name is None:
+                    raise
+                # print(f"ADD {ie.name} {ie.path} vs {name} vs {str(ie)}")
+                if ie.name in missing_modules:
+                    raise
+                missing_modules += (ie.name,)
     finally:
         builtins.__import__ = real_import
 

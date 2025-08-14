@@ -1,29 +1,22 @@
-from typing import Optional
-from dlt.common.exceptions import DltException
+from typing import TYPE_CHECKING
 
+# NOTE this warning is only trigger when type-checking.
+# Move it outside the type checking block when closer to deprecation date.
+if not TYPE_CHECKING:
+    from dlt.common.warnings import DltDeprecationWarning
 
-class DatasetException(DltException):
-    pass
+    DltDeprecationWarning(
+        """Content from this module was moved to `dlt._dataset.exceptions`, which is internal. \
+        You can catch dlt exceptions using `dlt.common.exceptions.DltException.""",
+        since="1.16.0",
+        expected_due="2.0.0",
+    )
 
+from dlt.dataset.exceptions import (
+    DatasetException,
+    RelationHasQueryException,
+    RelationUnknownColumnException,
+)
 
-class ReadableRelationHasQueryException(DatasetException):
-    def __init__(self, attempted_change: str) -> None:
-        msg = (
-            "This readable relation was created with a provided sql query. You cannot change"
-            f" `{attempted_change}`. Please change the orignal sql query."
-        )
-        super().__init__(msg)
-
-
-class ReadableRelationUnknownColumnException(DatasetException):
-    def __init__(self, column_name: str) -> None:
-        msg = (
-            f"The selected column `{column_name}` is not known in the dlt schema for this relation."
-        )
-        super().__init__(msg)
-
-
-class LineageFailedException(DltException):
-    def __init__(self, msg: Optional[str] = None, *, resource_name: Optional[str] = None):
-        super().__init__(msg)
-        self.resource_name = resource_name
+ReadableRelationHasQueryException = RelationHasQueryException
+ReadableRelationUnknownColumnException = RelationUnknownColumnException
