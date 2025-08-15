@@ -14,7 +14,10 @@ class DuckLakeSqlClient(DuckDbSqlClient):
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
         super().__init__(dataset_name, staging_dataset_name, credentials, capabilities)
-        self.database_name = credentials.database
+        self.database_name = credentials.ducklake_name
+
+        self.execute_sql(f"ATTACH 'ducklake:{self.database_name}.ducklake' AS {self.database_name};")
+        self.execute_sql(f"USE {self.database_name}")
 
     def catalog_name(self, quote: bool = True, casefold: bool = True) -> Optional[str]:
         if casefold:
