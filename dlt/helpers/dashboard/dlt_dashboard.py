@@ -21,7 +21,8 @@ with app.setup:
     from dlt.common.json import json
     from dlt.helpers.dashboard import strings, utils, ui_elements as ui
     from dlt.helpers.dashboard.config import DashboardConfiguration
-    from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
+    from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+    from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 
 
 @app.cell(hide_code=True)
