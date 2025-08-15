@@ -42,6 +42,7 @@ const sidebars = {
         'tutorial/filesystem',
         'tutorial/load-data-from-an-api',
         'tutorial/playground',
+        'tutorial/education',
       ]
     },
     {
