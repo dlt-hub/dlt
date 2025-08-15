@@ -364,13 +364,14 @@ const sidebars = {
             id: 'general-usage/dataset-access/index',
           },
           items: [
-            'general-usage/dataset-access/streamlit',
+            'general-usage/dataset-access/dashboard',
             'general-usage/dataset-access/marimo',
             'general-usage/dataset-access/dataset',
             'general-usage/dataset-access/ibis-backend',
             'general-usage/dataset-access/sql-client',
             'general-usage/dataset-access/view-dlt-schema',
             'general-usage/destination-tables',
+            'general-usage/dataset-access/streamlit',
           ]
         },
         {

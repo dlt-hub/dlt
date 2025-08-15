@@ -60,30 +60,35 @@
 */
 
 /* data browser cells */
-#App .marimo-cell:nth-child(4) .output-area,
+#App .marimo-cell:nth-child(3) .output-area,
+#App .marimo-cell:nth-child(5) .output-area,
 #App .marimo-cell:nth-child(6) .output-area,
 #App .marimo-cell:nth-child(7) .output-area,
-#App .marimo-cell:nth-child(8) .output-area,
-#App .marimo-cell:nth-child(10) .output-area,
-#App .marimo-cell:nth-child(13) .output-area
+#App .marimo-cell:nth-child(9) .output-area,
+#App .marimo-cell:nth-child(12) .output-area
  {
   background-color: var(--dlt-color-aqua-background);
   border: 1px dashed var(--dlt-color-aqua);
 }
 
 #App .marimo-cell:nth-child(0) .output-area,
-#App .marimo-cell:nth-child(1) .output-area,
-#App .marimo-cell:nth-child(2) .output-area {
+#App .marimo-cell:nth-child(1) .output-area {
   background-color: white;
   border: none;
 }
 
+#App .marimo-cell:nth-child(3) .output-area,
 #App .marimo-cell:nth-child(4) .output-area,
 #App .marimo-cell:nth-child(5) .output-area,
-#App .marimo-cell:nth-child(6) .output-area,
+#App .marimo-cell:nth-child(8) .output-area,
 #App .marimo-cell:nth-child(9) .output-area,
 #App .marimo-cell:nth-child(10) .output-area,
-#App .marimo-cell:nth-child(11) .output-area,
-#App .marimo-cell:nth-child(13) .output-area {
+#App .marimo-cell:nth-child(12) .output-area {
   margin-top: 0.5rem;
+}
+
+
+marimo-callout-output .border {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
 }
