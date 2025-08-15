@@ -42,6 +42,18 @@ const sidebars = {
         'tutorial/filesystem',
         'tutorial/load-data-from-an-api',
         'tutorial/playground',
+        {
+          type: 'category',
+          label: 'Education',
+          link: {
+            type: 'doc',
+            id: 'tutorial/education',
+          },
+          items: [
+            'tutorial/fundamentals-course',
+            'tutorial/advanced-course',
+          ]
+        },
       ]
     },
     {
