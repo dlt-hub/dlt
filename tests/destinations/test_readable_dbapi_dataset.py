@@ -23,13 +23,10 @@ def mock_dataset() -> ReadableDBAPIDataset:
         ],
     )
     s.update_table(t)
-    dataset = cast(
-        ReadableDBAPIDataset,
-        dlt.dataset(
-            dlt.destinations.duckdb(destination_name="duck_db"),
-            "pipeline_dataset",
-            schema=s,
-        ),
+    dataset = dlt.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"),
+        "pipeline_dataset",
+        schema=s,
     )
     return dataset
 
@@ -90,12 +87,9 @@ def test_query_builder(mock_dataset: ReadableDBAPIDataset) -> None:
 
 
 def test_copy_and_chaining() -> None:
-    dataset = cast(
-        ReadableDBAPIDataset,
-        dlt.dataset(
-            dlt.destinations.duckdb(destination_name="duck_db"),
-            "pipeline_dataset",
-        ),
+    dataset = dlt.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"),
+        "pipeline_dataset",
     )
 
     dataset.schema.tables["items"] = new_table(
@@ -177,13 +171,10 @@ def test_changing_relation_with_query() -> None:
     )
 
     s.update_table(t)
-    dataset = cast(
-        ReadableDBAPIDataset,
-        dlt.dataset(
-            dlt.destinations.duckdb(destination_name="duck_db"),
-            "pipeline_dataset",
-            schema=s,
-        ),
+    dataset = dlt.dataset(
+        dlt.destinations.duckdb(destination_name="duck_db"),
+        "pipeline_dataset",
+        schema=s,
     )
 
     relation = cast(ReadableDBAPIRelation, dataset("SELECT * FROM something"))
