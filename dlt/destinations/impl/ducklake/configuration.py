@@ -1,61 +1,116 @@
-from __future__ import annotations
+# from __future__ import annotations
 
 import dataclasses
-from typing import TYPE_CHECKING, Any, Final, Optional, Union
+from typing import Final, Optional, overload
 
 from dlt.common.configuration import configspec
+from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
+from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.utils import digest128
-from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials
-
-if TYPE_CHECKING:
-    from duckdb import DuckDBPyConnection
+from dlt.destinations.impl.duckdb.configuration import DuckDbCredentials
 
 
 @configspec(init=False)
-class DuckLakeCredentials(DuckDbBaseCredentials):
+class DuckLakeCredentials(DuckDbCredentials):
+    database: str = "my_ducklake"
+
+    @overload
+    def __init__(self) -> None:
+        """Instantiate DuckLake from
+            - ducklake client: local duckdb file with default name
+            - catalog: use the ducklake client duckdb instance
+            - storage: use local filesystem (default)
+        """
+
+    @overload
+    def __init__(self, ducklake_name: str) -> None:
+        """Instantiate DuckLake from
+            - ducklake client: local duckdb file with name `ducklake_name`
+            - catalog: use the ducklake client duckdb instance
+            - storage: use local filesystem (default)
+        """
+
+    @overload
+    def __init__(self, ducklake_name: str, *, ducklake: DuckDbCredentials) -> None:
+        """Instantiate DuckLake from:
+            - ducklake client: existing duckdb instance containing secrets
+            - catalog: configured by secrets in ducklake client 
+            - storage: configured by secrets in ducklake client 
+        
+        ref: https://ducklake.select/docs/stable/duckdb/usage/connecting
+        """
+
+    @overload
+    def __init__(self, ducklake_name: str, *, catalog: ConnectionStringCredentials) -> None:
+        """Instantiate DuckLake from
+            - ducklake client: ephemeral duckdb client using `:memory:`
+            - catalog: use the configured catalog
+            - storage: use local filesystem (default)
+        """
+
+    @overload
+    def __init__(self, ducklake_name: str, *, storage: FilesystemConfiguration) -> None:
+        """Instantiate DuckLake from
+            - ducklake client: local duckdb file derived from pipeline name
+            - catalog: use the ducklake client duckdb instance
+            - storage: use configured filesystem or object store
+        """
+
+    @overload
+    def __init__(self, ducklake_name: str, *, catalog: ConnectionStringCredentials, storage: FilesystemConfiguration) -> None:
+        """Instantiate DuckLake from
+            - ducklake client: ephemeral duckdb client using `:memory:`
+            - catalog: use the configured catalog
+            - storage: use configured filesystem or object store
+        """
+
     def __init__(
         self,
-        conn_or_path: Optional[Union[str, DuckDBPyConnection]] = None,
+        ducklake_name: str = None,
         *,
-        read_only: bool = False,
-        extensions: Optional[list[str]] = None,
-        global_config: Optional[dict[str, Any]] = None,
-        pragmas: Optional[list[str]] = None,
-        local_config: Optional[dict[str, Any]] = None,
+        catalog: Optional[ConnectionStringCredentials] = None,
+        storage: Optional[FilesystemConfiguration] = None,
+        ducklake: Optional[DuckDbCredentials] = None,
     ) -> None:
-        """Initialize DuckDB credentials with a connection or file path and connection settings.
+        self.ducklake_name = ducklake_name if ducklake_name else "ducklake"
 
-        Args:
-            conn_or_path: Either a DuckDB connection object or a path to a DuckDB database file.
-                          Can also be special values like ':pipeline:' or ':memory:'.
-            read_only: Open database in read-only mode if True, read-write mode if False
-            extensions: List of DuckDB extensions to load on each newly opened connection
-            global_config: Dictionary of global configuration settings applied once on each newly opened connection
-            pragmas: List of PRAGMA statements to be applied to each cursor connection
-            local_config: Dictionary of local configuration settings applied to each cursor connection
-        """
-        self._apply_init_value(conn_or_path)
-        self.read_only = read_only
-        self.global_config = global_config
-        self.pragmas = pragmas
-        self.local_config = local_config
+        if ducklake is not None:
+            # ducklake is set, retrieve catalog and storage from stored secrets 
+            catalog = "foo"
+            storage = "..."
+            # ensure the ducklake extension is installed
+            if ducklake.extensions is None:
+                ducklake.extensions = ["ducklake"]
+            elif "ducklake" not in ducklake.extensions:
+                ducklake.extensions = list(ducklake.extensions) + ["ducklake"]
+        elif ducklake is None and catalog is None:
+            # use a duckdb instance for both
+            ducklake = DuckDbCredentials(extensions=["ducklake"])
+            catalog = ducklake
 
-        # ensure `ducklake` extension is included
-        if extensions:
-            _extensions = set(extensions)
-            _extensions.add("ducklake")
-            self.extensions = list(_extensions)
-    
+        elif ducklake is None and catalog is not None:
+            # use an ephemeral duckdb connection as ducklake client
+            import duckdb
+            ducklake = DuckDbCredentials(duckdb.connect(":memory:"), extensions=["ducklake"])
+
+        assert ducklake is not None
+        assert catalog is not None
+
+        # TODO improve configuration here
+        if storage is None:
+            storage = FilesystemConfiguration(bucket_url=self.ducklake_name)
+
+        self.ducklake: DuckDbCredentials = ducklake
+        # TODO handle string connection
+        self.catalog: ConnectionStringCredentials = catalog
+        self.storage: FilesystemConfiguration = storage
 
 
 @configspec
 class DuckLakeClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = dataclasses.field(
-        default="ducklake",
-        init=False,
-        repr=False,
-        compare=False,
+        default="ducklake", init=False, repr=False, compare=False,
     )
     credentials: Optional[DuckLakeCredentials] = None
     create_indexes: bool = False
