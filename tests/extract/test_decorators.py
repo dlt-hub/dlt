@@ -47,7 +47,7 @@ from dlt.extract.exceptions import (
 from dlt.extract.items import TableNameMeta
 
 from tests.common.utils import load_yml_case
-from tests.utils import MockableRunContext, unload_modules
+from tests.utils import unload_modules
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -712,7 +712,7 @@ def test_source_state_context() -> None:
         # increase the multiplier each time state is obtained
         state["mark"] *= 2
         yield [1, 2, 3]
-        assert dlt.state()["mark"] == mark * 2
+        assert dlt.current.source_state()["mark"] == mark * 2
 
     @dlt.transformer(data_from=main)
     def feeding(item):

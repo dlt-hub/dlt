@@ -3,7 +3,7 @@ from functools import lru_cache, partial
 from typing import Set, Dict, Any, Optional, List, Union
 
 from dlt.common.configuration import known_sections, resolve_configuration, with_config
-from dlt.common import logger
+from dlt.common import logger, json
 from dlt.common.configuration.specs import BaseConfiguration, configspec
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.exceptions import MissingDependencyException
@@ -129,6 +129,7 @@ class Extractor:
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         """Write `items` to `resource` optionally computing table schemas and revalidating/filtering data"""
+
         if isinstance(meta, HintsMeta) and meta.hints:
             # update the resource with new hints, remove all caches so schema is recomputed
             # and contracts re-applied
@@ -139,20 +140,19 @@ class Extractor:
                 meta = TableNameMeta(meta.hints["table_name"])  # type: ignore[arg-type]
             self._reset_contracts_cache()
 
-        if table_name := self._get_static_table_name(resource, meta):
-            # write item belonging to table with static name
-            self._write_to_static_table(resource, table_name, items, meta)
-        else:
+        if resource.has_dynamic_table_name:
             # table has name or other hints depending on data items
             self._write_to_dynamic_table(resource, items, meta)
+        else:
+            # write item belonging to table with static name
+            table_name = self._get_static_table_name(resource, meta)
+            self._write_to_static_table(resource, table_name, items, meta)
 
     def write_empty_items_file(self, table_name: str) -> None:
         table_name = self._normalize_table_identifier(table_name)
         self.item_storage.write_empty_items_file(self.load_id, self.schema.name, table_name, None)
 
-    def _get_static_table_name(self, resource: DltResource, meta: Any) -> Optional[str]:
-        if resource._table_name_hint_fun:
-            return None
+    def _get_static_table_name(self, resource: DltResource, meta: Any) -> str:
         if isinstance(meta, TableNameMeta):
             table_name = meta.table_name
         else:
@@ -160,7 +160,11 @@ class Extractor:
         return self._normalize_table_identifier(table_name)
 
     def _get_dynamic_table_name(self, resource: DltResource, item: TDataItem) -> str:
-        return self._normalize_table_identifier(resource._table_name_hint_fun(item))
+        return (
+            self._normalize_table_identifier(resource._table_name_hint_fun(item))
+            if resource._table_name_hint_fun
+            else self._get_static_table_name(resource, item)
+        )
 
     def _write_item(
         self,
@@ -203,9 +207,11 @@ class Extractor:
 
         for item in items:
             table_name = self._get_dynamic_table_name(resource, item)
+            # don't write table if contract says so
             if table_name in self._filtered_tables:
                 continue
-            if table_name not in self._table_contracts or resource._table_has_other_dynamic_hints:
+            # allow to cache dynamic table hints if only table name is dynamic
+            if table_name not in self._table_contracts or resource.has_other_dynamic_hints:
                 item = self._compute_and_update_tables(
                     resource, table_name, item, TableNameMeta(table_name)
                 )
@@ -337,6 +343,8 @@ class ArrowExtractor(Extractor):
         )
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
+        items_list = items if isinstance(items, list) else [items]
+
         static_table_name = self._get_static_table_name(resource, meta)
         items = [
             # 2. remove columns and rows in data contract filters
@@ -348,7 +356,7 @@ class ArrowExtractor(Extractor):
                     if (pandas and isinstance(item, pandas.DataFrame))
                     else item
                 )
-                for item in (items if isinstance(items, list) else [items])
+                for item in items_list
             )
         ]
         super().write_items(resource, items, meta)
@@ -435,10 +443,15 @@ class ArrowExtractor(Extractor):
         # arrow_table: TTableSchema = None
         arrow_tables: Dict[str, TTableSchema] = {}
 
+        if isinstance(items, list):
+            items = reversed(items)
+        else:
+            items = [items]
+
         # several arrow tables will update the pipeline schema and we want that earlier
         # arrow tables override the latter so the resultant schema is the same as if
         # they are sent separately
-        for item in reversed(items):
+        for item in items:
             computed_tables = super()._compute_tables(resource, item, Any)
             for computed_table in computed_tables:
                 arrow_table = arrow_tables.get(computed_table["name"])
@@ -455,6 +468,9 @@ class ArrowExtractor(Extractor):
                     e.table_name = str(arrow_table.get("name"))
                     raise
 
+                # normalize arrow table before merging
+                arrow_table = utils.normalize_table_identifiers(arrow_table, self.schema.naming)
+
                 # Add load_id column if needed
                 dlt_load_id = self.naming.normalize_identifier(C_DLT_LOAD_ID)
                 if (
@@ -462,10 +478,12 @@ class ArrowExtractor(Extractor):
                     and dlt_load_id not in arrow_table["columns"]
                 ):
                     # will be normalized line below
-                    arrow_table["columns"][C_DLT_LOAD_ID] = utils.dlt_load_id_column()
+                    logger.debug(
+                        f"Arrow Extractor added `{dlt_load_id}` to table `{arrow_table['name']}`"
+                        " due to parquet normalizer config"
+                    )
+                    arrow_table["columns"][dlt_load_id] = utils.dlt_load_id_column()
 
-                # normalize arrow table before merging
-                arrow_table = utils.normalize_table_identifiers(arrow_table, self.schema.naming)
                 # issue warnings when overriding computed with arrow
                 override_warn: bool = False
                 for col_name, column in arrow_table["columns"].items():
@@ -498,6 +516,9 @@ class ArrowExtractor(Extractor):
         self, resource: DltResource, root_table_name: str, items: TDataItems, meta: Any
     ) -> TDataItems:
         items = super()._compute_and_update_tables(resource, root_table_name, items, meta)
-        # filter data item as filters could be updated in compute table
+
+        if not isinstance(items, list):
+            # filter data item as filters could be updated in compute table
+            items = [items]
         items = [self._apply_contract_filters(item, resource, root_table_name) for item in items]
         return items

@@ -1,9 +1,7 @@
 # flake8: noqa
 import dlt
-import pandas as pd
 import pytest
 
-from dlt.destinations.dataset import ReadableDBAPIDataset
 from dlt.sources._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
 )
@@ -22,7 +20,12 @@ def pipeline() -> dlt.Pipeline:
 
 
 @pytest.fixture(scope="function")
-def dataset(pipeline: dlt.Pipeline) -> ReadableDBAPIDataset:
+def dataset(pipeline: dlt.Pipeline) -> dlt.SupportsDataset:
+    return pipeline.dataset()
+
+
+@pytest.fixture(scope="function")
+def default_dataset(pipeline: dlt.Pipeline) -> dlt.SupportsDataset:
     return pipeline.dataset()
 
 
@@ -42,7 +45,7 @@ def quick_start_example_snippet(pipeline: dlt.Pipeline) -> None:
     customers_relation = dataset.customers  # Or dataset["customers"]
 
     # Step 3: Fetch the entire table as a Pandas DataFrame
-    df = customers_relation.df()
+    df = customers_relation.df()  # or customers_relation.df(chunk_size=50)
 
     # Alternatively, fetch as a PyArrow Table
     arrow_table = customers_relation.arrow()
@@ -59,7 +62,7 @@ def getting_started_snippet(pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_END getting_started
 
 
-def accessing_tables_snippet(dataset: ReadableDBAPIDataset) -> None:
+def accessing_tables_snippet(dataset: dlt.SupportsDataset) -> None:
     # @@@DLT_SNIPPET_START accessing_tables
     # Using attribute access
     customers_relation = dataset.customers
@@ -69,7 +72,7 @@ def accessing_tables_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END accessing_tables
 
 
-def fetch_entire_table_snippet(dataset: ReadableDBAPIDataset) -> None:
+def fetch_entire_table_snippet(dataset: dlt.SupportsDataset) -> None:
     customers_relation = dataset.customers
 
     # @@@DLT_SNIPPET_START fetch_entire_table_df
@@ -85,7 +88,7 @@ def fetch_entire_table_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END fetch_entire_table_fetchall
 
 
-def iterating_chunks_snippet(dataset: ReadableDBAPIDataset) -> None:
+def iterating_chunks_snippet(dataset: dlt.SupportsDataset) -> None:
     customers_relation = dataset.customers
     # @@@DLT_SNIPPET_START iterating_df_chunks
     for df_chunk in customers_relation.iter_df(chunk_size=5):
@@ -106,7 +109,7 @@ def iterating_chunks_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END iterating_fetch_chunks
 
 
-def row_counts_snippet(dataset: ReadableDBAPIDataset) -> None:
+def row_counts_snippet(dataset: dlt.SupportsDataset) -> None:
     # @@@DLT_SNIPPET_START row_counts
     # print the row counts of all tables in the destination as dataframe
     print(dataset.row_counts().df())
@@ -116,7 +119,7 @@ def row_counts_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END row_counts
 
 
-def context_manager_snippet(dataset: ReadableDBAPIDataset) -> None:
+def context_manager_snippet(dataset: dlt.SupportsDataset) -> None:
     # @@@DLT_SNIPPET_START context_manager
 
     # the dataset context manager will keep the connection open
@@ -128,7 +131,7 @@ def context_manager_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END context_manager
 
 
-def limiting_records_snippet(dataset: ReadableDBAPIDataset) -> None:
+def limiting_records_snippet(dataset: dlt.SupportsDataset) -> None:
     customers_relation = dataset.customers
     # @@@DLT_SNIPPET_START limiting_records
     # Get the first 50 items as a PyArrow table
@@ -140,7 +143,7 @@ def limiting_records_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END head_records
 
 
-def select_columns_snippet(dataset: ReadableDBAPIDataset) -> None:
+def select_columns_snippet(dataset: dlt.SupportsDataset) -> None:
     customers_relation = dataset.customers
     # @@@DLT_SNIPPET_START select_columns
     # Select only 'id' and 'name' columns
@@ -154,7 +157,48 @@ def select_columns_snippet(dataset: ReadableDBAPIDataset) -> None:
     # @@@DLT_SNIPPET_END select_columns
 
 
-def chain_operations_snippet(dataset: ReadableDBAPIDataset) -> None:
+def order_by_snippet(default_dataset: dlt.SupportsDataset) -> None:
+    customers_relation = default_dataset.customers
+    # @@@DLT_SNIPPET_START order_by
+    # Order by 'id'
+    ordered_list = customers_relation.order_by("id").fetchall()
+    # @@@DLT_SNIPPET_END order_by
+
+
+def filter_snippet(default_dataset: dlt.SupportsDataset) -> None:
+    customers_relation = default_dataset.customers
+    # @@@DLT_SNIPPET_START filter
+    # Filter by 'id'
+    filtered = customers_relation.where("id", "in", [3, 1, 7]).fetchall()
+
+    # Filter with raw SQL string
+    filtered = customers_relation.where("id = 1").fetchall()
+
+    # Filter with sqlglot expression
+    import sqlglot.expressions as sge
+
+    expr = sge.EQ(
+        this=sge.Column(this=sge.to_identifier("id", quoted=True)),
+        expression=sge.Literal.number("7"),
+    )
+    filtered = customers_relation.where(expr).fetchall()
+    # @@@DLT_SNIPPET_END filter
+
+
+def aggregate_snippet(default_dataset: dlt.SupportsDataset) -> None:
+    customers_relation = default_dataset.customers
+    # @@@DLT_SNIPPET_START aggregate
+
+    # Get max 'id'
+    max_id = customers_relation.select("id").max().scalar()
+
+    # Get min 'id'
+    min_id = customers_relation.select("id").min().scalar()
+
+    # @@@DLT_SNIPPET_END aggregate
+
+
+def chain_operations_snippet(dataset: dlt.SupportsDataset) -> None:
     customers_relation = dataset.customers
 
     # @@@DLT_SNIPPET_START chain_operations
@@ -165,68 +209,78 @@ def chain_operations_snippet(dataset: ReadableDBAPIDataset) -> None:
 
 def ibis_expressions_snippet(pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START ibis_expressions
-    # now that ibis is installed, we can get a dataset with ibis relations
+    # now that ibis is installed, we can get ibis unbound tables from the dataset
     dataset = pipeline.dataset()
 
-    # get two relations
-    customers_relation = dataset["customers"]
-    purchases_relation = dataset["purchases"]
+    # get two table expressions
+    customers_expression = dataset.table("customers", table_type="ibis")
+    purchases_expression = dataset.table("purchases", table_type="ibis")
 
     # join them using an ibis expression
-    joined_relation = customers_relation.join(
-        purchases_relation, customers_relation.id == purchases_relation.customer_id
+    join_expression = customers_expression.join(
+        purchases_expression, customers_expression.id == purchases_expression.customer_id
     )
 
     # now we can use the ibis expression to filter the data
-    filtered_relation = joined_relation.filter(purchases_relation.quantity > 1)
+    filtered_expression = join_expression.filter(purchases_expression.quantity > 1)
 
-    # we can inspect the query that will be used to read the data
-    print(filtered_relation.query)
+    # we can pass the expression back to the dataset to get a relation that can be executed
+    relation = dataset(filtered_expression)
+    # and we can inspect the query that will be used to read the data
+    print(relation)
 
     # and finally fetch the data as a pandas dataframe, the same way we would do with a normal relation
-    df = filtered_relation.df()
+    print(relation.df())
 
     # a few more examples
 
-    # get all customers from berlin and london
-    customers_relation.filter(customers_relation.city.isin(["berlin", "london"])).df()
+    # get all customers from berlin and london and load them as a dataframe
+    expr = customers_expression.filter(customers_expression.city.isin(["berlin", "london"]))
+    print(dataset(expr).df())
 
-    # limit and offset
-    customers_relation.limit(10, offset=5).arrow()
+    # limit and offset, then load as an arrow table
+    expr = customers_expression.limit(10, offset=5)
+    print(dataset(expr).arrow())
 
     # mutate columns by adding a new colums that always is 10 times the value of the id column
-    customers_relation.mutate(new_id=customers_relation.id * 10).df()
+    expr = customers_expression.mutate(new_id=customers_expression.id * 10)
+    print(dataset(expr).df())
 
     # sort asc and desc
     import ibis
 
-    customers_relation.order_by(ibis.desc("id"), ibis.asc("city")).limit(10)
+    expr = customers_expression.order_by(ibis.desc("id"), ibis.asc("city")).limit(10)
+    print(dataset(expr).df())
 
     # group by and aggregate
-    customers_relation.group_by("city").having(customers_relation.count() >= 3).aggregate(
-        sum_id=customers_relation.id.sum()
-    ).df()
+    expr = (
+        customers_expression.group_by("city")
+        .having(customers_expression.count() >= 3)
+        .aggregate(sum_id=customers_expression.id.sum())
+    )
+    print(dataset(expr).df())
 
     # subqueries
-    customers_relation.filter(customers_relation.city.isin(["berlin", "london"])).df()
+    expr = customers_expression.filter(customers_expression.city.isin(["berlin", "london"]))
+    print(dataset(expr).df())
     # @@@DLT_SNIPPET_END ibis_expressions
 
 
-def fetch_one_snippet(dataset: ReadableDBAPIDataset) -> None:
+def fetch_one_snippet(dataset: dlt.SupportsDataset) -> None:
     customers_relation = dataset.customers
     # @@@DLT_SNIPPET_START fetch_one
     record = customers_relation.fetchone()
     # @@@DLT_SNIPPET_END fetch_one
 
 
-def fetch_many_snippet(dataset: ReadableDBAPIDataset) -> None:
+def fetch_many_snippet(dataset: dlt.SupportsDataset) -> None:
     customers_relation = dataset.customers
     # @@@DLT_SNIPPET_START fetch_many
     records = customers_relation.fetchmany(10)
     # @@@DLT_SNIPPET_END fetch_many
 
 
-def iterating_with_limit_and_select_snippet(dataset: ReadableDBAPIDataset) -> None:
+def iterating_with_limit_and_select_snippet(dataset: dlt.SupportsDataset) -> None:
     customers_relation = dataset.customers
     # @@@DLT_SNIPPET_START iterating_with_limit_and_select
     # Dataframes
@@ -244,17 +298,21 @@ def iterating_with_limit_and_select_snippet(dataset: ReadableDBAPIDataset) -> No
     # @@@DLT_SNIPPET_END iterating_with_limit_and_select
 
 
-def custom_sql_snippet(dataset: ReadableDBAPIDataset) -> None:
+def custom_sql_snippet(dataset: dlt.SupportsDataset) -> None:
     # @@@DLT_SNIPPET_START custom_sql
-    # Join 'customers' and 'purchases' tables
-    custom_relation = dataset(
-        "SELECT * FROM customers JOIN purchases ON customers.id = purchases.customer_id"
-    )
-    arrow_table = custom_relation.arrow()
+    # Join 'customers' and 'purchases' tables and filter by quantity
+    query = """
+    SELECT *  
+        FROM customers 
+    JOIN purchases 
+        ON customers.id = purchases.customer_id
+    WHERE purchases.quantity > 1
+    """
+    joined_relation = dataset(query)
     # @@@DLT_SNIPPET_END custom_sql
 
 
-def loading_to_pipeline_snippet(dataset: ReadableDBAPIDataset) -> None:
+def loading_to_pipeline_snippet(dataset: dlt.SupportsDataset) -> None:
     # @@@DLT_SNIPPET_START loading_to_pipeline
     # Create a readable relation with a limit of 1m rows
     limited_customers_relation = dataset.customers.limit(1_000_000)

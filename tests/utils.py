@@ -209,8 +209,15 @@ def _patch_home_dir() -> Iterator[None]:
     mock._global_dir = mock._data_dir = os.path.join(mock._local_dir, DOT_DLT)
     ctx.context = mock
 
-    with Container().injectable_context(ctx):
-        yield
+    # also emit corresponding env variables so pipelines in env work like that
+    with custom_environ(
+        {
+            known_env.DLT_LOCAL_DIR: mock.local_dir,
+            known_env.DLT_DATA_DIR: mock.data_dir,
+        }
+    ):
+        with Container().injectable_context(ctx):
+            yield
 
 
 def _preserve_environ() -> Iterator[None]:
@@ -339,9 +346,12 @@ def setup_secret_providers_to_current_module(request):
             ConfigTomlProvider(settings_dir=config_dir),
         ]
 
-    with set_working_dir(dname), patch(
-        "dlt.common.runtime.run_context.RunContext.initial_providers",
-        _initial_providers,
+    with (
+        set_working_dir(dname),
+        patch(
+            "dlt.common.runtime.run_context.RunContext.initial_providers",
+            _initial_providers,
+        ),
     ):
         Container()[PluggableRunContext].reload_providers()
 

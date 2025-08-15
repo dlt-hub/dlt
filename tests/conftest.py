@@ -160,8 +160,9 @@ def pytest_configure(config):
             ]:
                 logging.getLogger(log).setLevel("ERROR")
 
-            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
-                io.StringIO()
+            with (
+                contextlib.redirect_stdout(io.StringIO()),
+                contextlib.redirect_stderr(io.StringIO()),
             ):
                 db.resetdb()
 

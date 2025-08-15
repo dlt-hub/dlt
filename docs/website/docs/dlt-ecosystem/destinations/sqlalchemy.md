@@ -130,13 +130,93 @@ with engine.connect() as conn:
 ```
 
 ## Notes on other dialects
-We tested this destination on **mysql** and **sqlite** dialects. Below are a few notes that may help enabling other dialects:
+We tested this destination on **mysql**, **sqlite** and **mssql** dialects. Below are a few notes that may help enabling other dialects:
 1. `dlt` must be able to recognize if a database exception relates to non existing entity (like table or schema). We put
 some work to recognize those for most of the popular dialects (look for `db_api_client.py`)
 2. Primary keys and unique constraints are not created by default to avoid problems with particular dialects.
 3. `merge` write disposition uses only `DELETE` and `INSERT` operations to enable as many dialects as possible.
 
 Please report issues with particular dialects. We'll try to make them work.
+
+### Trino limitations
+* Trino dialect does not case fold identifiers. Use `snake_case` naming convention only.
+* Trino does not support merge/scd2 write disposition (or you somehow create PRIMARY KEYs on engine tables) 
+* We convert JSON and BINARY types are cast to STRING (dialect seems to have a conversion bug)
+* Trino does not support PRIMARY/UNIQUE constraints
+
+
+### Adapting destination for a dialect
+You can adapt destination capabilities for a particular dialect [by passing your custom settings](../../general-usage/destination.md#pass-additional-parameters-and-change-destination-capabilities). In the example below we pass custom `TypeMapper` that
+converts `json` data into `text` on the fly.
+```py
+from dlt.common import json
+
+import dlt
+import sqlalchemy as sa
+from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
+
+class JSONString(sa.TypeDecorator):
+    """
+    A custom SQLAlchemy type that stores JSON data as a string in the database.
+    Automatically serializes Python objects to JSON strings on write and
+    deserializes JSON strings back to Python objects on read.
+    """
+
+    impl = sa.String
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+
+        return json.dumps(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+
+        return json.loads(value)
+
+class TrinoTypeMapper(SqlalchemyTypeMapper):
+    """Example mapper that plugs custom string type that serialized to from/json
+
+    Note that instance of TypeMapper contains dialect and destination capabilities instance
+    for a deeper integration
+    """
+
+    def to_destination_type(self, column, table=None):
+        if column["data_type"] == "json":
+            return JSONString()
+        return super().to_destination_type(column, table)
+
+# pass dest_ in `destination` argument to dlt.pipeline
+dest_ = dlt.destinations.sqlalchemy(type_mapper=TrinoTypeMapper)
+```
+
+Custom type mapper is also useful when ie. you want to limit the length of the string. Below we are adding variant
+for `mssql` dialect:
+```py
+import sqlalchemy as sa
+from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
+
+class CustomMssqlTypeMapper(SqlalchemyTypeMapper):
+    """This is only an illustration, `sqlalchemy` destination already handles mssql types"""
+
+    def to_destination_type(self, column, table=None):
+        type_ = super().to_destination_type(column, table)
+        if column["data_type"] == "text":
+            length = precision = column.get("precision")
+            if length is None:
+                return type_.with_variant(sa.UnicodeText(), "mssql")  # type: ignore[no-any-return]
+            else:
+                return type_.with_variant(sa.Unicode(length=length), "mssql")  # type: ignore[no-any-return]
+        return type_
+```
+
+:::caution
+When extending type mapper for mssql, mysql and trino start with MssqlVariantTypeMapper, MysqlVariantTypeMapper and
+TrinoVariantTypeMapper respectively
+:::
 
 
 ## Write dispositions

@@ -156,29 +156,47 @@ class ParsedLoadJobFileName(NamedTuple):
     file_id: str
     retry_count: int
     file_format: TJobFileFormat
+    is_compressed: bool = False
 
     def job_id(self) -> str:
         """Unique identifier of the job"""
-        return f"{self.table_name}.{self.file_id}.{self.file_format}"
+        compression_extension = ".gz" if self.is_compressed else ""
+        return f"{self.table_name}.{self.file_id}.{self.file_format}{compression_extension}"
 
     def file_name(self) -> str:
         """A name of the file with the data to be loaded"""
-        return f"{self.table_name}.{self.file_id}.{int(self.retry_count)}.{self.file_format}"
+        compression_extension = ".gz" if self.is_compressed else ""
+        return f"{self.table_name}.{self.file_id}.{int(self.retry_count)}.{self.file_format}{compression_extension}"
 
     def with_retry(self) -> "ParsedLoadJobFileName":
         """Returns a job with increased retry count"""
         return self._replace(retry_count=self.retry_count + 1)
 
+    def to_reference_file_name(self) -> str:
+        """Returns a file name for a reference job"""
+        return f"{self.table_name}.{self.file_id}.{self.retry_count}.reference"
+
+    def full_extension(self) -> str:
+        """Returns the full file extension"""
+        return f"{self.file_format}.gz" if self.is_compressed else f"{self.file_format}"
+
     @staticmethod
     def parse(file_name: str) -> "ParsedLoadJobFileName":
         p = PurePath(file_name)
         parts = p.name.split(".")
-        if len(parts) != 4:
-            raise TerminalValueError(parts)
 
-        return ParsedLoadJobFileName(
-            parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3])
-        )
+        if len(parts) == 4:
+            # No compression extension: table_name.file_id.retry_count.file_format
+            return ParsedLoadJobFileName(
+                parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3]), False
+            )
+        elif len(parts) == 5 and parts[4] == "gz":
+            # With compression extension: table_name.file_id.retry_count.file_format.gz
+            return ParsedLoadJobFileName(
+                parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3]), True
+            )
+        else:
+            raise TerminalValueError(parts)
 
     @staticmethod
     def new_file_id() -> str:
@@ -762,7 +780,7 @@ class LoadPackageStateInjectableContext(ContainerInjectableContext):
         self.state = self.storage.get_load_package_state(self.load_id)
 
 
-def load_package() -> TLoadPackage:
+def load_package_state() -> TLoadPackage:
     """Get full load package state present in current context. Across all threads this will be the same in memory dict."""
     container = Container()
     # get injected state if present. injected load package state is typically "managed" so changes will be persisted
@@ -786,13 +804,13 @@ def commit_load_package_state() -> None:
 
 def destination_state() -> DictStrAny:
     """Get segment of load package state that is specific to the current destination."""
-    lp = load_package()
+    lp = load_package_state()
     return lp["state"].setdefault("destination_state", {})
 
 
 def clear_destination_state(commit: bool = True) -> None:
     """Clear segment of load package state that is specific to the current destination. Optionally commit to load package."""
-    lp = load_package()
+    lp = load_package_state()
     lp["state"].pop("destination_state", None)
     if commit:
         commit_load_package_state()

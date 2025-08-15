@@ -41,6 +41,20 @@ const sidebars = {
         'tutorial/sql-database',
         'tutorial/filesystem',
         'tutorial/load-data-from-an-api',
+        'tutorial/playground',
+      ]
+    },
+    {
+      type: 'category',
+      label: 'Release highlights',
+      link: {
+        type: 'generated-index',
+        title: 'Release highlights',
+        slug: '/release-highlights',
+        keywords: ['release notes, release highlights'],
+      },
+      items: [
+        'release-notes/1.12.1',
       ]
     },
     {
@@ -64,7 +78,6 @@ const sidebars = {
             'general-usage/schema-contracts',
             'general-usage/schema-evolution',
             'general-usage/naming-convention',
-            'walkthroughs/adjust-a-schema',
           ]
         },
         'general-usage/glossary'
@@ -111,8 +124,20 @@ const sidebars = {
           type: 'category',
           label: 'Features',
           items: [
-            'plus/features/projects',
             'plus/features/data-access',
+            {
+              type: 'category',
+              label: 'Project',
+              link: {
+                type: 'doc',
+                id: 'plus/features/project/index',
+              },
+              items: [
+                'plus/features/project/overview',
+                'plus/features/project/source-configuration',
+                'plus/features/project/python-api',
+              ]
+            },
             {
               type: 'category',
               label: 'Local transformations',
@@ -299,7 +324,7 @@ const sidebars = {
           },
           items: [
             "dlt-ecosystem/llm-tooling/mcp-server",
-            "dlt-ecosystem/llm-tooling/cursor-restapi",
+            "dlt-ecosystem/llm-tooling/llm-native-workflow",
           ]
         },
         {
@@ -330,6 +355,7 @@ const sidebars = {
             'walkthroughs/add_credentials'
           ]
         },
+        'walkthroughs/adjust-a-schema',
         {
           type: 'category',
           label: 'Access loaded data',
@@ -343,6 +369,7 @@ const sidebars = {
             'general-usage/dataset-access/dataset',
             'general-usage/dataset-access/ibis-backend',
             'general-usage/dataset-access/sql-client',
+            'general-usage/dataset-access/view-dlt-schema',
             'general-usage/destination-tables',
           ]
         },
@@ -527,6 +554,7 @@ for (const item of sidebars.tutorialSidebar) {
   if (item.label === 'Code examples') {
     for (let examplePath of walkSync("./docs_processed/examples")) {
       examplePath = examplePath.replace("docs_processed/", "");
+      examplePath = examplePath.replace(".mdx", "");
       examplePath = examplePath.replace(".md", "");
       item.items.push(examplePath);
     }

@@ -276,7 +276,7 @@ def configspec(
         if synth_init != init and has_default_init:
             warnings.warn(
                 f"__init__ method will not be generated on {cls.__name__} because base class didn't"
-                " synthesize __init__. Please correct `init` flag in confispec decorator. You are"
+                " synthesize __init__. Please correct `init` flag in configspec decorator. You are"
                 " probably receiving incorrect __init__ signature for type checking"
             )
         # mark exactly this class as processed by configspec so we can warn the user if it is not done
@@ -397,6 +397,18 @@ class BaseConfiguration(MutableMapping[str, Any]):
     def copy(self: _B) -> _B:
         """Returns a deep copy of the configuration instance"""
         return copy.deepcopy(self)
+
+    def as_dict_nondefault(self) -> Dict[str, Any]:
+        """Gets configuration as dictionary containing only values that are non-default"""
+        return {
+            field.name: self[field.name]
+            for field in self._get_resolvable_dataclass_fields()
+            if (
+                field.default_factory() != self[field.name]
+                if field.default_factory != dataclasses.MISSING
+                else field.default != self[field.name]
+            )
+        }
 
     # implement dictionary-compatible interface on top of dataclass
 

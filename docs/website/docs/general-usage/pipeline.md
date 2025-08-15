@@ -152,7 +152,7 @@ Limits the refresh to the resources being processed in `pipeline.run` or `pipeli
 Tables belonging to those resources are dropped, and their resource state is wiped (that includes incremental state).
 The tables are deleted both from the pipeline's schema and from the destination database.
 
-Source level state keys are not deleted in this mode (i.e., `dlt.state()[<'my_key>'] = '<my_value>'`)
+Source level state keys are not deleted in this mode (i.e., `dlt.current.source_state()[<'my_key>'] = '<my_value>'`)
 
 :::caution
 This erases schema history for all affected sources, and only the latest schema version is stored.

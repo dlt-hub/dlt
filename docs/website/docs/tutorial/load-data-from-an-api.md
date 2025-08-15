@@ -474,7 +474,7 @@ To use it, change the `github_source()` function to:
 
 ```py
 @dlt.source
-def github_source_with_token(
+def github_source_with_token_from_secrets(
     access_token: str = dlt.secrets.value,
 ):
     ...
@@ -500,7 +500,7 @@ Now we can run the script and it will load the data from the `traffic/clones` en
 ...
 
 @dlt.source
-def github_source_with_token(
+def github_source_with_token_from_secrets(
     access_token: str = dlt.secrets.value,
 ):
     for endpoint in ["issues", "comments", "traffic/clones"]:
@@ -518,7 +518,7 @@ pipeline = dlt.pipeline(
     destination="duckdb",
     dataset_name="github_data",
 )
-load_info = pipeline.run(github_source())
+load_info = pipeline.run(github_source_with_token_from_secrets())
 ```
 
 ## Configurable sources
@@ -562,7 +562,7 @@ pipeline = dlt.pipeline(
     destination="duckdb",
     dataset_name="github_data",
 )
-load_info = pipeline.run(github_source())
+load_info = pipeline.run(github_source_with_token_and_repo())
 ```
 
 Next, create a `.dlt/config.toml` file in the project folder and add the `repo_name` parameter to it:

@@ -3,6 +3,9 @@ import pytest
 from unittest import mock
 from typing import Iterator, List
 
+from dlt.common.runners.pool_runner import get_default_start_method
+from dlt.common.runtime.exec_info import is_running_in_airflow_task
+
 pytest.importorskip("airflow")
 from airflow import DAG
 from airflow.decorators import dag
@@ -107,6 +110,10 @@ def mock_data_incremental_source():
 def mock_data_source_state():
     @dlt.resource(selected=True)
     def _r_init():
+        assert is_running_in_airflow_task() is True, "Must be running in Airflow task"
+        # will switch to spawn on Airflow
+        assert get_default_start_method("fork") == "spawn"
+
         dlt.current.source_state()["counter"] = 1
         dlt.current.source_state()["end_counter"] = 1
         yield ["-", "x", "!"]
@@ -600,8 +607,12 @@ def test_run_decomposed_with_state_wipe() -> None:
     dataset_name = "mock_data_" + uniq_id()
     pipeline_name = "pipeline_dag_regular_" + uniq_id()
 
+    assert is_running_in_airflow_task() is False
+
     @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
     def dag_regular():
+        assert is_running_in_airflow_task() is False
+
         tasks = PipelineTasksGroup(
             pipeline_name,
             local_data_folder=TEST_STORAGE_ROOT,

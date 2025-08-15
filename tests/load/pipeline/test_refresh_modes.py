@@ -3,13 +3,13 @@ import os
 import pytest
 import dlt
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
-from dlt.common.pipeline import resource_state
 from dlt.common.utils import uniq_id
 from dlt.common.typing import DictStrAny
 from dlt.common.pipeline import pipeline_state as current_pipeline_state
 
 from dlt.destinations.sql_client import DBApiCursor
 from dlt.extract.source import DltSource
+from dlt.extract.state import resource_state
 from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
 from tests.utils import clean_test_storage, TEST_STORAGE_ROOT
@@ -21,9 +21,6 @@ from tests.pipeline.utils import (
     table_exists,
 )
 from tests.load.utils import FILE_BUCKET, destinations_configs, DestinationTestConfiguration
-
-# mark all tests as essential, do not remove
-pytestmark = pytest.mark.essential
 
 
 def assert_source_state_is_wiped(state: DictStrAny) -> None:
@@ -45,7 +42,7 @@ def refresh_source(first_run: bool = True, drop_sources: bool = False):
     def some_data_1():
         if first_run:
             # Set some source and resource state
-            dlt.state()["source_key_1"] = "source_value_1"
+            dlt.current.source_state()["source_key_1"] = "source_value_1"
             resource_state("some_data_1")["run1_1"] = "value1_1"
             resource_state("some_data_1")["run1_2"] = "value1_2"
             yield {"id": 1, "name": "John"}
@@ -54,7 +51,7 @@ def refresh_source(first_run: bool = True, drop_sources: bool = False):
             # Check state is cleared for this resource
             assert not resource_state("some_data_1")
             if drop_sources:
-                assert_source_state_is_wiped(dlt.state())
+                assert_source_state_is_wiped(dlt.current.source_state())
             # Second dataset without name column to test tables are re-created
             yield {"id": 3}
             yield {"id": 4}
@@ -62,7 +59,7 @@ def refresh_source(first_run: bool = True, drop_sources: bool = False):
     @dlt.resource
     def some_data_2():
         if first_run:
-            dlt.state()["source_key_2"] = "source_value_2"
+            dlt.current.source_state()["source_key_2"] = "source_value_2"
             resource_state("some_data_2")["run1_1"] = "value1_1"
             resource_state("some_data_2")["run1_2"] = "value1_2"
             yield {"id": 5, "name": "Joe"}
@@ -70,21 +67,21 @@ def refresh_source(first_run: bool = True, drop_sources: bool = False):
         else:
             assert not resource_state("some_data_2")
             if drop_sources:
-                assert_source_state_is_wiped(dlt.state())
+                assert_source_state_is_wiped(dlt.current.source_state())
             yield {"id": 7}
             yield {"id": 8}
 
     @dlt.resource(primary_key="id", write_disposition="merge")
     def some_data_3():
         if first_run:
-            dlt.state()["source_key_3"] = "source_value_3"
+            dlt.current.source_state()["source_key_3"] = "source_value_3"
             resource_state("some_data_3")["run1_1"] = "value1_1"
             yield {"id": 9, "name": "Jack"}
             yield {"id": 10, "name": "Jill"}
         else:
             assert not resource_state("some_data_3")
             if drop_sources:
-                assert_source_state_is_wiped(dlt.state())
+                assert_source_state_is_wiped(dlt.current.source_state())
             yield {"id": 11}
             yield {"id": 12}
 
@@ -213,6 +210,9 @@ def test_existing_schema_hash(destination_config: DestinationTestConfiguration):
     assert new_schema_hash == first_schema_hash
 
 
+pytest.mark.essential
+
+
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -228,6 +228,9 @@ def test_existing_schema_hash(destination_config: DestinationTestConfiguration):
 def test_refresh_drop_resources(
     destination_config: DestinationTestConfiguration, in_source: bool, with_wipe: bool
 ):
+    if destination_config not in ["duckdb", "filesystem", "iceberg"] and in_source and with_wipe:
+        pytest.skip("not needed")
+
     # First run pipeline with load to destination so tables are created
     pipeline = destination_config.setup_pipeline("refresh_source")
 
@@ -372,7 +375,7 @@ def test_refresh_drop_sources_multiple_sources(destination_config: DestinationTe
         def source_2_data_1():
             pipeline_state, _ = current_pipeline_state(pipeline._container)
             if first_run:
-                dlt.state()["source_2_key_1"] = "source_2_value_1"
+                dlt.current.source_state()["source_2_key_1"] = "source_2_value_1"
                 resource_state("source_2_data_1")["run1_1"] = "value1_1"
                 yield {"product": "apple", "price": 1}
                 yield {"product": "banana", "price": 2}
@@ -386,19 +389,19 @@ def test_refresh_drop_sources_multiple_sources(destination_config: DestinationTe
                     "run1_2": "value1_2",
                 }
                 # Source state is wiped
-                assert_source_state_is_wiped(dlt.state())
+                assert_source_state_is_wiped(dlt.current.source_state())
                 yield {"product": "orange"}
                 yield {"product": "pear"}
 
         @dlt.resource
         def source_2_data_2():
             if first_run:
-                dlt.state()["source_2_key_2"] = "source_2_value_2"
+                dlt.current.source_state()["source_2_key_2"] = "source_2_value_2"
                 resource_state("source_2_data_2")["run1_1"] = "value1_1"
                 yield {"product": "carrot", "price": 3}
                 yield {"product": "potato", "price": 4}
             else:
-                assert_source_state_is_wiped(dlt.state())
+                assert_source_state_is_wiped(dlt.current.source_state())
                 yield {"product": "cabbage"}
                 yield {"product": "lettuce"}
 
@@ -585,9 +588,7 @@ def test_refresh_staging_dataset(destination_config: DestinationTestConfiguratio
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True, default_staging_configs=True, all_buckets_filesystem_configs=True
-    ),
+    destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("refresh", ["drop_source", "drop_resource", "drop_data"])

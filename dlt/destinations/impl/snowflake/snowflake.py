@@ -3,6 +3,7 @@ from typing import Optional, Sequence, List, Dict
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.client import (
+    FollowupJobRequest,
     HasFollowupJobs,
     LoadJob,
     PreparedTableSchema,
@@ -22,8 +23,27 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
 from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfiguration
 from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob
+from dlt.destinations.path_utils import get_file_format_and_compression
 
 SUPPORTED_HINTS: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
+
+
+class SnowflakeMergeJob(SqlMergeFollowupJob):
+    @classmethod
+    def gen_key_table_clauses(
+        cls,
+        root_table_name: str,
+        staging_root_table_name: str,
+        key_clauses: Sequence[str],
+        for_delete: bool,
+    ) -> List[str]:
+        sql: List[str] = [
+            f"FROM {root_table_name} AS d WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} AS"
+            f" s WHERE {clause.format(d='d', s='s')})"
+            for clause in key_clauses
+        ]
+        return sql
 
 
 class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -54,7 +74,7 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
         )
         # take file name
         file_name = FileStorage.get_file_name_from_file_path(file_url)
-        file_format = file_name.rsplit(".", 1)[-1]
+        file_format, _ = get_file_format_and_compression(file_name)
 
         qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
         # this means we have a local file
@@ -132,6 +152,11 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
                 ),
             )
         return job
+
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[PreparedTableSchema]
+    ) -> List[FollowupJobRequest]:
+        return [SnowflakeMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _make_add_column_sql(
         self, new_columns: Sequence[TColumnSchema], table: PreparedTableSchema = None

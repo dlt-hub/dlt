@@ -337,20 +337,26 @@ def get_column_type_from_py_arrow(
     elif pyarrow.types.is_decimal(dtype):
         return dict(data_type="decimal", precision=dtype.precision, scale=dtype.scale)
     elif pyarrow.types.is_nested(dtype):
-        dt = dict(data_type="json")
-        if caps.supports_nested_types:
-            dt["x-nested-type"] = serialize_type(dtype)
-        return dt  # type: ignore[return-value]
+        return (
+            get_nested_column_type_from_py_arrow(dtype)
+            if caps.supports_nested_types
+            else dict(data_type="json")
+        )
     elif pyarrow.types.is_dictionary(dtype):
         # Dictionary types are essentially categorical encodings. The underlying value_type
         # dictates the "logical" type. We simply delegate to the underlying value_type.
         return get_column_type_from_py_arrow(dtype.value_type, caps)
     elif pyarrow.types.is_null(dtype):
-        dt: dict[str, Any] = {}  # type: ignore[no-redef]
-        dt["x-normalizer"] = {"seen-null-first": True}  # type: ignore[assignment]
-        return dt  # type: ignore[return-value]
+        return {"x-normalizer": {"seen-null-first": True}}  # type: ignore[typeddict-unknown-key]
     else:
         raise UnsupportedArrowTypeException(arrow_type=dtype)
+
+
+def get_nested_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
+    """Creates `json` dlt data type with nested type structure in `x-nested-type` hint.
+    Currently the only recognized nested type format is arrow-ipc
+    """
+    return {"data_type": "json", "x-nested-type": serialize_type(dtype)}  # type: ignore[typeddict-unknown-key]
 
 
 def serialize_type(dtype: pyarrow.DataType) -> str:
@@ -434,6 +440,30 @@ def rename_columns(item: TAnyArrowItem, new_column_names: Sequence[str]) -> TAny
         raise TypeError(f"Unsupported data item type: `{type(item)}`")
 
 
+def fill_empty_source_column_values_with_placeholder(
+    table: pyarrow.Table, source_columns: List[str], placeholder: str
+) -> pyarrow.Table:
+    """
+    Replaces empty strings and null values in the specified source columns of an Arrow table with a placeholder string.
+
+    Args:
+        table (pa.Table): The input Arrow table.
+        source_columns (List[str]): A list of column names to replace empty strings and null values in.
+        placeholder (str): The placeholder string to use for replacement.
+
+    Returns:
+        pyarrow.Table: The modified Arrow table with empty strings and null values replaced in the specified columns.
+    """
+    for col_name in source_columns:
+        column = table[col_name]
+        filled_column = pyarrow.compute.fill_null(column, fill_value=placeholder)
+        new_column = pyarrow.compute.replace_substring_regex(
+            filled_column, pattern=r"^$", replacement=placeholder
+        )
+        table = table.set_column(table.column_names.index(col_name), col_name, new_column)
+    return table
+
+
 def should_normalize_arrow_schema(
     schema: pyarrow.Schema,
     columns: TTableSchemaColumns,
@@ -493,7 +523,7 @@ def normalize_py_arrow_item(
     """Normalize arrow `item` schema according to the `columns`. Note that
     columns must be already normalized.
 
-    0. columns with no data type will be dropeed
+    0. columns with no data type will be dropped
     1. arrow schema field names will be normalized according to `naming`
     2. arrows columns will be reordered according to `columns`
     3. empty columns will be inserted if they are missing, types will be generated using `caps`
@@ -1047,3 +1077,50 @@ class NameNormalizationCollision(ValueError):
     def __init__(self, reason: str) -> None:
         msg = f"Arrow column name collision after input data normalization. {reason}"
         super().__init__(msg)
+
+
+def add_arrow_metadata(
+    item: Union[pyarrow.Table, pyarrow.RecordBatch], metadata: dict[str, Any]
+) -> pyarrow.Table:
+    # Get current metadata or initialize empty
+    schema = item.schema
+    current = schema.metadata or {}
+
+    # Convert new metadata to bytes and merge
+    update = {k.encode("utf-8"): v.encode("utf-8") for k, v in metadata.items()}
+    merged = current.copy()
+    merged.update(update)
+
+    # Apply updated schema
+    new_schema = schema.with_metadata(merged)
+
+    # Rebuild the object with updated schema
+    if isinstance(item, pyarrow.Table):
+        return pyarrow.Table.from_arrays(item.columns, schema=new_schema)
+    else:  # RecordBatch
+        return pyarrow.RecordBatch.from_arrays(item.columns, schema=new_schema)
+
+
+def set_plus0000_timezone_to_utc(tbl: pyarrow.Table) -> pyarrow.Table:
+    """
+    Convert any +00:00 timestamp columns to UTC.
+    Returns the original table object if nothing needed fixing.
+    """
+    arrays, fields = [], []
+    changed = False
+
+    for col, fld in zip(tbl.columns, tbl.schema):
+        if pyarrow.types.is_timestamp(fld.type) and fld.type.tz == "+00:00":
+            changed = True
+            new_type = pyarrow.timestamp(fld.type.unit, "UTC")
+            arrays.append(pyarrow.compute.cast(col, new_type))
+            fields.append(pyarrow.field(fld.name, new_type, fld.nullable, fld.metadata))
+        else:
+            arrays.append(col)
+            fields.append(fld)
+
+    if not changed:
+        return tbl  # perfect no-op
+
+    new_schema = pyarrow.schema(fields, metadata=tbl.schema.metadata)
+    return pyarrow.Table.from_arrays(arrays, schema=new_schema)

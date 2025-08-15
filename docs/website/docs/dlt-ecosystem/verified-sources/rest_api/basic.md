@@ -101,7 +101,7 @@ The GitHub API [requires an access token](https://docs.github.com/en/rest/authen
 After you get the token, add it to the `secrets.toml` file:
 
 ```toml
-[sources.rest_api_pipeline.github_source]
+[sources.rest_api_pipeline.github]
 github_token = "your_github_token"
 ```
 
@@ -236,8 +236,9 @@ config: RESTAPIConfig = {
 The `client` configuration is used to connect to the API's endpoints. It includes the following fields:
 
 - `base_url` (str): The base URL of the API. This string is prepended to all endpoint paths. For example, if the base URL is `https://api.example.com/v1/`, and the endpoint path is `users`, the full URL will be `https://api.example.com/v1/users`.
-- `headers` (dict, optional): Additional headers that are sent with each request.
+- `headers` (dict, optional): Additional headers that are sent with each request. See the [headers configuration](./advanced#headers-configuration) section for more details.
 - `auth` (optional): Authentication configuration. This can be a simple token, an `AuthConfigBase` object, or a more complex authentication method.
+- `session` (requests.Session, optional): A custom session object. When provided, this session will be used for all HTTP requests instead of the default session. Can be used, for example, with [requests-oauthlib](https://github.com/requests/requests-oauthlib) for OAuth authentication.
 - `paginator` (optional): Configuration for the default pagination used for resources that support pagination. Refer to the [pagination](#pagination) section for more details.
 
 #### `resource_defaults` (optional)
@@ -359,6 +360,7 @@ The fields in the endpoint configuration are:
 - `path`: The path to the API endpoint. By default this path is appended to the given `base_url`. If this is a fully qualified URL starting with `http:` or `https:` it will be
 used as-is and `base_url` will be ignored.
 - `method`: The HTTP method to be used. The default is `GET`.
+- `headers`: Additional headers specific to this endpoint. See the [headers configuration](./advanced#headers-configuration) section for more details.
 - `params`: Query parameters to be sent with each request. For example, `sort` to order the results or `since` to specify [incremental loading](#incremental-loading). This is also may be used to define [resource relationships](#define-resource-relationships).
 - `json`: The JSON payload to be sent with the request (for POST and PUT requests).
 - `paginator`: Pagination configuration for the endpoint. See the [pagination](#pagination) section for more details.
@@ -372,7 +374,7 @@ The REST API source will try to automatically handle pagination for you. This wo
 
 In some special cases, you may need to specify the pagination configuration explicitly.
 
-To specify the pagination configuration, use the `paginator` field in the [client](#client) or [endpoint](#endpoint-configuration) configurations. You may either use a dictionary with a string alias in the `type` field along with the required parameters, or use a [paginator class instance](../../../general-usage/http/rest-client.md#paginators).
+To specify the pagination configuration, use the `paginator` field in the [client](#client), [resource_defaults](#resource_defaults-optional), or [endpoint](#endpoint-configuration) configurations (see [pagination configuration hierarchy](#pagination-configuration-hierarchy)). You may either use a dictionary with a string alias in the `type` field along with the required parameters, or use a [paginator class instance](../../../general-usage/http/rest-client.md#paginators).
 
 #### Example
 
@@ -418,8 +420,27 @@ from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
 }
 ```
 
+:::tip JSONPath escaping for special characters
+When working with APIs that use field names containing special characters (like dots, @ symbols, or other reserved JSONPath characters), you need to escape the field names using bracket notation.
+
+For example, Microsoft Graph API uses `@odata.nextLink` for pagination. To access this field, use bracket notation with quotes:
+
+```py
+{
+    "path": "users",
+    "paginator": {
+        "type": "json_link",
+        "next_url_path": "['@odata.nextLink']",  # Escaped using bracket notation
+    }
+}
+```
+
+Refer to the [JSONPath syntax](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) for more details.
+
+:::
+
 :::note
-Currently, pagination is supported only for GET requests. To handle POST requests with pagination, you need to implement a [custom paginator](../../../general-usage/http/rest-client.md#implementing-a-custom-paginator).
+Currently, pagination is supported only for GET requests for all paginators except [`JSONResponseCursorPaginator`](../../../general-usage/http/rest-client.md#jsonresponsecursorpaginator). To handle POST requests with pagination, you need to implement a [custom paginator](../../../general-usage/http/rest-client.md#implementing-a-custom-paginator).
 :::
 
 These are the available paginators:
@@ -428,11 +449,49 @@ These are the available paginators:
 | ------------ | -------------- | ----------- |
 | `json_link` | [JSONLinkPaginator](../../../general-usage/http/rest-client.md#jsonlinkpaginator) | The link to the next page is in the body (JSON) of the response.<br/>*Parameters:*<ul><li>`next_url_path` (str) - the JSONPath to the next page URL</li></ul> |
 | `header_link` | [HeaderLinkPaginator](../../../general-usage/http/rest-client.md#headerlinkpaginator) | The links to the next page are in the response headers.<br/>*Parameters:*<ul><li>`links_next_key` (str) - the name of the header containing the links. Default is "next".</li></ul> |
-| `offset` | [OffsetPaginator](../../../general-usage/http/rest-client.md#offsetpaginator) | The pagination is based on an offset parameter, with the total items count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`limit` (int) - the maximum number of items to retrieve in each request</li><li>`offset` (int) - the initial offset for the first request. Defaults to `0`</li><li>`offset_param` (str) - the name of the query parameter used to specify the offset. Defaults to "offset"</li><li>`limit_param` (str) - the name of the query parameter used to specify the limit. Defaults to "limit"</li><li>`total_path` (str) - a JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset` and `stop_after_empty_page`</li><li>`maximum_offset` (int) - optional maximum offset value. Limits pagination even without total count</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li></ul> |
-| `page_number` | [PageNumberPaginator](../../../general-usage/http/rest-client.md#pagenumberpaginator) | The pagination is based on a page number parameter, with the total pages count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`base_page` (int) - the starting page number. Defaults to `0`</li><li>`page_param` (str) - the query parameter name for the page number. Defaults to "page"</li><li>`total_path` (str) - a JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page` and `stop_after_empty_page`</li><li>`maximum_page` (int) - optional maximum page number. Stops pagination once this page is reached</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li></ul> |
+| `header_cursor` | [HeaderCursorPaginator](../../../general-usage/http/rest-client.md#headercursorpaginator) | The cursor for the next page is in the response headers.<br/>*Parameters:*<ul><li>`cursor_key` (str) - the name of the header containing the cursor. Defaults to "next"</li><li>`cursor_param` (str) - the query parameter name for the cursor. Defaults to "cursor"</li></ul> |
+| `offset` | [OffsetPaginator](../../../general-usage/http/rest-client.md#offsetpaginator) | The pagination is based on an offset parameter, with the total items count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`limit` (int) - the maximum number of items to retrieve in each request</li><li>`offset` (int) - the initial offset for the first request. Defaults to `0`</li><li>`offset_param` (str) - the name of the query parameter used to specify the offset. Defaults to "offset"</li><li>`limit_param` (str) - the name of the query parameter used to specify the limit. Defaults to "limit"</li><li>`total_path` (str) - a JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset` and `stop_after_empty_page`</li><li>`maximum_offset` (int) - optional maximum offset value. Limits pagination even without total count</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li><li>`has_more_path` (str) - a JSONPath expression for the boolean value indicating whether there are more items to fetch. Defaults to `None`.</li></ul> |
+| `page_number` | [PageNumberPaginator](../../../general-usage/http/rest-client.md#pagenumberpaginator) | The pagination is based on a page number parameter, with the total pages count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`base_page` (int) - the starting page number. Defaults to `0`</li><li>`page_param` (str) - the query parameter name for the page number. Defaults to "page"</li><li>`total_path` (str) - a JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page` and `stop_after_empty_page`</li><li>`maximum_page` (int) - optional maximum page number. Stops pagination once this page is reached</li><li>`stop_after_empty_page` (bool) - Whether pagination should stop when a page contains no result items. Defaults to `True`</li><li>`has_more_path` (str) - a JSONPath expression for the boolean value indicating whether there are more items to fetch. Defaults to `None`.</li></ul> |
 | `cursor` | [JSONResponseCursorPaginator](../../../general-usage/http/rest-client.md#jsonresponsecursorpaginator) | The pagination is based on a cursor parameter, with the value of the cursor in the response body (JSON).<br/>*Parameters:*<ul><li>`cursor_path` (str) - the JSONPath to the cursor value. Defaults to "cursors.next"</li><li>`cursor_param` (str) - the query parameter name for the cursor. Defaults to "cursor" if neither `cursor_param` nor `cursor_body_path` is provided.</li><li>`cursor_body_path` (str, optional) - the JSONPath to place the cursor in the request body.</li></ul>Note: You must provide either `cursor_param` or `cursor_body_path`, but not both. If neither is provided, `cursor_param` will default to "cursor". |
 | `single_page` | SinglePagePaginator | The response will be interpreted as a single-page response, ignoring possible pagination metadata. |
 | `auto` | `None` | Explicitly specify that the source should automatically detect the pagination method. |
+
+#### Pagination configuration hierarchy
+
+Paginators are applied in the following order of precedence:
+
+1. Endpoint-level paginator: defined in individual [resource endpoint configurations](#endpoint-configuration).
+2. Resource defaults paginator: defined in `resource_defaults.endpoint.paginator`
+3. Client-level paginator: defined in the [client](#client) configuration. This is the lowest priority.
+
+#### Single entity endpoint detection
+
+The REST API source tries to automatically detect endpoints that return single entities (e.g. not paginated lists of items). It works by looking if the path contains any placeholders with references to other resources (for example `users/{resources.users.id}/` or `user/{id}`) and applies special handling:
+
+- If no `paginator` is explicitly configured at endpoint or resource defaults level, these endpoints automatically use `SinglePagePaginator`.
+- If no `data_selector` is explicitly configured, these endpoints automatically use `"$"` to select the entire response.
+
+:::warning
+Single entity detection only applies when no paginator is configured at endpoint or resource defaults level. So:
+
+- Endpoint-level paginators always take precedence and are _never overridden_ by single entity detection.
+- Resource defaults paginators are preserved and _not overridden_ by single entity detection.
+- Client-level paginators are ignored and _get overridden_ by single entity detection.
+
+To change this behavior for a specific endpoint, explicitly set the `paginator` in the endpoint configuration:
+
+```py
+{
+    "name": "user_details",
+    "endpoint": {
+        "path": "user/{id}/comments",
+        "paginator": {"type": "json_link", "next_url_path": "next"}
+    }
+}
+```
+:::
+
+#### Custom paginators
 
 For more complex pagination methods, you can implement a [custom paginator](../../../general-usage/http/rest-client.md#implementing-a-custom-paginator), instantiate it, and use it in the configuration.
 
@@ -508,6 +567,10 @@ You can use the following endpoint configuration:
 
 Read more about [JSONPath syntax](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) to learn how to write selectors.
 
+:::tip
+For field names with special characters (dots, @ symbols, etc.), use the bracket notation escaping technique described in the [pagination section](#pagination).
+:::
+
 ### Authentication
 
 For APIs that require authentication to access their endpoints, the REST API source supports various authentication methods, including token-based authentication, query parameters, basic authentication, and custom authentication. The authentication configuration is specified in the `auth` field of the [client](#client) either as a dictionary or as an instance of the [authentication class](../../../general-usage/http/rest-client.md#authentication).
@@ -577,8 +640,10 @@ For more complex authentication methods, you can implement a [custom authenticat
 You can use the dictionary configuration syntax also for custom authentication classes after registering them as follows:
 
 ```py
+from dlt.common.configuration import configspec
 from dlt.sources.rest_api.config_setup import register_auth
 
+@configspec
 class CustomAuth(AuthConfigBase):
     pass
 
@@ -707,6 +772,36 @@ In the example below we reference the `posts` resource's `id` field in the JSON 
 }
 ```
 
+:::tip Escaping curly braces
+When your API requires literal curly braces in parameters (e.g., for JSON filters or GraphQL queries), escape them by doubling: `{{` and `}}`.
+
+Example with GraphQL query:
+```py
+{
+    "json": {
+        "query": """
+            query Artist {{
+                artist(id: "{resources.artist_list.id}") {{
+                    id
+                    name
+                }}
+            }}
+        """
+    }
+}
+```
+
+Use the same technique for GET request query string parameters:
+
+```py
+{
+    "params": {
+        "search": "{{'filters': [{{'id': 42}}]}}"
+    }
+}
+```
+
+:::
 
 #### Legacy syntax: `resolve` field in parameter configuration
 
@@ -1081,7 +1176,7 @@ Some APIs use path parameters to filter the data:
 
 #### In request headers
 
-It's not so common, but you can also use placeholders in the request headers:
+You can also use placeholders in request headers:
 
 ```py
 {
@@ -1095,6 +1190,8 @@ It's not so common, but you can also use placeholders in the request headers:
     },
 }
 ```
+
+For more details on headers configuration and dynamic placeholders, see the [headers configuration](./advanced#headers-configuration) section.
 
 You can also use different placeholder variants depending on your needs:
 
@@ -1113,7 +1210,7 @@ DEPRECATED: This method is deprecated and will be removed in a future version. U
 :::
 
 :::note
-This method only works for query string parameters. For other request parts (path, JSON body, headers), use the [placeholder method](#using-placeholders-for-incremental-loading).
+This method only works for query string parameters. For other request parts (path, JSON body, headers), use the [placeholder method](#using-placeholders-for-incremental-loading). For more details on headers, see the [headers configuration](./advanced#headers-configuration) section.
 :::
 
 For query string parameters, you can also specify incremental loading directly in the `params` section:
@@ -1240,7 +1337,31 @@ If you encounter issues while running the pipeline, enable [logging](../../../ru
 RUNTIME__LOG_LEVEL=INFO python my_script.py
 ```
 
-This also provides details on the HTTP requests.
+This also provides details on the HTTP requests. If you want to see even more details, you can enable the HTTP error response bodies.
+
+### Viewing HTTP error response bodies
+
+By default, HTTP error response bodies are not included in error messages to keep logs concise. However, during development or debugging, you may want to see the full error response from the API.
+
+To enable error response bodies in logs and exceptions in your `config.toml` file:
+
+```toml
+[runtime]
+http_show_error_body = true
+```
+
+Or set via environment variables:
+```sh
+export RUNTIME__HTTP_SHOW_ERROR_BODY=true
+```
+
+### Automatic secret redaction in logs
+
+The REST API source automatically redacts sensitive query parameters in URLs when logging or raising errors. The following parameter names are automatically considered sensitive and will be replaced with `***`:
+
+- `api_key`, `token`, `key`, `access_token`, `apikey`, `api-key`, `access-token`
+- `secret`, `password`, `pwd`, `client_secret`
+- `username`, `client_id`
 
 ### Configuration issues
 

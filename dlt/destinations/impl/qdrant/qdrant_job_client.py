@@ -74,7 +74,7 @@ class QDrantLoadJob(RunnableLoadJob):
                 embedding_model = self._job_client.db_client._get_or_init_model(
                     self._job_client.db_client.embedding_model_name
                 )
-                embeddings = list(
+                embeddings: List[Any] = list(
                     embedding_model.embed(
                         docs,
                         batch_size=self._config.embedding_batch_size,

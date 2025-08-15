@@ -2,8 +2,10 @@ from typing import Optional, Dict, Any
 import inspect
 
 import sqlalchemy as sa
+from sqlalchemy import TypeDecorator
 from sqlalchemy.sql import sqltypes
 
+from dlt.common import json
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.typing import TLoaderFileFormat
 from dlt.common.destination.capabilities import DataTypeMapper, DestinationCapabilitiesContext
@@ -42,18 +44,12 @@ class SqlalchemyTypeMapper(DataTypeMapper):
         timezone = timezone is None or bool(timezone)
         if sc_t == "timestamp":
             base_type = sa.DateTime()
-            if self.dialect.name == "mysql":
-                # Special case, type_descriptor does not return the specifc datetime type
-                from sqlalchemy.dialects.mysql import DATETIME
-
-                return DATETIME(fsp=precision)
         elif sc_t == "time":
             base_type = sa.Time()
 
         dialect_type = type(
             self.dialect.type_descriptor(base_type)
         )  # Get the dialect specific subtype
-        precision = precision if precision is not None else self.capabilities.timestamp_precision
 
         # Find out whether the dialect type accepts precision or fsp argument
         params = inspect.signature(dialect_type).parameters
@@ -68,11 +64,6 @@ class SqlalchemyTypeMapper(DataTypeMapper):
         if dbl := getattr(sa, "Double", None):
             # Sqlalchemy 2 has generic double type
             return dbl()  # type: ignore[no-any-return]
-        elif self.dialect.name == "mysql":
-            # MySQL has a specific double type
-            from sqlalchemy.dialects.mysql import DOUBLE
-
-            return DOUBLE()
         return sa.Float(precision=53)  # Otherwise use float
 
     def _to_db_decimal_type(self, column: TColumnSchema) -> sa.types.TypeEngine:
@@ -93,7 +84,8 @@ class SqlalchemyTypeMapper(DataTypeMapper):
                 length = 128
             if length is None:
                 return sa.Text()
-            return sa.String(length=length)
+            else:
+                return sa.String(length=length)
         elif sc_t == "double":
             return self._create_double_type()
         elif sc_t == "bool":
@@ -163,8 +155,6 @@ class SqlalchemyTypeMapper(DataTypeMapper):
             return dict(data_type="time")
         raise TerminalValueError(f"Unsupported db type: `{db_type}`")
 
-        pass
-
     def ensure_supported_type(
         self,
         column: TColumnSchema,
@@ -172,3 +162,91 @@ class SqlalchemyTypeMapper(DataTypeMapper):
         loader_file_format: TLoaderFileFormat,
     ) -> None:
         pass
+
+
+class MssqlVariantTypeMapper(SqlalchemyTypeMapper):
+    def to_destination_type(  # type: ignore[override]
+        self, column: TColumnSchema, table: PreparedTableSchema = None
+    ) -> sqltypes.TypeEngine:
+        dt = super().to_destination_type(column, table)
+        precision = column.get("precision")
+        # TODO: Precision and scale for supported types
+        if column["data_type"] == "text":
+            length = precision
+            if length is None and column.get("unique"):
+                length = 4000  # max regular varchar
+            if length is None:
+                return dt.with_variant(sa.UnicodeText(), "mssql")  # type: ignore[no-any-return]
+            else:
+                return dt.with_variant(sa.Unicode(length=length), "mssql")  # type: ignore[no-any-return]
+        return dt
+
+
+class MysqlVariantTypeMapper(SqlalchemyTypeMapper):
+    def to_destination_type(  # type: ignore[override]
+        self, column: TColumnSchema, table: PreparedTableSchema = None
+    ) -> sqltypes.TypeEngine:
+        dt = super().to_destination_type(column, table)
+        sc_t = column["data_type"]
+        if sc_t == "double":
+            from sqlalchemy.dialects.mysql import DOUBLE
+
+            return DOUBLE()
+        elif sc_t == "timestamp":
+            # Special case, type_descriptor does not return the specific datetime type
+            from sqlalchemy.dialects.mysql import DATETIME
+
+            precision = column.get("precision")
+            precision = (
+                precision if precision is not None else self.capabilities.timestamp_precision
+            )
+            return DATETIME(fsp=precision)
+        return dt
+
+
+class HexVarBinary(TypeDecorator):
+    impl = sa.String
+
+    def bind_processor(self, dialect: sa.engine.Dialect) -> Any:
+        import binascii
+
+        return lambda v: None if v is None else binascii.hexlify(v).decode()
+
+
+class JSONString(sa.TypeDecorator):
+    """
+    A custom SQLAlchemy type that stores JSON data as a string in the database.
+    Automatically serializes Python objects to JSON strings on write and
+    deserializes JSON strings back to Python objects on read.
+    """
+
+    impl = sa.String
+    cache_ok = True
+
+    def process_bind_param(self, value: Any, dialect: sa.engine.Dialect) -> Any:
+        if value is None:
+            return None
+
+        if isinstance(value, str):
+            return value
+
+        return json.dumps(value)
+
+    def process_result_value(self, value: Any, dialect: sa.engine.Dialect) -> Any:
+        if value is None:
+            return None
+
+        return json.loads(value)
+
+
+class TrinoVariantTypeMapper(SqlalchemyTypeMapper):
+    def to_destination_type(  # type: ignore[override]
+        self, column: TColumnSchema, table: PreparedTableSchema = None
+    ) -> sqltypes.TypeEngine:
+        dt = super().to_destination_type(column, table)
+        sc_t = column["data_type"]
+        if sc_t == "binary":
+            return dt.with_variant(HexVarBinary(), "trino")  # type: ignore[no-any-return]
+        if sc_t == "json":
+            return JSONString()
+        return dt

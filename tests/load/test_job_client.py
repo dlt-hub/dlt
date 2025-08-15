@@ -139,7 +139,12 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     # now we have dlt tables
     storage_tables = list(client.get_storage_tables([VERSION_TABLE_NAME, LOADS_TABLE_NAME]))
     assert set([table[0] for table in storage_tables]) == {VERSION_TABLE_NAME, LOADS_TABLE_NAME}
-    assert [len(table[1]) > 0 for table in storage_tables] == [True, True]
+    # in filesystem we do not have folders really so we cannot tell empty table from non existing table
+    if client.config.destination_type in ["filesystem"]:
+        # loads table does not have data
+        assert [len(table[1]) > 0 for table in storage_tables] == [True, False]
+    else:
+        assert [len(table[1]) > 0 for table in storage_tables] == [True, True]
     # verify if schemas stored
     this_schema = client.get_stored_schema_by_hash(schema.version_hash)
     newest_schema = client.get_stored_schema(client.schema.name)
@@ -458,9 +463,9 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
         ):
             continue
         # mssql, clickhouse and synapse have no native data type for the nested type.
-        if client.config.destination_type in ("mssql", "synapse", "clickhouse") and c[
-            "data_type"
-        ] in ("json"):
+        if client.config.destination_type in ("clickhouse", "synapse") and c["data_type"] in (
+            "json"
+        ):
             continue
         if client.config.destination_type == "databricks" and c["data_type"] in ("json", "time"):
             continue
@@ -1197,6 +1202,8 @@ def get_columns_and_row_all_types(destination_config: DestinationClientConfigura
         exclude_types.append("time")
     if destination_config.destination_name == "sqlalchemy_sqlite":
         exclude_types.extend(["decimal", "wei"])
+    if destination_config.destination_name == "sqlalchemy_trino":
+        exclude_types.append("time")
     return table_update_and_row(
         # TIME + parquet is actually a duckdb problem: https://github.com/duckdb/duckdb/pull/13283
         exclude_types=exclude_types,  # type: ignore[arg-type]

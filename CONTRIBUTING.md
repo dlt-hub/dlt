@@ -36,9 +36,9 @@ Thank you for considering contributing to **dlt**! We appreciate your help in ma
 To get started, follow these steps:
 
 1. Fork the `dlt` repository and clone it to your local machine.
-2. Install `poetry` with `make install-poetry` (or follow the [official instructions](https://python-poetry.org/docs/#installation)).
+2. Install `uv` with `make install-uv` (or follow the [official instructions](https://docs.astral.sh/uv/getting-started/installation/).
 3. Run `make dev` to install all dependencies including dev ones.
-4. Start working in the `poetry` shell by executing `poetry shell`.
+4. Activate your venv with `make shell` and starting working, or prepend all commands with `uv run` to run within the uv environment. `uv run` is encouraged as it will automatically keep you project dependencies up to date.
 
 ## Submitting Changes
 
@@ -87,13 +87,36 @@ We encourage you to attach your branches to a ticket, if none exists, create one
 ### Submitting a hotfix
 We'll fix critical bugs and release `dlt` out of the schedule. Follow the regular procedure, but make your PR against **master** branch. Please ping us on Slack if you do it.
 
-### Testing with Github Actions
-We enable our CI to run tests for contributions from forks. All the tests are run, but not all destinations are available due to credentials. Currently
-only the `duckdb` and `postgres` are available to forks.
+### Submitting Changes Requiring Full CI Credentials.
+We enable our CI to run tests for contributions from forks. By default only tests that do not require credentials are run. Full CI tests may be enabled with labels:
+- `ci from fork` will enable access to CI credentials in PRs from fork and run associated tests
+- `ci full` will run all tests. By default only essential destination tests are run.
 
-## Submitting Changes Requiring Full CI Credentials.
+Labels are assigned by the core team. If you need CI credentials for local tests you can contact us on Slack.
 
-In case you submit a new destination or make changes to a destination that require credentials (so Bigquery, Snowflake, buckets etc.) you **should contact us so we can add you as contributor**. Then you should make a PR directly to the `dlt` repo.
+
+## Deprecation guidelines
+We introduce breaking changes in major versions. In the meantime we maintain backward compatibility and deprecate behaviors and features. Example:
+`complex` type got renamed to `json` in a minor version so backward compat was provided:
+- we keep `complex` data type in schema definition
+- `migrate_complex_types` is used to migrate schemas and at run time ie to handle `columns` hints
+- `warning` Python module and `Dlt100DeprecationWarning` category is used to generate warning with full deprecation info
+
+What is breaking change:
+- A change in a well documented and common behavior that will break user's code.
+- A change as above in undefined or undocumented behavior that we know is being used
+- We do not consider changes that define behaviors or edge cases that were not documented and are not often used. Most of our QoL tickets are like that. Still, if possible,
+backward compat should be provided.
+
+Mechanisms to maintain backward compat:
+- all schemas/state files have built-in migration methods (`engine_version`).
+- storages (ie. extract/normalize/load) have versioned layout and may be upgraded or wiped out if version changes
+- `DltDeprecationWarning` and variants with various version ranges. It automatically shows deprecation information and when deprecation will be removed from the code base
+- `deprecated` decorator that can be applied to classes, functions and overloads which will generate warnings at runtime and when type checking (PEP702)
+- backward compatibility must be tested. there are many such tests in our code base.
+- we have end-to-end tests in `tests_dlt_versions.py`: pipelines are created with `venv` and old `dlt` (starting with `0.3.x`) and then upgraded and tested.
+
+Please review `warnings.py` module and how deprecation warnings and decorators are used.
 
 ## Adding or updating core dependencies
 
@@ -149,7 +172,7 @@ We'll provide you with access to the resources above if you wish to test locally
 
 ## Local Development
 
-Use Python 3.9 for development, as it's the lowest supported version for `dlt`. You'll need `distutils` and `venv`. You may also use `pyenv`, as suggested by [poetry](https://python-poetry.org/docs/managing-environments/).
+Use Python 3.9 for development, as it's the lowest supported version for `dlt`. You can select (and if needed download) the python version you need with `uv venv --python 3.11.6`, [uv python version docs](https://docs.astral.sh/uv/concepts/python-versions/#managed-and-system-python-installations).
 
 ## Publishing (Maintainers Only)
 
@@ -157,45 +180,44 @@ This section is intended for project maintainers who have the necessary permissi
 
 Please read how we [version the library](README.md#adding-as-dependency) first.
 
-The source of truth for the current version is `pyproject.toml`, and we use `poetry` to manage it.
+The source of truth for the current version is `pyproject.toml`, and we use `uv` to manage it.
 
 ### Regular release
 
 Before publishing a new release, make sure to bump the project's version accordingly:
 
 1. Check out the **devel** branch.
-2. Use `poetry version patch` to increase the **patch** version
+2. Use `uv version --bump patch` to increase the **patch** version. You can also bump to `minor` or `major`.
 3. Run `make build-library` to apply the changes to the project.
 4. Create a new branch, and submit the PR to **devel**. Go through the standard process to merge it.
-5. Create a merge PR from `devel` to `master` and merge it with a merge commit.
+
+Once the version has been bumped, follow these steps to publish the new release to PyPI:
+
+1. Create a merge PR from `devel` to `master` and merge it with a ❗ **merge commit** (not squash) so `master` always mirrors `devel`
+2. Ensure that you are on the **master** branch and have the latest code that has passed all tests on CI.
+3. Verify the current version with `uv version`.
+4. Obtain a PyPI access token
+5. Build and publish the library with `make publish-library`, you will be asked to input the PyPI token.
+6. Create a release on GitHub, using the version and git tag as the release name.
 
 ### Hotfix release
 1. Check out the **master** branch
-2. Use `poetry version patch` to increase the **patch** version
+2. Use `uv version --bump patch` to increase the **patch** version
 3. Run `make build-library` to apply the changes to the project.
 4. Create a new branch, submit the PR to **master** and merge it.
+5. Re-submit the same fix to the `devel` branch.
 
 ### Pre-release
 Occasionally we may release an alpha version directly from the **branch**.
 1. Check out the **devel** branch
-2. Use `poetry version prerelease` to increase the **alpha** version
+2. You need to manually update the alpha version in the `pyproject.toml` file and run `uv sync` to update the uv lockfile.
 3. Run `make build-library` to apply the changes to the project.
 4. Create a new branch, and submit the PR to **devel** and merge it.
-
-### Publishing to PyPI
-
-Once the version has been bumped, follow these steps to publish the new release to PyPI:
-
-1. Ensure that you are on the **master** branch and have the latest code that has passed all tests on CI.
-2. Verify the current version with `poetry version`.
-3. Obtain a PyPI access token and configure it with `poetry config pypi-token.pypi your-api-token`.
-4. Run `make publish-library` to publish the new version.
-5. Create a release on GitHub, using the version and git tag as the release name.
 
 ## Resources
 
 - [dlt Docs](https://dlthub.com/docs)
-- [Poetry Documentation](https://python-poetry.org/docs/)
+- [uv Documentation](https://docs.astral.sh/uv/)
 
 If you have any questions or need help, don't hesitate to reach out to us. We're here to help you succeed in contributing to `dlt`. Happy coding!
 ****

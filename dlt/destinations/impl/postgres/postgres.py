@@ -1,7 +1,7 @@
 from typing import Dict, Iterator, Optional, Sequence, List, Any
 
 from dlt.common import logger
-from dlt.common.data_writers.configuration import CsvFormatConfiguration
+from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
     DestinationInvalidFileFormat,
@@ -17,6 +17,7 @@ from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import is_nullable_column
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.destinations.impl.postgres.configuration import PostgresClientConfiguration
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.insert_job_client import InsertValuesJobClient
@@ -40,12 +41,12 @@ class PostgresStagingReplaceJob(SqlStagingReplaceFollowupJob):
             table_name = sql_client.make_qualified_table_name(table["name"])
             sql.extend(
                 (
-                    f"DROP TABLE IF EXISTS {table_name};",
+                    f"DROP TABLE IF EXISTS {table_name}",
                     (
                         f"ALTER TABLE {staging_table_name} SET SCHEMA"
-                        f" {sql_client.fully_qualified_dataset_name()};"
+                        f" {sql_client.fully_qualified_dataset_name()}"
                     ),
-                    f"CREATE TABLE {staging_table_name} (like {table_name} including all);",
+                    f"CREATE TABLE {staging_table_name} (like {table_name} including all)",
                 )
             )
         return sql
@@ -67,9 +68,10 @@ class PostgresParquetCopyJob(RunnableLoadJob, HasFollowupJobs):
             for table in pq_stream_with_new_columns(file_path, ()):
                 yield from table.to_batches()
 
-        with adbapi.connect(
-            self._config.credentials.to_native_representation()
-        ) as conn, conn.cursor() as cur:
+        with (
+            adbapi.connect(self._config.credentials.to_native_representation()) as conn,
+            conn.cursor() as cur,
+        ):
             rows = cur.adbc_ingest(
                 self.load_table_name,
                 _iter_batches(self._file_path),
@@ -189,9 +191,10 @@ class PostgresClient(InsertValuesJobClient):
     ) -> LoadJob:
         job = super().create_load_job(table, file_path, load_id, restore)
         if not job:
-            if file_path.endswith("csv"):
+            parsed_file = ParsedLoadJobFileName.parse(file_path)
+            if parsed_file.file_format == "csv":
                 job = PostgresCsvCopyJob(file_path)
-            elif file_path.endswith("parquet"):
+            elif parsed_file.file_format == "parquet":
                 job = PostgresParquetCopyJob(file_path)
         return job
 

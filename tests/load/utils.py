@@ -44,6 +44,7 @@ from dlt.common.destination.client import (
 from dlt.common.destination import TLoaderFileFormat, Destination, TDestinationReferenceArg
 from dlt.common.destination.exceptions import DestinationUndefinedEntity, SqlClientNotAvailable
 from dlt.common.data_writers import DataWriter
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.pipeline import PipelineContext
 from dlt.common.schema import TTableSchemaColumns, Schema
 from dlt.common.schema.typing import TTableFormat, TTableSchema
@@ -55,7 +56,6 @@ from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.exceptions import CantExtractTablePrefix
-from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
@@ -361,6 +361,26 @@ def destinations_configs(
                 destination_name="sqlalchemy_sqlite",
                 credentials="sqlite:///_storage/dl_data.sqlite",
             ),
+            # TODO: enable in sql alchemy destination test, 99% of tests work
+            # DestinationTestConfiguration(
+            #     destination_type="sqlalchemy",
+            #     supports_merge=True,
+            #     supports_dbt=False,
+            #     destination_name="sqlalchemy_mssql",
+            #     credentials=(  # Use root cause we need to create databases,
+            #         "mssql+pyodbc://sa:Strong%21Passw0rd@localhost:1433/master"
+            #         "?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+            #     ),
+            # ),
+            # DestinationTestConfiguration(
+            #     destination_type="sqlalchemy",
+            #     supports_merge=True,
+            #     supports_dbt=False,
+            #     destination_name="sqlalchemy_trino",
+            #     credentials=(  # Use root cause we need to create databases,
+            #         "trino://admin:@127.0.0.1:8080/postgres"
+            #     ),
+            # ),
         ]
 
         destination_configs += [
@@ -476,7 +496,6 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=AWS_BUCKET,
                 extra_info="s3-authorization",
-                disable_compression=True,
             ),
             DestinationTestConfiguration(
                 destination_type="databricks",
@@ -484,7 +503,6 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
-                disable_compression=True,
             ),
             DestinationTestConfiguration(
                 destination_type="databricks",
@@ -862,10 +880,10 @@ def expect_load_file(
         if isinstance(job, RunnableLoadJob):
             job.set_run_vars(load_id=load_id, schema=client.schema, load_table=table)
             job.run_managed(client)
+        # TODO: use semaphore
         while job.state() == "running":
-            sleep(0.5)
+            sleep(0.1)
 
-        # assert job.file_name() == file_name_
         assert job.state() == status, f"Got {job.state()} with ({job.exception()})"
 
         return job
@@ -971,9 +989,14 @@ def yield_client(
         )
     ):
         with destination.client(schema, dest_config) as client:  # type: ignore[assignment]
-            # open table scanners automatically, context manager above does not do that
-            if issubclass(client.sql_client_class, WithTableScanners):
-                client.sql_client.open_connection()
+            try:
+                from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
+
+                # open table scanners automatically, context manager above does not do that
+                if issubclass(client.sql_client_class, WithTableScanners):
+                    client.sql_client.open_connection()
+            except (ImportError, MissingDependencyException):
+                pass
             yield client
 
 

@@ -1,3 +1,4 @@
+import os
 from copy import deepcopy
 import pytest
 from fnmatch import fnmatch
@@ -690,7 +691,7 @@ def expect_load_package(
         file_path = load_storage.normalized_packages.get_job_file_path(
             load_id, "new_jobs", file_mask
         )
-        candidates = [f for f in files if fnmatch(f, file_path)]
+        candidates = [f for f in files if fnmatch(os.path.splitext(f)[0], file_path)]
         # assert len(candidates) == 1
         ofl[expected_table] = candidates
     # get the schema update
@@ -859,11 +860,9 @@ def test_warning_from_json_normalizer_on_null_column(
         logger_spy.assert_called()
         assert logger_spy.call_count == 1
         expected_warning = (
-            "The column col1 in table nested_table__children did not receive any data during this"
-            " load. Therefore, its type couldn't be inferred. Unless a type hint is provided, the"
-            " column will not be materialized in the destination. One way to provide a type hint is"
-            " to use the 'columns' argument in the '@dlt.resource' decorator. For"
-            " example:\n\n@dlt.resource(columns={'col1': {'data_type': 'text'}})\n\n"
+            "columns in table 'nested_table__children' did not receive any data during this load "
+            "and therefore could not have their types inferred:\n"
+            "  - col1"
         )
         assert expected_warning in logger_spy.call_args_list[0][0][0]
     else:

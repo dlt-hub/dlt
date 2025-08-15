@@ -19,7 +19,7 @@ from dlt.common.storages.load_storage import (
 )
 from dlt.common.storages.load_package import (
     LoadPackageStateInjectableContext,
-    load_package as current_load_package,
+    load_package_state as current_load_package,
 )
 from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
@@ -121,7 +121,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         return self.staging_destination.client(schema, self.initial_staging_client_config)
 
     def is_staging_destination_job(self, file_path: str) -> bool:
-        file_type = os.path.splitext(file_path)[1][1:]
+        job_info = ParsedLoadJobFileName.parse(file_path)
+        file_type = job_info.file_format
         # for now we know that reference and model jobs always go do the main destination
         if file_type in ["reference", "model"]:
             return False

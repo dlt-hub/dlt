@@ -648,7 +648,9 @@ def test_reflection_levels(
 
     assert col_names == expected_col_names
 
-    # Pk col is always reflected
+    # TODO move to separate test
+    # in `sql_source_db`,  column `id` from table `app_user` is a primary key
+    # primary key hint should always be reflected
     pk_col = schema.tables["app_user"]["columns"]["id"]
     assert pk_col["primary_key"] is True
 
@@ -920,8 +922,9 @@ def test_null_column_warning(
     logger_spy.assert_called()
     assert logger_spy.call_count == 1
     expected_warning = (
-        "The column empty_col in table app_user did not receive any data during this load."
-        " Therefore, its type couldn't be inferred."
+        "columns in table 'app_user' did not receive any data during this load "
+        "and therefore could not have their types inferred:\n"
+        "  - empty_col"
     )
     assert expected_warning in logger_spy.call_args_list[0][0][0]
     assert (
@@ -958,7 +961,7 @@ def test_null_column_warning(
         .add_limit(1)
     )
 
-    logger_spy = mocker.spy(logger, "warning")
+    logger_spy.reset_mock()
     pipeline.run(source)
     assert logger_spy.call_count == 0
     assert (
@@ -1416,6 +1419,7 @@ def assert_row_counts(
         ), f"Table {table} counts do not match with the source"
 
 
+# TODO tests shouldn't modify the return values of the tested functions
 def assert_precision_columns(
     columns: TTableSchemaColumns, backend: TableBackend, nullable: bool
 ) -> None:
@@ -1426,16 +1430,17 @@ def assert_precision_columns(
     if backend == "sqlalchemy":
         expected = remove_timestamp_precision(expected)
         actual = remove_dlt_columns(actual)
-    if backend == "pyarrow":
+    elif backend == "pyarrow":
         expected = add_default_decimal_precision(expected)
-    if backend == "pandas":
+    elif backend == "pandas":
         expected = remove_timestamp_precision(expected, with_timestamps=False)
-    if backend == "connectorx":
+    elif backend == "connectorx":
         # connector x emits 32 precision which gets merged with sql alchemy schema
         del columns["int_col"]["precision"]
     assert actual == expected
 
 
+# TODO tests shouldn't modify the return values of the tested functions
 def assert_no_precision_columns(
     columns: TTableSchemaColumns, backend: TableBackend, nullable: bool
 ) -> None:
@@ -1524,6 +1529,8 @@ def convert_connectorx_types(columns: List[TColumnSchema]) -> List[TColumnSchema
         if column["data_type"] == "bigint":
             if column["name"] == "int_col":
                 column["precision"] = 32  # only int and bigint in connectorx
+            elif column["name"] == "smallint_col":
+                column["precision"] = 16  # only int and bigint in connectorx
         if column["data_type"] == "text" and column.get("precision"):
             del column["precision"]
     return columns

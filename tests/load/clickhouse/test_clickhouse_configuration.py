@@ -12,6 +12,9 @@ from dlt.destinations.impl.clickhouse.configuration import (
 )
 from tests.load.utils import yield_client_with_storage
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.fixture(scope="function")
 def client() -> Iterator[ClickHouseClient]:
@@ -97,18 +100,18 @@ def test_client_has_dataset(client: ClickHouseClient) -> None:
 
 def test_client_table_name_and_paths(client: ClickHouseClient) -> None:
     dataset_name = client.sql_client.dataset_name
-    separator = client.config.dataset_table_separator
 
-    assert client.sql_client.make_qualified_table_name_path(None, quote=False) == ["dlt_data"]
-    assert client.sql_client.make_qualified_table_name_path("test_table", quote=False) == [
-        "dlt_data",
-        f"{dataset_name}{separator}test_table",
-    ]
+    # we have could and local database names different
+    databases = ["default", "dlt", "dlt_data"]
 
-    client.config.dataset_table_separator = separator = "###"
+    assert client.sql_client.make_qualified_table_name_path(None, quote=False)[0] in databases
+    parts = client.sql_client.make_qualified_table_name_path("test_table", quote=False)
+    assert parts[0] in databases
+    assert parts[1] == f"{dataset_name}___test_table"
 
-    assert client.sql_client.make_qualified_table_name_path(None, quote=False) == ["dlt_data"]
-    assert client.sql_client.make_qualified_table_name_path("test_table", quote=False) == [
-        "dlt_data",
-        f"{dataset_name}{separator}test_table",
-    ]
+    client.config.dataset_table_separator = "###"
+
+    assert client.sql_client.make_qualified_table_name_path(None, quote=False)[0] in databases
+    parts = client.sql_client.make_qualified_table_name_path("test_table", quote=False)
+    assert parts[0] in databases
+    assert parts[1] == f"{dataset_name}###test_table"

@@ -1,6 +1,6 @@
 from typing import Any, Dict, Type, Union, TYPE_CHECKING, Optional
 
-from dlt.common.data_writers.configuration import CsvFormatConfiguration
+from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.data_writers.escape import escape_snowflake_identifier
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE

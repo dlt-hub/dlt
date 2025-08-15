@@ -31,13 +31,13 @@ Be it a Google Colab notebook, AWS Lambda function, an Airflow DAG, your local l
 
 ## Installation
 
-dlt supports Python 3.9+. Python 3.13 is supported but considered experimental at this time as not all of dlts extras have python 3.13. support. We additionally maintain a [forked version of pendulum](https://github.com/dlt-hub/pendulum) for 3.13 until there is a release for 3.13.
+dlt supports Python 3.9 through Python 3.14 (beta 4). Note that some optional extras are not yet available for Python 3.14, so support for this version is considered experimental.
 
 ```sh
 pip install dlt
 ```
 
-More options: [Install via Conda or Pixi](https://dlthub.com/docs/reference/installation#install-dlt-via-pixi-and-conda)
+More options: [Install via Conda or Pixi](https://dlthub.com/docs/reference/installation#31-install-dlt-via-pixi-or-conda)
 
 
 ## Quick Start

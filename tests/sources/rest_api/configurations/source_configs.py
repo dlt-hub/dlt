@@ -435,6 +435,7 @@ PAGINATOR_TYPE_CONFIGS = [
     {"type": "page_number", "page": 10, "base_page": 1, "total_path": "response.pages"},
     {"type": "offset", "limit": 100, "maximum_offset": 1000},
     {"type": "header_link", "links_next_key": "next_page"},
+    {"type": "header_cursor", "cursor_key": "X-Next-Cursor", "cursor_param": "cursor"},
     {"type": "json_link", "next_url_path": "response.nex_page_link"},
     {"type": "cursor", "cursor_param": "cursor"},
 ]

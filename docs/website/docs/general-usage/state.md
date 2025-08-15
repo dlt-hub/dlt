@@ -60,10 +60,7 @@ the resources as the state writer and all others as state readers. This is exact
 pipeline does. With such a structure, you will still be able to run some of your resources in
 parallel.
 :::
-:::caution
-The `dlt.state()` is a deprecated alias to `dlt.current.source_state()` and will soon be
-removed.
-:::
+
 
 ## Syncing state with destination
 
@@ -124,9 +121,11 @@ def comments(user_id: str):
     # alternatively, catch DatabaseUndefinedRelation which is raised when an unknown table is selected
     if not current_pipeline.first_run:
         # get user comments table from pipeline dataset
-        user_comments = current_pipeline.dataset().user_comments
         # get last user comment id with ibis expression, ibis-extras need to be installed
-        max_id_df = user_comments.filter(user_comments.user_id == user_id).select(user_comments["_id"].max()).df()
+        dataset = current_pipeline.dataset()
+        user_comments = dataset.table("user_comments", table_type="ibis")
+        max_id_expression = user_comments.filter(user_comments.user_id == user_id).select(user_comments["_id"].max())
+        max_id_df = dataset(max_id_expression).df()
         # if there are no comments for the user, max_id will be None, so we replace it with 0
         max_id = max_id_df[0][0] if len(max_id_df.index) else 0
 
