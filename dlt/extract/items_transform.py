@@ -166,7 +166,7 @@ class LimitItem(ItemTransform[TDataItem]):
         """Calculate the maximum number of rows to which result is limited. Limit works in chunks
         that controlled by the data source and this must be provided in `chunk_size`
         """
-        if self.max_items is None:
+        if self.max_items in (None, -1):
             return None
         return self.max_items * chunk_size
 

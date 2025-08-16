@@ -167,6 +167,7 @@ result in data loss ie. if naive datetime has different local timezone on the ma
 
 * If your datetime columns is naive, use naive Python datetime. Note that `pendulum` datetime is tz-aware by default and standard `datetime` is naive.
 * Use `full` reflection level or above to reflect `timezone` (awareness hint) on the datetime columns.
+* read about the [timestamp handling](../../../general-usage/schema.md#handling-of-timestamp-and-time-zones) in `dlt`
 
 
 ### Examples

@@ -18,12 +18,11 @@ from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
 
 from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
-from dlt.destinations.impl.destination.factory import UnknownCustomDestinationCallable
+from dlt.destinations.impl.destination.factory import UnknownCustomDestinationCallable, destination
 from dlt.pipeline.exceptions import PipelineStepFailed
 
+from tests.cases import table_update_and_row
 from tests.load.utils import (
-    TABLE_ROW_ALL_DATA_TYPES,
-    TABLE_UPDATE_COLUMNS_SCHEMA,
     assert_all_data_types_row,
 )
 
@@ -67,8 +66,7 @@ def _run_through_sink(
 
 @pytest.mark.parametrize("loader_file_format", SUPPORTED_LOADER_FORMATS)
 def test_all_datatypes(loader_file_format: TLoaderFileFormat) -> None:
-    data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
-    column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
+    column_schemas, data_types = table_update_and_row()
 
     sink_calls = _run_through_sink(
         [data_types, data_types, data_types],
@@ -85,7 +83,9 @@ def test_all_datatypes(loader_file_format: TLoaderFileFormat) -> None:
     # null values are not emitted
     data_types = {k: v for k, v in data_types.items() if v is not None}
 
-    assert_all_data_types_row(item, expect_filtered_null_columns=True)
+    assert_all_data_types_row(
+        destination()._raw_capabilities(), item, expect_filtered_null_columns=True
+    )
 
 
 @pytest.mark.parametrize("loader_file_format", SUPPORTED_LOADER_FORMATS)

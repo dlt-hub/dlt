@@ -8,19 +8,20 @@ from dlt.common.schema import TColumnSchema
 from dlt.destinations.adapters import synapse_adapter
 from dlt.destinations.impl.synapse.synapse_adapter import TTableIndexType
 
-from tests.load.utils import TABLE_UPDATE, TABLE_ROW_ALL_DATA_TYPES
+from tests.cases import table_update_and_row
 from tests.load.synapse.utils import get_storage_table_index_type
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
 
+column_schemas, data_types = table_update_and_row()
 TABLE_INDEX_TYPE_COLUMN_SCHEMA_PARAM_GRID = [
     ("heap", None),
     # For "clustered_columnstore_index" tables, different code paths exist
     # when no column schema is specified versus when a column schema is
     # specified, so we test both.
     ("clustered_columnstore_index", None),
-    ("clustered_columnstore_index", TABLE_UPDATE),
+    ("clustered_columnstore_index", column_schemas),
 ]
 
 
@@ -40,7 +41,7 @@ def test_default_table_index_type_configuration(
         columns=column_schema,
     )
     def items_without_table_index_type_specified() -> Iterator[Any]:
-        yield TABLE_ROW_ALL_DATA_TYPES
+        yield data_types
 
     pipeline = dlt.pipeline(
         pipeline_name=f"test_default_table_index_type_{table_index_type}",
@@ -77,7 +78,7 @@ def test_default_table_index_type_configuration(
             columns=column_schema,
         )
         def items_with_table_index_type_specified() -> Iterator[Any]:
-            yield TABLE_ROW_ALL_DATA_TYPES
+            yield data_types
 
         pipeline.run(
             synapse_adapter(items_with_table_index_type_specified, "clustered_columnstore_index")
@@ -106,7 +107,7 @@ def test_resource_table_index_type_configuration(
         columns=column_schema,
     )
     def items_with_table_index_type_specified() -> Iterator[Any]:
-        yield TABLE_ROW_ALL_DATA_TYPES
+        yield data_types
 
     pipeline = dlt.pipeline(
         pipeline_name=f"test_table_index_type_{table_index_type}",

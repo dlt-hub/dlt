@@ -4,7 +4,7 @@ import dlt
 from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.exceptions import MissingDependencyException
 
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.utils import uniq_id
 
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -66,7 +66,7 @@ def test_all_data_types(
     # check tz-awareness
     assert table["columns"]["some_datetimeoffset"].get("timezone", True) is True
     # timezones are inferred from data or set explicitly, just not on sqlalchemy minimal
-    ntz_flag = backend == "sqlalchemy" and reflection_level == "minimal"
+    ntz_flag = reflection_level == "minimal"
     assert table["columns"]["some_datetime2"].get("timezone", True) is ntz_flag
     assert table["columns"]["some_smalldatetime"].get("timezone", True) is ntz_flag
 
@@ -83,11 +83,7 @@ def test_all_data_types(
         duckdb_conn: duckdb.DuckDBPyConnection = client.native_connection
         columns = {r[0]: r[1] for r in duckdb_conn.sql("DESCRIBE app_user").fetchall()}
         assert columns["some_datetimeoffset"] == "TIMESTAMP WITH TIME ZONE"
-        ntz_dt = (
-            "TIMESTAMP WITH TIME ZONE"
-            if backend == "sqlalchemy" and reflection_level == "minimal"
-            else "TIMESTAMP"
-        )
+        ntz_dt = "TIMESTAMP WITH TIME ZONE" if reflection_level == "minimal" else "TIMESTAMP"
         assert columns["some_datetime2"] == ntz_dt
         assert columns["some_smalldatetime"] == ntz_dt
 
@@ -99,6 +95,7 @@ def test_sql_table_incremental_datetime_ntz(
     backend: TableBackend,
     reflection_level: ReflectionLevel,
 ) -> None:
+    pytest.importorskip("sqlalchemy", minversion="2.0")
     table = sql_table(
         credentials=mssql_db.credentials,
         table="app_user",
@@ -107,7 +104,7 @@ def test_sql_table_incremental_datetime_ntz(
         reflection_level=reflection_level,
         incremental=dlt.sources.incremental(
             "some_smalldatetime",
-            initial_value=ensure_pendulum_datetime("1999-01-01T00:00:00+00:00").naive(),
+            initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00+00:00").naive(),
             row_order="asc",
             range_start="open",
         ),
@@ -125,6 +122,7 @@ def test_sql_table_incremental_datetime_tz(
     backend: TableBackend,
     reflection_level: ReflectionLevel,
 ) -> None:
+    pytest.importorskip("sqlalchemy", minversion="2.0")
     table = sql_table(
         credentials=mssql_db.credentials,
         table="app_user",
@@ -133,7 +131,7 @@ def test_sql_table_incremental_datetime_tz(
         reflection_level=reflection_level,
         incremental=dlt.sources.incremental(
             "created_at",
-            initial_value=ensure_pendulum_datetime("1999-01-01T00:00:00+00:00"),
+            initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00+00:00"),
             row_order="asc",
             range_start="open",
         ),
@@ -144,6 +142,7 @@ def test_sql_table_incremental_datetime_tz(
     assert_incremental_chunks(mssql_db, pipeline, table, "created_at", timezone=True)
 
 
+@pytest.mark.no_load
 @pytest.mark.parametrize("timestamp_precision", (6, 7))
 def test_sql_table_high_datetime(
     mssql_db: MSSQLSourceDB,
@@ -162,7 +161,7 @@ def test_sql_table_high_datetime(
         backend="pyarrow",
         reflection_level="full_with_precision",
         incremental=dlt.sources.incremental(
-            "some_datetime2", initial_value=ensure_pendulum_datetime("2918-08-01 00:00:00.000")
+            "some_datetime2", initial_value=ensure_pendulum_datetime_utc("2918-08-01 00:00:00.000")
         ),
     )
 
@@ -182,7 +181,7 @@ def test_sql_table_high_datetime(
         assert_table_counts(pipeline, {"app_user": 1}, "app_user")
         assert (
             load_tables_to_dicts(pipeline, "app_user")["app_user"][0]["some_datetime2"]
-            == ensure_pendulum_datetime("2918-08-01 00:00:00.000").naive()
+            == ensure_pendulum_datetime_utc("2918-08-01 00:00:00.000").naive()
         )
 
 
@@ -196,9 +195,11 @@ def assert_incremental_chunks(
         info = pipeline.run(table.add_limit(1))
         assert_load_info(info)
         assert pipeline.last_trace.last_normalize_info.row_counts["app_user"] == 10
-        assert table.state["incremental"][cursor]["last_value"].tzinfo is (
-            not None if timezone else None
-        )
+        tzinfo = table.state["incremental"][cursor]["last_value"].tzinfo
+        if timezone:
+            assert tzinfo is not None
+        else:
+            assert tzinfo is None
     # load but that will be empty
     pipeline.run(table)
     r_counts = pipeline.last_trace.last_normalize_info.row_counts

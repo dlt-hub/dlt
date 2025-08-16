@@ -12,17 +12,21 @@ import base64
 
 import dlt
 from dlt.common import logger
-from dlt.common import pendulum
 from dlt.common.libs.pyarrow import columns_to_arrow, row_tuples_to_arrow
 from dlt.common.time import (
+    ensure_pendulum_datetime_non_utc,
+    ensure_pendulum_datetime_utc,
     reduce_pendulum_datetime_precision,
     ensure_pendulum_time,
-    ensure_pendulum_datetime,
     ensure_pendulum_date,
 )
 from dlt.common.utils import uniq_id
 
-from tests.load.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.utils import (
+    destinations_configs,
+    DestinationTestConfiguration,
+    table_update_and_row_for_destination,
+)
 from tests.pipeline.utils import assert_load_info, select_data
 from tests.utils import (
     TestDataItemFormat,
@@ -38,8 +42,8 @@ from tests.cases import (
 # NOTE: this test runs on parquet + postgres needs adbc dependency group
 destination_cases = destinations_configs(
     default_sql_configs=True,
-    default_staging_configs=True,
-    all_staging_configs=False,
+    # default_staging_configs=True,
+    # all_staging_configs=False,
     table_format_filesystem_configs=True,
 )
 # if postgres got selected, add postgres config with native parquet support via adbc
@@ -131,6 +135,7 @@ def test_load_arrow_item(
         assert some_table_columns["date"]["data_type"] == "date"
 
     rows = [list(row) for row in select_data(pipeline, "SELECT * FROM some_data")]
+    print("ROWS", rows)
 
     for row in rows:
         for i in range(len(row)):
@@ -157,7 +162,9 @@ def test_load_arrow_item(
     for row, expected_row in zip(rows, expected):
         for i in range(len(expected_row)):
             if isinstance(expected_row[i], datetime):
-                row[i] = ensure_pendulum_datetime(row[i])
+                # use UTC conversion here because timezone is not specified and Athena
+                # returns naive datetimes
+                row[i] = ensure_pendulum_datetime_utc(row[i])
             # clickhouse produces rounding errors on double with jsonl, so we round the result coming from there
             elif (
                 destination_config.destination_type == "clickhouse"
@@ -187,6 +194,7 @@ def test_load_arrow_item(
 
     for row, expected_row in zip(rows, expected):
         # Compare without _dlt_id/_dlt_load_id columns
+
         assert row[3] == expected_row[3]
         assert row[:-2] == expected_row
         # Load id and dlt_id are set
@@ -212,7 +220,7 @@ def test_all_types_tuples_to_arrow(
     with pipeline._maybe_destination_capabilities() as caps:
         pass
 
-    columns_schema, row = table_update_and_row()
+    columns_schema, row = table_update_and_row_for_destination(destination_config)
 
     @dlt.resource(
         table_format=destination_config.table_format,

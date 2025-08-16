@@ -114,10 +114,12 @@ def test_athena_all_datatypes_and_timestamps(
         db_row = list(db_rows[0])
         # content must equal
         assert_all_data_types_row(
+            sql_client.capabilities,
             db_row[:-2],
             parse_json_strings=True,
             timestamp_precision=sql_client.capabilities.timestamp_precision,
             schema=column_schemas,
+            always_returns_naive_datetimes=True,
         )
 
         # now let's query the data with timestamps and dates.

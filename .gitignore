@@ -17,6 +17,7 @@ secrets.toml
 *.wal
 logs/
 .continuerules
+.continue
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/
