@@ -148,6 +148,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         logger.warning(
             "Athena does not support transactions! Each SQL statement is auto-committed separately."
         )
+        raise NotImplementedError()
         yield self
 
     @raise_database_error

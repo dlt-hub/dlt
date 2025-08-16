@@ -5,7 +5,10 @@ from typing import Set, Dict, Any, Optional, List, Union
 from dlt.common.configuration import known_sections, resolve_configuration, with_config
 from dlt.common import logger, json
 from dlt.common.configuration.specs import BaseConfiguration, configspec
-from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.destination.capabilities import (
+    DestinationCapabilitiesContext,
+    adjust_columns_schema_to_capabilities,
+)
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
@@ -287,6 +290,10 @@ class Extractor:
                     diff_table, normalize_identifiers=False, from_diff=bool(existing_table)
                 )
 
+            # TODO: generate table updated
+            # NOTE: table updates contain new and changed columns, maybe just do a big diff at the end
+            # table_updates.append(partial_table)
+
             # process filters
             if filters:
                 for entity, name, mode in filters:
@@ -440,7 +447,6 @@ class ArrowExtractor(Extractor):
     def _compute_tables(
         self, resource: DltResource, items: TDataItems, meta: Any
     ) -> List[TPartialTableSchema]:
-        # arrow_table: TTableSchema = None
         arrow_tables: Dict[str, TTableSchema] = {}
 
         if isinstance(items, list):
@@ -461,8 +467,13 @@ class ArrowExtractor(Extractor):
                 else:
                     arrow_table = copy(computed_table)
                 try:
-                    arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(
-                        item.schema, self._caps
+                    # generate dlt schema from arrow schema and adjust to capabilities
+                    arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(item.schema)
+                    # drop timezones and honor only explicit settings like the regular normalizer
+                    adjust_columns_schema_to_capabilities(
+                        arrow_table["columns"],
+                        self._caps,
+                        drop_timezone=True,
                     )
                 except pyarrow.UnsupportedArrowTypeException as e:
                     e.table_name = str(arrow_table.get("name"))

@@ -127,7 +127,7 @@ class ResourceNotFoundError(DltResourceException, KeyError):
     def __init__(self, resource_name: str, context: str) -> None:
         self.resource_name = resource_name
         super().__init__(
-            resource_name, f"Resource with `{resource_name=:}` could not be found: {context}"
+            resource_name, f"Resource with `{resource_name}` could not be found: {context}"
         )
 
 

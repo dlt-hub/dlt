@@ -3,6 +3,7 @@ from typing import (
     Any,
     Callable,
     ClassVar,
+    List,
     Literal,
     Optional,
     Sequence,
@@ -34,6 +35,7 @@ from dlt.common.schema.typing import (
     TLoaderMergeStrategy,
     TTableFormat,
     TLoaderReplaceStrategy,
+    TTableSchemaColumns,
 )
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 
@@ -172,6 +174,10 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supports_truncate_command: bool = True
     schema_supports_numeric_precision: bool = True
     timestamp_precision: int = 6
+    """Default precision of the timestamp type"""
+    max_timestamp_precision: int = 6
+    """Maximum supported timestamp precision"""
+
     max_rows_per_insert: Optional[int] = None
     insert_values_writer_type: str = "default"
     supports_multiple_statements: bool = True
@@ -208,6 +214,9 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
 
     parquet_format: Optional[ParquetFormatConfiguration] = None
     """Parquet format preferred by this destination"""
+
+    supports_naive_datetime: bool = True
+    """The destination can store datetime without timezone"""
 
     def generates_case_sensitive_identifiers(self) -> bool:
         """Tells if capabilities as currently adjusted, will generate case sensitive identifiers"""
@@ -288,3 +297,60 @@ def merge_caps_file_formats(
     else:
         requested_file_format = possible_file_formats[0] if len(possible_file_formats) > 0 else None
     return requested_file_format, possible_file_formats
+
+
+def adjust_column_schema_to_capabilities(
+    column: TColumnSchema, caps: DestinationCapabilitiesContext, drop_timezone: bool = False
+) -> TColumnSchema:
+    """Modify column schema in place according to destination capabilities. Optionally
+    remove all timezone info (drop_timezone is True).
+    Returns modified column or None if no modification
+    """
+    data_type = column.get("data_type")
+    if data_type in ("timestamp", "time"):
+        precision = column.get("precision", caps.timestamp_precision)
+        # limit precision according to caps: min of parquet writer and destination max
+        precision = min(
+            precision,
+            caps.max_timestamp_precision,
+            (
+                caps.parquet_format.max_timestamp_precision()
+                if caps.parquet_format
+                else ParquetFormatConfiguration().max_timestamp_precision()
+            ),
+        )
+
+        modified: bool = False
+
+        # do not honor naive datetimes if not supported
+        if not caps.supports_naive_datetime and column.get("timezone") is False or drop_timezone:
+            # remove timezone flag to fallback to default tz-aware and let normalizer to correct the data
+            modified |= column.pop("timezone", None) is not None
+
+        # do not write default precision
+        if precision == caps.timestamp_precision:
+            modified |= column.pop("precision", None) is not None
+        elif column.get("precision") != precision:
+            column["precision"] = precision
+            modified = True
+
+        return column if modified else None
+    if data_type == "json" and not caps.supports_nested_types:
+        # return column only if really modified
+        return column if column.pop("x-nested-type", None) else None  # type: ignore[typeddict-item]
+
+    return None
+
+
+def adjust_columns_schema_to_capabilities(
+    columns: TTableSchemaColumns, caps: DestinationCapabilitiesContext, drop_timezone: bool = False
+) -> List[TColumnSchema]:
+    """Modifies `columns` in place according to `caps`.
+    Returns list of modified columns
+    """
+    adjusted_columns: List[TColumnSchema] = []
+    for col in columns.values():
+        adjusted_col = adjust_column_schema_to_capabilities(col, caps, drop_timezone=drop_timezone)
+        if adjusted_col is not None:
+            adjusted_columns.append(adjusted_col)
+    return adjusted_columns

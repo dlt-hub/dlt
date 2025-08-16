@@ -17,7 +17,7 @@ from dlt.common.configuration.specs.base_configuration import (
 from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.configuration import FilesystemConfiguration
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 from dlt.common.storages.exceptions import UnsupportedStorageVersionException
@@ -152,7 +152,7 @@ def test_successful_load(write_disposition: str, layout: str, default_buckets_en
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
 
     dataset_name = "test_" + uniq_id()
-    timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
+    timestamp = ensure_pendulum_datetime_utc("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with (
         mock.patch(
@@ -203,7 +203,7 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
     dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
     # state is typed now
-    timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
+    timestamp = ensure_pendulum_datetime_utc("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with (
         mock.patch(
@@ -282,7 +282,7 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
     dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
     # also we would like to have reliable timestamp for this test so we patch it
-    timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
+    timestamp = ensure_pendulum_datetime_utc("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with (
         mock.patch(
