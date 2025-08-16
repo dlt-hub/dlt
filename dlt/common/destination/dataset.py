@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 TFilterOperation = Literal["eq", "ne", "gt", "lt", "gte", "lte", "in", "not_in"]
 
 
-class DataAccess(Protocol):
+class SupportsDataAccess(Protocol):
     """Common data access protocol shared between dbapi cursors and relations"""
 
     @property
@@ -129,7 +129,7 @@ class DataAccess(Protocol):
         ...
 
 
-class Relation(DataAccess, Protocol):
+class SupportsRelation(SupportsDataAccess, Protocol):
     """A readable relation retrieved from a destination that supports it"""
 
     schema: TTableSchema
@@ -281,7 +281,7 @@ class Relation(DataAccess, Protocol):
         ...
 
 
-class DBApiCursorProtocol(DataAccess, Protocol):
+class DBApiCursorProtocol(SupportsDataAccess, Protocol):
     """Protocol for the DBAPI cursor"""
 
     description: tuple[Any, ...]
@@ -326,7 +326,7 @@ class DBApiCursor(abc.ABC, DBApiCursorProtocol):
         """Close the cursor"""
 
 
-class Dataset(Protocol):
+class SupportsDataset(Protocol):
     """A readable dataset retrieved from a destination, has support for creating readable relations for a query or table"""
 
     @property
@@ -361,7 +361,7 @@ class Dataset(Protocol):
         query: Union[str, sge.Select, IbisExpr],
         query_dialect: Optional[TSqlGlotDialect] = None,
         _execute_raw_query: bool = False,
-    ) -> Relation:
+    ) -> SupportsRelation:
         """Returns a readable relation for a given sql query
 
         Args:
@@ -371,7 +371,7 @@ class Dataset(Protocol):
             _execute_raw_query (bool, optional): Whether to run the query as is (raw)or perform query normalization and lineage. Experimental.
 
         Returns:
-            Relation: The readable relation for the query
+            SupportsRelation: The readable relation for the query
         """
         ...
 
@@ -380,7 +380,7 @@ class Dataset(Protocol):
         query: Union[str, sge.Select, IbisExpr],
         query_dialect: Optional[TSqlGlotDialect] = None,
         _execute_raw_query: bool = False,
-    ) -> Relation:
+    ) -> SupportsRelation:
         """Returns a readable relation for a given sql query
 
         Args:
@@ -390,22 +390,22 @@ class Dataset(Protocol):
             _execute_raw_query (bool, optional): Whether to run the query as is (raw)or perform query normalization and lineage. Experimental.
 
         Returns:
-            Relation: The readable relation for the query
+            SupportsRelation: The readable relation for the query
         """
         ...
 
     @overload
-    def table(self, table_name: str) -> Relation: ...
+    def table(self, table_name: str) -> SupportsRelation: ...
 
     @overload
-    def table(self, table_name: str, table_type: Literal["relation"]) -> Relation: ...
+    def table(self, table_name: str, table_type: Literal["relation"]) -> SupportsRelation: ...
 
     @overload
     def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
 
     def table(
         self, table_name: str, table_type: Literal["relation", "ibis"] = "relation"
-    ) -> Union[Relation, IbisTable]:
+    ) -> Union[SupportsRelation, IbisTable]:
         """Returns an object representing a table named `table_name`
 
         Args:
@@ -413,29 +413,29 @@ class Dataset(Protocol):
             table_type (Literal["relation", "ibis"], optional): The type of the table. Defaults to "relation" if not specified. If "ibis" is specified, you will get an unbound ibis table.
 
         Returns:
-            Union[Relation, IbisTable]: The object representing the table
+            Union[SupportsRelation, IbisTable]: The object representing the table
         """
         ...
 
-    def __getitem__(self, table: str) -> Relation:
+    def __getitem__(self, table: str) -> SupportsRelation:
         """Returns a readable relation for the table named `table`
 
         Args:
             table (str): The name of the table
 
         Returns:
-            Relation: The readable relation for the table
+            SupportsRelation: The readable relation for the table
         """
         ...
 
-    def __getattr__(self, table: str) -> Relation:
+    def __getattr__(self, table: str) -> SupportsRelation:
         """Returns a readable relation for the table named `table`
 
         Args:
             table (str): The name of the table
 
         Returns:
-            Relation: The readable relation for the table
+            SupportsRelation: The readable relation for the table
         """
         ...
 
@@ -449,8 +449,11 @@ class Dataset(Protocol):
         """Context manager to keep the connection to the destination open between queries"""
         ...
 
-    def ibis(self) -> IbisBackend:
+    def ibis(self, read_only: bool = False) -> IbisBackend:
         """Returns a connected ibis backend for the dataset. Not implemented for all destinations.
+
+        Args:
+            read_only (bool): Whether to open the connection in read only mode. Only used for duckdb.
 
         Returns:
             IbisBackend: The ibis backend for the dataset
@@ -464,7 +467,7 @@ class Dataset(Protocol):
         dlt_tables: bool = False,
         table_names: Optional[list[str]] = None,
         load_id: Optional[str] = None,
-    ) -> Relation:
+    ) -> SupportsRelation:
         """Returns the row counts of the dataset
 
         Args:
@@ -473,6 +476,6 @@ class Dataset(Protocol):
             table_names (Optional[list[str]]): The names of the tables to include. Defaults to None. Will override data_tables and dlt_tables if set
             load_id (Optional[str]): If set, only count rows associated with a given load id. Will exclude tables that do not have a load id.
         Returns:
-            Relation: The row counts of the dataset as ReadableRelation
+            SupportsRelation: The row counts of the dataset as ReadableRelation
         """
         ...

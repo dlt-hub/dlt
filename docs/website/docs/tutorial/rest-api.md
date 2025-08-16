@@ -90,7 +90,7 @@ Load package 1692364844.9254808 is LOADED and contains no failed jobs
 Now that the pipeline has run successfully, let's explore the data loaded into DuckDB. dlt comes with a built-in browser application that allows you to interact with the data. To enable it, run the following command:
 
 ```sh
-pip install streamlit
+pip install marimo
 ```
 
 Next, run the following command to start the data browser:
@@ -100,9 +100,8 @@ dlt pipeline rest_api_pokemon show
 ```
 
 The command opens a new browser window with the data browser application. `rest_api_pokemon` is the name of the pipeline defined in the `rest_api_pipeline.py` file.
-You can explore the loaded data, run queries, and see some pipeline execution details:
 
-![Explore rest_api data in Streamlit App](https://dlt-static.s3.eu-central-1.amazonaws.com/images/docs-rest-api-tutorial-streamlit-screenshot.png)
+You can explore the loaded data, run queries, and see some pipeline execution details:
 
 ## Configuring the REST API source
 

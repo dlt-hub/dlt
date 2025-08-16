@@ -152,7 +152,7 @@ class ArgumentsOverloadException(DltException):
         super().__init__(msg)
 
 
-class MissingDependencyException(DltException):
+class MissingDependencyException(DltException, ImportError):
     def __init__(self, caller: str, dependencies: Sequence[str], appendix: str = "") -> None:
         self.caller = caller
         self.dependencies = dependencies

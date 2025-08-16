@@ -18,9 +18,9 @@ from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableFormat
 
 from dlt.extract.source import DltSource
-from dlt.destinations.dataset import dataset as _dataset
-from dlt.destinations.dataset.exceptions import LineageFailedException
-from dlt.destinations.dataset.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
+from dlt.dataset.exceptions import LineageFailedException
+from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 
 from tests.load.utils import (
     destinations_configs,
@@ -1360,7 +1360,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     # check dataset factory
     dataset = cast(
         ReadableDBAPIDataset,
-        _dataset(
+        dlt.dataset(
             destination=populated_pipeline.destination,
             dataset_name=populated_pipeline.dataset_name,
             # use name otherwise aleph schema is loaded
@@ -1378,7 +1378,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     # check that schema is not loaded when wrong name given
     dataset = cast(
         ReadableDBAPIDataset,
-        _dataset(
+        dlt.dataset(
             destination=populated_pipeline.destination,
             dataset_name=populated_pipeline.dataset_name,
             schema="wrong_schema_name",
@@ -1390,7 +1390,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     # check that schema is loaded if no schema name given
     dataset = cast(
         ReadableDBAPIDataset,
-        _dataset(
+        dlt.dataset(
             destination=populated_pipeline.destination,
             dataset_name=populated_pipeline.dataset_name,
         ),
@@ -1403,7 +1403,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     # check that there is no error when creating dataset without schema table
     dataset = cast(
         ReadableDBAPIDataset,
-        _dataset(
+        dlt.dataset(
             destination=populated_pipeline.destination,
             dataset_name="unknown_dataset",
         ),
@@ -1426,7 +1426,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
 
     dataset = cast(
         ReadableDBAPIDataset,
-        _dataset(
+        dlt.dataset(
             destination=populated_pipeline.destination,
             dataset_name=populated_pipeline.dataset_name,
         ),
