@@ -55,6 +55,7 @@ class DuckDbTypeMapper(TypeMapperImpl):
         "INTEGER": "bigint",
         "BIGINT": "bigint",
         "HUGEINT": "bigint",
+        "TIMESTAMP": "timestamp",
         "TIMESTAMP_S": "timestamp",
         "TIMESTAMP_MS": "timestamp",
         "TIMESTAMP_NS": "timestamp",
@@ -87,9 +88,9 @@ class DuckDbTypeMapper(TypeMapperImpl):
         column_name = column["name"]
         table_name = table["name"]
         timezone = column.get("timezone", True)
-        precision = column.get("precision")
+        precision = column.get("precision", self.capabilities.timestamp_precision)
 
-        if timezone and precision is not None and precision != 6:
+        if timezone and precision != self.capabilities.timestamp_precision:
             logger.warn(
                 f"DuckDB does not support both timezone and precision for column '{column_name}' in"
                 f" table '{table_name}'. Will default to timezone. Please set timezone to False to"
@@ -100,13 +101,13 @@ class DuckDbTypeMapper(TypeMapperImpl):
             # default timestamp mapping for timezone
             return None
 
-        if precision is None or precision == 6:
-            return "TIMESTAMP"
-        elif precision == 0:
+        if precision == 0:
             return "TIMESTAMP_S"
-        elif precision == 3:
+        elif precision <= 3:
             return "TIMESTAMP_MS"
-        elif precision == 9:
+        elif precision <= 6:
+            return "TIMESTAMP"
+        elif precision <= 9:
             return "TIMESTAMP_NS"
 
         raise TerminalValueError(
@@ -153,6 +154,8 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
         caps.supported_merge_strategies = ["delete-insert", "scd2"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
         caps.sqlglot_dialect = "duckdb"
+        caps.timestamp_precision = 6
+        caps.max_timestamp_precision = 9  # nanosecond precision supported
 
         return caps
 

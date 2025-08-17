@@ -157,6 +157,7 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         caps.alter_add_multi_column = True
         caps.schema_supports_numeric_precision = False
         caps.timestamp_precision = 3
+        caps.max_timestamp_precision = 3
         caps.supports_truncate_command = False
         caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
         caps.supported_replace_strategies = ["truncate-and-insert", "insert-from-staging"]
@@ -164,6 +165,7 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         caps.replace_strategies_selector = athena_replace_strategies_selector
         caps.enforces_nulls_on_alter = False
         caps.sqlglot_dialect = "athena"
+        caps.supports_tz_aware_datetime = False
 
         return caps
 

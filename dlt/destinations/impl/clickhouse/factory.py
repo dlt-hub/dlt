@@ -2,6 +2,7 @@ import re
 import sys
 from typing import Any, Dict, Type, Union, TYPE_CHECKING, Optional, cast
 
+from dlt.common import logger
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.data_writers.escape import (
     escape_clickhouse_identifier,
@@ -69,24 +70,43 @@ class ClickHouseTypeMapper(TypeMapperImpl):
         # Remove "Nullable" wrapper.
         db_type = re.sub(r"^Nullable\((?P<type>.+)\)$", r"\g<type>", db_type)
 
-        # Remove timezone details.
+        # Handle DateTime types with and without timezone
+        if db_type == "DateTime":
+            # Legacy DateTime type without timezone and without precision
+            return cast(TColumnType, dict(data_type="timestamp", timezone=False))
+
         if db_type == "DateTime('UTC')":
-            db_type = "DateTime"
+            # Legacy DateTime type with UTC timezone
+            return cast(TColumnType, dict(data_type="timestamp", timezone=True))
+
+        # Handle DateTime64 types with various formats
         if datetime_match := re.match(
-            r"DateTime64(?:\((?P<precision>\d+)(?:,?\s*'(?P<timezone>UTC)')?\))?",
+            r"DateTime64(?:\((?P<precision>\d+)(?:,?\s*'(?P<timezone>[^']+)')?\))?",
             db_type,
         ):
+            has_timezone = bool(datetime_match["timezone"])
+
             if datetime_match["precision"]:
                 precision = int(datetime_match["precision"])
-            else:
-                precision = None
-            db_type = "DateTime64"
+
+            column_type = cast(
+                TColumnType,
+                dict(
+                    data_type="timestamp",
+                    timezone=has_timezone,
+                ),
+            )
+
+            if precision is not None:
+                column_type["precision"] = precision
+
+            return column_type
 
         # Extract precision and scale, parameters and remove from string.
         if decimal_match := re.match(
             r"Decimal\((?P<precision>\d+)\s*(?:,\s*(?P<scale>\d+))?\)", db_type
         ):
-            precision, scale = decimal_match.groups()  # type: ignore[assignment]
+            precision, scale = decimal_match.groups()
             precision = int(precision)
             scale = int(scale) if scale else 0
             db_type = "Decimal"
@@ -95,6 +115,31 @@ class ClickHouseTypeMapper(TypeMapperImpl):
             return cast(TColumnType, dict(data_type="wei"))
 
         return super().from_destination_type(db_type, precision, scale)
+
+    def to_db_datetime_type(
+        self,
+        column: TColumnSchema,
+        table: PreparedTableSchema = None,
+    ) -> str:
+        """Map timestamp type to appropriate ClickHouse datetime type with or without timezone."""
+        column_name = column["name"]
+        table_name = table.get("name")
+        timezone = column.get("timezone", True)
+        precision = column.get(
+            "precision", self.capabilities.timestamp_precision
+        )  # Default precision is 6 for microseconds
+
+        if precision and precision > self.capabilities.max_timestamp_precision:
+            logger.warn(
+                f"ClickHouse only supports microsecond precision (6) for column '{column_name}' in"
+                f" table '{table_name}'. Will use precision 6."
+            )
+            precision = self.capabilities.max_timestamp_precision
+
+        if timezone:
+            return f"DateTime64({precision},'UTC')"
+        else:
+            return f"DateTime64({precision})"
 
     def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         """Map integer precision to the appropriate ClickHouse integer type."""

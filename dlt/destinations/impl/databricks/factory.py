@@ -60,14 +60,26 @@ class DatabricksTypeMapper(TypeMapperImpl):
         table: PreparedTableSchema,
         loader_file_format: TLoaderFileFormat,
     ) -> None:
-        if loader_file_format == "jsonl" and column["data_type"] in {
-            "decimal",
-            "wei",
-            "binary",
-            "json",
-            "date",
-        }:
-            raise TerminalValueError("", column["data_type"])
+        if loader_file_format == "jsonl":
+            if column["data_type"] in {
+                "decimal",
+                "wei",
+                "binary",
+                "json",
+                "date",
+            }:
+                raise TerminalValueError("", column["data_type"])
+            if column["data_type"] == "timestamp" and column.get("timezone") is False:
+                raise TerminalValueError(
+                    "Cannot load naive timestamps from json, use parquet", column["data_type"]
+                )
+        if loader_file_format == "parquet":
+            if column["data_type"] in {"time"}:
+                raise TerminalValueError(
+                    "Spark can't read Time from parquet. Convert your time column to string or"
+                    " change file format.",
+                    column["data_type"],
+                )
 
     def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         precision = column.get("precision")
@@ -95,7 +107,7 @@ class DatabricksTypeMapper(TypeMapperImpl):
         timezone = column.get("timezone", True)
         precision = column.get("precision")
 
-        if precision and precision != 6:
+        if precision and precision != self.capabilities.timestamp_precision:
             logger.warn(
                 f"Databricks does not support precision {precision} for column '{column_name}' in"
                 f" table '{table_name}'. Will default to 6."
