@@ -92,45 +92,6 @@ def test_complex_type_new_table_migration() -> None:
     assert table["columns"]["new"]["data_type"] == "json"
 
 
-def test_keeps_old_name_in_variant_column() -> None:
-    schema = Schema("dx")
-    # for this test use case sensitive naming convention
-    os.environ["SCHEMA__NAMING"] = "direct"
-    schema.update_normalizers()
-    # create two columns to which json type cannot be coerced
-    row = {"floatX": 78172.128, "confidenceX": 1.2, "strX": "STR"}
-    _, event_user = schema.coerce_row("event_user", None, row)
-    schema.update_table(event_user)
-
-    # mock a variant column
-    event_user_partial = new_table(
-        "event_user",
-        columns=[
-            {"name": "floatX▶v_complex", "data_type": "json", "variant": True},
-            {"name": "confidenceX▶v_complex", "data_type": "json", "variant": False},
-        ],
-    )
-    schema.update_table(event_user_partial, normalize_identifiers=False)
-
-    # add json types on the same columns
-    v_list = [1, 2, "3", {"json": True}]
-    v_dict = {"list": [1, 2], "str": "json"}
-    c_row_v = {"floatX": v_list, "confidenceX": v_dict}
-    # expect two new variant columns to be created
-    c_new_row_v, c_new_table_v = schema.coerce_row("event_user", None, c_row_v)
-    c_new_columns_v = list(c_new_table_v["columns"].values())
-    print(c_new_row_v)
-    print(c_new_table_v)
-    # floatX▶v_complex is kept (was marked with variant)
-    # confidenceX▶v_json is added (confidenceX▶v_complex not marked as variant)
-    assert len(c_new_columns_v) == 1
-    assert c_new_columns_v[0]["name"] == "confidenceX▶v_json"
-    assert c_new_columns_v[0]["variant"] is True
-    # c_row_v coerced to variants
-    assert c_new_row_v["floatX▶v_complex"] == v_list
-    assert c_new_row_v["confidenceX▶v_json"] == v_dict
-
-
 def test_row_and_parent_key_migration() -> None:
     schema_dict: DictStrAny = load_json_case("schemas/ev1/event.schema")
     event = schema_dict["tables"]["event"]

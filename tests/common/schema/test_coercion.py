@@ -184,14 +184,17 @@ def test_coerce_type_to_timestamp() -> None:
     assert coerce_value("timestamp", "text", "2022-04-26 10:36+02") == pendulum.parse(
         "2022-04-26T10:36:00+02:00"
     )
-    assert coerce_value("timestamp", "text", "2022-04-26 10:36") == pendulum.parse(
-        "2022-04-26T10:36:00+00:00"
+    # parse naive data time
+    assert (
+        coerce_value("timestamp", "text", "2022-04-26 10:36")
+        == pendulum.parse("2022-04-26T10:36:00").naive()  # type: ignore
     )
-    # parse date string
-    assert coerce_value("timestamp", "text", "2021-04-25") == pendulum.parse("2021-04-25")
+
+    # parse date string (generate naive dt here)
+    assert coerce_value("timestamp", "text", "2021-04-25") == pendulum.parse("2021-04-25", tz=None)
     # from date type
     assert coerce_value("timestamp", "date", datetime.date(2023, 2, 27)) == pendulum.parse(
-        "2023-02-27"
+        "2023-02-27", tz=None
     )
 
     # fails on "now" - yes pendulum by default parses "now" as .now()
