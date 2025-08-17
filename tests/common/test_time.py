@@ -702,6 +702,8 @@ def test_ensure_pendulum_time_from_strings(
     local_tz: str, value: str, expected, case_id: str
 ) -> None:
     """ensure ISO time strings are parsed and normalized to UTC-naive time-of-day."""
+    if case_id != "iso-naive":
+        pytest.importorskip("pendulum", "3", "pendulum < 3 can't parse time with tz")
     with local_timezone(local_tz):
         t = ensure_pendulum_time(value)
         assert (t.hour, t.minute, t.second, t.microsecond) == (
