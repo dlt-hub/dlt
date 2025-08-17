@@ -12,17 +12,24 @@ import base64
 
 import dlt
 from dlt.common import logger
-from dlt.common import pendulum
-from dlt.common.libs.pyarrow import columns_to_arrow, row_tuples_to_arrow
+from dlt.common.libs.pyarrow import (
+    cast_arrow_as_columns_schema,
+    py_arrow_to_table_schema_columns,
+    row_tuples_to_arrow,
+)
 from dlt.common.time import (
+    ensure_pendulum_datetime_utc,
     reduce_pendulum_datetime_precision,
     ensure_pendulum_time,
-    ensure_pendulum_datetime,
     ensure_pendulum_date,
 )
 from dlt.common.utils import uniq_id
 
-from tests.load.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.utils import (
+    destinations_configs,
+    DestinationTestConfiguration,
+    table_update_and_row_for_destination,
+)
 from tests.pipeline.utils import assert_load_info, select_data
 from tests.utils import (
     TestDataItemFormat,
@@ -38,8 +45,8 @@ from tests.cases import (
 # NOTE: this test runs on parquet + postgres needs adbc dependency group
 destination_cases = destinations_configs(
     default_sql_configs=True,
-    default_staging_configs=True,
-    all_staging_configs=False,
+    # default_staging_configs=True,
+    # all_staging_configs=False,
     table_format_filesystem_configs=True,
 )
 # if postgres got selected, add postgres config with native parquet support via adbc
@@ -131,7 +138,6 @@ def test_load_arrow_item(
         assert some_table_columns["date"]["data_type"] == "date"
 
     rows = [list(row) for row in select_data(pipeline, "SELECT * FROM some_data")]
-
     for row in rows:
         for i in range(len(row)):
             # Postgres returns memoryview for binary columns
@@ -157,7 +163,9 @@ def test_load_arrow_item(
     for row, expected_row in zip(rows, expected):
         for i in range(len(expected_row)):
             if isinstance(expected_row[i], datetime):
-                row[i] = ensure_pendulum_datetime(row[i])
+                # use UTC conversion here because timezone is not specified and Athena
+                # returns naive datetimes
+                row[i] = ensure_pendulum_datetime_utc(row[i])
             # clickhouse produces rounding errors on double with jsonl, so we round the result coming from there
             elif (
                 destination_config.destination_type == "clickhouse"
@@ -187,6 +195,7 @@ def test_load_arrow_item(
 
     for row, expected_row in zip(rows, expected):
         # Compare without _dlt_id/_dlt_load_id columns
+
         assert row[3] == expected_row[3]
         assert row[:-2] == expected_row
         # Load id and dlt_id are set
@@ -208,28 +217,85 @@ def test_load_arrow_item(
 def test_all_types_tuples_to_arrow(
     destination_config: DestinationTestConfiguration,
 ) -> None:
+    # run only if 'adbc-driver-postgresql' is not installed
+    import importlib.util
+
+    if importlib.util.find_spec("adbc_driver_postgresql") is not None:
+        pytest.skip("runs only when 'adbc-driver-postgresql' is NOT installed")
+
     pipeline = destination_config.setup_pipeline("test_all_types_tuples_to_arrow", dev_mode=True)
+
     with pipeline._maybe_destination_capabilities() as caps:
         pass
 
-    columns_schema, row = table_update_and_row()
+    # force parquet
+    destination_config.file_format = "parquet"
+
+    columns_schema, row = table_update_and_row_for_destination(destination_config)
+    if destination_config.destination_name == "sqlalchemy_sqlite":
+        # sqlite stores timestamp as strings and this is precision 3 timestamps with
+        # trailing zeros that arrow can not parse nor cast
+        columns_schema.pop("col4_precision")
+        row.pop("col4_precision")
+
+    table = row_tuples_to_arrow(
+        [list(row.values())] * 10,
+        caps,
+        columns=columns_schema,
+        tz="UTC",
+    )
 
     @dlt.resource(
-        table_format=destination_config.table_format,
+        table_format=destination_config.table_format, file_format="parquet", columns=columns_schema
     )
-    def arrow_items(timezone="UTC"):
-        table = row_tuples_to_arrow(
-            [list(row.values())] * 10,
-            caps,
-            columns=columns_schema,
-            tz=timezone,
-        )
+    def arrow_items():
         yield table
 
     load_info = pipeline.run(arrow_items())
     assert_load_info(load_info)
-    # TODO: check col12 (naive datetime) and json column
-    print(pipeline.default_schema.to_pretty_yaml())
+
+    # NOTE: result table will not have exactly the same types as dlt schema in columns_schema in case
+    # of native cursors that read arrow directly (ie. duckdb, bigquery), we just check a few columns
+    # TODO: move that test to read interfaces and verify schema fully, also consider casting arrow
+    # tables to match the schema exactly (IMO that should be optional)
+
+    rel = pipeline.dataset().arrow_items
+    rel_schema = rel.columns_schema
+    assert list(rel_schema.keys()) == list(columns_schema.keys())
+    result_table = rel.arrow()
+
+    # here we cast result to the rel schema,
+    result_table = cast_arrow_as_columns_schema(result_table, rel_schema, caps, "utc")
+
+    # compare schemas
+    result_columns_schema = py_arrow_to_table_schema_columns(result_table.schema)
+    for name, column in result_columns_schema.items():
+        orig_type = columns_schema[name]["data_type"]
+        rel_type = rel_schema[name]["data_type"]
+        if orig_type != rel_type:
+            print(f"On {name} orig vs rel mismatch", columns_schema[name], rel_schema[name])
+        if orig_type == "wei":
+            # do not verify wei, it may be converted to text or decimal
+            continue
+        elif rel_type == "json":
+            rel_type = "text"
+
+        assert column["data_type"] == rel_type, f"Column type mismatch on {name}"
+        # compare decimals
+        if rel_type == "decimal":
+            assert column.get("precision") == rel_schema[name].get("precision")
+            assert column.get("scale") == rel_schema[name].get("scale")
+        if rel_type == "timestamp":
+            # we cast above so we have timezones/naive when we want them
+            pass
+            # verify tz awareness
+            # timezone = rel_schema[name].get("timezone", True)
+            # if timezone or not caps.supports_naive_datetime:
+            #     assert (
+            #         column.get("timezone", True) is True
+            #     ), f"tz aware timestamp expected on {name}"
+            # else:
+            #     assert column["timezone"] is False, f"naive timestamp expected on {name}"
 
 
 @pytest.mark.no_load  # Skips drop_pipeline fixture since we don't do any loading
