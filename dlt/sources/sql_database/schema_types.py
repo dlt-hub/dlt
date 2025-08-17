@@ -43,13 +43,23 @@ class TReflectedHints(TypedDict, total=False):
     primary_key: Optional[List[str]]
 
 
-def default_table_adapter(table: Table, included_columns: Optional[List[str]]) -> None:
+def default_table_adapter(
+    table: Table,
+    included_columns: Optional[List[str]],
+    excluded_columns: Optional[List[str]] = None,
+) -> None:
     """Default table adapter being always called before custom one"""
     if included_columns is not None:
         # Delete columns not included in the load
         for col in list(table._columns):  # type: ignore[attr-defined]
             if col.name not in included_columns:
                 table._columns.remove(col)  # type: ignore[attr-defined]
+
+    if excluded_columns is not None:
+        for col in list(table._columns):  # type: ignore[attr-defined]
+            if col.name in excluded_columns:
+                table._columns.remove(col)  # type: ignore[attr-defined]
+
     for col in table._columns:  # type: ignore[attr-defined]
         sql_t = col.type
         if hasattr(sqltypes, "Uuid") and isinstance(sql_t, sqltypes.Uuid):

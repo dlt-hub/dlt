@@ -12,7 +12,7 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.exceptions import MissingDependencyException
 
 from dlt.common.schema.typing import TColumnSchema, TSortOrder, TTableSchemaColumns
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.utils import uniq_id
 
 from dlt.extract.exceptions import ResourceExtractionError
@@ -20,6 +20,7 @@ from dlt.extract.incremental.transform import JsonIncremental, ArrowIncremental
 from dlt.sources import DltResource
 
 import dlt.sources.sql_database
+from tests.load.sources.sql_database.utils import assert_incremental_chunks
 from tests.pipeline.utils import (
     assert_load_info,
     assert_schema_on_data,
@@ -1118,52 +1119,58 @@ def test_deferred_reflect_in_resource(postgres_db: PostgresSourceDB, backend: Ta
     )
 
 
-@pytest.mark.parametrize("backend", ["pyarrow", "pandas", "connectorx"])
-def test_destination_caps_context(postgres_db: PostgresSourceDB, backend: TableBackend) -> None:
-    # use athena with timestamp precision == 3
-    table = sql_table(
-        credentials=postgres_db.credentials,
-        table="has_precision",
-        schema=postgres_db.schema,
-        reflection_level="full_with_precision",
-        defer_table_reflect=True,
-        backend=backend,
-    )
-
-    # no columns in both tables
-    assert table.columns == {}
-
-    pipeline = make_pipeline("athena")
-    pipeline.extract(table)
-    pipeline.normalize()
-    # timestamps are milliseconds
-    columns = pipeline.default_schema.get_table("has_precision")["columns"]
-    assert columns["datetime_tz_col"]["precision"] == columns["datetime_ntz_col"]["precision"] == 3
-    # prevent drop
-    pipeline._destination = None
-
-
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 def test_sql_table_incremental_datetime_ntz(
     postgres_db: PostgresSourceDB, backend: TableBackend
 ) -> None:
+    # import sqlalchemy with minimum required version only for connectorx backend
+    if backend == "connectorx":
+        pytest.importorskip("sqlalchemy", minversion="2.0")
+
     table = sql_table(
         credentials=postgres_db.credentials,
         table="has_precision",
         schema=postgres_db.schema,
         backend=backend,
         incremental=dlt.sources.incremental(
-            "datetime_ntz_col", initial_value=ensure_pendulum_datetime("2023-01-01T00:00:00Z")
+            "datetime_ntz_col",
+            initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00Z").naive(),
+            row_order="asc",
+            range_start="open",
         ),
+        chunk_size=10,
     )
 
     pipeline = make_pipeline("duckdb")
-    info = pipeline.run(table)
-    assert_load_info(info)
-    print(pipeline.state)
-    # assert_row_counts(pipeline, sql_source_db, ["chat_message_view"])
-    pipeline.run(table)
-    # load again
+    rc = postgres_db.table_infos["has_precision"]["row_count"]
+    assert_incremental_chunks(pipeline, table, "datetime_ntz_col", timezone=False, row_count=rc)
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+def test_sql_table_incremental_datetime_tz(
+    postgres_db: PostgresSourceDB, backend: TableBackend
+) -> None:
+    # import sqlalchemy with minimum required version only for connectorx backend
+    if backend == "connectorx":
+        pytest.importorskip("sqlalchemy", minversion="2.0")
+
+    table = sql_table(
+        credentials=postgres_db.credentials,
+        table="has_precision",
+        schema=postgres_db.schema,
+        backend=backend,
+        incremental=dlt.sources.incremental(
+            "datetime_tz_col",
+            initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00+00:00"),
+            row_order="asc",
+            range_start="open",
+        ),
+        chunk_size=10,
+    )
+
+    pipeline = make_pipeline("duckdb")
+    rc = postgres_db.table_infos["has_precision"]["row_count"]
+    assert_incremental_chunks(pipeline, table, "datetime_tz_col", timezone=True, row_count=rc)
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
@@ -1419,11 +1426,10 @@ def assert_row_counts(
         ), f"Table {table} counts do not match with the source"
 
 
-# TODO tests shouldn't modify the return values of the tested functions
 def assert_precision_columns(
     columns: TTableSchemaColumns, backend: TableBackend, nullable: bool
 ) -> None:
-    actual = list(columns.values())
+    actual = deepcopy(list(columns.values()))
     expected = NULL_PRECISION_COLUMNS if nullable else NOT_NULL_PRECISION_COLUMNS
     # always has nullability set and always has hints
     expected = cast(List[TColumnSchema], deepcopy(expected))
@@ -1436,15 +1442,14 @@ def assert_precision_columns(
         expected = remove_timestamp_precision(expected, with_timestamps=False)
     elif backend == "connectorx":
         # connector x emits 32 precision which gets merged with sql alchemy schema
-        del columns["int_col"]["precision"]
+        del actual[0]["precision"]
     assert actual == expected
 
 
-# TODO tests shouldn't modify the return values of the tested functions
 def assert_no_precision_columns(
     columns: TTableSchemaColumns, backend: TableBackend, nullable: bool
 ) -> None:
-    actual = list(columns.values())
+    actual = deepcopy(list(columns.values()))
     # we always infer and emit nullability
     expected = deepcopy(NULL_NO_PRECISION_COLUMNS if nullable else NOT_NULL_NO_PRECISION_COLUMNS)
     if backend == "pyarrow":
@@ -1458,34 +1463,19 @@ def assert_no_precision_columns(
         expected = add_default_decimal_precision(expected)
     elif backend == "sqlalchemy":
         # no precision, no nullability, all hints inferred
+        expected = remove_default_precision(expected)
         # remove dlt columns
         actual = remove_dlt_columns(actual)
     elif backend == "pandas":
-        # no precision, no nullability, all hints inferred
-        # pandas destroys decimals
-        expected = convert_non_pandas_types(expected)
-        # on one of the timestamps somehow there is timezone info..., we only remove values set to false
-        # to be sure no bad data is coming in
-        actual = remove_timezone_info(actual, only_falsy=True)
+        pass
     elif backend == "connectorx":
         expected = cast(
             List[TColumnSchema],
             deepcopy(NULL_PRECISION_COLUMNS if nullable else NOT_NULL_PRECISION_COLUMNS),
         )
         expected = convert_connectorx_types(expected)
-        expected = remove_timezone_info(expected, only_falsy=False)
-        # on one of the timestamps somehow there is timezone info..., we only remove values set to false
-        # to be sure no bad data is coming in
-        actual = remove_timezone_info(actual, only_falsy=True)
 
     assert actual == expected
-
-
-def convert_non_pandas_types(columns: List[TColumnSchema]) -> List[TColumnSchema]:
-    for column in columns:
-        if column["data_type"] == "timestamp":
-            column["precision"] = 6
-    return columns
 
 
 def remove_dlt_columns(columns: List[TColumnSchema]) -> List[TColumnSchema]:
@@ -1498,7 +1488,9 @@ def remove_default_precision(columns: List[TColumnSchema]) -> List[TColumnSchema
             del column["precision"]
         if column["data_type"] == "text" and column.get("precision"):
             del column["precision"]
-    return remove_timezone_info(columns, only_falsy=False)
+        if column["data_type"] == "timestamp" and column.get("precision") == 6:
+            del column["precision"]
+    return columns
 
 
 def remove_timezone_info(columns: List[TColumnSchema], only_falsy: bool) -> List[TColumnSchema]:
@@ -1514,9 +1506,9 @@ def remove_timestamp_precision(
     columns: List[TColumnSchema], with_timestamps: bool = True
 ) -> List[TColumnSchema]:
     for column in columns:
-        if column["data_type"] == "timestamp" and column["precision"] == 6 and with_timestamps:
+        if column["data_type"] == "timestamp" and column.get("precision") == 6 and with_timestamps:
             del column["precision"]
-        if column["data_type"] == "time" and column["precision"] == 6:
+        if column["data_type"] == "time" and column.get("precision") == 6:
             del column["precision"]
     return columns
 
@@ -1577,8 +1569,8 @@ PRECISION_COLUMNS: List[TColumnSchema] = [
         "data_type": "text",
         "name": "string_default_col",
     },
-    {"data_type": "timestamp", "precision": 6, "name": "datetime_tz_col", "timezone": True},
-    {"data_type": "timestamp", "precision": 6, "name": "datetime_ntz_col", "timezone": False},
+    {"data_type": "timestamp", "name": "datetime_tz_col", "timezone": True},
+    {"data_type": "timestamp", "name": "datetime_ntz_col", "timezone": False},
     {
         "data_type": "date",
         "name": "date_col",
@@ -1586,7 +1578,6 @@ PRECISION_COLUMNS: List[TColumnSchema] = [
     {
         "data_type": "time",
         "name": "time_col",
-        "precision": 6,
     },
     {
         "data_type": "double",
@@ -1619,7 +1610,7 @@ NULL_PRECISION_COLUMNS: List[TColumnSchema] = [
 NO_PRECISION_COLUMNS: List[TColumnSchema] = [
     (
         {"name": column["name"], "data_type": column["data_type"]}  # type: ignore[misc]
-        if column["data_type"] != "decimal"
+        if column["data_type"] not in ("decimal", "timestamp")
         else dict(column)
     )
     for column in PRECISION_COLUMNS
