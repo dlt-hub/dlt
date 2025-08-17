@@ -147,7 +147,7 @@ def test_only_explicit_hints_in_import_schema() -> None:
         return resource()
 
     p = dlt.pipeline(
-        pipeline_name=uniq_id(),
+        pipeline_name="p" + uniq_id(),
         destination=dummy(completed_prob=1),
         import_schema_path=IMPORT_SCHEMA_PATH,
         export_schema_path=EXPORT_SCHEMA_PATH,

@@ -130,7 +130,8 @@ def test_table_format_core(
     # row should match expected values
     rows = load_tables_to_dicts(pipeline, "data_types", exclude_system_cols=True)["data_types"]
     assert len(rows) == 10
-    assert_all_data_types_row(rows[0], schema=column_schemas)
+    with pipeline._maybe_destination_capabilities() as caps:
+        assert_all_data_types_row(caps, rows[0], schema=column_schemas)
 
     # make sure remote_url is in metrics
     metrics = info.metrics[info.loads_ids[0]][0]
