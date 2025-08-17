@@ -67,9 +67,10 @@ jobs:
           activate-environment: true
           enable-cache: true
 
-      # TODO: which deps should we enable?
       - name: Install dependencies
-        run: uv sync --extra postgres --extra postgis --extra duckdb --extra parquet --extra filesystem --extra cli --extra sql_database --group sentry-sdk --group pipeline --group sources --group adbc
+        run: |
+          sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18
+          uv sync --extra postgres --extra postgis --extra duckdb --extra parquet --extra filesystem --extra cli --extra sql_database --extra mssql --group sentry-sdk --group pipeline --group sources --group adbc
 
       - name: Copy secrets for local tests
         run: |
