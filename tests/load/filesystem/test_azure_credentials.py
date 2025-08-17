@@ -7,7 +7,7 @@ from pytest_mock import MockerFixture
 
 import dlt
 from dlt.common import pendulum
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.configuration import resolve_configuration, ConfigFieldMissingException
 from dlt.common.configuration.specs import (
     AzureCredentials,
@@ -63,7 +63,7 @@ def test_azure_credentials_from_account_key(environment: Dict[str, str]) -> None
     permissions = set(sas_params["sp"][0])
     assert permissions == {"r", "w", "d", "l", "a", "c"}
 
-    exp = ensure_pendulum_datetime(sas_params["se"][0])
+    exp = ensure_pendulum_datetime_utc(sas_params["se"][0])
     assert exp > pendulum.now().add(hours=23)
 
 

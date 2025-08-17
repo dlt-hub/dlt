@@ -3,6 +3,7 @@ import pytest
 import yaml
 from dlt.common import json
 
+from dlt.common.schema import utils
 from dlt.common.schema.normalizers import configured_normalizers
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.exceptions import (
@@ -111,8 +112,12 @@ def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: Sch
     # stored_version = storage_schema.stored_version
     # stored_version_hash = storage_schema.stored_version_hash
     # evolve schema
-    row = {"floatX": 78172.128, "confidenceX": 1.2, "strX": "STR"}
-    _, new_table = storage_schema.coerce_row("event_user", None, row)
+    new_columns = [
+        utils.new_column("floatX", data_type="double"),
+        utils.new_column("confidenceX", data_type="double"),
+        utils.new_column("strX", data_type="text"),
+    ]
+    new_table = utils.new_table("event_user", columns=new_columns)
     storage_schema.update_table(new_table)
     assert storage_schema.is_modified
     storage.save_schema(storage_schema)

@@ -167,7 +167,9 @@ def refresh_source(
         The new load package state containing tables that need to be dropped/truncated.
     """
     pipeline_state, _ = current_pipeline_state(pipeline._container)
-    _resources_to_drop = list(source.resources.extracted) if refresh != "drop_sources" else []
+    _resources_to_drop = (
+        list(set(r.name for r in source.resources.extracted)) if refresh != "drop_sources" else []
+    )
     only_truncate = refresh == "drop_data"
 
     drop_result = drop_resources(

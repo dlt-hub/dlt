@@ -33,7 +33,7 @@ class DremioCursorImpl(DBApiCursorImpl):
     def arrow(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
         if chunk_size is None:
             return self.native_cursor.fetch_arrow_table()
-        return super().arrow(chunk_size=chunk_size, **kwargs)
+        return self.native_cursor.iter_arrow_tables(chunk_size)
 
 
 class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):

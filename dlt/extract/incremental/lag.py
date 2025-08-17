@@ -1,41 +1,53 @@
-import sys
 from datetime import datetime, timedelta, date  # noqa: I251
-from typing import Union
+from typing import Any, Union
 
-from dlt.common import logger
+from dlt.common import logger, pendulum
 from dlt.common.time import (
     detect_datetime_format,
+    ensure_pendulum_date,
     ensure_pendulum_datetime_non_utc,
-    datatime_obj_to_str,
+    datetime_obj_to_str,
 )
 
 from . import TCursorValue, LastValueFunc
 
 
 def _apply_lag_to_value(
-    lag: float, value: TCursorValue, last_value_func: LastValueFunc[TCursorValue]
-) -> TCursorValue:
+    lag: float, value: Any, last_value_func: LastValueFunc[TCursorValue]
+) -> Any:
     """Applies lag to a value, in case of `str` types it attempts to return a string
     with the lag applied preserving original format of a datetime/date
     """
     # Determine if the input is originally a string and capture its format
-    is_str = isinstance(value, str)
-    value_format = detect_datetime_format(value) if is_str else None
-    is_str_date = value_format in ("%Y%m%d", "%Y-%m-%d") if value_format else None
-    parsed_value = ensure_pendulum_datetime_non_utc(value) if is_str else value
+    value_format: str = None
+    if isinstance(value, str):
+        value_format = detect_datetime_format(value)
+        is_str_date = value_format in ("%Y%m%d", "%Y-%m-%d")
+        value = (
+            ensure_pendulum_date(value) if is_str_date else ensure_pendulum_datetime_non_utc(value)
+        )
 
-    if isinstance(parsed_value, (datetime, date)):
-        parsed_value = _apply_lag_to_datetime(lag, parsed_value, last_value_func, is_str_date)  # type: ignore[assignment]
+    # we must have pendulum instance.
+    if isinstance(value, date):
+        # we didn't convert to pendulum yet
+        if not value_format:
+            value = (
+                ensure_pendulum_datetime_non_utc(value)
+                if isinstance(value, datetime)
+                else ensure_pendulum_date(value)
+            )
+        value = _apply_lag_to_datetime(lag, value, last_value_func)
         # go back to string or pass exact type
-        value = datatime_obj_to_str(parsed_value, value_format) if value_format else parsed_value  # type: ignore[assignment]
+        value = datetime_obj_to_str(value, value_format) if value_format else value
 
-    elif isinstance(parsed_value, (int, float)):
-        value = _apply_lag_to_number(lag, parsed_value, last_value_func)  # type: ignore[assignment]
+    elif isinstance(value, (int, float)):
+        value = _apply_lag_to_number(lag, value, last_value_func)
 
     else:
-        logger.error(
+        raise ValueError(
+            value,
             f"Lag is not supported for cursor type: {type(value)} with last_value_func:"
-            f" {last_value_func}. Strings must parse to DateTime or Date."
+            f" {last_value_func}. Strings must parse to DateTime or Date.",
         )
 
     return value
@@ -43,15 +55,16 @@ def _apply_lag_to_value(
 
 def _apply_lag_to_datetime(
     lag: float,
-    value: Union[datetime, date],
+    value: pendulum.Date,
     last_value_func: LastValueFunc[TCursorValue],
-    is_str_date: bool,
-) -> Union[datetime, date]:
-    if isinstance(value, datetime) and not is_str_date:
-        delta = timedelta(seconds=lag)
-    elif is_str_date or isinstance(value, date):
-        delta = timedelta(days=lag)
-    return value - delta if last_value_func is max else value + delta
+) -> pendulum.Date:
+    if last_value_func is max:
+        lag = -lag
+
+    if isinstance(value, pendulum.DateTime):
+        return value.add(seconds=lag)
+
+    return value.add(days=lag)  # type: ignore[arg-type]
 
 
 def _apply_lag_to_number(
@@ -76,4 +89,4 @@ def apply_lag(
     ):
         # do not cross initial_value
         return initial_value
-    return lagged_last_value
+    return lagged_last_value  # type: ignore[no-any-return]

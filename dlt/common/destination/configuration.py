@@ -1,6 +1,8 @@
 from typing import ClassVar, Literal, Optional
+
 from dlt.common.configuration import configspec, known_sections
 from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.time import get_precision_from_datetime_unit
 
 CsvQuoting = Literal["quote_all", "quote_needed", "quote_minimal", "quote_none"]
 
@@ -29,5 +31,20 @@ class ParquetFormatConfiguration(BaseConfiguration):
     coerce_timestamps: Optional[Literal["s", "ms", "us", "ns"]] = None
     allow_truncated_timestamps: bool = False
     use_compliant_nested_type: bool = True
+
+    def max_timestamp_precision(self) -> int:
+        if (self.flavor or "").lower() == "spark":
+            base = get_precision_from_datetime_unit("ns")  # INT96 → treat as ns-capable
+        else:
+            v = float(self.version or "0.0")
+            base = (
+                get_precision_from_datetime_unit("ns")
+                if v >= 2.6
+                else get_precision_from_datetime_unit("us")
+            )
+
+        if self.coerce_timestamps:
+            return min(base, get_precision_from_datetime_unit(self.coerce_timestamps))
+        return base
 
     __section__: ClassVar[str] = known_sections.DATA_WRITER

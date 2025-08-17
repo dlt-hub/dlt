@@ -51,7 +51,7 @@ class TypeMapperImpl(DataTypeMapper):
                 " destination. One or both of these flags were used in column"
                 f" '{column.get('name')}'."
             )
-            # TODO: refactor lancedb and wevavite to make table object required
+            # TODO: refactor lancedb and weaviate to make table object required
             if table:
                 message += f" in table '{table.get('name')}'."
 

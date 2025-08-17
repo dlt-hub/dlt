@@ -73,13 +73,14 @@ class SnowflakeTypeMapper(TypeMapperImpl):
         precision = column.get("precision")
 
         if timezone and precision is None:
+            # use lookup table for non-precision types
             return None
 
         timestamp = "TIMESTAMP_TZ" if timezone else "TIMESTAMP_NTZ"
 
         # append precision if specified and valid
         if precision is not None:
-            if 0 <= precision <= 9:
+            if 0 <= precision <= self.capabilities.max_timestamp_precision:
                 timestamp += f"({precision})"
             else:
                 column_name = column["name"]
@@ -126,6 +127,8 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
             "insert-from-staging",
             "staging-optimized",
         ]
+        caps.timestamp_precision = 6
+        caps.max_timestamp_precision = 9
         caps.sqlglot_dialect = "snowflake"
 
         return caps
