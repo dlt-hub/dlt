@@ -1,12 +1,12 @@
 from datetime import timezone, datetime, date, timedelta  # noqa: I251
 from copy import deepcopy
-from typing import List, Any, Optional
+from typing import List, Any
 
 import pytest
 import pyarrow as pa
 
 from dlt.common import pendulum
-from dlt.common import logger
+from dlt.common.destination.capabilities import adjust_schema_to_capabilities
 from dlt.common.libs.pyarrow import (
     columns_to_arrow,
     deserialize_type,
@@ -27,18 +27,11 @@ from dlt.common.libs.pyarrow import (
     UnsupportedArrowTypeException,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
-from tests.cases import TABLE_UPDATE_COLUMNS_SCHEMA
-from tests.extract.test_extract import extract_step
-
-from dlt.extract.extract import Extract
-
-from pytest_mock import MockerFixture
-
-import dlt
+from tests.cases import table_update_and_row
 
 
 def test_py_arrow_to_table_schema_columns():
-    dlt_schema = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
+    dlt_schema, _ = table_update_and_row()
 
     caps = DestinationCapabilitiesContext.generic_capabilities()
     # The arrow schema will add precision
@@ -76,7 +69,7 @@ def test_py_arrow_to_table_schema_columns():
         ]
     )
 
-    result = py_arrow_to_table_schema_columns(arrow_schema, caps)
+    result = py_arrow_to_table_schema_columns(arrow_schema)
 
     # Resulting schema should match the original
     assert result == dlt_schema
@@ -126,7 +119,8 @@ def test_py_arrow_to_table_schema_columns_nested_types(supports_nested_types: bo
     )
 
     # Convert to table schema columns
-    columns = py_arrow_to_table_schema_columns(schema, caps)
+    columns = py_arrow_to_table_schema_columns(schema)
+    adjust_schema_to_capabilities(columns, caps)
 
     # Verify all columns are correctly identified as JSON data type
     for _, column in columns.items():
@@ -186,7 +180,7 @@ def test_nested_type_serialization_deserialization():
 
     # Test with table schema conversion
     schema = pa.schema([pa.field("nested_column", nested_type)])
-    columns = py_arrow_to_table_schema_columns(schema, caps)
+    columns = py_arrow_to_table_schema_columns(schema)
 
     # Verify the column is marked as JSON and has the serialized type
     assert columns["nested_column"]["data_type"] == "json"
@@ -225,7 +219,7 @@ def test_py_arrow_to_table_schema_columns_dict_in_struct():
     )
 
     # Convert to table schema columns
-    columns = py_arrow_to_table_schema_columns(arrow_schema, caps)
+    columns = py_arrow_to_table_schema_columns(arrow_schema)
 
     # Struct with dict should be converted to json type with nested-type info
     assert columns["struct_with_dict"]["data_type"] == "json"
@@ -261,7 +255,7 @@ def test_py_arrow_to_table_schema_columns_nested_dict_types():
     )
 
     # Convert to table schema columns
-    columns = py_arrow_to_table_schema_columns(arrow_schema, caps)
+    columns = py_arrow_to_table_schema_columns(arrow_schema)
 
     # Dict of lists and dict of structs should be converted to the value types
     assert columns["dict_of_lists"]["data_type"] == "json"
@@ -298,9 +292,7 @@ def test_py_arrow_dict_to_column() -> None:
     array_1 = pa.array(["a", "b", "c"], type=pa.dictionary(pa.int8(), pa.string()))
     array_2 = pa.array([1, 2, 3], type=pa.dictionary(pa.int8(), pa.int64()))
     table = pa.table({"strings": array_1, "ints": array_2})
-    columns = py_arrow_to_table_schema_columns(
-        table.schema, DestinationCapabilitiesContext.generic_capabilities()
-    )
+    columns = py_arrow_to_table_schema_columns(table.schema)
     assert columns == {
         "strings": {"name": "strings", "nullable": True, "data_type": "text"},
         "ints": {"name": "ints", "nullable": True, "data_type": "bigint"},
@@ -364,7 +356,7 @@ def test_exception_for_unsupported_arrow_type() -> None:
     obj = pa.duration("s")
     # error on type conversion
     with pytest.raises(UnsupportedArrowTypeException):
-        get_column_type_from_py_arrow(obj, DestinationCapabilitiesContext.generic_capabilities())
+        get_column_type_from_py_arrow(obj)
 
 
 def test_exception_for_schema_with_unsupported_arrow_type() -> None:
@@ -377,9 +369,7 @@ def test_exception_for_schema_with_unsupported_arrow_type() -> None:
 
     # assert the exception is raised
     with pytest.raises(UnsupportedArrowTypeException) as excinfo:
-        py_arrow_to_table_schema_columns(
-            table.schema, DestinationCapabilitiesContext.generic_capabilities()
-        )
+        py_arrow_to_table_schema_columns(table.schema)
 
     (msg,) = excinfo.value.args
     assert "duration" in msg
@@ -461,9 +451,7 @@ def test_is_arrow_item(pa_type: Any) -> None:
 
 def test_null_arrow_type() -> None:
     obj = pa.null()
-    column_type = get_column_type_from_py_arrow(
-        obj, DestinationCapabilitiesContext.generic_capabilities()
-    )
+    column_type = get_column_type_from_py_arrow(obj)
     assert {"seen-null-first": True} == column_type["x-normalizer"]  # type: ignore[typeddict-item]
 
 
