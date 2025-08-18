@@ -1,7 +1,7 @@
 # test utils :)
 import pytest
 
-from tests.pipeline.utils import assert_records_as_set
+from pytest_dlt.utils import assert_records_as_set
 
 
 def test_assert_records_as_set():

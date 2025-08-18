@@ -25,8 +25,9 @@ from tests.pipeline.utils import (
     load_tables_to_dicts,
     assert_load_info,
     load_table_counts,
-    assert_records_as_set,
 )
+
+from pytest_dlt.utils import assert_records_as_set
 
 from tests.utils import TPythonTableFormat
 
