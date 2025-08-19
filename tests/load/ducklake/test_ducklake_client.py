@@ -58,7 +58,10 @@ def test_native_duckdb_workflow(tmp_path):
 def test_default_credentials() -> None:
     expected_ducklake_name = "ducklake"
     expected_db_url = "duckdb://"
-    expected_attach_statement = f"ATTACH 'ducklake:{expected_db_url}' AS {expected_ducklake_name}"
+    expected_attach_statement = (
+        f"ATTACH IF NOT EXISTS 'ducklake:{expected_ducklake_name}.ducklake' AS"
+        f" {expected_ducklake_name}"
+    )
 
     credentials = DuckLakeCredentials()
 
@@ -83,7 +86,10 @@ def test_default_ducklake_configuration() -> None:
     expected_path = pathlib.Path.cwd() / TEST_STORAGE_ROOT / expected_database_name
     # NOTE is this an error to have 4 slashes? `////`
     expected_db_url = "duckdb:///" + str(expected_path)
-    expected_attach_statement = f"ATTACH 'ducklake:{expected_db_url}' AS {expected_ducklake_name}"
+    expected_attach_statement = (
+        f"ATTACH IF NOT EXISTS 'ducklake:{expected_ducklake_name}.ducklake' AS"
+        f" {expected_ducklake_name}"
+    )
 
     configuration = resolve_configuration(
         DuckLakeClientConfiguration()._bind_dataset_name(dataset_name="test_conf")
@@ -101,9 +107,12 @@ def test_default_ducklake_configuration() -> None:
     assert credentials.attach_statement == expected_attach_statement
 
 
-def test_ducklake_sqlclient():
+def test_ducklake_sqlclient(tmp_path):
     schema = dlt.Schema(name="foo")
-    credentials = DuckLakeCredentials()
+    # need to set attach statement because default credentials can't
+    # be resolved outside of a pipeline context
+    attach_statement = f"ATTACH '{tmp_path}/catalog.ducklake' AS ducklake;"
+    credentials = DuckLakeCredentials(attach_statement=attach_statement)
     config = DuckLakeClientConfiguration(credentials=credentials)
     capabilities = _get_ducklake_capabilities()
 
