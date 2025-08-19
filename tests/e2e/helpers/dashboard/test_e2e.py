@@ -84,9 +84,11 @@ def failed_pipeline() -> Any:
         fp.run(broken_resource())
     return fp
 
-# TODO launch the dashboard server from this Python file instead of 
+
+# TODO launch the dashboard server from this Python file instead of
 # defining it in CI (.github/workflows/test_common.yml). The port
 # opened by marimo is non-deterministic and needs to match the test code.
+
 
 def _go_home(page: Page) -> None:
     # NOTE the port needs to match what's defined in CI
