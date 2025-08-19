@@ -1,8 +1,9 @@
-from typing import Optional
-
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
+from dlt.destinations.sql_client import raise_open_connection_error
+
+from duckdb import DuckDBPyConnection
 
 
 class DuckLakeSqlClient(DuckDbSqlClient):
@@ -14,16 +15,13 @@ class DuckLakeSqlClient(DuckDbSqlClient):
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
         super().__init__(dataset_name, staging_dataset_name, credentials, capabilities)
-        self.database_name = credentials.ducklake_name
 
-        self.execute_sql(f"ATTACH 'ducklake:{self.database_name}.ducklake' AS {self.database_name};")
-        self.execute_sql(f"USE {self.database_name}")
-
-    def catalog_name(self, quote: bool = True, casefold: bool = True) -> Optional[str]:
-        if casefold:
-            database_name = self.capabilities.casefold_identifier(self.database_name)
-        else:
-            database_name = self.database_name
-        if quote:
-            database_name = self.capabilities.escape_identifier(database_name)
-        return database_name
+    # TODO support connecting to a snapshot
+    @raise_open_connection_error
+    def open_connection(self) -> DuckDBPyConnection:
+        """Ensure the `ducklake` extension is loaded. This needs to be done on every connection"""
+        super().open_connection()
+        self._conn.execute("LOAD ducklake;")
+        self._conn.execute(self.credentials.attach_statement)
+        self._conn.execute(f"USE {self.credentials.ducklake_name};")
+        return self._conn

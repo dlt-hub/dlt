@@ -3,11 +3,11 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
-from dlt.destinations.impl.duckdb.factory import _set_duckdb_raw_capabilities
 from dlt.destinations.impl.ducklake.ducklake import DuckLakeClient
 from dlt.destinations.impl.ducklake.configuration import (
     DuckLakeClientConfiguration,
     DuckLakeCredentials,
+    _get_ducklake_capabilities,
 )
 
 
@@ -40,7 +40,7 @@ class ducklake(Destination[DuckLakeClientConfiguration, DuckLakeClient]):
             destination_name: This is the name of the ducklake, which will be a namespace
                 in the catalog and storage. This will be the name of the duckdb instance
                 that serves as ducklake client
-        """      
+        """
         super().__init__(
             credentials=credentials,
             destination_name=destination_name,
@@ -51,19 +51,15 @@ class ducklake(Destination[DuckLakeClientConfiguration, DuckLakeClient]):
     @property
     def spec(self) -> type:
         return DuckLakeClientConfiguration
-    
+
     @property
     def client_class(self) -> type:
         from dlt.destinations.impl.ducklake.ducklake import DuckLakeClient
+
         return DuckLakeClient
-     
+
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
-        # TODO adjust to actual DuckLake capabilities
-        # how do they vary based on catalog and storage? does ducklake client automatically
-        # handles disparities?
-        caps = DestinationCapabilitiesContext()
-        caps = _set_duckdb_raw_capabilities(caps)
-        return caps
-    
+        return _get_ducklake_capabilities()
+
 
 ducklake.register()
