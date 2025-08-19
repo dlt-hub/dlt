@@ -19,7 +19,7 @@ from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.runtime.collector import LogCollector
 
 # Global registry to track active BufferedDataWriter instances
-_ACTIVE_WRITERS: Optional[weakref.WeakSet] = None
+_ACTIVE_WRITERS: Optional[weakref.WeakSet[Any]] = None
 
 
 def register_buffered_writer(writer: Any) -> None:
