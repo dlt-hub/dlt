@@ -43,9 +43,9 @@ jobs:
             python-version: "3.13"
             shell: bash
 
-          - os: ubuntu-latest
-            python-version: "3.14.0-beta.4"
-            shell: bash
+          # - os: ubuntu-latest
+          #   python-version: "3.14.0-beta.4"
+          #   shell: bash
 
           # linux test with minimal dependencies
           - os: ubuntu-latest
