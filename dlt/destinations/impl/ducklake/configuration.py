@@ -43,8 +43,12 @@ class DuckLakeCredentials(DuckDbCredentials):
         if storage is not None:
             raise NotImplementedError
 
+        import duckdb
+
+        super().__init__(duckdb.connect(":memory:"))
+
         self.ducklake_name = ducklake_name
-        self.catalog_database = self
+        self.catalog_database = DuckDbCredentials()
         self.storage = storage
 
         self.database = self.catalog_database.database  # required
@@ -54,11 +58,13 @@ class DuckLakeCredentials(DuckDbCredentials):
     def build_attach_statement(
         *,
         ducklake_name: str,
-        catalog_database: ConnectionStringCredentials,
+        catalog_database: Union[ConnectionStringCredentials, str],
         storage: Optional[FilesystemConfiguration] = None,
     ) -> str:
-        attach_statement = f"ATTACH 'ducklake:{catalog_database.to_native_representation()}'"
+        # TODO resolve ConnectionStringCredentials; duckdb has its own format
+        attach_statement = f"ATTACH IF NOT EXISTS 'ducklake:{ducklake_name}.ducklake'"
         if storage:
+            # TODO handle storage credentials by creating secrets
             attach_statement += f" (DATA_PATH {storage.bucket_url})"
 
         attach_statement += f" AS {ducklake_name}"
