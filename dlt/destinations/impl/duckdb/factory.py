@@ -125,7 +125,9 @@ class DuckDbTypeMapper(TypeMapperImpl):
         return super().from_destination_type(db_type, precision, scale)
 
 
-def _set_duckdb_raw_capabilities(caps: DestinationCapabilitiesContext) -> DestinationCapabilitiesContext:
+def _set_duckdb_raw_capabilities(
+    caps: DestinationCapabilitiesContext,
+) -> DestinationCapabilitiesContext:
     caps.preferred_loader_file_format = "insert_values"
     caps.supported_loader_file_formats = ["insert_values", "parquet", "jsonl", "model"]
     caps.preferred_staging_file_format = None  # TODO remove because is default value

@@ -19,6 +19,8 @@ else:
 DUCK_DB_NAME_PAT = "%s.duckdb"
 
 
+# NOTE duckdb extensions are only loaded when using the dlt cursor. They are not
+# loaded when using the native connection (e.g., when passing it to Ibis)
 @configspec(init=False)
 class DuckDbBaseCredentials(ConnectionStringCredentials):
     _LOCK: ClassVar[threading.Lock] = threading.Lock()
