@@ -1,0 +1,4 @@
+[data_writer]
+max_memory_mb = 200
+memory_check_interval = 1.0
+flush_threshold_percent = 0.8

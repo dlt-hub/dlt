@@ -1,0 +1,17 @@
+# Docker ignore file for ram demo
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.git/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+.env
+.venv/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,26 @@
+# Dockerfile for dlt memory management demo
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy the entire dlt repository
+COPY . .
+
+# Install dlt with duckdb and rest_api support, plus psutil for memory monitoring
+RUN pip install -e ".[duckdb,rest_api]" psutil
+
+# Copy demo scripts
+COPY playground/ram-demo/demo_memory_pressure.py /app/demo_memory_pressure.py
+COPY playground/ram-demo/jaffle_source.py /app/jaffle_source.py
+
+# Set default environment
+ENV PYTHONUNBUFFERED=1
+
+# Default command runs the demo script
+CMD ["python", "demo_memory_pressure.py"]
