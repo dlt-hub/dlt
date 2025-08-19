@@ -193,5 +193,33 @@ def parallel_pipelines_asyncio_snippet() -> None:
     # @@@DLT_SNIPPET_END parallel_pipelines
 
 
+def memory_management_snippet() -> None:
+    # @@@DLT_SNIPPET_START memory_management
+    import os
+    import dlt
+
+    # Set memory limit via environment variable
+    os.environ["DATA_WRITER__MAX_MEMORY_MB"] = "2048"
+
+    # Use the memory-aware collector
+    pipeline = dlt.pipeline(
+        pipeline_name="memory_limited_pipeline",
+        destination="duckdb",
+        progress="memory_aware"  # Enable memory monitoring
+    )
+
+    # Alternative: Create custom memory-aware collector
+    from dlt.common.runtime.memory_collector import MemoryAwareCollector
+
+    collector = MemoryAwareCollector(
+        max_memory_mb=1024,           # 1GB memory limit
+        flush_threshold_percent=0.8,  # Flush when 80% of limit reached
+        memory_check_interval=3.0     # Check memory every 3 seconds
+    )
+
+    pipeline = dlt.pipeline(progress=collector)
+    # @@@DLT_SNIPPET_END memory_management
+
+
 def test_toml_snippets() -> None:
     parse_toml_file("./toml-snippets.toml")

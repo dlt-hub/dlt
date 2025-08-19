@@ -114,3 +114,11 @@ next_item_mode="fifo"
 [normalize.data_writer]
 disable_compression=true
 # @@@DLT_SNIPPET_END compression_toml
+
+
+# @@@DLT_SNIPPET_START memory_management_toml
+[data_writer]
+max_memory_mb = 2048              # Maximum memory usage in MB (required)
+memory_check_interval = 5.0       # How often to check memory usage in seconds
+flush_threshold_percent = 0.8     # Flush buffers at 80% of memory limit
+# @@@DLT_SNIPPET_END memory_management_toml

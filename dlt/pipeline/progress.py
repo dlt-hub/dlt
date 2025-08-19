@@ -7,9 +7,10 @@ from dlt.common.runtime.collector import (
     EnlightenCollector as enlighten,
     AliveCollector as alive_progress,
 )
+from dlt.common.runtime.memory_collector import MemoryAwareCollector as memory_aware
 from dlt.common.runtime.collector import Collector as _Collector, NULL_COLLECTOR as _NULL_COLLECTOR
 
-TSupportedCollectors = Literal["tqdm", "enlighten", "log", "alive_progress"]
+TSupportedCollectors = Literal["tqdm", "enlighten", "log", "alive_progress", "memory_aware"]
 TCollectorArg = Union[_Collector, TSupportedCollectors]
 
 
@@ -27,5 +28,7 @@ def _from_name(collector: TCollectorArg) -> _Collector:
             return log()
         if collector == "alive_progress":
             return alive_progress()
+        if collector == "memory_aware":
+            return memory_aware()
         raise ValueError(collector)
     return collector
