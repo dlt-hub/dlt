@@ -36,13 +36,12 @@ def setup_pipelines() -> Any:
     pnd = dlt.pipeline(pipeline_name="no_destination_pipeline")
     pnd.extract(fruitshop_source())
 
-
-#
-# helpers
-#
-
+# TODO launch the dashboard server from this Python file instead of 
+# defining it in CI (.github/workflows/test_common.yml). The port
+# opened by marimo is non-deterministic and needs to match the test code.
 
 def _go_home(page: Page) -> None:
+    # NOTE the port needs to match what's defined in CI
     page.goto("http://localhost:2718")
 
 
