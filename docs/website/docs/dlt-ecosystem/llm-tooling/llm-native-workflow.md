@@ -142,7 +142,7 @@ If the pipeline fails, pass error messages to the LLM. Restart after 4-8 failed 
 Launch the dashboard to validate your pipeline:
 
 ```sh
-dlt pipeline {source}_pipeline show --dashboard
+dlt pipeline {source}_pipeline show
 ```
 
 The dashboard shows:

@@ -167,4 +167,4 @@ test-e2e-dashboard-headed:
 	uv run pytest --headed --browser chromium tests/e2e
 
 start-dlt-dashboard-e2e:
-	uv run marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines_dir _storage/.dlt/pipelines --with_test_identifiers true
+	uv run marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines --with_test_identifiers true

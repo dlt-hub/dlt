@@ -202,7 +202,7 @@ Load package 1726074108.8017762 is LOADED and contains no failed jobs
 Now that the pipeline has run successfully, let's explore the data loaded into DuckDB. dlt comes with a built-in browser application that allows you to interact with the data. To enable it, run the following command:
 
 ```sh
-pip install streamlit
+pip install marimo
 ```
 
 Next, run the following command to start the data browser:
@@ -212,8 +212,6 @@ dlt pipeline hospital_data_pipeline show
 ```
 
 The command opens a new browser window with the data browser application. `hospital_data_pipeline` is the name of the pipeline defined in the `filesystem_pipeline.py` file.
-
-![Streamlit Explore data](/img/filesystem-tutorial/streamlit-data.png)
 
 You can explore the loaded data, run queries, and see some pipeline execution details.
 
@@ -284,9 +282,7 @@ print(info)
 
 Notice that we applied incremental loading both for `files` and for `reader`. Therefore, dlt will first filter out only modified files and then filter out new records based on the `STOP` column.
 
-If you run `dlt pipeline hospital_data_pipeline show`, you can see the pipeline now has new information in the state about the incremental variable:
-
-![Streamlit Explore data](/img/filesystem-tutorial/streamlit-incremental-state.png)
+If you run `dlt pipeline hospital_data_pipeline show`, you can see the pipeline now has new information in the state about the incremental variable.
 
 To learn more about incremental loading, check out the [filesystem incremental loading section](../dlt-ecosystem/verified-sources/filesystem/basic#5-incremental-loading).
 
@@ -328,9 +324,7 @@ info = pipeline.run(reader, write_disposition="merge")
 print(info)
 ```
 
-After executing this code, you'll see a new column in the `encounters` table:
-
-![Streamlit Explore data](/img/filesystem-tutorial/streamlit-new-col.png)
+After executing this code, you'll see a new column in the `encounters` table.
 
 ## 9. Load any other type of files
 

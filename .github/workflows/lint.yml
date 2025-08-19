@@ -58,6 +58,7 @@ jobs:
             **/*.py
             **/*.lock
             **/*.md
+            **/*.ipynb
 
   matrix_job_required_check:
     name: lint | code & tests
