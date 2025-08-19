@@ -282,6 +282,11 @@ class RESTClient:
         logger.info(
             f"Extracted data of type {type(data).__name__} from path {data_selector}{length_info}"
         )
+        if data is None:
+            logger.warning(
+                "Extracted data is None for path %s, returning empty list", data_selector
+            )
+            return []
         # wrap single pages into lists
         if not isinstance(data, list):
             data = [data]

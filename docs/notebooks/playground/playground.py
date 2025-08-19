@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.13.15"
+__generated_with = "0.14.10"
 app = marimo.App()
 
 
@@ -17,35 +17,35 @@ async def initialize():
         await micropip.install("dlt[duckdb]")
         await micropip.install("pandas")
         # dependencies needed for ibis
-        await micropip.install("sqlite3")
+        await micropip.install("requests")
         await micropip.install("ibis-framework[duckdb]")
 
-    return sys, mo
+    return
 
 
 @app.cell
-def run(dlt):
+def run():
     import dlt
+    import requests
 
-    @dlt.resource(table_name="items")
-    def foo():
-        for i in range(50):
-            yield {"id": i, "name": f"This is item {i}"}
+    @dlt.resource(table_name="users")
+    def users():
+        yield requests.get("https://jsonplaceholder.typicode.com/users").json()
 
     pipeline = dlt.pipeline(
-        pipeline_name="python_data_example",
+        pipeline_name="users_pipeline",
         destination="duckdb",
+        dataset_name="raw_data",
         dev_mode=True,
     )
-
-    load_info = pipeline.run(foo)
+    print(pipeline.run(users()))
     return (pipeline,)
 
 
 @app.cell
 def view(pipeline):
-    # NOTE: This line displays the data of the items table in a marimo table
-    pipeline.dataset().items.df()
+    # NOTE: This line displays the data of the users table in a marimo table
+    pipeline.dataset().users.df()
     return
 
 
@@ -59,7 +59,7 @@ def connect(pipeline):
 @app.cell(hide_code=True)
 def tests(pipeline):
     # NOTE: this cell is only needed for testing this notebook on ci
-    assert pipeline.dataset().items.df().shape[0] == 50
+    assert pipeline.dataset().users.df().shape[0] == 10
     return
 
 

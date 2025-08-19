@@ -397,14 +397,14 @@ def test_database_exceptions(client: SqlJobClientBase) -> None:
     with pytest.raises(DatabaseUndefinedRelation) as term_ex:
         client.sql_client.execute_many(
             [
-                "DELETE FROM TABLE_XXX WHERE 1=1;",
-                "DELETE FROM ticket_forms__ticket_field_ids WHERE 1=1;",
+                "DELETE FROM TABLE_XXX WHERE 1=1",
+                "DELETE FROM ticket_forms__ticket_field_ids WHERE 1=1",
             ]
         )
     assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
     with pytest.raises(DatabaseUndefinedRelation) as term_ex:
         client.sql_client.execute_many(
-            ["DROP TABLE TABLE_XXX;", "DROP TABLE ticket_forms__ticket_field_ids;"]
+            ["DROP TABLE TABLE_XXX", "DROP TABLE ticket_forms__ticket_field_ids"]
         )
 
     # invalid syntax
@@ -682,7 +682,7 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     assert_load_id(client.sql_client, "ABC")
 
     # syntax error within tx
-    statements = ["BEGIN TRANSACTION;", f"INVERT INTO {version_table} VALUES(1);", "COMMIT;"]
+    statements = ["BEGIN TRANSACTION", f"INVERT INTO {version_table} VALUES(1)", "COMMIT"]
     with pytest.raises(DatabaseTransientException):
         client.sql_client.execute_many(statements)
 
@@ -693,9 +693,9 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
 
     # wrong value inserted
     statements = [
-        "BEGIN TRANSACTION;",
-        f"INSERT INTO {version_table}(version) VALUES(1);",
-        "COMMIT;",
+        "BEGIN TRANSACTION",
+        f"INSERT INTO {version_table}(version) VALUES(1)",
+        "COMMIT",
     ]
     # cannot insert NULL value
     with pytest.raises(DatabaseTerminalException):
@@ -710,8 +710,8 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
 
     # again but with transaction scope
     statements = [
-        f"INSERT INTO {version_table}(version) VALUES(1);",
-        "COMMIT;",
+        f"INSERT INTO {version_table}(version) VALUES(1)",
+        "COMMIT",
     ]
     # cannot insert NULL value
     with pytest.raises(DatabaseTerminalException):
@@ -741,7 +741,7 @@ def prepare_temp_table(client: SqlJobClientBase) -> Tuple[str, Type[Union[Decima
     if client.config.destination_type == "athena":
         ddl_suffix = (
             f"LOCATION '{AWS_BUCKET}/ci/{table_name}' TBLPROPERTIES ('table_type'='ICEBERG',"
-            " 'format'='parquet');"
+            " 'format'='parquet')"
         )
         coltype = "bigint"
         qualified_table_name = table_name
@@ -755,6 +755,6 @@ def prepare_temp_table(client: SqlJobClientBase) -> Tuple[str, Type[Union[Decima
     else:
         qualified_table_name = client.sql_client.make_qualified_table_name(table_name)
     client.sql_client.execute_sql(
-        f"CREATE TABLE {qualified_table_name} (col {coltype}) {ddl_suffix};"
+        f"CREATE TABLE {qualified_table_name} (col {coltype}) {ddl_suffix}"
     )
     return table_name, py_type

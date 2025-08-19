@@ -42,6 +42,18 @@ const sidebars = {
         'tutorial/filesystem',
         'tutorial/load-data-from-an-api',
         'tutorial/playground',
+        {
+          type: 'category',
+          label: 'Education',
+          link: {
+            type: 'doc',
+            id: 'tutorial/education',
+          },
+          items: [
+            'tutorial/fundamentals-course',
+            'tutorial/advanced-course',
+          ]
+        },
       ]
     },
     {
@@ -78,7 +90,6 @@ const sidebars = {
             'general-usage/schema-contracts',
             'general-usage/schema-evolution',
             'general-usage/naming-convention',
-            'walkthroughs/adjust-a-schema',
           ]
         },
         'general-usage/glossary'
@@ -125,8 +136,20 @@ const sidebars = {
           type: 'category',
           label: 'Features',
           items: [
-            'plus/features/projects',
             'plus/features/data-access',
+            {
+              type: 'category',
+              label: 'Project',
+              link: {
+                type: 'doc',
+                id: 'plus/features/project/index',
+              },
+              items: [
+                'plus/features/project/overview',
+                'plus/features/project/source-configuration',
+                'plus/features/project/python-api',
+              ]
+            },
             {
               type: 'category',
               label: 'Local transformations',
@@ -344,6 +367,7 @@ const sidebars = {
             'walkthroughs/add_credentials'
           ]
         },
+        'walkthroughs/adjust-a-schema',
         {
           type: 'category',
           label: 'Access loaded data',
@@ -352,12 +376,14 @@ const sidebars = {
             id: 'general-usage/dataset-access/index',
           },
           items: [
-            'general-usage/dataset-access/streamlit',
+            'general-usage/dataset-access/dashboard',
             'general-usage/dataset-access/marimo',
             'general-usage/dataset-access/dataset',
             'general-usage/dataset-access/ibis-backend',
             'general-usage/dataset-access/sql-client',
+            'general-usage/dataset-access/view-dlt-schema',
             'general-usage/destination-tables',
+            'general-usage/dataset-access/streamlit',
           ]
         },
         {

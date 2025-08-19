@@ -10,7 +10,7 @@ keywords: [data, dataset, sql]
 This page contains technical details about the implementation of the SQL client as well as information on how to use low-level APIs. If you simply want to query your data, it's advised to read the pages in this section on accessing data via `dlt` datasets, Streamlit, or Ibis.
 :::
 
-Most `dlt` destinations use an implementation of the `SqlClientBase` class to connect to the physical destination to which your data is loaded. DDL statements, data insert or update commands, as well as SQL merge and replace queries, are executed via a connection on this client. It also is used for reading data for the [Streamlit app](./streamlit.md) and [data access via `dlt` datasets](./dataset.md).
+Most `dlt` destinations use an implementation of the `SqlClientBase` class to connect to the physical destination to which your data is loaded. DDL statements, data insert or update commands, as well as SQL merge and replace queries, are executed via a connection on this client. It also is used for reading data for the [dashboard app](./dashboard.md) and [data access via `dlt` datasets](./dataset.md).
 
 All SQL destinations make use of an SQL client; additionally, the filesystem has a special implementation of the SQL client which you can read about [below](#the-filesystem-sql-client).
 

@@ -18,7 +18,7 @@ from dlt.extract.extract import ExtractStorage
 from dlt.extract.hints import SqlModel
 
 from tests.utils import clean_test_storage, TEST_DICT_CONFIG_PROVIDER, preserve_environ
-from tests.load.transformations.test_model_item_format import (
+from tests.load.test_model_item_format import (
     destination_configs,
     DESTINATIONS_SUPPORTING_MODEL,
 )

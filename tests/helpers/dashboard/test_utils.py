@@ -1,10 +1,9 @@
 import os
 import tempfile
-import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
 
+import marimo as mo
 import pytest
 import pandas as pd
 
@@ -15,16 +14,7 @@ import pendulum
 
 
 import dlt
-from dlt.common.configuration import resolve_configuration
-from dlt.common.configuration.specs import known_sections
-from dlt.common.destination.client import WithStateSync
-from dlt.common.json import json
-from dlt.common.pendulum import pendulum as dlt_pendulum
-from dlt.common.pipeline import get_dlt_pipelines_dir
-from dlt.common.schema import Schema
-from dlt.common.storages import FileStorage
 from dlt.helpers.dashboard.config import DashboardConfiguration
-from dlt.helpers.dashboard import utils
 from dlt.helpers.dashboard.utils import (
     PICKLE_TRACE_FILE,
     resolve_dashboard_config,
@@ -33,21 +23,20 @@ from dlt.helpers.dashboard.utils import (
     pipeline_details,
     create_table_list,
     create_column_list,
-    clear_query_cache,
     get_query_result,
     get_row_counts,
     get_loads,
-    get_schema_by_version,
     trace_overview,
     trace_execution_context,
     trace_steps_overview,
-    trace_resolved_config_values,
-    trace_step_details,
     style_cell,
     _without_none_or_empty_string,
     _align_dict_keys,
     _humanize_datetime_values,
     _dict_to_table_items,
+    build_exception_section,
+    get_local_data_path,
+    remote_state_details,
 )
 
 
@@ -91,7 +80,7 @@ def test_pipeline():
             dev_mode=True,
         )
 
-        pipeline.run(fruitshop_source())
+        pipeline.run(fruitshop_source(), schema=dlt.Schema("fruitshop"))
 
         # we overwrite the purchases table to have a child table and an incomplete column
         @dlt.resource(primary_key="id", write_disposition="merge", columns={"incomplete": {}})
@@ -103,9 +92,44 @@ def test_pipeline():
                 {"id": 3, "customer_id": 2, "inventory_id": 3, "quantity": 3},
             ]
 
-        pipeline.run(purchases())
+        pipeline.run(purchases(), schema=dlt.Schema("fruitshop"))
+
+        # write something to another schema so we have multiple schemas
+        pipeline.run([1, 2, 3], schema=dlt.Schema("other"), table_name="items")
 
         yield pipeline
+
+
+@pytest.fixture(scope="session")
+def exception_pipeline():
+    import duckdb
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        pipeline = dlt.pipeline(
+            pipeline_name="test_pipeline",
+            pipelines_dir=temp_dir,
+            destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+            dataset_name="test_dataset",
+            dev_mode=True,
+        )
+
+        @dlt.resource
+        def broken_resource():
+            raise AssertionError("I am broken")
+
+        with pytest.raises(Exception):
+            pipeline.run(broken_resource())
+
+        yield pipeline
+
+
+def test_build_exception_section(exception_pipeline, test_pipeline):
+    assert not build_exception_section(test_pipeline)
+    assert "Show full stacktrace" in build_exception_section(exception_pipeline)[0].text
+
+
+def test_get_local_data_path(test_pipeline):
+    assert get_local_data_path(test_pipeline)
 
 
 def test_resolve_dashboard_config(test_pipeline):
@@ -170,12 +194,13 @@ def test_get_pipeline(test_pipeline):
     assert pipeline.dataset_name == test_pipeline.dataset_name
 
 
-def test_pipeline_details(test_pipeline):
+def test_pipeline_details(test_pipeline, temp_pipelines_dir):
     """Test getting pipeline details from a real pipeline"""
-    result = pipeline_details(test_pipeline)
+    config = DashboardConfiguration()
+    result = pipeline_details(config, test_pipeline, temp_pipelines_dir)
 
     assert isinstance(result, list)
-    assert len(result) == 6
+    assert len(result) == 9
 
     # Convert to dict for easier testing
     details_dict = {item["name"]: item["value"] for item in result}
@@ -183,7 +208,7 @@ def test_pipeline_details(test_pipeline):
     assert details_dict["pipeline_name"] == "test_pipeline"
     assert details_dict["destination"] == "duckdb (dlt.destinations.duckdb)"
     assert details_dict["dataset_name"] == test_pipeline.dataset_name
-    assert details_dict["schema"] == "fruitshop"
+    assert details_dict["schemas"].startswith("fruitshop")
     assert details_dict["working_dir"].endswith(test_pipeline.pipeline_name)
 
 
@@ -191,13 +216,23 @@ def test_create_table_list(test_pipeline):
     """Test creating a basic table list with real schema"""
     config = DashboardConfiguration()
 
-    result = create_table_list(config, test_pipeline, show_child_tables=False)
+    result = create_table_list(
+        config,
+        test_pipeline,
+        selected_schema_name=test_pipeline.default_schema_name,
+        show_child_tables=False,
+    )
 
     # Should exclude _dlt_loads by default
     table_names = {table["name"] for table in result}
     assert table_names == {"inventory", "purchases", "customers", "inventory_categories"}
 
-    result = create_table_list(config, test_pipeline, show_child_tables=True)
+    result = create_table_list(
+        config,
+        test_pipeline,
+        selected_schema_name=test_pipeline.default_schema_name,
+        show_child_tables=True,
+    )
     table_names = {table["name"] for table in result}
     assert table_names == {
         "inventory",
@@ -207,7 +242,13 @@ def test_create_table_list(test_pipeline):
         "inventory_categories",
     }
 
-    result = create_table_list(config, test_pipeline, show_internals=True, show_child_tables=False)
+    result = create_table_list(
+        config,
+        test_pipeline,
+        selected_schema_name=test_pipeline.default_schema_name,
+        show_internals=True,
+        show_child_tables=False,
+    )
     table_names = {table["name"] for table in result}
     assert table_names == {
         "customers",
@@ -225,11 +266,22 @@ def test_create_column_list_basic(test_pipeline):
     config = DashboardConfiguration()
 
     # Should exclude _dlt columns by default, will also not show incomplete columns
-    result = create_column_list(config, test_pipeline, "purchases")
+    result = create_column_list(
+        config,
+        test_pipeline,
+        selected_schema_name=test_pipeline.default_schema_name,
+        table_name="purchases",
+    )
     column_names = {col["name"] for col in result}
     assert column_names == {"customer_id", "quantity", "id", "inventory_id", "date"}
 
-    result = create_column_list(config, test_pipeline, "purchases", show_internals=True)
+    result = create_column_list(
+        config,
+        test_pipeline,
+        selected_schema_name=test_pipeline.default_schema_name,
+        table_name="purchases",
+        show_internals=True,
+    )
     column_names = {col["name"] for col in result}
     assert column_names == {
         "_dlt_load_id",
@@ -245,7 +297,13 @@ def test_create_column_list_basic(test_pipeline):
 def test_create_column_list_type_hints(test_pipeline):
     """Test creating column list with type hints"""
     config = DashboardConfiguration()
-    result = create_column_list(config, test_pipeline, "purchases", show_type_hints=True)
+    result = create_column_list(
+        config,
+        test_pipeline,
+        selected_schema_name=test_pipeline.default_schema_name,
+        table_name="purchases",
+        show_type_hints=True,
+    )
 
     # Find the id column
     id_column = next(col for col in result if col["name"] == "id")
@@ -274,9 +332,9 @@ def test_get_row_counts_real(test_pipeline):
         "purchases": 100,
         "purchases__child": 3,
         "inventory_categories": 3,
-        "_dlt_version": 2,
-        "_dlt_loads": 2,
-        "_dlt_pipeline_state": 1,
+        "_dlt_version": 3,
+        "_dlt_loads": 4,
+        "_dlt_pipeline_state": 2,
     }
 
 
@@ -299,7 +357,7 @@ def test_get_loads(test_pipeline):
 def test_trace(test_pipeline):
     """Test trace overview with real trace data"""
     config = DashboardConfiguration()
-    trace = test_pipeline.last_trace.asdict()
+    trace = test_pipeline.last_trace
 
     # overview
     result = trace_overview(config, trace)
@@ -335,6 +393,15 @@ def test_trace(test_pipeline):
     assert result[2]["step"] == "load"
 
     # TODO: deeper test...
+
+
+def test_get_remote_state_details(test_pipeline):
+    remote_state = remote_state_details(test_pipeline)
+    assert remote_state[0] == {"name": "state_version", "value": 2}
+    assert remote_state[1]["name"] == "schemas"
+    assert remote_state[1]["value"].startswith("fruitshop")
+    assert remote_state[2]["name"] == ""
+    assert remote_state[2]["value"].startswith("other")
 
 
 def test_style_cell():
@@ -482,10 +549,12 @@ def test_integration_get_local_pipelines_with_sorting(temp_pipelines_dir):
     assert most_recent["timestamp"] == 2000000
 
 
-def test_integration_pipeline_workflow(test_pipeline):
+def test_integration_pipeline_workflow(test_pipeline, temp_pipelines_dir):
     """Test integration scenario with complete pipeline workflow"""
     # Test pipeline details
-    details = pipeline_details(test_pipeline)
+    config = DashboardConfiguration()
+
+    details = pipeline_details(config, test_pipeline, temp_pipelines_dir)
     details_dict = {item["name"]: item["value"] for item in details}
     assert details_dict["pipeline_name"] == "test_pipeline"
 

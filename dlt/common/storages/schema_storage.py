@@ -9,7 +9,7 @@ from dlt.common.schema.utils import get_processing_hints, to_pretty_json, to_pre
 from dlt.common.storages.configuration import (
     SchemaStorageConfiguration,
     TSchemaFileFormat,
-    SchemaFileExtensions,
+    SCHEMA_FILES_EXTENSIONS,
 )
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import Schema, verify_schema_hash
@@ -84,11 +84,10 @@ class SchemaStorage(Mapping[str, Schema]):
                 self._load_import_schema(schema.name)
             except FileNotFoundError:
                 # save import schema only if it not exist
-                self._export_schema(
+                import_schema_hash = self._export_schema(
                     schema, self.config.import_schema_path, remove_processing_hints=True
                 )
-                # if import schema got saved then add own version hash as import version hash
-                schema._imported_version_hash = schema.version_hash
+                schema._imported_version_hash = import_schema_hash
                 return True
 
         return False
@@ -187,26 +186,37 @@ class SchemaStorage(Mapping[str, Schema]):
 
     def _export_schema(
         self, schema: Schema, export_path: str, remove_processing_hints: bool = False
-    ) -> None:
-        stored_schema = schema.to_dict(
-            remove_defaults=self.config.external_schema_format_remove_defaults,
-            remove_processing_hints=remove_processing_hints,
-        )
+    ) -> str:
         if self.config.external_schema_format == "json":
-            exported_schema_s = to_pretty_json(stored_schema)
+            exported_schema_s = schema.to_pretty_json(
+                remove_defaults=self.config.external_schema_format_remove_defaults,
+                remove_processing_hints=remove_processing_hints,
+            )
         elif self.config.external_schema_format == "yaml":
-            exported_schema_s = to_pretty_yaml(stored_schema)
+            exported_schema_s = schema.to_pretty_yaml(
+                remove_defaults=self.config.external_schema_format_remove_defaults,
+                remove_processing_hints=remove_processing_hints,
+            )
+        elif self.config.external_schema_format == "dbml":
+            exported_schema_s = schema.to_dbml(remove_processing_hints=remove_processing_hints)
         else:
             raise ValueError(self.config.external_schema_format)
 
         export_storage = FileStorage(export_path, makedirs=True)
         schema_file = self._file_name_in_store(schema.name, self.config.external_schema_format)
         export_storage.save(schema_file, exported_schema_s)
+
+        # export schema with the same settings
+        stored_schema = schema.to_dict(
+            remove_defaults=self.config.external_schema_format_remove_defaults,
+            remove_processing_hints=remove_processing_hints,
+        )
         logger.info(
             f"Schema {schema.name} exported to {export_path} with version"
             f" {stored_schema['version']}:{stored_schema['version_hash']} as"
             f" {self.config.external_schema_format}"
         )
+        return stored_schema["version_hash"]
 
     def _save_schema(self, schema: Schema) -> str:
         """Saves schema to schema store and bumps the version"""
@@ -248,7 +258,7 @@ class SchemaStorage(Mapping[str, Schema]):
     def load_schema_file(
         path: str,
         name: str,
-        extensions: Tuple[TSchemaFileFormat, ...] = SchemaFileExtensions,
+        extensions: Tuple[TSchemaFileFormat, ...] = SCHEMA_FILES_EXTENSIONS,
         remove_processing_hints: bool = False,
     ) -> Schema:
         storage = FileStorage(path)
@@ -270,6 +280,10 @@ class SchemaStorage(Mapping[str, Schema]):
             imported_schema: DictStrAny = json.loads(schema_str)
         elif extension == "yaml":
             imported_schema = yaml.safe_load(schema_str)
+        elif extension == "dbml":
+            raise ValueError(extension, "Schema parser for `dbml` not yet implemented")
+        elif extension == "dot":
+            raise ValueError(extension, "Schema parser for `dot` not yet implemented")
         else:
             raise ValueError(extension)
         return imported_schema

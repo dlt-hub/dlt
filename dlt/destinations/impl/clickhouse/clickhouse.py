@@ -56,7 +56,8 @@ from dlt.destinations.job_client_impl import (
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest, FinalizedLoadJobWithFollowupJobs
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
-from dlt.destinations.utils import get_deterministic_temp_table_name, is_compression_disabled
+from dlt.destinations.utils import get_deterministic_temp_table_name
+from dlt.destinations.path_utils import get_file_format_and_compression
 
 
 class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
@@ -83,10 +84,16 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
             bucket_url = urlparse(bucket_path)
             bucket_scheme = bucket_url.scheme
 
-        ext = cast(SUPPORTED_FILE_FORMATS, os.path.splitext(file_name)[1][1:].lower())
-        clickhouse_format: str = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[ext]
-
         compression = "auto"
+
+        file_format, is_compressed = get_file_format_and_compression(file_name)
+        clickhouse_format: str = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[
+            cast(SUPPORTED_FILE_FORMATS, file_format)
+        ]
+
+        if file_format == "jsonl":
+            # Auto does not work for jsonl. So we set it to 'none' if not compressed
+            compression = "gz" if is_compressed else "none"
 
         # Don't use the DBAPI driver for local files.
         if not bucket_path or bucket_scheme == "file":
@@ -95,9 +102,6 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                 if not bucket_path
                 else FilesystemConfiguration.make_local_path(bucket_path)
             )
-            # Local filesystem.
-            if ext == "jsonl":
-                compression = "gz" if FileStorage.is_gzipped(file_path) else "none"
             try:
                 client.insert_file(file_path, self.load_table_name, clickhouse_format, compression)
             except clickhouse_connect.driver.exceptions.Error as e:
@@ -108,12 +112,6 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
             return
 
         qualified_table_name = client.make_qualified_table_name(self.load_table_name)
-
-        # Auto does not work for jsonl, get info from config for buckets
-        # NOTE: we should not really be accessing the config this way, but for
-        # now it is ok...
-        if ext == "jsonl":
-            compression = "none" if is_compression_disabled() else "gz"
 
         if bucket_scheme in ("s3", "gs", "gcs"):
             if not isinstance(self._staging_credentials, AwsCredentialsWithoutDefaults):
@@ -184,10 +182,10 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
             )
 
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
+    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
         return (
             f"DROP TABLE IF EXISTS {temp_table_name} SYNC; CREATE TABLE {temp_table_name} ENGINE ="
-            f" Memory AS {select_sql};"
+            f" MergeTree PRIMARY KEY {unique_column} AS {select_sql}"
         )
 
     @classmethod

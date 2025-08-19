@@ -20,7 +20,7 @@ from dlt.common.destination.dataset import DBApiCursor
 from dlt.common.typing import TFun
 
 from dlt.destinations.typing import DBTransaction
-from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_client import SqlClientBase, raise_database_error
 from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyCredentials
 from dlt.destinations.impl.sqlalchemy.alter_table import MigrationMaker
 from dlt.destinations.sql_client import DBApiCursorImpl
@@ -39,26 +39,6 @@ class SqlaTransactionWrapper(DBTransaction):
             self.sqla_transaction.rollback()
 
 
-def raise_database_error(f: TFun) -> TFun:
-    @wraps(f)
-    def _wrap_gen(self: "SqlalchemyClient", *args: Any, **kwargs: Any) -> Any:
-        try:
-            return (yield from f(self, *args, **kwargs))
-        except Exception as e:
-            raise self._make_database_exception(e) from e
-
-    @wraps(f)
-    def _wrap(self: "SqlalchemyClient", *args: Any, **kwargs: Any) -> Any:
-        try:
-            return f(self, *args, **kwargs)
-        except Exception as e:
-            raise self._make_database_exception(e) from e
-
-    if inspect.isgeneratorfunction(f):
-        return _wrap_gen  # type: ignore[return-value]
-    return _wrap  # type: ignore[return-value]
-
-
 class SqlaDbApiCursor(DBApiCursorImpl):
     def __init__(self, curr: sa.engine.CursorResult) -> None:
         # Sqlalchemy CursorResult is *mostly* compatible with DB-API cursor
@@ -71,7 +51,7 @@ class SqlaDbApiCursor(DBApiCursorImpl):
         try:
             return list(cast(sa.engine.CursorResult, self.native_cursor).keys())
         except ResourceClosedError:
-            # this happens if now rows are returned
+            # this happens if no rows are returned
             return []
 
     # @property
@@ -339,8 +319,6 @@ class SqlalchemyClient(SqlClientBase[Connection]):
     def make_qualified_table_name_path(
         self, table_name: Optional[str], quote: bool = True, casefold: bool = True
     ) -> List[str]:
-        from sqlalchemy.sql import quoted_name
-
         path: List[str] = []
         # no catalog for sqlalchemy
         if catalog_name := self.catalog_name(quote=quote, casefold=casefold):
@@ -366,7 +344,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         if self.migrations is None:
             self.migrations = MigrationMaker(self.dialect)
         for column in columns:
-            self.migrations.add_column(column.table.name, column, self.dataset_name)
+            self.migrations.add_column(column.table.name, column, schema=self.dataset_name)
         statements = self.migrations.consume_statements()
         for statement in statements:
             self.execute_sql(statement)

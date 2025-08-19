@@ -1,3 +1,4 @@
+import contextlib
 import io
 import sys
 import binascii
@@ -24,18 +25,17 @@ class SynthesizingUnpickler(pickle.Unpickler):
     """Unpickler that synthesizes missing types instead of raising"""
 
     def find_class(self, module: str, name: str) -> Any:
+        full_name = f"{module}.{name}"
+        module_obj = sys.modules[__name__]
+        with contextlib.suppress(AttributeError):
+            return getattr(module_obj, full_name)
         try:
             return super().find_class(module, name)
-        except (ImportError, AttributeError):
-            # synthesize the type so it can unpickle everything
-            module_obj = sys.modules[__name__]
-            try:
-                return getattr(module_obj, name)
-            except Exception:
-                # synthesize type
-                t = type(name, (MissingUnpickledType,), {"__module__": module})
-                setattr(module_obj, name, t)
-                return t
+        except Exception:
+            # synthesize type if class not found or deserialization failed (ie. version mismatch)
+            t = type(name, (MissingUnpickledType,), {"__module__": module})
+            setattr(module_obj, full_name, t)
+            return t
 
 
 def encode_obj(o: Any, ignore_pickle_errors: bool = True) -> str:

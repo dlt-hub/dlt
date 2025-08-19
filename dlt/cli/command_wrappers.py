@@ -140,17 +140,24 @@ def schema_command_wrapper(file_path: str, format_: str, remove_defaults: bool) 
             schema_dict = yaml.safe_load(f)
     s = Schema.from_dict(schema_dict)
     if format_ == "json":
-        schema_str = json.dumps(s.to_dict(remove_defaults=remove_defaults), pretty=True)
+        schema_str = s.to_pretty_json(remove_defaults=remove_defaults)
+    elif format_ == "yaml":
+        schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults)
+    elif format_ == "dbml":
+        schema_str = s.to_dbml()
+    elif format_ == "dot":
+        schema_str = s.to_dot()
     else:
         schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults)
+
     fmt.echo(schema_str)
 
 
 @utils.track_command("dashboard", True)
-def dashboard_command_wrapper() -> None:
+def dashboard_command_wrapper(pipelines_dir: Optional[str], edit: bool) -> None:
     from dlt.helpers.dashboard.runner import run_dashboard
 
-    run_dashboard()
+    run_dashboard(pipelines_dir=pipelines_dir, edit=edit)
 
 
 @utils.track_command("telemetry", False)

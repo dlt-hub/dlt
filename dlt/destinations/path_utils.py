@@ -139,7 +139,7 @@ def prepare_params(
     if job_info:
         table_name = job_info.table_name
         file_id = job_info.file_id
-        ext = job_info.file_format
+        ext = job_info.full_extension()
         params.update(
             {
                 "table_name": table_name,
@@ -241,7 +241,7 @@ def create_path(
 
     # if extension is not defined, we append it at the end
     if "ext" not in placeholders:
-        path += f".{job_info.file_format}"
+        path = job_info.full_extension()
 
     return path
 
@@ -286,3 +286,22 @@ def get_table_prefix_layout(
         )
 
     return prefix
+
+
+def get_file_format_and_compression(file_path: str) -> Tuple[str, bool]:
+    """Return file format and whether an explicit .gz compression extension is present.
+    Primarily used in cases that ParsedLoadJobFileName.parse() can't handle, that is,
+    staging storage files that have a configurabe layout."""
+    root, ext = os.path.splitext(file_path)
+
+    file_format: str = None
+    compression_ext: bool = False
+
+    if ext == ".gz":
+        compression_ext = True
+        _, ext = os.path.splitext(root)
+        file_format = ext[1:]  # remove the dot
+    else:
+        file_format = ext[1:]  # remove the dot
+
+    return file_format, compression_ext
