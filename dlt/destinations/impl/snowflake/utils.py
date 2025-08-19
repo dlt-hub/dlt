@@ -94,7 +94,9 @@ def gen_copy_sql(
         if stage_bucket_url:
             parsed_bucket_url = urlparse(stage_bucket_url)
             stage_bucket_path = parsed_bucket_url.path.lstrip("/")
-            if stage_bucket_path:
+            if parsed_bucket_url.netloc and parsed_bucket_url.scheme:
+                relative_url = relative_url.removeprefix(f"{parsed_bucket_url.scheme}://{parsed_bucket_url.netloc}/")
+            elif stage_bucket_path:
                 relative_url = relative_url.removeprefix(stage_bucket_path)
 
         from_clause = f"FROM @{stage_name}"
