@@ -87,4 +87,5 @@ jobs:
       - name: Test notebooks
         run: cd docs/notebooks && make test
 
-
+      - name: Lint education notebooks
+        run: make lint-notebooks

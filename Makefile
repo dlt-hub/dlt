@@ -64,6 +64,7 @@ lint:
 
 format:
 	uv run black dlt docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
+	uv run black docs/education --ipynb --extend-exclude='.*syntax_error.py|_storage/.*'
 
 lint-snippets:
 	cd docs/tools && uv run python check_embedded_snippets.py full
@@ -88,6 +89,13 @@ test-examples:
 lint-security:
 	# go for ll by cleaning up eval and SQL warnings.
 	uv run bandit -r dlt/ -n 3 -lll
+
+lint-notebooks:
+	uv run nbqa flake8 docs/education --extend-ignore=D,F704 --max-line-length=200
+	uv run nbqa mypy docs/education \
+	--ignore-missing-imports \
+	--disable-error-code=no-redef \
+	--disable-error-code=top-level-await
 
 # check docstrings for all important public classes and functions
 lint-docstrings:
