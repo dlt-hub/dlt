@@ -12,4 +12,4 @@ if not TYPE_CHECKING:
         expected_due="2.0.0",
     )
 
-from dlt.dataset import dataset  # noqa: F401
+from dlt.dataset.dataset import dataset  # noqa: F401
