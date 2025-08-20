@@ -5,7 +5,6 @@ app = marimo.App(width="medium")
 
 with app.setup:
     import marimo as mo
-    import pathlib
     from dlt.common.storages import FileStorage
     from dlt.common.pipeline import get_dlt_pipelines_dir
     from dlt.helpers.marimo.utils import _file_loader
