@@ -1,7 +1,7 @@
-from dlt.helpers.marimo._widgets import render, pipeline_browser
+from dlt.helpers.marimo._widgets import render, load_package_inspector
 
 
 __all__ = (
     "render",
-    "pipeline_browser",
+    "load_package_inspector",
 )
