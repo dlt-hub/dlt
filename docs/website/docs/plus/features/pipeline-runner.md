@@ -6,16 +6,15 @@ keywords: ["runner", "pipeline", "retry", "trace"]
 # Runner
 
 
-The dlt+ Runner provides a production-ready run command for your pipelines. It offers robust error handling, retry mechanisms, and comprehensive monitoring capabilities to ensure reliable pipeline execution in production environments.
-
-The Runner executes pipelines defined in your `dlt.yml` manifest file and provides advanced configuration options for handling failures, storing execution traces, and managing pipeline state.
+The dlt+ Runner provides a production-ready run command for your pipelines. It offers robust error handling, retry mechanisms, and 
+near atomic trace storage to destinations of your choice.
 The runner can be configured for each pipeline via your `dlt.yml`, or you can use it directly
 in your python code.
 
 ## Key features
 
-- **Automatic retry policies** with configurable backoff strategies
 - **Trace storage** to a configurable destination for debugging and monitoring pipeline executions
+- **Automatic retry policies** with configurable backoff strategies
 - **Clean state management** to ensure consistent pipeline runs
 
 ## Configuration
@@ -44,7 +43,8 @@ pipelines:
 ## Run from clean folder
 
 The `run_from_clean_folder` parameter controls whether the pipeline starts from a clean state before running.
-When enabled, the pipeline's local state and working directory are deleted and synchronized with the destination to get the latest schema and state.
+When enabled, the pipeline's working directory which holds the state, schema and any pending data are deleted 
+and state and schema are synchronized from the destination.
 
 ```yaml
 pipelines:
@@ -53,9 +53,12 @@ pipelines:
       run_from_clean_folder: true
 ```
 
-**Behavior:**
-- `false` (default): Any pending loads (or traces) from previous runs are finalized before running
-- `true`: The pipeline's local folders are wiped before running and state is synced from the destination.
+:::note
+The dlt+ runner behaves differently from `pipeline.run()` when there exists pending data in the pipeline's working directory:
+`pipeline.run()` will load only the pending data instead and needs to be invoked again for the given data.
+The dlt+ runner will also try finalizing the pending data, applying the retry policy and the trace settings, and then also
+try running with the given data.
+:::
 
 
 ## Trace storage
@@ -73,7 +76,7 @@ pipelines:
     run_config:
       store_trace_info: true
 ```
-Setting `store_trace_info: true` will create trace pipeline configuration implicitly.
+Setting `store_trace_info: true` will derive the trace pipeline writing configuration from the main pipeline.
 That trace pipeline will be named `_trace_<pipeline_name>` and write to the same destination as the main pipeline.
 
 Alternatively, you can explicitly define a trace pipeline in your `dlt.yml`, e.g. if you want 
@@ -83,18 +86,18 @@ to use a different destination to separate production data from traces:
 destination:
   log_filesystem:
     type: filesystem
-    bucket_url: "file:///tmp/dlt_traces"
+    bucket_url: "file:///logs/dlt_traces"
 
 pipelines:
-  trace_pipeline:
-    source: my_source # << this will not actually be accessed but can not be empty
-    destination: log_filesystem
-    
   my_pipeline:
     source: my_source
     destination: duckdb
     run_config:
       store_trace_info: trace_pipeline
+    
+  trace_pipeline:
+    source: my_source # << this will not actually be used but can not be empty
+    destination: log_filesystem
 ```
 
 ### Trace table naming
@@ -154,7 +157,7 @@ pipelines:
 
 ## Python API
 
-You can use the runner directly in your python code as well to finalize pending data or to run pipelines.
+You can also use the runner directly in your python code, e.g. to finalize pending data or to run pipelines.
 
 ```py
 import dlt
@@ -171,7 +174,7 @@ pipeline = dlt.pipeline(
     dataset_name="my_dataset",
 )
 
-load_info = dlt_plus.runner(pipeline, run_from_clean_folder=True).run(my_resource())
+load_info = dlt_plus.runner(pipeline, run_from_clean_folder=True).run(my_resource(), write_disposition="append")
 print(load_info)
 
 # or just to finalize pending data reliably
