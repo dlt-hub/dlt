@@ -181,7 +181,7 @@ You can also use the runner directly in your python code, e.g. to finalize pendi
 
 ```py
 import dlt
-from dlt_plus
+import dlt_plus
 from tenacity import Retrying, stop_after_attempt
 
 @dlt.resource(table_name="numbers")
