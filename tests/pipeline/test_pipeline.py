@@ -1,5 +1,6 @@
 import asyncio
 import pathlib
+import pickle
 from concurrent.futures import ThreadPoolExecutor
 import itertools
 import logging
@@ -3867,7 +3868,6 @@ def test_nested_hints_primary_key() -> None:
     load_info = p.run(customers().add_map(_pushdown_customer_id))
     assert p.dataset().row_counts().fetchall() == row_count
 
-
 def test_pipeline_repr() -> None:
     sentinel = object()
     p = dlt.pipeline(pipeline_name="repr_pipeline", destination="duckdb")
@@ -3891,6 +3891,17 @@ def test_pipeline_repr() -> None:
     assert getattr(p, "is_active", sentinel) is not sentinel
     assert getattr(p, "pipelines_dir", sentinel) is not sentinel
     assert getattr(p, "working_dir", sentinel) is not sentinel
+    
+    
+def test_repr_after_loading_trace(tmp_path):
+    pipeline_name = "foo"
+    trace_path = tmp_path / pipeline_name / "trace.pickle"
+    pipeline = dlt.pipeline(pipeline_name, destination="duckdb", pipelines_dir=tmp_path)
+    pipeline.run([{"foo": "bar"}], table_name="temp")
+    trace = pickle.load(trace_path.open("rb"))
+    
+    # ensure calling `__repr__()` shouldn't cause any error
+    trace.__repr__()
 
 
 def test_pipeline_with_null_executors(monkeypatch) -> None:
