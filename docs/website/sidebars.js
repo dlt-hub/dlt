@@ -179,6 +179,7 @@ const sidebars = {
           label: 'Going to production',
           items: [
             'plus/production/runners',
+            'plus/production/pipeline-runner',
             'plus/production/observability',
           ]
         },

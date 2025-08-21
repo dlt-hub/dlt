@@ -17,9 +17,19 @@ in your python code.
 - **Automatic retry policies** with configurable backoff strategies
 - **Clean state management** to ensure consistent pipeline runs
 
+## Usage
+
+Running the pipeline from the command line will use the runner with the default configuration.
+
+```sh
+dlt pipeline my_pipeline run
+```
+
 ## Configuration
 
 The Runner is configured through the `run_config` section in your `dlt.yml` file.
+Configuration via environment variables or `config.toml` is still under development. For direct access
+you can also use the [Python API of the runner](../features/pipeline-runner.md#python-api) in your code.
 
 ### Complete configuration example
 
@@ -42,9 +52,11 @@ pipelines:
 
 ## Run from clean folder
 
-The `run_from_clean_folder` parameter controls whether the pipeline starts from a clean state before running.
-When enabled, the pipeline's working directory which holds the state, schema and any pending data are deleted 
-and state and schema are synchronized from the destination.
+When this `run_from_clean_folder` option is enabled, the [pipeline working directory](docs/general-usage/pipeline#pipeline-working-directory) 
+is removed before the pipeline runs. The state, schema and
+all files from previous runs are deleted and state and schema are synchronized from the destination (similar to
+[dlt pipeline sync](../reference/command-line-interface.md#dlt-pipeline-sync)).
+
 
 ```yaml
 pipelines:
@@ -63,7 +75,15 @@ try running with the given data.
 
 ## Trace storage
 
-The `store_trace_info` parameter enables automatic storage of the pipelines trace, which can be used for for debugging, auditing, and monitoring pipeline runs.
+The `store_trace_info` parameter enables automatic storage of the pipelines runtime
+[trace](https://github.com/dlt-hub/dlt/blob/273420b2574a518a7488443253ab1e0971b136e8/dlt/pipeline/trace.py#L126)
+which contains detailed information about a run, e.g. timings of each step, schema changes and exceptions. (see
+[here](../running-in-production/running#inspect-and-save-the-load-info-and-trace)).
+
+The runner will convert the trace into a `dict` and try loading it to the destination using a separate pipeline,
+which runs directly after each successful or failed attempt of the main pipeline.
+If any pending data is finalized before running the main pipeline, the trace of that finalization is also stored.
+
 
 ### Trace pipeline configuration
 
