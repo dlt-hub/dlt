@@ -7,7 +7,7 @@ with app.setup:
     import marimo as mo
     from dlt.common.storages import FileStorage
     from dlt.common.pipeline import get_dlt_pipelines_dir
-    from dlt.helpers.marimo.utils import _file_loader
+    from dlt.helpers.marimo.utils import _load_file
 
 
 @app.cell
@@ -56,7 +56,7 @@ def _(select_pipeline):
 @app.cell
 def _(pipeline_details):
     if pipeline_details.value:
-        obj = _file_loader(pipeline_details.value[0].path)
+        obj = _load_file(pipeline_details.value[0].path)
     else:
         obj = None
 
