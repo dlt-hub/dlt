@@ -36,6 +36,24 @@ Here's a screenshot of the interface you should see:
 
 ## Features
 
+### Use custom dlt widgets
+
+Inside your marimo notebook, you can use widgets built and maintained by the dlt team.
+
+Simply import them from `dlt.helpers.marimo` and pass them to the `render()` function. Note that `render()` is asynchronous and must be awaited with `await`.
+
+```python
+#%% cell 1
+import marimo as mo
+from dlt.helpers.marimo import render, load_package_viewer
+
+#%% cell 2
+await render(load_package_viewer)
+```
+
+![Example marimo widget](https://storage.googleapis.com/dlt-blog-images/marimo-widget-screenshot.png)
+
+
 ### View dataset tables and columns
 
 After loading data with dlt, you can access it via the [dataset interface](./dataset.md), including a [native ibis connection](./ibis-backend.md).
