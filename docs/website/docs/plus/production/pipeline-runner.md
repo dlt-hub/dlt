@@ -29,7 +29,7 @@ dlt pipeline my_pipeline run
 
 The Runner is configured through the `run_config` section in your `dlt.yml` file.
 Configuration via environment variables or `config.toml` is still under development. For direct access
-you can also use the [Python API of the runner](../features/pipeline-runner.md#python-api) in your code.
+you can also use the [Python API of the runner](./pipeline-runner.md#python-api) in your code.
 
 ### Complete configuration example
 
@@ -52,10 +52,10 @@ pipelines:
 
 ## Run from clean folder
 
-When this `run_from_clean_folder` option is enabled, the [pipeline working directory](docs/general-usage/pipeline#pipeline-working-directory) 
+When this `run_from_clean_folder` option is enabled, the [pipeline working directory](../../general-usage/pipeline#pipeline-working-directory) 
 is removed before the pipeline runs. The state, schema and
 all files from previous runs are deleted and state and schema are synchronized from the destination (similar to
-[dlt pipeline sync](../reference/command-line-interface.md#dlt-pipeline-sync)).
+[dlt pipeline sync](../../reference/command-line-interface.md#dlt-pipeline-sync)).
 
 
 ```yaml
@@ -78,7 +78,7 @@ try running with the given data.
 The `store_trace_info` parameter enables automatic storage of the pipelines runtime
 [trace](https://github.com/dlt-hub/dlt/blob/273420b2574a518a7488443253ab1e0971b136e8/dlt/pipeline/trace.py#L126)
 which contains detailed information about a run, e.g. timings of each step, schema changes and exceptions. (see
-[here](../running-in-production/running#inspect-and-save-the-load-info-and-trace)).
+[here](../../running-in-production/running#inspect-and-save-the-load-info-and-trace)).
 
 The runner will convert the trace into a `dict` and try loading it to the destination using a separate pipeline,
 which runs directly after each successful or failed attempt of the main pipeline.

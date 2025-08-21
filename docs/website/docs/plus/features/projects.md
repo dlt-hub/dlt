@@ -202,7 +202,7 @@ pipelines:
       retry_pipeline_steps: ["load"]
 ```
 
-Read more about these options [here](./pipeline-runner.md).
+Read more about these options [here](../production/pipeline-runner.md).
 
 ### Project settings and variable substitution
 
