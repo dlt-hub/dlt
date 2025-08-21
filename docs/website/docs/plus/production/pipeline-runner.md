@@ -1,6 +1,6 @@
 ---
-title: "Dlt+ Runner"
-description: Run pipelines with the Dlt+ Runner
+title: "Pipeline Runner"
+description: Run pipelines with the dlt+ Runner
 keywords: ["runner", "pipeline", "retry", "trace"]
 ---
 # Runner
