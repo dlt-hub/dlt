@@ -952,7 +952,9 @@ class Pipeline(SupportsPipeline):
     def __repr__(self) -> str:
         kwargs = {
             "pipeline_name": self.pipeline_name,
-            "destination": self._destination.destination_name if getattr(self, "_destination", None) else None,
+            "destination": (
+                self._destination.destination_name if getattr(self, "_destination", None) else None
+            ),
             "staging": self._staging.destination_name if getattr(self, "_staging", None) else None,
             "dataset_name": self.dataset_name,
             "default_schema_name": self.default_schema_name,
