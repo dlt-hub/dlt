@@ -926,19 +926,22 @@ def changes_without_dlt_changes(
     removed.
     Args:
         updates: The updates made to all tables in the schema, e.g. from trace load packages
-        exclude_dlt_tables: If True, remove tables whose name starts with _dlt_
-        exclude_dlt_columns: If True, remove columns whose name starts with _dlt_
+        exclude_dlt_tables: If True, remove tables whose name starts with given dlt_tables_prefix
+        exclude_dlt_columns: If True, remove columns whose name starts with given dlt_column_prefix
         dlt_column_prefix: as normalized in the schema, see schema._dlt_column_prefix
         dlt_tables_prefix: as normalized in the schema, see schema._dlt_tables_prefix
     Returns:
         Filtered dict with the same structure as input.
     """
-    filtered_tables = {}
+
+    filtered_tables: Dict[str, TTableSchema] = {}
     for table_name, table_schema in updates.items():
         if exclude_dlt_tables and table_name.startswith(dlt_tables_prefix):
             continue
 
-        new_table_schema = {k: v for k, v in table_schema.items() if k != "columns"}
+        # Create a copy of the table schema, preserving all fields except columns
+        new_table_schema = cast(TTableSchema, {k: v for k, v in table_schema.items() if k != "columns"})
+
         if "columns" in table_schema:
             if exclude_dlt_columns:
                 new_table_schema["columns"] = {
@@ -948,9 +951,9 @@ def changes_without_dlt_changes(
                 }
             else:
                 new_table_schema["columns"] = table_schema["columns"]
+
         filtered_tables[table_name] = new_table_schema
     return filtered_tables
-
 
 
 def get_root_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
