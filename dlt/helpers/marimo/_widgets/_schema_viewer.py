@@ -9,7 +9,6 @@ with app.setup:
     import dlt
     from dlt.common.storages import FileStorage
     from dlt.common.pipeline import get_dlt_pipelines_dir
-    from dlt.helpers.graphviz import schema_to_graphviz
 
 
 @app.cell

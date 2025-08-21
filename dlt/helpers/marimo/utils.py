@@ -1,9 +1,14 @@
+from __future__ import annotations
+
 import pathlib
 import textwrap
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from dlt.common.storages import FileStorage
 from dlt.common.pipeline import get_dlt_pipelines_dir
+
+if TYPE_CHECKING:
+    import pyarrow
 
 
 def list_pipelines(pipelines_dir: str = None) -> list[str]:
@@ -29,9 +34,9 @@ def _load_json(file_path: pathlib.Path) -> dict:
 
 
 def _load_jsonl(file_path: pathlib.Path) -> list[dict]:
-    records = []
-    with file_path.open() as f:
-        f.readlines()
+    import json
+    with file_path.open("r") as f:
+        records = [json.loads(line.strip("\n")) for line in f.readlines()]
     return records
 
 
@@ -39,12 +44,17 @@ def _load_gzip(file_path: pathlib.Path) -> str:
     return FileStorage.open_zipsafe_ro(str(file_path)).read()
 
 
-def _load_parquet(file_path: pathlib.Path) -> Any:
-    import pyarrow.parquet as pq
-    return pq.read_table(file_path)
+def _load_parquet(file_path: pathlib.Path) -> pyarrow.Table:
+    import pyarrow.parquet
+    return pyarrow.parquet.read_table(file_path)
 
 
-def _load_insert_values_gzip(file_path: pathlib.Path):
+def _load_csv(file_path: pathlib.Path) -> pyarrow.Table:
+    import pyarrow.csv
+    return pyarrow.csv.read_csv(file_path)
+
+
+def _load_insert_values_gzip(file_path: pathlib.Path) -> pyarrow.Table:
     import sqlglot
     import duckdb
 
@@ -73,7 +83,15 @@ def _load_insert_values_gzip(file_path: pathlib.Path):
     return arrow_table
 
 
-def _file_loader(file_path: pathlib.Path) -> Any:
+def _load_raw_text(file_path: pathlib.Path) -> str:
+    return file_path.read_text()
+
+
+def _load_raw_bytes(file_path: pathlib.Path) -> bytes:
+    return file_path.read_bytes()
+
+
+def _load_file(file_path: pathlib.Path) -> Any:
     try:
         if file_path.suffix == ".pickle":
             return _load_pickle(file_path)
@@ -81,11 +99,19 @@ def _file_loader(file_path: pathlib.Path) -> Any:
             return _load_json(file_path)
         elif file_path.suffix == ".jsonl":
             return _load_jsonl(file_path)
-        elif all(suffix in file_path.suffixes for suffix in [".insert_values", ".gz"]):
+        elif ".insert_values" in file_path.suffixes and file_path.suffix in (".gzip", ".gz"):
             return _load_insert_values_gzip(file_path)
         elif file_path.suffix in (".gzip", ".gz"):
             return _load_gzip(file_path)
+        elif file_path.suffix == ".parquet":
+            return _load_parquet(file_path)
+        elif file_path.suffix == ".csv":
+            return _load_csv(file_path)
         else:
-            return file_path.read_text()
+            return _load_raw_text(file_path)
     except Exception:
-        return file_path.read_text()
+        return _load_raw_bytes(file_path)
+    
+if __name__ == "__main__":
+    content = _load_gzip("/home/tjean/.dlt/pipelines/jaffle_ingest/load/loaded/1755186590.2702518/completed_jobs/products.3f809f77ab.0.insert_values.gz")
+    print(content)
