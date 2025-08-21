@@ -929,7 +929,6 @@ def changes_without_dlt_changes(
     return filtered_tables
 
 
-
 def get_root_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
     """Finds root (without parent) of a `table_name` following the nested references (row_key - parent_key)."""
     table = tables[table_name]
