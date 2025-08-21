@@ -25,32 +25,37 @@ def list_pipelines(pipelines_dir: str = None) -> list[str]:
 
 def _load_pickle(file_path: pathlib.Path) -> Any:
     import pickle
+
     return pickle.loads(file_path.read_bytes())
 
 
-def _load_json(file_path: pathlib.Path) -> dict:
-    import json
-    return json.loads(file_path.read_bytes())
+def _load_json(file_path: pathlib.Path) -> Any:
+    from dlt.common import json
+
+    return json.loads(file_path.read_text())
 
 
-def _load_jsonl(file_path: pathlib.Path) -> list[dict]:
-    import json
+def _load_jsonl(file_path: pathlib.Path) -> list[Any]:
+    from dlt.common import json
+
     with file_path.open("r") as f:
         records = [json.loads(line.strip("\n")) for line in f.readlines()]
     return records
 
 
-def _load_gzip(file_path: pathlib.Path) -> str:
+def _load_gzip(file_path: pathlib.Path) -> Any:
     return FileStorage.open_zipsafe_ro(str(file_path)).read()
 
 
 def _load_parquet(file_path: pathlib.Path) -> pyarrow.Table:
     import pyarrow.parquet
+
     return pyarrow.parquet.read_table(file_path)
 
 
 def _load_csv(file_path: pathlib.Path) -> pyarrow.Table:
     import pyarrow.csv
+
     return pyarrow.csv.read_csv(file_path)
 
 
@@ -59,22 +64,20 @@ def _load_insert_values_gzip(file_path: pathlib.Path) -> pyarrow.Table:
     import duckdb
 
     table_name = file_path.name.partition(".")[0]
-    
+
     insert_statement = _load_gzip(file_path)
     # Remove the `E` prefix used by postgres-style quote escapes
-    insert_statement = insert_statement.replace("E\'", r"'")
+    insert_statement = insert_statement.replace("E'", r"'")
     # For some reason, the INSERT statement is missing the table name
     # we can get this info from the file name
     insert_statement = insert_statement.replace("{}", f"{table_name} ")
     insert_expr = sqlglot.parse(insert_statement)[0]
 
-    query = textwrap.dedent(
-        f"""\
+    query = textwrap.dedent(f"""\
         CREATE TABLE {table_name} AS
         FROM ({insert_expr.expression.sql()})
         AS {insert_expr.this.sql()}
-        """
-    )
+        """)
 
     con = duckdb.connect(":memory:")
     con.execute(query)
@@ -111,7 +114,3 @@ def _load_file(file_path: pathlib.Path) -> Any:
             return _load_raw_text(file_path)
     except Exception:
         return _load_raw_bytes(file_path)
-    
-if __name__ == "__main__":
-    content = _load_gzip("/home/tjean/.dlt/pipelines/jaffle_ingest/load/loaded/1755186590.2702518/completed_jobs/products.3f809f77ab.0.insert_values.gz")
-    print(content)

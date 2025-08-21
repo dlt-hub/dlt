@@ -37,8 +37,8 @@ def test_load_jsonl(tmp_path):
     obj = [{"foo": "bar"}, {"foo": "baz"}]
     with file_path.open("w") as f:
         for record in obj:
-            f.write(json.dumps(record) + '\n')
-    
+            f.write(json.dumps(record) + "\n")
+
     loaded_obj = marimo_utils._load_jsonl(file_path)
 
     assert loaded_obj == obj
@@ -46,11 +46,9 @@ def test_load_jsonl(tmp_path):
 
 def test_load_parquet(tmp_path):
     file_path = tmp_path / "file.parquet"
-    obj = pyarrow.table({
-        'id': [1, 2, 3],
-        'name': ['Alice', 'Bob', 'Charlie'],
-        'score': [85.0, 90.5, 88.0]
-    })
+    obj = pyarrow.table(
+        {"id": [1, 2, 3], "name": ["Alice", "Bob", "Charlie"], "score": [85.0, 90.5, 88.0]}
+    )
     pyarrow.parquet.write_table(obj, file_path)
 
     loaded_obj = marimo_utils._load_parquet(file_path)
@@ -60,11 +58,9 @@ def test_load_parquet(tmp_path):
 
 def test_load_csv(tmp_path):
     file_path = tmp_path / "file.csv"
-    obj = pyarrow.table({
-        'id': [1, 2, 3],
-        'name': ['Alice', 'Bob', 'Charlie'],
-        'score': [85.0, 90.5, 88.0]
-    })
+    obj = pyarrow.table(
+        {"id": [1, 2, 3], "name": ["Alice", "Bob", "Charlie"], "score": [85.0, 90.5, 88.0]}
+    )
     pyarrow.csv.write_csv(obj, file_path)
 
     loaded_obj = marimo_utils._load_csv(file_path)
@@ -91,11 +87,13 @@ VALUES
 (E'JAF-001',E'nutellaphone who dis?',E'jaffle',),
 (E'JAF-002',E'doctor stew',E'jaffle'),
 """
-    expected_obj = pyarrow.table({
-        "sku": ["JAF-001", "JAF-002"],
-        "name": ["nutellaphone who dis?", "doctor stew"],
-        "type": ["jaffle", "jaffle"],
-    })
+    expected_obj = pyarrow.table(
+        {
+            "sku": ["JAF-001", "JAF-002"],
+            "name": ["nutellaphone who dis?", "doctor stew"],
+            "type": ["jaffle", "jaffle"],
+        }
+    )
     with gzip.open(file_path, "w") as f:
         f.write(obj.encode())
 
@@ -118,7 +116,7 @@ VALUES
         ("file.csv", "_load_csv"),
         ("file.sql", "_load_raw_text"),
         ("file", "_load_raw_text"),
-    ]
+    ],
 )
 def test_load_file_dispatch(file_name: str, expected_triggered_fn: str):
     with unittest.mock.patch(f"dlt.helpers.marimo.utils.{expected_triggered_fn}") as mock_fn:
