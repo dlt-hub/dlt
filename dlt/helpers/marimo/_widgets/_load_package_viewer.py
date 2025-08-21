@@ -19,10 +19,7 @@ def _():
     except Exception:
         pipelines = []
 
-    pipelines_options = {
-        p: storage.storage_path + "/" + p
-        for p in sorted(pipelines)
-    }
+    pipelines_options = {p: storage.storage_path + "/" + p for p in sorted(pipelines)}
     return (pipelines_options,)
 
 

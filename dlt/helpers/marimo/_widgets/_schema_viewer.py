@@ -90,7 +90,7 @@ def _():
         Returns:
             Dict[str, str]: The css style of the cell.
         """
-        style = {}  #"background-color": "white" if (int(row_id) % 2 == 0) else "#f4f4f9"}
+        style = {}  # "background-color": "white" if (int(row_id) % 2 == 0) else "#f4f4f9"}
         if name.lower() == "name":
             style["font-weight"] = "bold"
         return style
@@ -124,16 +124,16 @@ def _():
             table_list = [t for t in table_list if not str(t["Name"]).lower().startswith("_dlt")]
 
         return _align_dict_keys(table_list)
+
     return create_table_list, style_cell
 
 
 @app.cell
 def _(dlt_schema_table_list, pipeline):
     schema_dict = pipeline.default_schema.to_dict().copy()
-    _selected_tables = [table["Name"].lower() for table in dlt_schema_table_list.value]
-
     schema_dict["tables"] = {
-        col_name: col for col_name, col in schema_dict["tables"].items()
+        col_name: col
+        for col_name, col in schema_dict["tables"].items()
         if col_name in [table["Name"].lower() for table in dlt_schema_table_list.value]
     }
 
@@ -166,26 +166,35 @@ def _(select_pipeline):
 
 @app.cell
 def _(pipeline):
-    raw_schema = mo.lazy(mo.json(pipeline.default_schema.to_dict(), label=pipeline.default_schema_name))
+    raw_schema = mo.lazy(
+        mo.json(pipeline.default_schema.to_dict(), label=pipeline.default_schema_name)
+    )
 
-    raw_schema_yaml = mo.lazy(mo.ui.code_editor(
-        pipeline.default_schema.to_pretty_yaml(),
-        language="yaml",
-    ))
+    raw_schema_yaml = mo.lazy(
+        mo.ui.code_editor(
+            pipeline.default_schema.to_pretty_yaml(),
+            language="yaml",
+        )
+    )
 
-    raw_schema_json = mo.lazy(mo.ui.code_editor(
-        pipeline.default_schema.to_pretty_json(),
-        language="json",
-    ))
+    raw_schema_json = mo.lazy(
+        mo.ui.code_editor(
+            pipeline.default_schema.to_pretty_json(),
+            language="json",
+        )
+    )
 
-    raw_schema_dbml = mo.lazy(mo.ui.code_editor(
-        value=pipeline.default_schema.to_dbml(),
-    ))
+    raw_schema_dbml = mo.lazy(
+        mo.ui.code_editor(
+            value=pipeline.default_schema.to_dbml(),
+        )
+    )
 
-    raw_schema_dot = mo.lazy(mo.ui.code_editor(
-        value=pipeline.default_schema.to_dot(),
-    ))
-
+    raw_schema_dot = mo.lazy(
+        mo.ui.code_editor(
+            value=pipeline.default_schema.to_dot(),
+        )
+    )
 
     raw_schema_format_tabs = mo.ui.tabs(
         {
