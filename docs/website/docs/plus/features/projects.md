@@ -389,7 +389,8 @@ Here, we access the entities manager, which allows you to create sources, destin
 ### Running pipelines
 
 `dlt+` includes a project runner which will instantiate pipelines from the `dlt.yml` file
-and run them, which is exactly what happens when you run pipelines from the CLI.
+and run them with the [pipeline runner](../production/pipeline-runner.md), which is exactly the same as using the [pipeline run](../reference#dlt-pipeline-run) command of the CLI.
+You can also use it directly in your code through the project context:
 
 ```py
 from dlt_plus import current
