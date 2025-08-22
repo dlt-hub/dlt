@@ -5,7 +5,7 @@ keywords: ["runner", "pipeline", "retry", "trace"]
 ---
 # Runner
 
-dlt+ provides a production-ready runner for your pipelines. It offers robust error handling, retry mechanisms, and near atomic trace storage to destinations of your choice. 
+dlt+ provides a production-ready runner for your pipelines. It offers robust error handling, retry mechanisms, and near atomic trace storage to destinations of your choice.
 
 ## Key features
 
@@ -15,11 +15,43 @@ dlt+ provides a production-ready runner for your pipelines. It offers robust err
 
 ## Usage
 
-By default, the runner will be used to run your pipeline if you use the `dlt pipeline run` command:
+The runner will be used automatically if you do `dlt pipeline run` inside a project, or you can use
+`dlt_plus.runner()` directly in your code where you define your pipeline and data.
+
+<Tabs
+  groupId="config-type"
+  defaultValue="cli"
+  values={[
+    {"label": "CLI", "value": "cli"},
+    {"label": "Python", "value": "python"}
+  ]}>
+
+<TabItem value="cli">
 
 ```sh
 dlt pipeline my_pipeline run
 ```
+
+</TabItem>
+
+<TabItem value="python">
+
+```py
+import dlt
+import dlt_plus
+pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
+
+@dlt.resource(table_name="my_table")
+def my_resource():
+    return [1, 2, 3]
+
+load_info = dlt_plus.runner(pipeline).run(my_resource())
+print(load_info)
+```
+
+</TabItem>
+
+</Tabs>
 
 ## Configuration
 
@@ -28,6 +60,16 @@ For direct access, you can also import and use the runner directly via the [Pyth
 Configuration via environment variables or `config.toml` is still under development.
 
 ### Complete configuration example
+
+<Tabs
+  groupId="config-type"
+  defaultValue="yml"
+  values={[
+    {"label": "dlt.yml", "value": "yml"},
+    {"label": "Python", "value": "python"}
+  ]}>
+
+<TabItem value="yml">
 
 ```yaml
 pipelines:
@@ -46,16 +88,47 @@ pipelines:
       retry_pipeline_steps: ["load"]
 ```
 
+</TabItem>
+
+<TabItem value="python">
+
+```py
+import dlt_plus
+from tenacity import Retrying, stop_after_attempt, wait_exponential
+
+pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
+
+@dlt.resource(table_name="my_table")
+def my_resource():
+    return [1, 2, 3]
+
+load_info = dlt_plus.runner(
+    pipeline,
+    store_trace_info=True,
+    run_from_clean_folder=True,
+    retry_policy=Retrying(
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=2, min=1, max=10),
+        reraise=True
+    ),
+    retry_pipeline_steps=["load"]
+).run(my_resource())
+```
+
+</TabItem>
+
+</Tabs>
+
+
+
 ## Trace storage
 
 The `store_trace_info` parameter enables automatic storage of the pipeline's runtime [trace](https://github.com/dlt-hub/dlt/blob/273420b2574a518a7488443253ab1e0971b136e8/dlt/pipeline/trace.py#L126), which contains detailed information about a run, e.g., timings of each step, schema changes, and exceptions (see [here](../../running-in-production/running#inspect-and-save-the-load-info-and-trace)).
 
 The runner will convert the trace into a `dict` and try loading it to the destination using a separate pipeline, which runs directly after each successful or failed attempt of the main pipeline. If any pending data is finalized before running the main pipeline, the trace of that finalization is also stored.
 
-### Trace pipeline configuration
-
-Traces are loaded using a separate pipeline, which runs directly after each successful or failed attempt of the main pipeline.
-If any pending data is finalized before running the main pipeline, the trace of that finalization is also stored.
+Setting `store_trace_info=True` will derive the trace pipeline writing configuration from the main pipeline.
+That trace pipeline will be named `_trace_<pipeline_name>` and will write to the same destination as the main pipeline.
 
 ```yaml
 pipelines:
@@ -63,8 +136,6 @@ pipelines:
     run_config:
       store_trace_info: true
 ```
-Setting `store_trace_info: true` will derive the trace pipeline writing configuration from the main pipeline.
-That trace pipeline will be named `_trace_<pipeline_name>` and will write to the same destination as the main pipeline.
 
 Alternatively, you can explicitly define a trace pipeline in your `dlt.yml`, for example, if you want 
 to use a different destination to separate production data from traces:
@@ -174,7 +245,7 @@ pipeline = dlt.pipeline(
     destination="duckdb",
     dataset_name="my_dataset",
 )
-# define a trace pipeline writing to a remote filesystem
+# Define a trace pipeline writing to a remote filesystem
 # os.environ["BUCKET_URL"] = "s3://...."
 trace_pipeline = dlt.pipeline(
     pipeline_name="my_trace_pipeline",
