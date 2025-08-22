@@ -158,7 +158,7 @@ pipelines:
 
 ## Python API
 
-You can also use the runner directly in your Python code, e.g., to finalize pending data or to run pipelines.
+You can also use the runner directly in your Python code:
 
 ```py
 import dlt
@@ -174,17 +174,25 @@ pipeline = dlt.pipeline(
     destination="duckdb",
     dataset_name="my_dataset",
 )
+# define a trace pipeline writing to a remote filesystem
+# os.environ["BUCKET_URL"] = "s3://...."
+trace_pipeline = dlt.pipeline(
+    pipeline_name="my_trace_pipeline",
+    destination="filesystem",
+    dataset_name="my_pipeline_trace_dataset",
+)
 
-load_info = dlt_plus.runner(pipeline, run_from_clean_folder=True).run(my_resource(), write_disposition="append")
+load_info = dlt_plus.runner(
+  pipeline,
+  store_trace_info=trace_pipeline,
+  run_from_clean_folder=False
+  retry_policy=Retrying(stop=stop_after_attempt(2), reraise=True),
+  retry_pipeline_steps=["extract", "normalize", "load"]
+).run(my_resource(), write_disposition="append")
 print(load_info)
 
 # Or just to finalize pending data reliably
-pipeline.extract(["a", "b", "c"], table_name="letters")
-load_info = dlt_plus.runner(
-    pipeline, 
-    retry_policy=Retrying(stop=stop_after_attempt(2), reraise=True),
-    store_trace_info=True,
-).finalize()
+load_info = dlt_plus.runner(pipeline, store_trace_info=True).finalize()
 print(load_info)
 ```
 
