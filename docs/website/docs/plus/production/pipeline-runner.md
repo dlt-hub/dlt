@@ -1,5 +1,5 @@
 ---
-title: "Pipeline Runner"
+title: "Pipeline runner"
 description: Run pipelines with the dlt+ Runner
 keywords: ["runner", "pipeline", "retry", "trace"]
 ---
@@ -140,11 +140,21 @@ pipelines:
 Alternatively, you can explicitly define a trace pipeline in your `dlt.yml`, for example, if you want 
 to use a different destination to separate production data from traces:
 
+<Tabs
+  groupId="config-type"
+  defaultValue="yml"
+  values={[
+    {"label": "dlt.yml", "value": "yml"},
+    {"label": "Python", "value": "python"}
+  ]}>
+
+<TabItem value="yml">
+
 ```yaml
 destination:
   log_filesystem:
     type: filesystem
-    bucket_url: "file:///logs/dlt_traces"
+    bucket_url: "s3://my-bucket/logs/dlt_traces"
 
 pipelines:
   my_pipeline:
@@ -157,6 +167,41 @@ pipelines:
     source: my_source # << this will not actually be used but cannot be empty
     destination: log_filesystem
 ```
+
+</TabItem>
+
+<TabItem value="python">
+```py
+import dlt
+import dlt_plus
+from tenacity import Retrying, stop_after_attempt
+
+@dlt.resource(table_name="numbers")
+def my_resource():
+    return [1, 2, 3]
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="duckdb",
+    dataset_name="my_dataset",
+)
+
+# os.environ["BUCKET_URL"] = "s3://...."
+trace_pipeline = dlt.pipeline(
+    pipeline_name="my_trace_pipeline",
+    destination="filesystem",
+    dataset_name="my_pipeline_trace_dataset",
+)
+
+load_info = dlt_plus.runner(
+  pipeline,
+  store_trace_info=trace_pipeline,
+).run(my_resource(), write_disposition="append")
+print(load_info)
+```
+</TabItem>
+
+</Tabs>
 
 ### Trace table naming
 
@@ -207,15 +252,25 @@ do not affect the main pipeline's execution.
 As a general rule, the runner will not retry on terminal exceptions, such as errors related to 
 missing credentials or configurations. For other exceptions, it will retry if the error occurred during the specified pipeline phase, which is controlled by the `retry_pipeline_steps` parameter.
 
-**Configuration examples:**
-
 | Configuration | Behavior |
 |---------------|----------|
 | `retry_pipeline_steps: ["load"]` | Only retry the load step (default) |
 | `retry_pipeline_steps: ["normalize", "load"]` | Retry both normalize and load steps |
 | `retry_pipeline_steps: ["extract", "normalize", "load"]` | Retry all main steps |
 
-**Complete example:**
+**Example configuration:**
+This is how you can configure the runner to retry 5 times unless the error is terminal or occurs during the extract step:
+
+<Tabs
+  groupId="config-type"
+  defaultValue="yml"
+  values={[
+    {"label": "dlt.yml", "value": "yml"},
+    {"label": "Python", "value": "python"}
+  ]}>
+
+<TabItem value="yml">
+
 ```yaml
 pipelines:
   my_pipeline:
@@ -227,43 +282,30 @@ pipelines:
       retry_pipeline_steps: ["normalize", "load"]
 ```
 
-## Python API
+</TabItem>
 
-You can also use the runner directly in your Python code:
+<TabItem value="python">
 
 ```py
 import dlt
 import dlt_plus
 from tenacity import Retrying, stop_after_attempt
 
-@dlt.resource(table_name="numbers")
+pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
+
+@dlt.resource(table_name="my_table")
 def my_resource():
     return [1, 2, 3]
 
-pipeline = dlt.pipeline(
-    pipeline_name="my_pipeline",
-    destination="duckdb",
-    dataset_name="my_dataset",
-)
-# Define a trace pipeline writing to a remote filesystem
-# os.environ["BUCKET_URL"] = "s3://...."
-trace_pipeline = dlt.pipeline(
-    pipeline_name="my_trace_pipeline",
-    destination="filesystem",
-    dataset_name="my_pipeline_trace_dataset",
-)
-
 load_info = dlt_plus.runner(
   pipeline,
-  store_trace_info=trace_pipeline,
-  run_from_clean_folder=False,
   retry_policy=Retrying(stop=stop_after_attempt(5), reraise=True),
-  retry_pipeline_steps=["extract", "normalize", "load"]
-).run(my_resource(), write_disposition="append")
-print(load_info)
-
-# Or just to finalize pending data reliably
-load_info = dlt_plus.runner(pipeline, store_trace_info=True).finalize()
+  retry_pipeline_steps=["normalize", "load"]
+).run(my_resource())
 print(load_info)
 ```
+
+</TabItem>
+
+</Tabs>
 
