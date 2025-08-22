@@ -185,8 +185,8 @@ trace_pipeline = dlt.pipeline(
 load_info = dlt_plus.runner(
   pipeline,
   store_trace_info=trace_pipeline,
-  run_from_clean_folder=False
-  retry_policy=Retrying(stop=stop_after_attempt(2), reraise=True),
+  run_from_clean_folder=False,
+  retry_policy=Retrying(stop=stop_after_attempt(5), reraise=True),
   retry_pipeline_steps=["extract", "normalize", "load"]
 ).run(my_resource(), write_disposition="append")
 print(load_info)
