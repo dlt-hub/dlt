@@ -55,8 +55,8 @@ print(load_info)
 
 ## Configuration
 
-The runner is configured through the `run_config` section of a pipeline in your `dlt.yml` file.
-For direct access, you can also import and use the runner directly via the [Python interface](./pipeline-runner.md#python-api) in your code.
+The runner is configured through the `run_config` section of a pipeline in your `dlt.yml` file
+or by passing arguments to the `dlt_plus.runner()` function in your code.
 Configuration via environment variables or `config.toml` is still under development.
 
 ### Complete configuration example
