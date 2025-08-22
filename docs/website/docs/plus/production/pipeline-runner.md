@@ -35,8 +35,8 @@ pipelines:
     source: my_source
     destination: duckdb
     run_config:
-      run_from_clean_folder: true
       store_trace_info: true
+      run_from_clean_folder: true
       retry_policy:
         type: backoff
         max_attempts: 5
@@ -45,21 +45,6 @@ pipelines:
         max: 10
       retry_pipeline_steps: ["load"]
 ```
-
-## Run from clean folder
-
-When this `run_from_clean_folder` option is enabled, the [pipeline working directory](../../general-usage/pipeline#pipeline-working-directory) is removed before the pipeline runs. The state, schema, and all files from previous runs are deleted, and state and schema are synchronized from the destination (similar to [dlt pipeline sync](../../reference/command-line-interface.md#dlt-pipeline-sync)).
-
-```yaml
-pipelines:
-  my_pipeline:
-    run_config:
-      run_from_clean_folder: true
-```
-
-:::note
-The dlt+ runner behaves differently from `pipeline.run()` when there exists pending data in the pipeline's working directory: `pipeline.run()` will load only the pending data instead and needs to be invoked again for the given data. The dlt+ runner will also try finalizing the pending data, applying the retry policy and the trace settings, and then also try running with the given data.
-:::
 
 ## Trace storage
 
@@ -106,6 +91,21 @@ pipelines:
 
 Traces are loaded into a table named `<pipeline_name>_trace`. This means you can use the same trace pipeline for 
 multiple pipelines without conflicts.
+
+## Run from clean folder
+
+When the `run_from_clean_folder` option is enabled, the [pipeline working directory](../../general-usage/pipeline#pipeline-working-directory) is removed before the pipeline runs. The state, schema, and all files from previous runs are deleted, and state and schema are synchronized from the destination (see [dlt pipeline sync](../../reference/command-line-interface.md#dlt-pipeline-sync)).
+
+```yaml
+pipelines:
+  my_pipeline:
+    run_config:
+      run_from_clean_folder: true
+```
+
+:::note
+The dlt+ runner behaves slightly differently from `pipeline.run()` when there exists pending data in the pipeline's working directory: In that case, `pipeline.run()` will load only the pending data and needs to be invoked, whereas the dlt+ runner will run with the pending data, and then automatically run again with the given data.
+:::
 
 ## Retry policies
 
