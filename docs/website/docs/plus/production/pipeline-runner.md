@@ -5,11 +5,7 @@ keywords: ["runner", "pipeline", "retry", "trace"]
 ---
 # Runner
 
-
-The dlt+ Runner provides a production-ready run command for your pipelines. It offers robust error handling, retry mechanisms, and 
-near atomic trace storage to destinations of your choice.
-The runner can be configured for each pipeline via your `dlt.yml`, or you can use it directly
-in your python code.
+dlt+ provides a production-ready runner for your pipelines. It offers robust error handling, retry mechanisms, and near atomic trace storage to destinations of your choice. 
 
 ## Key features
 
@@ -19,7 +15,7 @@ in your python code.
 
 ## Usage
 
-Running the pipeline from the command line will use the runner with the default configuration.
+By default, the runner will be used to run your pipeline if you use the `dlt pipeline run` command:
 
 ```sh
 dlt pipeline my_pipeline run
@@ -27,9 +23,9 @@ dlt pipeline my_pipeline run
 
 ## Configuration
 
-The Runner is configured through the `run_config` section in your `dlt.yml` file.
-Configuration via environment variables or `config.toml` is still under development. For direct access
-you can also use the [Python API of the runner](./pipeline-runner.md#python-api) in your code.
+The runner is configured through the `run_config` section of a pipeline in your `dlt.yml` file.
+For direct access, you can also import and use the runner directly via the [Python interface](./pipeline-runner.md#python-api) in your code.
+Configuration via environment variables or `config.toml` is still under development.
 
 ### Complete configuration example
 
@@ -52,11 +48,7 @@ pipelines:
 
 ## Run from clean folder
 
-When this `run_from_clean_folder` option is enabled, the [pipeline working directory](../../general-usage/pipeline#pipeline-working-directory) 
-is removed before the pipeline runs. The state, schema and
-all files from previous runs are deleted and state and schema are synchronized from the destination (similar to
-[dlt pipeline sync](../../reference/command-line-interface.md#dlt-pipeline-sync)).
-
+When this `run_from_clean_folder` option is enabled, the [pipeline working directory](../../general-usage/pipeline#pipeline-working-directory) is removed before the pipeline runs. The state, schema, and all files from previous runs are deleted, and state and schema are synchronized from the destination (similar to [dlt pipeline sync](../../reference/command-line-interface.md#dlt-pipeline-sync)).
 
 ```yaml
 pipelines:
@@ -66,24 +58,14 @@ pipelines:
 ```
 
 :::note
-The dlt+ runner behaves differently from `pipeline.run()` when there exists pending data in the pipeline's working directory:
-`pipeline.run()` will load only the pending data instead and needs to be invoked again for the given data.
-The dlt+ runner will also try finalizing the pending data, applying the retry policy and the trace settings, and then also
-try running with the given data.
+The dlt+ runner behaves differently from `pipeline.run()` when there exists pending data in the pipeline's working directory: `pipeline.run()` will load only the pending data instead and needs to be invoked again for the given data. The dlt+ runner will also try finalizing the pending data, applying the retry policy and the trace settings, and then also try running with the given data.
 :::
-
 
 ## Trace storage
 
-The `store_trace_info` parameter enables automatic storage of the pipelines runtime
-[trace](https://github.com/dlt-hub/dlt/blob/273420b2574a518a7488443253ab1e0971b136e8/dlt/pipeline/trace.py#L126)
-which contains detailed information about a run, e.g. timings of each step, schema changes and exceptions. (see
-[here](../../running-in-production/running#inspect-and-save-the-load-info-and-trace)).
+The `store_trace_info` parameter enables automatic storage of the pipeline's runtime [trace](https://github.com/dlt-hub/dlt/blob/273420b2574a518a7488443253ab1e0971b136e8/dlt/pipeline/trace.py#L126), which contains detailed information about a run, e.g., timings of each step, schema changes, and exceptions (see [here](../../running-in-production/running#inspect-and-save-the-load-info-and-trace)).
 
-The runner will convert the trace into a `dict` and try loading it to the destination using a separate pipeline,
-which runs directly after each successful or failed attempt of the main pipeline.
-If any pending data is finalized before running the main pipeline, the trace of that finalization is also stored.
-
+The runner will convert the trace into a `dict` and try loading it to the destination using a separate pipeline, which runs directly after each successful or failed attempt of the main pipeline. If any pending data is finalized before running the main pipeline, the trace of that finalization is also stored.
 
 ### Trace pipeline configuration
 
@@ -97,9 +79,9 @@ pipelines:
       store_trace_info: true
 ```
 Setting `store_trace_info: true` will derive the trace pipeline writing configuration from the main pipeline.
-That trace pipeline will be named `_trace_<pipeline_name>` and write to the same destination as the main pipeline.
+That trace pipeline will be named `_trace_<pipeline_name>` and will write to the same destination as the main pipeline.
 
-Alternatively, you can explicitly define a trace pipeline in your `dlt.yml`, e.g. if you want 
+Alternatively, you can explicitly define a trace pipeline in your `dlt.yml`, for example, if you want 
 to use a different destination to separate production data from traces:
 
 ```yaml
@@ -116,7 +98,7 @@ pipelines:
       store_trace_info: trace_pipeline
     
   trace_pipeline:
-    source: my_source # << this will not actually be used but can not be empty
+    source: my_source # << this will not actually be used but cannot be empty
     destination: log_filesystem
 ```
 
@@ -134,10 +116,10 @@ The Runner supports configurable retry policies to handle errors during pipeline
 
 :::note
 The runner will alternate between trying to load the pipeline and loading the trace. So after the
-first attempt failed, it will try to load the trace of the first attempt. If that also fails, the
-trace file will be kept as `traces/<transaction_id>_attempt_1_trace.json` in the pipelines
-working directory and the pipeline will be retried. Failures to load the trace will logged, but
-do not affect the main pipelines execution.
+first attempt fails, it will try to load the trace of the first attempt. If that also fails, the
+trace file will be kept as `traces/<transaction_id>_attempt_1_trace.json` in the pipeline's
+working directory and the pipeline will be retried. Failures to load the trace will be logged, but
+do not affect the main pipeline's execution.
 :::
 
 ### Available retry policies
@@ -152,8 +134,7 @@ do not affect the main pipelines execution.
 ### Retry pipeline steps
 
 As a general rule, the runner will not retry on terminal exceptions, such as errors related to 
-missing credentials or configurations. For other exceptions, it will retry if the error occured, if it 
-occured during the specified pipeline phase, which is controlled by the `retry_pipeline_steps` parameter.
+missing credentials or configurations. For other exceptions, it will retry if the error occurred during the specified pipeline phase, which is controlled by the `retry_pipeline_steps` parameter.
 
 **Configuration examples:**
 
@@ -177,7 +158,7 @@ pipelines:
 
 ## Python API
 
-You can also use the runner directly in your python code, e.g. to finalize pending data or to run pipelines.
+You can also use the runner directly in your Python code, e.g., to finalize pending data or to run pipelines.
 
 ```py
 import dlt
@@ -197,7 +178,7 @@ pipeline = dlt.pipeline(
 load_info = dlt_plus.runner(pipeline, run_from_clean_folder=True).run(my_resource(), write_disposition="append")
 print(load_info)
 
-# or just to finalize pending data reliably
+# Or just to finalize pending data reliably
 pipeline.extract(["a", "b", "c"], table_name="letters")
 load_info = dlt_plus.runner(
     pipeline, 
