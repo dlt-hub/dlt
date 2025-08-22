@@ -19,6 +19,8 @@ else:
 DUCK_DB_NAME_PAT = "%s.duckdb"
 
 
+# NOTE duckdb extensions are only loaded when using the dlt cursor. They are not
+# loaded when using the native connection (e.g., when passing it to Ibis)
 @configspec(init=False)
 class DuckDbBaseCredentials(ConnectionStringCredentials):
     _LOCK: ClassVar[threading.Lock] = threading.Lock()
@@ -202,6 +204,7 @@ class DuckDbCredentials(DuckDbBaseCredentials):
         return self.database == ":pipeline:"
 
     def on_resolved(self) -> None:
+        # TODO Why don't we support `:memory:` string?
         if isinstance(self.database, str) and self.database == ":memory:":
             raise InvalidInMemoryDuckdbCredentials()
 
