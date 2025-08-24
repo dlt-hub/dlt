@@ -83,6 +83,7 @@ GDRIVE_BUCKET = dlt.config.get("tests.bucket_url_gdrive", str)
 FILE_BUCKET = dlt.config.get("tests.bucket_url_file", str)
 R2_BUCKET = dlt.config.get("tests.bucket_url_r2", str)
 SFTP_BUCKET = dlt.config.get("tests.bucket_url_sftp", str)
+HTTP_BUCKET = dlt.config.get("tests.bucket_url_https", str)
 MEMORY_BUCKET = dlt.config.get("tests.memory", str)
 
 ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
@@ -93,6 +94,7 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
     "gdrive",
     "file",
     "memory",
+    "https",
     "r2",
     "sftp",
 ]
