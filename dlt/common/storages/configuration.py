@@ -137,7 +137,20 @@ def _make_file_url(scheme: str, fs_path: str, bucket_url: str) -> str:
     return uri
 
 
-MAKE_URI_DISPATCH = {"az": _make_az_url, "file": _make_file_url, "sftp": _make_sftp_url}
+def _make_http_url(schema: str, fs_path: str, bucket_url: str) -> str:
+    parsed_http_url = urlparse(fs_path)
+    if not parsed_http_url.scheme:
+        parsed_http_url.scheme = schema
+
+    return urlunparse(parsed_http_url)
+
+
+MAKE_URI_DISPATCH = {
+    "az": _make_az_url,
+    "file": _make_file_url,
+    "sftp": _make_sftp_url,
+    "https": _make_http_url,
+}
 
 MAKE_URI_DISPATCH["adl"] = MAKE_URI_DISPATCH["az"]
 MAKE_URI_DISPATCH["abfs"] = MAKE_URI_DISPATCH["az"]
