@@ -14,7 +14,7 @@ class DuckLakeSqlClient(DuckDbSqlClient):
         credentials: DuckLakeCredentials,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
-        super().__init__(dataset_name, staging_dataset_name, credentials, capabilities)
+        super().__init__(dataset_name, None, credentials, capabilities)
 
     # TODO support connecting to a snapshot
     @raise_open_connection_error
