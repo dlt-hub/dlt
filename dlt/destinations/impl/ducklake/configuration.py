@@ -28,37 +28,35 @@ def _get_ducklake_capabilities() -> DestinationCapabilitiesContext:
 
 @configspec(init=False)
 class DuckLakeCredentials(DuckDbCredentials):
-    def __init__(
-        self,
-        # TODO how does duckdb resolve the name of the database to the name of the dataset / pipeline
-        ducklake_name: str = "ducklake",
-        *,
-        catalog_database: Optional[Union[ConnectionStringCredentials, DuckDbCredentials]] = None,
-        storage: Optional[FilesystemConfiguration] = None,
-        attach_statement: Optional[str] = None,
-    ) -> None:
-        if catalog_database is not None:
-            raise NotImplementedError
+    """
+    For DuckLakeCredentials, the field `database` refers to the name
+    of the DuckLake.
 
-        if storage is not None:
-            raise NotImplementedError
+    """
+    ducklake_name: str = ":pipeline:"
+    catalog: Optional[ConnectionStringCredentials] = None
+    storage: Optional[FilesystemConfiguration] = None
 
-        import duckdb
-
-        super().__init__(duckdb.connect(":memory:"))
-
-        self.ducklake_name = ducklake_name
-        self.catalog_database = DuckDbCredentials()
-        self.storage = storage
-
-        self.database = self.catalog_database.database  # required
+    def __init__(self, *, attach_statement: Optional[str] = None) -> None:
         self._attach_statement = attach_statement
+
+    def _conn_str(self) -> str:
+        return ":memory:"
+
+    def on_resolved(self) -> None:
+        if self.catalog is None:
+            self.catalog = DuckDbCredentials()
+
+        if self.extensions:
+            self.extensions = list(set([*self.extensions, "ducklake"]))
+        else:
+            self.extensions = ["ducklake"]
 
     @staticmethod
     def build_attach_statement(
         *,
         ducklake_name: str,
-        catalog_database: Union[ConnectionStringCredentials, str],
+        catalog: Union[ConnectionStringCredentials, str],
         storage: Optional[FilesystemConfiguration] = None,
     ) -> str:
         # TODO resolve ConnectionStringCredentials; duckdb has its own format
@@ -72,13 +70,17 @@ class DuckLakeCredentials(DuckDbCredentials):
 
     @property
     def attach_statement(self) -> str:
+        # TODO handle when `ducklake_name` or `catalog` is not set
+        if not self.is_resolved():
+           return None
+
         # return value when set explicitly
         if self._attach_statement:
             return self._attach_statement
         else:
             return self.build_attach_statement(
                 ducklake_name=self.ducklake_name,
-                catalog_database=self.catalog_database,
+                catalog=self.catalog,
                 storage=self.storage,
             )
 
@@ -97,7 +99,7 @@ class DuckLakeClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagin
         repr=False,
         compare=False,
     )
-    credentials: Optional[DuckLakeCredentials] = None
+    credentials: DuckLakeCredentials = DuckLakeCredentials()
     create_indexes: bool = False  # does nothing but required
 
     def fingerprint(self) -> str:
@@ -108,8 +110,10 @@ class DuckLakeClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagin
         return ""
 
     def on_resolved(self) -> None:
-        local_db = self.make_location(
-            self.credentials.catalog_database.database, DUCKLAKE_NAME_PATTERN
-        )
+        if self.credentials.ducklake_name == ":pipeline:":
+            self.credentials.ducklake_name = self.pipeline_name
+
+        # NOTE this is only for the file-based catalogs DuckDB and SQLite
+        local_db = self.make_location(self.credentials.database, DUCKLAKE_NAME_PATTERN)
         self.credentials.database = local_db
-        self.credentials.catalog_database.database = local_db
+        self.credentials.catalog.database = local_db
