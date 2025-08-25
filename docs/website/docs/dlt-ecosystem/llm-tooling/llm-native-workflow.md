@@ -1,6 +1,6 @@
 ---
 title: LLM-native workflow
-description: How to extract and explore data from REST API with Cursor
+description: How to extract and explore data from REST API with AI editors/agents
 keywords: [cursor, llm, restapi, ai]
 ---
 
