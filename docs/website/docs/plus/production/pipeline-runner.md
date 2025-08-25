@@ -1,17 +1,11 @@
 ---
 title: "Pipeline runner"
-description: Run pipelines with the dlt+ Runner
+description: Run pipelines with the dlt+ runner
 keywords: ["runner", "pipeline", "retry", "trace"]
 ---
 # Runner
 
 dlt+ provides a production-ready runner for your pipelines. It offers robust error handling, retry mechanisms, and near atomic trace storage to destinations of your choice.
-
-## Key features
-
-- **Trace storage** to a configurable destination for debugging and monitoring pipeline executions
-- **Automatic retry policies** with configurable backoff strategies
-- **Clean state management** to ensure consistent pipeline runs
 
 ## Usage
 
@@ -39,6 +33,7 @@ dlt pipeline my_pipeline run
 ```py
 import dlt
 import dlt_plus
+
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 
 @dlt.resource(table_name="my_table")
@@ -123,11 +118,11 @@ load_info = dlt_plus.runner(
 
 ## Trace storage
 
-The `store_trace_info` parameter enables automatic storage of the pipeline's runtime [trace](https://github.com/dlt-hub/dlt/blob/273420b2574a518a7488443253ab1e0971b136e8/dlt/pipeline/trace.py#L126), which contains detailed information about a run, e.g., timings of each step, schema changes, and exceptions (see [here](../../running-in-production/running#inspect-and-save-the-load-info-and-trace)).
+The `store_trace_info` parameter enables automatic storage of the pipeline's runtime [trace](https://github.com/dlt-hub/dlt/blob/273420b2574a518a7488443253ab1e0971b136e8/dlt/pipeline/trace.py#L126), which contains detailed information about a run, e.g., timings of each step, schema changes, and load packages (see [here](../../running-in-production/running#inspect-and-save-the-load-info-and-trace)).
 
 The runner will convert the trace into a `dict` and try loading it to the destination using a separate pipeline, which runs directly after each successful or failed attempt of the main pipeline. If any pending data is finalized before running the main pipeline, the trace of that finalization is also stored.
 
-Setting `store_trace_info=True` will derive the trace pipeline writing configuration from the main pipeline.
+Setting `store_trace_info=True` will derive the configuration of the trace pipeline from the main pipeline.
 That trace pipeline will be named `_trace_<pipeline_name>` and will write to the same destination as the main pipeline.
 
 ```yaml
@@ -137,8 +132,8 @@ pipelines:
       store_trace_info: true
 ```
 
-Alternatively, you can explicitly define a trace pipeline in your `dlt.yml`, for example, if you want 
-to use a different destination to separate production data from traces:
+Alternatively, you can explicitly define a trace pipeline for example, if you want 
+to use store your traces in a different filesystem than your production data:
 
 <Tabs
   groupId="config-type"
@@ -180,23 +175,18 @@ from tenacity import Retrying, stop_after_attempt
 def my_resource():
     return [1, 2, 3]
 
-pipeline = dlt.pipeline(
-    pipeline_name="my_pipeline",
-    destination="duckdb",
-    dataset_name="my_dataset",
-)
+# your main pipeline
+pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 
-# os.environ["BUCKET_URL"] = "s3://...."
+# your trace pipeline
+# os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "s3://my-bucket/logs/dlt_traces"
 trace_pipeline = dlt.pipeline(
     pipeline_name="my_trace_pipeline",
     destination="filesystem",
     dataset_name="my_pipeline_trace_dataset",
 )
 
-load_info = dlt_plus.runner(
-  pipeline,
-  store_trace_info=trace_pipeline,
-).run(my_resource(), write_disposition="append")
+load_info = dlt_plus.runner(pipeline, store_trace_info=trace_pipeline).run(my_resource())
 print(load_info)
 ```
 </TabItem>
@@ -220,25 +210,14 @@ pipelines:
 ```
 
 :::note
-The dlt+ runner behaves slightly differently from `pipeline.run()` when there exists pending data in the pipeline's working directory: In that case, `pipeline.run()` will load only the pending data and needs to be invoked, whereas the dlt+ runner will run with the pending data, and then automatically run again with the given data.
+The dlt+ runner behaves slightly differently from `pipeline.run()` when there exists pending data in the pipeline's working directory: `pipeline.run()` will load only the pending data and needs to be invoked again, whereas the dlt+ runner will run with the pending data, and then automatically run again with the given data.
 :::
 
 ## Retry policies
 
-The Runner supports configurable retry policies to handle errors during pipeline execution. Retry policies apply to:
+The Runner supports configurable retry policies to handle errors during pipeline execution. Retry policies apply to both finalizing pending data from previous loads and running the pipeline with the given data.
 
-- Finalizing pending data from previous loads
-- Running the pipeline with the given data
-
-:::note
-The runner will alternate between trying to load the pipeline and loading the trace. So after the
-first attempt fails, it will try to load the trace of the first attempt. If that also fails, the
-trace file will be kept as `traces/<transaction_id>_attempt_1_trace.json` in the pipeline's
-working directory and the pipeline will be retried. Failures to load the trace will be logged, but
-do not affect the main pipeline's execution.
-:::
-
-### Available retry policies
+For the python interface you can define any retry policy you want using the [tenacity](https://tenacity.readthedocs.io/en/latest/) library. For the yaml interface you can configure three different retry policies:
 
 | Policy type | Description | Configuration |
 |-------------|-------------|---------------|
@@ -246,11 +225,24 @@ do not affect the main pipeline's execution.
 | Fixed | Fixed number of attempts with no backoff | `type: fixed`, `max_attempts: N` |
 | Backoff | Exponential backoff with configurable parameters | `type: backoff`, `max_attempts: N`, `multiplier: N`, `min: N`, `max: N` |
 
+:::note
+When storing the trace, the runner will alternate between trying to load the pipeline and loading the trace. So after the
+first attempt fails, it will try to load the trace of the first attempt. If the trace pipeline also fails, the
+trace file will be kept as `traces/<transaction_id>_attempt_1_trace.json` in the pipeline's
+working directory and the pipeline will be retried. Failures to load the trace will be logged as warnings, but
+do not affect the main pipeline's execution.
+:::
+
 
 ### Retry pipeline steps
 
-As a general rule, the runner will not retry on terminal exceptions, such as errors related to 
-missing credentials or configurations. For other exceptions, it will retry if the error occurred during the specified pipeline phase, which is controlled by the `retry_pipeline_steps` parameter.
+The runner will automatically apply [a helper method](https://github.com/dlt-hub/dlt/blob/273420b2574a518a7488443253ab1e0971b136e8/dlt/pipeline/helpers.py#L30) to all given policies to define whether or not a retry should be attempted. 
+
+It takes into account the type of the exception, and the pipeline step at which it occured.
+For example, any exceptions inheriting from `TerminalException` such as those related to missing credentials would end the retry process,
+whereas a `PipelineStepFailed`-exception such as it might occur due to a connection that timed-out could be be retried.
+
+For the latter, the `retry_pipeline_steps` parameter can be used to further control during which pipeline steps a retry will be attempted.
 
 | Configuration | Behavior |
 |---------------|----------|
@@ -289,7 +281,7 @@ pipelines:
 ```py
 import dlt
 import dlt_plus
-from tenacity import Retrying, stop_after_attempt
+from tenacity import Retrying, stop_after_attempt, wait_fixed
 
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 
@@ -299,7 +291,7 @@ def my_resource():
 
 load_info = dlt_plus.runner(
   pipeline,
-  retry_policy=Retrying(stop=stop_after_attempt(5), reraise=True),
+  retry_policy=Retrying(stop=stop_after_attempt(5), wait=wait_fixed(2), reraise=True),
   retry_pipeline_steps=["normalize", "load"]
 ).run(my_resource())
 print(load_info)
