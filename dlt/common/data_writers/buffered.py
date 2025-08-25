@@ -18,6 +18,14 @@ from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.utils import uniq_id
 
+# Import memory monitoring registration function
+try:
+    from dlt.common.runtime.memory_collector import register_buffered_writer
+except ImportError:
+    # Fallback if memory collector is not available
+    def register_buffered_writer(writer: Any) -> None:
+        pass
+
 
 def new_file_id() -> str:
     """Creates new file id which is globally unique within table_name scope"""
@@ -76,6 +84,10 @@ class BufferedDataWriter(Generic[TWriter]):
         self._created: float = None
         self._last_modified: float = None
         self._closed = False
+
+        # Register with memory monitoring system
+        register_buffered_writer(self)
+
         try:
             self._rotate_file()
         except TypeError:

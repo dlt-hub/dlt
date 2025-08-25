@@ -106,6 +106,40 @@ The default buffer is actually set to a moderately low value (**5000 items**), s
 on IoT sensors or other tiny infrastructures, you might actually want to increase it to speed up
 processing.
 
+### Controlling memory usage
+
+`dlt` provides automatic memory management to prevent out-of-memory errors during large data processing tasks. The **memory-aware collector** monitors RAM usage and automatically flushes buffered data when memory consumption exceeds configurable thresholds.
+
+:::info
+This feature requires the `psutil` package to be installed for memory monitoring.
+:::
+
+#### Enabling memory monitoring
+
+<!--@@@DLT_SNIPPET ./performance_snippets/performance-snippets.py::memory_management-->
+
+#### Configuration options
+
+You can configure memory monitoring behavior using the following options in your `config.toml` under the `[data_writer]` section:
+
+<!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::memory_management_toml-->
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `max_memory_mb` | Maximum memory usage in MB before triggering buffer flushes | None (disabled) |
+| `memory_check_interval` | How often to check memory usage (seconds) | 2.0 |
+| `flush_threshold_percent` | Percentage of memory limit that triggers flushing | 0.8 (80%) |
+
+:::tip
+Memory monitoring works for all threads spawned by the `dlt` main process, so multi-threading during extract and load stages is covered.
+Memory monitoring for multi-processing (normalize) is not supported yet.
+:::
+
+:::note
+If `psutil` is not available, memory monitoring will be automatically disabled and `dlt` will continue to work normally.
+:::
+
+
 ### Controlling intermediary file size and rotation
 `dlt` writes data to intermediary files. You can control the file size and the number of created files by setting the maximum number of data items stored in a single file or the maximum single file size. Keep in mind that the file size is computed after compression has been performed.
 * `dlt` uses a custom version of the [JSON file format](../dlt-ecosystem/file-formats/jsonl.md) between the **extract** and **normalize** stages.
