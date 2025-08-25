@@ -1,15 +1,10 @@
-import contextlib
 import datetime  # noqa: I251
 import re
 import sys
-from typing import Any, Optional, Union, overload, TypeVar, Callable  # noqa
+from typing import Optional, Union, overload, TypeVar, Callable  # noqa
 
-from pendulum.parsing import (
-    parse_iso8601,
-    DEFAULT_OPTIONS as pendulum_options,
-    _parse_common as parse_datetime_common,
-)
 from pendulum.tz import UTC
+from pendulum.exceptions import ParserError
 
 from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.typing import TimedeltaSeconds, TAnyDateTime
@@ -49,27 +44,37 @@ def timestamp_before(timestamp: float, max_inclusive: Optional[float]) -> bool:
     return timestamp <= (max_inclusive or FUTURE_TIMESTAMP)
 
 
-def parse_iso_like_datetime(value: Any) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:
+def parse_iso_like_datetime(
+    value: TAnyDateTime,
+) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:
     """Parses ISO8601 string into pendulum datetime, date or time. Preserves timezone info.
     Note: naive datetimes will be generated from string without timezone
 
        we use internal pendulum parse function. the generic function, for example, parses string "now" as now()
        it also tries to parse ISO intervals but the code is very low quality
     """
-    # only iso dates are allowed
-    dtv = None
-    with contextlib.suppress(ValueError):
-        dtv = parse_iso8601(value)
-    # now try to parse a set of ISO like dates
-    if not dtv:
-        dtv = parse_datetime_common(value, **pendulum_options)
-    if isinstance(dtv, datetime.time):
-        return pendulum.time(dtv.hour, dtv.minute, dtv.second, dtv.microsecond)
-    if isinstance(dtv, datetime.datetime):
-        return pendulum.instance(dtv, tz=dtv.tzinfo)
-    if isinstance(dtv, pendulum.Duration):
-        raise ValueError(f"Interval ISO 8601 not supported: `{value}`")
-    return pendulum.date(dtv.year, dtv.month, dtv.day)  # type: ignore[union-attr]
+    try:
+        if isinstance(value, str):
+            # try to parse ISO or RFC formats
+            parsed = pendulum.parse(value, exact=True, strict=False)
+            if isinstance(parsed, pendulum.Duration):
+                raise ValueError(f"Interval ISO 8601 not supported: `{value}`")
+        elif isinstance(value, (float, int)):
+            parsed = pendulum.from_timestamp(value)
+        elif isinstance(value, datetime.time):
+            parsed = pendulum.time(value.hour, value.minute, value.second, value.microsecond)
+        elif isinstance(value, datetime.datetime):
+            parsed = pendulum.instance(value, tz=value.tzinfo)
+        elif isinstance(value, datetime.date):
+            parsed = pendulum.date(value.year, value.month, value.day)
+        else:
+            raise ValueError(f"Cannot coerce {type(value)}:{value} to pendulum compatible type")
+    except ValueError as e:
+        raise e
+    except ParserError:
+        raise ValueError(f"Failed to parse the string: `{value}`")
+
+    return parsed
 
 
 def ensure_pendulum_date(value: TAnyDateTime) -> pendulum.Date:
