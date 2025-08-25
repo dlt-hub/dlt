@@ -119,7 +119,7 @@ Operations on pipelines that were ran locally.
 ```sh
 dlt pipeline [-h] [--list-pipelines] [--hot-reload] [--pipelines-dir
     PIPELINES_DIR] [--verbose] [pipeline_name]
-    {info,show,failed-jobs,drop-pending-packages,sync,trace,schema,drop,load-package}
+    {info,show,failed-jobs,drop-pending-packages,sync,trace,schema,drop,load-package,drop-columns}
     ...
 ```
 
@@ -153,6 +153,7 @@ Inherits arguments from [`dlt`](#dlt).
 * [`schema`](#dlt-pipeline-schema) - Displays default schema
 * [`drop`](#dlt-pipeline-drop) - Selectively drop tables and reset state
 * [`load-package`](#dlt-pipeline-load-package) - Displays information on load package, use -v or -vv for more info
+* [`drop-columns`](#dlt-pipeline-drop-columns) - Selectively drop columns from specified tables
 
 </details>
 
@@ -386,11 +387,11 @@ reset:
 
 ```text
 About to drop the following data in dataset airflow_events_1 in destination dlt.destinations.duckdb:
-Selected schema:: github_repo_events
-Selected resource(s):: ['repo_events']
-Table(s) to drop:: ['issues_event', 'fork_event', 'pull_request_event', 'pull_request_review_event', 'pull_request_review_comment_event', 'watch_event', 'issue_comment_event', 'push_event__payload__commits', 'push_event']
-Resource(s) state to reset:: ['repo_events']
-Source state path(s) to reset:: []
+Selected schema: github_repo_events
+Selected resource(s): ['repo_events']
+Table(s) to drop: ['issues_event', 'fork_event', 'pull_request_event', 'pull_request_review_event', 'pull_request_review_comment_event', 'watch_event', 'issue_comment_event', 'push_event__payload__commits', 'push_event']
+Resource(s) state to reset: ['repo_events']
+Source state path(s) to reset: []
 Do you want to apply these changes? [y/N]
 ```
 
@@ -454,7 +455,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 * `--destination DESTINATION` - Sync from this destination when local pipeline state is missing.
 * `--dataset-name DATASET_NAME` - Dataset name to sync from when local pipeline state is missing.
 * `--drop-all` - Drop all resources found in schema. supersedes [resources] argument.
-* `--state-paths [STATE_PATHS ...]` - State keys or json paths to drop
+* `--state-paths [STATE_PATHS ...]` - State keys or json paths to drop.
 * `--schema SCHEMA_NAME` - Schema name to drop from (if other than default schema).
 * `--state-only` - Only wipe state for matching resources without dropping tables.
 
@@ -488,6 +489,76 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 **Options**
 * `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlt pipeline drop-columns`
+
+Selectively drop columns from specified tables.
+
+**Usage**
+```sh
+dlt pipeline [pipeline_name] drop-columns [-h] [--from-resources [FROM_RESOURCES
+    ...]] [--from-tables [FROM_TABLES ...]] [--columns [COLUMNS ...]]
+```
+
+**Description**
+
+Selectively drop columns from specified resources and tables.
+
+```sh
+dlt pipeline <pipeline name> drop-columns --from-resources [resource_1] [resource_2] --from-tables [table_1] [table_2] --columns [column_1] [column_2]
+```
+
+**How column selection works:**
+
+1. **Resource resolution**: If `--from-resources` is specified, tables are grouped by resource using regex pattern matching. If omitted, all resources are considered.
+
+2. **Table resolution**: If `--from-tables` is specified, only tables matching the pattern(s) within the selected resources are considered. If omitted, all tables from selected resources are considered.
+
+3. **Column resolution**: Columns are matched against the specified pattern(s) within the selected tables. Only nullable columns without disqualifying hints can be dropped.
+
+**Column safety rules:**
+
+Only columns that meet ALL of the following criteria can be dropped:
+- The column is nullable (can contain NULL values)
+- The column does not have any disqualifying hints such as: `partition`, `cluster`, `unique`, `sort`, `primary_key`, `row_key`, `parent_key`, `root_key`, `merge_key`, `variant`, `hard_delete`, `dedup_sort`, or `incremental`
+- After dropping the matched columns, at least one non-dlt internal column must remain in the table
+
+**Filesystem destination note:**
+
+For filesystem destination, column dropping is only supported for tables that have an associated `table_format` (e.g., Iceberg, Delta). Tables without a table format will be skipped with a notification.
+
+**Example Output:**
+
+```text
+About to drop the following columns in dataset my_dataset in destination dlt.destinations.duckdb:
+Selected schema: droppable_source
+Selected resource(s): ['droppable_b']
+Table(s) to be affected: ['droppable_b__items']
+Column(s) to be dropped:
+    from table: droppable_b__items
+        columns: ['m']
+Do you want to apply these changes?
+```
+
+**Pattern matching:**
+
+You can use regexes to select resources, tables and columns. Prepend the `re:` string to indicate a regex pattern. For example:
+- `--from-resources "re:^user"` matches all resources starting with "user"
+- `--columns "re:.*_temp$"` matches all columns ending with "_temp".
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--from-resources [FROM_RESOURCES ...]` - Resource names to drop columns from.
+* `--from-tables [FROM_TABLES ...]` - Table names to drop columns from.
+* `--columns [COLUMNS ...]` - Column names to drop from the specified resources.
 
 </details>
 

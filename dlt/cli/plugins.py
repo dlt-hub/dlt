@@ -324,11 +324,11 @@ reset:
 
 ```text
 About to drop the following data in dataset airflow_events_1 in destination dlt.destinations.duckdb:
-Selected schema:: github_repo_events
-Selected resource(s):: ['repo_events']
-Table(s) to drop:: ['issues_event', 'fork_event', 'pull_request_event', 'pull_request_review_event', 'pull_request_review_comment_event', 'watch_event', 'issue_comment_event', 'push_event__payload__commits', 'push_event']
-Resource(s) state to reset:: ['repo_events']
-Source state path(s) to reset:: []
+Selected schema: github_repo_events
+Selected resource(s): ['repo_events']
+Table(s) to drop: ['issues_event', 'fork_event', 'pull_request_event', 'pull_request_review_event', 'pull_request_review_comment_event', 'watch_event', 'issue_comment_event', 'push_event__payload__commits', 'push_event']
+Resource(s) state to reset: ['repo_events']
+Source state path(s) to reset: []
 Do you want to apply these changes? [y/N]
 ```
 
@@ -400,7 +400,7 @@ This will select the `archives` key in the `chess` source.
             help="Drop all resources found in schema. Supersedes [resources] argument.",
         )
         pipe_cmd_drop.add_argument(
-            "--state-paths", nargs="*", help="State keys or json paths to drop", default=()
+            "--state-paths", nargs="*", help="State keys or json paths to drop.", default=()
         )
         pipe_cmd_drop.add_argument(
             "--schema",
@@ -430,6 +430,78 @@ list of all tables and columns created at the destination during the loading of 
             metavar="load-id",
             nargs="?",
             help="Load id of completed or normalized package. Defaults to the most recent package.",
+        )
+
+        pipe_cmd_drop_columns = pipeline_subparsers.add_parser(
+            "drop-columns",
+            help="Selectively drop columns from specified tables",
+            description="""
+Selectively drop columns from specified resources and tables.
+
+```sh
+dlt pipeline <pipeline name> drop-columns --from-resources [resource_1] [resource_2] --from-tables [table_1] [table_2] --columns [column_1] [column_2]
+```
+
+**How column selection works:**
+
+1. **Resource resolution**: If `--from-resources` is specified, tables are grouped by resource using regex pattern matching. If omitted, all resources are considered.
+
+2. **Table resolution**: If `--from-tables` is specified, only tables matching the pattern(s) within the selected resources are considered. If omitted, all tables from selected resources are considered.
+
+3. **Column resolution**: Columns are matched against the specified pattern(s) within the selected tables. Only nullable columns without disqualifying hints can be dropped.
+
+**Column safety rules:**
+
+Only columns that meet ALL of the following criteria can be dropped:
+- The column is nullable (can contain NULL values)
+- The column does not have any disqualifying hints such as: `partition`, `cluster`, `unique`, `sort`, `primary_key`, `row_key`, `parent_key`, `root_key`, `merge_key`, `variant`, `hard_delete`, `dedup_sort`, or `incremental`
+- After dropping the matched columns, at least one non-dlt internal column must remain in the table
+
+**Filesystem destination note:**
+
+For filesystem destination, column dropping is only supported for tables that have an associated `table_format` (e.g., Iceberg, Delta). Tables without a table format will be skipped with a notification.
+
+**Example Output:**
+
+```text
+About to drop the following columns in dataset my_dataset in destination dlt.destinations.duckdb:
+Selected schema: droppable_source
+Selected resource(s): ['droppable_b']
+Table(s) to be affected: ['droppable_b__items']
+Column(s) to be dropped:
+    from table: droppable_b__items
+        columns: ['m']
+Do you want to apply these changes?
+```
+
+**Pattern matching:**
+
+You can use regexes to select resources, tables and columns. Prepend the `re:` string to indicate a regex pattern. For example:
+- `--from-resources "re:^user"` matches all resources starting with "user"
+- `--columns "re:.*_temp$"` matches all columns ending with "_temp"
+""",
+            epilog=(
+                f"See {DLT_PIPELINE_COMMAND_DOCS_URL}#selectively-drop-tables-and-reset-state for"
+                " more info"
+            ),
+        )
+        pipe_cmd_drop_columns.add_argument(
+            "--from-resources",
+            dest="from_resources",
+            nargs="*",
+            help="Resource names to drop columns from.",
+        )
+        pipe_cmd_drop_columns.add_argument(
+            "--from-tables",
+            dest="from_tables",
+            nargs="*",
+            help="Table names to drop columns from.",
+        )
+        pipe_cmd_drop_columns.add_argument(
+            "--columns",
+            nargs="*",
+            help="Column names to drop from the specified resources.",
+            default=(),
         )
 
     def execute(self, args: argparse.Namespace) -> None:
