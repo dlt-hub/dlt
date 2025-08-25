@@ -1,10 +1,10 @@
 ---
-title: Advanced dlt Course
+title: dlt Advanced Course
 description: Master advanced dlt concepts with this comprehensive course covering custom sources, destinations, transformations, data contracts and performance optimization.
 keywords: [dlt, advanced, tutorial, pipeline, python, data engineering, custom sources, custom destinations, transformations, data contracts, logging, tracing, performance optimization]
 ---
 
-# Advanced `dlt` Course
+# `dlt` Advanced Course
 
 In this course, you'll go far beyond the basics. You’ll build production-grade data pipelines with custom implementations, advanced patterns, and performance optimizations.
 
