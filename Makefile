@@ -64,7 +64,8 @@ lint:
 
 format:
 	uv run black dlt docs tests --extend-exclude='.*syntax_error.py|_storage/.*'
-	uv run black docs/education --ipynb --extend-exclude='.*syntax_error.py|_storage/.*'
+	uv run black docs/education/*/*.ipynb --ipynb
+	uv run black docs/education/*/*.py
 
 lint-snippets:
 	cd docs/tools && uv run python check_embedded_snippets.py full
@@ -96,6 +97,15 @@ lint-notebooks:
 	--ignore-missing-imports \
 	--disable-error-code=no-redef \
 	--disable-error-code=top-level-await
+
+build-marimo:
+	for file in docs/education/*/*.ipynb; do \
+		uv run marimo convert "$$file" > "$${file%.ipynb}.py"; \
+	done
+
+lint-marimo:
+	uv run flake8 --max-line-length=200 docs/education/*/*.py
+	uv run mypy docs/education/*/*.py --disable-error-code=no-redef
 
 # check docstrings for all important public classes and functions
 lint-docstrings:
