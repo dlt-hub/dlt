@@ -238,8 +238,8 @@ do not affect the main pipeline's execution.
 
 The runner will automatically apply [a helper method](https://github.com/dlt-hub/dlt/blob/273420b2574a518a7488443253ab1e0971b136e8/dlt/pipeline/helpers.py#L30) to all given policies to define whether or not a retry should be attempted. 
 
-It takes into account the type of the exception, and the pipeline step at which it occured.
-For example, any exceptions inheriting from `TerminalException` such as those related to missing credentials would end the retry process,
+It takes into account the type of the exception and the pipeline step at which it occurred.
+For example, any exceptions inheriting from `TerminalException` such as those related to missing credentials will end the run immediately,
 whereas a `PipelineStepFailed`-exception such as it might occur due to a connection that timed-out could be be retried.
 
 For the latter, the `retry_pipeline_steps` parameter can be used to further control during which pipeline steps a retry will be attempted.
@@ -300,4 +300,3 @@ print(load_info)
 </TabItem>
 
 </Tabs>
-
