@@ -301,3 +301,7 @@ print(load_info)
 
 </Tabs>
 
+## Callbacks
+
+You can implement [custom callbacks](observability#custom-callbacks) by inheriting from dlt+'s `PlusLogCollector` class.
+If such a collector is attached to a pipeline, the runner will detect it and will call its `on_before`, `on_after` and `on_retry` methods.

@@ -62,7 +62,7 @@ load_info = pipeline.run(my_source)
 print(load_info)
 ```
 
-# Observability
+## Planned features
 
 There are several other features under development in dlt+ to enhance your observability workflows. These include:
 * A UI to explore and debug your pipeline runs
