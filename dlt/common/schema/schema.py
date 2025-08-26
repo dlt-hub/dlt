@@ -86,7 +86,6 @@ class Schema:
 
     _schema_name: str
     _dlt_tables_prefix: str
-    _dlt_column_prefix: str
     _stored_version: int  # version at load time
     _stored_version_hash: str  # version hash at load time
     _stored_previous_hashes: Optional[List[str]]  # list of ancestor hashes of the schema
@@ -238,7 +237,7 @@ class Schema:
         filters: List[Tuple[TSchemaContractEntities, str, TSchemaEvolutionMode]] = []
         for column_name, column in list(partial_table["columns"].items()):
             # dlt cols may always be added
-            if column_name.startswith(self._dlt_column_prefix):
+            if column_name.startswith(self._dlt_tables_prefix):
                 continue
             is_variant = column.get("variant", False)
             # new column and contract prohibits that
@@ -1072,7 +1071,6 @@ class Schema:
         self.naming = to_naming
         # name normalization functions
         self._dlt_tables_prefix = to_naming.normalize_table_identifier(DLT_NAME_PREFIX)
-        self._dlt_column_prefix = to_naming.normalize_identifier(DLT_NAME_PREFIX)
         self.version_table_name = to_naming.normalize_table_identifier(VERSION_TABLE_NAME)
         self.loads_table_name = to_naming.normalize_table_identifier(LOADS_TABLE_NAME)
         self.state_table_name = to_naming.normalize_table_identifier(PIPELINE_STATE_TABLE_NAME)

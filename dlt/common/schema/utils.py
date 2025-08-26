@@ -918,36 +918,40 @@ def changes_without_dlt_changes(
     updates: Dict[str, TTableSchema],
     exclude_dlt_tables: bool = True,
     exclude_dlt_columns: bool = True,
-    dlt_column_prefix: str = DLT_NAME_PREFIX,
-    dlt_tables_prefix: str = DLT_NAME_PREFIX,
+    dlt_prefix: str = DLT_NAME_PREFIX,
 ) -> Dict[str, TTableSchema]:
     """
-    Convenience method to return a copy of the updates dict with all dlt-tables and/or columns
-    removed.
+    Convenience method to return a shallow copy of the updates dict with all dlt-tables and/or
+    dlt-columns removed.
+
     Args:
         updates: The updates made to all tables in the schema, e.g. from trace load packages
         exclude_dlt_tables: If True, remove tables whose name starts with given dlt_tables_prefix
         exclude_dlt_columns: If True, remove columns whose name starts with given dlt_column_prefix
-        dlt_column_prefix: as normalized in the schema, see schema._dlt_column_prefix
-        dlt_tables_prefix: as normalized in the schema, see schema._dlt_tables_prefix
+        dlt_prefix: by which to detect if a table or column is dlt internal
     Returns:
         Filtered dict with the same structure as input.
+
+    Note: dlt supports changing the default prefix, see schema._dlt_tables_prefix attribute to get
+        the source of truth for your schema
     """
 
     filtered_tables: Dict[str, TTableSchema] = {}
     for table_name, table_schema in updates.items():
-        if exclude_dlt_tables and table_name.startswith(dlt_tables_prefix):
+        if exclude_dlt_tables and table_name.startswith(dlt_prefix):
             continue
 
         # Create a copy of the table schema, preserving all fields except columns
-        new_table_schema = cast(TTableSchema, {k: v for k, v in table_schema.items() if k != "columns"})
+        new_table_schema = cast(
+            TTableSchema, {k: v for k, v in table_schema.items() if k != "columns"}
+        )
 
         if "columns" in table_schema:
             if exclude_dlt_columns:
                 new_table_schema["columns"] = {
                     col: col_def
                     for col, col_def in table_schema["columns"].items()
-                    if not col.startswith(dlt_column_prefix)
+                    if not col.startswith(dlt_prefix)
                 }
             else:
                 new_table_schema["columns"] = table_schema["columns"]
