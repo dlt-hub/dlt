@@ -13,7 +13,7 @@ from typing import (
     NewType,
     Union,
 )
-from typing_extensions import Never
+from typing_extensions import Never, NotRequired
 
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
@@ -276,14 +276,43 @@ TWriteDispositionConfig = Union[
 ]
 
 
+TReferenceCardinality = Literal["-", "<", ">", "<>"]
+"""Represents cardinality between `column` (left) and `referenced_column` (right)
+`-`: one-to-one
+`<`: one-to-many
+`>`: many-to-one
+`<>`: many-to-many
+
+Note that `column <> referenced_column` is equivalent to specifying
+both `column < referenced_column` and `column > referenced_column` 
+"""
+
+
 class TTableReference(TypedDict):
     """Describes a reference to another table's columns.
     `columns` corresponds to the `referenced_columns` in the referenced table and their order should match.
     """
 
+    label: NotRequired[str]
+    """Label to describe the relation 'liked'."""
+
+    cardinality: NotRequired[TReferenceCardinality]
+    """Cardinality of the relationship between `table.column` (left) and `referenced_table.referenced_column` (right)."""
+
+    table: NotRequired[str]
+    """Name of the table.
+    When `TTableReference` is defined on a `TTableSchema` (i.e., "inline reference"), the `table`
+    value is determined by `TTableSchema["name"]`
+    """
+
     columns: Sequence[str]
+    """Name of the column(s) from `table`"""
+
     referenced_table: str
+    """Name of the referenced table"""
+
     referenced_columns: Sequence[str]
+    """Name of the columns(s) from `referenced_table`"""
 
 
 TTableReferenceParam = Sequence[TTableReference]
