@@ -12,7 +12,6 @@ dlt+ offers a few tools and helpers to make running dlt pipelines in prefect a s
 - **Prefect Collector:** a dedicated way to do real-time [progress monitoring] and summary reports after each pipeline stage
 - **Retry integration:** retries without loosing intermediate results, execute custom code between retries
 - **Source decomposition flows:** Create tasks and flows that will execute your pipelines in parallel with the right settings
-- **dlt_task decorator:** parameteriziable prefect-task that reports dlt's progress to the prefect ui
 
 
 ## Prefect Collector
@@ -149,8 +148,7 @@ def my_task():
     return load_info
 ```
 
-
-## Source decomposition with Prefect
+## Source decomposition
 
 dlt+ also provides helpers that you can use to create tasks and flows that you can drop 
 into your prefect code with the options to parameterize the runner and run the resources in your source
@@ -192,6 +190,10 @@ if __name__ == "__main__":
 This will derive a task-pipeline with a deterministic name for each resource in the source and run them in parallel.
 Because they have different names, pipelines can run in parallel without interfering with each other.
 
+You can read more about source decomposition and what to watch out for when using it in the [performance section](/reference/performance#source-decomposition-for-serial-and-parallel-resource-execution).
+
+![Prefect Source Decomposition Flow](images/prefect-decomposition.png)
+
 :::note
 For stability reasons, this actually runs one resource alone and then all others in parallel.
 This is because otherwise, on the first run, all resources would try to create the same dlt-tables.
@@ -205,14 +207,41 @@ If want to build tasks that run on multiple machines, you will have to initializ
 
 ## On parallelization
 
-- explanation how dlts multiprocessing and multithreading interacts with prefects
+Both `dlt` and prefect can be configured to use multithreading and multiprocessing, but at different stages of the pipeline. 
+This is a short summary of parallelization in `dlt` that you should be aware of 
+if you are thinking about how to parallelize your pipelines in prefect.
+Read [this page](../../reference/performance#parallelism-within-a-pipeline) for a detailed explanation.
+
+During the extraction phase, `dlt` can use multithreading to parallelize the extraction of resources and, if supported, to evaluate each `yield` of the resource generator in a separate thread.
+Multiprocessing is used during the normalization phase, which is CPU intensive. The extracted data gets split into files and each process can normalize one file at a time.
+During the load phase, `dlt` uses multithreading to parallelize the loading of resources, where each file can be loaded in a separate thread. The default behavior is to 
+use a threadpool with 30 threads.
+Whether or not these phases are parallelized is controlled by setting the respective environment variables.
+
+Prefect supports either multithreading or multiprocessing, in that tasks inside a flow can be submitted to either a threadpool (using `task_runner=ThreadPoolTaskRunner`) or a processpool, for example when using the `DaskRunner` from `prefect-dask`-library.
+
+So if you're machine running prefect has multiple cores, you can use both multithreading and multiprocessing.
+Be aware though that the amount of workers multipy between the prefect and dlt.
+
+For example, this code will run three threads each creating a threadpool with 10 workers, so 30 threads in total:
+
+```py
+from prefect import flow, task
+from prefect.task_runners import ThreadPoolTaskRunner
+
+@task
+def my_task(endpoint: str)
+    os.environ["LOAD__WORKERS"] = "10" # << this will be applied to each task
+    # your code that instantiates a dlt pipeline and source based on some piece of data
 
 
-## `@dlt_task` decorator
+@flow(task_runner=ThreadPoolTaskRunner(max_workers=3))
+def my_flow():
+    table_names = ["table1", "table2", "table3"]
+    futures = []
+    for table_name in table_names:
+        futures.append(my_task.submit(table_name))
 
-Prefect doesn't use an explicit DAG, but instead uses control flow of the users code. Units of work are defined by decorating functions with `@task` or `@flow`.
-dlt+ provides a customizable `@dlt_task` for decorating methods that executes dlt-pipelines. It will
-automatically attach the `PrefectCollector` to the pipeline and report progress to the prefect ui.
+    wait(futures)
 
-
-
+```
