@@ -1,5 +1,5 @@
 ---
-title: The SQL Client
+title: Access data with dlt sql client
 description: Technical details about the destination sql client
 keywords: [data, dataset, sql]
 ---
@@ -10,7 +10,7 @@ keywords: [data, dataset, sql]
 This page contains technical details about the implementation of the SQL client as well as information on how to use low-level APIs. If you simply want to query your data, it's advised to read the pages in this section on accessing data via `dlt` datasets, Streamlit, or Ibis.
 :::
 
-Most `dlt` destinations use an implementation of the `SqlClientBase` class to connect to the physical destination to which your data is loaded. DDL statements, data insert or update commands, as well as SQL merge and replace queries, are executed via a connection on this client. It also is used for reading data for the [Streamlit app](./streamlit.md) and [data access via `dlt` datasets](./dataset.md).
+Most `dlt` destinations use an implementation of the `SqlClientBase` class to connect to the physical destination to which your data is loaded. DDL statements, data insert or update commands, as well as SQL merge and replace queries, are executed via a connection on this client. It also is used for reading data for the [dashboard app](./dashboard.md) and [data access via `dlt` datasets](./dataset.md).
 
 All SQL destinations make use of an SQL client; additionally, the filesystem has a special implementation of the SQL client which you can read about [below](#the-filesystem-sql-client).
 
@@ -77,8 +77,28 @@ with pipeline.sql_client() as client:
 A few things to know or keep in mind when using the filesystem SQL client:
 
 - The SQL database you are actually querying is an in-memory database, so if you do any kind of mutating queries, these will not be persisted to your folder or bucket.
-- You must have loaded your data as `JSONL` or `Parquet` files for this SQL client to work. For optimal performance, you should use `Parquet` files, as `DuckDB` is able to only read the bytes needed to execute your query from a folder or bucket in this case.
+- You must have loaded your data as `JSONL`, `Parquet`, `CSV` files or `delta`/`iceberg` tables for this SQL client to work. For optimal performance, you should use `Parquet` files or open table formats, as `DuckDB` is able to only read the bytes needed to execute your query from a folder or bucket in this case.
 - Keep in mind that if you do any filtering, sorting, or full table loading with the SQL client, the in-memory `DuckDB` instance will have to download and query a lot of data from your bucket or folder if you have a large table.
 - If you are accessing data on a bucket, `dlt` will temporarily store your credentials in `DuckDB` to let it connect to the bucket.
 - Some combinations of buckets and table formats may not be fully supported at this time.
 
+### Control data freshness
+`sqlclient` creates views in which the data is immutable (each next query will access the same data). Such "snapshots" are created by:
+* globbing the table files once - when view is created
+* using the newest iceberg metadata to create view
+
+Updating views may be costly (globbing, re-reading iceberg metadata) so your best option is to create new `sql_client` (or `pipeline.dataset()`) instance
+when you need fresh data. Alternatively you can enable autorefresh mode which will re-create view on each query:
+
+```py
+from dlt.destination import filesystem
+
+pipeline = dlt.pipeline(destination=filesystem(always_refresh_views=True), dataset_name="my_dataset")
+with pipeline.sql_client() as client:
+    with client.execute_query("SELECT * FROM my_table") as cursor:
+        print(cursor.fetchall())
+        # pipeline.run() here and get updated data
+        print(cursor.fetchall())
+```
+
+Note: `delta` tables are by default on autorefresh which is implemented by delta core and seems to be pretty efficient.

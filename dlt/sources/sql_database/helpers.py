@@ -22,7 +22,8 @@ from dlt.common.configuration.specs import (
 )
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema import TTableSchemaColumns
-from dlt.common.typing import TDataItem, TSortOrder
+from dlt.common.schema.typing import TWriteDispositionDict
+from dlt.common.typing import TColumnNames, TDataItem, TSortOrder
 from dlt.common.jsonpath import extract_simple_field_name
 
 from dlt.common.utils import is_typeerror_due_to_wrong_call
@@ -79,16 +80,16 @@ class TableLoader:
 
             if column_name is None:
                 raise ValueError(
-                    f"Cursor path '{incremental.cursor_path}' must be a simple column name (e.g."
-                    " 'created_at')"
+                    f"Cursor path `{incremental.cursor_path}` must be a simple column name (e.g."
+                    " `created_at`)"
                 )
 
             try:
                 self.cursor_column = table.c[column_name]
             except KeyError as e:
                 raise KeyError(
-                    f"Cursor column '{incremental.cursor_path}' does not exist in table"
-                    f" '{table.name}'"
+                    f"Cursor column `{incremental.cursor_path}` does not exist in table"
+                    f" `{table.name}`"
                 ) from e
             self.last_value = incremental.last_value
             self.end_value = incremental.end_value
@@ -213,7 +214,7 @@ class TableLoader:
 
         # default settings
         backend_kwargs = {
-            "return_type": "arrow2",
+            "return_type": "arrow",
             "protocol": "binary",
             **backend_kwargs,
         }
@@ -227,12 +228,24 @@ class TableLoader:
             query_str = str(query.compile(self.engine, compile_kwargs={"literal_binds": True}))
         except CompileError as ex:
             raise NotImplementedError(
-                f"Query for table {self.table.name} could not be compiled to string to execute it"
+                f"Query for table `{self.table.name}` could not be compiled to string to execute it"
                 " on ConnectorX. If you are on SQLAlchemy 1.4.x the causing exception is due to"
-                f" literals that cannot be rendered, upgrade to 2.x: {str(ex)}"
+                f" literals that cannot be rendered, upgrade to 2.x: `{str(ex)}`"
             ) from ex
         df = cx.read_sql(conn, query_str, **backend_kwargs)
-        yield df
+        yield self._maybe_fix_0000_timezone(df)
+
+    def _maybe_fix_0000_timezone(self, df: Any) -> Any:
+        """Optionally convert +00:00 timezone to UTC"""
+        try:
+            from dlt.common.libs.pyarrow import set_plus0000_timezone_to_utc, pyarrow
+
+            # TODO: skip when Arrow releases timezone fix
+            if isinstance(df, pyarrow.Table):
+                return set_plus0000_timezone_to_utc(df)
+        except MissingDependencyException:
+            pass
+        return df
 
 
 def table_rows(
@@ -241,14 +254,14 @@ def table_rows(
     metadata: MetaData,
     chunk_size: int,
     backend: TableBackend,
-    incremental: Optional[Incremental[Any]] = None,
-    table_adapter_callback: TTableAdapter = None,
-    reflection_level: ReflectionLevel = "minimal",
-    backend_kwargs: Dict[str, Any] = None,
-    type_adapter_callback: Optional[TTypeAdapter] = None,
-    included_columns: Optional[List[str]] = None,
-    query_adapter_callback: Optional[TQueryAdapter] = None,
-    resolve_foreign_keys: bool = False,
+    incremental: Optional[Incremental[Any]],
+    table_adapter_callback: TTableAdapter,
+    reflection_level: ReflectionLevel,
+    backend_kwargs: Dict[str, Any],
+    type_adapter_callback: Optional[TTypeAdapter],
+    included_columns: Optional[List[str]],
+    query_adapter_callback: Optional[TQueryAdapter],
+    resolve_foreign_keys: bool,
 ) -> Iterator[TDataItem]:
     if isinstance(table, str):  # Reflection is deferred
         table = Table(
@@ -337,7 +350,7 @@ def unwrap_json_connector_x(field: str) -> TDataItem:
         column = pc.replace_with_mask(
             column,
             pc.equal(column, "null").combine_chunks(),
-            pa.scalar(None, pa.large_string()),
+            pa.scalar(None, pa.string()),
         )
         return table.set_column(col_index, table.schema.field(col_index), column)
 
@@ -408,3 +421,6 @@ class SqlTableResourceConfiguration(BaseConfiguration):
     defer_table_reflect: Optional[bool] = False
     reflection_level: Optional[ReflectionLevel] = "full"
     included_columns: Optional[List[str]] = None
+    write_disposition: Optional[TWriteDispositionDict] = None
+    primary_key: Optional[TColumnNames] = None
+    merge_key: Optional[TColumnNames] = None

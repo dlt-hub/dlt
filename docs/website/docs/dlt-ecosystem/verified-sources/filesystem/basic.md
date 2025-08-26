@@ -106,6 +106,7 @@ To get GCS/GDrive access:
 4. In IAM & Admin > Service Accounts, find your account, click the three-dot menu > "Manage Keys" >
    "ADD KEY" > "CREATE" to get a JSON credential file.
 5. Grant the service account appropriate permissions for cloud storage access.
+6. In the case of GDrive, share the respective folders/files with the service account.
 
 For more info, see how to
 [create a service account](https://support.google.com/a/answer/7378726?hl=en).
@@ -146,7 +147,7 @@ You don't need any credentials for the local filesystem.
 
 ### Add credentials to dlt pipeline
 
-To provide credentials to the filesystem source, you can use [any method available](../../../general-usage/credentials/setup#available-config-providers) in dlt.
+To provide credentials to the filesystem source, you can use [any method available](../../../general-usage/credentials/setup) in dlt.
 One of the easiest ways is to use configuration files. The `.dlt` folder in your working directory contains two files: `config.toml` and `secrets.toml`. Sensitive information, like passwords and access tokens, should only be put into `secrets.toml`, while any other configuration, like the path to a bucket, can be specified in `config.toml`.
 
 <Tabs
@@ -200,7 +201,7 @@ project_id="Please set me up!"
 # config.toml
 # gdrive
 [gdrive_pipeline_name.sources.filesystem]
-bucket_url="gdrive://<folder_name>/<subfolder_or_file_path>/"
+bucket_url="gdrive://<folder_name>/<subfolder_or_file_path>/" # set file_glob="" if file path
 
 # config.toml
 # Google storage
@@ -304,7 +305,12 @@ Full list of `filesystem` resource parameters:
 
 * `bucket_url` - full URL of the bucket (could be a relative path in the case of the local filesystem).
 * `credentials` - cloud storage credentials of `AbstractFilesystem` instance (should be empty for the local filesystem). We recommend not specifying this parameter in the code, but putting it in a secrets file instead.
-* `file_glob` -  file filter in glob format. Defaults to listing all non-recursive files in the bucket URL.
+* `file_glob` -  file filter in glob format. Defaults to listing all non-recursive files in the bucket URL. 
+
+  :::info
+  If the `bucket_url` is a specific file path, set `file_glob=""`.
+  :::
+
 * `files_per_page` - number of files processed at once. The default value is `100`.
 * `extract_content` - if true, the content of the file will be read and returned in the resource. The default value is `False`.
 

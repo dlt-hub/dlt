@@ -131,7 +131,8 @@ def init_client(
             )
         )
 
-        if staging_tables:
+        # if there are tables to drop, we should also drop them in the staging dataset
+        if staging_tables or drop_table_names:
             with job_client.with_staging_dataset():
                 _init_dataset_and_update_schema(
                     job_client,

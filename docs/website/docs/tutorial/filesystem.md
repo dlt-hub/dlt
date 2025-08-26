@@ -48,7 +48,7 @@ Here’s what each file does:
     - `config.toml`: This file contains the configuration settings for your dlt project.
 
 :::note
-When deploying your pipeline in a production environment, managing all configurations with files might not be convenient. In this case, we recommend you use environment variables to store secrets and configs instead. Read more about [configuration providers](../general-usage/credentials/setup#available-config-providers) available in dlt.
+When deploying your pipeline in a production environment, managing all configurations with files might not be convenient. In this case, we recommend you use environment variables to store secrets and configs instead. Read more about [configuration providers](../general-usage/credentials/setup#choose-where-to-store-configuration) available in dlt.
 :::
 
 ## 2. Creating the pipeline
@@ -167,7 +167,17 @@ files = filesystem(
 As you can see, all parameters of `filesystem` can be specified directly in the code or taken from the configuration.
 
 :::tip
-dlt supports more ways of authorizing with cloud storages, including identity-based and default credentials. To learn more about adding credentials to your pipeline, please refer to the [Configuration and secrets section](../general-usage/credentials/complex_types#awscredentials).
+`dlt` supports more ways of authorizing with cloud storages, including identity-based and default credentials. To learn more about adding credentials to your pipeline, please refer to the [Configuration and secrets section](../general-usage/credentials/complex_types#awscredentials).
+:::
+
+:::tip
+`filesystem` source uses the same configuration layout as filesystem destination so you can refer to:
+
+1. [bucket access setup and examples](../dlt-ecosystem/destinations/filesystem.md#set-up-the-destination-and-credentials)
+2. [additional fsspec and client options](../dlt-ecosystem/destinations/filesystem.md#adding-additional-configuration) like ssl setup.
+
+Just remember that examples are prepared for destination configuration. Replace **destination** category section with **sources**.
+
 :::
 
 ## 4. Running the pipeline
@@ -192,7 +202,7 @@ Load package 1726074108.8017762 is LOADED and contains no failed jobs
 Now that the pipeline has run successfully, let's explore the data loaded into DuckDB. dlt comes with a built-in browser application that allows you to interact with the data. To enable it, run the following command:
 
 ```sh
-pip install streamlit
+pip install marimo
 ```
 
 Next, run the following command to start the data browser:
@@ -202,8 +212,6 @@ dlt pipeline hospital_data_pipeline show
 ```
 
 The command opens a new browser window with the data browser application. `hospital_data_pipeline` is the name of the pipeline defined in the `filesystem_pipeline.py` file.
-
-![Streamlit Explore data](/img/filesystem-tutorial/streamlit-data.png)
 
 You can explore the loaded data, run queries, and see some pipeline execution details.
 
@@ -274,9 +282,7 @@ print(info)
 
 Notice that we applied incremental loading both for `files` and for `reader`. Therefore, dlt will first filter out only modified files and then filter out new records based on the `STOP` column.
 
-If you run `dlt pipeline hospital_data_pipeline show`, you can see the pipeline now has new information in the state about the incremental variable:
-
-![Streamlit Explore data](/img/filesystem-tutorial/streamlit-incremental-state.png)
+If you run `dlt pipeline hospital_data_pipeline show`, you can see the pipeline now has new information in the state about the incremental variable.
 
 To learn more about incremental loading, check out the [filesystem incremental loading section](../dlt-ecosystem/verified-sources/filesystem/basic#5-incremental-loading).
 
@@ -318,9 +324,7 @@ info = pipeline.run(reader, write_disposition="merge")
 print(info)
 ```
 
-After executing this code, you'll see a new column in the `encounters` table:
-
-![Streamlit Explore data](/img/filesystem-tutorial/streamlit-new-col.png)
+After executing this code, you'll see a new column in the `encounters` table.
 
 ## 9. Load any other type of files
 
@@ -338,7 +342,7 @@ from dlt.common.typing import TDataItems
 from dlt.sources.filesystem import filesystem
 
 # Define a standalone transformer to read data from a JSON file.
-@dlt.transformer(standalone=True)
+@dlt.transformer
 def read_json(items: Iterator[FileItemDict]) -> Iterator[TDataItems]:
     for file_obj in items:
         with file_obj.open() as f:

@@ -226,6 +226,13 @@ BigQuery supports the following [column hints](../../general-usage/schema#tables
 
 * `cluster` - creates cluster column(s). Many columns per table are supported and only when a new table is created.
 
+:::caution
+**Deprecation Notice:**
+Per-column `cluster` hints are deprecated and will be removed in a future release.  
+**To migrate, use the `cluster` argument of the `bigquery_adapter` instead.**  
+See the [example below](#use-an-adapter-to-apply-hints-to-a-resource) for how to specify clustering columns with the adapter.
+:::
+
 ### Table and column identifiers
 BigQuery uses case-sensitive identifiers by default, and this is what `dlt` assumes. If the dataset you use has case-insensitive identifiers (you have such an option
 when you create it), make sure that you use a case-insensitive [naming convention](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) or you tell `dlt` about it so identifier collisions are properly detected.

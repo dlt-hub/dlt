@@ -1,19 +1,11 @@
 name: common | common
 
 on:
-  pull_request:
-    branches:
-      - master
-      - devel
-  workflow_dispatch:
+  workflow_call:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
 
 env:
   RUNTIME__LOG_LEVEL: ERROR
-  RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
 
   # we need the secrets only for the rest_api_pipeline tests which are in tests/sources
   # so we inject them only at the end
@@ -22,43 +14,65 @@ env:
   SOURCES__GITHUB_API_PIPELINE__ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
-  get_docs_changes:
-    name: docs changes
-    uses: ./.github/workflows/get_docs_changes.yml
-
   run_common:
     name: test
-    needs: get_docs_changes
-    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
-        python-version: ["3.11.x"]
-        # Test all python versions on ubuntu only
         include:
-          - python-version: "3.9.x"
-            os: "ubuntu-latest"
-          - python-version: "3.10.x"
-            os: "ubuntu-latest"
-          - python-version: "3.12.x"
-            os: "ubuntu-latest"
-          - python-version: "3.13.x"
-            os: "ubuntu-latest"
-          - python-version: "3.13.x"
-            os: "windows-latest"
+
+          # macos tests
+          - os: macos-latest
+            python-version: "3.11"
+            shell: bash
+
+          # linux tests
+          - os: ubuntu-latest
+            python-version: "3.9"
+            shell: bash
+          - os: ubuntu-latest
+            python-version: "3.10"
+            shell: bash
+          - os: ubuntu-latest
+            python-version: "3.11"
+            shell: bash
+          - os: ubuntu-latest
+            python-version: "3.12"
+            shell: bash
+          - os: ubuntu-latest
+            python-version: "3.13"
+            shell: bash
+
+          - os: ubuntu-latest
+            python-version: "3.14.0-beta.4"
+            shell: bash
+
+          # linux test with minimal dependencies
+          - os: ubuntu-latest
+            python-version: "3.11"
+            shell: bash
+            uv_sync_args: '--resolution lowest-direct' # could also be 'direct'
+          
+          # windows tests
+          - os: windows-latest
+            python-version: "3.11"
+            shell: cmd
+            pytest_args: '-m "not forked"'
+          - os: windows-latest
+            python-version: "3.13"
+            shell: cmd
+            pytest_args: '-m "not forked"'
 
     defaults:
       run:
-        shell: bash
+        shell: ${{ matrix.shell }}
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Check out
         uses: actions/checkout@master
-
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -72,105 +86,77 @@ jobs:
           copy tzdata %USERPROFILE%\Downloads\tzdata
           curl https://raw.githubusercontent.com/unicode-org/cldr/master/common/supplemental/windowsZones.xml --output %USERPROFILE%\Downloads\tzdata\windowsZones.xml
         if: runner.os == 'Windows'
-        shell: cmd
-
-      - name: Install Poetry
-        # https://github.com/snok/install-poetry#running-on-windows
-        uses: snok/install-poetry@v1.3.2
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-          installer-parallel: true
-          version: 1.8.5
-
-      # NOTE: do not cache. we want to have a clean state each run and we upgrade depdendencies later
-      # - name: Load cached venv
-      #   id: cached-poetry-dependencies
-      #   uses: actions/cache@v3
-      #   with:
-      #     # path: ${{ steps.pip-cache.outputs.dir }}
-      #     path: .venv
-      #     key: venv-${{ matrix.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          python-version: ${{ matrix.python-version }}
+          activate-environment: true
 
       - name: Install dependencies
-        run: poetry install --no-interaction --with sentry-sdk
-
-      - run: |
-          poetry run pytest tests/common tests/normalize tests/reflection tests/plugins tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py
-        if: runner.os != 'Windows'
-        name: Run common tests with minimum dependencies Linux/MAC
-      - run: |
-          poetry run pytest tests/common tests/normalize tests/reflection tests/plugins tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py -m "not forked"
-        if: runner.os == 'Windows'
-        name: Run common tests with minimum dependencies Windows
-        shell: cmd
-
+        run: uv sync ${{ matrix.uv_sync_args }} --group sentry-sdk
+    
+      - name: Run common tests with minimum dependencies
+        run: |
+          pytest tests/common tests/normalize tests/reflection tests/plugins tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py ${{ matrix.pytest_args }}
+  
       - name: Install duckdb dependencies
-        run: poetry install --no-interaction -E duckdb --with sentry-sdk
+        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --group sentry-sdk
 
-      - run: |
-          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py
-        if: runner.os != 'Windows'
-        name: Run pipeline smoke tests with minimum deps Linux/MAC
-      - run: |
-          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py -m "not forked"
-        if: runner.os == 'Windows'
-        name: Run smoke tests with minimum deps Windows
-        shell: cmd
+      - name: Run pipeline smoke tests with minimum deps
+        run: |
+          pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py ${{ matrix.pytest_args }}
 
       - name: Install pyarrow
-        run: poetry install --no-interaction -E duckdb -E cli -E parquet --with sentry-sdk
+        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra cli --extra parquet --group sentry-sdk
+        if: matrix.python-version != '3.14.0-beta.4'
 
-      - run: |
-          poetry run pytest tests/pipeline/test_pipeline_extra.py -k arrow
-        if: runner.os != 'Windows'
-        name: Run pipeline tests with pyarrow but no pandas installed
-      - run: |
-          poetry run pytest tests/pipeline/test_pipeline_extra.py -k arrow  -m "not forked"
-        if: runner.os == 'Windows'
-        name: Run pipeline tests with pyarrow but no pandas installed Windows
-        shell: cmd
+      - name: Run pipeline tests with pyarrow but no pandas installed
+        run: |
+          pytest tests/pipeline/test_pipeline_extra.py -k arrow ${{ matrix.pytest_args }}
+        if: matrix.python-version != '3.14.0-beta.4'
 
       - name: Install pipeline and sources dependencies
-        run: poetry install --no-interaction -E duckdb -E cli -E parquet -E deltalake -E sql_database --with sentry-sdk,pipeline,sources
+        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra cli --extra parquet --extra deltalake --extra sql_database --group sentry-sdk --group pipeline --group sources --group ibis
+        if: matrix.python-version != '3.14.0-beta.4'
 
-      - run: |
-          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources
-        if: runner.os != 'Windows'
-        name: Run extract and pipeline tests Linux/MAC
-      - run: |
-          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources -m "not forked"
-        if: runner.os == 'Windows'
-        name: Run extract tests Windows
-        shell: cmd
+      - name: Run extract and pipeline tests
+        run: |
+          pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources ${{ matrix.pytest_args }}
+        if: matrix.python-version != '3.14.0-beta.4'
 
       # here we upgrade sql alchemy to 2 an run the sql_database tests again
       - name: Upgrade sql alchemy
-        run: poetry run pip install sqlalchemy==2.0.32
+        run: uv run pip install sqlalchemy==2.0.32
+        if: matrix.python-version != '3.14.0-beta.4'
 
-      - run: |
-          poetry run pytest tests/sources/sql_database
-        if: runner.os != 'Windows'
-        name: Run extract and pipeline tests Linux/MAC
-      - run: |
-          poetry run pytest tests/sources/sql_database
-        if: runner.os == 'Windows'
-        name: Run extract tests Windows
-        shell: cmd
+      - name: Run extract and pipeline tests 
+        run: |
+          pytest tests/sources/sql_database
+        if: matrix.python-version != '3.14.0-beta.4'
 
-      # - name: Install Pydantic 1.0
-      #   run: pip install "pydantic<2"
+      # test pipeline dashboard app, does not work with python 3.13
+      - name: Install dlt with duckdb and dashboard
+        # note: this also tests the workspace extra installation
+        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra workspace --group sentry-sdk --group pipeline --group sources --group dashboard-tests
+        if: matrix.python-version != '3.14.0-beta.4'
 
-      # - run: |
-      #     poetry run pytest tests/libs
-      #   if: runner.os != 'Windows'
-      #   name: Run extract and pipeline tests Linux/MAC
-      # - run: |
-      #     poetry run pytest tests/libs
-      #   if: runner.os == 'Windows'
-      #   name: Run extract tests Windows
-      #   shell: cmd
+      - name: Install playwright
+        run: playwright install
+        if: matrix.python-version != '3.14.0-beta.4'
 
+
+      # Run pipeline dashboard unit tests
+      - name: Run pipeline dashboard unit tests
+        run: |
+          pytest tests/helpers/dashboard
+        if: matrix.python-version != '3.9' && matrix.python-version != '3.14.0-beta.4'
+
+      # Run pipeline dashboard e2e tests (does not pass with python 3.9, does not pass on windows (playwright does not work somehow), does not pass on python 3.13 (ibis not available))
+      - name: Run dashboard e2e
+        run: |
+          marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines/ --with_test_identifiers true & pytest --browser chromium tests/e2e
+        if: matrix.python-version != '3.9' && matrix.os != 'windows-latest' && matrix.python-version != '3.14.0-beta.4'
+  
   matrix_job_required_check:
     name: common | common tests
     needs: run_common

@@ -1,11 +1,7 @@
 import os
 import dataclasses
 import logging
-import sys
-import pytest
-from typing import List, Iterator
-from importlib.metadata import version as pkg_version
-from packaging.version import Version
+from typing import Dict, List, Any
 
 # patch which providers to enable
 from dlt.common.configuration.providers import (
@@ -13,6 +9,7 @@ from dlt.common.configuration.providers import (
     EnvironProvider,
     SecretsTomlProvider,
     ConfigTomlProvider,
+    GoogleSecretsProvider,
 )
 from dlt.common.configuration.specs.config_providers_context import (
     ConfigProvidersConfiguration,
@@ -34,11 +31,31 @@ RunContext.initial_providers = initial_providers  # type: ignore[method-assign]
 ConfigProvidersConfiguration.enable_airflow_secrets = False
 ConfigProvidersConfiguration.enable_google_secrets = False
 
+CACHED_GOOGLE_SECRETS: Dict[str, Any] = {}
+
+
+class CachedGoogleSecretsProvider(GoogleSecretsProvider):
+    def _look_vault(self, full_key, hint):
+        if full_key not in CACHED_GOOGLE_SECRETS:
+            CACHED_GOOGLE_SECRETS[full_key] = super()._look_vault(full_key, hint)
+        return CACHED_GOOGLE_SECRETS[full_key]
+
+    def _list_vault(self):
+        key_ = "__list_vault"
+        if key_ not in CACHED_GOOGLE_SECRETS:
+            CACHED_GOOGLE_SECRETS[key_] = super()._list_vault()
+        return CACHED_GOOGLE_SECRETS[key_]
+
+
+from dlt.common.configuration.providers import google_secrets
+
+google_secrets.GoogleSecretsProvider = CachedGoogleSecretsProvider  # type: ignore[misc]
+
 
 def pytest_configure(config):
     # patch the configurations to use test storage by default, we modify the types (classes) fields
     # the dataclass implementation will use those patched values when creating instances (the values present
-    # in the declaration are not frozen allowing patching)
+    # in the declaration are not frozen allowing patching). this is needed by common storage tests
 
     from dlt.common.configuration.specs import runtime_configuration
     from dlt.common.storages import configuration as storage_configuration
@@ -51,11 +68,11 @@ def pytest_configure(config):
     runtime_configuration.RuntimeConfiguration.dlthub_telemetry_endpoint = (
         "https://telemetry-tracker.services4758.workers.dev"
     )
+
     delattr(runtime_configuration.RuntimeConfiguration, "__init__")
     runtime_configuration.RuntimeConfiguration = dataclasses.dataclass(  # type: ignore[misc]
         runtime_configuration.RuntimeConfiguration, init=True, repr=False
     )  # type: ignore
-    # push telemetry to CI
 
     storage_configuration.LoadStorageConfiguration.load_volume_path = os.path.join(
         test_storage_root, "load"
@@ -143,8 +160,9 @@ def pytest_configure(config):
             ]:
                 logging.getLogger(log).setLevel("ERROR")
 
-            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
-                io.StringIO()
+            with (
+                contextlib.redirect_stdout(io.StringIO()),
+                contextlib.redirect_stderr(io.StringIO()),
             ):
                 db.resetdb()
 

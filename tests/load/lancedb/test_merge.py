@@ -1,21 +1,23 @@
-from typing import Iterator, List, Generator, Any
+from typing import List, Generator, Any
 
 import numpy as np
 import pandas as pd
 import pytest
-from lancedb.table import Table  # type: ignore
+from lancedb.table import Table
 from pandas import DataFrame
 from pandas.testing import assert_frame_equal
 
 import dlt
+from dlt.common import pendulum
 from dlt.common.typing import DictStrAny, DictStrStr
 from dlt.common.utils import uniq_id
+
 from dlt.destinations.impl.lancedb.lancedb_adapter import (
     lancedb_adapter,
 )
+
 from tests.load.lancedb.utils import chunk_document
 from tests.load.utils import (
-    drop_active_pipeline_data,
     sequence_generator,
 )
 from tests.pipeline.utils import (
@@ -25,12 +27,6 @@ from tests.pipeline.utils import (
 
 # Mark all tests as essential, don't remove.
 pytestmark = pytest.mark.essential
-
-
-@pytest.fixture(autouse=True)
-def drop_lancedb_data() -> Iterator[None]:
-    yield
-    drop_active_pipeline_data()
 
 
 def test_lancedb_remove_nested_orphaned_records() -> None:
@@ -279,7 +275,11 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings() -> No
         for doc in docs:
             doc_id = doc["doc_id"]
             for chunk in chunk_document(doc["text"]):
-                yield {"doc_id": doc_id, "doc_text": doc["text"], "chunk": chunk}
+                chunk_doc = {"doc_id": doc_id, "doc_text": doc["text"], "chunk": chunk}
+                # add column on the second run
+                if "created_at" in doc:
+                    chunk_doc["created_at"] = doc["created_at"]
+                yield chunk_doc
 
     @dlt.source()
     def documents_source(
@@ -320,10 +320,12 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings() -> No
         {
             "text": "This is the first document, but it has been updated with new content.",
             "doc_id": 1,
+            "created_at": pendulum.now().date(),
         },
         {
             "text": "This is a completely new document that wasn't in the initial set.",
             "doc_id": 3,
+            "created_at": pendulum.now().date(),
         },
     ]
 

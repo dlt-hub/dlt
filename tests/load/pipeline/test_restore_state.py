@@ -25,20 +25,12 @@ from tests.utils import TEST_STORAGE_ROOT
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_DECODED
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V10, yml_case_path as common_yml_case_path
 from tests.common.configuration.utils import environment
-from tests.pipeline.utils import assert_query_data
+from tests.pipeline.utils import assert_query_column
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
     get_normalized_dataset_name,
-    drop_active_pipeline_data,
 )
-
-
-@pytest.fixture(autouse=True)
-def duckdb_pipeline_location() -> None:
-    # this will store duckdb in working folder so it survives pipeline wipe
-    if "DESTINATION__DUCKDB__CREDENTIALS" in os.environ:
-        del os.environ["DESTINATION__DUCKDB__CREDENTIALS"]
 
 
 @pytest.mark.essential
@@ -98,9 +90,6 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         stored_schema = job_client.get_stored_schema(job_client.schema.name)
         assert stored_schema is not None
-        # dataset exists, still no table
-        with pytest.raises(DestinationUndefinedEntity):
-            load_pipeline_state_from_destination(p.pipeline_name, job_client)
         initial_state = p._get_state()
         # now add table to schema and sync
         initial_state["_local"]["_last_extracted_at"] = pendulum.now()
@@ -204,6 +193,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     assert new_stored_state["_state_version"] + 1 == new_stored_state_2["_state_version"]
 
 
+@pytest.mark.no_load
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, default_vector_configs=True),
@@ -304,13 +294,16 @@ def test_get_schemas_from_destination(
     assert restored_schemas == []
     # restore unknown schema
     restored_schemas = p._get_schemas_from_destination(["_unknown"], always_download=False)
-    assert restored_schemas == []
+    assert restored_schemas[0].name == "_unknown"
+    # unknown schemas will have is_new flag set
+    assert restored_schemas[0].is_new is True  # schema just got created
     # restore default schema
-    p.default_schema_name = "state"
+    p.default_schema_name = "state"  # type: ignore[assignment]
     p.schema_names = ["state"]
     restored_schemas = p._get_schemas_from_destination(p.schema_names, always_download=False)
     assert len(restored_schemas) == 1
     assert restored_schemas[0].name == "state"
+    assert restored_schemas[0].is_new is False
     p._schema_storage.save_schema(restored_schemas[0])
     assert p._schema_storage.list_schemas() == ["state"]
     # restore all the rest
@@ -331,7 +324,6 @@ def test_get_schemas_from_destination(
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        all_staging_configs=True,
         default_vector_configs=True,
         all_buckets_filesystem_configs=True,
         table_format_filesystem_configs=True,
@@ -450,7 +442,6 @@ def test_restore_state_pipeline(
     )
     p.run(**destination_config.run_kwargs)
     assert p.default_schema_name is None
-    drop_active_pipeline_data()
 
     # create pipeline without restore
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
@@ -744,7 +735,7 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
             c_created_at = client.escape_column_name(
                 p.default_schema.naming.normalize_identifier("created_at")
             )
-        assert_query_data(
+        assert_query_column(
             p,
             f"SELECT {c_version} FROM {state_table} ORDER BY {c_created_at} DESC",
             [5, 4, 4, 3, 2],
@@ -762,6 +753,7 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
         default_vector_configs=True,
         all_buckets_filesystem_configs=True,
         table_format_filesystem_configs=True,
+        exclude=("filesystem_s3_gcs_comp",),
     ),
     ids=lambda x: x.name,
 )

@@ -28,7 +28,7 @@ We'll learn:
 - How to work with `ConnectionStringCredentials` spec.
 
 
-Be aware that you need to define the database credentials in `.dlt/secrets.toml` or dlt ENVs and adjust the tables names ("table_1" and "table_2").
+Be aware that you need to define the database credentials in `.dlt/secrets.toml` or dlt ENVs and adjust the tables names ("customers" and "inventory").
 
 Install `dlt` with `duckdb` as extra, also `connectorx`, Postgres adapter and progress bar tool:
 
@@ -74,7 +74,7 @@ def read_sql_x_chunked(conn_str: str, query: str, chunk_size: int = CHUNKSIZE):
         data_chunk = cx.read_sql(
             conn_str,
             chunk_query,
-            return_type="arrow2",
+            return_type="arrow",
             protocol="binary",
         )
         yield data_chunk
@@ -108,7 +108,6 @@ def pg_resource_chunked(
         table_name=table_name,
         write_disposition=load_type,  # use `replace` for initial load, `merge` for incremental
         primary_key=primary_key,
-        standalone=True,
         parallelized=True,
     )(read_sql_x_chunked)(
         credentials.to_native_representation(),  # Pass the connection string directly
@@ -139,13 +138,13 @@ if __name__ == "__main__":
     parser.add_argument("--merge", action="store_true", help="Run delta load")
     args = parser.parse_args()
 
-    source_schema_name = "example_data_1"
-    target_schema_name = "example_data_2"
+    source_schema_name = "fixture_postgres_to_postgres"
+    target_schema_name = "destination_schema"
     pipeline_name = "loading_postgres_to_postgres"
 
     tables = [
-        table_desc("table_1", ["pk"], source_schema_name, "updated_at"),
-        table_desc("table_2", ["pk"], source_schema_name, "updated_at"),
+        table_desc("customers", ["id"], source_schema_name, "id"),
+        table_desc("inventory", ["id"], source_schema_name, "id"),
     ]
 
     # default is initial loading (replace)
@@ -211,8 +210,8 @@ if __name__ == "__main__":
 
     # check that stuff was loaded
     row_counts = pipeline.last_trace.last_normalize_info.row_counts
-    assert row_counts["table_1"] == 9
-    assert row_counts["table_2"] == 9
+    assert row_counts["customers"] == 13
+    assert row_counts["inventory"] == 3
 
     if load_type == "replace":
         # 4. Load DuckDB local database into Postgres
@@ -262,7 +261,7 @@ if __name__ == "__main__":
         rows = conn.sql(
             f"SELECT count(*) as count FROM pg_db.{timestamped_schema}.{table['table_name']};"
         ).fetchone()[0]
-        assert int(rows) == 9
+        assert int(rows) == 13 if table["table_name"] == "customers" else 3
 
         # 5. Cleanup and rename Schema
         print("##################################### RENAME Schema and CLEANUP ########")

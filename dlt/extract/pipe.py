@@ -1,5 +1,5 @@
+from functools import wraps
 import inspect
-import makefun
 from copy import copy
 from typing import (
     Any,
@@ -14,13 +14,13 @@ from typing import (
     Tuple,
 )
 
+from dlt.common.reflection.inspect import isasyncgenfunction, isgeneratorfunction
 from dlt.common.typing import AnyFun, AnyType, TDataItems
 from dlt.common.utils import get_callable_name
 
 from dlt.extract.exceptions import (
     CreatePipeException,
     InvalidStepFunctionArguments,
-    InvalidResourceDataTypeFunctionNotAGenerator,
     InvalidTransformerGeneratorFunction,
     ParametrizedResourceUnbound,
     PipeNotBoundToData,
@@ -148,7 +148,7 @@ class Pipe(SupportsPipe):
 
     def fork(self, child_pipe: "Pipe", child_step: int = -1, copy_on_fork: bool = False) -> "Pipe":
         if len(self._steps) == 0:
-            raise CreatePipeException(self.name, f"Cannot fork to empty pipe {child_pipe}")
+            raise CreatePipeException(self.name, f"Cannot fork to empty pipe `{child_pipe}`")
         fork_step = self.tail
         if not isinstance(fork_step, ForkPipe):
             fork_step = ForkPipe(child_pipe, child_step, copy_on_fork)
@@ -206,7 +206,7 @@ class Pipe(SupportsPipe):
         if index == self._gen_idx:
             raise CreatePipeException(
                 self.name,
-                f"Step at index {index} holds a data generator for this pipe and cannot be removed",
+                f"Step at `{index=:}` holds a data generator for this pipe and cannot be removed",
             )
         self._steps.pop(index)
         if index < self._gen_idx:
@@ -285,6 +285,7 @@ class Pipe(SupportsPipe):
                         str(ex),
                     )
             # otherwise it must be an iterator
+            gen = self.gen
             if isinstance(gen, Iterable):
                 self.replace_gen(iter(gen))
         else:
@@ -303,47 +304,61 @@ class Pipe(SupportsPipe):
 
     def bind_gen(self, *args: Any, **kwargs: Any) -> Any:
         """Finds and wraps with `args` + `kwargs` the callable generating step in the resource pipe and then replaces the pipe gen with the wrapped one"""
-        try:
-            gen = self._wrap_gen(*args, **kwargs)
-            self.replace_gen(gen)
-            return gen
-        except InvalidResourceDataTypeFunctionNotAGenerator:
-            try:
-                # call regular function to check what is inside
-                _data = self.gen(*args, **kwargs)  # type: ignore
-            except Exception as ev_ex:
-                # break chaining
-                raise ev_ex from None
-            # accept if pipe or object holding pipe is returned
-            # TODO: use a protocol (but protocols are slow)
-            if isinstance(_data, Pipe) or hasattr(_data, "_pipe"):
-                return _data
-            raise
+        # try:
+        gen = self._wrap_gen(*args, **kwargs)
+        self.replace_gen(gen)
+        return gen
+
+    def sim_gen(
+        self, *args: Any, **kwargs: Any
+    ) -> Tuple[inspect.Signature, inspect.Signature, inspect.BoundArguments]:
+        """Simulates calling the gen element"""
+        # skip the data item argument for transformers
+        args_to_skip = 1 if self.has_parent else 0
+        # simulate function call
+        return simulate_func_call(self.gen, args_to_skip, *args, **kwargs)
 
     def _wrap_gen(self, *args: Any, **kwargs: Any) -> Any:
         """Finds and wraps with `args` + `kwargs` the callable generating step in the resource pipe."""
         head = self.gen
         _data: Any = None
 
-        # skip the data item argument for transformers
-        args_to_skip = 1 if self.has_parent else 0
-        # simulate function call
-        sig, _, _ = simulate_func_call(head, args_to_skip, *args, **kwargs)
+        sig, _, _ = self.sim_gen(*args, **kwargs)
         assert callable(head)
 
         # create wrappers with partial
         if self.has_parent:
             _data = wrap_compat_transformer(self.name, head, sig, *args, **kwargs)
         else:
-            _data = wrap_resource_gen(self.name, head, sig, *args, **kwargs)
+            if self._should_eval_on_bind(head, sig):
+                # call immediately to replace gen, this will happen before pipe executes
+                _data = head(*args, **kwargs)
+            else:
+                _data = wrap_resource_gen(self.name, head, sig, *args, **kwargs)
         return _data
+
+    def _should_eval_on_bind(self, gen: Any, sig: inspect.Signature) -> bool:
+        """Checks if gen should be evaluated when args are bound to it. Standard behavior is to
+        eval during extraction. Currently only when resource is returned we evaluate
+        """
+        if not isasyncgenfunction(gen) and not isgeneratorfunction(gen):
+            # TODO: some base methods of DltSource and DltResource should be moved to common
+            #  below we import DltResource but Pipe class should not be dependent on it
+            from dlt.extract.resource import DltResource
+
+            if sig.return_annotation != inspect.Signature.empty and inspect.isclass(
+                sig.return_annotation
+            ):
+                return issubclass(sig.return_annotation, DltResource)
+
+        return False
 
     def _verify_head_step(self, step: TPipeStep) -> None:
         # first element must be Iterable, Iterator or Callable in resource pipe
         if not isinstance(step, (Iterable, Iterator, AsyncIterator)) and not callable(step):
             raise CreatePipeException(
                 self.name,
-                "A head of a resource pipe must be Iterable, Iterator, AsyncIterator or a Callable",
+                "A head of a resource pipe must be: [Iterable, Iterator, AsyncIterator, Callable]",
             )
 
     def _wrap_transform_step_meta(self, step_no: int, step: TPipeStep) -> TPipeStep:
@@ -370,13 +385,6 @@ class Pipe(SupportsPipe):
             meta_arg = check_compat_transformer(self.name, step, sig)
             if meta_arg is None:
                 # add meta parameter when not present
-                orig_step = step
-
-                def _partial(*args: Any, **kwargs: Any) -> Any:
-                    # orig step does not have meta
-                    kwargs.pop("meta", None)
-                    # del kwargs["meta"]
-                    return orig_step(*args, **kwargs)
 
                 meta_arg = inspect.Parameter(
                     "meta", inspect._ParameterKind.KEYWORD_ONLY, default=None
@@ -389,8 +397,20 @@ class Pipe(SupportsPipe):
                     # pass meta in variadic
                     new_sig = sig
                 else:
-                    new_sig = makefun.add_signature_parameters(sig, last=(meta_arg,))
-                step = makefun.wraps(step, new_sig=new_sig)(_partial)
+                    params = list(sig.parameters.values()) + [meta_arg]
+                    new_sig = sig.replace(parameters=params)
+
+                orig_step = step
+
+                @wraps(step)
+                def _partial(*args: Any, **kwargs: Any) -> Any:
+                    # orig step does not have meta
+                    kwargs.pop("meta", None)
+                    # del kwargs["meta"]
+                    return orig_step(*args, **kwargs)
+
+                setattr(_partial, "__signature__", new_sig)
+                step = _partial
 
             # verify the step callable, gen may be parametrized and will be evaluated at run time
             if not self.is_empty:

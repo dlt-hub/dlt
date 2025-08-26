@@ -29,7 +29,7 @@ from dlt.common.schema.typing import (
     MERGE_STRATEGIES,
     TTableReferenceParam,
 )
-
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.typing import TTableNames, TypedDict, Unpack
 from dlt.common.schema.utils import (
     DEFAULT_WRITE_DISPOSITION,
@@ -40,6 +40,7 @@ from dlt.common.schema.utils import (
     migrate_complex_types,
     new_column,
     new_table,
+    merge_table,
 )
 from dlt.common.typing import TAny, TDataItem, TColumnNames
 from dlt.common.time import ensure_pendulum_datetime
@@ -55,9 +56,11 @@ from dlt.extract.items import TFunHintTemplate, TTableHintTemplate, TableNameMet
 from dlt.extract.items_transform import ValidateItem
 from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_columns_hint
 from dlt.extract.validation import create_item_validator
-from dlt.common.data_writers import TDataItemFormat
 
 import sqlglot
+
+
+DLT_HINTS_METADATA_KEY = "dlt_resource_hints"
 
 
 class TResourceNestedHints(TypedDict, total=False):
@@ -99,17 +102,47 @@ class HintsMeta:
         self.create_table_variant = create_table_variant
 
 
-class SqlModel(NamedTuple):
-    query: str
-    dialect: Optional[str] = None
+class SqlModel:
+    """
+    A SqlModel is a named tuple that contains a query and a dialect.
+    It is used to represent a SQL query and the dialect to use for parsing it.
+    """
+
+    __slots__ = ("_query", "_dialect")
+
+    def __init__(self, query: str, dialect: Optional[str] = None) -> None:
+        self._query = query
+        self._dialect = dialect
+
+    def to_sql(self) -> str:
+        return self._query
+
+    def query_dialect(self) -> str:
+        return self._dialect
 
     @classmethod
     def from_query_string(cls, query: str, dialect: Optional[str] = None) -> "SqlModel":
         """
         Creates a SqlModel from a raw SQL query string using sqlglot.
+        Ensures that the parsed query is an instance of sqlglot.exp.Select.
+
+        Args:
+            query (str): The raw SQL query string.
+            dialect (Optional[str]): The SQL dialect to use for parsing.
+
+        Returns:
+            SqlModel: An instance of SqlModel with the normalized query and dialect.
+
+        Raises:
+            ValueError: If the parsed query is not an instance of sqlglot.exp.Select.
         """
 
         parsed_query = sqlglot.parse_one(query, read=dialect)
+
+        # Ensure the parsed query is a SELECT statement
+        if not isinstance(parsed_query, sqlglot.exp.Select):
+            raise ValueError("Only SELECT statements are allowed to create a `SqlModel`.")
+
         normalized_query = parsed_query.sql(dialect=dialect)
         return cls(query=normalized_query, dialect=dialect)
 
@@ -221,6 +254,16 @@ class DltResourceHints:
     @table_name.setter
     def table_name(self, value: TTableHintTemplate[str]) -> None:
         self.apply_hints(table_name=value)
+
+    @property
+    def has_dynamic_table_name(self) -> bool:
+        """Tells the extractor wether computed table name may change based on invididual data items"""
+        return self._table_name_hint_fun is not None
+
+    @property
+    def has_other_dynamic_hints(self) -> bool:
+        """Tells the extractor wether computed hints may change based on invididual data items"""
+        return self._table_has_other_dynamic_hints
 
     @property
     def write_disposition(self) -> TTableHintTemplate[TWriteDispositionConfig]:
@@ -437,8 +480,7 @@ class DltResourceHints:
         if create_table_variant:
             if not isinstance(table_name, str):
                 raise ValueError(
-                    "Please provide string table name if you want to create a table variant of"
-                    " hints"
+                    "Please provide `str` table name if you want to create a table variant of hints"
                 )
             # select hints variant
             t = self._hints_variants.get(table_name, None)
@@ -576,20 +618,20 @@ class DltResourceHints:
             # incremental cannot be specified in variant
             if hints_template.get("incremental"):
                 raise InconsistentTableTemplate(
-                    f"You can specify incremental only for the resource `{self.name}` hints, not in"
-                    f" table `{table_name}` variant-"
+                    f"You can specify `incremental` only for the resource `{self.name}` hints, not"
+                    f" in table `{table_name}` variant-"
                 )
             if hints_template.get("validator"):
                 logger.warning(
-                    f"A data item validator was created from column schema in {self.name} for a"
+                    f"A data item validator was created from column schema in `{self.name}` for a"
                     f" table `{table_name}` variant. Currently such validator is ignored."
                 )
             # dynamic hints will be ignored
             for name, hint in hints_template.items():
                 if callable(hint) and name not in NATURAL_CALLABLES:
                     raise InconsistentTableTemplate(
-                        f"Table `{table_name}` variant hint is resource {self.name} cannot have"
-                        f" dynamic hint but {name} does."
+                        f"Table `{table_name}` variant hint is resource `{self.name}` can't have"
+                        f" dynamic hint but `{name}` does."
                     )
             self._hints_variants[table_name] = hints_template
         else:
@@ -673,6 +715,9 @@ class DltResourceHints:
         md_dict: TMergeDispositionDict = dict_.pop("write_disposition")
         if merge_strategy := md_dict.get("strategy"):
             dict_["x-merge-strategy"] = merge_strategy
+
+        if deduplicated := md_dict.get("deduplicated"):
+            dict_["x-stage-data-deduplicated"] = deduplicated
 
         if merge_strategy == "scd2":
             md_dict = cast(TScd2StrategyDict, md_dict)
@@ -761,7 +806,8 @@ class DltResourceHints:
             callable(v) for k, v in template.items() if k not in ["table_name", *NATURAL_CALLABLES]
         ) and not callable(table_name):
             raise InconsistentTableTemplate(
-                f"Table name {table_name} must be a function if any other table hint is a function"
+                f"Table name `{table_name}` must be a function if any other table hint is a"
+                " function"
             )
 
     @staticmethod
@@ -770,9 +816,8 @@ class DltResourceHints:
         if isinstance(wd, dict) and wd["disposition"] == "merge":
             wd = cast(TMergeDispositionDict, wd)
             if "strategy" in wd and wd["strategy"] not in MERGE_STRATEGIES:
-                raise ValueError(
-                    f'`{wd["strategy"]}` is not a valid merge strategy. '
-                    f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}."""
+                raise ValueErrorWithKnownValues(
+                    "write_disposition['strategy']", wd["strategy"], MERGE_STRATEGIES
                 )
 
             if wd.get("strategy") == "scd2":
@@ -788,7 +833,7 @@ class DltResourceHints:
                             ensure_pendulum_datetime(wd[ts])  # type: ignore[literal-required]
                         except Exception:
                             raise ValueError(
-                                f'could not parse `{ts}` value "{wd[ts]}"'  # type: ignore[literal-required]
+                                f"could not parse `{ts}` value `{wd[ts]}`"  # type: ignore[literal-required]
                             )
 
     @staticmethod

@@ -1,3 +1,5 @@
+# flake8: noqa
+
 from typing import Any, cast, Tuple, List
 import re
 import pytest
@@ -11,25 +13,23 @@ from typing import List
 from functools import reduce
 
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
+from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableFormat
-from dlt.common.storages.exceptions import SchemaNotFoundError
-from dlt.common.storages.file_storage import FileStorage
+
 from dlt.extract.source import DltSource
+from dlt.dataset.exceptions import LineageFailedException
+from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
+from dlt.destinations.dataset.relation import ReadableDBAPIRelation
+
 from tests.load.utils import (
-    FILE_BUCKET,
     destinations_configs,
     DestinationTestConfiguration,
-    GCS_BUCKET,
     SFTP_BUCKET,
     MEMORY_BUCKET,
 )
-from tests.utils import TEST_STORAGE_ROOT, clean_test_storage
-from dlt.destinations.dataset.exceptions import (
-    ReadableRelationUnknownColumnException,
-)
+from tests.utils import preserve_module_environ, autouse_module_test_storage, patch_module_home_dir
 from tests.load.utils import drop_pipeline_data
-from dlt.destinations.dataset import dataset as _dataset
 
 EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
 
@@ -111,23 +111,32 @@ def create_test_source(destination_type: str, table_format: TTableFormat) -> Dlt
                 for i in range(total_records)
             ]
 
-        return [items, double_items]
+        @dlt.resource(
+            table_format=table_format,
+            write_disposition="replace",
+            columns={"id": {"data_type": "bigint"}, "other_id": {"data_type": "bigint"}},
+        )
+        def orderable_in_chain():
+            yield from [
+                {
+                    "id": int(i / 2),
+                    "other_id": i,
+                }
+                for i in range(total_records)
+            ]
+
+        return [items, double_items, orderable_in_chain]
 
     return source()
 
 
-# this also disables autouse_test_storage on function level which destroys some tests here
-@pytest.fixture(scope="session")
-def autouse_test_storage() -> FileStorage:
-    return clean_test_storage()
-
-
-@pytest.fixture(scope="session")
-def populated_pipeline(request, autouse_test_storage) -> Any:
+@pytest.fixture(scope="module")
+def populated_pipeline(
+    request, autouse_module_test_storage, preserve_module_environ, patch_module_home_dir
+) -> Any:
     """fixture that returns a pipeline object populated with the example data"""
 
     destination_config = cast(DestinationTestConfiguration, request.param)
-
     if (
         destination_config.file_format not in ["parquet", "jsonl"]
         and destination_config.destination_type == "filesystem"
@@ -178,14 +187,71 @@ configs = destinations_configs(
     indirect=True,
     ids=lambda x: x.name,
 )
-def test_explicit_dataset_type_selection(populated_pipeline: Pipeline):
-    from dlt.destinations.dataset.dataset import ReadableDBAPIRelation
-    from dlt.destinations.dataset.ibis_relation import ReadableIbisRelation
+def test_str_and_repr_on_dataset_and_relation(populated_pipeline: Pipeline) -> None:
+    # no need to test on all destinations
+    if populated_pipeline.destination.destination_type != "dlt.destinations.duckdb":
+        pytest.skip("Only duckdb is supported for this test")
 
-    assert isinstance(
-        populated_pipeline.dataset(dataset_type="default").items, ReadableDBAPIRelation
+    dataset_ = cast(ReadableDBAPIDataset, populated_pipeline.dataset())
+
+    def _replace_variable_content(s: str) -> str:
+        # replace dataset name
+        s = s.replace(dataset_.dataset_name, "dataset_name")
+        # replace destination config
+        dest_config = str(
+            cast(ReadableDBAPIDataset, populated_pipeline.dataset()).destination_client.config
+        )
+        s = s.replace(dest_config, "<destination_config>")
+        return s
+
+    # dataset
+    assert (
+        _replace_variable_content(str(dataset_))
+        == "Dataset `dataset_name` at `duckdb[<destination_config>]` with tables in dlt schema"
+        " `source`:\nitems, double_items, orderable_in_chain, items__children"
     )
-    assert isinstance(populated_pipeline.dataset(dataset_type="ibis").items, ReadableIbisRelation)
+
+    dataset_repr = _replace_variable_content(repr(dataset_))
+    assert dataset_repr.startswith("<dlt.dataset(dataset_name='dataset_name',")
+
+    # relation
+    relation = dataset_("SELECT id, decimal FROM items")
+    assert _replace_variable_content(str(relation)) == """Relation query: 
+  SELECT
+    "items"."id" AS "id",
+    "items"."decimal" AS "decimal"
+  FROM "dataset_name"."items" AS "items"
+Columns:
+  id bigint
+  decimal decimal
+"""
+    relation_repr = _replace_variable_content(repr(relation))
+    assert relation_repr.startswith(
+        "<dlt.Relation(dataset='<dlt.dataset(dataset_name=\\'dataset_name\\'"
+    )
+    assert '"items"."decimal" AS "decimal"' in relation_repr
+
+
+@pytest.mark.no_load
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_scalar(populated_pipeline: Pipeline) -> None:
+    assert populated_pipeline.dataset()("SELECT COUNT(*) FROM items").scalar() == _total_records(
+        populated_pipeline.destination.destination_type
+    )
+
+    # test error if more than one row is returned and we use scalar
+    with pytest.raises(ValueError) as ex:
+        populated_pipeline.dataset().items.scalar()
+    assert "got more than one row" in str(ex.value)
+
+    with pytest.raises(ValueError) as ex:
+        populated_pipeline.dataset().items.limit(1).limit(1).scalar()
+    assert "got 1 row with 5 columns" in str(ex.value)
 
 
 @pytest.mark.no_load
@@ -205,17 +271,21 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
     # full table
     table = table_relationship.arrow()
     assert table.num_rows == total_records
+    assert set(table.column_names) == set(EXPECTED_COLUMNS)
 
     # chunk
     table = table_relationship.arrow(chunk_size=chunk_size)
     assert set(table.column_names) == set(EXPECTED_COLUMNS)
-    assert table.num_rows == chunk_size
+    # NOTE: chunksize is unpredictable on snowflake
+    if populated_pipeline.destination.destination_type != "dlt.destinations.snowflake":
+        assert table.num_rows == chunk_size
 
     # check frame amount and items counts
     tables = list(table_relationship.iter_arrow(chunk_size=chunk_size))
-    assert [t.num_rows for t in tables] == expected_chunk_counts
+    if populated_pipeline.destination.destination_type != "dlt.destinations.snowflake":
+        assert [t.num_rows for t in tables] == expected_chunk_counts
 
-    # check all items are present
+    # check all items are present, this MUST also be true for snowflake
     ids = reduce(lambda a, b: a + b, [t.column(EXPECTED_COLUMNS[0]).to_pylist() for t in tables])
     assert set(ids) == set(range(total_records))
 
@@ -234,14 +304,17 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
     chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     expected_chunk_counts = _expected_chunk_count(populated_pipeline)
-    skip_df_chunk_size_check = (
-        populated_pipeline.destination.destination_type == "dlt.destinations.filesystem"
-    )
+    skip_df_chunk_size_check = populated_pipeline.destination.destination_type in [
+        "dlt.destinations.filesystem",
+        "dlt.destinations.snowflake",
+    ]
 
     # full frame
     df = table_relationship.df()
     assert len(df.index) == total_records
+    assert set(df.columns.values) == set(EXPECTED_COLUMNS)
 
+    # TODO: snowflake does not follow a chunk size, make and exception (accept range), same for arrow
     # chunk
     df = table_relationship.df(chunk_size=chunk_size)
     if not skip_df_chunk_size_check:
@@ -303,14 +376,19 @@ def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_hint_preservation(populated_pipeline: Pipeline) -> None:
-    table_relationship = populated_pipeline.dataset(dataset_type="default").items
+    table_relationship = populated_pipeline.dataset().items
     # check that hints are carried over to arrow table
     expected_decimal_precision = 10
     expected_decimal_precision_2 = 12
-    if populated_pipeline.destination.destination_type == "dlt.destinations.bigquery":
+    if populated_pipeline.destination.destination_type in [
+        "dlt.destinations.bigquery",
+        "dlt.destinations.snowflake",
+    ]:
         # bigquery does not allow precision configuration..
         expected_decimal_precision = 38
         expected_decimal_precision_2 = 38
+
+    # NOTE: pyarrow 19 exposes decimal64 type and duckdb 1.3 is using it for low precision decimals
     assert (
         table_relationship.arrow().schema.field("decimal").type.precision
         == expected_decimal_precision
@@ -363,6 +441,10 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
         (
             "items__children",
             total_records * 2,
+        ),
+        (
+            "orderable_in_chain",
+            total_records,
         ),
     }
     # get only one data table
@@ -419,6 +501,10 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
             "items__children",
             total_records * 2,
         ),
+        (
+            "orderable_in_chain",
+            total_records,
+        ),
     }
 
 
@@ -431,18 +517,23 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_sql_queries(populated_pipeline: Pipeline) -> None:
+    dataset_name = populated_pipeline.dataset_name
+
     # simple check that query also works
-    tname = populated_pipeline.sql_client().make_qualified_table_name("items")
-    query_relationship = populated_pipeline.dataset()(f"select * from {tname} where id < 20")
+    query_relationship = populated_pipeline.dataset()("select * from items where id < 20")
+    query_from_query_function = populated_pipeline.dataset().query(
+        "select * from items where id < 20"
+    )
+
+    assert query_relationship._sqlglot_expression == query_from_query_function._sqlglot_expression  # type: ignore
 
     # we selected the first 20
     table = query_relationship.arrow()
     assert table.num_rows == 20
 
     # check join query
-    tdname = populated_pipeline.sql_client().make_qualified_table_name("double_items")
     query = (
-        f"SELECT i.id, di.double_id FROM {tname} as i JOIN {tdname} as di ON (i.id = di.id) WHERE"
+        "SELECT i.id, di.double_id FROM items as i JOIN double_items as di ON (i.id = di.id) WHERE"
         " i.id < 20 ORDER BY i.id ASC"
     )
     join_relationship = populated_pipeline.dataset()(query)
@@ -451,6 +542,54 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
     assert list(table[0]) == [0, 0]
     assert list(table[5]) == [5, 10]
     assert list(table[10]) == [10, 20]
+
+    # check query with explicit dataset, query is in "schema" identifier space
+    query = (
+        f"SELECT i.id, di.double_id FROM {dataset_name}.items as i JOIN {dataset_name}.double_items"
+        " as di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
+    )
+
+    join_relationship = cast(ReadableDBAPIRelation, populated_pipeline.dataset()(query))
+    table = join_relationship.fetchall()
+    assert len(table) == 20
+
+    # check statement that is not a select query
+    query = f"CREATE TABLE {dataset_name}.test (id bigint)"
+    with pytest.raises(LineageFailedException) as exc:
+        populated_pipeline.dataset()(query).df()
+    assert "is not a SELECT statement." in str(exc.value)
+
+    # we also get an error in raw query mode
+    with pytest.raises(ValueError) as exc2:
+        populated_pipeline.dataset()(query, _execute_raw_query=True).df()
+    assert "Must be an SQL SELECT statement" in str(exc2.value)
+
+    # we only test the following for duckdb
+    if populated_pipeline.destination.destination_type != "dlt.destinations.duckdb":
+        return
+
+    # test various query stages
+    # raw query has no aliases
+    assert (
+        join_relationship._sqlglot_expression.sql("duckdb").replace(dataset_name, "dataset_name")
+        == "SELECT i.id, di.double_id FROM dataset_name.items AS i JOIN dataset_name.double_items"
+        " AS di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
+    )
+
+    # qualified query has aliases
+    assert (
+        join_relationship._qualified_query.sql("duckdb").replace(dataset_name, "dataset_name")
+        == "SELECT i.id AS id, di.double_id AS double_id FROM dataset_name.items AS i JOIN"
+        " dataset_name.double_items AS di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
+    )
+
+    # normalized has quoted indentifiers
+    assert (
+        join_relationship._normalized_query.sql("duckdb").replace(dataset_name, "dataset_name")
+        == 'SELECT "i"."id" AS "id", "di"."double_id" AS "double_id" FROM "dataset_name"."items" AS'
+        ' "i" JOIN "dataset_name"."double_items" AS "di" ON ("i"."id" = "di"."id") WHERE'
+        ' "i"."id" < 20 ORDER BY "i"."id" ASC'
+    )
 
 
 @pytest.mark.no_load
@@ -462,46 +601,63 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
     ids=lambda x: x.name,
 )
 def test_limit_and_head(populated_pipeline: Pipeline) -> None:
-    dataset_ = populated_pipeline.dataset()
+    dataset_ = cast(ReadableDBAPIDataset, populated_pipeline.dataset())
 
     # test sql_client lifecycle
-    assert dataset_._sql_client is None
+    assert dataset_._opened_sql_client is None
 
     table_relationship = dataset_.items
-    # ibis relation creates client, default not
-    # assert dataset_._sql_client is None
 
     assert len(table_relationship.head().fetchall()) == 5
-    assert dataset_._sql_client is not None
-    # we close the connection after each use
-    assert dataset_._sql_client.native_connection is None
+    # no client remains
+    assert dataset_._opened_sql_client is None
 
     assert len(table_relationship.limit(24).fetchall()) == 24
-    assert dataset_._sql_client.native_connection is None
+    assert dataset_._opened_sql_client is None
 
     assert len(table_relationship.head().df().index) == 5
-    assert dataset_._sql_client.native_connection is None
+    assert dataset_._opened_sql_client is None
 
     assert len(table_relationship.limit(24).df().index) == 24
-    assert dataset_._sql_client.native_connection is None
+    assert dataset_._opened_sql_client is None
 
     assert table_relationship.head().arrow().num_rows == 5
-    assert dataset_._sql_client.native_connection is None
+    assert dataset_._opened_sql_client is None
 
     assert table_relationship.limit(24).arrow().num_rows == 24
-    assert dataset_._sql_client.native_connection is None
+    assert dataset_._opened_sql_client is None
 
-    for data_ in table_relationship.limit(24).iter_fetch(6):
+    limit_relationship = cast(ReadableDBAPIRelation, table_relationship.limit(24))
+    for data_ in limit_relationship.iter_fetch(6):
         assert len(data_) == 6
-        # connection kept open
-        assert dataset_._sql_client.native_connection is not None
+        # client stays open
+        assert limit_relationship._opened_sql_client is not None
+
+    # run multiple requests on one connection
+    with dataset_ as d_:
+        limit_relationship = cast(ReadableDBAPIRelation, table_relationship.limit(24))
+        for _data in limit_relationship.iter_fetch(6):
+            # client stays open
+            assert limit_relationship._opened_sql_client is not None
+            assert (
+                limit_relationship._opened_sql_client.native_connection
+                == d_._opened_sql_client.native_connection
+            )
+
+        other_relationship = cast(ReadableDBAPIRelation, table_relationship.limit(10))
+        for _data in other_relationship.iter_fetch(6):
+            assert other_relationship._opened_sql_client is not None
+            assert (
+                other_relationship._opened_sql_client.native_connection
+                == d_._opened_sql_client.native_connection
+            )
 
     # connection closed
-    assert dataset_._sql_client.native_connection is None
+    assert dataset_._opened_sql_client is None
 
     chunk_size = _chunk_size(populated_pipeline.destination.destination_type)
     list(table_relationship.iter_fetch(chunk_size=chunk_size))
-    assert dataset_._sql_client.native_connection is None
+    assert dataset_._opened_sql_client is None
 
 
 @pytest.mark.no_load
@@ -512,39 +668,68 @@ def test_limit_and_head(populated_pipeline: Pipeline) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
-def test_dataset_context_manager_keeps_connection(populated_pipeline: Pipeline) -> None:
-    with populated_pipeline.dataset() as dataset_:
-        # test sql_client lifecycle
-        assert dataset_._sql_client is not None
+def test_dataset_client_caching_and_connection_handling(populated_pipeline: Pipeline) -> None:
+    # no clients exist yet
+    dataset = cast(ReadableDBAPIDataset, populated_pipeline.dataset())
+    assert dataset._opened_sql_client is None
+    assert dataset._sql_client is None
 
+    with dataset as dataset_:
+        # test sql_client lifecycle
+        assert dataset_._opened_sql_client is not None
+
+        first_encountered_opened_sql_client = dataset_._opened_sql_client
+
+        # "regular" clients are not created yet as never used
+        assert dataset_._sql_client is None
+
+        # cached sql client is used
         table_relationship = dataset_.items
-        assert dataset_._sql_client is not None
+        assert dataset_._opened_sql_client is not None
+        assert dataset_._opened_sql_client == first_encountered_opened_sql_client
 
         assert len(table_relationship.head().fetchall()) == 5
-        assert dataset_._sql_client is not None
+        assert dataset_._opened_sql_client is not None
+        assert dataset_._opened_sql_client == first_encountered_opened_sql_client
+
         # connection is kept
-        assert dataset_._sql_client.native_connection is not None
+        assert dataset_._opened_sql_client.native_connection is not None
 
         for data_ in table_relationship.limit(24).iter_fetch(6):
             assert len(data_) == 6
             # connection kept open
-            assert dataset_._sql_client.native_connection is not None
+            assert dataset_._opened_sql_client.native_connection is not None
 
     # connection closed
-    assert dataset_._sql_client is None
+    assert dataset_._opened_sql_client is None
+
+    # we do something that activates the "regular" caching
+    dataset_.items.fetchall()
+    assert dataset_._sql_client is not None
+    assert dataset_._opened_sql_client is None
 
     # open again
     with dataset_:
-        assert dataset_._sql_client is not None
+        assert dataset_._opened_sql_client is not None
         assert len(table_relationship.head().fetchall()) == 5
-        assert dataset_._sql_client is not None
+        assert dataset_._opened_sql_client is not None
         # connection is kept
-        assert dataset_._sql_client.native_connection is not None
+        assert dataset_._opened_sql_client.native_connection is not None
+
+        # the opened client is different from the "regular" one
+        assert dataset_._sql_client != dataset_._opened_sql_client
+        # and different from the last one
+        assert dataset_._opened_sql_client != first_encountered_opened_sql_client
 
         with pytest.raises(AssertionError):
             with dataset_:
                 pass
-    assert dataset_._sql_client is None
+    assert dataset_._opened_sql_client is None
+
+    # check that if the schema needs to be fetched, no opened client is left
+    dataset_._schema = None
+    assert dataset_.schema
+    assert dataset_._opened_sql_client is None
 
 
 @pytest.mark.no_load
@@ -556,29 +741,247 @@ def test_dataset_context_manager_keeps_connection(populated_pipeline: Pipeline) 
     ids=lambda x: x.name,
 )
 def test_column_selection(populated_pipeline: Pipeline) -> None:
-    table_relationship = populated_pipeline.dataset(dataset_type="default").items
+    table_relationship = populated_pipeline.dataset().items
     columns = ["_dlt_load_id", "other_decimal"]
     data_frame = table_relationship.select(*columns).head().df()
-    assert [v.lower() for v in data_frame.columns.values] == columns
+    assert list(data_frame.columns.values) == columns
     assert len(data_frame.index) == 5
 
+    # test single column indexer
+    arrow_table = table_relationship["other_decimal"].limit(1).arrow()
+    assert arrow_table.column_names == ["other_decimal"]
+    assert arrow_table.num_rows == 1
+
+    # test multiple column indexer
     columns = ["decimal", "other_decimal"]
     arrow_table = table_relationship[columns].head().arrow()
     assert arrow_table.column_names == columns
     assert arrow_table.num_rows == 5
 
+    # TODO: fix those for bigquery and snowflake which use native cursor and does not fit into our schema 100#
+    # this is really good test, we should make a strict test for arrow reading for all destinations
     # hints should also be preserved via computed reduced schema
     expected_decimal_precision = 10
     expected_decimal_precision_2 = 12
-    if populated_pipeline.destination.destination_type == "dlt.destinations.bigquery":
-        # bigquery does not allow precision configuration..
+    expected_decimal_scale = 3
+    # bigquery and snowflake take arrow tables via native cursor and they mange precision
+    # we should probably cast arrow tables to our schema in cursors
+    if populated_pipeline.destination.destination_type in [
+        "dlt.destinations.bigquery",
+        "dlt.destinations.snowflake",
+    ]:
         expected_decimal_precision = 38
         expected_decimal_precision_2 = 38
+
+    if populated_pipeline.destination.destination_type == "dlt.destinations.bigquery":
+        expected_decimal_scale = 9
+
+    assert arrow_table.schema.field("decimal").type.scale == expected_decimal_scale
+    assert arrow_table.schema.field("other_decimal").type.scale == expected_decimal_scale
+
     assert arrow_table.schema.field("decimal").type.precision == expected_decimal_precision
     assert arrow_table.schema.field("other_decimal").type.precision == expected_decimal_precision_2
 
-    with pytest.raises(ReadableRelationUnknownColumnException):
+    with pytest.raises(LineageFailedException):
         arrow_table = table_relationship.select("unknown_column").head().arrow()
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_chained_column_selection(populated_pipeline: Pipeline) -> None:
+    table_relationship = populated_pipeline.dataset().items
+
+    columns = ["_dlt_load_id", "other_decimal"]
+    data_frame = table_relationship.select(*columns).head().df()
+    assert list(data_frame.columns.values) == columns
+
+    data_frame = table_relationship.select(*columns).select(*columns).head().df()
+    assert list(data_frame.columns.values) == columns
+
+    data_frame = table_relationship.select(*columns).select(*["other_decimal"]).head().df()
+    assert list(data_frame.columns.values) == ["other_decimal"]
+
+    data_frame = table_relationship.select(*columns).select(*["decimal"]).head().df()
+    assert list(data_frame.columns.values) == ["decimal"]
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_order_by(populated_pipeline: Pipeline) -> None:
+    total_records = _total_records(populated_pipeline.destination.destination_type)
+    table_relationship = populated_pipeline.dataset().items
+
+    asc_ids = [row[0] for row in table_relationship.order_by("id", "asc").limit(20).fetchall()]
+    assert asc_ids == list(range(20))
+
+    desc_ids = [row[0] for row in table_relationship.order_by("id", "desc").limit(20).fetchall()]
+    assert desc_ids == list(range(total_records - 1, total_records - 21, -1))
+
+    chained = [row[0] for row in table_relationship.order_by("id").limit(5).select("id").fetchall()]
+    assert chained == list(range(5))
+
+    chained_relation = populated_pipeline.dataset().orderable_in_chain
+    chained_order_by = [
+        row
+        for row in chained_relation.order_by("id", "asc")
+        .order_by("other_id", "desc")
+        .limit(5)
+        .fetchall()
+    ]
+
+    assert [row[0] for row in chained_order_by] == [0, 0, 1, 1, 2]
+    assert [row[1] for row in chained_order_by] == [1, 0, 3, 2, 5]
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_where(populated_pipeline: Pipeline) -> None:
+    total_records = _total_records(populated_pipeline.destination.destination_type)
+    items = populated_pipeline.dataset().items
+
+    eq_rows = items.where("id", "eq", 10).fetchall()
+    assert len(eq_rows) == 1 and eq_rows[0][0] == 10
+
+    ne_rows = items.filter("id", "ne", 0).fetchall()
+    assert total_records - 1 == len(ne_rows)
+
+    gt_rows = items.where("id", "gt", 2).fetchall()
+    assert total_records - 3 == len(gt_rows)
+
+    lt_rows = items.filter("id", "lt", 5).fetchall()
+    assert 5 == len(lt_rows)
+
+    gte_rows = items.where("id", "gte", 5).fetchall()
+    lte_rows = items.filter("id", "lte", "5").fetchall()
+    assert total_records - 5 == len(gte_rows)
+    assert 6 == len(lte_rows)
+
+    in_ids = [r[0] for r in (items.where("id", "in", [3, 1, 7]).order_by("id").fetchall())]
+    assert in_ids == [1, 3, 7]
+
+    not_in_rows = items.filter("id", "not_in", [0, 1, 2]).fetchall()
+    assert total_records - 3 == len(not_in_rows)
+
+    with pytest.raises(ValueErrorWithKnownValues) as py_exc:
+        not_in_rows = items.filter("id", "wrong", [0, 1, 2]).fetchall()  # type: ignore
+
+    assert "Received invalid value `operator=wrong`" in py_exc.value.args[0]
+
+    assert total_records - 3 == len(not_in_rows)
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
+    items = populated_pipeline.dataset().items
+    orderable_in_chain = populated_pipeline.dataset().orderable_in_chain
+    total_records = _total_records(populated_pipeline.destination.destination_type)
+
+    filtered_items_sql = items.where("id < 10").fetchall()
+    assert len(filtered_items_sql) == 10
+    assert all(row[0] < 10 for row in filtered_items_sql)
+
+    load_id = items.select("_dlt_load_id").max().scalar()
+    all_items = items.where(f"_dlt_load_id = '{load_id}'").fetchall()
+    assert len(all_items) == total_records
+
+    filtered_items_range = items.where("id >= 5 AND id <= 15").fetchall()
+    assert len(filtered_items_range) == 11  # ids 5 through 15 inclusive
+    assert all(5 <= row[0] <= 15 for row in filtered_items_range)
+
+    import sqlglot.expressions as sge
+
+    # Create a sqlglot expression: id = 42
+    expr = sge.EQ(
+        this=sge.Column(this=sge.to_identifier("id", quoted=True)),
+        expression=sge.Literal.number("42"),
+    )
+    filtered_items_expr = items.where(expr).fetchall()
+    assert len(filtered_items_expr) == 1
+    assert filtered_items_expr[0][0] == 42
+
+    # Test combination with other methods
+    combined_result = items.where("id < 100").limit(5).fetchall()
+    assert len(combined_result) == 5
+    assert all(row[0] < 100 for row in combined_result)
+
+    combined_result = orderable_in_chain.where("id = 1").select("other_id").max().scalar()
+    assert 3 == combined_result
+
+    combined_result = orderable_in_chain.where("id = 1").select("other_id").min().scalar()
+    assert 2 == combined_result
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_min_max(populated_pipeline: Pipeline) -> None:
+    items = populated_pipeline.dataset().items
+    total_records = _total_records(populated_pipeline.destination.destination_type)
+
+    max_id = items.select("id").max().scalar()
+    assert max_id == total_records - 1
+
+    min_id = items.select("id").min().scalar()
+    assert min_id == 0
+
+    with pytest.raises(ValueError) as py_exc:
+        min_id = items.select("id", "decimal").min().scalar()
+
+    assert "min() requires a query with exactly one select expression." in py_exc.value.args[0]
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "populated_pipeline",
+    configs,
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_unknown_table_access(populated_pipeline: Pipeline) -> None:
+    match = "Table `unknown_table` not found"
+    dataset = populated_pipeline.dataset()
+
+    # missing attribute should raise Attribute error
+    with pytest.raises(AttributeError, match=match):
+        dataset.unknown_table
+
+    # missing key should raise KeyError
+    with pytest.raises(KeyError, match=match):
+        dataset["unknown_table"]
+
+    with pytest.raises(ValueError, match=match):
+        dataset.table("unknown_table")
 
 
 @pytest.mark.no_load
@@ -597,9 +1000,10 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
     assert dataset.schema.name == populated_pipeline.default_schema_name
     assert "items" in dataset.schema.tables
 
-    # if setting a different schema, it must be present in pipeline
-    with pytest.raises(SchemaNotFoundError):
-        populated_pipeline.dataset(schema="unknown_schema")
+    # if setting a different schema, default schema with dataset name will be used
+    populated_pipeline.dataset(schema="source")
+    assert dataset.schema.name == "source"
+    assert "items" in dataset.schema.tables
 
     # explicit schema object is OK
     dataset = populated_pipeline.dataset(schema=Schema("unknown_schema"))
@@ -623,24 +1027,24 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
 )
 def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # NOTE: we could generalize this with a context for certain deps
-    import ibis  # type: ignore
+    import ibis
 
     # now we should get the more powerful ibis relation
     dataset = populated_pipeline.dataset()
     total_records = _total_records(populated_pipeline.destination.destination_type)
 
-    items_table = dataset["items"]
-    double_items_table = dataset["double_items"]
+    items_table = dataset.table("items", table_type="ibis")
+    double_items_table = dataset.table("double_items", table_type="ibis")
 
     # check full table access
-    df = items_table.df()
+    df = dataset(items_table).df()
     assert len(df.index) == total_records
 
-    df = double_items_table.df()
+    df = dataset(double_items_table).df()
     assert len(df.index) == total_records
 
     # check limit
-    df = items_table.limit(5).df()
+    df = dataset(items_table).limit(5).df()
     assert len(df.index) == 5
 
     # check chained expression with join, column selection, order by and limit
@@ -651,19 +1055,34 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         .order_by("id")
         .limit(20)
     )
-    table = joined_table.fetchall()
+    relation = dataset(joined_table)
+    table = relation.fetchall()
     assert len(table) == 20
     assert list(table[0]) == [0, 0]
     assert list(table[5]) == [5, 10]
     assert list(table[10]) == [10, 20]
+    # verify computed columns
+    assert (
+        list(relation.columns_schema.keys())
+        == relation.columns  # type: ignore[attr-defined]
+        == relation._ipython_key_completions_()  # type: ignore[attr-defined]
+        == ["id", "double_id"]
+    )
 
     # check aggregate of first 20 items
-    agg_table = items_table.order_by("id").limit(20).aggregate(sum_id=items_table.id.sum())
-    assert agg_table.fetchone()[0] == reduce(lambda a, b: a + b, range(20))
+    agg_query = items_table.order_by("id").limit(20).aggregate(sum_id=items_table.id.sum())
+    agg_relation = dataset(agg_query)
+    assert agg_relation.fetchone()[0] == reduce(lambda a, b: a + b, range(20))
+    assert (
+        list(agg_relation.columns_schema.keys())
+        == agg_relation.columns  # type: ignore[attr-defined]
+        == agg_relation._ipython_key_completions_()  # type: ignore[attr-defined]
+        == ["sum_id"]
+    )
 
     # check filtering
     filtered_table = items_table.filter(items_table.id < 10)
-    assert len(filtered_table.fetchall()) == 10
+    assert len(dataset(filtered_table).fetchall()) == 10
 
     if populated_pipeline.destination.destination_type != "dlt.destinations.duckdb":
         return
@@ -671,8 +1090,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # we check a bunch of expressions without executing them to see that they produce correct sql
     # also we return the keys of the discovered schema columns
     def sql_from_expr(expr: Any) -> Tuple[str, List[str]]:
-        query = str(expr.query()).replace(populated_pipeline.dataset_name, "dataset")
-        columns = list(expr.columns_schema.keys()) if expr.columns_schema else None
+        relation = dataset(expr)
+        query = str(relation.to_sql()).replace(populated_pipeline.dataset_name, "dataset")  # type: ignore[attr-defined]
+        columns = list(relation.columns_schema.keys()) if relation.columns_schema else None
         return re.sub(r"\s+", " ", query), columns
 
     # test all functions discussed here: https://ibis-project.org/tutorials/ibis-for-sql-users
@@ -680,16 +1100,24 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
 
     # selecting two columns
     assert sql_from_expr(items_table.select("id", "decimal")) == (
-        'SELECT "t0"."id", "t0"."decimal" FROM "dataset"."items" AS "t0"',
+        'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal" FROM "dataset"."items" AS "t0"',
         ["id", "decimal"],
     )
 
-    # selecting all columns
-    assert sql_from_expr(items_table) == ('SELECT * FROM "dataset"."items"', ALL_COLUMNS)
+    # selecting all columns (star schema expanded, columns aliased)
+    # TODO: fixe tests
+    assert sql_from_expr(items_table) == (
+        (
+            'SELECT "items"."id" AS "id", "items"."decimal" AS "decimal", "items"."other_decimal"'
+            ' AS "other_decimal", "items"."_dlt_load_id" AS "_dlt_load_id", "items"."_dlt_id" AS'
+            ' "_dlt_id" FROM "dataset"."items" AS "items"'
+        ),
+        ALL_COLUMNS,
+    )
 
     # selecting two other columns via item getter
     assert sql_from_expr(items_table["id", "decimal"]) == (
-        'SELECT "t0"."id", "t0"."decimal" FROM "dataset"."items" AS "t0"',
+        'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal" FROM "dataset"."items" AS "t0"',
         ["id", "decimal"],
     )
 
@@ -697,46 +1125,61 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     new_col = (items_table.id * 2).name("new_col")
     assert sql_from_expr(items_table.select("id", "decimal", new_col)) == (
         (
-            'SELECT "t0"."id", "t0"."decimal", "t0"."id" * 2 AS "new_col" FROM'
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."id" * 2 AS "new_col" FROM'
             ' "dataset"."items" AS "t0"'
         ),
-        None,
+        ["id", "decimal", "new_col"],
     )
 
     # mutating table (add a new column computed from existing columns)
     assert sql_from_expr(
         items_table.mutate(double_id=items_table.id * 2).select("id", "double_id")
     ) == (
-        'SELECT "t0"."id", "t0"."id" * 2 AS "double_id" FROM "dataset"."items" AS "t0"',
-        None,
+        'SELECT "t0"."id" AS "id", "t0"."id" * 2 AS "double_id" FROM "dataset"."items" AS "t0"',
+        ["id", "double_id"],
     )
 
     # mutating table add new static column
     assert sql_from_expr(
         items_table.mutate(new_col=ibis.literal("static_value")).select("id", "new_col")
-    ) == ('SELECT "t0"."id", \'static_value\' AS "new_col" FROM "dataset"."items" AS "t0"', None)
+    ) == (
+        'SELECT "t0"."id" AS "id", \'static_value\' AS "new_col" FROM "dataset"."items" AS "t0"',
+        ["id", "new_col"],
+    )
 
     # check filtering (preserves all columns)
     assert sql_from_expr(items_table.filter(items_table.id < 10)) == (
-        'SELECT * FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10',
+        (
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10'
+        ),
         ALL_COLUMNS,
     )
 
     # filtering and selecting a single column
     assert sql_from_expr(items_table.filter(items_table.id < 10).select("id")) == (
-        'SELECT "t0"."id" FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10',
+        'SELECT "t0"."id" AS "id" FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10',
         ["id"],
     )
 
     # check filter "and" condition
     assert sql_from_expr(items_table.filter(items_table.id < 10).filter(items_table.id > 5)) == (
-        'SELECT * FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10 AND "t0"."id" > 5',
+        (
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10 AND "t0"."id" > 5'
+        ),
         ALL_COLUMNS,
     )
 
     # check filter "or" condition
     assert sql_from_expr(items_table.filter((items_table.id < 10) | (items_table.id > 5))) == (
-        'SELECT * FROM "dataset"."items" AS "t0" WHERE ( "t0"."id" < 10 ) OR ( "t0"."id" > 5 )',
+        (
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" WHERE ("t0"."id" < 10) OR ("t0"."id" > 5)'
+        ),
         ALL_COLUMNS,
     )
 
@@ -747,18 +1190,19 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         .aggregate(sum_id=items_table.id.sum())
     ) == (
         (
-            'SELECT "t1"."id", "t1"."sum_id" FROM ( SELECT "t0"."id", SUM("t0"."id") AS "sum_id",'
-            ' COUNT(*) AS "CountStar(items)" FROM "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1"'
-            ' WHERE "t1"."CountStar(items)" >= 1000'
+            'SELECT "t1"."id" AS "id", "t1"."sum_id" AS "sum_id" FROM (SELECT "t0"."id" AS "id",'
+            ' SUM("t0"."id") AS "sum_id", COUNT(*) AS "CountStar(items)" FROM "dataset"."items" AS'
+            ' "t0" GROUP BY "t0"."id") AS "t1" WHERE "t1"."CountStar(items)" >= 1000'
         ),
-        None,
+        ["id", "sum_id"],
     )
 
     # sorting and ordering
     assert sql_from_expr(items_table.order_by("id", "decimal").limit(10)) == (
         (
-            'SELECT * FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC, "t0"."decimal" ASC'
-            " LIMIT 10"
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC, "t0"."decimal" ASC LIMIT 10'
         ),
         ALL_COLUMNS,
     )
@@ -766,15 +1210,20 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # sort desc and asc
     assert sql_from_expr(items_table.order_by(ibis.desc("id"), ibis.asc("decimal")).limit(10)) == (
         (
-            'SELECT * FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" DESC, "t0"."decimal" ASC'
-            " LIMIT 10"
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" DESC, "t0"."decimal" ASC LIMIT 10'
         ),
         ALL_COLUMNS,
     )
 
     # offset and limit
     assert sql_from_expr(items_table.order_by("id").limit(10, offset=5)) == (
-        'SELECT * FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC LIMIT 10 OFFSET 5',
+        (
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC LIMIT 10 OFFSET 5'
+        ),
         ALL_COLUMNS,
     )
 
@@ -785,10 +1234,10 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         ]
     ) == (
         (
-            'SELECT "t2"."id", "t3"."double_id" FROM "dataset"."items" AS "t2" INNER JOIN'
-            ' "dataset"."double_items" AS "t3" ON "t2"."id" = "t3"."id"'
+            'SELECT "t2"."id" AS "id", "t3"."double_id" AS "double_id" FROM "dataset"."items" AS'
+            ' "t2" INNER JOIN "dataset"."double_items" AS "t3" ON "t2"."id" = "t3"."id"'
         ),
-        None,
+        ["id", "double_id"],
     )
 
     # subqueries
@@ -796,8 +1245,10 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         items_table.filter(items_table.decimal.isin(double_items_table.di_decimal))
     ) == (
         (
-            'SELECT * FROM "dataset"."items" AS "t0" WHERE "t0"."decimal" IN ( SELECT'
-            ' "t1"."di_decimal" FROM "dataset"."double_items" AS "t1" )'
+            'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
+            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
+            ' FROM "dataset"."items" AS "t0" WHERE "t0"."decimal" IN (SELECT "t1"."di_decimal" AS'
+            ' "di_decimal" FROM "dataset"."double_items" AS "t1")'
         ),
         ALL_COLUMNS,
     )
@@ -805,11 +1256,12 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # topk
     assert sql_from_expr(items_table.decimal.topk(10)) == (
         (
-            'SELECT * FROM ( SELECT "t0"."decimal", COUNT(*) AS "decimal_count" FROM'
-            ' "dataset"."items" AS "t0" GROUP BY 1 ) AS "t1" ORDER BY "t1"."decimal_count" DESC'
-            " LIMIT 10"
+            'SELECT "t1"."decimal" AS "decimal", "t1"."decimal_count" AS "decimal_count" FROM'
+            ' (SELECT "t0"."decimal" AS "decimal", COUNT(*) AS "decimal_count" FROM'
+            ' "dataset"."items" AS "t0" GROUP BY "t0"."decimal") AS "t1" ORDER BY'
+            ' "t1"."decimal_count" DESC LIMIT 10'
         ),
-        None,
+        ["decimal", "decimal_count"],
     )
 
 
@@ -873,6 +1325,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
                     "double_items",
                     "items",
                     "items__children",
+                    "orderable_in_chain",
                 ]
                 + additional_tables
             )
@@ -905,33 +1358,42 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
 
     # check dataset factory
-    dataset = _dataset(
-        destination=populated_pipeline.destination,
-        dataset_name=populated_pipeline.dataset_name,
-        # use name otherwise aleph schema is loaded
-        schema=populated_pipeline.default_schema_name,
+    dataset = cast(
+        ReadableDBAPIDataset,
+        dlt.dataset(
+            destination=populated_pipeline.destination,
+            dataset_name=populated_pipeline.dataset_name,
+            # use name otherwise aleph schema is loaded
+            schema=populated_pipeline.default_schema_name,
+        ),
     )
     # verify that sql client and schema are lazy loaded
     assert not dataset._schema
-    assert not dataset._sql_client
+    assert not dataset._opened_sql_client
     table_relationship = dataset.items
     table = table_relationship.fetchall()
     assert len(table) == total_records
     assert dataset.schema.tables["items"]["write_disposition"] == "replace"
 
     # check that schema is not loaded when wrong name given
-    dataset = _dataset(
-        destination=populated_pipeline.destination,
-        dataset_name=populated_pipeline.dataset_name,
-        schema="wrong_schema_name",
+    dataset = cast(
+        ReadableDBAPIDataset,
+        dlt.dataset(
+            destination=populated_pipeline.destination,
+            dataset_name=populated_pipeline.dataset_name,
+            schema="wrong_schema_name",
+        ),
     )
     assert "items" not in dataset.schema.tables
     assert dataset.schema.name == "wrong_schema_name"
 
     # check that schema is loaded if no schema name given
-    dataset = _dataset(
-        destination=populated_pipeline.destination,
-        dataset_name=populated_pipeline.dataset_name,
+    dataset = cast(
+        ReadableDBAPIDataset,
+        dlt.dataset(
+            destination=populated_pipeline.destination,
+            dataset_name=populated_pipeline.dataset_name,
+        ),
     )
     # aleph is a secondary schema in the pipeline but because it was stored second
     # will be retrieved by default
@@ -939,9 +1401,12 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     assert dataset.schema.tables["digits"]["write_disposition"] == "append"
 
     # check that there is no error when creating dataset without schema table
-    dataset = _dataset(
-        destination=populated_pipeline.destination,
-        dataset_name="unknown_dataset",
+    dataset = cast(
+        ReadableDBAPIDataset,
+        dlt.dataset(
+            destination=populated_pipeline.destination,
+            dataset_name="unknown_dataset",
+        ),
     )
     assert dataset.schema.name == "unknown_dataset"
     assert "items" not in dataset.schema.tables
@@ -955,13 +1420,16 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     other_schema.tables["other_table"] = utils.new_table("other_table")
 
     populated_pipeline._inject_schema(other_schema)
-    populated_pipeline.default_schema_name = other_schema.name
+    populated_pipeline.default_schema_name = other_schema.name  # type: ignore[assignment]
     with populated_pipeline.destination_client() as client:
         client.update_stored_schema()
 
-    dataset = _dataset(
-        destination=populated_pipeline.destination,
-        dataset_name=populated_pipeline.dataset_name,
+    dataset = cast(
+        ReadableDBAPIDataset,
+        dlt.dataset(
+            destination=populated_pipeline.destination,
+            dataset_name=populated_pipeline.dataset_name,
+        ),
     )
     assert dataset.schema.name == "some_other_schema"
     assert "other_table" in dataset.schema.tables
@@ -1046,7 +1514,7 @@ def test_naming_convention_propagation(destination_config: DestinationTestConfig
     dataset_ = pipeline.dataset()
     df = dataset_.ItemS.df()
     assert df.columns.tolist()[0] == "ID"
-    with dataset_.sql_client as client:
+    with dataset_.sql_client as client:  # type: ignore
         assert client.dataset_name.startswith("Read_test")
         tables = client.native_connection.sql("SHOW TABLES;")
         assert "ItemS" in str(tables)

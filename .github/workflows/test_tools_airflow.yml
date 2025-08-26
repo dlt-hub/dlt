@@ -1,0 +1,33 @@
+name: tools | airflow
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  run_airflow:
+    name: tools | airflow tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@master
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+          activate-environment: true
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --group airflow --group pipeline --extra duckdb --extra parquet --group sentry-sdk
+
+      - run: |
+          pytest tests/helpers/airflow_tests
+        name: Run tests

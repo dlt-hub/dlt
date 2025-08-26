@@ -6,8 +6,11 @@ import logging
 from subprocess import CalledProcessError
 
 import dlt
+from dlt.common.utils import set_working_dir
 from dlt.common.runners.venv import Venv
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.cli.exceptions import CliCommandInnerException
 
 from dlt.cli import echo, init_command, pipeline_command
 
@@ -131,6 +134,11 @@ def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) 
 
         _out = buf.getvalue()
         assert "Selected resource(s): ['players_games']" in _out
+        assert (
+            "WARNING: Unless hardcoded, credentials are loaded from environment variables and/or"
+            " configuration files."
+            not in _out
+        )
 
         # Command was executed
         pipeline = dlt.attach(pipeline_name="chess_pipeline")
@@ -242,3 +250,42 @@ def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileS
         _out = buf.getvalue()
         assert "No pending packages found" in _out
     print(_out)
+
+
+def test_drop_from_wrong_dir(repo_dir: str, project_files: FileStorage) -> None:
+    init_command.init_command("chess", "duckdb", repo_dir)
+
+    os.environ.pop(
+        "DESTINATION__DUCKDB__CREDENTIALS", None
+    )  # settings from local project (secrets.toml etc.)
+    venv = Venv.restore_current()
+    try:
+        print(venv.run_script("chess_pipeline.py"))
+    except CalledProcessError as cpe:
+        print(cpe.stdout)
+        print(cpe.stderr)
+        raise
+
+    # Running from the correct location should not raise warning
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        pipeline = dlt.attach(pipeline_name="chess_pipeline")
+        # when testing local_dir is not run_dir! it is pointing to tests/_storage
+        pipeline_dir = pipeline.last_run_context.get("run_dir")
+        with set_working_dir(pipeline_dir):
+            pipeline_command.pipeline_command(
+                "drop", "chess_pipeline", None, 0, resources=["players_games"]
+            )
+        _out = buf.getvalue()
+        assert (
+            "WARNING: You should run this from the same directory as the pipeline script"
+            not in _out
+        )
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        os.makedirs("wrong_dir", exist_ok=True)
+        with set_working_dir("wrong_dir"):
+            pipeline_command.pipeline_command(
+                "drop", "chess_pipeline", None, 0, resources=["players_games"]
+            )
+        _out = buf.getvalue()
+        assert "WARNING: You should run this from the same directory as the pipeline script" in _out

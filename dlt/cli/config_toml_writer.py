@@ -5,7 +5,7 @@ from tomlkit.container import Container as TOMLContainer
 from collections.abc import Sequence as C_Sequence
 
 from dlt.common.configuration.specs.base_configuration import is_hint_not_resolvable
-from dlt.common.pendulum import pendulum
+from dlt.common.configuration.const import TYPE_EXAMPLES
 from dlt.common.configuration.specs import (
     BaseConfiguration,
     is_base_configuration_inner_hint,
@@ -26,8 +26,8 @@ def generate_typed_example(name: str, hint: AnyType) -> Any:
     inner_hint = extract_inner_hint(hint)
     try:
         sc_type = py_type_to_sc_type(inner_hint)
-        if sc_type == "text":
-            return name
+        if sc_type in TYPE_EXAMPLES.keys():
+            return TYPE_EXAMPLES[sc_type]
         if sc_type == "bigint":
             return 0
         if sc_type == "double":
@@ -35,16 +35,7 @@ def generate_typed_example(name: str, hint: AnyType) -> Any:
         if sc_type == "bool":
             return True
         if sc_type == "json":
-            if is_subclass(inner_hint, C_Sequence):
-                return ["a", "b", "c"]
-            else:
-                table = tomlkit.table(False)
-                table["key"] = "value"
-                return table
-        if sc_type == "timestamp":
-            return pendulum.now().to_iso8601_string()
-        if sc_type == "date":
-            return pendulum.now().date().to_date_string()
+            return "json"
         if sc_type in ("wei", "decimal"):
             return "1.0"
         raise TypeError(sc_type)
@@ -78,10 +69,13 @@ def write_value(
     else:
         if default_value is None:
             example_value = generate_typed_example(name, hint)
+            # complex types do not get default values for now (#2531)
+            if example_value == "json":
+                return
             toml_table[name] = example_value
             # tomlkit not supporting comments on boolean
             if not isinstance(example_value, bool):
-                toml_table[name].comment("please set me up!")
+                toml_table[name].comment("fill this in!")
         else:
             toml_table[name] = default_value
 

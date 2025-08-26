@@ -72,7 +72,7 @@ To load data into ClickHouse, you need to create a ClickHouse database. While we
     The default non-secure HTTP port for ClickHouse is `8123`.
     This is different from the default port `9000`, which is used for the native TCP protocol.
 
-    You must set `http_port` if you are not using external staging (i.e., you don't set the `staging` parameter in your pipeline). This is because dlt's built-in ClickHouse local storage staging uses the [clickhouse-connect](https://github.com/ClickHouse/clickhouse-connect) library, which communicates with ClickHouse over HTTP.
+    You must additionaly set `http_port` if you are not using external staging (i.e., you don't set the `staging` destination parameter in your pipeline). This is because dlt's built-in ClickHouse local storage staging uses the [clickhouse-connect](https://github.com/ClickHouse/clickhouse-connect) library, which communicates with ClickHouse over HTTP.
 
     Make sure your ClickHouse server is configured to accept HTTP connections on the port specified by `http_port`. For example:
 

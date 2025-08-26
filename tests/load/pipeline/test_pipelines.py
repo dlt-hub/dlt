@@ -28,12 +28,13 @@ from dlt.pipeline.exceptions import (
 )
 
 from tests.cases import TABLE_ROW_ALL_DATA_TYPES_DATETIMES
+from tests.common.configuration.utils import environment
 from tests.utils import TEST_STORAGE_ROOT, data_to_item_format
 from tests.pipeline.utils import (
-    assert_data_table_counts,
+    assert_table_counts,
     assert_load_info,
-    assert_query_data,
-    assert_table,
+    assert_query_column,
+    assert_table_column,
     load_table_counts,
     select_data,
 )
@@ -41,14 +42,10 @@ from tests.load.utils import (
     TABLE_UPDATE_COLUMNS_SCHEMA,
     assert_all_data_types_row,
     delete_dataset,
-    drop_active_pipeline_data,
     destinations_configs,
     DestinationTestConfiguration,
 )
 from tests.load.pipeline.utils import skip_if_unsupported_replace_strategy
-
-# mark all tests as essential, do not remove
-pytestmark = pytest.mark.essential
 
 
 @pytest.mark.parametrize(
@@ -136,7 +133,7 @@ def test_default_pipeline_names(
     assert len(state_package.jobs["new_jobs"]) == 1
     assert state_package.schema_name == p.default_schema_name
     p.normalize()
-    info = p.load(dataset_name="d" + uniq_id())
+    info = p.load(dataset_name="default_names_ds_" + uniq_id())
     print(p.dataset_name)
     assert info.pipeline is p
     # two packages in two different schemas were loaded
@@ -144,13 +141,14 @@ def test_default_pipeline_names(
 
     # if loaded to single data, double the data was loaded to a single table because the schemas overlapped
     if use_single_dataset:
-        assert_table(p, "data_fun", sorted(data * 2), info=info)
+        assert_table_column(p, "data_fun", data * 2, info=info)
     else:
         # loaded to separate data sets
-        assert_table(p, "data_fun", data, info=info)
-        assert_table(p, "data_fun", data, schema_name="names", info=info)
+        assert_table_column(p, "data_fun", data, info=info)
+        assert_table_column(p, "data_fun", data, schema_name="names", info=info)
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -249,6 +247,7 @@ def test_attach_pipeline(destination_config: DestinationTestConfiguration) -> No
 
     # restore default pipeline
     p = dlt.attach()
+
     # other instance
     assert info.pipeline is not p
     # same pipe
@@ -260,7 +259,8 @@ def test_attach_pipeline(destination_config: DestinationTestConfiguration) -> No
     assert p.default_schema_name == p.default_schema_name
 
     # query data
-    assert_table(p, "data_table", data, info=info)
+    # we add the destination so sqlglot may resolve the correct dialect for dataset access in the assert
+    assert_table_column(p, "data_table", data, info=info)
 
 
 @pytest.mark.parametrize(
@@ -295,6 +295,7 @@ def test_skip_sync_schema_for_tables_without_columns(
         assert not exists
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -333,12 +334,13 @@ def test_run_dev_mode(destination_config: DestinationTestConfiguration) -> None:
     # restored pipeline should be never put in full refresh
     assert p.dev_mode is False
     # assert parent table (easy), None First (db order)
-    assert_table(p, "lists", [None, None, "a"], info=info)
+    assert_table_column(p, "lists", [None, None, "a"], info=info)
     # child tables contain nested lists
     data_list = cast(List[str], data[1]) + cast(List[str], data[2])
-    assert_table(p, "lists__value", sorted(data_list))
+    assert_table_column(p, "lists__value", sorted(data_list))
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, table_format_filesystem_configs=True),
@@ -450,8 +452,8 @@ def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None
     with p.sql_client() as client:
         simple_rows_table = client.make_qualified_table_name("simple_rows")
         dlt_loads_table = client.make_qualified_table_name("_dlt_loads")
-    assert_query_data(p, f"SELECT * FROM {simple_rows_table} ORDER BY id", id_data)
-    assert_query_data(
+    assert_query_column(p, f"SELECT * FROM {simple_rows_table} ORDER BY id", id_data)
+    assert_query_column(
         p,
         f"SELECT schema_version_hash FROM {dlt_loads_table} ORDER BY inserted_at",
         version_history,
@@ -498,9 +500,10 @@ def test_pipeline_data_writer_compression(
     p.normalize()
 
     info = p.load()
-    assert_table(p, "data", data, info=info)
+    assert_table_column(p, "data", data, info=info)
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
@@ -513,17 +516,14 @@ def test_source_max_nesting(destination_config: DestinationTestConfiguration) ->
     def nested_data():
         return dlt.resource([{"idx": 1, "cn": nested_part}], name="nested_cn")
 
-    info = dlt.run(
+    dlt.run(
         nested_data(),
         destination=destination_config.destination_factory(),
         staging=destination_config.staging,
         dataset_name="ds_" + uniq_id(),
         **destination_config.run_kwargs,
     )
-    print(info)
-    with dlt.pipeline().sql_client() as client:
-        nested_cn_table = client.make_qualified_table_name("nested_cn")
-    rows = select_data(dlt.pipeline(), f"SELECT cn FROM {nested_cn_table}")
+    rows = select_data(dlt.pipeline(), "SELECT cn FROM nested_cn")
     assert len(rows) == 1
     cn_val = rows[0][0]
     if isinstance(cn_val, str):
@@ -531,11 +531,12 @@ def test_source_max_nesting(destination_config: DestinationTestConfiguration) ->
     assert cn_val == nested_part
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        all_staging_configs=True,
+        default_staging_configs=True,
         with_file_format="parquet",
         local_filesystem_configs=True,
         table_format_local_configs=True,
@@ -816,7 +817,7 @@ def test_pipeline_upfront_tables_two_loads(
         **destination_config.run_kwargs,
     )
     assert_load_info(load_info_3)
-    assert_data_table_counts(pipeline, {"table_1": 1, "table_2": 1, "table_3": 1})
+    assert_table_counts(pipeline, {"table_1": 1, "table_2": 1, "table_3": 1})
     # v5 = pipeline.default_schema.to_pretty_yaml()
     # print(v5)
 
@@ -845,26 +846,26 @@ def test_pipeline_upfront_tables_two_loads(
     ids=lambda x: x.name,
 )
 def test_query_all_info_tables_fallback(destination_config: DestinationTestConfiguration) -> None:
+    os.environ["INFO_TABLES_QUERY_THRESHOLD"] = "0"
     pipeline = destination_config.setup_pipeline(
         "parquet_test_" + uniq_id(), dataset_name="parquet_test_" + uniq_id()
     )
-    with mock.patch.object(SqlJobClientBase, "INFO_TABLES_QUERY_THRESHOLD", 0):
-        info = pipeline.run([1, 2, 3], table_name="digits_1", **destination_config.run_kwargs)
-        assert_load_info(info)
-        # create empty table
-        client: SqlJobClientBase
-        # we must add it to schema
-        pipeline.default_schema._schema_tables["existing_table"] = new_table("existing_table")
-        with pipeline.destination_client() as client:  # type: ignore[assignment]
-            sql = client._get_table_update_sql(
-                "existing_table", [{"name": "_id", "data_type": "bigint"}], False
-            )
-            client.sql_client.execute_many(sql)
-        # remove it from schema
-        del pipeline.default_schema._schema_tables["existing_table"]
-        # store another table
-        info = pipeline.run([1, 2, 3], table_name="digits_2", **destination_config.run_kwargs)
-        assert_data_table_counts(pipeline, {"digits_1": 3, "digits_2": 3})
+    info = pipeline.run([1, 2, 3], table_name="digits_1", **destination_config.run_kwargs)
+    assert_load_info(info)
+    # create empty table
+    client: SqlJobClientBase
+    # we must add it to schema
+    pipeline.default_schema._schema_tables["existing_table"] = new_table("existing_table")
+    with pipeline.destination_client() as client:  # type: ignore[assignment]
+        sql = client._get_table_update_sql(
+            "existing_table", [{"name": "_id", "data_type": "bigint"}], False
+        )
+        client.sql_client.execute_many(sql)
+    # remove it from schema
+    del pipeline.default_schema._schema_tables["existing_table"]
+    # store another table
+    info = pipeline.run([1, 2, 3], table_name="digits_2", **destination_config.run_kwargs)
+    assert_table_counts(pipeline, {"digits_1": 3, "digits_2": 3})
 
 
 # @pytest.mark.skip(reason="Finalize the test: compare some_data values to values from database")

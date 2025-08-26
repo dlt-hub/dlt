@@ -116,6 +116,22 @@ and provide any other `PyAthena` connection setting
 poll_interval=2
 ```
 
+When `dlt` executes SQL queries that look up table names in the `INFORMATION_SCHEMA`
+it can be more effective to filter the tables in the code instead of doing it in the query.
+The threshold for this is usually 1000 tables, but we learned that for Athena a better default is
+90. You can change this threshold with the following setting:
+```toml
+[destination.athena]
+info_tables_query_threshold=90
+```
+
+You can specify the database location using db_location:
+```toml
+[destination.athena]
+db_location="s3://[your_bucket_name]" # replace with your bucket name,
+```
+
+
 ## Write disposition
 
 The `athena` destination handles the write dispositions as follows:
@@ -181,6 +197,40 @@ You can also adjust iceberg table properties:
 ```toml
 [destination.athena.table_properties]
 vacuum_max_snapshot_age_seconds = 86400
+```
+
+
+### LakeFormation tags
+
+AWS lakeformation tags can be set on the database level when running a pipeline. Resources/tables will inherit the same tags as their parent database. It will not affect data in staging.
+
+#### Prerequisites
+
+- The lakeformation tags you want to apply must already exists, created through IAC or the AWS console.
+- The s3 location the data lands in must be registered as a data location in lakeformation
+
+- The IAM role/user running the pipeline is required to have lakeformation permissions in addition to regular IAM permissions
+  - ASSOCIATE on the lf tags to apply
+  - CREATE_TABLE/DESCRIBE/ALTER on Database with the lf tags to apply
+  - ALL on Table
+
+[See full Lake Formation permission reference](https://docs.aws.amazon.com/lake-formation/latest/dg/lf-permissions-reference.html)
+
+
+Tags can be set on database level using the destination config
+```toml
+[destination.athena.lakeformation_config]
+enabled = true
+
+[destination.athena.lakeformation_config.tags]
+my_tag = "my_key"
+```
+
+To remove lakeformation tags you can set:
+
+```toml
+[destination.athena.lakeformation_config]
+enabled = false
 ```
 
 #### `merge` support

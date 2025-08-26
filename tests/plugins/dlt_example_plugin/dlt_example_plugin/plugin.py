@@ -1,6 +1,6 @@
 import os
 import argparse
-from typing import Any, ClassVar, Optional, Type
+from typing import Any, ClassVar, Dict, Optional, Type
 
 from dlt.common.configuration import plugins
 from dlt.common.configuration.specs.pluggable_run_context import SupportsRunContext
@@ -32,9 +32,18 @@ class RunContextTest(RunContext):
     def local_dir(self) -> str:
         return os.path.join(self.data_dir, "tmp")
 
+    @property
+    def runtime_kwargs(self) -> Dict[str, Any]:
+        return {"profile": "dev"}
+
 
 @plugins.hookimpl(specname="plug_run_context")
-def plug_run_context_impl(run_dir: Optional[str], **kwargs: Any) -> SupportsRunContext:
+def plug_run_context_impl(
+    run_dir: Optional[str], runtime_kwargs: Optional[Dict[str, Any]]
+) -> Optional[SupportsRunContext]:
+    # test fallback to OSS
+    if (runtime_kwargs or {}).get("passthrough"):
+        return None
     return RunContextTest(run_dir)
 
 

@@ -90,24 +90,21 @@ print(table.df())
 print(table.limit(10).arrow())
 ```
 
-### Explore data in Streamlit
+### Explore data in the dashboard
 
-To allow a sneak peek and basic discovery, you can take advantage of [built-in integration with Streamlit](../reference/command-line-interface#dlt-pipeline-show):
+To allow a sneak peek and basic discovery, you can take advantage of [built-in integration with the marimo dashboard app](../reference/command-line-interface#dlt-pipeline-show):
 
 ```sh
 dlt pipeline quick_start show
 ```
 
-**quick_start** is the name of the pipeline from the script above. If you do not have Streamlit installed yet, do:
+**quick_start** is the name of the pipeline from the script above. If you do not have marimo installed yet, do:
 
 ```sh
-pip install streamlit
+pip install marimo
 ```
 
-Now you should see the **users** table:
-
-![Streamlit Explore data](/img/streamlit-new.png)
-Streamlit Explore data. Schema and data for a test pipeline “quick_start”.
+Now you should see the **users** table in the dataset explorer data section of the dashboard app.
 
 :::tip
 `dlt` works in Jupyter Notebook and Google Colab! See our [Quickstart Colab Demo.](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)
@@ -141,7 +138,7 @@ Save `github_issues.py` and run the following command:
 python github_issues.py
 ```
 
-Once the data has been loaded, you can inspect the created dataset using the Streamlit app:
+Once the data has been loaded, you can inspect the created dataset using the dashboard app:
 
 ```sh
 dlt pipeline github_issues show
@@ -230,7 +227,7 @@ dlt pipeline -v github_issues_incremental info
 Learn more:
 
 - Declare your [resources](../general-usage/resource) and group them in [sources](../general-usage/source) using Python decorators.
-- [Set up "last value" incremental loading.](../general-usage/incremental-loading#incremental-loading-with-a-cursor-field)
+- [Set up "last value" incremental loading.](../general-usage/incremental/cursor.md)
 - [Inspect pipeline after loading.](../walkthroughs/run-a-pipeline#4-inspect-a-load-process)
 - [`dlt` command line interface.](../reference/command-line-interface)
 
@@ -251,7 +248,7 @@ Note that we now track the `updated_at` field — so we filter in all issues **u
 Pay attention to how we use the **since** parameter from the [GitHub API](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues)
 and `updated_at.last_value` to tell GitHub to return issues updated only **after** the date we pass. `updated_at.last_value` holds the last `updated_at` value from the previous run.
 
-[Learn more about merge write disposition](../general-usage/incremental-loading#merge-incremental-loading).
+[Learn more about merge write disposition](../general-usage/merge-loading.md).
 
 ## Using pagination helper
 
@@ -474,7 +471,7 @@ To use it, change the `github_source()` function to:
 
 ```py
 @dlt.source
-def github_source_with_token(
+def github_source_with_token_from_secrets(
     access_token: str = dlt.secrets.value,
 ):
     ...
@@ -500,7 +497,7 @@ Now we can run the script and it will load the data from the `traffic/clones` en
 ...
 
 @dlt.source
-def github_source_with_token(
+def github_source_with_token_from_secrets(
     access_token: str = dlt.secrets.value,
 ):
     for endpoint in ["issues", "comments", "traffic/clones"]:
@@ -518,7 +515,7 @@ pipeline = dlt.pipeline(
     destination="duckdb",
     dataset_name="github_data",
 )
-load_info = pipeline.run(github_source())
+load_info = pipeline.run(github_source_with_token_from_secrets())
 ```
 
 ## Configurable sources
@@ -562,7 +559,7 @@ pipeline = dlt.pipeline(
     destination="duckdb",
     dataset_name="github_data",
 )
-load_info = pipeline.run(github_source())
+load_info = pipeline.run(github_source_with_token_and_repo())
 ```
 
 Next, create a `.dlt/config.toml` file in the project folder and add the `repo_name` parameter to it:
@@ -581,8 +578,8 @@ Congratulations on completing the tutorial! You've come a long way since the [ge
 Interested in learning more? Here are some suggestions:
 1. You've been running your pipelines locally. Learn how to [deploy and run them in the cloud](../walkthroughs/deploy-a-pipeline/).
 2. Dive deeper into how dlt works by reading the [Using dlt](../general-usage) section. Some highlights:
-    - [Set up "last value" incremental loading](../general-usage/incremental-loading#incremental-loading-with-a-cursor-field).
-    - Learn about data loading strategies: [append, replace, and merge](../general-usage/incremental-loading).
+    - [Set up "last value" incremental loading](../general-usage/incremental/cursor.md).
+    - Learn about data loading strategies: append, [replace](../general-usage/full-loading.md), and [merge](../general-usage/merge-loading.md).
     - [Connect the transformers to the resources](../general-usage/resource#process-resources-with-dlttransformer) to load additional data or enrich it.
     - [Customize your data schema—set primary and merge keys, define column nullability, and specify data types](../general-usage/resource#define-schema).
     - [Create your resources dynamically from data](../general-usage/source#create-resources-dynamically).

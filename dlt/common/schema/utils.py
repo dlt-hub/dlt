@@ -11,7 +11,7 @@ from dlt.common.time import ensure_pendulum_datetime
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.data_types import TDataType
-from dlt.common.exceptions import DictValidationException
+from dlt.common.exceptions import DictValidationException, ValueErrorWithKnownValues
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCase
 from dlt.common.typing import DictStrAny, REPattern
@@ -19,6 +19,8 @@ from dlt.common.validation import TCustomValidator, validate_dict_ignoring_xkeys
 from dlt.common.schema import detections
 from dlt.common.schema.typing import (
     C_DLT_ID,
+    C_DLT_LOAD_ID,
+    C_DLT_LOADS_TABLE_LOAD_ID,
     SCHEMA_ENGINE_VERSION,
     LOADS_TABLE_NAME,
     SIMPLE_REGEX_PREFIX,
@@ -33,6 +35,8 @@ from dlt.common.schema.typing import (
     TSimpleRegex,
     TStoredSchema,
     TTableProcessingHints,
+    TColumnProcessingHints,
+    TTableReferenceParam,
     TTableSchema,
     TColumnSchemaBase,
     TColumnSchema,
@@ -252,7 +256,8 @@ def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
     if t is TSimpleRegex:
         if not isinstance(pv, str):
             raise DictValidationException(
-                f"field {pk} value {pv} has invalid type {type(pv).__name__} while str is expected",
+                f"field `{pk}` value `{pv}` has invalid type `{type(pv).__name__}` while `str` is"
+                " expected",
                 path,
                 t,
                 pk,
@@ -264,7 +269,7 @@ def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
                 re.compile(pv[3:])
             except Exception as e:
                 raise DictValidationException(
-                    f"field {pk} value {pv[3:]} does not compile as regex: {str(e)}",
+                    f"field `{pk}` value `{pv[3:]}` does not compile as regex: `{str(e)}`",
                     path,
                     t,
                     pk,
@@ -273,7 +278,7 @@ def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
         else:
             if RE_NON_ALPHANUMERIC_UNDERSCORE.match(pv):
                 raise DictValidationException(
-                    f"field {pk} value {pv} looks like a regex, please prefix with re:",
+                    f"field `{pk}` value `{pv}` looks like a regex, please prefix with `re:`",
                     path,
                     t,
                     pk,
@@ -291,8 +296,8 @@ def column_name_validator(naming: NamingConvention) -> TCustomValidator:
         if t is TColumnName:
             if not isinstance(pv, str):
                 raise DictValidationException(
-                    f"field {pk} value {pv} has invalid type {type(pv).__name__} while"
-                    " str is expected",
+                    f"field `{pk}` value `{pv}` has invalid type `{type(pv).__name__}` while"
+                    " `str` is expected",
                     path,
                     t,
                     pk,
@@ -301,11 +306,11 @@ def column_name_validator(naming: NamingConvention) -> TCustomValidator:
             try:
                 if naming.normalize_path(pv) != pv:
                     raise DictValidationException(
-                        f"field {pk}: {pv} is not a valid column name", path, t, pk, pv
+                        f"field `{pk}` value `{pv}` is not a valid column name", path, t, pk, pv
                     )
             except ValueError:
                 raise DictValidationException(
-                    f"field {pk}: {pv} is not a valid column name", path, t, pk, pv
+                    f"field `{pk}` value `{pv}` is not a valid column name", path, t, pk, pv
                 )
             return True
         else:
@@ -440,7 +445,7 @@ def merge_columns(
     * incomplete columns in `columns_a` that got completed in `columns_b` are removed to preserve order
     """
     if columns_partial is False:
-        raise NotImplementedError("columns_partial must be False for merge_columns")
+        raise NotImplementedError("Using `merge_columns()` requires `columns_partial=False`")
 
     # remove incomplete columns in table that are complete in diff table
     for col_name, column_b in columns_b.items():
@@ -665,22 +670,53 @@ def has_table_seen_data(table: TTableSchema) -> bool:
 
 
 def remove_processing_hints(tables: TSchemaTables) -> TSchemaTables:
-    "Removes processing hints like x-normalizer and x-loader from schema tables. Modifies the input tables and returns it for convenience"
-    for table_name, hints in get_processing_hints(tables).items():
+    """
+    Removes processing hints like x-normalizer and x-loader from schema tables and columns.
+    Modifies the input tables and returns it for convenience.
+    """
+    table_hints, col_hints = get_processing_hints(tables)
+
+    # Remove table-level hints
+    for table_name, hints in table_hints.items():
         for hint in hints:
-            del tables[table_name][hint]  # type: ignore[misc]
+            tables[table_name].pop(hint, None)  # type: ignore[misc]
+
+    # Remove column-level hints
+    for table_name, cols in col_hints.items():
+        for col_name, hints in cols.items():
+            for hint in hints:
+                tables[table_name]["columns"][col_name].pop(hint, None)  # type: ignore[misc]
+
     return tables
 
 
-def get_processing_hints(tables: TSchemaTables) -> Dict[str, List[str]]:
-    """Finds processing hints in a set of tables and returns table_name: [hints] mapping"""
-    hints: Dict[str, List[str]] = {}
-    for table in tables.values():
+def get_processing_hints(
+    tables: TSchemaTables,
+) -> Tuple[Dict[str, List[str]], Dict[str, Dict[str, List[str]]]]:
+    """
+    Finds processing hints from schema tables and columns.
+
+    Returns:
+        A tuple containing:
+            - A dictionary mapping table names to a list of table-level processing hints (e.g., 'x-normalizer', 'x-loader').
+            - A dictionary mapping table names to another dictionary that maps column names to a list of column-level processing hints (e.g., 'x-normalizer').
+    """
+    table_hints: Dict[str, List[str]] = {}
+    col_hints: Dict[str, Dict[str, List[str]]] = {}
+
+    for table in tables.values():  # <- This is the correct line
+        table_name = table["name"]
+
         for hint in TTableProcessingHints.__annotations__.keys():
             if hint in table:
-                table_hints = hints.setdefault(table["name"], [])
-                table_hints.append(hint)
-    return hints
+                table_hints.setdefault(table_name, []).append(hint)
+
+        for col_name, col in table["columns"].items():
+            for hint in TColumnProcessingHints.__annotations__.keys():
+                if hint in col:
+                    col_hints.setdefault(table_name, {}).setdefault(col_name, []).append(hint)
+
+    return table_hints, col_hints
 
 
 def hint_to_column_prop(h: TColumnDefaultHint) -> TColumnProp:
@@ -773,7 +809,7 @@ def get_inherited_table_hint(
         return None
 
     raise ValueError(
-        f"No table hint '{table_hint_name} found in the chain of tables for '{table_name}'."
+        f"No table hint `{table_hint_name}` found in the chain of tables for table `{table_name}`."
     )
 
 
@@ -838,6 +874,22 @@ def table_schema_has_type_with_precision(table: TTableSchema, _typ: TDataType) -
     )
 
 
+def get_data_and_dlt_tables(tables: TSchemaTables) -> tuple[list[TTableSchema], list[TTableSchema]]:
+    """Separate a list of dlt TTableSchema into a two lists: data tables and internal dlt tables.
+
+    This should be equivalent to `dlt.Schema.data_tables()` and `dlt.Schema.dlt_tables()`
+    """
+    data_tables: list[TTableSchema] = []
+    dlt_tables: list[TTableSchema] = []
+    for table_name, table in tables.items():
+        if table_name in (VERSION_TABLE_NAME, LOADS_TABLE_NAME, PIPELINE_STATE_TABLE_NAME):
+            dlt_tables.append(table)
+        else:
+            data_tables.append(table)
+
+    return data_tables, dlt_tables
+
+
 def get_root_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
     """Finds root (without parent) of a `table_name` following the nested references (row_key - parent_key)."""
     table = tables[table_name]
@@ -877,6 +929,102 @@ def group_tables_by_resource(
             resource_tables = result.setdefault(resource, [])
             resource_tables.extend(get_nested_tables(tables, table["name"]))
     return result
+
+
+def create_root_child_reference(tables: TSchemaTables, table_name: str) -> TTableReference:
+    """Create a Reference between `{table}.{root_key}` and `{root}.{row_key}`"""
+    child_table = tables.get(table_name)
+    if child_table is None:
+        raise ValueErrorWithKnownValues(
+            key="table_name", value_received=table_name, valid_values=list(tables.keys())
+        )
+
+    if is_nested_table(child_table) is False:
+        raise ValueError(f"Table `{table_name}` is already a root table.")
+
+    root_table = get_root_table(tables, table_name)
+
+    child_root_key: str = get_first_column_name_with_prop(child_table, "root_key")
+    if child_root_key is None:
+        raise ValueError(
+            "No `root_key` found for table `{table_name}`. Set `root_key=True` on"
+            " the `@dlt.source` producing this data to generate a `_dlt_root_id` column."
+        )
+    root_row_key: str = get_first_column_name_with_prop(root_table, "row_key")
+
+    return TTableReference(
+        columns=[child_root_key],
+        referenced_table=root_table["name"],
+        referenced_columns=[root_row_key],
+    )
+
+
+def create_parent_child_reference(tables: TSchemaTables, table_name: str) -> TTableReference:
+    """Create a Reference between `{table}.{parent_key}` and `{parent}.{row_key}`"""
+    child_table = tables.get(table_name)
+    if child_table is None:
+        raise ValueErrorWithKnownValues(
+            key="table_name", value_received=table_name, valid_values=list(tables.keys())
+        )
+
+    parent_table_name = child_table.get("parent")
+    if parent_table_name is None:
+        raise ValueError(f"No parent table found for `{table_name=:}`")
+    parent_table = tables.get(parent_table_name)
+
+    child_parent_key: str = get_first_column_name_with_prop(child_table, "parent_key")
+    parent_row_key: str = get_first_column_name_with_prop(parent_table, "row_key")
+
+    return TTableReference(
+        columns=[child_parent_key],
+        referenced_table=parent_table_name,
+        referenced_columns=[parent_row_key],
+    )
+
+
+def create_load_table_reference(table: TTableSchema) -> TTableReference:
+    """Create a Reference between `{table}._dlt_oad_id` and `_dlt_loads.load_id`"""
+    if table["columns"].get(C_DLT_LOAD_ID) is None:
+        raise ValueError(f"Column `{C_DLT_LOAD_ID}` not found for `table_name={table['name']}`")
+
+    return TTableReference(
+        columns=[C_DLT_LOAD_ID],
+        referenced_table=LOADS_TABLE_NAME,
+        referenced_columns=[C_DLT_LOADS_TABLE_LOAD_ID],
+    )
+
+
+def create_version_and_loads_hash_reference(tables: TSchemaTables) -> TTableReference:
+    if VERSION_TABLE_NAME not in tables:
+        raise ValueError(
+            f"Table `{VERSION_TABLE_NAME}` not found in tables: `{list(tables.keys())}`"
+        )
+
+    if LOADS_TABLE_NAME not in tables:
+        raise ValueError(f"Table `{LOADS_TABLE_NAME}` not found in tables: `{list(tables.keys())}`")
+
+    return TTableReference(
+        columns=["version_hash"],
+        referenced_table=LOADS_TABLE_NAME,
+        referenced_columns=["schema_version_hash"],
+    )
+
+
+def create_version_and_loads_schema_name_reference(tables: TSchemaTables) -> TTableReference:
+    if VERSION_TABLE_NAME not in tables:
+        raise ValueError(
+            f"Table `{VERSION_TABLE_NAME}` not found in tables: `{list(tables.keys())}`"
+        )
+
+    if LOADS_TABLE_NAME not in tables:
+        raise ValueError(f"Table `{LOADS_TABLE_NAME}` not found in tables: `{list(tables.keys())}`")
+
+    loads_and_version_hash_schema_name_ref = TTableReference(
+        columns=["schema_name"],
+        referenced_table=LOADS_TABLE_NAME,
+        referenced_columns=["schema_name"],
+    )
+    return loads_and_version_hash_schema_name_ref
 
 
 def migrate_complex_types(table: TTableSchema, warn: bool = False) -> None:
@@ -929,7 +1077,12 @@ def loads_table() -> TTableSchema:
     table = new_table(
         LOADS_TABLE_NAME,
         columns=[
-            {"name": "load_id", "data_type": "text", "nullable": False},
+            {
+                "name": C_DLT_LOADS_TABLE_LOAD_ID,
+                "data_type": "text",
+                "nullable": False,
+                "precision": 64,
+            },
             {"name": "schema_name", "data_type": "text", "nullable": True},
             {"name": "status", "data_type": "bigint", "nullable": False},
             {"name": "inserted_at", "data_type": "timestamp", "nullable": False},
@@ -953,12 +1106,13 @@ def dlt_id_column() -> TColumnSchema:
         "nullable": False,
         "unique": True,
         "row_key": True,
+        "precision": 64,
     }
 
 
 def dlt_load_id_column() -> TColumnSchema:
     """Definition of dlt load id column"""
-    return {"name": "_dlt_load_id", "data_type": "text", "nullable": False}
+    return {"name": "_dlt_load_id", "data_type": "text", "nullable": False, "precision": 64}
 
 
 def pipeline_state_table(add_dlt_id: bool = False) -> TTableSchema:

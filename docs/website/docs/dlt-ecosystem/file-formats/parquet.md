@@ -17,7 +17,14 @@ pip install "dlt[parquet]"
 
 ## Supported destinations
 
-Supported by: **BigQuery**, **DuckDB**, **Snowflake**, **Filesystem**, **Athena**, **Databricks**, **Synapse**
+- [BigQuery](../destinations/bigquery.md)
+- [DuckDB](../destinations/duckdb.md)
+- [Snowflake](../destinations/snowflake.md)
+- [Filesystem](../destinations/filesystem.md)
+- [Athena](../destinations/athena.md)
+- [Databricks](../destinations/databricks.md)
+- [Synapse](../destinations/synapse.md)
+- [LanceDB](../destinations/lancedb.md)
 
 ## How to configure
 
@@ -50,7 +57,7 @@ Read the [pyarrow parquet docs](https://arrow.apache.org/docs/python/generated/p
 Example:
 
 ```toml
-[normalize.data_writer]
+[data_writer]
 # the default values
 flavor="spark"
 version="2.4"
@@ -61,11 +68,23 @@ timestamp_timezone="Europe/Berlin"
 Or using environment variables:
 
 ```sh
-NORMALIZE__DATA_WRITER__FLAVOR
-NORMALIZE__DATA_WRITER__VERSION
-NORMALIZE__DATA_WRITER__DATA_PAGE_SIZE
-NORMALIZE__DATA_WRITER__TIMESTAMP_TIMEZONE
+DATA_WRITER__FLAVOR
+DATA_WRITER__VERSION
+DATA_WRITER__DATA_PAGE_SIZE
+DATA_WRITER__TIMESTAMP_TIMEZONE
 ```
+
+:::tip
+You can apply data writer settings to parquet created in normalize stage only:
+`NORMALIZE__DATA_WRITER__FLAVOR=spark`
+
+or when your source/resource yields arrow tables / panda frames, you can control settings per source
+`SOURCES__<SOURCE_MODULE>__<SOURCE_NAME>__DATA_WRITER__FLAVOR=spark`
+
+Find more similar examples [here](../../reference/performance.md#extract)
+:::
+
+
 
 ### Timestamps and timezones
 `dlt` adds timezone (UTC adjustment) to all timestamps regardless of the precision (from seconds to nanoseconds). `dlt` will also create TZ-aware timestamp columns in
@@ -84,7 +103,7 @@ To our best knowledge, Arrow will convert your timezone-aware DateTime(s) to UTC
 The `pyarrow` parquet writer writes each item, i.e., table or record batch, in a separate row group. This may lead to many small row groups, which may not be optimal for certain query engines. For example, `duckdb` parallelizes on a row group. `dlt` allows controlling the size of the row group by [buffering and concatenating tables](../../reference/performance.md#controlling-in-memory-buffers) and batches before they are written. The concatenation is done as a zero-copy to save memory. You can control the size of the row group by setting the maximum number of rows kept in the buffer.
 
 ```toml
-[extract.data_writer]
+[data_writer]
 buffer_max_items=10e6
 ```
 

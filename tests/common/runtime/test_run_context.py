@@ -7,7 +7,13 @@ from dlt.common import logger
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import RuntimeConfiguration, PluggableRunContext
 from dlt.common.runtime.init import _INITIALIZED, apply_runtime_config, restore_run_context
-from dlt.common.runtime.run_context import RunContext, get_plugin_modules, is_folder_writable
+from dlt.common.runtime.run_context import (
+    DOT_DLT,
+    RunContext,
+    get_plugin_modules,
+    is_folder_writable,
+)
+from dlt.common.storages.configuration import _make_file_url
 from dlt.common.utils import set_working_dir
 
 import tests
@@ -42,6 +48,8 @@ def test_run_context() -> None:
     assert run_context.name == "dlt"
     assert run_context.global_dir == run_context.data_dir
     assert run_context.run_dir == run_context.local_dir
+    assert run_context.uri == _make_file_url(None, run_context.run_dir, None)
+    assert run_context.uri.startswith("file://")
 
     # check config providers
     assert len(run_context.initial_providers()) == 3
@@ -147,7 +155,7 @@ def test_context_switch_restores_logger() -> None:
 
 def test_run_dir_module_import() -> None:
     with pytest.raises(ImportError, match="filesystem root"):
-        RunContext.import_run_dir_module(os.sep)
+        RunContext.import_run_dir_module(os.path.sep)
     with pytest.raises(ImportError):
         RunContext.import_run_dir_module(os.path.join("tests", "no_such_module"))
     assert RunContext.import_run_dir_module("tests") is tests
@@ -159,15 +167,24 @@ def test_tmp_folder_writable() -> None:
     assert is_folder_writable(tempfile.gettempdir()) is True
 
 
-def test_context_with_xdg_dir() -> None:
+def test_context_with_xdg_dir(mocker) -> None:
     import tempfile
 
-    temp_data_home = os.path.join(tempfile.gettempdir(), "test")
+    temp_data_home = tempfile.mkdtemp()
+    mock_expanded_user_dir = tempfile.mkdtemp()
 
-    os.environ["XDG_DATA_HOME"] = temp_data_home
+    # mock os.path.expanduser to return a different temp folder
+    with mocker.patch("os.path.expanduser", return_value=mock_expanded_user_dir):
+        os.environ["XDG_DATA_HOME"] = temp_data_home
 
-    ctx = PluggableRunContext()
-    run_context = ctx.context
-    assert run_context.global_dir == os.path.join(temp_data_home, "dlt")
+        ctx = PluggableRunContext()
+        run_context = ctx.context
+        assert run_context.global_dir == os.path.join(temp_data_home, "dlt")
 
-    os.environ.pop("XDG_DATA_HOME")
+        # now create .dlt in mocked home to activate callback
+        dlt_home = os.path.join(mock_expanded_user_dir, DOT_DLT)
+        os.mkdir(dlt_home)
+
+        ctx = PluggableRunContext()
+        run_context = ctx.context
+        assert run_context.global_dir == dlt_home

@@ -3,14 +3,15 @@ from typing import List
 import pytest
 
 import dlt
-from dlt.common.data_writers.configuration import CsvFormatConfiguration
+from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.schema.typing import TColumnSchema
 from dlt.common.typing import TLoaderFileFormat
 from dlt.common.utils import uniq_id
+from dlt.common.storages.load_storage import ParsedLoadJobFileName
 
 from tests.cases import arrow_table_all_data_types, prepare_shuffled_tables
 from tests.pipeline.utils import (
-    assert_data_table_counts,
+    assert_table_counts,
     assert_load_info,
     assert_only_table_columns,
     load_tables_to_dicts,
@@ -40,8 +41,7 @@ def test_load_csv(
     destination_config: DestinationTestConfiguration, item_type: TestDataItemFormat
 ) -> None:
     # filter only default and parquet file formats not to run the same test case several times
-
-    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
+    destination_config.disable_compression = True
     pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), dev_mode=True)
     # do not save state so the state job is not created
     pipeline.config.restore_from_destination = False
@@ -63,7 +63,7 @@ def test_load_csv(
     assert_load_info(load_info)
     job = load_info.load_packages[0].jobs["completed_jobs"][0].file_path
     assert job.endswith("csv")
-    assert_data_table_counts(pipeline, {"table": 5432 * 3})
+    assert_table_counts(pipeline, {"table": 5432 * 3})
     load_tables_to_dicts(pipeline, "table")
 
     # read csv with data access
@@ -119,15 +119,26 @@ def test_custom_csv_no_header(
     assert_only_table_columns(pipeline, "no_header", [col["name"] for col in columns])
     rows = load_tables_to_dicts(pipeline, "no_header")
     assert len(rows["no_header"]) == 2
-    # we should have twp files loaded
+    # we should have two files loaded
     jobs = info.load_packages[0].jobs["completed_jobs"]
     assert len(jobs) == 2
-    job_extensions = [os.path.splitext(job.job_file_info.file_name())[1] for job in jobs]
-    assert ".csv" in job_extensions
+    job_extensions = []
+    for job in jobs:
+        parsed_file = ParsedLoadJobFileName.parse(job.job_file_info.file_name())
+        ext = (
+            f".{parsed_file.file_format}.gz"
+            if parsed_file.is_compressed
+            else f".{parsed_file.file_format}"
+        )
+        job_extensions.append(ext)
+    if not compression:
+        assert ".csv" in job_extensions
+    else:
+        assert ".csv.gz" in job_extensions
     # we allow state to be saved to make sure it is not in csv format (which would broke)
     # the loading. state is always saved in destination preferred format
     preferred_ext = "." + pipeline.destination.capabilities().preferred_loader_file_format
-    assert preferred_ext in job_extensions
+    assert preferred_ext + ".gz" in job_extensions
 
 
 @pytest.mark.parametrize(
@@ -171,8 +182,8 @@ def test_custom_wrong_header(destination_config: DestinationTestConfiguration) -
     ids=lambda x: x.name,
 )
 def test_empty_csv_from_arrow(destination_config: DestinationTestConfiguration) -> None:
-    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
+    destination_config.disable_compression = True
     pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), dev_mode=True)
     table, _, _ = arrow_table_all_data_types("arrow-table", include_json=False)
 
@@ -183,7 +194,7 @@ def test_empty_csv_from_arrow(destination_config: DestinationTestConfiguration) 
     assert len(load_info.load_packages[0].jobs["completed_jobs"]) == 1
     job = load_info.load_packages[0].jobs["completed_jobs"][0].file_path
     assert job.endswith("csv")
-    assert_data_table_counts(pipeline, {"arrow_table": 0})
+    assert_table_counts(pipeline, {"arrow_table": 0})
     with pipeline.sql_client() as client:
         with client.execute_query("SELECT * FROM arrow_table") as cur:
             columns = [col.name for col in cur.description]

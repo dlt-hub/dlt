@@ -6,6 +6,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 import dlt
+from dlt.common import logger
 from dlt.common import json
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.exceptions import MissingDependencyException
@@ -24,8 +25,8 @@ from tests.pipeline.utils import (
     load_tables_to_dicts,
 )
 from tests.load.sources.sql_database.test_helpers import mock_json_column, mock_array_column
-from tests.utils import data_item_length, load_table_counts
-
+from tests.utils import data_item_length
+from tests.pipeline.utils import load_table_counts
 
 try:
     from dlt.sources.sql_database import (
@@ -66,7 +67,7 @@ def make_pipeline(destination_name: str) -> dlt.Pipeline:
         pipeline_name="sql_database" + uniq_id(),
         destination=destination_name,
         dataset_name="test_sql_pipeline_" + uniq_id(),
-        full_refresh=False,
+        dev_mode=False,
     )
 
 
@@ -142,7 +143,7 @@ def test_sqlalchemy_no_quoted_name(
         pipeline_name="sql_database" + uniq_id(),
         destination="duckdb",
         dataset_name="test_sql_pipeline_" + uniq_id(),
-        full_refresh=False,
+        dev_mode=False,
         import_schema_path=import_schema_path,
         export_schema_path=export_schema_path,
     )
@@ -230,7 +231,7 @@ def test_named_sql_table_config(sql_source_db: SQLAlchemySourceDB) -> None:
     table = sql_table(table="chat_message", schema=sql_source_db.schema)
     with pytest.raises(ResourceExtractionError) as ext_ex:
         len(list(table))
-    assert "'updated_at_x'" in str(ext_ex.value)
+    assert "`updated_at_x`" in str(ext_ex.value)
 
 
 def test_general_sql_database_config(sql_source_db: SQLAlchemySourceDB) -> None:
@@ -264,11 +265,50 @@ def test_general_sql_database_config(sql_source_db: SQLAlchemySourceDB) -> None:
     table = sql_table(table="chat_message", schema=sql_source_db.schema)
     with pytest.raises(ResourceExtractionError) as ext_ex:
         len(list(table))
-    assert "'updated_at_x'" in str(ext_ex.value)
+    assert "`updated_at_x`" in str(ext_ex.value)
     with pytest.raises(ResourceExtractionError) as ext_ex:
         list(sql_database(schema=sql_source_db.schema).with_resources("chat_message"))
     # other resources will be loaded, incremental is selective
     assert len(list(sql_database(schema=sql_source_db.schema).with_resources("app_user"))) > 0
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow"])
+def test_sql_table_accepts_merge_and_primary_key_in_decorator(
+    sql_source_db: SQLAlchemySourceDB, backend: TableBackend
+) -> None:
+    # setup
+    os.environ["SOURCES__SQL_DATABASE__CREDENTIALS"] = sql_source_db.engine.url.render_as_string(
+        False
+    )
+    table = sql_table(
+        table="chat_message",
+        schema=sql_source_db.schema,
+        backend=backend,
+        write_disposition="merge",
+        primary_key=["id"],
+        merge_key=["merge_id"],
+    )
+    # verify
+    assert table.write_disposition == "merge"
+    assert table._hints["primary_key"] == ["id"]
+    assert table._hints["merge_key"] == ["merge_id"]
+
+    # test that it overwrites the reflected key
+    # use strictest reflection level and resolve_foreign keys to get all original columns properties
+    table = sql_table(
+        table="app_user",
+        backend=backend,
+        schema=sql_source_db.schema,
+        write_disposition="merge",
+        reflection_level="full",
+        resolve_foreign_keys=True,
+        primary_key="created_at",
+    )
+
+    pipeline = make_pipeline("duckdb")
+    pipeline.extract(table)
+    assert pipeline.default_schema.tables["app_user"]["columns"]["created_at"]["primary_key"]
+    assert not pipeline.default_schema.tables["app_user"]["columns"]["id"].get("primary_key", False)
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow"])
@@ -608,7 +648,9 @@ def test_reflection_levels(
 
     assert col_names == expected_col_names
 
-    # Pk col is always reflected
+    # TODO move to separate test
+    # in `sql_source_db`,  column `id` from table `app_user` is a primary key
+    # primary key hint should always be reflected
     pk_col = schema.tables["app_user"]["columns"]["id"]
     assert pk_col["primary_key"] is True
 
@@ -849,6 +891,84 @@ def test_all_types_no_precision_hints(
         load_tables_to_dicts(pipeline, table_name)[table_name],
         nullable,
         backend in ["sqlalchemy", "pyarrow"],
+    )
+
+
+@pytest.mark.parametrize("backend", ["pyarrow", "sqlalchemy"])
+def test_null_column_warning(
+    sql_source_db: SQLAlchemySourceDB,
+    backend: TableBackend,
+    mocker: MockerFixture,
+) -> None:
+    source = (
+        sql_database(
+            credentials=sql_source_db.credentials,
+            schema=sql_source_db.schema,
+            reflection_level="minimal",
+            backend=backend,
+            chunk_size=10,
+        )
+        .with_resources("app_user")
+        .add_limit(1)
+    )
+
+    logger_spy = mocker.spy(logger, "warning")
+
+    pipeline = dlt.pipeline(
+        pipeline_name="blabla", destination="duckdb", dataset_name="anuuns_test"
+    )
+    pipeline.run(source)
+
+    logger_spy.assert_called()
+    assert logger_spy.call_count == 1
+    expected_warning = (
+        "columns in table 'app_user' did not receive any data during this load "
+        "and therefore could not have their types inferred:\n"
+        "  - empty_col"
+    )
+    assert expected_warning in logger_spy.call_args_list[0][0][0]
+    assert (
+        pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]["x-normalizer"][
+            "seen-null-first"
+        ]
+        is True
+    )
+    assert "data_type" not in pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]
+
+    def add_value_to_empty_col(
+        query, table, incremental=None, engine=None
+    ) -> sa.sql.elements.TextClause:
+        if table.name == "app_user":
+            t_query = sa.text(
+                "SELECT id, email, display_name, created_at, updated_at, 'constant_value' as"
+                f" empty_col FROM {table.fullname}"
+            )
+        else:
+            t_query = query
+
+        return t_query
+
+    source = (
+        sql_database(
+            credentials=sql_source_db.credentials,
+            schema=sql_source_db.schema,
+            reflection_level="minimal",
+            backend=backend,
+            chunk_size=10,
+            query_adapter_callback=add_value_to_empty_col,
+        )
+        .with_resources("app_user")
+        .add_limit(1)
+    )
+
+    logger_spy.reset_mock()
+    pipeline.run(source)
+    assert logger_spy.call_count == 0
+    assert (
+        "x-normalizer" not in pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]
+    )
+    assert (
+        pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]["data_type"] == "text"
     )
 
 
@@ -1299,6 +1419,7 @@ def assert_row_counts(
         ), f"Table {table} counts do not match with the source"
 
 
+# TODO tests shouldn't modify the return values of the tested functions
 def assert_precision_columns(
     columns: TTableSchemaColumns, backend: TableBackend, nullable: bool
 ) -> None:
@@ -1309,16 +1430,17 @@ def assert_precision_columns(
     if backend == "sqlalchemy":
         expected = remove_timestamp_precision(expected)
         actual = remove_dlt_columns(actual)
-    if backend == "pyarrow":
+    elif backend == "pyarrow":
         expected = add_default_decimal_precision(expected)
-    if backend == "pandas":
+    elif backend == "pandas":
         expected = remove_timestamp_precision(expected, with_timestamps=False)
-    if backend == "connectorx":
+    elif backend == "connectorx":
         # connector x emits 32 precision which gets merged with sql alchemy schema
         del columns["int_col"]["precision"]
     assert actual == expected
 
 
+# TODO tests shouldn't modify the return values of the tested functions
 def assert_no_precision_columns(
     columns: TTableSchemaColumns, backend: TableBackend, nullable: bool
 ) -> None:
@@ -1407,6 +1529,8 @@ def convert_connectorx_types(columns: List[TColumnSchema]) -> List[TColumnSchema
         if column["data_type"] == "bigint":
             if column["name"] == "int_col":
                 column["precision"] = 32  # only int and bigint in connectorx
+            elif column["name"] == "smallint_col":
+                column["precision"] = 16  # only int and bigint in connectorx
         if column["data_type"] == "text" and column.get("precision"):
             del column["precision"]
     return columns

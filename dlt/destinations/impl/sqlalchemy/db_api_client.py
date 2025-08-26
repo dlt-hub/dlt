@@ -1,15 +1,4 @@
-from typing import (
-    Optional,
-    Iterator,
-    Any,
-    Sequence,
-    AnyStr,
-    Union,
-    Tuple,
-    List,
-    Dict,
-    Set,
-)
+from typing import Optional, Iterator, Any, Sequence, AnyStr, Union, Tuple, List, Dict, Set, cast
 from contextlib import contextmanager
 from functools import wraps
 import inspect
@@ -31,7 +20,7 @@ from dlt.common.destination.dataset import DBApiCursor
 from dlt.common.typing import TFun
 
 from dlt.destinations.typing import DBTransaction
-from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_client import SqlClientBase, raise_database_error
 from dlt.destinations.impl.sqlalchemy.configuration import SqlalchemyCredentials
 from dlt.destinations.impl.sqlalchemy.alter_table import MigrationMaker
 from dlt.destinations.sql_client import DBApiCursorImpl
@@ -50,43 +39,19 @@ class SqlaTransactionWrapper(DBTransaction):
             self.sqla_transaction.rollback()
 
 
-def raise_database_error(f: TFun) -> TFun:
-    @wraps(f)
-    def _wrap_gen(self: "SqlalchemyClient", *args: Any, **kwargs: Any) -> Any:
-        try:
-            return (yield from f(self, *args, **kwargs))
-        except Exception as e:
-            raise self._make_database_exception(e) from e
-
-    @wraps(f)
-    def _wrap(self: "SqlalchemyClient", *args: Any, **kwargs: Any) -> Any:
-        try:
-            return f(self, *args, **kwargs)
-        except Exception as e:
-            raise self._make_database_exception(e) from e
-
-    if inspect.isgeneratorfunction(f):
-        return _wrap_gen  # type: ignore[return-value]
-    return _wrap  # type: ignore[return-value]
-
-
 class SqlaDbApiCursor(DBApiCursorImpl):
     def __init__(self, curr: sa.engine.CursorResult) -> None:
         # Sqlalchemy CursorResult is *mostly* compatible with DB-API cursor
         self.native_cursor = curr  # type: ignore[assignment]
         curr.columns
 
-        self.fetchall = curr.fetchall  # type: ignore[assignment]
-        self.fetchone = curr.fetchone  # type: ignore[assignment]
-        self.fetchmany = curr.fetchmany  # type: ignore[assignment]
-
         self._set_default_schema_columns()
 
     def _get_columns(self) -> List[str]:
         try:
-            return list(self.native_cursor.keys())
+            return list(cast(sa.engine.CursorResult, self.native_cursor).keys())
         except ResourceClosedError:
-            # this happens if now rows are returned
+            # this happens if no rows are returned
             return []
 
     # @property
@@ -280,7 +245,12 @@ class SqlalchemyClient(SqlClientBase[Connection]):
     ) -> Iterator[SqlClientBase[Connection]]:
         with super().with_alternative_dataset_name(dataset_name):
             if self.dialect_name == "sqlite" and dataset_name not in self._sqlite_attached_datasets:
-                self._sqlite_reattach_dataset_if_exists(dataset_name)
+                if not self.native_connection:
+                    # opening connection attaches dataset
+                    with self:
+                        pass
+                else:
+                    self._sqlite_reattach_dataset_if_exists(dataset_name)
             yield self
 
     def create_dataset(self) -> None:
@@ -311,7 +281,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         self, sql: Union[AnyStr, sa.sql.Executable], *args: Any, **kwargs: Any
     ) -> Optional[Sequence[Sequence[Any]]]:
         with self.execute_query(sql, *args, **kwargs) as cursor:
-            if cursor.returns_rows:
+            if cast(sa.engine.CursorResult, cursor).returns_rows:
                 return cursor.fetchall()
             return None
 
@@ -333,7 +303,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         with self._ensure_transaction():
             cur = self._current_connection.execute(query, *args)  # type: ignore[call-overload]
             try:
-                yield SqlaDbApiCursor(cur)  # type: ignore[abstract]
+                yield SqlaDbApiCursor(cur)
             finally:
                 cur.close()
 
@@ -346,24 +316,27 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         with self._ensure_transaction():
             table_obj.create(self._current_connection)
 
-    def _make_qualified_table_name(self, table: sa.Table, escape: bool = True) -> str:
-        if escape:
-            return self.dialect.identifier_preparer.format_table(table)  # type: ignore[attr-defined,no-any-return]
-        return table.fullname  # type: ignore[no-any-return]
+    def make_qualified_table_name_path(
+        self, table_name: Optional[str], quote: bool = True, casefold: bool = True
+    ) -> List[str]:
+        path: List[str] = []
+        # no catalog for sqlalchemy
+        if catalog_name := self.catalog_name(quote=quote, casefold=casefold):
+            path.append(catalog_name)
 
-    def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
-        tbl = self.get_existing_table(table_name)
-        if tbl is None:
-            tmp_metadata = sa.MetaData()
-            tbl = sa.Table(table_name, tmp_metadata, schema=self.dataset_name)
-        return self._make_qualified_table_name(tbl, escape)
-
-    def fully_qualified_dataset_name(self, escape: bool = True, staging: bool = False) -> str:
-        if staging:
-            dataset_name = self.staging_dataset_name
-        else:
-            dataset_name = self.dataset_name
-        return self.dialect.identifier_preparer.format_schema(dataset_name)  # type: ignore[attr-defined, no-any-return]
+        dataset_name = self.dataset_name
+        if self.dialect.requires_name_normalize and casefold:  # type: ignore[attr-defined]
+            dataset_name = str(self.dialect.normalize_name(dataset_name))  # type: ignore[func-returns-value]
+        if quote:
+            dataset_name = self.dialect.identifier_preparer.quote_identifier(dataset_name)  # type: ignore[attr-defined]
+        path.append(dataset_name)
+        if table_name:
+            if self.dialect.requires_name_normalize and casefold:  # type: ignore[attr-defined]
+                table_name = str(self.dialect.normalize_name(table_name))  # type: ignore[func-returns-value]
+            if quote:
+                table_name = self.dialect.identifier_preparer.quote_identifier(table_name)  # type: ignore[attr-defined]
+            path.append(table_name)
+        return path
 
     def alter_table_add_columns(self, columns: Sequence[sa.Column]) -> None:
         if not columns:
@@ -371,16 +344,18 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         if self.migrations is None:
             self.migrations = MigrationMaker(self.dialect)
         for column in columns:
-            self.migrations.add_column(column.table.name, column, self.dataset_name)
+            self.migrations.add_column(column.table.name, column, schema=self.dataset_name)
         statements = self.migrations.consume_statements()
         for statement in statements:
             self.execute_sql(statement)
 
-    def escape_column_name(self, column_name: str, escape: bool = True) -> str:
-        if self.dialect.requires_name_normalize:  # type: ignore[attr-defined]
-            column_name = self.dialect.normalize_name(column_name)  # type: ignore[func-returns-value]
-        if escape:
-            return self.dialect.identifier_preparer.format_column(sa.Column(column_name))  # type: ignore[attr-defined,no-any-return]
+    def escape_column_name(
+        self, column_name: str, quote: bool = True, casefold: bool = True
+    ) -> str:
+        if self.dialect.requires_name_normalize and casefold:  # type: ignore[attr-defined]
+            column_name = str(self.dialect.normalize_name(column_name))  # type: ignore[func-returns-value]
+        if quote:
+            return self.dialect.identifier_preparer.quote_identifier(column_name)  # type: ignore[attr-defined,no-any-return]
         return column_name
 
     def reflect_table(

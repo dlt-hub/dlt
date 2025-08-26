@@ -1,0 +1,49 @@
+
+name: tools | dbt cloud
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+env:
+  # all credentials must be present to be passed to dbt cloud
+  DBT_CLOUD__ACCOUNT_ID: ${{ secrets.DBT_CLOUD__ACCOUNT_ID }}
+  DBT_CLOUD__JOB_ID: ${{ secrets.DBT_CLOUD__JOB_ID }}
+  DBT_CLOUD__API_TOKEN: ${{ secrets.DBT_CLOUD__API_TOKEN }}
+
+  RUNTIME__LOG_LEVEL: ERROR
+
+jobs:
+  run_dbt_cloud:
+    name: tools | dbt cloud tests
+    defaults:
+      run:
+        shell: bash
+    runs-on: "ubuntu-latest"
+
+    steps:
+
+      - name: Check out
+        uses: actions/checkout@master
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+          activate-environment: true
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      - run: |
+          pytest tests/helpers/dbt_cloud_tests -k '(not venv)'
+        name: Run dbt cloud - Linux/MAC

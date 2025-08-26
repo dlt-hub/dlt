@@ -111,16 +111,19 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
                 raise DatabaseTransientException(ex)
             yield DremioCursorImpl(curr)  # type: ignore
 
-    def catalog_name(self, escape: bool = True) -> Optional[str]:
-        database_name = self.capabilities.casefold_identifier(self.database_name)
-        if escape:
+    def catalog_name(self, quote: bool = True, casefold: bool = True) -> Optional[str]:
+        if casefold:
+            database_name = self.capabilities.casefold_identifier(self.database_name)
+        else:
+            database_name = self.database_name
+        if quote:
             database_name = self.capabilities.escape_identifier(database_name)
         return database_name
 
     def _get_information_schema_components(self, *tables: str) -> Tuple[str, str, List[str]]:
         components = super()._get_information_schema_components(*tables)
         # catalog is always DREMIO but schema contains "database" prefix 🤷
-        return ("DREMIO", self.fully_qualified_dataset_name(escape=False), components[2])
+        return ("DREMIO", self.fully_qualified_dataset_name(quote=False), components[2])
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
@@ -144,7 +147,7 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
     def create_dataset(self) -> None:
         # We create a sentinel table which defines wether we consider the dataset created
         sentinel_table_name = self.make_qualified_table_name(self.SENTINEL_TABLE_NAME)
-        self.execute_sql(f"CREATE TABLE {sentinel_table_name} (_dlt_id BIGINT);")
+        self.execute_sql(f"CREATE TABLE {sentinel_table_name} (_dlt_id BIGINT)")
 
     def _get_table_names(self) -> List[str]:
         query = """
@@ -165,7 +168,7 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
         table_names = self._get_table_names()
         for table_name in table_names:
             full_table_name = self.make_qualified_table_name(table_name)
-            self.execute_sql("DROP TABLE IF EXISTS %s;" % full_table_name)
+            self.execute_sql("DROP TABLE IF EXISTS %s" % full_table_name)
 
     def has_dataset(self) -> bool:
         return len(self._get_table_names()) > 0

@@ -3,7 +3,6 @@ from typing import (
     Any,
     Callable,
     ClassVar,
-    Iterable,
     Literal,
     Optional,
     Sequence,
@@ -12,7 +11,9 @@ from typing import (
     Protocol,
     Type,
 )
+from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common.data_types import TDataType
+from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.normalizers.typing import TNamingConventionReferenceArg
 from dlt.common.typing import TLoaderFileFormat, get_args
@@ -199,8 +200,14 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supports_nested_types: bool = False
     """Tells if destination can write nested types, currently only destinations storing parquet are supported"""
 
-    sqlglot_dialect: Optional[str] = None
+    enforces_nulls_on_alter: bool = True
+    """Tells if destination enforces null constraints when adding NOT NULL columns to existing tables"""
+
+    sqlglot_dialect: Optional[TSqlGlotDialect] = None
     """The SQL dialect used by sqlglot to transpile a query to match the destination syntax."""
+
+    parquet_format: Optional[ParquetFormatConfiguration] = None
+    """Parquet format preferred by this destination"""
 
     def generates_case_sensitive_identifiers(self) -> bool:
         """Tells if capabilities as currently adjusted, will generate case sensitive identifiers"""
@@ -220,7 +227,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
 
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = preferred_loader_file_format
-        caps.supported_loader_file_formats = ["jsonl", "insert_values", "parquet", "csv"]
+        caps.supported_loader_file_formats = ["jsonl", "insert_values", "parquet", "csv", "model"]
         caps.loader_file_format_selector = loader_file_format_selector
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []

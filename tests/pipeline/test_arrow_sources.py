@@ -14,7 +14,6 @@ from dlt.common.libs.pyarrow import (
 )
 
 from dlt.pipeline.exceptions import PipelineStepFailed
-
 from tests.cases import (
     arrow_table_all_data_types,
     prepare_shuffled_tables,
@@ -101,7 +100,10 @@ def test_extract_and_normalize(item_type: TPythonTableFormat, is_list: bool):
 
     # Check schema detection
     schema_columns = schema.tables["some_data"]["columns"]
-    assert set(df_tbl.columns) == set(schema_columns)
+    # null column is present, with x-normalizer seen-null-first, without data type
+    assert set(schema_columns) - set(df_tbl.columns) == {"null"}
+    assert schema_columns["null"]["x-normalizer"]["seen-null-first"] is True
+    assert "data_type" not in schema_columns["null"]
     assert schema_columns["date"]["data_type"] == "date"
     assert schema_columns["int"]["data_type"] == "bigint"
     assert schema_columns["float"]["data_type"] == "double"
@@ -195,13 +197,21 @@ def test_extract_normalize_file_rotation(item_type: TPythonTableFormat) -> None:
             yield item
 
     # get buffer written and file rotated with each yielded frame
-    os.environ[f"SOURCES__{pipeline_name.upper()}__DATA_WRITER__BUFFER_MAX_ITEMS"] = str(len(rows))
-    os.environ[f"SOURCES__{pipeline_name.upper()}__DATA_WRITER__FILE_MAX_ITEMS"] = str(len(rows))
+    os.environ[
+        f"SOURCES__TEST_ARROW_SOURCES__{pipeline_name.upper()}__DATA_WRITER__BUFFER_MAX_ITEMS"
+    ] = str(len(rows))
+    os.environ[
+        f"SOURCES__TEST_ARROW_SOURCES__{pipeline_name.upper()}__DATA_WRITER__FILE_MAX_ITEMS"
+    ] = str(len(rows))
 
     pipeline.extract(data_frames())
     # ten parquet files
     assert len(pipeline.list_extracted_resources()) == 10
-    info = pipeline.normalize(workers=3)
+
+    os.environ["NORMALIZE__DATA_WRITER__FILE_MAX_ITEMS"] = str(len(rows))
+    os.environ["NORMALIZE__DATA_WRITER__BUFFER_MAX_ITEMS"] = str(len(rows))
+
+    info = pipeline.normalize(workers=1)
     # with 10 * num rows
     assert info.row_counts["data_frames"] == 10 * len(rows)
     load_id = pipeline.list_normalized_load_packages()[0]
@@ -610,3 +620,75 @@ def test_extract_json_normalize_parquet_adds_dlt_load_id():
 
         # Normalized file has _dlt_load_id
         assert pa.compute.all(pa.compute.equal(tbl["_dlt_load_id"], load_id)).as_py()
+
+
+@pytest.mark.parametrize(
+    "has_dlt_column, add_dlt_load_id",
+    [
+        (True, True),  # Input has _dlt_load_id and we want to add it
+        (True, False),  # Input has _dlt_load_id and we don't want to add it
+        (False, True),  # Input doesn't have _dlt_load_id and we want to add it
+        (False, False),  # Input doesn't have _dlt_load_id and we don't want to add it
+    ],
+)
+def test_replace_or_keep_existing_dlt_load_id(has_dlt_column: bool, add_dlt_load_id: bool):
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = str(add_dlt_load_id)
+
+    # Create input data
+    num_rows = 10
+    existing_load_id = "existing_load_id"
+    load_id_type = pa.dictionary(pa.int8(), pa.string())
+
+    if has_dlt_column:
+        table = pa.table(
+            {
+                "column1": [f"value_{i}" for i in range(num_rows)],
+                "_dlt_load_id": pa.array([existing_load_id] * num_rows, type=load_id_type),
+            }
+        )
+    else:
+        table = pa.table(
+            {
+                "column1": [f"value_{i}" for i in range(num_rows)],
+            }
+        )
+
+    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb")
+
+    pipeline.extract(table, table_name="some_data")
+    pipeline.normalize()
+
+    # Retrieve the normalized table
+    load_id = pipeline.list_normalized_load_packages()[0]
+    storage = pipeline._get_load_storage()
+    jobs = storage.normalized_packages.list_new_jobs(load_id)
+    job = [j for j in jobs if "some_data" in j][0]
+    with storage.normalized_packages.storage.open_file(job, "rb") as f:
+        normalized_table = pa.parquet.read_table(f)
+
+        assert len(normalized_table) == num_rows
+
+        schema = pipeline.default_schema
+
+        if add_dlt_load_id:
+            assert "_dlt_load_id" in normalized_table.schema.names
+            # Check if the _dlt_load_id column has been replaced with the correct load_id
+            assert pa.compute.all(
+                pa.compute.equal(normalized_table["_dlt_load_id"], load_id)
+            ).as_py()
+            assert "_dlt_load_id" in schema.tables["some_data"]["columns"]
+
+        elif has_dlt_column and not add_dlt_load_id:
+            assert "_dlt_load_id" in normalized_table.schema.names
+            # Check if the _dlt_load_id column has not been replaced
+            assert pa.compute.all(
+                pa.compute.equal(normalized_table["_dlt_load_id"], existing_load_id)
+            ).as_py()
+            assert "_dlt_load_id" in schema.tables["some_data"]["columns"]
+
+        elif not has_dlt_column and not add_dlt_load_id:
+            assert "_dlt_load_id" not in normalized_table.schema.names
+            assert "_dlt_load_id" not in schema.tables["some_data"]["columns"]
+
+        # Assert the other columns remain unchanged, just in case
+        assert normalized_table["column1"].to_pylist() == [f"value_{i}" for i in range(num_rows)]

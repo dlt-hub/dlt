@@ -28,7 +28,7 @@ from dlt.common.destination.client import DestinationClientConfiguration, JobCli
 from dlt.common.runtime.run_context import get_plugin_modules
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import is_subclass
-from dlt.common.utils import get_full_callable_name
+from dlt.common.utils import get_full_callable_name, simple_repr, without_none
 from dlt.common.reflection.ref import object_from_ref
 
 
@@ -104,8 +104,11 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
             # create mock credentials to avoid credentials being resolved
             init_config = self.spec()
             init_config.update(self.config_params)
-            credentials = self.spec.credentials_type(init_config)()
-            credentials.__is_resolved__ = True
+            if not init_config.credentials:
+                credentials = self.spec.credentials_type(init_config)()
+                credentials.__is_resolved__ = True
+            else:
+                credentials = init_config.credentials
             config = self.spec(credentials=credentials)
             try:
                 config = self.configuration(config, accept_partial=True)
@@ -113,7 +116,10 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
                 # in rare cases partial may fail ie. when invalid native value is present
                 # in that case we fallback to "empty" config
                 pass
-        return self.adjust_capabilities(caps, config, naming)
+        caps = self.adjust_capabilities(caps, config, naming)
+        # update again, explicit caps have prio
+        caps.update(self.caps_params)
+        return caps
 
     @abstractmethod
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
@@ -137,13 +143,20 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
 
     @property
     def destination_description(self) -> str:
-        return f"{self.destination_name}({self.destination_type})"
+        return f"{self.destination_name} ({self.destination_type})"
 
     @property
     @abstractmethod
     def client_class(self) -> Type[TDestinationClient]:
         """A job client class responsible for starting and resuming load jobs"""
         ...
+
+    def __repr__(self) -> str:
+        # TODO: consider not showing default values of base SPEC
+        #   consider showing physical location (when implemented) and
+        #   props of the client ie. if it supports state, datasets or open tables
+        kwargs = {**self.spec(), **self.config_params}
+        return simple_repr(self.destination_type, **without_none(kwargs))
 
     def configuration(
         self, initial_config: TDestinationConfig, accept_partial: bool = False

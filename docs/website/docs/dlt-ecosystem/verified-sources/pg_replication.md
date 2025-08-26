@@ -18,7 +18,7 @@ Resources that can be loaded using this verified source are:
 | replication_resource | Load published messages from a replication slot |
 
 :::info
-The Postgres replication source currently **does not** support the [scd2 merge strategy](../../general-usage/incremental-loading#scd2-strategy). 
+The Postgres replication source currently **does not** support the [scd2 merge strategy](../../general-usage/merge-loading.md#scd2-strategy). 
 :::
 
 ## Setup guide
@@ -145,7 +145,6 @@ This resource yields data items for changes in one or more Postgres tables.
 ```py
 @dlt.resource(
     name=lambda args: args["slot_name"] + "_" + args["pub_name"],
-    standalone=True,
 )
 def replication_resource(
     slot_name: str,
@@ -275,3 +274,27 @@ If you wish to create your own pipelines, you can leverage source and resource m
     
    Similarly, to replicate changes from selected columns, you can use the `table_names` and `include_columns` arguments in the `replication_resource` function.
 
+## Optional: Using `xmin` for Change Data Capture (CDC)
+
+PostgreSQL internally uses the `xmin` system column to track row versions. You can use `xmin` to enable an efficient CDC mechanism when working with the `sql_database` source.
+
+To do this, define a `query_adapter_callback` that extracts the `xmin` value from the source table and filters based on an incremental cursor:
+
+```py
+def query_adapter_callback(query, table, incremental=None, _engine=None) -> sa.TextClause:
+    """Generate a SQLAlchemy text clause for querying a table with optional incremental filtering."""
+    select_clause = (
+        f"SELECT {table.fullname}.*, xmin::text::bigint as xmin FROM {table.fullname}"
+    )
+
+    if incremental:
+        where_clause = (
+            f" WHERE {incremental.cursor_path}::text::bigint >= "
+            f"({incremental.start_value}::int8)"
+        )
+        return sa.text(select_clause + where_clause)
+
+    return sa.text(select_clause)
+```
+
+This approach enables you to track changes based on the `xmin` value instead of a manually defined column, which is especially useful in cases where mutation tracking is needed but a timestamp or serial column is not available.

@@ -1,0 +1,57 @@
+
+name: tools | dbt runner
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+env:
+
+  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
+  RUNTIME__LOG_LEVEL: ERROR
+
+jobs:
+  run_dbt:
+    name: tools | dbt runner tests
+    defaults:
+      run:
+        shell: bash
+    runs-on: "ubuntu-latest"
+
+    steps:
+
+      - name: Check out
+        uses: actions/checkout@master
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+          activate-environment: true
+          enable-cache: true
+
+      - name: Install dependencies
+        # install dlt with postgres support
+        run: uv sync --extra postgres --extra postgis --group sentry-sdk --group dbt --group providers
+
+      - name: create secrets.toml
+        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
+
+      - run: |
+          pytest tests/helpers/dbt_tests -k '(not venv)'
+        name: Run dbt tests
+
+      - name: Remove dbt-core
+        # install dlt with postgres support
+        run: uv run pip uninstall dbt-core -y
+
+      - run: |
+          pytest tests/helpers/dbt_tests --ignore=tests/helpers/dbt_tests/local -k '(not local)'
+        name: Run dbt runner with venv - Linux/MAC

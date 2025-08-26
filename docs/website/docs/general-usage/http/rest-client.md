@@ -179,10 +179,13 @@ Note: Normally, you don't need to specify this paginator explicitly, as it is us
 - `limit`: The maximum number of items to retrieve in each request.
 - `offset`: The initial offset for the first request. Defaults to `0`.
 - `offset_param`: The name of the query parameter used to specify the offset. Defaults to `"offset"`.
+- `offset_body_path`: A JSONPath expression specifying where to place the offset in the request JSON body. If provided, the paginator will use this instead of `offset_param` to send the offset in the request body. Defaults to `None`.
 - `limit_param`: The name of the query parameter used to specify the limit. Defaults to `"limit"`.
+- `limit_body_path`: A JSONPath expression specifying where to place the limit in the request JSON body. If provided, the paginator will use this instead of `limit_param` to send the limit in the request body. Defaults to `None`.
 - `total_path`: A JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset` and `stop_after_empty_page`.
 - `maximum_offset`: Optional maximum offset value. Limits pagination even without a total count.
 - `stop_after_empty_page`: Whether pagination should stop when a page contains no result items. Defaults to `True`.
+- `has_more_path`: A JSONPath expression for a boolean indicator of whether additional pages exist. Defaults to `None`.
 
 **Example:**
 
@@ -234,7 +237,20 @@ client = RESTClient(
 )
 ```
 
-You can disable automatic stoppage of pagination by setting `stop_after_empty_page = False`. In this case, you must provide either `total_path` or `maximum_offset` to guarantee that the paginator terminates.
+If the API provides a boolean flag when all pages have been returned, you can use `has_more_path` to recognize this indicator and end pagination:
+
+```py
+client = RESTClient(
+    base_url="https://api.example.com",
+    paginator=OffsetPaginator(
+        limit=10,
+        total_path=None,
+        has_more_path="has_more",
+    )
+)
+```
+
+You can disable automatic stoppage of pagination by setting `stop_after_empty_page = False`. In this case, you must provide either `total_path`, `maximum_offset`, or `has_more_path` to guarantee that the paginator terminates.
 
 #### PageNumberPaginator
 
@@ -245,9 +261,11 @@ You can disable automatic stoppage of pagination by setting `stop_after_empty_pa
 - `base_page`: The index of the initial page from the API perspective. Normally, it's 0-based or 1-based (e.g., 1, 2, 3, ...) indexing for the pages. Defaults to 0.
 - `page`: The page number for the first request. If not provided, the initial value will be set to `base_page`.
 - `page_param`: The query parameter name for the page number. Defaults to `"page"`.
+- `page_body_path`: A JSONPath expression specifying where to place the page number in the request JSON body. Use this instead of `page_param` when sending the page number in the request body. Defaults to `None`.
 - `total_path`: A JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page` and `stop_after_empty_page`.
 - `maximum_page`: Optional maximum page number. Stops pagination once this page is reached.
 - `stop_after_empty_page`: Whether pagination should stop when a page contains no result items. Defaults to `True`.
+- `has_more_path`: A JSONPath expression for a boolean indicator of whether additional pages exist. Defaults to `None`.
 
 **Example:**
 
@@ -295,7 +313,19 @@ client = RESTClient(
 )
 ```
 
-You can disable automatic stoppage of pagination by setting `stop_after_empty_page = False`. In this case, you must provide either `total_path` or `maximum_page` to guarantee that the paginator terminates.
+If the API provides a boolean flag when all pages have been returned, you can use `has_more_path` to recognize this indicator and end pagination:
+
+```py
+client = RESTClient(
+    base_url="https://api.example.com",
+    paginator=PageNumberPaginator(
+        total_path=None,
+        has_more_path="has_more",
+    )
+)
+```
+
+You can disable automatic stoppage of pagination by setting `stop_after_empty_page = False`. In this case, you must provide `total_path`, `has_more_path`, or `maximum_page` to guarantee that the paginator terminates.
 
 #### JSONResponseCursorPaginator
 
@@ -595,9 +625,11 @@ Unfortunately, most OAuth 2.0 implementations vary, and thus you might need to s
 
 ```py
 from base64 import b64encode
+from dlt.common.configuration import configspec
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.auth import OAuth2ClientCredentials
 
+@configspec
 class OAuth2ClientCredentialsHTTPBasic(OAuth2ClientCredentials):
     """Used e.g. by Zoom Video Communications, Inc."""
     def build_access_token_request(self) -> Dict[str, Any]:
@@ -633,8 +665,10 @@ response = client.get("/users")
 You can implement custom authentication by subclassing the `AuthConfigBase` class and implementing the `__call__` method:
 
 ```py
+from dlt.common.configuration import configspec
 from dlt.sources.helpers.rest_client.auth import AuthConfigBase
 
+@configspec
 class CustomAuth(AuthConfigBase):
     def __init__(self, token):
         self.token = token
@@ -695,7 +729,35 @@ request_timeout = 120  # Timeout in seconds
 request_max_retry_delay = 30  # Cap exponential delay to 30 seconds
 ```
 
+### URL sanitization and secret protection
+
+The RESTClient automatically sanitizes URLs in logs and error messages to prevent exposure of sensitive information. Query parameters with the following names are automatically redacted:
+
+- `api_key`, `token`, `key`, `access_token`, `apikey`, `api-key`, `access-token`
+- `secret`, `password`, `pwd`, `client_secret`
+
+For example, a URL like `https://api.example.com/data?api_key=secret123&page=1` will appear in logs as `https://api.example.com/data?api_key=***&page=1`.
+
+
 ## Troubleshooting
+
+### Debugging HTTP error responses
+
+When debugging API issues, you may need to see the full error response body. By default, error response bodies are not included in exceptions to keep error messages concise.
+
+To enable error response bodies:
+
+```toml
+[runtime]
+http_show_error_body = true
+http_max_error_body_length = 8192  # Maximum characters (default: 8192)
+```
+
+Example error with response body enabled:
+```text
+HTTPError: 400 Client Error: Bad Request for url: https://api.example.com/data?api_key=***
+Response body: {"error": "Invalid date format", "code": "INVALID_DATE", "field": "start_date"}
+```
 
 ### `RESTClient.get()` and `RESTClient.post()` methods
 

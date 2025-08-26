@@ -1,0 +1,55 @@
+name: docs | deploy notebooks
+
+on:
+  push:
+    branches:
+      - devel
+  workflow_dispatch:
+
+env:
+  NETLIFY_DOCS_PRODUCTION_DEPLOY_HOOK: ${{ secrets.NETLIFY_DOCS_PRODUCTION_DEPLOY_HOOK }}
+  
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.pull_request.head.repo.fork }}
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+          activate-environment: true
+          enable-cache: true
+
+      - name: Install marimo
+        run: uv pip install marimo[recommended]
+
+      - name: Build marimo notebooks
+        run: cd docs/notebooks && uv run make build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Upload entire repository
+          path: 'docs/notebooks/build'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

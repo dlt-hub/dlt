@@ -62,6 +62,8 @@ Verified source pipedrive was added to your project!
   If the dlt dependency is already added, make sure you install the extra for bigquery to it
   If you are using poetry you may issue the following command:
   poetry add dlt -E bigquery
+  For uv, use:
+  uv add "dlt[bigquery]"
 
 * Read https://dlthub.com/docs/walkthroughs/create-a-pipeline for more information
 ```

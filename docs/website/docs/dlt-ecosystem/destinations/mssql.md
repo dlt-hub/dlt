@@ -110,13 +110,26 @@ If you set the [`replace` strategy](../../general-usage/full-loading.md) to `sta
 recreated with an `ALTER SCHEMA ... TRANSFER`. The operation is atomic: MSSQL supports DDL transactions.
 
 ## Data loading
-Data is loaded via INSERT statements by default. MSSQL has a limit of 1000 rows per INSERT, and this is what we use.
+Data is loaded via INSERT statements by default. MSSQL has a limit of 1000 rows per INSERT, and this is what we use. We send multiple
+sql statements in a single batch. In case you observe odbc driver locking (ie. when connection with open transaction leaks into the pool) you can:
+
+1. disable `pyodbc` connection pool.
+```py
+import pyodbc
+pyodbc.pooling = False
+```
+
+2. disable batchning of multiple statements in `dlt`
+```py
+dlt.destinations.mssql("mssql://loader:<password>@loader.database.windows.net/dlt_data?connect_timeout=15", supports_multiple_statements=False)
+```
+
 
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default
 
 ## Supported column hints
-**mssql** will create unique indexes for all columns with `unique` hints. This behavior **may be disabled**.
+**mssql** will create unique indexes for all columns with `unique` hints. This behavior **is disabled by default**.
 
 ### Table and column identifiers
 SQL Server **with the default collation** uses case-insensitive identifiers but will preserve the casing of identifiers that are stored in the INFORMATION SCHEMA. You can use [case-sensitive naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) to keep the identifier casing. Note that you risk generating identifier collisions, which are detected by `dlt` and will fail the load process.
