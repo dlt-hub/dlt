@@ -37,7 +37,11 @@ To set up a Postgres user, follow these steps:
     ```sql
     GRANT CREATE ON DATABASE dlt_data TO replication_user;
     ```
-    
+
+3. The user must have ownership of the tables that need to be replicated:
+    ```sql
+   ALTER TABLE your_table OWNER TO replication_user;  
+    ```
 
 ### Set up RDS
 To set up a Postgres user on RDS, follow these steps:
@@ -66,6 +70,15 @@ To get started with your data pipeline, follow these steps:
    ```
     
    It will initialize [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/pg_replication_pipeline.py) with a Postgres replication as the [source](../../general-usage/source) and [DuckDB](../../dlt-ecosystem/destinations/duckdb) as the [destination](../../dlt-ecosystem/destinations).
+   The example below make use of the `init_replication` helper from the `pg_replication` source.  
+   When you run `init_replication`, Postgres is prepared for logical replication: a publication is created and tables (or the whole schema) are added, a replication slot is created, and—if `persist_snapshots=True` snapshot tables are generated to capture the initial state.
+
+   To perform these steps your Postgres user needs the following permissions: 
+   - `CREATE` on the database (or superuser) to create publications  
+   - Ownership of the publication and tables to add them  
+   - Superuser privileges if replicating an entire schema  
+   - `SELECT` on source tables and `CREATE` on the target schema for snapshots  
+   - Superuser or the `REPLICATION` attribute for replication slot operations
     
     
 2. If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](../../dlt-ecosystem/destinations).
