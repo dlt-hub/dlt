@@ -37,7 +37,11 @@ To set up a Postgres user, follow these steps:
     ```sql
     GRANT CREATE ON DATABASE dlt_data TO replication_user;
     ```
-    
+
+3. The user must have ownership of the tables that need to be replicated:
+    ```sql
+   ALTER TABLE your_table OWNER TO replication_user;  
+    ```
 
 ### Set up RDS
 To set up a Postgres user on RDS, follow these steps:
