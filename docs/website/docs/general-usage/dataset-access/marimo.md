@@ -42,7 +42,7 @@ Inside your marimo notebook, you can use widgets built and maintained by the dlt
 
 Simply import them from `dlt.helpers.marimo` and pass them to the `render()` function. Note that `render()` is asynchronous and must be awaited with `await`.
 
-```python
+```py
 #%% cell 1
 import marimo as mo
 from dlt.helpers.marimo import render, load_package_viewer
