@@ -9,9 +9,9 @@ dlt+ offers a few tools and helpers to make running dlt pipelines in prefect a s
 
 ## Key features
 
-- **Prefect Collector:** a dedicated way to do [progress monitoring], creating summary reports for each pipeline stage
-- **Retry integration:** run custom code at relevant points during the pipeline execution
-- **Parameterized tasks and flows:** Create tasks and flows that will execute your pipelines with the right settings
+- **Prefect Collector:** a dedicated way to do real-time [progress monitoring] and summary reports after each pipeline stage
+- **Retry integration:** retries without loosing intermediate results, execute custom code between retries
+- **Source decomposition flows:** Create tasks and flows that will execute your pipelines in parallel with the right settings
 - **dlt_task decorator:** parameteriziable prefect-task that reports dlt's progress to the prefect ui
 
 
@@ -53,6 +53,18 @@ This is useful to see which tables and columns have changed between runs.
 
 ![Prefect Schema Change Detection](images/prefect-schema-change-artifact.png)
 
+### Logging
+
+Prefect has built-in functionality to [include logs from other libraries](https://docs.prefect.io/v3/advanced/logging-customization#include-logs-from-other-libraries) and display them as part of their UI.
+
+You can tell prefect to include `dlt`'s logs by setting the corresponding prefect environment variable, for example by adding this to your `.env` file:
+```sh
+PREFECT_LOGGING_EXTRA_LOGGERS=dlt
+```
+
+You should now see dlt's logs in the prefect UI and be able to [query them with the prefect CLI](https://docs.prefect.io/v3/how-to-guides/workflows/add-logging#access-logs-from-the-command-line).
+
+
 ## Runner integration
 
 The `PrefectCollector` integrates seamlessly with the [dlt+ runner](../production/pipeline-runner.md). 
@@ -62,9 +74,13 @@ will also be included in the artifacts.
 
 ### Pipeline Retries
 
-When running Prefect on distributed infrastructure, prefect's retries may execute on different machines, causing intermediate files to be lost and pipeline have to start over.
+Prefect retry-mechanism is not a perfect fit for dlt pipelines.
+As data gets processed, `dlt` creates intermediate files and that are stored in the pipelines working directory. 
+When a pipeline run fails and is retried with prefect that data might not be available anymore, e.g. if the flow is retried on a different worker node or
+the code was run inside an ephemeral docker container.
 
-Use the dlt+ runner instead to preserve pipeline state and intermediate results across retry attempts.
+To do so, you can use the dlt+ runners [retry configuration](../production/pipeline-runner#retry-policies) inside your prefect tasks or flows.
+That way the pipeline state will be preserved and intermediate results across retry attempts.
 
 ```python
 from dlt_plus import runner
@@ -91,11 +107,54 @@ Detailed error artifacts with full tracebacks are automatically created for each
 
 ![Prefect Retry Artifacts](images/prefect-retry-artifacts.png)
 
+## Custom Callbacks
+
+The `PrefectCollector` is a subclass of the `PlusLogCollector` class, which allows you to implement [custom callbacks](../production/observability#custom-callbacks).
+
+```python
+from dlt_plus._runner.prefect_collector import PrefectCollector
+from prefect.logging import get_run_logger
+from tenacity import Retrying, stop_after_attempt
+from dlt.sources.sql_database import sql_database
+
+MY_RETRY_POLICY = Retrying(stop=stop_after_attempt(3), reraise=True)
+
+class MyCustomCollector(PrefectCollector):
+    def on_retry(
+        self,
+        pipeline: SupportsPipeline,
+        trace: PipelineTrace,
+        retry_attempt: int,
+        last_attempt: bool,
+        exception: Exception,
+    ) -> None:
+        # your code here will be executed before a retry is attempted
+        ...
+
+@task
+def my_task():
+    # instantiate your logger with a task-aware logger from prefect
+    prefect_logger = get_run_logger()
+    my_collector = MyCustomCollector(1, logger=prefect_logger)
+
+    # pass your collector to the pipeline
+    pipeline = dlt.pipeline(
+        pipeline_name="my_pipeline",
+        destination="dummy", # use dummy destination to trigger failed load
+        progress=my_collector
+    )
+    # run your pipeline with the source in the dlt_plus.runner()
+    source = sql_database(table_names=["items"])
+    load_info = dlt_plus.runner(pipeline, retry_policy=MY_RETRY_POLICY).run(source)
+    return load_info
+```
+
+
 ## Source decomposition with Prefect
 
 dlt+ also provides helpers that you can use to create tasks and flows that you can drop 
 into your prefect code with the options to parameterize the runner and run the resources in your source
-in parallel tasks
+in parallel tasks.
 
 ```py
 import dlt
@@ -138,8 +197,15 @@ For stability reasons, this actually runs one resource alone and then all others
 This is because otherwise, on the first run, all resources would try to create the same dlt-tables.
 :::
 :::warning
-Currently only the thread pool task runner is supported. This is because the above methods pass pipeline and source objects as arguments, which can not be pickled.
+The flow created by this helper must be executed with the thread pool task runner.
+Other runners, which try to distribute tasks across multiple machines won't work with these helpers, because they
+pass pipeline and source objects as arguments, which can not be pickled or serialized in order to be sent to other machines.
+If want to build tasks that run on multiple machines, you will have to initialize both pipeline and sources inside those tasks.
 :::
+
+## On parallelization
+
+- explanation how dlts multiprocessing and multithreading interacts with prefects
 
 
 ## `@dlt_task` decorator
