@@ -192,6 +192,8 @@ if __name__ == "__main__":
 This will derive a task-pipeline with a deterministic name for each resource in the source and run them in parallel.
 Because they have different names, pipelines can run in parallel without interfering with each other.
 
+![Prefect Source Decomposition Flow](images/prefect-source-decomposition.png)
+
 :::note
 For stability reasons, this actually runs one resource alone and then all others in parallel.
 This is because otherwise, on the first run, all resources would try to create the same dlt-tables.
