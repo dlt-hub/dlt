@@ -4,7 +4,7 @@ description: Observability tooling
 keywords: [observability, monitoring, alerting, callbacks]
 ---
 
-# Custom Callbacks
+# Custom callbacks
 
 dlt+ includes a `PlusLogCollector` interface that can be used to implement custom callbacks.
 It is an extension of the dlt [LogCollector](https://github.com/dlt-hub/dlt/blob/273420b2574a518a7488443253ab1e0971b136e8/dlt/common/runtime/collector.py#L77) which accumulates pipeline and system stats and outputs to a python logger or the console. 
