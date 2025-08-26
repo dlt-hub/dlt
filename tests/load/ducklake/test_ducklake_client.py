@@ -85,8 +85,9 @@ def test_default_ducklake_configuration() -> None:
     )
 
     configuration = resolve_configuration(
-        DuckLakeClientConfiguration(pipeline_name=pipeline_name)
-        ._bind_dataset_name(dataset_name="FOO")
+        DuckLakeClientConfiguration(pipeline_name=pipeline_name)._bind_dataset_name(
+            dataset_name="FOO"
+        )
     )
     credentials = configuration.credentials
 
@@ -96,13 +97,13 @@ def test_default_ducklake_configuration() -> None:
     assert credentials.ducklake_name == expected_ducklake_name
 
     assert credentials.database == credentials.catalog.database == str(expected_path)
-    
+
     # currently, we use `drivername="duckdb"` for the ducklake client;
     # if we change it to `drivername="ducklake"`, update this check
     ducklake_client_url = credentials.to_native_representation()
     catalog_url = credentials.catalog.to_native_representation()
     assert ducklake_client_url == catalog_url == expected_db_url
-    
+
     assert credentials.storage is None
     # value is resolved
     assert credentials.attach_statement == expected_attach_statement
@@ -111,10 +112,13 @@ def test_default_ducklake_configuration() -> None:
 def test_ducklake_sqlclient(tmp_path):
     pipeline_name = "foo"
     configuration = resolve_configuration(
-        DuckLakeClientConfiguration(pipeline_name=pipeline_name)
-        ._bind_dataset_name(dataset_name="test_conf")
+        DuckLakeClientConfiguration(pipeline_name=pipeline_name)._bind_dataset_name(
+            dataset_name="test_conf"
+        )
     )
-    expected_attach_statement = f"ATTACH IF NOT EXISTS 'ducklake:{pipeline_name}.ducklake' AS {pipeline_name}"
+    expected_attach_statement = (
+        f"ATTACH IF NOT EXISTS 'ducklake:{pipeline_name}.ducklake' AS {pipeline_name}"
+    )
     assert configuration.credentials.attach_statement == expected_attach_statement
 
     # TODO patch `ducklake` extension directory to unit test extension installation
@@ -146,23 +150,23 @@ def test_ducklake_sqlclient(tmp_path):
 
 
 def test_destination_defaults() -> None:
-    """Check that catalog and storage are materialized at the right 
+    """Check that catalog and storage are materialized at the right
     location and properly derive their name from the pipeline name.
-    
+
     Note that default storage is managed by the ducklake extension itself.
     """
     pipeline = dlt.pipeline("destination_defaults", destination="ducklake")
     expected_location = pathlib.Path(".", DUCKLAKE_NAME_PATTERN % pipeline.dataset_name)
 
-    with (
-        unittest.mock.patch("pendulum.now", return_value="2025-08-25T20:44:02.143226+00:00"),
-        unittest.mock.patch("pendulum.instance", return_value="2025-08-25T20:44:02.143226+00:00"),
-        unittest.mock.patch("pendulum.datetime", return_value=datetime.datetime.fromisoformat("2025-08-25T20:44:02.143226+00:00")),
-        unittest.mock.patch("pendulum.from_timestamp", return_value=datetime.datetime.fromisoformat("2025-08-25T20:44:02.143226+00:00")),
-        unittest.mock.patch("dlt.common.time.ensure_pendulum_datetime", return_value=datetime.datetime.fromisoformat("2025-08-25T20:44:02.143226+00:00")),
-        unittest.mock.patch("dlt.pipeline.track.on_end_trace", return_value=None)
-    ):
-        pipeline.run([{"foo": 1}, {"foo": 2}], table_name="table_foo")
+    # with (
+    #     unittest.mock.patch("pendulum.now", return_value="2025-08-25T20:44:02.143226+00:00"),
+    #     unittest.mock.patch("pendulum.instance", return_value="2025-08-25T20:44:02.143226+00:00"),
+    #     unittest.mock.patch("pendulum.datetime", return_value=datetime.datetime.fromisoformat("2025-08-25T20:44:02.143226+00:00")),
+    #     unittest.mock.patch("pendulum.from_timestamp", return_value=datetime.datetime.fromisoformat("2025-08-25T20:44:02.143226+00:00")),
+    #     unittest.mock.patch("dlt.common.time.ensure_pendulum_datetime", return_value=datetime.datetime.fromisoformat("2025-08-25T20:44:02.143226+00:00")),
+    #     unittest.mock.patch("dlt.pipeline.track.on_end_trace", return_value=None)
+    # ):
+    pipeline.run([{"foo": 1}, {"foo": 2}], table_name="table_foo")
 
     assert expected_location.exists()
 

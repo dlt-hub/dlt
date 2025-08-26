@@ -33,6 +33,7 @@ class DuckLakeCredentials(DuckDbCredentials):
     of the DuckLake.
 
     """
+
     ducklake_name: str = ":pipeline:"
     catalog: Optional[ConnectionStringCredentials] = None
     storage: Optional[FilesystemConfiguration] = None
@@ -72,7 +73,7 @@ class DuckLakeCredentials(DuckDbCredentials):
     def attach_statement(self) -> str:
         # TODO handle when `ducklake_name` or `catalog` is not set
         if not self.is_resolved():
-           return None
+            return None
 
         # return value when set explicitly
         if self._attach_statement:
