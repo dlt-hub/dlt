@@ -55,6 +55,9 @@ lint:
 	uv pip uninstall docstring_parser
 	uv pip install docstring_parser_fork --reinstall
 	uv run ruff check
+	# NOTE: we exclude all D lint errors (docstrings)
+	uv run flake8 --extend-ignore=D --max-line-length=200 dlt
+	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
 	uv run black dlt docs tests --check --diff --color --extend-exclude=".*syntax_error.py"
 	$(MAKE) lint-security
 	$(MAKE) lint-docstrings
@@ -70,12 +73,14 @@ lint-and-test-snippets: lint-snippets
 	uv pip install docstring_parser_fork --reinstall
 	uv run mypy --config-file mypy.ini docs/website docs/tools --exclude docs/tools/lint_setup --exclude docs/website/docs_processed --exclude docs/website/versioned_docs/ --exclude docs/website/docs/general-usage/transformations/transformation-snippets.py
 	uv run ruff check
+	uv run flake8 --max-line-length=200 docs/website docs/tools --exclude docs/website/.dlt-repo --exclude docs/website/docs/general-usage/transformations/transformation-snippets.py
 	cd docs/website/docs && uv run pytest --ignore=node_modules --ignore general-usage/transformations/transformation-snippets.py
 
 lint-and-test-examples:
 	uv pip install docstring_parser_fork --reinstall
 	cd docs/tools && uv run python prepare_examples_tests.py
 	uv run ruff check
+	uv run flake8 --max-line-length=200 docs/examples
 	uv run mypy --config-file mypy.ini docs/examples
 	cd docs/examples && uv run pytest
 
