@@ -1,7 +1,7 @@
 ---
 title: "Prefect Integration"
 description: Run pipelines with Prefect
-keywords: ["prefect", "pipeline", "retry", "trace", "logs", "artifacts", "progress", "callbacks"]
+keywords: ["prefect", "retry", "logs", "artifacts", "progress", "callbacks", "source decomposition", "parallelization"]
 ---
 # Prefect Integration
 
@@ -17,7 +17,7 @@ dlt+ offers a few tools and helpers to make running dlt pipelines in prefect a s
 
 The `PrefectCollector` creates rich artifacts in the Prefect UI to monitor dlt pipeline progress and results. Simply pass it to your pipeline's `progress` parameter to enable detailed monitoring.
 
-```python
+```py
 from dlt_plus._runner.prefect_collector import PrefectCollector
 
 @task
@@ -80,7 +80,7 @@ the code was run inside an ephemeral docker container.
 To do so, you can use the dlt+ runners [retry configuration](../production/pipeline-runner#retry-policies) inside your prefect tasks or flows.
 That way the pipeline state will be preserved and intermediate results across retry attempts.
 
-```python
+```py
 from dlt_plus import runner
 from tenacity import Retrying, stop_after_attempt
 from dlt.sources.sql_database import sql_database
@@ -107,9 +107,9 @@ Detailed error artifacts with full tracebacks are automatically created for each
 
 ## Custom Callbacks
 
-The `PrefectCollector` is a subclass of the `PlusLogCollector` class, which allows you to implement [custom callbacks](../production/observability#custom-callbacks).
+The `PrefectCollector` is a subclass of the `PlusLogCollector` class, which allows you to implement [custom callbacks](../production/observability.md).
 
-```python
+```py
 from dlt_plus._runner.prefect_collector import PrefectCollector
 from prefect.logging import get_run_logger
 from tenacity import Retrying, stop_after_attempt
@@ -189,7 +189,7 @@ if __name__ == "__main__":
 This will derive a task-pipeline with a deterministic name for each resource in the source and run them in parallel.
 Because they have different names, pipelines can run in parallel without interfering with each other.
 
-You can read more about source decomposition and what to watch out for when using it in the [performance section](../../reference/performance#source-decomposition-for-serial-and-parallel-resource-execution).
+You can read more about source decomposition and what to watch out for when using it on the [performance page](../../reference/performance#source-decomposition-for-serial-and-parallel-resource-execution).
 
 ![Prefect Source Decomposition Flow](https://storage.googleapis.com/dlt-blog-images/docs-prefect-source-decomposition.png)
 
