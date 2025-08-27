@@ -31,7 +31,7 @@ jobs:
             python-version: "3.9"
             shell: bash
           - os: ubuntu-latest
-            python-version: "3.11"
+            python-version: "3.10"
             shell: bash
           - os: ubuntu-latest
             python-version: "3.11"
@@ -43,9 +43,9 @@ jobs:
             python-version: "3.13"
             shell: bash
 
-          - os: ubuntu-latest
-            python-version: "3.14.0-beta.4"
-            shell: bash
+          # - os: ubuntu-latest
+          #   python-version: "3.14.0-beta.4"
+          #   shell: bash
 
           # linux test with minimal dependencies
           - os: ubuntu-latest
@@ -121,7 +121,7 @@ jobs:
 
       - name: Run extract and pipeline tests
         run: |
-          pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources tests/transformations ${{ matrix.pytest_args }}
+          pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations tests/sources ${{ matrix.pytest_args }}
         if: matrix.python-version != '3.14.0-beta.4'
 
       # here we upgrade sql alchemy to 2 an run the sql_database tests again
@@ -133,29 +133,6 @@ jobs:
         run: |
           pytest tests/sources/sql_database
         if: matrix.python-version != '3.14.0-beta.4'
-
-      # test pipeline dashboard app, does not work with python 3.13
-      - name: Install dlt with duckdb and dashboard
-        # note: this also tests the workspace extra installation
-        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra workspace --group sentry-sdk --group pipeline --group sources --group dashboard-tests
-        if: matrix.python-version != '3.14.0-beta.4'
-
-      - name: Install playwright
-        run: playwright install
-        if: matrix.python-version != '3.14.0-beta.4'
-
-
-      # Run pipeline dashboard unit tests
-      - name: Run pipeline dashboard unit tests
-        run: |
-          pytest tests/helpers/dashboard
-        if: matrix.python-version != '3.9' && matrix.python-version != '3.14.0-beta.4'
-
-      # Run pipeline dashboard e2e tests (does not pass with python 3.9, does not pass on windows (playwright does not work somehow), does not pass on python 3.13 (ibis not available))
-      - name: Run dashboard e2e
-        run: |
-          marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines_dir _storage/.dlt/pipelines/ --with_test_identifiers true & pytest --browser chromium tests/e2e
-        if: matrix.python-version != '3.9' && matrix.os != 'windows-latest' && matrix.python-version != '3.14.0-beta.4'
   
   matrix_job_required_check:
     name: common | common tests

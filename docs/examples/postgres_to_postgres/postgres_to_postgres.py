@@ -74,7 +74,7 @@ def read_sql_x_chunked(conn_str: str, query: str, chunk_size: int = CHUNKSIZE):
         data_chunk = cx.read_sql(
             conn_str,
             chunk_query,
-            return_type="arrow2",
+            return_type="arrow",
             protocol="binary",
         )
         yield data_chunk

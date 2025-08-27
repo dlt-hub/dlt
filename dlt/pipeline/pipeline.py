@@ -30,7 +30,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
     ContextDefaultCannotBeCreated,
 )
-from dlt.common.destination.dataset import Dataset
+from dlt.common.destination.dataset import SupportsDataset
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.destination.exceptions import (
     DestinationIncompatibleLoaderFileFormatException,
@@ -108,10 +108,7 @@ from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
-from dlt.destinations.dataset import (
-    dataset,
-    get_destination_clients,
-)
+from dlt.destinations.dataset import get_destination_clients
 
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
@@ -150,9 +147,9 @@ from dlt.common.storages.load_package import TLoadPackageState
 from dlt.pipeline.helpers import refresh_source
 
 if TYPE_CHECKING:
-    from dlt import Dataset
+    from dlt import SupportsDataset
 else:
-    Dataset = Any
+    SupportsDataset = Any
 
 
 TWithLocalFiles = TypeVar("TWithLocalFiles", bound=WithLocalFiles)
@@ -955,17 +952,19 @@ class Pipeline(SupportsPipeline):
     def __repr__(self) -> str:
         kwargs = {
             "pipeline_name": self.pipeline_name,
-            "destination": self._destination.destination_name if self._destination else None,
-            "staging": self._staging.destination_name if self._staging else None,
+            "destination": (
+                self._destination.destination_name if getattr(self, "_destination", None) else None
+            ),
+            "staging": self._staging.destination_name if getattr(self, "_staging", None) else None,
             "dataset_name": self.dataset_name,
             "default_schema_name": self.default_schema_name,
-            "schema_names": self.schema_names if self.schema_names else None,
-            "first_run": self.first_run if self.first_run else None,
-            "dev_mode": self.dev_mode if self.dev_mode else None,
-            # we check for `not is_active` which is the less common case
-            "is_active": self.is_active if not self.is_active else None,
-            "pipelines_dir": self.pipelines_dir,
-            "working_dir": self.working_dir,
+            "schema_names": getattr(self, "schema_names", None),
+            "first_run": getattr(self, "first_run", None),
+            "dev_mode": getattr(self, "dev_mode", None),
+            # `is_active is True` is the common case
+            "is_active": getattr(self, "is_active", None),
+            "pipelines_dir": getattr(self, "pipelines_dir", None),
+            "working_dir": getattr(self, "working_dir", None),
         }
         return simple_repr("dlt.pipeline", **without_none(kwargs))
 
@@ -1809,13 +1808,13 @@ class Pipeline(SupportsPipeline):
     # NOTE: I expect that we'll merge all relations into one. and then we'll be able to get rid
     #  of overload and dataset_type
 
-    def dataset(self, schema: Union[Schema, str, None] = None) -> Dataset:
+    def dataset(self, schema: Union[Schema, str, None] = None) -> SupportsDataset:
         """Returns a dataset object for querying the destination data.
 
         Args:
             schema (Union[Schema, str, None]): Schema name or Schema object to use. If None, uses the default schema if set.
         Returns:
-            Dataset: A dataset object that supports querying the destination data.
+            SupportsDataset: A dataset object that supports querying the destination data.
         """
 
         if not self._destination:
@@ -1845,7 +1844,7 @@ class Pipeline(SupportsPipeline):
         elif self.default_schema_name:
             schema = self.default_schema
 
-        return dataset(
+        return dlt.dataset(
             self._destination,
             self.dataset_name,
             schema=schema,

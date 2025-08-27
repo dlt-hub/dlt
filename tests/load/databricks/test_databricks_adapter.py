@@ -1,9 +1,10 @@
-from typing import Iterator, Dict, Any, cast
+from typing import Iterator, Dict
 import pytest
 
 import dlt
 from dlt.common.utils import uniq_id
 from dlt.destinations.adapters import databricks_adapter
+from dlt.destinations import databricks
 from dlt.destinations.impl.databricks.databricks_adapter import (
     CLUSTER_HINT,
 )
@@ -24,7 +25,9 @@ pytestmark = pytest.mark.essential
 def test_databricks_hints(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    pipeline = destination_config.setup_pipeline(f"databricks_{uniq_id()}", dev_mode=True)
+    pipeline = destination_config.setup_pipeline(
+        f"databricks_{uniq_id()}", dev_mode=True, destination=databricks(create_indexes=True)
+    )
 
     @dlt.resource(
         columns={"some_int": {"data_type": "bigint", "nullable": False}},
@@ -196,7 +199,9 @@ def test_databricks_adapter_special_characters(
     destination_config: DestinationTestConfiguration,
 ) -> None:
     """Test that special characters in comments and tags are properly escaped"""
-    pipeline = destination_config.setup_pipeline(f"databricks_{uniq_id()}", dev_mode=True)
+    pipeline = destination_config.setup_pipeline(
+        f"databricks_{uniq_id()}", dev_mode=True, destination=databricks(create_indexes=True)
+    )
 
     @dlt.resource(
         columns={"some_int": {"data_type": "bigint", "nullable": False}},

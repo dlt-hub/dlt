@@ -72,7 +72,14 @@ class BigQueryTypeMapper(TypeMapperImpl):
     def to_db_decimal_type(self, column: TColumnSchema) -> str:
         # Use BigQuery's BIGNUMERIC for large precision decimals
         precision, scale = self.decimal_precision(column.get("precision"), column.get("scale"))
-        if precision > 38 or scale > 9:
+
+        # BigQuery NUMERIC constraints:
+        # - When scale = 0: precision must be 1-29
+        # - When scale > 0: precision can be up to 38
+        # - scale must be <= 9
+        if scale == 0 and precision > 29:
+            return "BIGNUMERIC(%i,%i)" % (precision, scale)
+        elif precision > 38 or scale > 9:
             return "BIGNUMERIC(%i,%i)" % (precision, scale)
         return "NUMERIC(%i,%i)" % (precision, scale)
 

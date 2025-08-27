@@ -328,24 +328,32 @@ Configure your SFTP credentials by editing the `.dlt/secrets.toml` file. By defa
 Below are the possible fields for SFTP credentials configuration:
 
 ```text
-sftp_port             # The port for SFTP, defaults to 22 (standard for SSH/SFTP)
-sftp_username         # Your SFTP username, defaults to None
-sftp_password         # Your SFTP password (if using password-based auth), defaults to None
-sftp_key_filename     # Path to your private key file for key-based authentication, defaults to None
-sftp_key_passphrase   # Passphrase for your private key (if applicable), defaults to None
-sftp_timeout          # Timeout for establishing a connection, defaults to None
-sftp_banner_timeout   # Timeout for receiving the banner during authentication, defaults to None
-sftp_auth_timeout     # Authentication timeout, defaults to None
-sftp_channel_timeout  # Channel timeout for SFTP operations, defaults to None
-sftp_allow_agent      # Use SSH agent for key management (if available), defaults to True
-sftp_look_for_keys    # Search for SSH keys in the default SSH directory (~/.ssh/), defaults to True
-sftp_compress         # Enable compression (can improve performance over slow networks), defaults to False
-sftp_gss_auth         # Use GSS-API for authentication, defaults to False
-sftp_gss_kex          # Use GSS-API for key exchange, defaults to False
-sftp_gss_deleg_creds  # Delegate credentials with GSS-API, defaults to True
-sftp_gss_host         # Host for GSS-API, defaults to None
-sftp_gss_trust_dns    # Trust DNS for GSS-API, defaults to True
+sftp_port                   # The port for SFTP, defaults to 22 (standard for SSH/SFTP)
+sftp_username               # Your SFTP username, defaults to None
+sftp_password               # Your SFTP password (if using password-based auth), defaults to None
+*sftp_pkey*                 # Your private key for key-based authentication, defaults to None
+sftp_key_filename           # Path to your private key file for key-based authentication, defaults to None
+sftp_key_passphrase         # Passphrase for your private key (if applicable), defaults to None
+sftp_timeout                # Timeout for establishing a connection, defaults to None
+sftp_banner_timeout         # Timeout for receiving the banner during authentication, defaults to None
+sftp_auth_timeout           # Authentication timeout, defaults to None
+sftp_channel_timeout        # Channel timeout for SFTP operations, defaults to None
+sftp_allow_agent            # Use SSH agent for key management (if available), defaults to True
+sftp_look_for_keys          # Search for SSH keys in the default SSH directory (~/.ssh/), defaults to True
+sftp_compress               # Enable compression (can improve performance over slow networks), defaults to False
+*sftp_sock*                 # Custom socket to use for communication to target host, defaults to None
+sftp_gss_auth               # Use GSS-API for authentication, defaults to False
+sftp_gss_kex                # Use GSS-API for key exchange, defaults to False
+sftp_gss_deleg_creds        # Delegate credentials with GSS-API, defaults to True
+sftp_gss_host               # Host for GSS-API, defaults to None
+sftp_gss_trust_dns          # Trust DNS for GSS-API, defaults to True
+*sftp_disabled_algorithms*  # Disable specific algorithms for security, defaults to None
+*sftp_transport_factory*    # Custom transport factory, defaults to None
+*sftp_auth_strategy*        # Authentication strategy, defaults to None
 ```
+:::note
+The `*` credentials indicate parameters that cannot be set through `.dlt/secrets.toml` and must be set through code instantiation.
+:::
 
 :::info
 For more information about credentials parameters: https://docs.paramiko.org/en/3.3/api/client.html#paramiko.client.SSHClient.connect

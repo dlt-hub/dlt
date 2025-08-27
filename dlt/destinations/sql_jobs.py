@@ -105,7 +105,7 @@ class SqlStagingFollowupJob(SqlFollowupJob):
             if truncate_first:
                 sql.append(sql_client._truncate_table_sql(table_name))
             sql.append(
-                f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM {staging_table_name};"
+                f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM {staging_table_name}"
             )
         return sql
 
@@ -125,9 +125,9 @@ class SqlStagingReplaceFollowupJob(SqlStagingFollowupJob):
             with sql_client.with_staging_dataset():
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
             table_name = sql_client.make_qualified_table_name(table["name"])
-            sql.append(f"DROP TABLE IF EXISTS {table_name};")
+            sql.append(f"DROP TABLE IF EXISTS {table_name}")
             # recreate destination table with data cloned from staging table
-            sql.append(f"CREATE TABLE {table_name} CLONE {staging_table_name};")
+            sql.append(f"CREATE TABLE {table_name} CLONE {staging_table_name}")
         return sql
 
     @classmethod
@@ -243,9 +243,9 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         sql: List[str] = []
         temp_table_name = cls._new_temp_table_name(table_name, "delete", sql_client)
         select_statement = f"SELECT d.{unique_column} {key_table_clauses[0]}"
-        sql.append(cls._to_temp_table(select_statement, temp_table_name))
+        sql.append(cls._to_temp_table(select_statement, temp_table_name, unique_column))
         for clause in key_table_clauses[1:]:
-            sql.append(f"INSERT INTO {temp_table_name} SELECT {unique_column} {clause};")
+            sql.append(f"INSERT INTO {temp_table_name} SELECT {unique_column} {clause}")
         return sql, temp_table_name
 
     @classmethod
@@ -349,7 +349,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         else:
             # don't deduplicate
             select_sql = f"SELECT {unique_column} FROM {staging_root_table_name} WHERE {condition}"
-        return [cls._to_temp_table(select_sql, temp_table_name)], temp_table_name
+        return [cls._to_temp_table(select_sql, temp_table_name, unique_column)], temp_table_name
 
     @classmethod
     def gen_delete_from_sql(
@@ -384,17 +384,18 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         return cls._shorten_table_name(f"{table_name}_{op}_{uniq_id()}", sql_client)
 
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
+    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
         """Generate sql that creates temp table from select statement. May return several statements.
 
         Args:
             select_sql: select statement to create temp table from
             temp_table_name: name of the temp table (unqualified)
+            unique_column: column in the select list that is unique. used by Clickhouse only
 
         Returns:
             sql statement that inserts data from selects into temp table
         """
-        return f"CREATE TEMPORARY TABLE {temp_table_name} AS {select_sql};"
+        return f"CREATE TEMPORARY TABLE {temp_table_name} AS {select_sql}"
 
     @classmethod
     def gen_update_table_prefix(cls, table_name: str) -> str:
@@ -577,7 +578,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 )
                 # if no nested tables, just delete data from root table
                 for clause in key_table_clauses:
-                    sql.append(f"DELETE {clause};")
+                    sql.append(f"DELETE {clause}")
             else:
                 key_table_clauses = cls.gen_key_table_clauses(
                     root_table_name, staging_root_table_name, key_clauses, for_delete=False
@@ -683,7 +684,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     skip_dedup=skip_dedup,
                 )
 
-            sql.append(f"INSERT INTO {table_name}({col_str}) {select_sql};")
+            sql.append(f"INSERT INTO {table_name}({col_str}) {select_sql}")
         return sql
 
     @classmethod
@@ -867,7 +868,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 key = cls.gen_concat_sql(merge_keys)  # compound key
             key_present = f"{key} IN (SELECT {key} FROM {staging_root_table_name})"
             retire_sql = retire_sql.rstrip()[:-1]  # remove semicolon
-            retire_sql += f" AND {key_present};"
+            retire_sql += f" AND {key_present}"
         sql.append(retire_sql)
 
         # insert new active records in root table

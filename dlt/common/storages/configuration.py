@@ -22,7 +22,7 @@ from dlt.common.typing import Annotated, DictStrAny, DictStrOptionalStr, get_arg
 from dlt.common.utils import digest128
 
 
-TSchemaFileFormat = Literal["json", "yaml", "dbml"]
+TSchemaFileFormat = Literal["json", "yaml", "dbml", "dot"]
 SCHEMA_FILES_EXTENSIONS = get_args(TSchemaFileFormat)
 
 
@@ -202,6 +202,7 @@ class FilesystemConfiguration(BaseConfiguration):
     """Additional arguments as Config in botocore"""
     deltalake_storage_options: Optional[DictStrAny] = None
     deltalake_configuration: Optional[DictStrOptionalStr] = None
+    deltalake_streamed_exec: bool = True
 
     @property
     def protocol(self) -> str:

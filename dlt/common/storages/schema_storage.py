@@ -84,11 +84,10 @@ class SchemaStorage(Mapping[str, Schema]):
                 self._load_import_schema(schema.name)
             except FileNotFoundError:
                 # save import schema only if it not exist
-                self._export_schema(
+                import_schema_hash = self._export_schema(
                     schema, self.config.import_schema_path, remove_processing_hints=True
                 )
-                # if import schema got saved then add own version hash as import version hash
-                schema._imported_version_hash = schema.version_hash
+                schema._imported_version_hash = import_schema_hash
                 return True
 
         return False
@@ -187,7 +186,7 @@ class SchemaStorage(Mapping[str, Schema]):
 
     def _export_schema(
         self, schema: Schema, export_path: str, remove_processing_hints: bool = False
-    ) -> None:
+    ) -> str:
         if self.config.external_schema_format == "json":
             exported_schema_s = schema.to_pretty_json(
                 remove_defaults=self.config.external_schema_format_remove_defaults,
@@ -217,6 +216,7 @@ class SchemaStorage(Mapping[str, Schema]):
             f" {stored_schema['version']}:{stored_schema['version_hash']} as"
             f" {self.config.external_schema_format}"
         )
+        return stored_schema["version_hash"]
 
     def _save_schema(self, schema: Schema) -> str:
         """Saves schema to schema store and bumps the version"""
@@ -281,7 +281,9 @@ class SchemaStorage(Mapping[str, Schema]):
         elif extension == "yaml":
             imported_schema = yaml.safe_load(schema_str)
         elif extension == "dbml":
-            raise ValueError(extension, "Schema parser for dbml not yet implemented")
+            raise ValueError(extension, "Schema parser for `dbml` not yet implemented")
+        elif extension == "dot":
+            raise ValueError(extension, "Schema parser for `dot` not yet implemented")
         else:
             raise ValueError(extension)
         return imported_schema

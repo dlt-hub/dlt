@@ -126,7 +126,7 @@ SELECT 1
         self.execute_sql("CREATE SCHEMA %s" % self.fully_qualified_dataset_name())
 
     def drop_dataset(self) -> None:
-        self.execute_sql("DROP SCHEMA %s CASCADE;" % self.fully_qualified_dataset_name())
+        self.execute_sql("DROP SCHEMA %s CASCADE" % self.fully_qualified_dataset_name())
 
     def truncate_tables(self, *tables: str) -> None:
         statements = [self._truncate_table_sql(self.make_qualified_table_name(t)) for t in tables]
@@ -137,7 +137,7 @@ SELECT 1
         if not tables:
             return
         statements = [
-            f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)};" for table in tables
+            f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)}" for table in tables
         ]
         self.execute_many(statements)
 
@@ -185,9 +185,9 @@ SELECT 1
         ret = []
         if self.capabilities.supports_multiple_statements:
             for sql_fragment in concat_strings_with_limit(
-                list(statements), "\n", self.capabilities.max_query_length // 2
+                list(statements), ";\n", self.capabilities.max_query_length // 2
             ):
-                ret.append(self.execute_sql(sql_fragment, *args, **kwargs))
+                ret.append(self.execute_sql(sql_fragment + ";", *args, **kwargs))
         else:
             for statement in statements:
                 result = self.execute_sql(statement, *args, **kwargs)
@@ -320,9 +320,9 @@ SELECT 1
     #
     def _truncate_table_sql(self, qualified_table_name: str) -> str:
         if self.capabilities.supports_truncate_command:
-            return f"TRUNCATE TABLE {qualified_table_name};"
+            return f"TRUNCATE TABLE {qualified_table_name}"
         else:
-            return f"DELETE FROM {qualified_table_name} WHERE 1=1;"
+            return f"DELETE FROM {qualified_table_name} WHERE 1=1"
 
     def _limit_clause_sql(self, limit: int) -> Tuple[str, str]:
         return "", f"LIMIT {limit}"
@@ -439,23 +439,22 @@ def raise_database_error(f: TFun) -> TFun:
     @wraps(f)
     def _wrap_gen(self: SqlClientBase[Any], *args: Any, **kwargs: Any) -> Any:
         try:
-            self._ensure_native_conn()
             return (yield from f(self, *args, **kwargs))
         except Exception as ex:
-            raise self._make_database_exception(ex)
+            db_ex = self._make_database_exception(ex)
+            raise db_ex.with_traceback(ex.__traceback__) from ex
 
     @wraps(f)
     def _wrap(self: SqlClientBase[Any], *args: Any, **kwargs: Any) -> Any:
         try:
-            self._ensure_native_conn()
             return f(self, *args, **kwargs)
         except Exception as ex:
-            raise self._make_database_exception(ex)
+            db_ex = self._make_database_exception(ex)
+            raise db_ex.with_traceback(ex.__traceback__) from ex
 
     if inspect.isgeneratorfunction(f):
-        return _wrap_gen  # type: ignore
-    else:
-        return _wrap  # type: ignore
+        return _wrap_gen  # type: ignore[return-value]
+    return _wrap  # type: ignore[return-value]
 
 
 def raise_open_connection_error(f: TFun) -> TFun:

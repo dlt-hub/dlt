@@ -1,5 +1,5 @@
 from typing import Any, TYPE_CHECKING, Tuple, List
-import os
+import semver
 import duckdb
 
 from dlt.common import logger
@@ -97,7 +97,7 @@ class FilesystemSqlClient(WithTableScanners):
         if first_connection:
             # TODO: we need to frontload the httpfs extension for abfss for some reason
             if self.is_abfss:
-                self._conn.sql("INSTALL httpfs; LOAD httpfs;")
+                self._conn.sql("INSTALL httpfs; LOAD httpfs")
 
             # create single authentication for the whole client
             self.create_secret(
@@ -159,9 +159,12 @@ class FilesystemSqlClient(WithTableScanners):
             else:
                 compression = ""
 
-            from_statement = (
-                f"iceberg_scan('{last_metadata_file}'{compression}, skip_schema_inference=false)"
-            )
+            if semver.Version.parse(duckdb.__version__) > semver.Version.parse("1.3.0"):
+                scanner_options = "union_by_name=true"
+            else:
+                scanner_options = "skip_schema_inference=false"
+
+            from_statement = f"iceberg_scan('{last_metadata_file}'{compression}, {scanner_options})"
             # TODO: on duckdb > 1.2.1 register self.remote_client.fs_client as abfss fsspec filesystem
             #   this will enable iceberg but with lower performance
         else:
