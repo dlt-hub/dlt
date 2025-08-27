@@ -229,7 +229,7 @@ from prefect import flow, task
 from prefect.task_runners import ThreadPoolTaskRunner
 
 @task
-def my_task(endpoint: str)
+def my_task(endpoint: str):
     os.environ["LOAD__WORKERS"] = "10" # << this will be applied to each task
     # your code that instantiates a dlt pipeline and source based on some piece of data
 
