@@ -39,7 +39,7 @@ during a stage as well as summary report after a pipeline step has completed.
 For example during extract you will see how many resources have been extracted and once the extract 
 is completed you will see how many rows have been processed for each resource: 
 
-![Prefect Extract Artifacts](images/prefect-extract-artifact.png)
+![Prefect Extract Artifacts](https://storage.googleapis.com/dlt-blog-images/docs-prefect-extract-artifact.png)
 
 Also, each summary report contains basic information about the pipeline, the destination the execution 
 environment and system resources (CPU, memory) usage.
@@ -49,7 +49,7 @@ environment and system resources (CPU, memory) usage.
 The `PrefectCollector` will also create artifacts when schema changes are detected.
 This is useful to see which tables and columns have changed between runs.
 
-![Prefect Schema Change Detection](images/prefect-schema-change-artifact.png)
+![Prefect Schema Change Detection](https://storage.googleapis.com/dlt-blog-images/docs-prefect-schema-change-artifact.png)
 
 ### Logging
 
@@ -68,7 +68,7 @@ You should now see dlt's logs in the prefect UI and be able to [query them with 
 The `PrefectCollector` integrates seamlessly with the [dlt+ runner](../production/pipeline-runner.md). 
 
 If you are running your pipelines with the dlt+ runner, information about the pipelines run configuration and the trace pipeline 
-will also be included in the artifacts.
+will also be included in the artifacts in the `Run Configuration` section.
 
 ### Pipeline Retries
 
@@ -103,7 +103,7 @@ def resilient_pipeline_task():
 
 Detailed error artifacts with full tracebacks are automatically created for each retry attempt as well as a final report.
 
-![Prefect Retry Artifacts](images/prefect-retry-artifacts.png)
+![Prefect Retry Artifacts](https://storage.googleapis.com/dlt-blog-images/docs-prefect-retry-artifacts.png)
 
 ## Custom Callbacks
 
@@ -191,7 +191,7 @@ Because they have different names, pipelines can run in parallel without interfe
 
 You can read more about source decomposition and what to watch out for when using it in the [performance section](/reference/performance#source-decomposition-for-serial-and-parallel-resource-execution).
 
-![Prefect Source Decomposition Flow](images/prefect-decomposition.png)
+![Prefect Source Decomposition Flow](https://storage.googleapis.com/dlt-blog-images/docs-prefect-source-decomposition.png)
 
 :::note
 For stability reasons, this actually runs one resource alone and then all others in parallel.
