@@ -914,49 +914,87 @@ def get_data_and_dlt_tables(tables: TSchemaTables) -> tuple[list[TTableSchema], 
     return data_tables, dlt_tables
 
 
-def changes_without_dlt_changes(
-    updates: Dict[str, TTableSchema],
+def is_dlt_table_or_column(name: str, dlt_prefix: str = DLT_NAME_PREFIX) -> bool:
+    """
+    Check if a table or column name is a dlt internal name by checking if it starts with dlt prefix.
+    
+    Args:
+        name: The table or column name to check
+        dlt_prefix: The dlt prefix to check against (defaults to DLT_NAME_PREFIX)
+    
+    Returns:
+        True if the name starts with the dlt prefix, False otherwise
+    """
+    return name.startswith(dlt_prefix)
+
+
+def remove_dlt_columns_from_table(
+    table_schema: TTableSchema,
+    exclude_dlt_columns: bool = True,
+    dlt_prefix: str = DLT_NAME_PREFIX,
+) -> TTableSchema:
+    """
+    Remove dlt columns from a single table schema.
+    
+    Args:
+        table_schema: The table schema to filter
+        exclude_dlt_columns: If True, remove columns whose name starts with given dlt_prefix
+        dlt_prefix: The dlt prefix to filter by
+    
+    Returns:
+        A new table schema with dlt columns optionally filtered out
+    """
+    # Create a copy of the table schema, preserving all fields except columns
+    new_table_schema = cast(
+        TTableSchema, {k: v for k, v in table_schema.items() if k != "columns"}
+    )
+
+    if "columns" in table_schema:
+        if exclude_dlt_columns:
+            new_table_schema["columns"] = {
+                col: col_def
+                for col, col_def in table_schema["columns"].items()
+                if not is_dlt_table_or_column(col, dlt_prefix)
+            }
+        else:
+            new_table_schema["columns"] = table_schema["columns"]
+    
+    return new_table_schema
+
+
+def exclude_dlt_entities(
+    table_schemas: Iterable[TTableSchema],
     exclude_dlt_tables: bool = True,
     exclude_dlt_columns: bool = True,
     dlt_prefix: str = DLT_NAME_PREFIX,
-) -> Dict[str, TTableSchema]:
+) -> List[TTableSchema]:
     """
-    Convenience method to return a shallow copy of the updates dict with all dlt-tables and/or
-    dlt-columns removed.
+    Filter out dlt tables and/or dlt columns from a collection of table schemas.
 
     Args:
-        updates: The updates made to all tables in the schema, e.g. from trace load packages
-        exclude_dlt_tables: If True, remove tables whose name starts with given dlt_tables_prefix
-        exclude_dlt_columns: If True, remove columns whose name starts with given dlt_column_prefix
-        dlt_prefix: by which to detect if a table or column is dlt internal
+        table_schemas: An iterable of table schemas to filter
+        exclude_dlt_tables: If True, remove tables whose name starts with given dlt_prefix
+        exclude_dlt_columns: If True, remove columns whose name starts with given dlt_prefix
+        dlt_prefix: The prefix by which to detect if a table or column is dlt internal
     Returns:
-        Filtered dict with the same structure as input.
+        List of filtered table schemas.
 
     Note: dlt supports changing the default prefix, see schema._dlt_tables_prefix attribute to get
         the source of truth for your schema
     """
-
-    filtered_tables: Dict[str, TTableSchema] = {}
-    for table_name, table_schema in updates.items():
-        if exclude_dlt_tables and table_name.startswith(dlt_prefix):
+    filtered_tables: List[TTableSchema] = []
+    
+    for table_schema in table_schemas:
+        table_name = table_schema["name"]
+        
+        # Skip dlt tables if requested
+        if exclude_dlt_tables and is_dlt_table_or_column(table_name, dlt_prefix):
             continue
 
-        # Create a copy of the table schema, preserving all fields except columns
-        new_table_schema = cast(
-            TTableSchema, {k: v for k, v in table_schema.items() if k != "columns"}
-        )
-
-        if "columns" in table_schema:
-            if exclude_dlt_columns:
-                new_table_schema["columns"] = {
-                    col: col_def
-                    for col, col_def in table_schema["columns"].items()
-                    if not col.startswith(dlt_prefix)
-                }
-            else:
-                new_table_schema["columns"] = table_schema["columns"]
-
-        filtered_tables[table_name] = new_table_schema
+        # Remove dlt columns if requested
+        filtered_table = remove_dlt_columns_from_table(table_schema, exclude_dlt_columns, dlt_prefix)
+        filtered_tables.append(filtered_table)
+    
     return filtered_tables
 
 
