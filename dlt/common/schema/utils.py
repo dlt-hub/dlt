@@ -20,6 +20,7 @@ from dlt.common.schema import detections
 from dlt.common.schema.typing import (
     C_DLT_ID,
     C_DLT_LOAD_ID,
+    DLT_NAME_PREFIX,
     C_DLT_LOADS_TABLE_LOAD_ID,
     SCHEMA_ENGINE_VERSION,
     LOADS_TABLE_NAME,
@@ -888,6 +889,52 @@ def get_data_and_dlt_tables(tables: TSchemaTables) -> tuple[list[TTableSchema], 
             data_tables.append(table)
 
     return data_tables, dlt_tables
+
+
+def changes_without_dlt_changes(
+    updates: Dict[str, TTableSchema],
+    exclude_dlt_tables: bool = True,
+    exclude_dlt_columns: bool = True,
+    dlt_prefix: str = DLT_NAME_PREFIX,
+) -> Dict[str, TTableSchema]:
+    """
+    Convenience method to return a shallow copy of the updates dict with all dlt-tables and/or
+    dlt-columns removed.
+
+    Args:
+        updates: The updates made to all tables in the schema, e.g. from trace load packages
+        exclude_dlt_tables: If True, remove tables whose name starts with given dlt_tables_prefix
+        exclude_dlt_columns: If True, remove columns whose name starts with given dlt_column_prefix
+        dlt_prefix: by which to detect if a table or column is dlt internal
+    Returns:
+        Filtered dict with the same structure as input.
+
+    Note: dlt supports changing the default prefix, see schema._dlt_tables_prefix attribute to get
+        the source of truth for your schema
+    """
+
+    filtered_tables: Dict[str, TTableSchema] = {}
+    for table_name, table_schema in updates.items():
+        if exclude_dlt_tables and table_name.startswith(dlt_prefix):
+            continue
+
+        # Create a copy of the table schema, preserving all fields except columns
+        new_table_schema = cast(
+            TTableSchema, {k: v for k, v in table_schema.items() if k != "columns"}
+        )
+
+        if "columns" in table_schema:
+            if exclude_dlt_columns:
+                new_table_schema["columns"] = {
+                    col: col_def
+                    for col, col_def in table_schema["columns"].items()
+                    if not col.startswith(dlt_prefix)
+                }
+            else:
+                new_table_schema["columns"] = table_schema["columns"]
+
+        filtered_tables[table_name] = new_table_schema
+    return filtered_tables
 
 
 def get_root_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
