@@ -8,6 +8,7 @@ from sqlglot.schema import Schema as SQLGlotSchema, ensure_schema
 from sqlglot.optimizer.annotate_types import annotate_types
 from sqlglot.optimizer.qualify import qualify
 
+import dlt
 from dlt.common.libs.sqlglot import (
     to_sqlglot_type,
     from_sqlglot_type,
@@ -15,7 +16,6 @@ from dlt.common.libs.sqlglot import (
     get_metadata,
     TSqlGlotDialect,
 )
-from dlt.common.schema import Schema
 from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TColumnSchema,
@@ -27,7 +27,7 @@ logger = logging.getLogger(__file__)
 
 
 def create_sqlglot_schema(
-    schema: Schema,
+    schema: dlt.Schema,
     dataset_name: str,
     dialect: TSqlGlotDialect,
 ) -> SQLGlotSchema:
