@@ -189,7 +189,7 @@ if __name__ == "__main__":
 This will derive a task-pipeline with a deterministic name for each resource in the source and run them in parallel.
 Because they have different names, pipelines can run in parallel without interfering with each other.
 
-You can read more about source decomposition and what to watch out for when using it in the [performance section](/reference/performance#source-decomposition-for-serial-and-parallel-resource-execution).
+You can read more about source decomposition and what to watch out for when using it in the [performance section](../../reference/performance#source-decomposition-for-serial-and-parallel-resource-execution).
 
 ![Prefect Source Decomposition Flow](https://storage.googleapis.com/dlt-blog-images/docs-prefect-source-decomposition.png)
 
