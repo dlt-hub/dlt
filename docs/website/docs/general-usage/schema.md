@@ -203,6 +203,9 @@ The precision for **timestamp** is useful when creating **parquet** files. Use 3
 The precision for **bigint** is mapped to available integer types, i.e., TINYINT, INT, BIGINT. The default is 64 bits (8 bytes) precision (BIGINT).
 :::
 
+>💡 Tip: You can materialize a schema in the destination without loading data.
+> See [Materialize schema without loading data](resource.md#materialize-schema-without-loading-data).
+
 ## Table references
 `dlt` tables refer to other tables. It supports two types of such references:
 1. **Nested reference** created automatically when nested data (i.e., a `json` document containing a nested list) is converted into relational form. These references use specialized column and table hints and are used, for example, when [merging data](merge-loading.md).
