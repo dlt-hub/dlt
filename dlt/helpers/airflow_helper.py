@@ -16,10 +16,10 @@ from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnow
 
 try:
     from airflow.configuration import conf
-    from airflow.models import TaskInstance
+    from airflow.models import TaskInstance, BaseOperator
     from airflow.utils.task_group import TaskGroup
     from airflow.operators.empty import EmptyOperator
-    from airflow.operators.python import BaseOperator, PythonOperator, get_current_context
+    from airflow.operators.python import PythonOperator, get_current_context
 except ModuleNotFoundError:
     raise MissingDependencyException("Airflow", ["apache-airflow>=2.5"])
 
