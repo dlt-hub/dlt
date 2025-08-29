@@ -41,8 +41,7 @@ is completed you will see how many rows have been processed for each resource:
 
 ![Prefect Extract Artifacts](https://storage.googleapis.com/dlt-blog-images/docs-prefect-extract-artifact.png)
 
-Also, each summary report contains basic information about the pipeline, the destination the execution 
-environment and system resources (CPU, memory) usage.
+Each summary report includes basic information about the pipeline, the destination, the execution, and system resource usage (CPU and memory).
 
 ### Schema Change Reports
 
@@ -195,7 +194,7 @@ You can read more about source decomposition and what to watch out for when usin
 
 :::note
 For stability reasons, this actually runs one resource alone and then all others in parallel.
-This is because otherwise, on the first run, all resources would try to create the same dlt-tables.
+This prevents multiple resources from attempting to create the same dlt tables simultaneously during the initial run.
 :::
 :::warning
 The flow created by this helper must be executed with the thread pool task runner.
@@ -206,7 +205,7 @@ If want to build tasks that run on multiple machines, you will have to initializ
 
 ## On parallelization
 
-Both `dlt` and prefect can be configured to use multithreading and multiprocessing, but at different stages of the pipeline. 
+Both `dlt` and Prefect can be configured to use multithreading and multiprocessing, but at different stages of the pipeline. 
 This is a short summary of parallelization in `dlt` that you should be aware of 
 if you are thinking about how to parallelize your pipelines in prefect.
 Read [this page](../../reference/performance#parallelism-within-a-pipeline) for a detailed explanation.
