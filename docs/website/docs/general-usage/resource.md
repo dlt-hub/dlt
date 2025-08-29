@@ -565,9 +565,16 @@ dlt’s default behavior is that it creates tables only when a resource yields d
 At the resource level, there are two ways to materialize an empty schema in the destination.
 
 #### Provide schema explicitly
-To materialize empty tables, [explicitly define the schema](schema#applying-data-types-directly-with-dltresource-and-apply_hints) in the resource function (via `@dlt.resource`) or apply it later with `apply_hints`. This ensures that dlt updates the schema even if no data is present.
+To create an empty table, declare the schema explicitly. Do this either:
 
-Then yield an empty dictionary (`{}`). dlt creates an empty table with all defined columns. Only the metadata columns (`_dlt_id`, `_dlt_load_id`) contain values. The load fails if the schema defines non-nullable columns.
+- in the resource function with `@dlt.resource`, or
+- by applying hints with `apply_hints`.
+
+Declaring the schema ensures dlt updates the schema even when no data is present.
+
+Then define the resource function and yield an empty dict (`{}`). dlt creates an empty table with all declared columns. Only the metadata columns `_dlt_id` and `_dlt_load_id` will have values.
+
+> Note: The load will fail if the schema marks any columns as `NOT NULL` i.e. `"nullable": False`. Ensure all non-metadata columns are nullable when loading an empty table.
 
 Example: 
 ```py
@@ -585,9 +592,9 @@ def raw_events():
 
 #### Materialize schema without rows
 
-Use `dlt.mark.materialize_table_schema()` with `dlt.mark.with_hints()` to create the table schema without rows.
+Use `dlt.mark.materialize_table_schema()` together with `dlt.mark.with_hints()` to define a schema without inserting rows.
 
-Unlike the explicit schema method, this works even if the schema defines non-nullable columns, since no data is written.
+Unlike the explicit schema method, this works even if the schema contains non-nullable columns, since no data is written.
 
 Example:
 ```py
@@ -601,7 +608,8 @@ def raw_events():
         ])
     )
 ```
-Result: table `raw_events` is created with the defined schema and no rows.
+Result: 
+Table `raw_events` is created with the defined schema and no rows.
 
 ### Import external files
 You can import external files, i.e., CSV, Parquet, and JSONL, by yielding items marked with `with_file_import`, optionally passing a table schema corresponding to the imported file. dlt will not read, parse, or normalize any names (i.e., CSV or Arrow headers) and will attempt to copy the file into the destination as is.
