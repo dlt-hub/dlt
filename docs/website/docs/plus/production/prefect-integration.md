@@ -9,13 +9,17 @@ dlt+ offers a few tools and helpers to make running dlt pipelines in prefect a s
 
 ## Key features
 
-- **Prefect Collector:** a dedicated way to do real-time [progress monitoring] and summary reports after each pipeline stage
+- **Prefect Collector:** a dedicated way to do real-time progress monitoring and summary reports after each pipeline stage
 - **Retry integration:** retries without loosing intermediate results, execute custom code between retries
 - **Source decomposition flows:** Create tasks and flows that will execute your pipelines in parallel with the right settings
 
 ## Prefect Collector
 
-The `PrefectCollector` creates rich artifacts in the Prefect UI to monitor dlt pipeline progress and results. Simply pass it to your pipeline's `progress` parameter to enable detailed monitoring.
+The `PrefectCollector` creates rich [artifacts](https://docs.prefect.io/v3/concepts/artifacts#artifacts) in the Prefect UI to monitor dlt pipeline progress and results.
+Artifacts are one of prefect's way to visualize outputs or side effects that your runs produce, capture updates over time or attach metadata to your runs.
+`dlt` artifacts include information about the processed data, resource consumption, runtime environment and the pipeline configuration.
+
+Simply pass the `PrefectCollector` to your pipeline's `progress` parameter.
 
 ```py
 from dlt_plus._runner.prefect_collector import PrefectCollector
@@ -32,7 +36,7 @@ def my_dlt_task():
     load_info = pipeline.run(source)
 ```
 
-### Progress and Summary Reports
+### Progress and Summary Reports by pipeline stage
 
 If the task is executed the `PrefectCollector` will create progress artifacts that will update
 during a stage as well as summary report after a pipeline step has completed.
@@ -45,7 +49,9 @@ Each summary report includes basic information about the pipeline, the destinati
 
 ### Schema Change Reports
 
-The `PrefectCollector` will also create artifacts when schema changes are detected.
+The `PrefectCollector` will also create special artifacts when schema changes are detected.
+For example, if a new table is created or an existing table is updated, the `PrefectCollector` will create an markdown-report that includes the complete definition of the new table or the updated columns.
+
 This is useful to see which tables and columns have changed between runs.
 
 ![Prefect Schema Change Detection](https://storage.googleapis.com/dlt-blog-images/docs-prefect-schema-change-artifact.png)
@@ -54,10 +60,26 @@ This is useful to see which tables and columns have changed between runs.
 
 Prefect has built-in functionality to [include logs from other libraries](https://docs.prefect.io/v3/advanced/logging-customization#include-logs-from-other-libraries) and display them as part of their UI.
 
-You can tell prefect to include `dlt`'s logs by setting the corresponding prefect environment variable, for example by adding this to your `.env` file:
+You can tell prefect to include `dlt`'s logs by setting the corresponding prefect configuration value:
+<Tabs
+  groupId="config-type"
+  defaultValue="prefect-cli"
+  values={[
+    {"label": ".env", "value": "env"},
+    {"label": "prefect-cli", "value": "prefect-cli"}
+  ]}>
+
+<TabItem value="env">
 ```sh
 PREFECT_LOGGING_EXTRA_LOGGERS=dlt
 ```
+</TabItem>
+<TabItem value="prefect-cli">
+```sh
+prefect config set PREFECT_LOGGING_EXTRA_LOGGERS=dlt
+```
+</TabItem>
+</Tabs>
 
 You should now see dlt's logs in the prefect UI and be able to [query them with the prefect CLI](https://docs.prefect.io/v3/how-to-guides/workflows/add-logging#access-logs-from-the-command-line).
 
@@ -71,13 +93,15 @@ will also be included in the artifacts in the `Run Configuration` section.
 
 ### Pipeline Retries
 
-Prefect retry-mechanism is not a perfect fit for dlt pipelines.
-As data gets processed, `dlt` creates intermediate files and that are stored in the pipelines working directory. 
-When a pipeline run fails and is retried with prefect that data might not be available anymore, e.g. if the flow is retried on a different worker node or
-the code was run inside an ephemeral docker container.
+Both dlt+ and Prefect provide retry mechanisms, but they are not compatible out-of-the-box.
+Most importantly, the dlt+ Runner implements retries on the same filesystem as the original run.
+This is relevant because `dlt` generates intermediate files in the [pipeline working directory](../../general-usage/pipeline#pipeline-working-directory), which represent the intermediate results of the pipeline steps.
+With Prefect, whether or not a retry runs on the same filesystem depends on your infrastructure and your deployment.
+For example, if you are running code in ephemeral docker containers and your pipelines fails during the load-step, this working directory will be gone and the next retry will have to do the extraction and normalization steps again.
 
-To do so, you can use the dlt+ runners [retry configuration](../production/pipeline-runner#retry-policies) inside your prefect tasks or flows.
-That way the pipeline state will be preserved and intermediate results across retry attempts.
+If you use the dlt+ Runner the retry will pick up from where the previous run left off, saving you much time and compute.
+
+To do so, [define a retry policy](../production/pipeline-runner#retry-policies) and run your pipelines with the dlt+ runner inside your prefect tasks or flows.
 
 ```py
 from dlt_plus import runner
