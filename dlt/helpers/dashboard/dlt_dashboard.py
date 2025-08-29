@@ -852,7 +852,7 @@ def ui_controls(mo_cli_arg_with_test_identifiers: bool):
     """
 
     dlt_refresh_button: mo.ui.run_button = mo.ui.run_button(
-        label=f"<small>Refresh</small>",
+        label="<small>Refresh</small>",
     )
 
     # page switches
