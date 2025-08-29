@@ -8,7 +8,19 @@ import sqlglot.expressions as exp
 from urllib.parse import urlparse
 import math
 from contextlib import contextmanager
-from typing import Any, AnyStr, ClassVar, Dict, Iterator, List, Optional, Sequence, Generator, cast
+from typing import (
+    Any,
+    AnyStr,
+    ClassVar,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Generator,
+    cast,
+)
+from typing_extensions import LiteralString
 
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -546,3 +558,39 @@ class WithTableScanners(DuckDbSqlClient):
         if self.memory_db:
             self.memory_db.close()
             self.memory_db = None
+
+
+def _install_extension(duckdb_sql_client: DuckDbSqlClient, extension_name: LiteralString) -> None:
+    """
+    The first time this runs on a machine, it downloads the extension and stores it
+    on disk. Subsequent calls to `INSTALL ducklake` are a no-op. This is ensured by the duckdb
+    library.
+
+    NOTE This method is at risk of SQL-injection. Only use internally with string literals.
+    """
+    with duckdb_sql_client as client:
+        client.execute(f"INSTALL {extension_name}")
+
+
+def _is_extension_installed(duckdb_sql_client: DuckDbSqlClient, extension_name: str) -> bool:
+    extension_is_installed = False
+    with duckdb_sql_client as client:
+        for extension_data in client.execute("FROM duckdb_extensions();").fetchall():
+            extension_name_found, is_loaded, is_installed, _, _, aliases, *_ = extension_data
+            if (extension_name == extension_name_found) or (extension_name in aliases):
+                extension_is_installed = is_installed
+                break
+
+    return extension_is_installed
+
+
+def _is_extension_loaded(duckdb_sql_client: DuckDbSqlClient, extension_name: str) -> bool:
+    extension_is_loaded = False
+    with duckdb_sql_client as client:
+        for extension_data in client.execute("FROM duckdb_extensions();").fetchall():
+            extension_name_found, is_loaded, is_installed, _, _, aliases, *_ = extension_data
+            if (extension_name == extension_name_found) or (extension_name in aliases):
+                extension_is_loaded = is_loaded
+                break
+
+    return extension_is_loaded
