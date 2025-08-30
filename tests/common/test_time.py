@@ -106,6 +106,7 @@ def test_ensure_pendulum_datetime(date_value: TAnyDateTime, expected: pendulum.D
     # always pendulum
     assert isinstance(dt, pendulum.DateTime)
 
+
 def test_ensure_pendulum_date_utc() -> None:
     # when converting from datetimes make sure to shift to UTC before doing date
     assert ensure_pendulum_date("2021-01-01T00:00:00+05:00") == pendulum.date(2020, 12, 31)
