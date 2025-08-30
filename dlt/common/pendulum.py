@@ -1,4 +1,4 @@
-from datetime import timedelta, timezone  # noqa: I251
+from datetime import time, timedelta, timezone  # noqa: I251
 import pendulum  # noqa: I251
 
 # force UTC as the local timezone to prevent local dates to be written to dbs

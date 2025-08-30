@@ -66,7 +66,7 @@ from types import GenericAlias
 typingGenericAlias: Tuple[Any, ...] = (_GenericAlias, _SpecialGenericAlias, GenericAlias)
 
 
-from dlt.common.pendulum import timedelta, pendulum
+from dlt.common.pendulum import time, timedelta, pendulum
 
 if TYPE_CHECKING:
     from _typeshed import StrOrBytesPath
@@ -123,7 +123,25 @@ TDataItem: TypeAlias = Any
 """A single data item as extracted from data source"""
 TDataItems: TypeAlias = Union[TDataItem, List[TDataItem]]
 "A single data item or a list as extracted from the data source"
-TAnyDateTime = Union[pendulum.DateTime, pendulum.Date, datetime, date, str, float, int]
+TSerializedDateTime = Union[str, float, int]
+"DateTime represented as ISO/RFC string or unix timestamp"
+TNativeDateTime = Union[datetime, date]
+"DateTime represented as native Python object"
+TPendulumDateTime = Union[pendulum.DateTime, pendulum.Date]
+"DateTime represented as pendulum object"
+TAnyDateTime = Union[
+    pendulum.DateTime,
+    pendulum.Date,
+    pendulum.Time,
+    pendulum.Duration,
+    datetime,
+    date,
+    time,
+    timedelta,
+    str,
+    float,
+    int,
+]
 """DateTime represented as pendulum/python object, ISO string or unix timestamp"""
 TVariantBase = TypeVar("TVariantBase", covariant=True)
 TVariantRV = Tuple[str, Any]

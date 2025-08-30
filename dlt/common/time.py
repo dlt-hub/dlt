@@ -2,17 +2,23 @@ import contextlib
 import datetime  # noqa: I251
 import re
 import sys
-from typing import Any, NoReturn, Optional, Union, overload, TypeVar, Callable
-from functools import singledispatch
+from typing import Any, NoReturn, Optional, Union, cast, overload, TypeVar, Callable
+from functools import partial, singledispatch
+
 from pendulum.parsing import (
     parse_iso8601,
     DEFAULT_OPTIONS as pendulum_options,
     _parse_common as parse_datetime_common,
 )
-from pendulum.tz import UTC
 
 from dlt.common.pendulum import pendulum, timedelta
-from dlt.common.typing import TimedeltaSeconds, TAnyDateTime
+from dlt.common.typing import (
+    TNativeDateTime,
+    TPendulumDateTime,
+    TSerializedDateTime,
+    TimedeltaSeconds,
+    TAnyDateTime,
+)
 
 PAST_TIMESTAMP: float = 0.0
 FUTURE_TIMESTAMP: float = 9999999999.0
@@ -57,19 +63,24 @@ def parse_iso_like_datetime(value: Any) -> Union[pendulum.DateTime, pendulum.Dat
        it also tries to parse ISO intervals but the code is very low quality
     """
     # only iso dates are allowed
-    dtv = None
+    dtv: Union[
+        TPendulumDateTime, TNativeDateTime, pendulum.Duration, pendulum.Time, datetime.time
+    ] = None
     with contextlib.suppress(ValueError):
-        dtv = parse_iso8601(value)
+        dtv = cast(Union[TNativeDateTime, pendulum.Duration], parse_iso8601(value))
     # now try to parse a set of ISO like dates
     if not dtv:
-        dtv = parse_datetime_common(value, **pendulum_options)
+        dtv = cast(
+            Union[datetime.datetime, datetime.date, datetime.time],
+            parse_datetime_common(value, **pendulum_options),
+        )
     if isinstance(dtv, datetime.time):
         return pendulum.time(dtv.hour, dtv.minute, dtv.second, dtv.microsecond)
     if isinstance(dtv, datetime.datetime):
         return pendulum.instance(dtv, tz=dtv.tzinfo)
     if isinstance(dtv, pendulum.Duration):
         raise ValueError(f"Interval ISO 8601 not supported: `{value}`")
-    return pendulum.date(dtv.year, dtv.month, dtv.day)  # type: ignore[union-attr]
+    return pendulum.date(dtv.year, dtv.month, dtv.day)
 
 
 def ensure_pendulum_date(value: TAnyDateTime) -> pendulum.Date:
@@ -83,20 +94,8 @@ def ensure_pendulum_date(value: TAnyDateTime) -> pendulum.Date:
     Returns:
         A timezone aware pendulum.Date object.
     """
-    if isinstance(value, datetime.datetime):
-        # both py datetime and pendulum datetime are handled here
-        value = pendulum.instance(value)
-        return value.in_tz(UTC).date()
-    elif isinstance(value, datetime.date):
-        return pendulum.date(value.year, value.month, value.day)
-    elif isinstance(value, (int, float, str)):
-        result = parse_serialized_dt(value)
-        if isinstance(result, datetime.time):
-            raise ValueError(f"Cannot coerce `{value}` to `pendulum.DateTime` object.")
-        if isinstance(result, pendulum.DateTime):
-            return result.in_tz(UTC).date()
-        return pendulum.date(result.year, result.month, result.day)
-    raise TypeError(f"Cannot coerce `{value}` to `pendulum.DateTime` object.")
+
+    return ensure_pendulum_datetime(value).date()
 
 
 def ensure_pendulum_datetime(value: TAnyDateTime) -> pendulum.DateTime:
@@ -110,36 +109,32 @@ def ensure_pendulum_datetime(value: TAnyDateTime) -> pendulum.DateTime:
     Returns:
         A timezone aware pendulum.DateTime object in UTC timezone.
     """
-    if isinstance(value, datetime.datetime):
-        # both py datetime and pendulum datetime are handled here
-        ret = pendulum.instance(value)
-        return ret.in_tz(UTC)
-    elif isinstance(value, datetime.date):
-        return pendulum.datetime(value.year, value.month, value.day, tz=UTC)
-    elif isinstance(value, (int, float, str)):
-        result = parse_serialized_dt(value)
-        if isinstance(result, datetime.time):
-            raise ValueError(f"Cannot coerce `{value}` to `pendulum.DateTime` object.")
-        if isinstance(result, pendulum.DateTime):
-            return result
-        return pendulum.datetime(result.year, result.month, result.day, tz=UTC)
-    raise TypeError(f"Cannot coerce `{value}` to `pendulum.DateTime` object.")
+
+    return ensure_pendulum_datetime_non_utc(value).in_tz(pendulum.UTC)
 
 
 def ensure_pendulum_datetime_non_utc(value: TAnyDateTime) -> pendulum.DateTime:
-    if isinstance(value, datetime.datetime):
-        ret = pendulum.instance(value)
-        return ret
-    elif isinstance(value, datetime.date):
-        return pendulum.datetime(value.year, value.month, value.day)
-    elif isinstance(value, (int, float, str)):
-        result = parse_serialized_dt(value)
-        if isinstance(result, datetime.time):
-            raise ValueError(f"Cannot coerce `{value}` to `pendulum.DateTime` object.")
-        if isinstance(result, pendulum.DateTime):
-            return result
-        return pendulum.datetime(result.year, result.month, result.day)
-    raise TypeError(f"Cannot coerce `{value}` to `pendulum.DateTime` object.")
+    """
+    Ensure the value is a naive pendulum.DateTime object.
+    """
+
+    result: Union[pendulum.DateTime, pendulum.Date, pendulum.Time, datetime.datetime, datetime.date]
+
+    try:
+        result = parse_dt(cast(TSerializedDateTime, value))
+    except ValueError:
+        result = cast(Union[datetime.datetime, datetime.date], value)
+
+    if isinstance(result, datetime.datetime):
+        result = pendulum.instance(result, tz=result.tzinfo)
+    elif isinstance(result, (pendulum.Date, datetime.date)):
+        result = pendulum.datetime(result.year, result.month, result.day)
+
+    if not isinstance(result, pendulum.DateTime):
+        # time/duration objects are not supported
+        raise ValueError(f"Cannot coerce `{value}` to `pendulum.DateTime` object.")
+
+    return result
 
 
 def datatime_obj_to_str(
@@ -158,7 +153,9 @@ def datatime_obj_to_str(
     return datatime.strftime(datetime_format)
 
 
-def ensure_pendulum_time(value: Union[str, datetime.time]) -> pendulum.Time:
+def ensure_pendulum_time(
+    value: Union[TSerializedDateTime, datetime.time, timedelta]
+) -> pendulum.Time:
     """Coerce a time value to a `pendulum.Time` object.
 
     Args:
@@ -167,25 +164,32 @@ def ensure_pendulum_time(value: Union[str, datetime.time]) -> pendulum.Time:
     Returns:
         A pendulum.Time object
     """
-    if isinstance(value, datetime.time):
-        if isinstance(value, pendulum.Time):
-            return value
-        return pendulum.time(value.hour, value.minute, value.second, value.microsecond)
-    elif isinstance(value, str):
-        result = parse_iso_like_datetime(value)
-        if isinstance(result, pendulum.Time):
-            return result
-        else:
-            raise ValueError(f"Invalid ISO time string: `{value}`")
-    elif isinstance(value, timedelta):
-        # Assume timedelta is seconds passed since midnight. Some drivers (mysqlclient) return time in this format
-        return pendulum.time(
-            value.seconds // 3600,
-            (value.seconds // 60) % 60,
-            value.seconds % 60,
-            value.microseconds,
+
+    result: Union[pendulum.Time, pendulum.Duration, datetime.time, timedelta] = None
+
+    try:
+        # Try to parse the value as a serialized datetime/date/time/interval
+        result = cast(
+            Union[pendulum.Time, pendulum.Duration], parse_dt(cast(TSerializedDateTime, value))
         )
-    raise TypeError(f"Cannot coerce `{value}` to `pendulum.Time` object.")
+    except ValueError:
+        result = cast(Union[datetime.time, timedelta], value)
+
+    if isinstance(result, datetime.time):
+        result = pendulum.instance(result)
+    elif isinstance(result, (timedelta, pendulum.Duration)):
+        # Assume timedelta is seconds passed since midnight. Some drivers (mysqlclient) return time in this format
+        result = pendulum.time(
+            result.seconds // 3600,
+            (result.seconds // 60) % 60,
+            result.seconds % 60,
+            result.microseconds,
+        )
+
+    if not isinstance(result, pendulum.Time):
+        raise TypeError(f"Cannot coerce `{value}` to `pendulum.Time` object.")
+
+    return result
 
 
 def detect_datetime_format(value: str) -> Optional[str]:
@@ -294,39 +298,44 @@ def datetime_to_timestamp_ms(moment: Union[datetime.datetime, pendulum.DateTime]
 
 
 @overload
-def parse_serialized_dt(value: Union[float, int]) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:
+def parse_dt(value: Union[float, int]) -> pendulum.DateTime:
     pass
 
 
 @overload
-def parse_serialized_dt(value: str) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:
+def parse_dt(value: str) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:
     pass
 
 
 @singledispatch
-def parse_serialized_dt(value: None) -> NoReturn:
+def parse_dt(value: Any) -> NoReturn:
     raise ValueError("Can not coerce `None` to pendulum compatible types")
 
 
-@parse_serialized_dt.register(float)  # type: ignore[attr-defined]
-@parse_serialized_dt.register(int)  # type: ignore[attr-defined]
-def _(
-    value: Union[float, int]
-) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:
-    return pendulum.from_timestamp(value).in_tz(UTC)
+@parse_dt.register(float)  # type: ignore[attr-defined]
+@parse_dt.register(int)  # type: ignore[attr-defined]
+def _(value: Union[float, int]) -> pendulum.DateTime:
+    return pendulum.from_timestamp(value, pendulum.UTC)
 
 
-@parse_serialized_dt.register(str)  # type: ignore[attr-defined]
-def _(value: str) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:
-    """A helper function to parse serialized datetime strings."""
-    with contextlib.suppress(ValueError):
-        return parse_iso_like_datetime(value).in_tz(UTC)
+@parse_dt.register(str)  # type: ignore[attr-defined]
+def _(value: str) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time, pendulum.Duration]:
+    """A helper function to parse datetime strings serialized in ISO/RFC formats"""
 
-    with contextlib.suppress(ValueError):
-        # Try to parse RFC 1123 format
-        return pendulum.parse(value, exact=True, strict=False).in_tz(UTC)
+    normalized_dt: Union[pendulum.DateTime, pendulum.Date, pendulum.Time, pendulum.Duration] = None
 
-    raise ValueError(f"Cannot parse a datetime value from `{value}`")
+    for parser in (
+        parse_iso_like_datetime,
+        partial(pendulum.parse, exact=True, strict=False),
+    ):
+        with contextlib.suppress(ValueError):
+            normalized_dt = parser(value)
+            break
+
+    if not normalized_dt:
+        raise ValueError(f"Cannot parse a datetime value from `{value}`")
+
+    return normalized_dt
 
 
 @overload
