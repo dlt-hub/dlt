@@ -4,7 +4,7 @@
 [tests]
 bucket_url_gs="gs://ci-test-bucket"
 bucket_url_s3="s3://dlt-ci-test-bucket"
-bucket_url_https="https://d37ci6vzurychx.cloudfront.net/trip-data/"
+bucket_url_https="https://d37ci6vzurychx.cloudfront.net/trip-data"
 # uses local_dir which is _storage/data
 bucket_url_file="data"
 bucket_url_az="az://dlt-ci-test-bucket"
