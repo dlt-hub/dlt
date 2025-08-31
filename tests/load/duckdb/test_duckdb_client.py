@@ -39,21 +39,22 @@ def test_duckdb_open_conn_default() -> None:
     c = resolve_configuration(
         DuckDbClientConfiguration()._bind_dataset_name(dataset_name="test_dataset")
     )
-    assert c.credentials.database == os.path.abspath(".duckdb")
+    # default name: destination_type.duckdb == duckdb.duckdb
+    assert c.credentials.database == os.path.abspath("duckdb.duckdb")
     # print(str(c.credentials))
     # print(str(os.getcwd()))
     # print(get_resolved_traces())
-    conn = c.credentials.borrow_conn()
-    assert c.credentials._conn_borrows == 1
-    assert c.credentials._conn_owner is True
+    conn = c.credentials.conn_pool.borrow_conn()
+    assert c.credentials.conn_pool._conn_borrows == 1
+    assert c.credentials.conn_pool._conn_owner is True
     # return conn
-    c.credentials.return_conn(conn)
+    c.credentials.conn_pool.return_conn(conn)
     # connection destroyed
-    assert c.credentials._conn_borrows == 0
-    assert c.credentials._conn_owner is True
-    assert not hasattr(c.credentials, "_conn")
+    assert c.credentials.conn_pool._conn_borrows == 0
+    assert c.credentials.conn_pool._conn_owner is True
+    assert c.credentials.conn_pool._conn is None
     # db file is created
-    assert os.path.isfile(".duckdb")
+    assert os.path.isfile("duckdb.duckdb")
 
 
 @pytest.mark.no_load
@@ -83,7 +84,7 @@ def test_duckdb_connection_config() -> None:
         return rel.fetchall()
 
     # check if set
-    conn = credentials.borrow_conn()
+    conn = credentials.conn_pool.borrow_conn()
     try:
         # all settings enabled
         assert _read_config(conn) == [
@@ -101,19 +102,19 @@ def test_duckdb_connection_config() -> None:
         ]
         cur.close()
         # settings persisted via borrow
-        cur = credentials.borrow_conn()
+        cur = credentials.conn_pool.borrow_conn()
         assert _read_config(conn) == [
             ("azure_transport_option_type", "true"),
             ("enable_progress_bar", "true"),
             ("errors_as_json", "true"),
         ]
-        credentials.return_conn(cur)
+        credentials.conn_pool.return_conn(cur)
     finally:
-        credentials.return_conn(conn)
-    assert credentials._conn_borrows == 0
+        credentials.conn_pool.return_conn(conn)
+    assert credentials.conn_pool._conn_borrows == 0
 
     # check if borrow overwrites
-    conn = credentials.borrow_conn(
+    conn = credentials.conn_pool.borrow_conn(
         global_config={"azure_transport_option_type": False},
         local_config={"errors_as_json": False},
         pragmas=["disable_progress_bar"],
@@ -126,8 +127,8 @@ def test_duckdb_connection_config() -> None:
             ("errors_as_json", "false"),
         ]
     finally:
-        credentials.return_conn(conn)
-    assert credentials._conn_borrows == 0
+        credentials.conn_pool.return_conn(conn)
+    assert credentials.conn_pool._conn_borrows == 0
 
     # check credentials init for external connection
     ext_conn = duckdb.connect()
@@ -138,7 +139,10 @@ def test_duckdb_connection_config() -> None:
         local_config={"errors_as_json": True},
         pragmas=["enable_progress_bar"],
     )
-    conn = credentials.borrow_conn()
+    credentials.resolve()
+    assert credentials.conn_pool._conn_owner is False
+    conn = credentials.conn_pool.borrow_conn()
+    assert credentials.conn_pool._conn_owner is False
     try:
         # all settings disabled
         assert _read_config(conn) == [
@@ -147,16 +151,16 @@ def test_duckdb_connection_config() -> None:
             ("errors_as_json", "true"),
         ]
     finally:
-        credentials.return_conn(conn)
+        credentials.conn_pool.return_conn(conn)
         ext_conn.close()
 
     # check if move conn keeps config
     credentials = resolve_configuration(
         DuckDbCredentials(), sections=("destination", "duckdb_configured")
     )
-    borrowed = credentials.borrow_conn()
+    borrowed = credentials.conn_pool.borrow_conn()
     # take connection out
-    conn = credentials.move_conn()
+    conn = credentials.conn_pool.move_conn()
     try:
         # all settings enabled, including local config
         assert _read_config(conn) == [
@@ -166,8 +170,8 @@ def test_duckdb_connection_config() -> None:
         ]
     finally:
         # should not close conn
-        assert credentials.return_conn(borrowed) == 0
-        credentials.__del__()
+        assert credentials.conn_pool.return_conn(borrowed) == 0
+        credentials.conn_pool.__del__()
         conn.sql("SHOW TABLES;")
         # close the connection, otherwise it leaks to the next test
         conn.close()
@@ -262,32 +266,32 @@ def test_credentials_wrong_config() -> None:
         DuckDbClientConfiguration()._bind_dataset_name(dataset_name="test_dataset")
     )
     with pytest.raises(duckdb.CatalogException):
-        c.credentials.borrow_conn(global_config={"wrong_conf": 0})
+        c.credentials.conn_pool.borrow_conn(global_config={"wrong_conf": 0})
     # connection closed
-    assert not hasattr(c.credentials, "_conn")
-    assert c.credentials._conn_borrows == 0
+    assert c.credentials.conn_pool._conn is None
+    assert c.credentials.conn_pool._conn_borrows == 0
 
     with pytest.raises(duckdb.CatalogException):
-        c.credentials.borrow_conn(local_config={"wrong_conf": 0})
+        c.credentials.conn_pool.borrow_conn(local_config={"wrong_conf": 0})
     # connection closed
-    assert not hasattr(c.credentials, "_conn")
-    assert c.credentials._conn_borrows == 0
+    assert c.credentials.conn_pool._conn is None
+    assert c.credentials.conn_pool._conn_borrows == 0
 
     with pytest.raises(duckdb.CatalogException):
-        c.credentials.borrow_conn(pragmas=["unkn_pragma"])
+        c.credentials.conn_pool.borrow_conn(pragmas=["unkn_pragma"])
     # connection closed
-    assert not hasattr(c.credentials, "_conn")
-    assert c.credentials._conn_borrows == 0
+    assert c.credentials.conn_pool._conn is None
+    assert c.credentials.conn_pool._conn_borrows == 0
 
     # open and borrow conn
-    conn = c.credentials.borrow_conn()
-    assert c.credentials._conn_borrows == 1
+    conn = c.credentials.conn_pool.borrow_conn()
+    assert c.credentials.conn_pool._conn_borrows == 1
     try:
         with pytest.raises(duckdb.CatalogException):
-            c.credentials.borrow_conn(pragmas=["unkn_pragma"])
-        assert hasattr(c.credentials, "_conn")
+            c.credentials.conn_pool.borrow_conn(pragmas=["unkn_pragma"])
+        assert c.credentials.conn_pool._conn is not None
         # refcount not increased
-        assert c.credentials._conn_borrows == 1
+        assert c.credentials.conn_pool._conn_borrows == 1
     finally:
         conn.close()
 
@@ -297,9 +301,9 @@ def test_credentials_wrong_config() -> None:
         DuckDbClientConfiguration()._bind_dataset_name(dataset_name="test_dataset")
     )
     with pytest.raises(duckdb.IOException):
-        c.credentials.borrow_conn()
+        c.credentials.conn_pool.borrow_conn()
     assert not hasattr(c.credentials, "_conn")
-    assert c.credentials._conn_borrows == 0
+    assert c.credentials.conn_pool._conn_borrows == 0
 
 
 @pytest.mark.no_load
@@ -344,7 +348,7 @@ def test_duckdb_database_path() -> None:
     c = resolve_configuration(
         DuckDbClientConfiguration()._bind_dataset_name(dataset_name="test_dataset")
     )
-    assert c.credentials._conn_str().lower() == os.path.abspath(".duckdb").lower()
+    assert c.credentials._conn_str().lower() == os.path.abspath("duckdb.duckdb").lower()
 
     # resolve without any path but with pipeline context
     p = dlt.pipeline(pipeline_name="quack_pipeline")
@@ -352,7 +356,7 @@ def test_duckdb_database_path() -> None:
     c = resolve_configuration(
         DuckDbClientConfiguration()._bind_dataset_name(dataset_name="test_dataset")
     )
-    assert c.credentials._conn_str().lower() == os.path.abspath(".duckdb").lower()
+    assert c.credentials._conn_str().lower() == os.path.abspath("duckdb.duckdb").lower()
     # pass explicitly
     c = resolve_configuration(
         p._bind_local_files(
@@ -374,8 +378,8 @@ def test_duckdb_database_path() -> None:
 
     # connect
     try:
-        conn = c.credentials.borrow_conn()
-        c.credentials.return_conn(conn)
+        conn = c.credentials.conn_pool.borrow_conn()
+        c.credentials.conn_pool.return_conn(conn)
         assert os.path.isfile(db_path)
     finally:
         if os.path.isfile(db_path):
@@ -392,8 +396,8 @@ def test_duckdb_database_path() -> None:
 
     # connect
     try:
-        conn = creds_.borrow_conn()
-        creds_.return_conn(conn)
+        conn = creds_.conn_pool.borrow_conn()
+        creds_.conn_pool.return_conn(conn)
         assert os.path.isfile(db_path)
     finally:
         if os.path.isfile(db_path):
@@ -411,8 +415,8 @@ def test_duckdb_database_path() -> None:
     db_path = os.path.abspath(os.path.join(p.working_dir, p.pipeline_name + ".duckdb"))
     assert c.credentials._conn_str().lower() == db_path.lower()
     # connect
-    conn = c.credentials.borrow_conn()
-    c.credentials.return_conn(conn)
+    conn = c.credentials.conn_pool.borrow_conn()
+    c.credentials.conn_pool.return_conn(conn)
     assert os.path.isfile(db_path)
     p = p.drop()
 
@@ -426,8 +430,8 @@ def test_duckdb_database_path() -> None:
         )
     )
     assert c.credentials._conn_str().lower() == os.path.abspath(db_path).lower()
-    conn = c.credentials.borrow_conn()
-    c.credentials.return_conn(conn)
+    conn = c.credentials.conn_pool.borrow_conn()
+    c.credentials.conn_pool.return_conn(conn)
     assert os.path.isfile(db_path)
     p = p.drop()
 
@@ -442,8 +446,8 @@ def test_duckdb_database_path() -> None:
     )
     assert os.path.isabs(c.credentials.database)
     assert c.credentials._conn_str().lower() == db_path.lower()
-    conn = c.credentials.borrow_conn()
-    c.credentials.return_conn(conn)
+    conn = c.credentials.conn_pool.borrow_conn()
+    c.credentials.conn_pool.return_conn(conn)
     assert os.path.isfile(db_path)
     p = p.drop()
 
@@ -457,8 +461,8 @@ def test_duckdb_database_path() -> None:
         )
     )
     assert c.credentials._conn_str().lower() == os.path.abspath(db_path).lower()
-    conn = c.credentials.borrow_conn()
-    c.credentials.return_conn(conn)
+    conn = c.credentials.conn_pool.borrow_conn()
+    c.credentials.conn_pool.return_conn(conn)
     assert os.path.isfile(db_path)
     p = p.drop()
 
@@ -472,8 +476,8 @@ def test_duckdb_database_path() -> None:
     )
     assert os.path.isabs(c.credentials.database)
     assert c.credentials._conn_str().lower() == db_path.lower()
-    conn = c.credentials.borrow_conn()
-    c.credentials.return_conn(conn)
+    conn = c.credentials.conn_pool.borrow_conn()
+    c.credentials.conn_pool.return_conn(conn)
     assert os.path.isfile(db_path)
     p = p.drop()
 
@@ -486,7 +490,7 @@ def test_duckdb_database_path() -> None:
                 dataset_name="test_dataset"
             )
         )
-        conn = c.credentials.borrow_conn()
+        conn = c.credentials.conn_pool.borrow_conn()
 
 
 def test_named_destination_path() -> None:
@@ -509,8 +513,8 @@ def test_named_destination_path() -> None:
     )
     db_path = os.path.abspath("named.duckdb")
     assert c.credentials._conn_str().lower() == db_path.lower()
-    conn = c.credentials.borrow_conn()
-    c.credentials.return_conn(conn)
+    conn = c.credentials.conn_pool.borrow_conn()
+    c.credentials.conn_pool.return_conn(conn)
     assert os.path.isfile(db_path)
 
 
@@ -523,7 +527,7 @@ def test_db_path_follows_local_dir() -> None:
     c = resolve_configuration(
         DuckDbClientConfiguration()._bind_dataset_name(dataset_name="test_dataset")
     )
-    db_path = os.path.join(local_dir, ".duckdb")
+    db_path = os.path.join(local_dir, "duckdb.duckdb")
     assert c.credentials._conn_str().lower() == os.path.abspath(db_path).lower()
 
 
@@ -645,15 +649,15 @@ def test_external_duckdb_database() -> None:
     c = resolve_configuration(
         DuckDbClientConfiguration(credentials=conn)._bind_dataset_name(dataset_name="test_dataset")
     )
-    assert c.credentials._conn_borrows == 0
-    assert c.credentials._conn is conn
-    int_conn = c.credentials.borrow_conn()
-    assert c.credentials._conn_borrows == 1
-    assert c.credentials._conn_owner is False
-    c.credentials.return_conn(int_conn)
-    assert c.credentials._conn_borrows == 0
-    assert c.credentials._conn_owner is False
-    assert hasattr(c.credentials, "_conn")
+    assert c.credentials.conn_pool._conn_borrows == 0
+    assert c.credentials.conn_pool._conn is conn
+    int_conn = c.credentials.conn_pool.borrow_conn()
+    assert c.credentials.conn_pool._conn_borrows == 1
+    assert c.credentials.conn_pool._conn_owner is False
+    c.credentials.conn_pool.return_conn(int_conn)
+    assert c.credentials.conn_pool._conn_borrows == 0
+    assert c.credentials.conn_pool._conn_owner is False
+    assert c.credentials.conn_pool._conn is not None
     conn.close()
     assert not os.path.exists(":memory:")
 

@@ -1,7 +1,5 @@
-from copy import copy
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Dict, Iterable, Optional
 
-from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnHint, Schema
 from dlt.common.destination.client import (

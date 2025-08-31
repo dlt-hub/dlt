@@ -20,6 +20,7 @@ from typing import (
     cast,
 )
 
+from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.typing import TFun, TypedDict, Self
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -126,6 +127,7 @@ SELECT 1
         self.execute_sql("CREATE SCHEMA %s" % self.fully_qualified_dataset_name())
 
     def drop_dataset(self) -> None:
+        # assert self.fully_qualified_dataset_name() != "None"
         self.execute_sql("DROP SCHEMA %s CASCADE" % self.fully_qualified_dataset_name())
 
     def truncate_tables(self, *tables: str) -> None:
@@ -463,6 +465,9 @@ def raise_open_connection_error(f: TFun) -> TFun:
         try:
             return f(self, *args, **kwargs)
         except Exception as ex:
+            db_ex = self._make_database_exception(ex)
+            if isinstance(db_ex, DestinationUndefinedEntity):
+                raise db_ex.with_traceback(ex.__traceback__) from ex
             raise DestinationConnectionError(type(self).__name__, self.dataset_name, str(ex), ex)
 
     return _wrap  # type: ignore

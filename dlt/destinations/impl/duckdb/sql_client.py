@@ -8,7 +8,19 @@ import sqlglot.expressions as exp
 from urllib.parse import urlparse
 import math
 from contextlib import contextmanager
-from typing import Any, AnyStr, ClassVar, Dict, Iterator, List, Optional, Sequence, Generator, cast
+from typing import (
+    Any,
+    AnyStr,
+    ClassVar,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Generator,
+    cast,
+)
+from typing_extensions import LiteralString
 
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -99,7 +111,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
 
     @raise_open_connection_error
     def open_connection(self) -> duckdb.DuckDBPyConnection:
-        self._conn = self.credentials.borrow_conn(
+        self._conn = self.credentials.conn_pool.borrow_conn(
             pragmas=self._pragmas,
             global_config=self._global_config,
             local_config={
@@ -110,7 +122,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
 
     def close_connection(self) -> None:
         if self._conn:
-            self.credentials.return_conn(self._conn)
+            self.credentials.conn_pool.return_conn(self._conn)
             self._conn = None
 
     @contextmanager
@@ -119,13 +131,22 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         try:
             self._conn.begin()
             yield self
-            self.commit_transaction()
         except Exception:
             # in some cases duckdb rollback the transaction automatically
             try:
                 self.rollback_transaction()
             except DatabaseTransientException:
                 pass
+            raise
+        try:
+            self.commit_transaction()
+        except Exception:
+            try:
+                self.rollback_transaction()
+            except DatabaseTransientException:
+                pass
+            self.close_connection()
+            self.open_connection()
             raise
 
     @raise_database_error
@@ -335,14 +356,16 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
-        if isinstance(ex, (duckdb.CatalogException)):
+        if isinstance(ex, duckdb.CatalogException):
             if "already exists" in str(ex):
-                raise DatabaseTerminalException(ex)
+                return DatabaseTerminalException(ex)
             else:
-                raise DatabaseUndefinedRelation(ex)
+                return DatabaseUndefinedRelation(ex)
+        elif isinstance(ex, duckdb.BinderException) and "not found in DuckLakeCatalog" in str(ex):
+            return DatabaseUndefinedRelation(ex)
         elif isinstance(ex, duckdb.InvalidInputException):
             if "Catalog Error" in str(ex):
-                raise DatabaseUndefinedRelation(ex)
+                return DatabaseUndefinedRelation(ex)
             # duckdb raises TypeError on malformed query parameters
             return DatabaseTransientException(duckdb.ProgrammingError(ex))
         elif isinstance(ex, duckdb.IOException):
@@ -411,6 +434,9 @@ class WithTableScanners(DuckDbSqlClient):
         if not cache_db:
             self.memory_db = duckdb.connect(":memory:")
             cache_db = DuckDbCredentials(self.memory_db)
+        if not cache_db.is_resolved():
+            # create connection pool
+            cache_db.resolve()
 
         from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory
 
@@ -441,16 +467,22 @@ class WithTableScanners(DuckDbSqlClient):
 
     @raise_database_error
     def open_connection(self) -> duckdb.DuckDBPyConnection:
-        # NOTE: do not self.execute*** methods when opening connection, may end in endless recursion
-        # we keep the in memory instance around, so if this prop is set, return it
-        first_connection = self.credentials.never_borrowed
-        super().open_connection()
+        # lock the whole process to prevent race condition on `first_connection` flag
+        # which may become invalid if second connection got opened in another thread
+        with self.credentials.conn_pool._conn_lock:
+            first_connection = self.credentials.conn_pool.never_borrowed
+            super().open_connection()
 
-        if first_connection:
-            # set up dataset
-            q_dataset_name = self.fully_qualified_dataset_name()
-            create_schema_sql = "CREATE SCHEMA IF NOT EXISTS %s" % q_dataset_name
-            self._conn.sql(f"{create_schema_sql};USE {self.fully_qualified_dataset_name()}")
+        try:
+            # NOTE: do not self.execute*** methods when opening connection, may end in endless recursion
+            if first_connection:
+                # set up dataset
+                q_dataset_name = self.fully_qualified_dataset_name()
+                create_schema_sql = "CREATE SCHEMA IF NOT EXISTS %s" % q_dataset_name
+                self._conn.sql(f"{create_schema_sql};USE {self.fully_qualified_dataset_name()}")
+        except Exception:
+            self.close_connection()
+            raise
 
         return self._conn
 
@@ -546,3 +578,39 @@ class WithTableScanners(DuckDbSqlClient):
         if self.memory_db:
             self.memory_db.close()
             self.memory_db = None
+
+
+def _install_extension(duckdb_sql_client: DuckDbSqlClient, extension_name: LiteralString) -> None:
+    """
+    The first time this runs on a machine, it downloads the extension and stores it
+    on disk. Subsequent calls to `INSTALL ducklake` are a no-op. This is ensured by the duckdb
+    library.
+
+    NOTE This method is at risk of SQL-injection. Only use internally with string literals.
+    """
+    with duckdb_sql_client as client:
+        client.execute(f"INSTALL {extension_name}")
+
+
+def _is_extension_installed(duckdb_sql_client: DuckDbSqlClient, extension_name: str) -> bool:
+    extension_is_installed = False
+    with duckdb_sql_client as client:
+        for extension_data in client.execute("FROM duckdb_extensions();").fetchall():
+            extension_name_found, is_loaded, is_installed, _, _, aliases, *_ = extension_data
+            if (extension_name == extension_name_found) or (extension_name in aliases):
+                extension_is_installed = is_installed
+                break
+
+    return extension_is_installed
+
+
+def _is_extension_loaded(duckdb_sql_client: DuckDbSqlClient, extension_name: str) -> bool:
+    extension_is_loaded = False
+    with duckdb_sql_client as client:
+        for extension_data in client.execute("FROM duckdb_extensions();").fetchall():
+            extension_name_found, is_loaded, is_installed, _, _, aliases, *_ = extension_data
+            if (extension_name == extension_name_found) or (extension_name in aliases):
+                extension_is_loaded = is_loaded
+                break
+
+    return extension_is_loaded

@@ -2,7 +2,7 @@ import os
 import dataclasses
 import sys
 from urllib.parse import urlencode
-from typing import Any, ClassVar, Dict, Final, List, Optional
+from typing import Any, ClassVar, Dict, Final, List, TYPE_CHECKING
 
 from dlt.version import __version__
 from dlt.common.configuration import configspec
@@ -11,11 +11,36 @@ from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.typing import TSecretStrValue
 from dlt.common.utils import digest128
 
-from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials
+from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials, DuckDbConnectionPool
+
+if TYPE_CHECKING:
+    from duckdb import DuckDBPyConnection
+else:
+    DuckDBPyConnection = Any  # type: ignore[assignment,misc]
 
 MOTHERDUCK_DRIVERNAME = "md"
 MOTHERDUCK_USER_AGENT = f"dlt/{__version__}({sys.platform})"
 MOTHERDUCK_DEFAULT_TOKEN_ENV = "motherduck_token"
+
+
+class MotherduckConnectionPool(DuckDbConnectionPool):
+    def borrow_conn(
+        self,
+        global_config: Dict[str, Any] = None,
+        local_config: Dict[str, Any] = None,
+        pragmas: List[str] = None,
+    ) -> DuckDBPyConnection:
+        from duckdb import HTTPException, InvalidInputException
+
+        try:
+            return super().borrow_conn(global_config, local_config, pragmas)
+        except (InvalidInputException, HTTPException) as ext_ex:
+            if "Failed to download extension" in str(ext_ex) and "motherduck" in str(ext_ex):
+                from importlib.metadata import version as pkg_version
+
+                raise MotherduckLocalVersionNotSupported(pkg_version("duckdb")) from ext_ex
+
+            raise
 
 
 @configspec(init=False)
@@ -48,24 +73,6 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
             if "motherduck_token" in self.query:
                 self.password = self.query.pop("motherduck_token")
 
-    def borrow_conn(
-        self,
-        global_config: Dict[str, Any] = None,
-        local_config: Dict[str, Any] = None,
-        pragmas: List[str] = None,
-    ) -> Any:
-        from duckdb import HTTPException, InvalidInputException
-
-        try:
-            return super().borrow_conn(global_config, local_config, pragmas)
-        except (InvalidInputException, HTTPException) as ext_ex:
-            if "Failed to download extension" in str(ext_ex) and "motherduck" in str(ext_ex):
-                from importlib.metadata import version as pkg_version
-
-                raise MotherduckLocalVersionNotSupported(pkg_version("duckdb")) from ext_ex
-
-            raise
-
     def parse_native_representation(self, native_value: Any) -> None:
         if isinstance(native_value, str):
             # https://motherduck.com/docs/key-tasks/authenticating-and-connecting-to-motherduck/authenticating-to-motherduck/#storing-the-access-token-as-an-environment-variable
@@ -86,6 +93,7 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
         if self.global_config is None:
             self.global_config = {}
         self.global_config["custom_user_agent"] = self.custom_user_agent or MOTHERDUCK_USER_AGENT
+        self.conn_pool = MotherduckConnectionPool(self)
 
     def _has_default_token(self) -> bool:
         # TODO: implement default connection interface

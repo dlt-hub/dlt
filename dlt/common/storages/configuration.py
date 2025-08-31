@@ -346,12 +346,13 @@ class WithLocalFiles(BaseConfiguration):
 
     """
 
+    destination_type: Optional[str] = None
     destination_name: Optional[str] = None
 
     local_dir: Annotated[str, NotResolved()] = None
+    pipeline_name: Annotated[Optional[str], NotResolved()] = None
     # needed by duckdb
     # TODO: deprecate this in 2.0
-    pipeline_name: Annotated[Optional[str], NotResolved()] = None
     pipeline_working_dir: Annotated[Optional[str], NotResolved()] = None
     legacy_db_path: Annotated[Optional[str], NotResolved()] = None
 
@@ -363,22 +364,32 @@ class WithLocalFiles(BaseConfiguration):
             if not self.is_partial():
                 self.resolve()
 
+    def attach_from(self, other: "WithLocalFiles") -> None:
+        """Attaches to the same local files info as `other`"""
+        self.local_dir = other.local_dir
+        self.destination_name = other.destination_name
+        self.pipeline_name = other.pipeline_name
+        self.pipeline_working_dir = other.pipeline_working_dir
+        self.legacy_db_path = other.legacy_db_path
+
+    def make_default_location(self, default_location_pat: str) -> str:
+        # use destination name to create default location name
+        if self.destination_name:
+            return default_location_pat % self.destination_name
+        else:
+            return default_location_pat % (self.pipeline_name or self.destination_type)
+
     def make_location(self, configured_location: str, default_location_pat: str) -> str:
         # do not set any paths for external database / instance
         if configured_location == ":external:":
             return configured_location
 
-        def _default_location() -> str:
-            # use destination name to create default location name
-            if self.destination_name:
-                return default_location_pat % self.destination_name
-            else:
-                return default_location_pat % (self.pipeline_name or "")
-
         if configured_location == ":pipeline:":
             # try the pipeline context
             if self.pipeline_working_dir:
-                return os.path.join(self.pipeline_working_dir, _default_location())
+                return os.path.join(
+                    self.pipeline_working_dir, self.make_default_location(default_location_pat)
+                )
             raise RuntimeError(
                 "Attempting to use special location `:pipeline:` outside of pipeline context."
             )
@@ -402,7 +413,10 @@ class WithLocalFiles(BaseConfiguration):
             if self.legacy_db_path:
                 return self.legacy_db_path
             # use tmp path as root, not cwd
-            return os.path.join(self.local_dir, configured_location or _default_location())
+            return os.path.join(
+                self.local_dir,
+                configured_location or self.make_default_location(default_location_pat),
+            )
 
 
 @configspec

@@ -332,8 +332,6 @@ class BaseConfiguration(MutableMapping[str, Any]):
             self.update(init_value)
         elif init_value is not None:
             self.parse_native_representation(init_value)
-        else:
-            return
 
     def parse_native_representation(self, native_value: Any) -> None:
         """Initialize the configuration fields by parsing the `native_value` which should be a native representation of the configuration

@@ -179,7 +179,7 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
                 return DatabaseTransientException(ex)
 
         elif isinstance(ex, snowflake_lib.errors.IntegrityError):
-            raise DatabaseTerminalException(ex)
+            return DatabaseTerminalException(ex)
         elif isinstance(ex, snowflake_lib.errors.DatabaseError):
             return DatabaseTransientException(ex)
         elif isinstance(ex, TypeError):

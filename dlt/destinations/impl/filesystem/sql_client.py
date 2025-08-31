@@ -91,8 +91,9 @@ class FilesystemSqlClient(WithTableScanners):
         return True
 
     def open_connection(self) -> duckdb.DuckDBPyConnection:
-        first_connection = self.credentials.never_borrowed
-        super().open_connection()
+        with self.credentials.conn_pool._conn_lock:
+            first_connection = self.credentials.conn_pool.never_borrowed
+            super().open_connection()
 
         if first_connection:
             # TODO: we need to frontload the httpfs extension for abfss for some reason
