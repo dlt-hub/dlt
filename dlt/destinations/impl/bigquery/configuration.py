@@ -1,5 +1,4 @@
 import dataclasses
-import warnings
 from typing import ClassVar, List, Final, Optional
 
 from dlt.common.configuration import configspec

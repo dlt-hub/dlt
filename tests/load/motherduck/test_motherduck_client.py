@@ -71,9 +71,9 @@ def test_motherduck_connect_default_token(token_key: str) -> None:
     config = MotherDuckClientConfiguration(credentials=credentials)
     print(config.credentials._conn_str())
     # connect
-    con = config.credentials.borrow_conn()
+    con = config.credentials.conn_pool.borrow_conn()
     con.sql("SHOW DATABASES")
-    config.credentials.return_conn(con)
+    config.credentials.conn_pool.return_conn(con)
 
 
 def test_credentials_wrong_config() -> None:
@@ -84,32 +84,32 @@ def test_credentials_wrong_config() -> None:
         sections=("destination", "motherduck"),
     )
     with pytest.raises(duckdb.CatalogException):
-        c.credentials.borrow_conn(global_config={"wrong_conf": 0})
+        c.credentials.conn_pool.borrow_conn(global_config={"wrong_conf": 0})
     # connection closed
-    assert not hasattr(c.credentials, "_conn")
-    assert c.credentials._conn_borrows == 0
+    assert c.credentials.conn_pool._conn is None
+    assert c.credentials.conn_pool._conn_borrows == 0
 
     with pytest.raises(duckdb.CatalogException):
-        c.credentials.borrow_conn(local_config={"wrong_conf": 0})
+        c.credentials.conn_pool.borrow_conn(local_config={"wrong_conf": 0})
     # connection closed
-    assert not hasattr(c.credentials, "_conn")
-    assert c.credentials._conn_borrows == 0
+    assert c.credentials.conn_pool._conn is None
+    assert c.credentials.conn_pool._conn_borrows == 0
 
     with pytest.raises(duckdb.CatalogException):
-        c.credentials.borrow_conn(pragmas=["unkn_pragma"])
+        c.credentials.conn_pool.borrow_conn(pragmas=["unkn_pragma"])
     # connection closed
-    assert not hasattr(c.credentials, "_conn")
-    assert c.credentials._conn_borrows == 0
+    assert c.credentials.conn_pool._conn is None
+    assert c.credentials.conn_pool._conn_borrows == 0
 
     # open and borrow conn
-    conn = c.credentials.borrow_conn()
-    assert c.credentials._conn_borrows == 1
+    conn = c.credentials.conn_pool.borrow_conn()
+    assert c.credentials.conn_pool._conn_borrows == 1
     try:
         with pytest.raises(duckdb.CatalogException):
-            c.credentials.borrow_conn(pragmas=["unkn_pragma"])
-        assert hasattr(c.credentials, "_conn")
+            c.credentials.conn_pool.borrow_conn(pragmas=["unkn_pragma"])
+        assert c.credentials.conn_pool._conn is not None
         # refcount not increased
-        assert c.credentials._conn_borrows == 1
+        assert c.credentials.conn_pool._conn_borrows == 1
     finally:
         conn.close()
 
@@ -120,9 +120,9 @@ def test_credentials_wrong_config() -> None:
         sections=("destination", "motherduck"),
     )
     with pytest.raises(duckdb.IOException):
-        c.credentials.borrow_conn()
+        c.credentials.conn_pool.borrow_conn()
     assert not hasattr(c.credentials, "_conn")
-    assert c.credentials._conn_borrows == 0
+    assert c.credentials.conn_pool._conn_borrows == 0
 
 
 @pytest.mark.parametrize("custom_user_agent", [MOTHERDUCK_USER_AGENT, "patates", None])
@@ -172,7 +172,7 @@ def test_motherduck_connect_with_user_agent_string(custom_user_agent: Optional[s
         return rel.fetchall()
 
     # connect
-    con = config.credentials.borrow_conn()
+    con = config.credentials.conn_pool.borrow_conn()
     try:
         assert _read_config(con) == [
             ("custom_user_agent", custom_user_agent or MOTHERDUCK_USER_AGENT),
@@ -180,4 +180,4 @@ def test_motherduck_connect_with_user_agent_string(custom_user_agent: Optional[s
             ("motherduck_dbinstance_inactivity_ttl", "0s"),
         ]
     finally:
-        config.credentials.return_conn(con)
+        config.credentials.conn_pool.return_conn(con)

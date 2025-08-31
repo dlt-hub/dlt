@@ -4,10 +4,13 @@ from typing import Any, ClassVar, Dict, Final, List, Literal, Optional, Union, T
 from pathvalidate import is_valid_filepath
 
 from dlt.common.configuration import configspec
+from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs import ConnectionStringCredentials
+from dlt.common.configuration.specs.base_configuration import NotResolved
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.storages import WithLocalFiles
+from dlt.common.typing import Annotated
 
 from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckdbCredentials
 
@@ -19,12 +22,8 @@ else:
 DUCK_DB_NAME_PAT = "%s.duckdb"
 
 
-# NOTE duckdb extensions are only loaded when using the dlt cursor. They are not
-# loaded when using the native connection (e.g., when passing it to Ibis)
 @configspec(init=False)
 class DuckDbBaseCredentials(ConnectionStringCredentials):
-    _LOCK: ClassVar[threading.Lock] = threading.Lock()
-
     read_only: bool = False
     """Open database r or rw"""
     extensions: Optional[List[str]] = None
@@ -35,80 +34,7 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
     """Pragmas set applied to each borrowed connection"""
     local_config: Optional[Dict[str, Any]] = None
     """Local config applied to each borrowed connection"""
-
-    def borrow_conn(
-        self,
-        global_config: Dict[str, Any] = None,
-        local_config: Dict[str, Any] = None,
-        pragmas: List[str] = None,
-    ) -> DuckDBPyConnection:
-        import duckdb
-
-        if not hasattr(self, "_conn_lock"):
-            with DuckDbBaseCredentials._LOCK:
-                if not hasattr(self, "_conn_lock"):
-                    self._conn_lock = threading.Lock()
-
-        # obtain a lock because duck releases the GIL and we have refcount concurrency
-        with self._conn_lock:
-            # calculate global config
-            global_config = {**(self.global_config or {}), **(global_config or {})}
-            # extract configs that must be passed to connect
-            connect_config = {}
-            for key in list(global_config.keys()):
-                if key in ("custom_user_agent",):
-                    connect_config[key] = global_config.pop(key)
-
-            if not getattr(self, "_conn", None):
-                self._conn = duckdb.connect(
-                    database=self._conn_str(), read_only=self.read_only, config=connect_config
-                )
-                self._conn_owner = True
-                self._conn_borrows = 0
-
-            if self._conn_borrows == 0:
-                try:
-                    # load extensions in config
-                    if self.extensions:
-                        for extension in self.extensions:
-                            self._conn.sql(f"LOAD {extension}")
-
-                    self._apply_config(self._conn, "GLOBAL", global_config)
-                    # apply local config to original connection
-                    self._apply_local_config(self._conn, local_config, pragmas)
-                except Exception:
-                    if self._conn_owner:
-                        self._delete_conn()
-                    raise
-
-            # print(f"getting conn refcnt {self._conn_borrows} at {id(self)}")
-            cur = self._conn.cursor()
-            try:
-                self._apply_local_config(cur, local_config, pragmas)
-                # track open connections to properly close it
-                self._conn_borrows += 1
-                return cur
-            except Exception:
-                cur.close()
-                raise
-
-    def return_conn(self, borrowed_conn: DuckDBPyConnection) -> int:
-        """Closed the borrowed conn, if refcount goes to 0, duckdb connection is deleted"""
-        borrowed_conn.close()
-
-        with self._conn_lock:
-            # close the main conn if the last borrowed conn was closed
-            assert self._conn_borrows > 0, "Returning connection when borrows is 0"
-            self._conn_borrows -= 1
-            if self._conn_borrows == 0 and self._conn_owner:
-                self._delete_conn()
-        return self._conn_borrows
-
-    def move_conn(self) -> DuckDBPyConnection:
-        """Takes ownership of the connection so it won't be closed on refcount 0 and in destructor"""
-        assert hasattr(self, "_conn"), "Connection is not opened"
-        self._conn_owner = False
-        return self._conn
+    conn_pool: Annotated[Optional["DuckDbConnectionPool"], NotResolved()] = None
 
     def parse_native_representation(self, native_value: Any) -> None:
         try:
@@ -116,9 +42,7 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
             import duckdb
 
             if isinstance(native_value, duckdb.DuckDBPyConnection):
-                self._conn = native_value
-                self._conn_owner = False
-                self._conn_borrows = 0
+                self._external_conn = native_value
                 self.database = ":external:"
                 return
         except ImportError:
@@ -131,10 +55,135 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
             else:
                 raise
 
+    def _conn_str(self) -> str:
+        raise NotImplementedError()
+
+
+class DuckDbConnectionPool:
+    always_open_connection: bool
+    """Always opens a new connection without cloning with cursor"""
+
+    def __init__(self, credentials: DuckDbBaseCredentials, always_open_connection: bool = False):
+        """Initializes a connection pool that dispenses duckdb connection to be used in multiple threads.
+
+        Default mode of the operation is to create a single duckdb connection and then use `duplicate`
+        method to pass a connection clone to a thread.
+
+        With `always_open_connection`, thread receives a new duckdb connection every time primarily
+        to support attached databases like ducklake. Current implementation does not pool connections
+        in this mode, it creates a fresh copy on each request.
+
+        This mechanism is piggybacking on destination Configuration/Credentials which are a singleton
+        in pipeline in load step. This allows to dispense connections in to workers in multiple
+        threads.
+        """
+        self.credentials = credentials
+        self.always_open_connection = always_open_connection
+        self._conn_lock = threading.RLock()
+        self._conn_borrows = 0
+        self._conn: DuckDBPyConnection = None
+        if external_conn := getattr(credentials, "_external_conn", None):
+            if self.always_open_connection:
+                raise ConfigurationValueError("External connections not supported")
+            self._conn = external_conn
+            self._conn_owner = False
+        else:
+            # connections are externally owned when always_open_connection
+            self._conn_owner = True
+            self._conn = None
+
+    def borrow_conn(
+        self,
+        global_config: Dict[str, Any] = None,
+        local_config: Dict[str, Any] = None,
+        pragmas: List[str] = None,
+    ) -> DuckDBPyConnection:
+        """Opens new or clones existing duckdb connection to support multi-thread access and then
+        borrows it to the caller. Caller is supposed to return the connection when it is no longer
+        needed. If connection is not returned the underlying duckdb conn will never be closed due to
+        internal ref counting.
+        """
+        import duckdb
+
+        # obtain a lock because duck releases the GIL and we have refcount concurrency
+        with self._conn_lock:
+            # calculate global config
+            global_config = {**(self.credentials.global_config or {}), **(global_config or {})}
+            # extract configs that must be passed to connect
+            connect_config = {}
+            for key in list(global_config.keys()):
+                if key in ("custom_user_agent",):
+                    connect_config[key] = global_config.pop(key)
+
+            if self._conn is None:
+                new_conn = duckdb.connect(
+                    database=self.credentials._conn_str(),
+                    read_only=self.credentials.read_only,
+                    config=connect_config,
+                )
+            else:
+                new_conn = self._conn
+
+            # if connection is borrowed for the first time, load extensions and set global settings
+            if self._conn_borrows == 0 or new_conn != self._conn:
+                try:
+                    # load extensions in config
+                    if self.credentials.extensions:
+                        for extension in self.credentials.extensions:
+                            new_conn.sql(f"LOAD {extension}")
+
+                    self._apply_config(new_conn, "GLOBAL", global_config)
+                    # apply local config to original connection
+                    self._apply_local_config(new_conn, local_config, pragmas)
+                except Exception:
+                    if self._conn_owner:
+                        new_conn.close()
+                    raise
+
+            # remember duckdb connection, except if you open new one on each borrow
+            if not self.always_open_connection:
+                self._conn = new_conn
+                # do not return original connection but a clone
+                new_conn = new_conn.duplicate()
+
+            # print(f"getting conn refcnt {self._conn_borrows} at {id(self)}")
+            # track open connections to properly close it
+            self._conn_borrows += 1
+
+            try:
+                self._apply_local_config(new_conn, local_config, pragmas)
+            except Exception:
+                # will refcount down and close cursor or conn
+                self.return_conn(new_conn)
+                raise
+            return new_conn
+
+    def return_conn(self, borrowed_conn: DuckDBPyConnection) -> int:
+        """Closed the borrowed conn, if refcount goes to 0, duckdb connection is deleted"""
+        borrowed_conn.close()
+
+        with self._conn_lock:
+            # close the main conn if the last borrowed conn was closed
+            assert self._conn_borrows > 0, "Returning connection when borrows is 0"
+            self._conn_borrows -= 1
+            if self._conn_borrows == 0 and self._conn_owner:
+                self._close_conn()
+        return self._conn_borrows
+
+    def move_conn(self) -> DuckDBPyConnection:
+        """Takes ownership of the connection so it won't be closed on refcount 0 and in destructor"""
+        if self.always_open_connection:
+            raise NotImplementedError(
+                "Moving ownership not implemented for always_open_connection=True"
+            )
+        assert self._conn is not None, "Connection is not opened"
+        self._conn_owner = False
+        return self._conn
+
     @property
     def never_borrowed(self) -> bool:
         """Returns true if connection was not yet created or no connections were borrowed in case of external connection"""
-        return not hasattr(self, "_conn") or self._conn_borrows == 0
+        return self._conn is None or self._conn_borrows == 0 or self.always_open_connection
 
     def _apply_local_config(
         self,
@@ -143,11 +192,11 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
         pragmas: List[str] = None,
     ) -> None:
         # set pragmas
-        pragmas = [*(self.pragmas or {}), *(pragmas or {})]
+        pragmas = [*(self.credentials.pragmas or {}), *(pragmas or {})]
         for pragma in pragmas:
             conn.sql(f"PRAGMA {pragma}")
         # calculate local config
-        local_config = {**(self.local_config or {}), **(local_config or {})}
+        local_config = {**(self.credentials.local_config or {}), **(local_config or {})}
         self._apply_config(conn, "SESSION", local_config)
 
     @staticmethod
@@ -177,16 +226,15 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
                 else:
                     raise
 
-    def _conn_str(self) -> str:
-        raise NotImplementedError()
-
-    def _delete_conn(self) -> None:
-        self._conn.close()
-        delattr(self, "_conn")
+    def _close_conn(self) -> None:
+        # connection can be closed many times
+        if self._conn:
+            self._conn.close()
+            self._conn = None
 
     def __del__(self) -> None:
-        if hasattr(self, "_conn") and self._conn_owner:
-            self._delete_conn()
+        if self._conn and self._conn_owner:
+            self._close_conn()
 
 
 @configspec
@@ -207,6 +255,7 @@ class DuckDbCredentials(DuckDbBaseCredentials):
         # TODO Why don't we support `:memory:` string?
         if isinstance(self.database, str) and self.database == ":memory:":
             raise InvalidInMemoryDuckdbCredentials()
+        self.conn_pool = DuckDbConnectionPool(self)
 
     def _conn_str(self) -> str:
         # if not self.database or not os.path.abspath(self.database):

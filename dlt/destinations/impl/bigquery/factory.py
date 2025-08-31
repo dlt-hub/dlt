@@ -1,4 +1,4 @@
-from typing import Any, Dict, Type, Union, TYPE_CHECKING, Optional, cast
+from typing import Any, Type, TYPE_CHECKING, Optional
 
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
