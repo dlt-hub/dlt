@@ -165,7 +165,7 @@ def ensure_pendulum_time(
         A pendulum.Time object
     """
 
-    result: Union[pendulum.Time, pendulum.Duration, datetime.time, timedelta] = None
+    result: Union[pendulum.Time, pendulum.Duration, datetime.time, timedelta]
 
     try:
         # Try to parse the value as a serialized datetime/date/time/interval
