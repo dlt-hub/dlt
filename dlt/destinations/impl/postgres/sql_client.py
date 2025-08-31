@@ -127,7 +127,7 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
         if isinstance(ex, (psycopg2.errors.UndefinedTable, psycopg2.errors.InvalidSchemaName)):
-            raise DatabaseUndefinedRelation(ex)
+            return DatabaseUndefinedRelation(ex)
         if isinstance(
             ex,
             (
