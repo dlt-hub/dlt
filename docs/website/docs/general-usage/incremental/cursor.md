@@ -146,7 +146,7 @@ Note that dlt's incremental filtering considers the ranges half-closed. `initial
 With the `row_order` argument set, dlt will stop retrieving data from the data source (e.g., GitHub API) if it detects that the values of the cursor field are out of the range of **start** and **end** values.
 
 In particular:
-* dlt stops processing when the resource yields any item with a cursor value _equal to or greater than_ the `end_value` and `row_order` is set to **asc**. (`end_value` is not included)
+* dlt stops processing when the resource yields any item with a cursor value _equal to or greater than_ the `end_value` and `row_order` is set to **asc**. (`end_value` is not included, also see )
 * dlt stops processing when the resource yields any item with a cursor value _lower_ than the `last_value` and `row_order` is set to **desc**. (`last_value` is included)
 
 :::note
@@ -158,6 +158,10 @@ when using `min()` "higher" and "lower" are inverted.
 If you use `row_order`, **make sure that the data source returns ordered records** (ascending / descending) on the cursor field,
 e.g., if an API returns results both higher and lower
 than the given `end_value` in no particular order, data reading stops and you'll miss the data items that were out of order.
+The following commonly used sources apply row order to returned rows:
+1. [sql_database](../../dlt-ecosystem/verified-sources/sql_database/)
+2. [filesystem](../../dlt-ecosystem/verified-sources/filesystem/)
+3. [mongodb](../../dlt-ecosystem/verified-sources/mongodb.md)
 :::
 
 Row order is most useful when:
@@ -211,7 +215,6 @@ def tickets(
         "updated_at",
         initial_value="2023-01-01T00:00:00Z",
         end_value="2023-02-01T00:00:00Z",
-        row_order="asc"
     ),
 ):
     for page in zendesk_client.get_pages(
@@ -225,9 +228,50 @@ def tickets(
 ```
 :::
 
-## Deduplicate overlapping ranges with primary key
+## Partition large loads
+You can execute a backfill on large amount of data by partitioning it into smaller fragments. Best case is if you can partition.
 
-`Incremental` **does not** deduplicate datasets like the **merge** write disposition does. However, it ensures that when another portion of data is extracted, records that were previously loaded won't be included again. `dlt` assumes that you load a range of data, where the lower bound is inclusive (i.e., greater than or equal). This ensures that you never lose any data but will also re-acquire some rows. For example, if you have a database table with a cursor field on `updated_at` which has a day resolution, then there's a high chance that after you extract data on a given day, more records will still be added. When you extract on the next day, you should reacquire data from the last day to ensure all records are present; however, this will create overlap with data from the previous extract.
+
+:::Note
+
+
+## Split large loads into chunks
+You can split large incremental resources into smaller chunks and load them sequentially. This way you'll see the data quicker and
+in case of loading error you are able to retry a single chunk. **This method works only if your source returns data in deterministic order**, for example:
+* you can request your REST API endpoint to return data ordered by `updated_at`.
+* you use `row_order` on one of supported sources like `sql_database` or `filesystem`.
+
+Below we go for the second option and load data from messages table that we order on `created_at` column.
+```py
+import dlt
+from dlt
+
+pipeline = dlt.pipeline("test_load_sql_table_split_loading", destination="duckdb")
+
+messages = sql_table(
+    table="chat_message",
+    incremental=dlt.sources.incremental(
+        "created_at",
+        row_order="asc",  # critical to set row_order when doing split loading
+        range_start="open",  # use open range to disable deduplication
+    ),
+)
+
+# produce chunk each minute
+while pipeline.run(messages.add_limit(max_time=60)).has_data:
+    pass
+```
+Note how we combine `incremental` and `add_limit` to generate chunk each minute. If you create and index on `created_at`, the database
+engine will be able to stream data using the index without the need to scan the whole table.
+
+:::caution
+If your source returns unordered data, you will most probably miss some data items or load them twice.
+:::
+
+
+## Deduplicate overlapping ranges
+
+`Incremental` **does not** deduplicate datasets like the **merge** write disposition does. However, it ensures that when another portion of data is extracted, records that were previously loaded **at the end of range** won't be included again. `dlt` assumes that you load a range of data, where the lower bound is inclusive by default (i.e., greater than or equal). This ensures that you never lose any data but will also re-acquire some rows. For example, if you have a database table with a cursor field on `updated_at` which has a day resolution, then there's a high chance that after you extract data on a given day, more records will still be added. When you extract on the next day, you should reacquire data from the last day to ensure all records are present; however, this will create overlap with data from the previous extract.
 
 By default, a content hash (a hash of the JSON representation of a row) will be used to deduplicate. This may be slow, so `dlt.sources.incremental` will inherit the primary key that is set on the resource. You can optionally set a `primary_key` that is used exclusively to deduplicate and which does not become a table hint. The same setting lets you disable the deduplication altogether when an empty tuple is passed. Below, we pass `primary_key` directly to `incremental` to disable deduplication. That overrides the `delta` primary_key set in the resource:
 
@@ -239,10 +283,11 @@ def some_data(last_timestamp=dlt.sources.incremental("item.ts", primary_key=()))
         yield {"delta": i, "item": {"ts": pendulum.now().timestamp()}}
 ```
 
-This deduplication process is always enabled when `range_start` is set to `"closed"` (default).
+This deduplication process is enabled when `range_start` is set to `"closed"` (default).
 When you pass `range_start="open"` no deduplication is done as it is not needed as rows with the previous cursor value are excluded. This can be a useful optimization to avoid the performance overhead of deduplication if the cursor field is guaranteed to be unique.
+Deduplication is also disabled when [lag](lag.md) is used or when `end_value` is specified as in this case, state is disabled and no hashes from previous runs will be present.
 
-## Using `dlt.sources.incremental` with dynamically created resources
+## Use `dlt.sources.incremental` with dynamically created resources
 
 When resources are [created dynamically](../source.md#create-resources-dynamically), it is possible to use the `dlt.sources.incremental` definition as well.
 

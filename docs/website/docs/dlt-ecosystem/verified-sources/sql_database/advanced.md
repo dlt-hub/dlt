@@ -10,12 +10,32 @@ import Header from '../_source-info-header.md';
 
 <Header/>
 
+### Split or partition long incremental loads
+If you have a large table with incremental loading set up, you can partition your initial load or split it in a loop.
+
+Partitioning works as follows:
+1. Get the minimum and maximum cursor column value for a table.
+2. Split it into N ranges. Here we assume that ranges are similarly populated. Obviously you can write more clever query that will give you partitions with more
+or less similar sizes.
+3. For each range find min and max cursor value and
+use [incremental with `end_value`](../../../general-usage/incremental/cursor.md#using-end_value-for-backfill) for backfill. 
+4. You can load each partition in a loop or in parallel (ie. in separate process). Incremental resources with `end_value` set
+do not use the state.
+
+```py
+```
+
+Set count or time limit and run pipeline in a loop. **Note that you must set row_order on incremental**:
+```py
+
+```
+
 ### Inclusive and exclusive filtering
 
 By default the incremental filtering is inclusive on the start value side so that
 rows with cursor equal to the last run's cursor are fetched again from the database.
 
-The SQL query generated looks something like this (assuming `last_value_func` is `max`):
+The SQL query generated looks something like this (assuming `last_value_func` is `max` and `row_order` is `asc`):
 
 ```sql
 SELECT * FROM family
@@ -32,7 +52,7 @@ both due to the deduplication processing and the cost of fetching redundant reco
 This is not always needed. If you know that your data does not contain overlapping cursor values then you
 can optimize extraction by passing `range_start="open"` to incremental.
 
-This both disables the deduplication process and changes the operator used in the SQL `WHERE` clause from `>=` (greater-or-equal) to `>` (greater than), so that no overlapping rows are fetched.
+This both **disables the deduplication process** and changes the operator used in the SQL `WHERE` clause from `>=` (greater-or-equal) to `>` (greater than), so that no overlapping rows are fetched.
 
 E.g.
 

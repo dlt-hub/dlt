@@ -255,7 +255,7 @@ def test_make_query_incremental_end_value_and_limit(
         table,
         table_to_columns(table),
         chunk_size=1000,
-        limit=LimitItem(10, None),
+        limit=LimitItem(10, None, False),
         incremental=incremental,  # type: ignore[arg-type]
     )
 
@@ -283,7 +283,7 @@ def test_make_query_with_limit(postgres_db: PostgresSourceDB, backend: TableBack
         table,
         table_to_columns(table),
         chunk_size=1000,
-        limit=LimitItem(10, None),
+        limit=LimitItem(10, None, False),
     )
 
     query = loader.make_query()
@@ -296,7 +296,7 @@ def test_make_query_with_limit(postgres_db: PostgresSourceDB, backend: TableBack
         table,
         table_to_columns(table),
         chunk_size=1000,
-        limit=LimitItem(None, max_time=10.0),
+        limit=LimitItem(None, max_time=10.0, count_rows=False),
     )
 
     query = loader.make_query()
