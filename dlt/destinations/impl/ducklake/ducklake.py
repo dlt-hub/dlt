@@ -4,7 +4,7 @@ Here are short definitions and relationships between DuckDB objects.
 This should help disambiguate names used in Duckdb, DuckLake, and dlt.
 
 TL;DR:
-- scalar < column < table < schema < database = catalog
+- scalar < column < table < schema (dataset) < database = catalog
 - Typically, in duckdb, you have one catalog = one database = one file
 - When using `ATTACH`, you're adding `Catalog` to your `Database`
     - Though if you do `SHOW ALL TABLES`, the result column "database" should be "catalog" to be precise
@@ -12,11 +12,11 @@ TL;DR:
 Hierarchy:
 - A `Table` can have many `Column`
 - A `Schema` can have many `Table`
-- A `Database` can have many `Schema`
+- A `Database` can have many `Schema` (corresponds to dataset in dlt)
 - A `Database` is a single physical file (e.g., `db.duckdb`)
 - A `Database` has a single `Catalog`
 - A `Catalog` is the internal metadata structure of everything found in the database
-- Using `ATTACH` adds a `Catalog` to the 
+- Using `ATTACH` adds a `Catalog` to the
 
 In dlt:
 - dlt creates a duckdb `Database` per pipeline when using `dlt.pipeline(..., destination="duckdb")`
@@ -33,6 +33,7 @@ TL;DR:
 Hierarchy:
 - A `Catalog` is an SQL database to store metadata
     - In duckdb terms, it's a duckdb `Database` that implements the duckdb `Catalog` for the DuckLake
+- A `Catalog` has many Schemas (namespaces if you compare it to Iceberg) that correspond to dlt.Dataset
 - A `Storage` is a file system or object store that can store parquet files
 - A `Snapshot` references to the `Catalog` at a particular point in time
     - This places `Snapshot` at the top of the hierarchy because it scopes other constructs
@@ -45,10 +46,10 @@ ATTACH 'ducklake:{catalog_database}' (DATA_PATH '{data_storage}');
 
 adds the ducklake `Catalog` to your duckdb database
 """
-
+import os
+from typing import Iterable
 
 import dlt
-
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.impl.duckdb.duck import DuckDbClient
 from dlt.destinations.impl.ducklake.sql_client import DuckLakeSqlClient
@@ -83,3 +84,9 @@ class DuckLakeClient(DuckDbClient):
             credentials=config.credentials,
             capabilities=capabilities,
         )
+
+    def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
+        super().initialize_storage(truncate_tables)
+        # create local storage
+        if self.config.credentials.storage.is_local_filesystem:
+            os.makedirs(self.config.credentials.storage_url, exist_ok=True)

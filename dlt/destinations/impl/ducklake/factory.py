@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
+from dlt.common.normalizers.naming import NamingConvention
+
 from dlt.destinations.impl.ducklake.ducklake import DuckLakeClient
 from dlt.destinations.impl.ducklake.configuration import (
     DuckLakeClientConfiguration,
@@ -32,14 +34,18 @@ class ducklake(Destination[DuckLakeClientConfiguration, DuckLakeClient]):
         environment: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
-        """
+        """Configure the ducklake destination to use in a pipeline.
+
+        All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
+
         Args:
-            credentials: DuckLake credentials or instantiated connection to a DuckLake
+            credentials(Optional[DuckLakeCredentials]): DuckLake credentials or instantiated connection to a DuckLake
                 client (which is a duckdb instance). The DuckLake credentials include
                 credentials for ducklake client, catalog, and storage
-            destination_name: This is the name of the ducklake, which will be a namespace
-                in the catalog and storage. This will be the name of the duckdb instance
-                that serves as ducklake client
+            destination_name(Optional[str]): Name of a destination which. May be used as ducklake name, if
+                explicit name is not set in `credentials`.
+            environment (Optional[str]): Environment of the destination
+            **kwargs (Any, optional): Additional arguments forwarded to the destination config
         """
         super().__init__(
             credentials=credentials,
@@ -57,6 +63,23 @@ class ducklake(Destination[DuckLakeClientConfiguration, DuckLakeClient]):
         from dlt.destinations.impl.ducklake.ducklake import DuckLakeClient
 
         return DuckLakeClient
+
+    @classmethod
+    def adjust_capabilities(
+        cls,
+        caps: DestinationCapabilitiesContext,
+        config: DuckLakeClientConfiguration,
+        naming: Optional[NamingConvention],
+    ) -> DestinationCapabilitiesContext:
+        # disable parallel loading for duckdb and sqllite
+        # NOTE: sqllite fails on concurrent catalog updates also in WAL mode
+        # https://github.com/duckdb/ducklake/issues/128 does not work
+        if config.credentials.catalog and config.credentials.catalog.drivername not in (
+            "duckdb",
+            "sqlite",
+        ):
+            caps.loader_parallelism_strategy = "parallel"
+        return super().adjust_capabilities(caps, config, naming)
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         return _get_ducklake_capabilities()
