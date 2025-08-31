@@ -78,7 +78,6 @@ class BigQueryTypeMapper(TypeMapperImpl):
     ) -> str:
         column_name = column["name"]
         table_name = table["name"]
-        timezone = column.get("timezone", True)
         precision = column.get("precision")
 
         if precision and precision != self.capabilities.timestamp_precision:
@@ -90,7 +89,8 @@ class BigQueryTypeMapper(TypeMapperImpl):
         # TIMESTAMP is always timezone-aware in BigQuery
         # DATETIME is always timezone-naive in BigQuery
         # NOTE: we disable DATETIME because it does not work with parquet
-        return "TIMESTAMP" if timezone else "TIMESTAMP"
+        # timezone = column.get("timezone", True)
+        return "TIMESTAMP"
 
     def to_db_decimal_type(self, column: TColumnSchema) -> str:
         # Use BigQuery's BIGNUMERIC for large precision decimals

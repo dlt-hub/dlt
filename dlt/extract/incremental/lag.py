@@ -55,16 +55,16 @@ def _apply_lag_to_value(
 
 def _apply_lag_to_datetime(
     lag: float,
-    value: pendulum.Date,
+    value: pendulum.DateTime,
     last_value_func: LastValueFunc[TCursorValue],
-) -> pendulum.Date:
+) -> pendulum.DateTime:
     if last_value_func is max:
         lag = -lag
 
     if isinstance(value, pendulum.DateTime):
         return value.add(seconds=lag)
 
-    return value.add(days=lag)  # type: ignore[arg-type]
+    return value.add(days=lag)
 
 
 def _apply_lag_to_number(
