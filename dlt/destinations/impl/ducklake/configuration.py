@@ -94,9 +94,7 @@ class DuckLakeCredentials(DuckDbCredentials):
         # use local duckdb
         if self.catalog is None:
             # use sqllite as default catalog
-            self.catalog = ConnectionStringCredentials(
-                {"drivername": "sqlite"}
-            )  # DuckDbCredentials() # ConnectionStringCredentials("postgresql://loader:loader@localhost:5432/dlt_data")
+            self.catalog = ConnectionStringCredentials({"drivername": "sqlite"})
         # if self.storage is None:
         #     # create data in run_dir
         #     self.storage = FilesystemConfigurationWithLocalFiles(bucket_url=".")

@@ -20,6 +20,18 @@ class DuckLakeSqlClient(DuckDbSqlClient):
         self.credentials: DuckLakeCredentials = credentials
         self._attach_statement: str = None
 
+    def create_dataset(self) -> None:
+        if self.has_dataset():
+            import duckdb
+
+            raise self._make_database_exception(
+                duckdb.CatalogException(
+                    f'Catalog Error: Schema with name "{self.fully_qualified_dataset_name()}"'
+                    " already exists!"
+                )
+            )
+        super().create_dataset()
+
     # TODO support connecting to a snapshot
     @raise_open_connection_error
     def open_connection(self) -> DuckDBPyConnection:

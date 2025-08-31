@@ -434,6 +434,9 @@ class WithTableScanners(DuckDbSqlClient):
         if not cache_db:
             self.memory_db = duckdb.connect(":memory:")
             cache_db = DuckDbCredentials(self.memory_db)
+        if not cache_db.is_resolved():
+            # create connection pool
+            cache_db.resolve()
 
         from dlt.destinations.impl.duckdb.factory import duckdb as duckdb_factory
 

@@ -1,19 +1,21 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.normalizers.naming import NamingConvention
 
-from dlt.destinations.impl.ducklake.ducklake import DuckLakeClient
 from dlt.destinations.impl.ducklake.configuration import (
     DuckLakeClientConfiguration,
     DuckLakeCredentials,
     _get_ducklake_capabilities,
 )
 
+if TYPE_CHECKING:
+    from dlt.destinations.impl.ducklake.ducklake import DuckLakeClient
 
-class ducklake(Destination[DuckLakeClientConfiguration, DuckLakeClient]):
+
+class ducklake(Destination[DuckLakeClientConfiguration, "DuckLakeClient"]):
     """Instantiate a DuckLake destination.
 
     A DuckLake has 3 components:
