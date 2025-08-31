@@ -13,15 +13,14 @@ import Header from '../_source-info-header.md';
 ## Timezone aware and non-aware data types
 
 ### I see UTC datetime column in my destination, but my data source has naive datetime column
-Use `full` or `full_with_precision` reflection level to get explicit `timezone` hint in reflected table schemas and use `pyarrow` or `connectorx`
-backends. `sqlalchemy` sends data to Python object normalizer which will convert all datetime fields to UTC regardless of timezone settings.
-Note that some destinations (ie. Athena) do not support naive datetimes at all.
+Use `full` or `full_with_precision` reflection level to get explicit `timezone` hint in reflected table schemas. Without that
+hint, `dlt` will coerce all timestamps into tz-aware UTC ones.
 
 ### I have incremental cursor on datetime column and I see query errors
 Queries used to query data in the `sql_database` are created from `Incremental` instance attached to table resource. [Initial end and last values
 must match tz-awareness of the cursor column](setup.md) because they will be used as parameters to the `WHERE` clause. 
 
-In rate cases where last value is already stored in pipeline state and has wrong tz-awareness you may not be able to recover your pipeline automatically. You may 
+In rare cases where last value is already stored in pipeline state and has wrong tz-awareness you may not be able to recover your pipeline automatically. You may 
 modify local pipeline state (after syncing with destination) to add/remove timezone.
 
 ## Troubleshooting connection

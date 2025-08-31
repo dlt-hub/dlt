@@ -226,18 +226,20 @@ The precision and scale are interpreted by the particular destination and are va
 
 The precision for **bigint** is mapped to available integer types, i.e., TINYINT, INT, BIGINT. The default is 64 bits (8 bytes) precision (BIGINT).
 
-The precision for **timestamp** is useful when creating **parquet** files. Use 3 for milliseconds, 6 for microseconds, and 9 for nanoseconds. Note that `dlt`
-normalizes 
+Selected destinations honor precision hint on **timestamp**. Precisions is numeric value in range of 0 (seconds) to 9 (nanoseconds) and set the fractional
+number of seconds stored in a column. The default value is 6 (microseconds) which is Python `datetime` precision. `postgres`, `duckdb`, `snowflake`, `synapse` and `mssql` allow to set precision. Additionally `duckdb` and `filesystem` (via. parquet) allow for nanosecond precision if:
+* you configure [parquet version](../dlt-ecosystem/file-formats/parquet.md#writer-settings) to **2.6**
+* you yield tabular data (arrow tables/pandas). `dlt` coerces all Python datetime objects into `pendulum` with microsecond precision.
 
 ### Handling nulls
 In general, destinations are responsible for NULL enforcement. `dlt` does not verify nullability of data in arrow tables and Python objects. Note that:
+
 * there's an exception to that rule if Python object (`dict`) contains explicit `None` for non-nullable key. This check will be eliminated. Note that if value
 for a key is not present at all, nullability check is not done
 * nullability is checked by Arrow when saving parquet files. This is a new behavior and `dlt` normalizes it for older arrow versions.
 
-
 ### Structured types
-`dlt` has experimental support for structured types that currently piggyback on `json` data type and may be set only by yielding arrow tables. It does not
+`dlt` has experimental support for structured types that currently piggyback on `json` data type and may be set only by yielding arrow tables. `dlt`` does not
 evolve nested types and will not migrate destination schemas to match. Nested types are enabled for `filesystem`, `iceberg`, `delta` and `lancedb` destinations.
 
 
