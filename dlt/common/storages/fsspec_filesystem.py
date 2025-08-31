@@ -63,6 +63,7 @@ MTIME_DISPATCH = {
     "adl": lambda f: ensure_pendulum_datetime(f["LastModified"]),
     "az": lambda f: ensure_pendulum_datetime(f["last_modified"]),
     "gcs": lambda f: ensure_pendulum_datetime(f["updated"]),
+    "https": lambda f: ensure_pendulum_datetime(f["Last-Modified"]),
     "file": lambda f: ensure_pendulum_datetime(f["mtime"]),
     "memory": lambda f: ensure_pendulum_datetime(f["created"]),
     "gdrive": lambda f: ensure_pendulum_datetime(f["modifiedTime"]),
@@ -156,7 +157,7 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
 
     fs_kwargs.update(DEFAULT_KWARGS.get(protocol, {}))
 
-    if protocol == "sftp":
+    if protocol == "sftp" or protocol == "https":
         fs_kwargs.clear()
 
     if config.kwargs is not None:
