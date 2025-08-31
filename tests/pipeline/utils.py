@@ -12,7 +12,7 @@ from dlt.common.pipeline import LoadInfo
 from dlt.common.typing import DictStrAny
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.exceptions import DestinationUndefinedEntity
-from dlt.destinations.dataset.dataset import ReadableDBAPIRelation
+from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 from dlt.common.schema.typing import TTableSchema
 
 
@@ -518,7 +518,7 @@ def select_data(
         List[Sequence[Any]]: All rows returned by the query.
     """
     dataset = p.dataset(schema=schema_name)
-    # a hack to change the dataset name for the purposes of this test
+    # TODO: fix multiple dataset layout and remove hack
     if dataset_name:
         dataset._dataset_name = dataset_name  # type: ignore[attr-defined]
     return list(dataset(sql, _execute_raw_query=_execute_raw_query).fetchall())

@@ -44,7 +44,7 @@ has-uv:
 	uv --version
 
 dev: has-uv
-	uv sync --all-extras --group docs --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group marimo
+	uv sync --all-extras --group docs --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
 
 dev-airflow: has-uv
 	uv sync --all-extras --group docs --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
@@ -54,11 +54,11 @@ lint:
 	# NOTE: we need to make sure docstring_parser_fork is the only version of docstring_parser installed
 	uv pip uninstall docstring_parser
 	uv pip install docstring_parser_fork --reinstall
+	uv run ruff check
 	# NOTE: we exclude all D lint errors (docstrings)
 	uv run flake8 --extend-ignore=D --max-line-length=200 dlt
 	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/
 	uv run black dlt docs tests --check --diff --color --extend-exclude=".*syntax_error.py"
-	# uv run isort ./ --diff
 	$(MAKE) lint-security
 	$(MAKE) lint-docstrings
 
@@ -69,14 +69,17 @@ lint-snippets:
 	cd docs/tools && uv run python check_embedded_snippets.py full
 
 lint-and-test-snippets: lint-snippets
+	# TODO: re-enable transformation snippets tests
 	uv pip install docstring_parser_fork --reinstall
-	uv run mypy --config-file mypy.ini docs/website docs/tools --exclude docs/tools/lint_setup --exclude docs/website/docs_processed
-	uv run flake8 --max-line-length=200 docs/website docs/tools --exclude docs/website/.dlt-repo
-	cd docs/website/docs && uv run pytest --ignore=node_modules
+	uv run mypy --config-file mypy.ini docs/website docs/tools --exclude docs/tools/lint_setup --exclude docs/website/docs_processed --exclude docs/website/versioned_docs/ --exclude docs/website/docs/general-usage/transformations/transformation-snippets.py
+	uv run ruff check
+	uv run flake8 --max-line-length=200 docs/website docs/tools --exclude docs/website/.dlt-repo --exclude docs/website/docs/general-usage/transformations/transformation-snippets.py
+	cd docs/website/docs && uv run pytest --ignore=node_modules --ignore general-usage/transformations/transformation-snippets.py
 
 lint-and-test-examples:
 	uv pip install docstring_parser_fork --reinstall
 	cd docs/tools && uv run python prepare_examples_tests.py
+	uv run ruff check
 	uv run flake8 --max-line-length=200 docs/examples
 	uv run mypy --config-file mypy.ini docs/examples
 	cd docs/examples && uv run pytest
@@ -112,7 +115,7 @@ test-load-local-postgres:
 	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data ACTIVE_DESTINATIONS='["postgres"]' ALL_FILESYSTEM_DRIVERS='["memory"]'  uv run pytest tests/load
 
 test-common:
-	uv run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/cli/common tests/load/test_dummy_client.py tests/libs tests/destinations tests/transformations
+	uv run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/cli/common tests/load/test_dummy_client.py tests/libs tests/destinations
 
 reset-test-storage:
 	-rm -r _storage
@@ -159,11 +162,11 @@ update-cli-docs:
 check-cli-docs:
 	uv run dlt --debug render-docs docs/website/docs/reference/command-line-interface.md --compare
 
-test-e2e-studio:
+test-e2e-dashboard:
 	uv run pytest --browser chromium tests/e2e
 
-test-e2e-studio-headed:
+test-e2e-dashboard-headed:
 	uv run pytest --headed --browser chromium tests/e2e
 
-start-dlt-studio-e2e:
-	uv run marimo run --headless dlt/helpers/studio/dlt_app.py -- -- --pipelines_dir _storage/.dlt/pipelines --with_test_identifiers true
+start-dlt-dashboard-e2e:
+	uv run marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines --with_test_identifiers true

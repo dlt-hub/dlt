@@ -2,9 +2,7 @@ import csv
 import os
 import posixpath
 from pathlib import Path
-from typing import Any, Callable, List, Dict, cast, Tuple
-from importlib.metadata import version as pkg_version
-from packaging.version import Version
+from typing import Any, Callable, List, Dict, cast
 
 from pytest_mock import MockerFixture
 import dlt
@@ -12,32 +10,23 @@ import pytest
 
 from dlt.common import json
 from dlt.common import pendulum
-from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
-from dlt.common.schema.typing import TWriteDisposition, TTableFormat
-from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
-from dlt.pipeline.exceptions import PipelineStepFailed
-from dlt.load.exceptions import LoadClientJobRetry
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 
-from tests.cases import arrow_table_all_data_types, table_update_and_row, assert_all_data_types_row
+from tests.cases import arrow_table_all_data_types
 from tests.common.utils import load_json_case
 from tests.utils import ALL_TEST_DATA_ITEM_FORMATS, TestDataItemFormat, skip_if_not_active
 from dlt.destinations.path_utils import create_path
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
-    MEMORY_BUCKET,
-    FILE_BUCKET,
-    AZ_BUCKET,
-    SFTP_BUCKET,
 )
 
-from tests.pipeline.utils import load_table_counts, assert_load_info, load_tables_to_dicts
+from tests.pipeline.utils import load_table_counts
 
 
 skip_if_not_active("filesystem")
@@ -397,8 +386,8 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
     s2_old = c1.get_stored_state("p2")
 
     created_files = _collect_files(p1)
-    # 4 init files, 2 item files, 2 load files, 2 state files, 2 version files
-    assert len(created_files) == 12
+    # 1 init file, 2 item files, 2 load files, 2 state files, 2 version files
+    assert len(created_files) == 9
 
     # second two loads
     @dlt.resource(table_name="items2")
@@ -439,8 +428,8 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
     assert c2.get_stored_schema_by_hash(sc1_old.version_hash)
 
     created_files = _collect_files(p1)
-    # 4 init files, 4 item files, 4 load files, 3 state files, 3 version files
-    assert len(created_files) == 18
+    # 1 init file, 4 item files, 4 load files, 3 state files, 3 version files
+    assert len(created_files) == 15
 
     # drop it
     p1.destination_client().drop_storage()

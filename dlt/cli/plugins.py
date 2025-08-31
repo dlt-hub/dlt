@@ -16,7 +16,7 @@ from dlt.cli.command_wrappers import (
     telemetry_status_command_wrapper,
     deploy_command_wrapper,
     ai_setup_command_wrapper,
-    studio_command_wrapper,
+    dashboard_command_wrapper,
 )
 from dlt.cli.ai_command import SUPPORTED_IDES
 from dlt.cli.docs_command import render_argparse_markdown
@@ -32,6 +32,7 @@ from dlt.cli.deploy_command import (
     COMMAND_DEPLOY_REPO_LOCATION,
     SecretFormats,
 )
+from dlt.common.storages.configuration import SCHEMA_FILES_EXTENSIONS
 
 try:
     import pipdeptree
@@ -205,30 +206,29 @@ pipeline state set by the resources during the extraction process.
                 "Generates and launches Streamlit app with the loading status and dataset explorer"
             ),
             description="""
-Generates and launches Streamlit (https://streamlit.io/) app with the loading status and dataset explorer.
+Launches the pipeline dashboard app with a comprehensive interface to inspect the pipeline state, schemas, and data in the destination.
 
-This is a simple app that you can use to inspect the schemas and data in the destination as well as your pipeline state and loading status/stats. It should be executed from the same folder from which you ran the pipeline script to access destination credentials.
+This app should be executed from the same folder from which you ran the pipeline script to be able access destination credentials.
 
-Requires `streamlit` to be installed in the current environment: `pip install streamlit`. Using --marimo flag to launch marimo app preview instead of streamlit.
+If the --edit flag is used, will launch the editable version of the app if it exists in the current directory, or create this version and launch it in edit mode.
+
+Requires `marimo` to be installed in the current environment: `pip install marimo`. Use the --streamlit flag to launch the legacy streamlit app.
 """,
         )
         show_cmd.add_argument(
-            "--marimo",
+            "--streamlit",
             default=False,
             action="store_true",
-            help=(
-                "Launch marimo app instead of streamlit. Will launch editable version of app"
-                " (created with the --edit flag) if it exists in the current directory."
-            ),
+            help="Launch the legacy Streamlit dashboard instead of the new pipeline dashboard. ",
         )
         show_cmd.add_argument(
             "--edit",
             default=False,
             action="store_true",
             help=(
-                "Creates editable version of marimo app in current directory if it does not exist"
-                " there yet and launches it in edit mode. Only works when using the marimo app"
-                " (--marimo flag)."
+                "Creates editable version of pipeline dashboard in current directory if it does not"
+                " exist there yet and launches it in edit mode. Will have no effect when using the"
+                " streamlit flag."
             ),
         )
         pipeline_subparsers.add_parser(
@@ -290,7 +290,7 @@ will display the load info instead.
         )
         pipe_cmd_schema.add_argument(
             "--format",
-            choices=["json", "yaml"],
+            choices=SCHEMA_FILES_EXTENSIONS,
             default="yaml",
             help="Display schema in this format",
         )
@@ -463,7 +463,7 @@ The `dlt schema` command will load, validate and print out a dlt schema: `dlt sc
         )
         parser.add_argument(
             "--format",
-            choices=["json", "yaml"],
+            choices=SCHEMA_FILES_EXTENSIONS,
             default="yaml",
             help="Display schema in this format",
         )
@@ -478,11 +478,11 @@ The `dlt schema` command will load, validate and print out a dlt schema: `dlt sc
         schema_command_wrapper(args.file, args.format, args.remove_defaults)
 
 
-class StudioCommand(SupportsCliCommand):
-    command = "studio"
-    help_string = "Starts the dlt studio marimo app"
+class DashboardCommand(SupportsCliCommand):
+    command = "dashboard"
+    help_string = "Starts the dlt pipeline dashboard"
     description = """
-The `dlt studio` command starts the dlt studio app. You can use the studio:
+The `dlt dashboard` command starts the dlt pipeline dashboard. You can use the dashboard:
 
 * to list and inspect local pipelines
 * browse the full pipeline schema and all hints
@@ -493,9 +493,18 @@ The `dlt studio` command starts the dlt studio app. You can use the studio:
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
         self.parser = parser
+        self.parser.add_argument(
+            "--pipelines-dir", help="Pipelines working directory", default=None
+        )
+        self.parser.add_argument(
+            "--edit",
+            action="store_true",
+            help="Eject Dashboard and start editable version",
+            default=None,
+        )
 
     def execute(self, args: argparse.Namespace) -> None:
-        studio_command_wrapper()
+        dashboard_command_wrapper(pipelines_dir=args.pipelines_dir, edit=args.edit)
 
 
 class TelemetryCommand(SupportsCliCommand):
@@ -743,9 +752,9 @@ def plug_cli_schema() -> Type[SupportsCliCommand]:
 
 
 # TODO: define actual command and re-enable
-# @plugins.hookimpl(specname="plug_cli")
-# def plug_cli_studio() -> Type[SupportsCliCommand]:
-#     return StudioCommand
+@plugins.hookimpl(specname="plug_cli")
+def plug_cli_dashboard() -> Type[SupportsCliCommand]:
+    return DashboardCommand
 
 
 @plugins.hookimpl(specname="plug_cli")

@@ -121,7 +121,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         return self.staging_destination.client(schema, self.initial_staging_client_config)
 
     def is_staging_destination_job(self, file_path: str) -> bool:
-        file_type = os.path.splitext(file_path)[1][1:]
+        job_info = ParsedLoadJobFileName.parse(file_path)
+        file_type = job_info.file_format
         # for now we know that reference and model jobs always go do the main destination
         if file_type in ["reference", "model"]:
             return False

@@ -6,6 +6,7 @@ from dlt.common import json
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TDataType
+from dlt.destinations.path_utils import get_file_format_and_compression
 
 from tests.load.pipeline.test_merge_disposition import github
 from tests.pipeline.utils import load_table_counts, assert_load_info
@@ -13,6 +14,7 @@ from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
     assert_all_data_types_row,
+    table_update_and_row_for_destination,
 )
 from tests.cases import table_update_and_row
 
@@ -58,9 +60,9 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
     metrics = info.metrics[info.loads_ids[0]][0]
     for job_metrics in metrics["job_metrics"].values():
         remote_url = job_metrics.remote_url
-        job_ext = os.path.splitext(job_metrics.job_id)[1]
-        if job_ext not in (".reference", ".sql"):
-            assert remote_url.endswith(job_ext)
+        job_ext, is_compressed = get_file_format_and_compression(job_metrics.job_id)
+        if job_ext not in ("reference", "sql"):
+            assert remote_url.endswith(job_ext if not is_compressed else ".".join([job_ext, "gz"]))
             bucket_uri = destination_config.bucket_url
             if FilesystemConfiguration.is_local_path(bucket_uri):
                 bucket_uri = FilesystemConfiguration.make_file_url(bucket_uri)
@@ -268,56 +270,7 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
         "test_stage_loading", dataset_name="test_all_data_types" + uniq_id()
     )
 
-    # Redshift parquet -> exclude col7_precision
-    # redshift and athena, parquet and jsonl, exclude time types
-    exclude_types: List[TDataType] = []
-    exclude_columns: List[str] = []
-    if destination_config.destination_type in (
-        "redshift",
-        "athena",
-        "databricks",
-        "clickhouse",
-    ) and destination_config.file_format in ("parquet", "jsonl"):
-        # Redshift copy doesn't support TIME column
-        exclude_types.append("time")
-    if (
-        destination_config.destination_type == "synapse"
-        and destination_config.file_format == "parquet"
-    ):
-        # TIME columns are not supported for staged parquet loads into Synapse
-        exclude_types.append("time")
-    if destination_config.destination_type in (
-        "redshift",
-        "dremio",
-    ) and destination_config.file_format in (
-        "parquet",
-        "jsonl",
-    ):
-        # Redshift can't load fixed width binary columns from parquet
-        exclude_columns.append("col7_precision")
-    if (
-        destination_config.destination_type == "databricks"
-        and destination_config.file_format == "jsonl"
-    ):
-        exclude_types.extend(["decimal", "binary", "wei", "json", "date"])
-        exclude_columns.append("col1_precision")
-
-    column_schemas, data_types = table_update_and_row(
-        exclude_types=exclude_types, exclude_columns=exclude_columns
-    )
-
-    # bigquery and clickhouse cannot load into JSON fields from parquet
-    if destination_config.file_format == "parquet":
-        if destination_config.destination_type in ["bigquery"]:
-            # change datatype to text and then allow for it in the assert (parse_json_strings)
-            column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
-    # redshift cannot load from json into VARBYTE
-    if destination_config.file_format == "jsonl":
-        if destination_config.destination_type == "redshift":
-            # change the datatype to text which will result in inserting base64 (allow_base64_binary)
-            binary_cols = ["col7", "col7_null"]
-            for col in binary_cols:
-                column_schemas[col]["data_type"] = "text"
+    column_schemas, data_types = table_update_and_row_for_destination(destination_config)
 
     # apply the exact columns definitions so we process nested and wei types correctly!
     @dlt.resource(table_name="data_types", write_disposition="merge", columns=column_schemas)
@@ -355,10 +308,10 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
         )
         # content must equal
         assert_all_data_types_row(
+            sql_client.capabilities,
             db_row[:-2],
             parse_json_strings=parse_json_strings,
             allow_base64_binary=allow_base64_binary,
             allow_string_binary=allow_string_binary,
-            timestamp_precision=sql_client.capabilities.timestamp_precision,
             schema=column_schemas,
         )

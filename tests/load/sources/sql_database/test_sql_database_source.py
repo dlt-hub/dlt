@@ -12,6 +12,7 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.exceptions import MissingDependencyException
 
 from dlt.common.schema.typing import TColumnSchema, TSortOrder, TTableSchemaColumns
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.utils import uniq_id
 
 from dlt.extract.exceptions import ResourceExtractionError
@@ -19,6 +20,7 @@ from dlt.extract.incremental.transform import JsonIncremental, ArrowIncremental
 from dlt.sources import DltResource
 
 import dlt.sources.sql_database
+from tests.load.sources.sql_database.utils import assert_incremental_chunks
 from tests.pipeline.utils import (
     assert_load_info,
     assert_schema_on_data,
@@ -37,29 +39,10 @@ try:
         remove_nullability_adapter,
     )
     from dlt.sources.sql_database.helpers import unwrap_json_connector_x
-    from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
+    from tests.load.sources.sql_database.postgres_source import PostgresSourceDB
     import sqlalchemy as sa
 except MissingDependencyException:
     pytest.skip("Tests require sql alchemy", allow_module_level=True)
-
-
-@pytest.fixture(autouse=True)
-def dispose_engines():
-    yield
-    import gc
-
-    # will collect and dispose all hanging engines
-    gc.collect()
-
-
-@pytest.fixture(autouse=True)
-def reset_os_environ():
-    # Save the current state of os.environ
-    original_environ = deepcopy(os.environ)
-    yield
-    # Restore the original state of os.environ
-    os.environ.clear()
-    os.environ.update(original_environ)
 
 
 def make_pipeline(destination_name: str) -> dlt.Pipeline:
@@ -100,9 +83,7 @@ def convert_time_to_us(table):
     return new_table
 
 
-def test_sqlalchemy_no_quoted_name(
-    sql_source_db: SQLAlchemySourceDB, mocker: MockerFixture
-) -> None:
+def test_sqlalchemy_no_quoted_name(postgres_db: PostgresSourceDB, mocker: MockerFixture) -> None:
     """
     Ensures that table names internally passed as `quoted_name` to `sql_table` are not persisted
     in the schema object or serialized schema file.
@@ -129,8 +110,8 @@ def test_sqlalchemy_no_quoted_name(
     sql_table_spy = mocker.spy(dlt.sources.sql_database, "sql_table")
 
     all_tables = sql_database(
-        credentials=sql_source_db.credentials,
-        schema=sql_source_db.schema,
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
         table_names=["chat_message"],
     )
 
@@ -163,19 +144,19 @@ def test_sqlalchemy_no_quoted_name(
         assert "!!python/object/apply:sqlalchemy.sql.elements.quoted_name" not in schema_str
 
 
-def test_pass_engine_credentials(sql_source_db: SQLAlchemySourceDB) -> None:
+def test_pass_engine_credentials(postgres_db: PostgresSourceDB) -> None:
     # verify database
     database = sql_database(
-        sql_source_db.engine, schema=sql_source_db.schema, table_names=["chat_message"]
+        postgres_db.engine, schema=postgres_db.schema, table_names=["chat_message"]
     )
-    assert len(list(database)) == sql_source_db.table_infos["chat_message"]["row_count"]
+    assert len(list(database)) == postgres_db.table_infos["chat_message"]["row_count"]
 
     # verify table
-    table = sql_table(sql_source_db.engine, table="chat_message", schema=sql_source_db.schema)
-    assert len(list(table)) == sql_source_db.table_infos["chat_message"]["row_count"]
+    table = sql_table(postgres_db.engine, table="chat_message", schema=postgres_db.schema)
+    assert len(list(table)) == postgres_db.table_infos["chat_message"]["row_count"]
 
 
-def test_engine_adapter_callback(sql_source_db: SQLAlchemySourceDB) -> None:
+def test_engine_adapter_callback(postgres_db: PostgresSourceDB) -> None:
     from dlt.common.libs.sql_alchemy import Engine
 
     adapter_calls: int = 0
@@ -189,100 +170,100 @@ def test_engine_adapter_callback(sql_source_db: SQLAlchemySourceDB) -> None:
 
     # verify database
     database = sql_database(
-        sql_source_db.engine.url.render_as_string(False),
-        schema=sql_source_db.schema,
+        postgres_db.engine.url.render_as_string(False),
+        schema=postgres_db.schema,
         table_names=["chat_message"],
         engine_adapter_callback=set_serializable,
     )
     assert adapter_calls == 2
 
-    assert len(list(database)) == sql_source_db.table_infos["chat_message"]["row_count"]
+    assert len(list(database)) == postgres_db.table_infos["chat_message"]["row_count"]
 
     # verify table
-    table = sql_table(sql_source_db.engine, table="chat_message", schema=sql_source_db.schema)
-    assert len(list(table)) == sql_source_db.table_infos["chat_message"]["row_count"]
+    table = sql_table(postgres_db.engine, table="chat_message", schema=postgres_db.schema)
+    assert len(list(table)) == postgres_db.table_infos["chat_message"]["row_count"]
 
 
-def test_named_sql_table_config(sql_source_db: SQLAlchemySourceDB) -> None:
+def test_named_sql_table_config(postgres_db: PostgresSourceDB) -> None:
     # set the credentials per table name
     os.environ["SOURCES__SQL_DATABASE__CHAT_MESSAGE__CREDENTIALS"] = (
-        sql_source_db.engine.url.render_as_string(False)
+        postgres_db.engine.url.render_as_string(False)
     )
-    table = sql_table(table="chat_message", schema=sql_source_db.schema)
+    table = sql_table(table="chat_message", schema=postgres_db.schema)
     assert table.name == "chat_message"
-    assert len(list(table)) == sql_source_db.table_infos["chat_message"]["row_count"]
+    assert len(list(table)) == postgres_db.table_infos["chat_message"]["row_count"]
 
     with pytest.raises(ConfigFieldMissingException):
-        sql_table(table="has_composite_key", schema=sql_source_db.schema)
+        sql_table(table="has_composite_key", schema=postgres_db.schema)
 
     # set backend
     os.environ["SOURCES__SQL_DATABASE__CHAT_MESSAGE__BACKEND"] = "pandas"
-    table = sql_table(table="chat_message", schema=sql_source_db.schema)
+    table = sql_table(table="chat_message", schema=postgres_db.schema)
     # just one frame here
     assert len(list(table)) == 1
 
     os.environ["SOURCES__SQL_DATABASE__CHAT_MESSAGE__CHUNK_SIZE"] = "1000"
-    table = sql_table(table="chat_message", schema=sql_source_db.schema)
+    table = sql_table(table="chat_message", schema=postgres_db.schema)
     # now 10 frames with chunk size of 1000
     assert len(list(table)) == 10
 
     # make it fail on cursor
     os.environ["SOURCES__SQL_DATABASE__CHAT_MESSAGE__INCREMENTAL__CURSOR_PATH"] = "updated_at_x"
-    table = sql_table(table="chat_message", schema=sql_source_db.schema)
+    table = sql_table(table="chat_message", schema=postgres_db.schema)
     with pytest.raises(ResourceExtractionError) as ext_ex:
         len(list(table))
     assert "`updated_at_x`" in str(ext_ex.value)
 
 
-def test_general_sql_database_config(sql_source_db: SQLAlchemySourceDB) -> None:
+def test_general_sql_database_config(postgres_db: PostgresSourceDB) -> None:
     # set the credentials per table name
-    os.environ["SOURCES__SQL_DATABASE__CREDENTIALS"] = sql_source_db.engine.url.render_as_string(
+    os.environ["SOURCES__SQL_DATABASE__CREDENTIALS"] = postgres_db.engine.url.render_as_string(
         False
     )
     # applies to both sql table and sql database
-    table = sql_table(table="chat_message", schema=sql_source_db.schema)
-    assert len(list(table)) == sql_source_db.table_infos["chat_message"]["row_count"]
-    database = sql_database(schema=sql_source_db.schema).with_resources("chat_message")
-    assert len(list(database)) == sql_source_db.table_infos["chat_message"]["row_count"]
+    table = sql_table(table="chat_message", schema=postgres_db.schema)
+    assert len(list(table)) == postgres_db.table_infos["chat_message"]["row_count"]
+    database = sql_database(schema=postgres_db.schema).with_resources("chat_message")
+    assert len(list(database)) == postgres_db.table_infos["chat_message"]["row_count"]
 
     # set backend
     os.environ["SOURCES__SQL_DATABASE__BACKEND"] = "pandas"
-    table = sql_table(table="chat_message", schema=sql_source_db.schema)
+    table = sql_table(table="chat_message", schema=postgres_db.schema)
     # just one frame here
     assert len(list(table)) == 1
-    database = sql_database(schema=sql_source_db.schema).with_resources("chat_message")
+    database = sql_database(schema=postgres_db.schema).with_resources("chat_message")
     assert len(list(database)) == 1
 
     os.environ["SOURCES__SQL_DATABASE__CHUNK_SIZE"] = "1000"
-    table = sql_table(table="chat_message", schema=sql_source_db.schema)
+    table = sql_table(table="chat_message", schema=postgres_db.schema)
     # now 10 frames with chunk size of 1000
     assert len(list(table)) == 10
-    database = sql_database(schema=sql_source_db.schema).with_resources("chat_message")
+    database = sql_database(schema=postgres_db.schema).with_resources("chat_message")
     assert len(list(database)) == 10
 
     # make it fail on cursor
     os.environ["SOURCES__SQL_DATABASE__CHAT_MESSAGE__INCREMENTAL__CURSOR_PATH"] = "updated_at_x"
-    table = sql_table(table="chat_message", schema=sql_source_db.schema)
+    table = sql_table(table="chat_message", schema=postgres_db.schema)
     with pytest.raises(ResourceExtractionError) as ext_ex:
         len(list(table))
     assert "`updated_at_x`" in str(ext_ex.value)
     with pytest.raises(ResourceExtractionError) as ext_ex:
-        list(sql_database(schema=sql_source_db.schema).with_resources("chat_message"))
+        list(sql_database(schema=postgres_db.schema).with_resources("chat_message"))
     # other resources will be loaded, incremental is selective
-    assert len(list(sql_database(schema=sql_source_db.schema).with_resources("app_user"))) > 0
+    assert len(list(sql_database(schema=postgres_db.schema).with_resources("app_user"))) > 0
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow"])
 def test_sql_table_accepts_merge_and_primary_key_in_decorator(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend
+    postgres_db: PostgresSourceDB, backend: TableBackend
 ) -> None:
     # setup
-    os.environ["SOURCES__SQL_DATABASE__CREDENTIALS"] = sql_source_db.engine.url.render_as_string(
+    os.environ["SOURCES__SQL_DATABASE__CREDENTIALS"] = postgres_db.engine.url.render_as_string(
         False
     )
     table = sql_table(
         table="chat_message",
-        schema=sql_source_db.schema,
+        schema=postgres_db.schema,
         backend=backend,
         write_disposition="merge",
         primary_key=["id"],
@@ -298,7 +279,7 @@ def test_sql_table_accepts_merge_and_primary_key_in_decorator(
     table = sql_table(
         table="app_user",
         backend=backend,
-        schema=sql_source_db.schema,
+        schema=postgres_db.schema,
         write_disposition="merge",
         reflection_level="full",
         resolve_foreign_keys=True,
@@ -314,7 +295,7 @@ def test_sql_table_accepts_merge_and_primary_key_in_decorator(
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow"])
 @pytest.mark.parametrize("add_new_columns", [True, False])
 def test_text_query_adapter(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend, add_new_columns: bool
+    postgres_db: PostgresSourceDB, backend: TableBackend, add_new_columns: bool
 ) -> None:
     from dlt.common.libs.sql_alchemy import Table, sqltypes, sa, Engine, TextClause
     from dlt.sources.sql_database.helpers import SelectAny
@@ -349,8 +330,8 @@ def test_text_query_adapter(
 
     read_table = sql_table(
         table="chat_channel",
-        credentials=sql_source_db.credentials,
-        schema=sql_source_db.schema,
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
         reflection_level="full",
         backend=backend,
         table_adapter_callback=new_columns if add_new_columns else None,
@@ -380,7 +361,7 @@ def test_text_query_adapter(
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow"])
-def test_computed_column(sql_source_db: SQLAlchemySourceDB, backend: TableBackend) -> None:
+def test_computed_column(postgres_db: PostgresSourceDB, backend: TableBackend) -> None:
     from dlt.common.libs.sql_alchemy import Table, sa, sqltypes
     from dlt.sources.sql_database.helpers import SelectAny
 
@@ -394,8 +375,8 @@ def test_computed_column(sql_source_db: SQLAlchemySourceDB, backend: TableBacken
 
     read_table = sql_table(
         table="chat_message",
-        credentials=sql_source_db.credentials,
-        schema=sql_source_db.schema,
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
         reflection_level="full",
         backend=backend,
         table_adapter_callback=add_max_timestamp,
@@ -419,11 +400,11 @@ def test_computed_column(sql_source_db: SQLAlchemySourceDB, backend: TableBacken
     assert load_table_counts(pipeline, "chat_message")["chat_message"] == msg_count
 
 
-def test_remove_nullability(sql_source_db: SQLAlchemySourceDB) -> None:
+def test_remove_nullability(postgres_db: PostgresSourceDB) -> None:
     read_table = sql_table(
         table="chat_message",
-        credentials=sql_source_db.credentials,
-        schema=sql_source_db.schema,
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
         reflection_level="full_with_precision",
         table_adapter_callback=remove_nullability_adapter,
     )
@@ -437,8 +418,8 @@ def test_remove_nullability(sql_source_db: SQLAlchemySourceDB) -> None:
 
     read_table = sql_table(
         table="chat_message",
-        credentials=sql_source_db.credentials,
-        schema=sql_source_db.schema,
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
         reflection_level="full_with_precision",
         table_adapter_callback=make_subquery,
     )
@@ -448,20 +429,20 @@ def test_remove_nullability(sql_source_db: SQLAlchemySourceDB) -> None:
         assert "nullability" not in column
 
     data = list(read_table)
-    assert len(data) == sql_source_db.table_infos["chat_message"]["row_count"]
+    assert len(data) == postgres_db.table_infos["chat_message"]["row_count"]
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pandas", "pyarrow", "connectorx"])
 @pytest.mark.parametrize("row_order", ["asc", "desc", None])
 @pytest.mark.parametrize("last_value_func", [min, max, lambda x: max(x)])
 def test_load_sql_table_resource_incremental_end_value(
-    sql_source_db: SQLAlchemySourceDB,
+    postgres_db: PostgresSourceDB,
     backend: TableBackend,
     row_order: TSortOrder,
     last_value_func: Any,
 ) -> None:
-    start_id = sql_source_db.table_infos["chat_message"]["ids"][0]
-    end_id = sql_source_db.table_infos["chat_message"]["ids"][-1] // 2
+    start_id = postgres_db.table_infos["chat_message"]["ids"][0]
+    end_id = postgres_db.table_infos["chat_message"]["ids"][-1] // 2
 
     if last_value_func is min:
         start_id, end_id = end_id, start_id
@@ -470,8 +451,8 @@ def test_load_sql_table_resource_incremental_end_value(
     def sql_table_source() -> List[DltResource]:
         return [
             sql_table(
-                credentials=sql_source_db.credentials,
-                schema=sql_source_db.schema,
+                credentials=postgres_db.credentials,
+                schema=postgres_db.schema,
                 table="chat_message",
                 backend=backend,
                 incremental=dlt.sources.incremental(
@@ -515,12 +496,12 @@ def test_load_sql_table_resource_incremental_end_value(
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 @pytest.mark.parametrize("defer_table_reflect", (False, True))
 def test_load_sql_table_resource_select_columns(
-    sql_source_db: SQLAlchemySourceDB, defer_table_reflect: bool, backend: TableBackend
+    postgres_db: PostgresSourceDB, defer_table_reflect: bool, backend: TableBackend
 ) -> None:
     # get chat messages with content column removed
     chat_messages = sql_table(
-        credentials=sql_source_db.credentials,
-        schema=sql_source_db.schema,
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
         table="chat_message",
         defer_table_reflect=defer_table_reflect,
         table_adapter_callback=lambda table: table._columns.remove(table.columns["content"]),  # type: ignore[attr-defined]
@@ -529,14 +510,14 @@ def test_load_sql_table_resource_select_columns(
     pipeline = make_pipeline("duckdb")
     load_info = pipeline.run(chat_messages)
     assert_load_info(load_info)
-    assert_row_counts(pipeline, sql_source_db, ["chat_message"])
+    assert_row_counts(pipeline, postgres_db, ["chat_message"])
     assert "content" not in pipeline.default_schema.tables["chat_message"]["columns"]
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 @pytest.mark.parametrize("defer_table_reflect", (False, True))
 def test_load_sql_table_source_select_columns(
-    sql_source_db: SQLAlchemySourceDB, defer_table_reflect: bool, backend: TableBackend
+    postgres_db: PostgresSourceDB, defer_table_reflect: bool, backend: TableBackend
 ) -> None:
     mod_tables: Set[str] = set()
 
@@ -547,17 +528,17 @@ def test_load_sql_table_source_select_columns(
 
     # get chat messages with content column removed
     all_tables = sql_database(
-        credentials=sql_source_db.credentials,
-        schema=sql_source_db.schema,
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
         defer_table_reflect=defer_table_reflect,
-        table_names=(list(sql_source_db.table_infos.keys()) if defer_table_reflect else None),
+        table_names=(list(postgres_db.table_infos.keys()) if defer_table_reflect else None),
         table_adapter_callback=adapt,
         backend=backend,
     )
     pipeline = make_pipeline("duckdb")
     load_info = pipeline.run(all_tables)
     assert_load_info(load_info)
-    assert_row_counts(pipeline, sql_source_db)
+    assert_row_counts(pipeline, postgres_db)
     assert "content" not in pipeline.default_schema.tables["chat_message"]["columns"]
 
 
@@ -565,16 +546,16 @@ def test_load_sql_table_source_select_columns(
 @pytest.mark.parametrize("reflection_level", ["full", "full_with_precision"])
 @pytest.mark.parametrize("with_defer", [True, False])
 def test_extract_without_pipeline(
-    sql_source_db: SQLAlchemySourceDB,
+    postgres_db: PostgresSourceDB,
     backend: TableBackend,
     reflection_level: ReflectionLevel,
     with_defer: bool,
 ) -> None:
     # make sure that we can evaluate tables without pipeline
     source = sql_database(
-        credentials=sql_source_db.credentials,
+        credentials=postgres_db.credentials,
         table_names=["has_precision", "app_user", "chat_message", "chat_channel"],
-        schema=sql_source_db.schema,
+        schema=postgres_db.schema,
         reflection_level=reflection_level,
         defer_table_reflect=with_defer,
         backend=backend,
@@ -587,7 +568,7 @@ def test_extract_without_pipeline(
 @pytest.mark.parametrize("with_defer", [False, True])
 @pytest.mark.parametrize("standalone_resource", [True, False])
 def test_reflection_levels(
-    sql_source_db: SQLAlchemySourceDB,
+    postgres_db: PostgresSourceDB,
     backend: TableBackend,
     reflection_level: ReflectionLevel,
     with_defer: bool,
@@ -601,16 +582,16 @@ def test_reflection_levels(
             @dlt.source
             def dummy_source():
                 yield sql_table(
-                    credentials=sql_source_db.credentials,
-                    schema=sql_source_db.schema,
+                    credentials=postgres_db.credentials,
+                    schema=postgres_db.schema,
                     table="has_precision",
                     backend=backend,
                     defer_table_reflect=with_defer,
                     reflection_level=reflection_level,
                 )
                 yield sql_table(
-                    credentials=sql_source_db.credentials,
-                    schema=sql_source_db.schema,
+                    credentials=postgres_db.credentials,
+                    schema=postgres_db.schema,
                     table="app_user",
                     backend=backend,
                     defer_table_reflect=with_defer,
@@ -620,9 +601,9 @@ def test_reflection_levels(
             return dummy_source()
 
         return sql_database(
-            credentials=sql_source_db.credentials,
+            credentials=postgres_db.credentials,
             table_names=["has_precision", "app_user"],
-            schema=sql_source_db.schema,
+            schema=postgres_db.schema,
             reflection_level=reflection_level,
             defer_table_reflect=with_defer,
             backend=backend,
@@ -648,7 +629,9 @@ def test_reflection_levels(
 
     assert col_names == expected_col_names
 
-    # Pk col is always reflected
+    # TODO move to separate test
+    # in `sql_source_db`,  column `id` from table `app_user` is a primary key
+    # primary key hint should always be reflected
     pk_col = schema.tables["app_user"]["columns"]["id"]
     assert pk_col["primary_key"] is True
 
@@ -681,7 +664,7 @@ def test_reflection_levels(
 @pytest.mark.parametrize("standalone_resource", [True, False])
 @pytest.mark.parametrize("resolve_foreign_keys", [True, False])
 def test_reflect_foreign_keys_as_table_references(
-    sql_source_db: SQLAlchemySourceDB,
+    postgres_db: PostgresSourceDB,
     backend: TableBackend,
     reflection_level: ReflectionLevel,
     with_defer: bool,
@@ -696,8 +679,8 @@ def test_reflect_foreign_keys_as_table_references(
             @dlt.source
             def dummy_source():
                 yield sql_table(
-                    credentials=sql_source_db.credentials,
-                    schema=sql_source_db.schema,
+                    credentials=postgres_db.credentials,
+                    schema=postgres_db.schema,
                     table="has_composite_foreign_key",
                     backend=backend,
                     defer_table_reflect=with_defer,
@@ -705,8 +688,8 @@ def test_reflect_foreign_keys_as_table_references(
                     resolve_foreign_keys=resolve_foreign_keys,
                 )
                 yield sql_table(  # Has no foreign keys
-                    credentials=sql_source_db.credentials,
-                    schema=sql_source_db.schema,
+                    credentials=postgres_db.credentials,
+                    schema=postgres_db.schema,
                     table="app_user",
                     backend=backend,
                     defer_table_reflect=with_defer,
@@ -714,8 +697,8 @@ def test_reflect_foreign_keys_as_table_references(
                     resolve_foreign_keys=resolve_foreign_keys,
                 )
                 yield sql_table(
-                    credentials=sql_source_db.credentials,
-                    schema=sql_source_db.schema,
+                    credentials=postgres_db.credentials,
+                    schema=postgres_db.schema,
                     table="chat_message",
                     backend=backend,
                     defer_table_reflect=with_defer,
@@ -726,9 +709,9 @@ def test_reflect_foreign_keys_as_table_references(
             return dummy_source()
 
         return sql_database(
-            credentials=sql_source_db.credentials,
+            credentials=postgres_db.credentials,
             table_names=["has_composite_foreign_key", "app_user", "chat_message"],
-            schema=sql_source_db.schema,
+            schema=postgres_db.schema,
             reflection_level=reflection_level,
             defer_table_reflect=with_defer,
             backend=backend,
@@ -775,7 +758,7 @@ def test_reflect_foreign_keys_as_table_references(
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 @pytest.mark.parametrize("standalone_resource", [True, False])
 def test_type_adapter_callback(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend, standalone_resource: bool
+    postgres_db: PostgresSourceDB, backend: TableBackend, standalone_resource: bool
 ) -> None:
     def conversion_callback(t):
         if isinstance(t, sa.JSON):
@@ -785,8 +768,8 @@ def test_type_adapter_callback(
         return t
 
     common_kwargs = dict(
-        credentials=sql_source_db.credentials,
-        schema=sql_source_db.schema,
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
         backend=backend,
         type_adapter_callback=conversion_callback,
         reflection_level="full",
@@ -821,14 +804,14 @@ def test_type_adapter_callback(
     "table_name,nullable", (("has_precision", False), ("has_precision_nullable", True))
 )
 def test_all_types_with_precision_hints(
-    sql_source_db: SQLAlchemySourceDB,
+    postgres_db: PostgresSourceDB,
     backend: TableBackend,
     table_name: str,
     nullable: bool,
 ) -> None:
     source = sql_database(
-        credentials=sql_source_db.credentials,
-        schema=sql_source_db.schema,
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
         reflection_level="full_with_precision",
         backend=backend,
     )
@@ -859,14 +842,14 @@ def test_all_types_with_precision_hints(
     "table_name,nullable", (("has_precision", False), ("has_precision_nullable", True))
 )
 def test_all_types_no_precision_hints(
-    sql_source_db: SQLAlchemySourceDB,
+    postgres_db: PostgresSourceDB,
     backend: TableBackend,
     table_name: str,
     nullable: bool,
 ) -> None:
     source = sql_database(
-        credentials=sql_source_db.credentials,
-        schema=sql_source_db.schema,
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
         reflection_level="full",
         backend=backend,
     )
@@ -894,14 +877,14 @@ def test_all_types_no_precision_hints(
 
 @pytest.mark.parametrize("backend", ["pyarrow", "sqlalchemy"])
 def test_null_column_warning(
-    sql_source_db: SQLAlchemySourceDB,
+    postgres_db: PostgresSourceDB,
     backend: TableBackend,
     mocker: MockerFixture,
 ) -> None:
     source = (
         sql_database(
-            credentials=sql_source_db.credentials,
-            schema=sql_source_db.schema,
+            credentials=postgres_db.credentials,
+            schema=postgres_db.schema,
             reflection_level="minimal",
             backend=backend,
             chunk_size=10,
@@ -916,6 +899,7 @@ def test_null_column_warning(
         pipeline_name="blabla", destination="duckdb", dataset_name="anuuns_test"
     )
     pipeline.run(source)
+    assert pipeline.last_trace.last_normalize_info.row_counts["app_user"] == 10
 
     logger_spy.assert_called()
     assert logger_spy.call_count == 1
@@ -948,8 +932,8 @@ def test_null_column_warning(
 
     source = (
         sql_database(
-            credentials=sql_source_db.credentials,
-            schema=sql_source_db.schema,
+            credentials=postgres_db.credentials,
+            schema=postgres_db.schema,
             reflection_level="minimal",
             backend=backend,
             chunk_size=10,
@@ -961,6 +945,8 @@ def test_null_column_warning(
 
     logger_spy.reset_mock()
     pipeline.run(source)
+    assert pipeline.last_trace.last_normalize_info.row_counts["app_user"] == 10
+
     assert logger_spy.call_count == 0
     assert (
         "x-normalizer" not in pipeline.default_schema.get_table("app_user")["columns"]["empty_col"]
@@ -972,13 +958,13 @@ def test_null_column_warning(
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 def test_incremental_composite_primary_key_from_table(
-    sql_source_db: SQLAlchemySourceDB,
+    postgres_db: PostgresSourceDB,
     backend: TableBackend,
 ) -> None:
     resource = sql_table(
-        credentials=sql_source_db.credentials,
+        credentials=postgres_db.credentials,
         table="has_composite_key",
-        schema=sql_source_db.schema,
+        schema=postgres_db.schema,
         backend=backend,
     )
 
@@ -988,16 +974,16 @@ def test_incremental_composite_primary_key_from_table(
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 @pytest.mark.parametrize("upfront_incremental", (True, False))
 def test_set_primary_key_deferred_incremental(
-    sql_source_db: SQLAlchemySourceDB,
+    postgres_db: PostgresSourceDB,
     upfront_incremental: bool,
     backend: TableBackend,
 ) -> None:
     # this tests dynamically adds primary key to resource and as consequence to incremental
     updated_at = dlt.sources.incremental("updated_at")  # type: ignore[var-annotated]
     resource = sql_table(
-        credentials=sql_source_db.credentials,
+        credentials=postgres_db.credentials,
         table="chat_message",
-        schema=sql_source_db.schema,
+        schema=postgres_db.schema,
         defer_table_reflect=True,
         incremental=updated_at if upfront_incremental else None,
         backend=backend,
@@ -1010,7 +996,7 @@ def test_set_primary_key_deferred_incremental(
 
     def _assert_incremental(item):
         # for all the items, all keys must be present
-        _r = dlt.current.source().resources[dlt.current.resource_name()]
+        _r = dlt.current.resource()
         # assert _r.incremental._incremental is updated_at
         if len(item) == 0:
             # not yet propagated
@@ -1041,13 +1027,11 @@ def test_set_primary_key_deferred_incremental(
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
-def test_deferred_reflect_in_source(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend
-) -> None:
+def test_deferred_reflect_in_source(postgres_db: PostgresSourceDB, backend: TableBackend) -> None:
     source = sql_database(
-        credentials=sql_source_db.credentials,
+        credentials=postgres_db.credentials,
         table_names=["has_precision", "chat_message"],
-        schema=sql_source_db.schema,
+        schema=postgres_db.schema,
         reflection_level="full_with_precision",
         defer_table_reflect=True,
         backend=backend,
@@ -1099,13 +1083,11 @@ def test_deferred_reflect_no_source_connect(backend: TableBackend) -> None:
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
-def test_deferred_reflect_in_resource(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend
-) -> None:
+def test_deferred_reflect_in_resource(postgres_db: PostgresSourceDB, backend: TableBackend) -> None:
     table = sql_table(
-        credentials=sql_source_db.credentials,
+        credentials=postgres_db.credentials,
         table="has_precision",
-        schema=sql_source_db.schema,
+        schema=postgres_db.schema,
         reflection_level="full_with_precision",
         defer_table_reflect=True,
         backend=backend,
@@ -1137,38 +1119,67 @@ def test_deferred_reflect_in_resource(
     )
 
 
-@pytest.mark.parametrize("backend", ["pyarrow", "pandas", "connectorx"])
-def test_destination_caps_context(sql_source_db: SQLAlchemySourceDB, backend: TableBackend) -> None:
-    # use athena with timestamp precision == 3
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+def test_sql_table_incremental_datetime_ntz(
+    postgres_db: PostgresSourceDB, backend: TableBackend
+) -> None:
+    # import sqlalchemy with minimum required version only for connectorx backend
+    if backend == "connectorx":
+        pytest.importorskip("sqlalchemy", minversion="2.0")
+
     table = sql_table(
-        credentials=sql_source_db.credentials,
+        credentials=postgres_db.credentials,
         table="has_precision",
-        schema=sql_source_db.schema,
-        reflection_level="full_with_precision",
-        defer_table_reflect=True,
+        schema=postgres_db.schema,
         backend=backend,
+        incremental=dlt.sources.incremental(
+            "datetime_ntz_col",
+            initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00Z").naive(),
+            row_order="asc",
+            range_start="open",
+        ),
+        chunk_size=10,
     )
 
-    # no columns in both tables
-    assert table.columns == {}
-
-    pipeline = make_pipeline("athena")
-    pipeline.extract(table)
-    pipeline.normalize()
-    # timestamps are milliseconds
-    columns = pipeline.default_schema.get_table("has_precision")["columns"]
-    assert columns["datetime_tz_col"]["precision"] == columns["datetime_ntz_col"]["precision"] == 3
-    # prevent drop
-    pipeline._destination = None
+    pipeline = make_pipeline("duckdb")
+    rc = postgres_db.table_infos["has_precision"]["row_count"]
+    assert_incremental_chunks(pipeline, table, "datetime_ntz_col", timezone=False, row_count=rc)
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
-def test_sql_table_from_view(sql_source_db: SQLAlchemySourceDB, backend: TableBackend) -> None:
+def test_sql_table_incremental_datetime_tz(
+    postgres_db: PostgresSourceDB, backend: TableBackend
+) -> None:
+    # import sqlalchemy with minimum required version only for connectorx backend
+    if backend == "connectorx":
+        pytest.importorskip("sqlalchemy", minversion="2.0")
+
+    table = sql_table(
+        credentials=postgres_db.credentials,
+        table="has_precision",
+        schema=postgres_db.schema,
+        backend=backend,
+        incremental=dlt.sources.incremental(
+            "datetime_tz_col",
+            initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00+00:00"),
+            row_order="asc",
+            range_start="open",
+        ),
+        chunk_size=10,
+    )
+
+    pipeline = make_pipeline("duckdb")
+    rc = postgres_db.table_infos["has_precision"]["row_count"]
+    assert_incremental_chunks(pipeline, table, "datetime_tz_col", timezone=True, row_count=rc)
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+def test_sql_table_from_view(postgres_db: PostgresSourceDB, backend: TableBackend) -> None:
     """View can be extract by sql_table without any reflect flags"""
     table = sql_table(
-        credentials=sql_source_db.credentials,
+        credentials=postgres_db.credentials,
         table="chat_message_view",
-        schema=sql_source_db.schema,
+        schema=postgres_db.schema,
         backend=backend,
         # use minimal level so we infer types from DATA
         reflection_level="minimal",
@@ -1179,7 +1190,7 @@ def test_sql_table_from_view(sql_source_db: SQLAlchemySourceDB, backend: TableBa
     info = pipeline.run(table)
     assert_load_info(info)
 
-    assert_row_counts(pipeline, sql_source_db, ["chat_message_view"])
+    assert_row_counts(pipeline, postgres_db, ["chat_message_view"])
     assert "content" in pipeline.default_schema.tables["chat_message_view"]["columns"]
     assert "_created_at" in pipeline.default_schema.tables["chat_message_view"]["columns"]
     db_data = load_tables_to_dicts(pipeline, "chat_message_view")["chat_message_view"]
@@ -1190,13 +1201,11 @@ def test_sql_table_from_view(sql_source_db: SQLAlchemySourceDB, backend: TableBa
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
-def test_sql_database_include_views(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend
-) -> None:
+def test_sql_database_include_views(postgres_db: PostgresSourceDB, backend: TableBackend) -> None:
     """include_view flag reflects and extracts views as tables"""
     source = sql_database(
-        credentials=sql_source_db.credentials,
-        schema=sql_source_db.schema,
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
         include_views=True,
         backend=backend,
     )
@@ -1204,17 +1213,17 @@ def test_sql_database_include_views(
     pipeline = make_pipeline("duckdb")
     pipeline.run(source)
 
-    assert_row_counts(pipeline, sql_source_db, include_views=True)
+    assert_row_counts(pipeline, postgres_db, include_views=True)
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 def test_sql_database_include_view_in_table_names(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend
+    postgres_db: PostgresSourceDB, backend: TableBackend
 ) -> None:
     """Passing a view explicitly in table_names should reflect it, regardless of include_views flag"""
     source = sql_database(
-        credentials=sql_source_db.credentials,
-        schema=sql_source_db.schema,
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
         table_names=["app_user", "chat_message_view"],
         include_views=False,
         backend=backend,
@@ -1223,21 +1232,21 @@ def test_sql_database_include_view_in_table_names(
     pipeline = make_pipeline("duckdb")
     pipeline.run(source)
 
-    assert_row_counts(pipeline, sql_source_db, ["app_user", "chat_message_view"])
+    assert_row_counts(pipeline, postgres_db, ["app_user", "chat_message_view"])
 
 
 @pytest.mark.parametrize("backend", ["pyarrow", "pandas", "sqlalchemy"])
 @pytest.mark.parametrize("standalone_resource", [True, False])
 @pytest.mark.parametrize("reflection_level", ["minimal", "full", "full_with_precision"])
 def test_infer_unsupported_types(
-    sql_source_db_unsupported_types: SQLAlchemySourceDB,
+    postgres_db_unsupported_types: PostgresSourceDB,
     backend: TableBackend,
     reflection_level: ReflectionLevel,
     standalone_resource: bool,
 ) -> None:
     common_kwargs = dict(
-        credentials=sql_source_db_unsupported_types.credentials,
-        schema=sql_source_db_unsupported_types.schema,
+        credentials=postgres_db_unsupported_types.credentials,
+        schema=postgres_db_unsupported_types.schema,
         reflection_level=reflection_level,
         backend=backend,
     )
@@ -1264,7 +1273,7 @@ def test_infer_unsupported_types(
     pipeline.normalize()
     pipeline.load()
 
-    assert_row_counts(pipeline, sql_source_db_unsupported_types, ["has_unsupported_types"])
+    assert_row_counts(pipeline, postgres_db_unsupported_types, ["has_unsupported_types"])
 
     schema = pipeline.default_schema
     assert "has_unsupported_types" in schema.tables
@@ -1279,7 +1288,7 @@ def test_infer_unsupported_types(
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 @pytest.mark.parametrize("defer_table_reflect", (False, True))
 def test_sql_database_included_columns(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend, defer_table_reflect: bool
+    postgres_db: PostgresSourceDB, backend: TableBackend, defer_table_reflect: bool
 ) -> None:
     # include only some columns from the table
     os.environ["SOURCES__SQL_DATABASE__CHAT_MESSAGE__INCLUDED_COLUMNS"] = json.dumps(
@@ -1287,8 +1296,8 @@ def test_sql_database_included_columns(
     )
 
     source = sql_database(
-        credentials=sql_source_db.credentials,
-        schema=sql_source_db.schema,
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
         table_names=["chat_message"],
         reflection_level="full",
         defer_table_reflect=defer_table_reflect,
@@ -1306,17 +1315,17 @@ def test_sql_database_included_columns(
     )
     assert schema_cols == {"id", "created_at"}
 
-    assert_row_counts(pipeline, sql_source_db, ["chat_message"])
+    assert_row_counts(pipeline, postgres_db, ["chat_message"])
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 @pytest.mark.parametrize("defer_table_reflect", (False, True))
 def test_sql_table_included_columns(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend, defer_table_reflect: bool
+    postgres_db: PostgresSourceDB, backend: TableBackend, defer_table_reflect: bool
 ) -> None:
     source = sql_table(
-        credentials=sql_source_db.credentials,
-        schema=sql_source_db.schema,
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
         table="chat_message",
         reflection_level="full",
         defer_table_reflect=defer_table_reflect,
@@ -1335,13 +1344,13 @@ def test_sql_table_included_columns(
     )
     assert schema_cols == {"id", "created_at"}
 
-    assert_row_counts(pipeline, sql_source_db, ["chat_message"])
+    assert_row_counts(pipeline, postgres_db, ["chat_message"])
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 @pytest.mark.parametrize("standalone_resource", [True, False])
 def test_query_adapter_callback(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend, standalone_resource: bool
+    postgres_db: PostgresSourceDB, backend: TableBackend, standalone_resource: bool
 ) -> None:
     from dlt.sources.sql_database.helpers import SelectAny
     from dlt.common.libs.sql_alchemy import Table
@@ -1354,8 +1363,8 @@ def test_query_adapter_callback(
         return query
 
     common_kwargs = dict(
-        credentials=sql_source_db.credentials,
-        schema=sql_source_db.schema,
+        credentials=postgres_db.credentials,
+        schema=postgres_db.schema,
         reflection_level="full",
         backend=backend,
     )
@@ -1394,24 +1403,24 @@ def test_query_adapter_callback(
     assert channel_rows and all(row["active"] for row in channel_rows)
 
     # unfiltered table loads all rows
-    assert_row_counts(pipeline, sql_source_db, ["chat_message"])
+    assert_row_counts(pipeline, postgres_db, ["chat_message"])
 
 
 def assert_row_counts(
     pipeline: dlt.Pipeline,
-    sql_source_db: SQLAlchemySourceDB,
+    postgres_db: PostgresSourceDB,
     tables: Optional[List[str]] = None,
     include_views: bool = False,
 ) -> None:
     if not tables:
         tables = [
             tbl_name
-            for tbl_name, info in sql_source_db.table_infos.items()
+            for tbl_name, info in postgres_db.table_infos.items()
             if include_views or not info["is_view"]
         ]
     dest_counts = load_table_counts(pipeline, *tables)
     for table in tables:
-        info = sql_source_db.table_infos[table]
+        info = postgres_db.table_infos[table]
         assert (
             dest_counts[table] == info["row_count"]
         ), f"Table {table} counts do not match with the source"
@@ -1420,27 +1429,27 @@ def assert_row_counts(
 def assert_precision_columns(
     columns: TTableSchemaColumns, backend: TableBackend, nullable: bool
 ) -> None:
-    actual = list(columns.values())
+    actual = deepcopy(list(columns.values()))
     expected = NULL_PRECISION_COLUMNS if nullable else NOT_NULL_PRECISION_COLUMNS
     # always has nullability set and always has hints
     expected = cast(List[TColumnSchema], deepcopy(expected))
     if backend == "sqlalchemy":
         expected = remove_timestamp_precision(expected)
         actual = remove_dlt_columns(actual)
-    if backend == "pyarrow":
+    elif backend == "pyarrow":
         expected = add_default_decimal_precision(expected)
-    if backend == "pandas":
+    elif backend == "pandas":
         expected = remove_timestamp_precision(expected, with_timestamps=False)
-    if backend == "connectorx":
+    elif backend == "connectorx":
         # connector x emits 32 precision which gets merged with sql alchemy schema
-        del columns["int_col"]["precision"]
+        del actual[0]["precision"]
     assert actual == expected
 
 
 def assert_no_precision_columns(
     columns: TTableSchemaColumns, backend: TableBackend, nullable: bool
 ) -> None:
-    actual = list(columns.values())
+    actual = deepcopy(list(columns.values()))
     # we always infer and emit nullability
     expected = deepcopy(NULL_NO_PRECISION_COLUMNS if nullable else NOT_NULL_NO_PRECISION_COLUMNS)
     if backend == "pyarrow":
@@ -1454,34 +1463,19 @@ def assert_no_precision_columns(
         expected = add_default_decimal_precision(expected)
     elif backend == "sqlalchemy":
         # no precision, no nullability, all hints inferred
+        expected = remove_default_precision(expected)
         # remove dlt columns
         actual = remove_dlt_columns(actual)
     elif backend == "pandas":
-        # no precision, no nullability, all hints inferred
-        # pandas destroys decimals
-        expected = convert_non_pandas_types(expected)
-        # on one of the timestamps somehow there is timezone info..., we only remove values set to false
-        # to be sure no bad data is coming in
-        actual = remove_timezone_info(actual, only_falsy=True)
+        pass
     elif backend == "connectorx":
         expected = cast(
             List[TColumnSchema],
             deepcopy(NULL_PRECISION_COLUMNS if nullable else NOT_NULL_PRECISION_COLUMNS),
         )
         expected = convert_connectorx_types(expected)
-        expected = remove_timezone_info(expected, only_falsy=False)
-        # on one of the timestamps somehow there is timezone info..., we only remove values set to false
-        # to be sure no bad data is coming in
-        actual = remove_timezone_info(actual, only_falsy=True)
 
     assert actual == expected
-
-
-def convert_non_pandas_types(columns: List[TColumnSchema]) -> List[TColumnSchema]:
-    for column in columns:
-        if column["data_type"] == "timestamp":
-            column["precision"] = 6
-    return columns
 
 
 def remove_dlt_columns(columns: List[TColumnSchema]) -> List[TColumnSchema]:
@@ -1494,7 +1488,9 @@ def remove_default_precision(columns: List[TColumnSchema]) -> List[TColumnSchema
             del column["precision"]
         if column["data_type"] == "text" and column.get("precision"):
             del column["precision"]
-    return remove_timezone_info(columns, only_falsy=False)
+        if column["data_type"] == "timestamp" and column.get("precision") == 6:
+            del column["precision"]
+    return columns
 
 
 def remove_timezone_info(columns: List[TColumnSchema], only_falsy: bool) -> List[TColumnSchema]:
@@ -1510,9 +1506,9 @@ def remove_timestamp_precision(
     columns: List[TColumnSchema], with_timestamps: bool = True
 ) -> List[TColumnSchema]:
     for column in columns:
-        if column["data_type"] == "timestamp" and column["precision"] == 6 and with_timestamps:
+        if column["data_type"] == "timestamp" and column.get("precision") == 6 and with_timestamps:
             del column["precision"]
-        if column["data_type"] == "time" and column["precision"] == 6:
+        if column["data_type"] == "time" and column.get("precision") == 6:
             del column["precision"]
     return columns
 
@@ -1525,6 +1521,8 @@ def convert_connectorx_types(columns: List[TColumnSchema]) -> List[TColumnSchema
         if column["data_type"] == "bigint":
             if column["name"] == "int_col":
                 column["precision"] = 32  # only int and bigint in connectorx
+            elif column["name"] == "smallint_col":
+                column["precision"] = 16  # only int and bigint in connectorx
         if column["data_type"] == "text" and column.get("precision"):
             del column["precision"]
     return columns
@@ -1571,8 +1569,8 @@ PRECISION_COLUMNS: List[TColumnSchema] = [
         "data_type": "text",
         "name": "string_default_col",
     },
-    {"data_type": "timestamp", "precision": 6, "name": "datetime_tz_col", "timezone": True},
-    {"data_type": "timestamp", "precision": 6, "name": "datetime_ntz_col", "timezone": False},
+    {"data_type": "timestamp", "name": "datetime_tz_col", "timezone": True},
+    {"data_type": "timestamp", "name": "datetime_ntz_col", "timezone": False},
     {
         "data_type": "date",
         "name": "date_col",
@@ -1580,7 +1578,6 @@ PRECISION_COLUMNS: List[TColumnSchema] = [
     {
         "data_type": "time",
         "name": "time_col",
-        "precision": 6,
     },
     {
         "data_type": "double",
@@ -1613,7 +1610,7 @@ NULL_PRECISION_COLUMNS: List[TColumnSchema] = [
 NO_PRECISION_COLUMNS: List[TColumnSchema] = [
     (
         {"name": column["name"], "data_type": column["data_type"]}  # type: ignore[misc]
-        if column["data_type"] != "decimal"
+        if column["data_type"] not in ("decimal", "timestamp")
         else dict(column)
     )
     for column in PRECISION_COLUMNS

@@ -43,6 +43,13 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2019-latest
+        env:
+          SA_PASSWORD: Strong!Passw0rd
+          ACCEPT_EULA: 'Y'
+        ports:
+          - 1433:1433
 
     steps:
       - name: Check out
@@ -51,18 +58,19 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.10"
+          python-version: "3.11"
           activate-environment: true
           enable-cache: true
 
-      # TODO: which deps should we enable?
       - name: Install dependencies
-        run: uv sync --extra postgres --extra postgis --extra duckdb --extra parquet --extra filesystem --extra cli --extra sql_database --group sentry-sdk --group pipeline --group sources --group adbc
+        run: |
+          sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18
+          uv sync --extra postgres --extra postgis --extra duckdb --extra parquet --extra filesystem --extra cli --extra sql_database --extra mssql --group sentry-sdk --group pipeline --group sources --group adbc
 
       - name: Copy secrets for local tests
         run: |

@@ -16,7 +16,7 @@ from dlt.common.reflection.utils import get_module_docstring
 from dlt.cli import utils
 from dlt.cli.requirements import SourceRequirements
 
-TSourceType = Literal["core", "verified", "template"]
+TSourceType = Literal["core", "verified", "template", "vibe"]
 
 SOURCES_INIT_INFO_ENGINE_VERSION = 1
 
@@ -169,8 +169,15 @@ def get_remote_source_index(
 def get_sources_names(sources_storage: FileStorage, source_type: TSourceType) -> List[str]:
     candidates: List[str] = []
 
+    # for vibe sources, we just find all directories, except for hidden ones (.git)
+    if source_type == "vibe":
+        candidates = [
+            name
+            for name in sources_storage.list_folder_dirs(".", to_root=False)
+            if not name.startswith(".")
+        ]
     # for the templates we just find all the filenames
-    if source_type == "template":
+    elif source_type == "template":
         for name in sources_storage.list_folder_files(".", to_root=False):
             if name.endswith(PIPELINE_FILE_SUFFIX):
                 candidates.append(name.replace(PIPELINE_FILE_SUFFIX, ""))

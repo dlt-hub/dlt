@@ -1,6 +1,6 @@
 from typing import cast, Any
 
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
 from dlt.common.destination import TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase
 from dlt.common.schema import Schema
@@ -22,6 +22,7 @@ from dlt.destinations.impl.synapse.configuration import SynapseClientConfigurati
 try:
     import ibis
     import sqlglot
+    import sqlglot.expressions as sge
     from ibis import BaseBackend, Expr, Table
     import ibis.backends.sql.compilers as sc
     from ibis.backends.sql.compilers.base import SQLGlotCompiler
@@ -46,7 +47,7 @@ DATA_TYPE_MAP = {
 
 
 def create_ibis_backend(
-    destination: TDestinationReferenceArg, client: JobClientBase
+    destination: TDestinationReferenceArg, client: JobClientBase, read_only: bool = False
 ) -> BaseBackend:
     """Create a given ibis backend for a destination client and dataset."""
 
@@ -61,6 +62,8 @@ def create_ibis_backend(
         import duckdb
 
         assert isinstance(client, DuckDbClient)
+        # always open in read only mode
+        client.config.credentials.read_only = read_only
         # open connection, apply all settings and pragmas
         duck_conn = client.config.credentials.borrow_conn()
         # move main connection ownership to ibis
@@ -69,7 +72,7 @@ def create_ibis_backend(
 
         # make sure we can access tables from current dataset without qualification
         dataset_name = client.sql_client.fully_qualified_dataset_name()
-        con.raw_sql(f"SET search_path = '{dataset_name}';")
+        con.raw_sql(f"SET search_path = '{dataset_name}'")
     elif issubclass(destination.spec, PostgresClientConfiguration):
         from dlt.destinations.impl.postgres.postgres import PostgresClient
         from dlt.destinations.impl.redshift.redshift import RedshiftClient
@@ -214,28 +217,52 @@ def create_unbound_ibis_table(schema: Schema, dataset_name: str, table_name: str
     return unbound_table
 
 
-def get_compiler_for_dialect(dialect: TSqlGlotDialect) -> SQLGlotCompiler:
+def _get_ibis_to_sqlglot_compiler(dialect: TSqlGlotDialect) -> SQLGlotCompiler:
     """Get the compiler for a given dialect."""
-
-    ibis_dialect: str = dialect
-    if dialect == "tsql":
-        ibis_dialect = "mssql"
-    if dialect == "redshift":
-        ibis_dialect = "postgres"
-
-    try:
-        compiler_provider = getattr(sc, ibis_dialect)
-    except AttributeError:
-        # default is duckdb
-        compiler_provider = sc.duckdb
-
-    if (compiler := getattr(compiler_provider, "compiler", None)) is None:
-        raise NotImplementedError(f"{compiler_provider} is not a SQL backend")
+    if dialect == "athena":
+        compiler = sc.AthenaCompiler()
+    elif dialect == "bigquery":
+        compiler = sc.BigQueryCompiler()
+    elif dialect == "clickhouse":
+        compiler = sc.ClickHouseCompiler()
+    elif dialect == "databricks":
+        compiler = sc.DatabricksCompiler()
+    elif dialect == "druid":
+        compiler = sc.DruidCompiler()
+    elif dialect == "duckdb":
+        compiler = sc.DuckDBCompiler()
+    elif dialect == "mysql":
+        compiler = sc.MySQLCompiler()
+    elif dialect == "oracle":
+        compiler = sc.OracleCompiler()
+    elif dialect == "postgres":
+        compiler = sc.PostgresCompiler()
+    elif dialect == "presto":
+        compiler = sc.TrinoCompiler()
+    elif dialect == "redshift":
+        compiler = sc.PostgresCompiler()
+    elif dialect == "risingwave":
+        compiler = sc.RisingWaveCompiler()
+    elif dialect == "snowflake":
+        compiler = sc.SnowflakeCompiler()
+    # NOTE I'm unsure if both `spark` and `spark2` are supported by the same compiler
+    elif dialect == "spark":
+        compiler = sc.PySparkCompiler()
+    elif dialect == "spark2":
+        compiler = sc.PySparkCompiler()
+    elif dialect == "sqlite":
+        compiler = sc.SQLiteCompiler()
+    elif dialect == "trino":
+        compiler = sc.TrinoCompiler()
+    elif dialect == "tsql":
+        compiler = sc.MSSQLCompiler()
+    else:
+        compiler = sc.DuckDBCompiler()
 
     return compiler
 
 
-def compile_ibis_to_sqlglot(ibis_expr: Expr, dialect: TSqlGlotDialect) -> sqlglot.expressions.Query:
+def compile_ibis_to_sqlglot(ibis_expr: Expr, dialect: TSqlGlotDialect) -> sge.Query:
     """Compile an ibis expression to a sqlglot query."""
-    compiler = get_compiler_for_dialect(dialect)
-    return cast(sqlglot.expressions.Query, compiler.to_sqlglot(ibis_expr))
+    compiler = _get_ibis_to_sqlglot_compiler(dialect)
+    return cast(sge.Query, compiler.to_sqlglot(ibis_expr))

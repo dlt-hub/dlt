@@ -52,11 +52,12 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.storages.load_storage import LoadPackageInfo
-from dlt.common.time import ensure_pendulum_datetime, precise_time
+from dlt.common.time import ensure_pendulum_datetime_utc, precise_time
 from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize, TColumnNames
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.utils import RowCounts, merge_row_counts
 from dlt.common.versioned_state import TVersionedState
+from dlt.common.runtime.collector_base import Collector
 
 
 # TRefreshMode = Literal["full", "replace"]
@@ -417,8 +418,8 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
             f"Current load id mismatch {self._current_load_id} != {load_id} when completing step"
             " info"
         )
-        metrics["started_at"] = ensure_pendulum_datetime(self._current_load_started)
-        metrics["finished_at"] = ensure_pendulum_datetime(precise_time())
+        metrics["started_at"] = ensure_pendulum_datetime_utc(self._current_load_started)
+        metrics["finished_at"] = ensure_pendulum_datetime_utc(precise_time())
         self._load_id_metrics[load_id].append(metrics)
         self._current_load_id = None
         self._current_load_started = None
@@ -512,6 +513,8 @@ class SupportsPipeline(Protocol):
     """Indicates a first run of the pipeline, where run ends with successful loading of the data"""
     last_run_context: TLastRunContext
     """Stores last "good" run context, where run ends with successful loading of the data"""
+    collector: Collector
+    """A collector that tracks the progress of the pipeline"""
 
     @property
     def state(self) -> TPipelineState:

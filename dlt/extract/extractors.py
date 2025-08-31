@@ -5,7 +5,10 @@ from typing import Set, Dict, Any, Optional, List, Union
 from dlt.common.configuration import known_sections, resolve_configuration, with_config
 from dlt.common import logger, json
 from dlt.common.configuration.specs import BaseConfiguration, configspec
-from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.destination.capabilities import (
+    DestinationCapabilitiesContext,
+    adjust_schema_to_capabilities,
+)
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
@@ -440,7 +443,6 @@ class ArrowExtractor(Extractor):
     def _compute_tables(
         self, resource: DltResource, items: TDataItems, meta: Any
     ) -> List[TPartialTableSchema]:
-        # arrow_table: TTableSchema = None
         arrow_tables: Dict[str, TTableSchema] = {}
 
         if isinstance(items, list):
@@ -461,12 +463,18 @@ class ArrowExtractor(Extractor):
                 else:
                     arrow_table = copy(computed_table)
                 try:
-                    arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(
-                        item.schema, self._caps
+                    # generate dlt schema from arrow schema and adjust to capabilities
+                    # drop timezones and honor only explicit settings like the regular normalizer
+                    arrow_table["columns"] = adjust_schema_to_capabilities(
+                        pyarrow.py_arrow_to_table_schema_columns(item.schema),
+                        self._caps,
                     )
                 except pyarrow.UnsupportedArrowTypeException as e:
                     e.table_name = str(arrow_table.get("name"))
                     raise
+
+                # normalize arrow table before merging
+                arrow_table = utils.normalize_table_identifiers(arrow_table, self.schema.naming)
 
                 # Add load_id column if needed
                 dlt_load_id = self.naming.normalize_identifier(C_DLT_LOAD_ID)
@@ -475,10 +483,12 @@ class ArrowExtractor(Extractor):
                     and dlt_load_id not in arrow_table["columns"]
                 ):
                     # will be normalized line below
-                    arrow_table["columns"][C_DLT_LOAD_ID] = utils.dlt_load_id_column()
+                    logger.debug(
+                        f"Arrow Extractor added `{dlt_load_id}` to table `{arrow_table['name']}`"
+                        " due to parquet normalizer config"
+                    )
+                    arrow_table["columns"][dlt_load_id] = utils.dlt_load_id_column()
 
-                # normalize arrow table before merging
-                arrow_table = utils.normalize_table_identifiers(arrow_table, self.schema.naming)
                 # issue warnings when overriding computed with arrow
                 override_warn: bool = False
                 for col_name, column in arrow_table["columns"].items():

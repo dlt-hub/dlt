@@ -38,7 +38,12 @@ class RunContextTest(RunContext):
 
 
 @plugins.hookimpl(specname="plug_run_context")
-def plug_run_context_impl(run_dir: Optional[str], **kwargs: Any) -> SupportsRunContext:
+def plug_run_context_impl(
+    run_dir: Optional[str], runtime_kwargs: Optional[Dict[str, Any]]
+) -> Optional[SupportsRunContext]:
+    # test fallback to OSS
+    if (runtime_kwargs or {}).get("passthrough"):
+        return None
     return RunContextTest(run_dir)
 
 

@@ -20,7 +20,7 @@ Before you begin, ensure the following requirements are met:
 Additionally, install the required Python packages:
 
 ```sh
-pip install pandas numpy pyarrow streamlit dlt[duckdb] uv
+pip install pandas numpy pyarrow marimo dlt[duckdb] uv
 ```
 
 

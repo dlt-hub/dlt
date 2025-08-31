@@ -37,26 +37,51 @@ The main component of a dlt+ Project is the dlt manifest file (`dlt.yml`). It ma
 ### Sources
 
 This section lets you define sources either declaratively or by referencing an implementation from a Python module inside `sources/`. In the example below, two sources are declared:
-1. a dlt REST API source whose parameters are passed within the manifest
-2. a GitHub source defined in a function `source` whose source code inside `sources/github.py` is referenced
+1. a GitHub source defined in a function `source` whose source code inside `sources/github.py` is referenced
+2. a dlt REST API source whose parameters are passed within the manifest
 
 ```yaml
 sources:
-  pokemon:
+  github:
+    type: github.github_reactions
+
+  pokemon_api:
     type: rest_api
     client:
       base_url: https://pokeapi.co/api/v2/
-    resource_defaults:
-      endpoint:
-        params:
-          limit: 1000
+      paginator: auto
+      
     resources:
-      - pokemon
-      - berry
+      - name: pokemon
+        primary_key: name
+      - name: berry
+        primary_key: name
+      - name: encounter_conditions
+        primary_key: name
+        endpoint:
+          path: encounter-condition
+          params:
+            offset:
+              type: incremental
+              cursor_path: name
+        write_disposition: append
+     
 
-  github:
-    type: github.source
 ```
+
+* `type: rest_api` specifies the use of the built-in REST API source.
+* `client.base_url` sets the root URL for all API requests.
+* `paginator: auto` enables automatic detection and handling of pagination.
+* `resource_defaults`: Contains the default values to configure the dlt resources. This configuration is applied to all resources unless overridden by the resource-specific configuration.
+* Each item in `resources`defines an endpoint to extract. Simple entries like `pokemon`and `berry`will fetch from `/pokemon` and `/berry`, respectively.
+* The `encounter-condition` resource uses an advanced configuration:
+  * `path`: Point to the `/encounter-condition`endpoint.
+  * `params.offset`: Enables incremental loading using the `name` field as the cursor.
+  * `write_disposition`: append ensures new data is appended rather than overwriting previous loads.
+
+This setup provides a flexible, zero-code way to work with REST APIs and manage data extraction across multiple endpoints in a single source block.
+
+
 :::tip
 Source **type** is used to refer to the location in Python code where the `@dlt.source` decorated function is present. You can
 always use a full path to a function name in a Python module, but we also support shorthand and relative notations. For example:
@@ -66,6 +91,8 @@ always use a full path to a function name in a Python module, but we also suppor
 If the **type** cannot be resolved, dlt+ will provide you with a detailed list of all candidate types that were looked up
 so you can make required corrections.
 :::
+
+
 
 ### Destinations
 
@@ -154,6 +181,28 @@ profiles:
         type: delta
         bucket_url: s3://dlt-ci-test-bucket/dlt_example_project/
 ```
+
+### Run Configurations
+
+For each pipeline, you can use the `run_config` section to define what happens when the pipeline is run from
+the command line with `dlt pipeline <pipeline_name> run`.
+
+```yaml
+pipelines:
+  my_pipeline:
+    source: my_source
+    destination: duckdb
+    dataset_name: my_dataset
+    run_config:
+      run_from_clean_folder: true
+      store_trace_info: true
+      retry_policy:
+        type: fixed
+        max_attempts: 3
+      retry_pipeline_steps: ["load"]
+```
+
+Read more about these options [here](../production/pipeline-runner.md).
 
 ### Project settings and variable substitution
 
@@ -337,9 +386,10 @@ transformation = entities.get_transformation("stressed_transformation")
 ```
 Here, we access the entities manager, which allows you to create sources, destinations, pipelines, and other objects.
 
-### Running pipelines with the runner
+### Running pipelines
 
-`dlt+` includes a pipeline runner, which is the same one used when you run pipelines from the CLI.
+`dlt+` includes a project runner which will instantiate pipelines from the `dlt.yml` file
+and run them with the [pipeline runner](../production/pipeline-runner.md), which is exactly the same as using the [pipeline run](../reference#dlt-pipeline-run) command of the CLI.
 You can also use it directly in your code through the project context:
 
 ```py

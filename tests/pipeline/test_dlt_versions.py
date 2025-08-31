@@ -1,3 +1,5 @@
+import os
+from typing import List
 import sys
 from subprocess import CalledProcessError
 import pytest
@@ -24,10 +26,13 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.destinations import duckdb, filesystem
+from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
+from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
+from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
 
-from tests.pipeline.utils import airtable_emojis, load_table_counts
+from tests.pipeline.utils import airtable_emojis, load_table_counts, assert_load_info
 from tests.utils import TEST_STORAGE_ROOT
 
 
@@ -229,6 +234,97 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                     GITHUB_PIPELINE_NAME, destination=duckdb(credentials=duckdb_cfg.credentials)
                 )
                 assert_github_pipeline_end_state(pipeline, github_schema, 2)
+
+
+@pytest.mark.parametrize(
+    "initially_compressed", (True, False), ids=("initially_compressed", "initially_uncompressed")
+)
+def test_filesystem_with_gzip_extension_update(
+    initially_compressed: bool, test_storage: FileStorage
+) -> None:
+    shutil.copytree("tests/pipeline/cases/github_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True)
+
+    def assert_no_gz_files(table_names: List[str]) -> None:
+        """
+        Asserts that none of the files for the given table names have a '.gz' extension.
+        Additionally, verifies whether each file is actually gzip-compressed based on
+        the `initially_compressed` flag.
+        """
+        for table_name in table_names:
+            table_path = os.path.join("_storage/data/github_3/", table_name)
+            files = test_storage.list_folder_files(table_path)
+            for file in files:
+                assert not file.endswith(".gz")
+                if initially_compressed:
+                    assert test_storage.is_gzipped(file)
+                else:
+                    assert not test_storage.is_gzipped(file)
+
+    # execute in test storage
+    with set_working_dir(TEST_STORAGE_ROOT):
+        # store dlt data in test storage (like patch_home_dir)
+        with custom_environ(
+            {
+                DLT_DATA_DIR: dlt.current.run_context().data_dir,
+                "DATA_WRITER__DISABLE_COMPRESSION": str(not initially_compressed),
+            }
+        ):
+            # create virtual env with (1.14.0) where compressed files did not receive the .gz extension
+            with Venv.create(tempfile.mkdtemp(), ["dlt==1.14.0"]) as venv:
+                try:
+                    venv.run_script("github_pipeline.py", "filesystem", "20")
+                    # sanity check that indeed there are no .gz extensions with version 1.14.0
+                    assert_no_gz_files(["issues", "issues__assignees", "issues__labels"])
+
+                except CalledProcessError as cpe:
+                    print(f"script stdout: {cpe.stdout}")
+                    print(f"script stderr: {cpe.stderr}")
+                    raise
+
+            # rerun the pipeline with the current dlt version
+            venv = Venv.restore_current()
+            venv.run_script("github_pipeline.py", "filesystem", "20")
+            # ensure .gz extensions is still not added
+            assert_no_gz_files(["issues", "issues__assignees", "issues__labels"])
+
+            pipeline = dlt.attach(GITHUB_PIPELINE_NAME, destination=filesystem("_storage/data"))
+
+            # ensure duckdb reader handles compressed files without .gz extension
+            with pipeline.sql_client() as sql_client:
+                with sql_client.execute_query("SELECT * FROM issues") as curr:
+                    assert 40 == len(curr.df())
+
+            # ensure storage version 1, aka, the legacy version where .gz is not added
+            with pipeline.destination_client() as client:
+                assert isinstance(client, FilesystemClient)
+                # Migration should've happened
+                assert client.storage_versions[0] == 1
+                assert client.storage_versions[1] == 2
+
+            # load jsonl data
+            @dlt.resource
+            def jsonl_data(file_format="jsonl"):
+                yield [
+                    {"id": 1, "name": "Dawei"},
+                    {"id": 2, "name": "Xiaoyun"},
+                ]
+
+            # load csv data
+            @dlt.resource(file_format="csv")
+            def csv_data():
+                yield {"id": 2, "name": "Xiaoyun"}
+
+            load_info = pipeline.run([jsonl_data(), csv_data()])
+            assert_load_info(load_info)
+            # ensure .gz extensions is still not added
+            assert_no_gz_files(["jsonl_data", "csv_data"])
+
+            # ensure duckdb reader works as well
+            with pipeline.sql_client() as sql_client:
+                with sql_client.execute_query("SELECT * FROM jsonl_data") as curr:
+                    assert 2 == len(curr.df())
+                with sql_client.execute_query("SELECT * FROM csv_data") as curr:
+                    assert 1 == len(curr.df())
 
 
 def test_filesystem_pipeline_with_dlt_update(test_storage: FileStorage) -> None:

@@ -5,13 +5,13 @@ import dlt
 from dlt.sources.sql_database import sql_table
 from dlt.sources.sql_database.helpers import TableBackend
 
-from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
+from tests.load.sources.sql_database.postgres_source import PostgresSourceDB
 from tests.pipeline.utils import load_table_counts
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow"])
 def test_load_sql_table_resource_incremental_end_value(
-    sql_source_db: SQLAlchemySourceDB,
+    sql_source_db: PostgresSourceDB,
     backend: TableBackend,
 ) -> None:
     conn_str = sql_source_db.credentials.to_native_representation()
@@ -95,7 +95,7 @@ def test_load_sql_table_resource_incremental_end_value(
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow"])
 def test_load_sql_table_split_loading(
-    sql_source_db: SQLAlchemySourceDB,
+    sql_source_db: PostgresSourceDB,
     backend: TableBackend,
 ) -> None:
     conn_str = sql_source_db.credentials.to_native_representation()

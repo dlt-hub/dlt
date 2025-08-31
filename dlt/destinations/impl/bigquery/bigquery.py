@@ -23,6 +23,7 @@ from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import get_inherited_table_hint, get_columns_names_with_prop
 from dlt.common.storages.load_package import destination_state
+from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.typing import DictStrAny
 from dlt.destinations.exceptions import (
     DatabaseTransientException,
@@ -155,7 +156,7 @@ class BigQueryMergeJob(SqlMergeFollowupJob):
         for table in table_chain:
             if should_autodetect_schema(table):
                 table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
-                sql.append(f"CREATE TABLE IF NOT EXISTS {table_name} LIKE {staging_table_name};")
+                sql.append(f"CREATE TABLE IF NOT EXISTS {table_name} LIKE {staging_table_name}")
         return sql
 
     @classmethod
@@ -228,9 +229,10 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
                         " `write_disposition='append'`. Resource received"
                         f" `write_disposition={table['write_disposition']}`"
                     )
-                if file_path.endswith(".jsonl"):
+                parsed_file = ParsedLoadJobFileName.parse(file_path)
+                if parsed_file.file_format in ["jsonl", "typed-jsonl"]:
                     job_cls = DestinationJsonlLoadJob
-                elif file_path.endswith(".parquet"):
+                elif parsed_file.file_format == "parquet":
                     job_cls = DestinationParquetLoadJob  # type: ignore
                 else:
                     raise ValueError(
@@ -449,7 +451,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
             # placeholder for each table
             table_placeholders = ",".join(["%s"] * len(folded_table_names))
             query += f"WHERE table_name IN ({table_placeholders}) "
-        query += "ORDER BY table_name, ordinal_position;"
+        query += "ORDER BY table_name, ordinal_position"
 
         return query, folded_table_names
 

@@ -34,10 +34,11 @@ from dlt.extract.exceptions import (
     InvalidTransformerGeneratorFunction,
     ParametrizedResourceUnbound,
     ResourceNotATransformer,
+    ResourceNotFoundError,
     ResourcesNotFoundError,
 )
 from dlt.extract.pipe import Pipe
-from dlt.extract.utils import make_schema_with_default_name
+from dlt.extract.utils import dynstr, make_schema_with_default_name
 
 
 @pytest.fixture(autouse=True)
@@ -209,20 +210,36 @@ def test_parametrized_transformer() -> None:
     # parameters passed as args
     r = dlt.resource(["itemX", "itemY"], name="items")
     t = dlt.transformer(data_from=r)(good_transformer)
+    # match parent
+    assert id(t._parent) == id(r)
     items = list(t("p1", 2))
     assert_items(items)
 
+    # as part of a source
+    s = DltSource(Schema("source"), "module", [r, t])
+    # name and instance is matching
+    assert s.items.name == s.good_transformer._parent.name
+    assert id(s.items) == id(s.good_transformer._parent)
+    # pipe ids are matching
+    assert s.items._pipe.instance_id == s.good_transformer._parent._pipe.instance_id
+    # instances must be consistent
+    assert id(s.items._pipe) == id(s.good_transformer._parent._pipe)
+    assert id(s.items._pipe) == id(s.good_transformer._pipe.parent)
 
-def test_resource_bind_when_in_source() -> None:
+
+def test_resource_bind_to_params_when_in_source() -> None:
     @dlt.resource
     def parametrized(_range: int):
         yield list(range(_range))
 
-    # binding the resource creates new instance
+    # calling the resource creates new instance
     r1 = parametrized(6)
     r2 = parametrized(7)
     assert r1 is not r2 is not parametrized
     assert r1.source_name is r2.source_name is None
+    # pipes got cloned and instance id changed when resource is cloned
+    assert r1._pipe is not r2._pipe is not parametrized._pipe
+    assert r1._pipe.instance_id != r2._pipe.instance_id != parametrized._pipe.instance_id
 
     # add parametrized to source
     @dlt.source
@@ -231,17 +248,25 @@ def test_resource_bind_when_in_source() -> None:
 
     s = test_source()
     # we cloned the instance
-    assert s.resources["parametrized"] is not parametrized
-    assert s.resources["parametrized"].source_name == "test_source"
     cloned_r = s.resources["parametrized"]
+    assert cloned_r is not parametrized
+    assert cloned_r.source_name == "test_source"
+    # original pipe id is kept when adding to sources
+    assert cloned_r._pipe.instance_id == parametrized._pipe.instance_id
+
     # calling resources always create a copy
     cr_1 = cloned_r(10)
     # does not have source_name set
     assert cr_1.source_name is None
     # different instance
     assert cloned_r is not cr_1
+    assert cloned_r._pipe.instance_id == parametrized._pipe.instance_id
+
     # call bind directly to replace resource in place
-    s.parametrized.bind(10)
+    bound_r = s.parametrized.bind(10)
+    # does not clone
+    assert bound_r._pipe is cloned_r._pipe
+
     # will raise
     with pytest.raises(TypeError):
         # already bound
@@ -249,7 +274,7 @@ def test_resource_bind_when_in_source() -> None:
     assert list(s) == list(range(10))
 
 
-def test_resource_bind_call_forms() -> None:
+def test_resource_bind_to_params_call_forms() -> None:
     @dlt.resource
     def returns_res(_input):
         # resource returning
@@ -273,7 +298,9 @@ def test_resource_bind_call_forms() -> None:
     assert list(b_regular) == ["A", "A"]
     # resource is different instance
     assert regular is not b_regular
+    # pipe got cloned and instance id changed
     assert regular._pipe is not b_regular._pipe
+    assert regular._pipe.instance_id != b_regular._pipe.instance_id
 
     returns_res.add_filter(lambda x: x == "A")
     assert len(returns_res._pipe) == 2
@@ -297,6 +324,8 @@ def test_resource_bind_call_forms() -> None:
     # clone of resource in the source, including pipe
     assert s.regular is not regular
     assert s.regular._pipe is not regular._pipe
+    # instance id is kept when adding to source
+    assert s.regular._pipe.instance_id == regular._pipe.instance_id
 
     # will repeat each string 3 times
     s.regular.add_map(lambda i: i * 3)
@@ -304,10 +333,13 @@ def test_resource_bind_call_forms() -> None:
     assert len(s.regular._pipe) == 3
 
     # call
+    regular_pipe = s.regular._pipe
     assert list(s.regular(["A", "A", "B", "B"])) == ["AAA", "AAA"]
+    assert s.regular._pipe is regular_pipe
     # bind
     s.regular.bind([["A"], ["A"], ["B", "A"], ["B", "C"]])
     assert list(s.regular) == ["AAA", "AAA", "AAA"]
+    assert s.regular._pipe is regular_pipe
 
     s.returns_res.add_map(lambda i: i * 3)
     s.returns_res.bind(["X", "Y", "Z", "A"])
@@ -344,6 +376,23 @@ def test_call_clone_separate_pipe() -> None:
     # both should be extracted. what we test here is the combination of binding the resource by calling it that clones the internal pipe
     # and then creating a source with both clones. if we keep same pipe id when cloning on call, a single pipe would be created shared by two resources
     assert all_yields == ["state1", "state2"]
+
+
+def test_call_dynstr_resource_rename() -> None:
+    @dlt.resource(name=lambda args: args["table"])
+    def get_table(table):
+        yield {"table": table, "value": [1, 2, 3]}
+
+    assert isinstance(get_table.name, dynstr)
+    assert get_table.name == "get_table"
+
+    # binding to args will set the resource name
+    users_table = get_table("users")
+    assert users_table.name == "users"
+    assert not isinstance(users_table.name, dynstr)
+    # pipe cloned
+    assert users_table._pipe is not get_table._pipe
+    assert users_table._pipe.instance_id != get_table._pipe.instance_id
 
 
 def test_resource_bind_lazy_eval() -> None:
@@ -480,8 +529,9 @@ def test_clone_source() -> None:
         # resource is a clone
         assert s.resources[name] is not clone_s.resources[name]
         assert s.resources[name]._pipe is not clone_s.resources[name]._pipe
-        # but we keep pipe names
+        # but we keep pipe names and instance ids
         assert s.resources[name].name == clone_s.resources[name].name
+        assert s.resources[name]._pipe.instance_id == clone_s.resources[name]._pipe.instance_id
 
     assert list(s) == ["", "A", "AA", "AAA"]
     # we expired generators
@@ -499,8 +549,8 @@ def test_clone_source() -> None:
 
     s = test_source(4)
     clone_s = s.clone()
-    # bind resources
     for idx, name in enumerate(all_resource_names):
+        # bind resources
         s.resources[name].bind(idx)
         clone_s.resources[name].bind(idx)
 
@@ -509,7 +559,7 @@ def test_clone_source() -> None:
     assert list(clone_s) == ["", "A", "AA", "AAA"]
 
 
-def test_multiple_parametrized_transformers() -> None:
+def test_multiple_parametrized_transformers_in_source() -> None:
     @dlt.source
     def _source(test_set: int = 1):
         @dlt.resource(selected=False)
@@ -524,6 +574,8 @@ def test_multiple_parametrized_transformers() -> None:
         def _t2(items, mul):
             yield items * mul
 
+        assert _t2._parent is _t1
+
         if test_set == 1:
             return _r1, _t1, _t2
         if test_set == 2:
@@ -534,13 +586,30 @@ def test_multiple_parametrized_transformers() -> None:
         if test_set == 4:
             # true pipelining fun
             return _r1() | _t1("2") | _t2(2)
+        if test_set == 5:
+            # ad hoc resource
+            return ["a", "b", "c"] | _t1("2") | _t2(2)
+        if test_set == 6:
+            partial_pipe = _t1("2")
+            # emulate manually created pipe with parents
+            partial_pipe._pipe.parent = Pipe.from_data("ersatz", ["a", "b", "c"])
+            partial_pipe._parent = None
+            return partial_pipe | _t2(2)
 
     expected_data = ["a_2", "b_2", "c_2", "a_2", "b_2", "c_2"]
+
+    def _assert_valid_clone(s_: DltSource) -> None:
+        # clone s with name and let internal validation to do asserts
+        cloned_s = s_.clone("cloned_s")
+        assert len(cloned_s.resources.extracted) == len(s_.resources.extracted)
+        assert list(cloned_s.resources._cloned_pairs.keys()) == list(
+            s_.resources._cloned_pairs.keys()
+        )
 
     # this s contains all resources
     s = _source(1)
     # all resources will be extracted (even if just the _t2 is selected)
-    assert set(s.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
+    assert sorted([r.name for r in s.resources.extracted]) == sorted(["_t2", "_r1", "_t1"])
     assert set(s.resources.selected_dag) == {("_r1", "_t1"), ("_t1", "_t2")}
     components = s.decompose("scc")
     # only one isolated component
@@ -552,23 +621,25 @@ def test_multiple_parametrized_transformers() -> None:
     s.resources["_t1"].bind("2")
     s._t2.bind(2)
     assert list(s) == expected_data
-    assert set(s.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
+    assert sorted([r.name for r in s.resources.extracted]) == sorted(["_t2", "_r1", "_t1"])
     # deselect _t2 and now nothing is selected
     s._t2.selected = False
-    assert set(s.resources.extracted.keys()) == set()
+    assert [r.name for r in s.resources.extracted] == []
     assert set(s.resources.selected_dag) == set()
     assert s.decompose("scc") == []
 
     s._r1.selected = True
     # now only _r1
-    assert set(s.resources.extracted.keys()) == {"_r1"}
+    assert sorted([r.name for r in s.resources.extracted]) == ["_r1"]
     assert set(s.resources.selected_dag) == {("_r1", "_r1")}
     assert set(s.decompose("scc")[0].selected_resources.keys()) == {"_r1"}
+
+    _assert_valid_clone(s)
 
     # this s contains only transformers
     s2 = _source(2)
     # the _r will be extracted but it is not in the resources list so we create a mock resource for it
-    assert set(s2.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
+    assert sorted([r.name for r in s2.resources.extracted]) == sorted(["_t2", "_r1", "_t1"])
     s2._t1.bind("2")
     s2._t2.bind(2)
     assert list(s2) == expected_data
@@ -579,18 +650,47 @@ def test_multiple_parametrized_transformers() -> None:
     s2._t1.selected = True
     assert set(s2.decompose("scc")[0].selected_resources.keys()) == {"_t2", "_t1"}
 
+    _assert_valid_clone(s2)
+
     s3 = _source(3)
     # here _t1 and _r1 are not in the source
-    assert set(s3.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
+    assert sorted([r.name for r in s3.resources.extracted]) == sorted(["_t2", "_r1", "_t1"])
     s3._t2.bind(2)
     assert list(s3) == expected_data
     assert set(s3.resources.selected_dag) == {("_r1", "_t1"), ("_t1", "_t2")}
 
+    _assert_valid_clone(s3)
+
     s4 = _source(4)
     # here we return a pipe
-    assert set(s4.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
+    assert sorted([r.name for r in s4.resources.extracted]) == sorted(["_t2", "_r1", "_t1"])
     assert list(s4) == expected_data
     assert set(s4.resources.selected_dag) == {("_r1", "_t1"), ("_t1", "_t2")}
+
+    _assert_valid_clone(s4)
+
+    s5 = _source(5)
+    # get auto resource name for piped in list
+    iter_resource = s5._t2._parent._pipe.parent.name
+    assert sorted([r.name for r in s5.resources.extracted]) == sorted(["_t2", iter_resource, "_t1"])
+    assert set(s5) == set(expected_data)
+
+    _assert_valid_clone(s5)
+
+    # with ad hoc pipe connected to transformer
+    s6 = _source(6)
+    assert sorted([r.name for r in s6.resources.extracted_pipes]) == sorted(
+        ["_t2", "ersatz", "_t1"]
+    )
+    assert sorted([r.name for r in s6.resources.extracted]) == ["_t1", "_t2"]
+    assert sorted(list(s6)) == sorted(expected_data)
+    top_pipe = s6._t2._parent._pipe.parent
+    assert top_pipe.name == "ersatz"
+    with pytest.raises(ResourceNotFoundError) as r_ex:
+        s6.resources.with_pipe(top_pipe)
+    assert r_ex.value.resource_name == "ersatz"
+
+    _assert_valid_clone(s6)
 
 
 def test_extracted_resources_selector() -> None:
@@ -615,14 +715,16 @@ def test_extracted_resources_selector() -> None:
 
     s = _source(1)
     # t1 not selected
-    assert set(s.resources.extracted.keys()) == {"_t2", "_r1"}
+    extracted_dict = {r.name: r for r in s.resources.extracted}
+    assert sorted(extracted_dict.keys()) == sorted(["_t2", "_r1"])
     # append and replace
-    assert s.resources.extracted["_r1"].write_disposition == "append"
-    assert s.resources.extracted["_t2"].write_disposition == "merge"
+    assert extracted_dict["_r1"].write_disposition == "append"
+    assert extracted_dict["_t2"].write_disposition == "merge"
     # # select _t1
     s._t1.bind("x").selected = True
-    assert set(s.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
-    assert s.resources.extracted["_t1"].write_disposition == "replace"
+    extracted_dict = {r.name: r for r in s.resources.extracted}
+    assert sorted(extracted_dict.keys()) == sorted(["_t2", "_r1", "_t1"])
+    assert extracted_dict["_t1"].write_disposition == "replace"
 
     s2 = _source(1)
     # are we a clone?
@@ -630,17 +732,20 @@ def test_extracted_resources_selector() -> None:
 
     s3 = _source(2)
     # only _t2 is enabled
-    assert set(s3.resources.extracted.keys()) == {"_t2", "_r1"}
-    # _r1 is merge (inherits from _t2)
-    assert s3.resources.extracted["_r1"].write_disposition == "merge"
-    # we have _r1 as parent for _t1 with "replace" and _t2 with "merge", the write disposition of _r1 is de facto undefined...
+    extracted_dict = {r.name: r for r in s3.resources.extracted}
+    assert sorted(extracted_dict.keys()) == sorted(["_t2", "_r1"])
+    # _r1 is append
+    assert extracted_dict["_r1"].write_disposition == "append"
+
     s3._t1.selected = True
-    assert set(s3.resources.extracted.keys()) == {"_t2", "_r1", "_t1"}
-    assert s3.resources.extracted["_r1"].write_disposition == "merge"
+    extracted_dict = {r.name: r for r in s3.resources.extracted}
+    assert sorted(extracted_dict.keys()) == sorted(["_t2", "_r1", "_t1"])
+    assert extracted_dict["_r1"].write_disposition == "append"
     s3._t2.selected = False
-    assert set(s3.resources.extracted.keys()) == {"_r1", "_t1"}
+    extracted_dict = {r.name: r for r in s3.resources.extracted}
+    assert sorted(extracted_dict.keys()) == sorted(["_r1", "_t1"])
     # inherits from _t1
-    assert s3.resources.extracted["_r1"].write_disposition == "replace"
+    assert extracted_dict["_r1"].write_disposition == "append"
 
 
 def test_source_decompose() -> None:
@@ -840,12 +945,13 @@ def test_add_transformer_right_pipe() -> None:
 
 def test_limit_infinite_counter() -> None:
     r = dlt.resource(itertools.count(), name="infinity").add_limit(10)
+    assert r.limit.limit(30) == 10 * 30
     assert list(r) == list(range(10))
 
 
 @pytest.mark.parametrize("limit", (None, -1, 0, 10))
 def test_limit_edge_cases(limit: int) -> None:
-    r = dlt.resource(range(20), name="resource").add_limit(limit)  # type: ignore
+    r = dlt.resource(range(20), name="resource").add_limit(limit)  # type: ignore[call-overload]
 
     @dlt.resource()
     async def r_async():
@@ -866,10 +972,13 @@ def test_limit_edge_cases(limit: int) -> None:
     assert sync_list == async_list == parallelized_list
 
     if limit == 10:
+        assert r.limit.limit(50) == 10 * 50
         assert sync_list == list(range(10))
     elif limit in [None, -1]:
+        assert r.limit.limit(50) is None
         assert sync_list == list(range(20))
     elif limit == 0:
+        assert r.limit.limit(50) == 0
         assert sync_list == []
     else:
         raise AssertionError(f"Unexpected limit: {limit}")
@@ -933,8 +1042,12 @@ def test_limit_max_time() -> None:
             await asyncio.sleep(0.1)
             yield i
 
-    sync_list = list(r().add_limit(max_time=1))
-    async_list = list(r_async().add_limit(max_time=1))
+    r_limit = r().add_limit(max_time=1)
+    assert r_limit.limit.limit(100) is None
+    sync_list = list(r_limit)
+    r_async_limit = r_async().add_limit(max_time=1)
+    assert r_async_limit.limit.limit(100) is None
+    async_list = list(r_async_limit)
 
     # we should have extracted 10 items within 1 second, sleep is included in the resource
     # we allow for some variance in the number of items, as the sleep is not super precise
@@ -1143,11 +1256,7 @@ def test_resource_state() -> None:
         }
 
 
-# def test_add_resources_to_source_simple() -> None:
-#     pass
-
-
-def test_resource_dict_add() -> None:
+def test_resource_dict_add_set() -> None:
     def input_gen():
         yield from [1, 2, 3]
 
@@ -1201,12 +1310,22 @@ def test_resource_dict_add() -> None:
     assert input_tx_orig_pipe == input_tx._pipe
 
     # replace existing resource which has the new pipe
-    res_dict["input_gen"] = input_r()
-    # we have disconnected gen and parent of tx TODO: we should handle this
+    input_r_cloned_pipe = input_r()
+    res_dict["input_gen"] = input_r_cloned_pipe
+    # we have disconnected gen and parent of tx
     assert res_dict["input_gen"]._pipe is not res_dict["tx_step"]._pipe.parent
     # keep originals
     assert input_r_orig_pipe == input_r._pipe
     assert input_tx_orig_pipe == input_tx._pipe
+    # keeps all references to pipes and resources as we have disjoint trees
+    assert len(res_dict._cloned_pairs) == 3
+    assert len(res_dict._resource_pipes) == 3
+
+    # now also set transformer
+    res_dict["tx_step"] = input_r_cloned_pipe | input_tx()
+    # we were able to remove dangling pipes and resources
+    assert len(res_dict._cloned_pairs) == 2
+    assert len(res_dict._resource_pipes) == 2
 
     # can't set with different name than resource really has
     with pytest.raises(ValueError):
@@ -1280,7 +1399,9 @@ def test_clone_resource_on_call():
 
     gene_clone = number_gen(10)
     assert gene_clone is not number_gen
+    # call clones internally and creates resource with separate pipes
     assert gene_clone._pipe is not number_gen._pipe
+    assert gene_clone._pipe.instance_id != number_gen._pipe.instance_id
     assert gene_clone.name == number_gen.name
 
     pipe = number_gen | multiplier
@@ -1296,7 +1417,7 @@ def test_clone_resource_on_call():
     assert list(pipe_clone) == [40, 44, 48, 52, 56]
 
 
-def test_clone_resource_on_bind():
+def test_resource_keep_instances_on_bind():
     @dlt.resource(name="gene")
     def number_gen():
         yield from range(1, 5)
@@ -1468,17 +1589,24 @@ def test_clone_resource_with_name() -> None:
     # originals are not affected
     assert pipe_r1.name == "_r1"
     assert pipe_t1.name == "_t1"
-    # binding a transformer is not cloning the original
+    assert pipe_t1._parent is pipe_r1
+    assert pipe_t1._parent._pipe is pipe_r1._pipe
+    # binding a transformer is not cloning the original, also instance ids are separate
     assert pipe_t1._pipe is pipe_r1_t1._pipe
     assert pipe_r1._pipe is pipe_r1_t1._pipe.parent
     # with_name clones
     assert pipe_t1._pipe is not pipe_r1_t1_clone._pipe
     assert pipe_r1._pipe is not pipe_r1_t1_clone._pipe.parent
+    # renaming also clones parents
+    assert pipe_r1_t1_clone._parent is not pipe_r1
+    assert pipe_r1_t1_clone._pipe.parent is pipe_r1_t1_clone._parent._pipe
 
     # rename again
     pipe_r1_t1_clone_2 = pipe_r1_t1_clone.with_name("pipe_clone_2")
     # replace previous name part (pipe_clone in _r1_pipe_clone) with pipe_clone_2
     assert pipe_r1_t1_clone_2._pipe.parent.name == "_r1_pipe_clone_2"
+    assert pipe_r1_t1_clone_2._parent is not pipe_r1
+    assert pipe_r1_t1_clone_2._pipe.parent is pipe_r1_t1_clone_2._parent._pipe
 
     # preserves table name if set
     table_t1 = _r1 | _t1
@@ -2082,3 +2210,8 @@ def test_resource_repr() -> None:
 
     # the resource repr check if `._pipe.step` includes a `LimitItem` step
     assert getattr(LimitItem(None, None, False), "max_items", sentinel) is not sentinel
+
+    # repr for empty resource
+    repr_ = DltResource.Empty.__repr__()
+    assert isinstance(repr_, str)
+    assert "dlt.resource(" in repr_

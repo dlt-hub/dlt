@@ -29,9 +29,8 @@ from dlt.common.schema import Schema
 from dlt import sources
 from dlt.extract.decorators import source, resource, transformer, defer
 from dlt.destinations.decorators import destination
-from dlt.transformations.decorators import transformation
-from dlt.common.destination.dataset import Dataset, Relation
-from dlt.destinations.dataset import dataset
+from dlt.common.destination.dataset import SupportsDataset, SupportsRelation
+from dlt.dataset import dataset, Relation, Dataset
 
 from dlt.pipeline import (
     pipeline as _pipeline,
@@ -81,10 +80,11 @@ __all__ = [
     "TCredentials",
     "sources",
     "destinations",
-    "Dataset",
-    "Relation",
+    "SupportsDataset",
+    "SupportsRelation",
     "dataset",
-    "transformation",
+    "Relation",
+    "Dataset",
 ]
 
 # verify that no injection context was created

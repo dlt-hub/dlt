@@ -161,6 +161,16 @@ to split long incremental loading into many chunks by time and row count. [Look 
 If your cursor column name contains special characters (e.g., `$`) you need to escape it when passing it to the `incremental` function. For example, if your cursor column is `example_$column`, you should pass it as `"'example_$column'"` or `'"example_$column"'` to the `incremental` function: `incremental("'example_$column'", initial_value=...)`.
 :::
 
+### Configure timezone aware and naive timestamp cursors
+If your cursor is on timestamp/datetime column, make sure you set up your initial and end values correctly. You will avoid implicit
+type conversions, invalid date time literals or column comparisons in database queries. Note that if implicit conversions may
+result in data loss ie. if naive datetime has different local timezone on the machine where Python is executing vs. your dbms.
+
+* If your datetime columns is naive, use naive Python datetime. Note that `pendulum` datetime is tz-aware by default and standard `datetime` is naive.
+* Use `full` reflection level or above to reflect `timezone` (awareness hint) on the datetime columns.
+* read about the [timestamp handling](../../../general-usage/schema.md#handling-of-timestamp-and-time-zones) in `dlt`
+
+
 ### Examples
 
 1. **Incremental loading with the resource `sql_table`**.
@@ -221,6 +231,11 @@ Which generates the following query:
     * When using "merge" write disposition, the source table needs a primary key, which `dlt` automatically sets up.
     * `apply_hints` is a powerful method that enables schema modifications after resource creation, like adjusting write disposition and primary keys. You can choose from various tables and use `apply_hints` multiple times to create pipelines with merged, appended, or replaced resources.
   :::
+
+## Limit number of items returned by the query
+If you specified a limit on `sql_table` resource with [add_limit](../../../general-usage/resource.md#sample-from-large-data), this limit will be forwarded 
+to the query. Note that limit works in the multiples of `chunk_size`. For example if the `chunk_size` is 1000 and you set `max_items` in `add_limit` to
+2, your query will return 2000 rows.
 
 ## Configuring the connection
 
@@ -452,7 +467,8 @@ The [`ConnectorX`](https://sfu-db.github.io/connector-x/intro.html) backend comp
 There are certain limitations when using this backend:
 * It will ignore `chunk_size`. `ConnectorX` cannot yield data in batches.
 * In many cases, it requires a connection string that differs from the `SQLAlchemy` connection string. Use the `conn` argument in `backend_kwargs` to set this.
-* It will convert **decimals** to **doubles**, so you will lose precision.
+* For `connectorx>=0.4.2`, on `reflection_level="minimal"`, `connectorx` can return decimal values. On higher `reflection_level`, dlt will coerce the data type (e.g., modify the decimal `precision` and `scale`, convert to `float`).
+    * For `connectorx<0.4.2`, dlt will convert decimals to doubles, thus losing numerical precision.
 * Nullability of the columns is ignored (always true).
 * It uses different mappings for each data type. (Check [here](https://sfu-db.github.io/connector-x/databases.html) for more details.)
 * JSON fields (at least those coming from PostgreSQL) are double-wrapped in strings. To unwrap this, you can pass the in-built transformation function `unwrap_json_connector_x` (for example, with `add_map`):

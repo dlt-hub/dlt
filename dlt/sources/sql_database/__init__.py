@@ -169,6 +169,7 @@ def sql_table(
     backend_kwargs: Dict[str, Any] = None,
     type_adapter_callback: Optional[TTypeAdapter] = None,
     included_columns: Optional[List[str]] = None,
+    excluded_columns: Optional[List[str]] = None,
     query_adapter_callback: Optional[TQueryAdapter] = None,
     resolve_foreign_keys: bool = False,
     engine_adapter_callback: Callable[[Engine], Engine] = None,
@@ -218,6 +219,8 @@ def sql_table(
 
         included_columns (Optional[List[str]]): List of column names to select from the table. If not provided, all columns are loaded.
 
+        excluded_columns (Optional[List[str]]): List of column names to exclude from select. If not provided, all columns are loaded.
+
         query_adapter_callback (Optional[TQueryAdapter]): Callable to override the SELECT query used to fetch data from the table.
             The callback receives the sqlalchemy `Select` and corresponding `Table`, 'Incremental` and `Engine` objects and should return the modified `Select` or `Text`.
 
@@ -259,7 +262,9 @@ def sql_table(
 
     if table_obj is not None:
         if not defer_table_reflect:
-            table_obj = _execute_table_adapter(table_obj, table_adapter_callback, included_columns)
+            table_obj = _execute_table_adapter(
+                table_obj, table_adapter_callback, included_columns, excluded_columns
+            )
         skip_nested_on_minimal = backend == "sqlalchemy"
         hints = table_to_resource_hints(
             table_obj,
@@ -293,6 +298,7 @@ def sql_table(
         backend_kwargs=backend_kwargs,
         type_adapter_callback=type_adapter_callback,
         included_columns=included_columns,
+        excluded_columns=excluded_columns,
         query_adapter_callback=query_adapter_callback,
         resolve_foreign_keys=resolve_foreign_keys,
     )

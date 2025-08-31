@@ -38,7 +38,7 @@ from dlt.common.storages.configuration import (
     FilesystemConfiguration,
     make_fsspec_url,
 )
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import without_none
 
@@ -59,14 +59,14 @@ class FileItem(TypedDict, total=False):
 # Map of protocol to mtime resolver
 # we only need to support a small finite set of protocols
 MTIME_DISPATCH = {
-    "s3": lambda f: ensure_pendulum_datetime(f["LastModified"]),
-    "adl": lambda f: ensure_pendulum_datetime(f["LastModified"]),
-    "az": lambda f: ensure_pendulum_datetime(f["last_modified"]),
-    "gcs": lambda f: ensure_pendulum_datetime(f["updated"]),
-    "file": lambda f: ensure_pendulum_datetime(f["mtime"]),
-    "memory": lambda f: ensure_pendulum_datetime(f["created"]),
-    "gdrive": lambda f: ensure_pendulum_datetime(f["modifiedTime"]),
-    "sftp": lambda f: ensure_pendulum_datetime(f["mtime"]),
+    "s3": lambda f: ensure_pendulum_datetime_utc(f["LastModified"]),
+    "adl": lambda f: ensure_pendulum_datetime_utc(f["LastModified"]),
+    "az": lambda f: ensure_pendulum_datetime_utc(f["last_modified"]),
+    "gcs": lambda f: ensure_pendulum_datetime_utc(f["updated"]),
+    "file": lambda f: ensure_pendulum_datetime_utc(f["mtime"]),
+    "memory": lambda f: ensure_pendulum_datetime_utc(f["created"]),
+    "gdrive": lambda f: ensure_pendulum_datetime_utc(f["modifiedTime"]),
+    "sftp": lambda f: ensure_pendulum_datetime_utc(f["mtime"]),
 }
 # Support aliases
 MTIME_DISPATCH["gs"] = MTIME_DISPATCH["gcs"]
@@ -108,6 +108,7 @@ def fsspec_filesystem(
     credentials: FileSystemCredentials = None,
     kwargs: Optional[DictStrAny] = None,
     client_kwargs: Optional[DictStrAny] = None,
+    config_kwargs: Optional[DictStrAny] = None,
 ) -> Tuple[AbstractFileSystem, str]:
     """Instantiates an authenticated fsspec `FileSystem` for a given `protocol` and credentials.
 
@@ -120,7 +121,13 @@ def fsspec_filesystem(
     also see filesystem_from_config
     """
     return fsspec_from_config(
-        FilesystemConfiguration(protocol, credentials, kwargs=kwargs, client_kwargs=client_kwargs)
+        FilesystemConfiguration(
+            protocol,
+            credentials,
+            kwargs=kwargs,
+            client_kwargs=client_kwargs,
+            config_kwargs=config_kwargs,
+        )
     )
 
 
@@ -159,6 +166,9 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
 
     if "client_kwargs" in fs_kwargs and "client_kwargs" in credentials:
         fs_kwargs["client_kwargs"].update(credentials.pop("client_kwargs"))
+
+    if "config_kwargs" in fs_kwargs and "config_kwargs" in credentials:
+        fs_kwargs["config_kwargs"].update(credentials.pop("config_kwargs"))
 
     fs_kwargs.update(without_none(credentials))
     return fs_kwargs

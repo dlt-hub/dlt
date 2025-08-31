@@ -1,5 +1,6 @@
-from typing import Any, Dict, Type, Union, TYPE_CHECKING, Optional, cast
+from typing import Any, Type, TYPE_CHECKING, Optional
 
+from dlt.common import logger
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.normalizers.naming import NamingConvention
@@ -45,6 +46,7 @@ class BigQueryTypeMapper(TypeMapperImpl):
         "BOOL": "bool",
         "DATE": "date",
         "TIMESTAMP": "timestamp",
+        "DATETIME": "timestamp",
         "INT64": "bigint",
         "BYTES": "binary",
         "NUMERIC": "decimal",
@@ -69,10 +71,38 @@ class BigQueryTypeMapper(TypeMapperImpl):
                 "Enable `autodetect_schema` in config or via BigQuery adapter", column["data_type"]
             )
 
+    def to_db_datetime_type(
+        self,
+        column: TColumnSchema,
+        table: PreparedTableSchema = None,
+    ) -> str:
+        column_name = column["name"]
+        table_name = table["name"]
+        precision = column.get("precision")
+
+        if precision and precision != self.capabilities.timestamp_precision:
+            logger.warn(
+                f"BigQuery does not support custom precision for column '{column_name}' in"
+                f" table '{table_name}'. Will use default precision."
+            )
+
+        # TIMESTAMP is always timezone-aware in BigQuery
+        # DATETIME is always timezone-naive in BigQuery
+        # NOTE: we disable DATETIME because it does not work with parquet
+        # timezone = column.get("timezone", True)
+        return "TIMESTAMP"
+
     def to_db_decimal_type(self, column: TColumnSchema) -> str:
         # Use BigQuery's BIGNUMERIC for large precision decimals
         precision, scale = self.decimal_precision(column.get("precision"), column.get("scale"))
-        if precision > 38 or scale > 9:
+
+        # BigQuery NUMERIC constraints:
+        # - When scale = 0: precision must be 1-29
+        # - When scale > 0: precision can be up to 38
+        # - scale must be <= 9
+        if scale == 0 and precision > 29:
+            return "BIGNUMERIC(%i,%i)" % (precision, scale)
+        elif precision > 38 or scale > 9:
             return "BIGNUMERIC(%i,%i)" % (precision, scale)
         return "NUMERIC(%i,%i)" % (precision, scale)
 
@@ -83,6 +113,8 @@ class BigQueryTypeMapper(TypeMapperImpl):
         # precision is present in the type name
         if db_type == "BIGNUMERIC":
             return dict(data_type="wei")
+        if db_type == "DATETIME":
+            return {"data_type": "timestamp", "timezone": False}
         return super().from_destination_type(*parse_db_data_type_str_with_precision(db_type))
 
 
@@ -116,6 +148,7 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
         caps.is_max_text_data_type_length_in_bytes = True
         caps.supports_ddl_transactions = False
         caps.supports_clone_table = True
+        caps.supports_naive_datetime = False
         caps.schema_supports_numeric_precision = False  # no precision information in BigQuery
         caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
         caps.supported_replace_strategies = [

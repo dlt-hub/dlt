@@ -2,8 +2,6 @@ import platform
 import os
 from dlt.common import logger
 
-from dlt.destinations.utils import is_compression_disabled
-
 if platform.python_implementation() == "PyPy":
     import psycopg2cffi as psycopg2
 
@@ -35,6 +33,7 @@ from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.redshift.configuration import RedshiftClientConfiguration
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
+from dlt.destinations.path_utils import get_file_format_and_compression
 
 
 HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
@@ -46,6 +45,14 @@ HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
 
 
 class RedshiftSqlClient(Psycopg2SqlClient):
+    def has_dataset(self) -> bool:
+        # In Redshift, the 'public' schema always exists but may not be
+        # returned by INFORMATION_SCHEMA.SCHEMATA query, so we handle it as a special case
+        if self.dataset_name == "public":
+            return True
+
+        return super().has_dataset()
+
     @staticmethod
     def _maybe_make_terminal_exception_from_data_error(
         pg_ex: psycopg2.DataError,
@@ -91,15 +98,15 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
                 f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
             )
         # get format
-        ext = os.path.splitext(self._bucket_path)[1][1:]
+        file_format, is_compressed = get_file_format_and_compression(self._bucket_path)
         file_type = ""
         dateformat = ""
         compression = ""
-        if ext == "jsonl":
+        if file_format == "jsonl":
             file_type = "FORMAT AS JSON 'auto'"
             dateformat = "dateformat 'auto' timeformat 'auto'"
-            compression = "" if is_compression_disabled() else "GZIP"
-        elif ext == "parquet":
+            compression = "" if not is_compressed else "GZIP"
+        elif file_format == "parquet":
             # Redshift doesn't support copying across regions for columnar data formats
             # https://docs.aws.amazon.com/redshift/latest/dg/copy-usage_notes-copy-from-columnar.html  # noqa: E501
             if region:
@@ -115,7 +122,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             if table_schema_has_type(self._load_table, "json"):
                 file_type += " SERIALIZETOJSON"
         else:
-            raise ValueError(f"Unsupported file type `{ext}` for Redshift.")
+            raise ValueError(f"Unsupported file type `{file_format}` for Redshift.")
 
         with self._sql_client.begin_transaction():
             # TODO: if we ever support csv here remember to add column names to COPY
