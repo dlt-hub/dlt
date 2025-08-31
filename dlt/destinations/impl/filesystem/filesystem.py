@@ -226,7 +226,12 @@ class DeltaLoadFilesystemJob(TableFormatLoadFilesystemJob):
 
 class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
     def run(self) -> None:
-        from dlt.common.libs.pyiceberg import write_iceberg_table, merge_iceberg_table, create_table
+        from dlt.common.libs.pyiceberg import (
+            write_iceberg_table,
+            merge_iceberg_table,
+            create_table,
+            extract_partition_specs_from_schema,
+        )
 
         try:
             table = self._job_client.load_open_table(
@@ -237,12 +242,25 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
         except DestinationUndefinedEntity:
             location = self._job_client.get_open_table_location("iceberg", self.load_table_name)
             table_id = f"{self._job_client.dataset_name}.{self.load_table_name}"
+
+            # Extract advanced partition specifications from table schema
+            partition_specs = extract_partition_specs_from_schema(
+                self._load_table, self.arrow_dataset.schema
+            )
+
+            # Priority system: if advanced partitions exist, ignore legacy ones
+            if partition_specs:
+                partition_columns = None  # Ignore legacy to prevent conflicts
+            else:
+                partition_columns = self._partition_columns
+
             create_table(
                 self._job_client.get_open_table_catalog("iceberg"),
                 table_id,
                 table_location=location,
                 schema=self.arrow_dataset.schema,
-                partition_columns=self._partition_columns,
+                partition_columns=partition_columns,
+                partition_specs=partition_specs if partition_specs else None,
             )
             # run again with created table
             self.run()
