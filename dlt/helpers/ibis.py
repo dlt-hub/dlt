@@ -10,6 +10,8 @@ from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
+from dlt.destinations.impl.ducklake.configuration import DuckLakeClientConfiguration
+from dlt.destinations.impl.ducklake.ducklake import DuckLakeClient
 from dlt.destinations.impl.motherduck.configuration import MotherDuckClientConfiguration
 from dlt.destinations.impl.postgres.configuration import PostgresClientConfiguration
 from dlt.destinations.impl.redshift.configuration import RedshiftClientConfiguration
@@ -59,20 +61,21 @@ def create_ibis_backend(
         destination.spec, MotherDuckClientConfiguration
     ):
         from dlt.destinations.impl.duckdb.duck import DuckDbClient
-        import duckdb
+
+        # import duckdb
 
         assert isinstance(client, DuckDbClient)
         # always open in read only mode
         client.config.credentials.read_only = read_only
-        # open connection, apply all settings and pragmas
-        duck_conn = client.config.credentials.borrow_conn()
-        # move main connection ownership to ibis
-        con = ibis.duckdb.from_connection(client.config.credentials.move_conn())
-        client.config.credentials.return_conn(duck_conn)
-
-        # make sure we can access tables from current dataset without qualification
-        dataset_name = client.sql_client.fully_qualified_dataset_name()
-        con.raw_sql(f"SET search_path = '{dataset_name}'")
+        # this will open connection to duckdb, take a clone and close the clone
+        with client:
+            # move main connection ownership to ibis
+            con = ibis.duckdb.from_connection(client.config.credentials.conn_pool.move_conn())
+    elif issubclass(destination.spec, DuckLakeClientConfiguration):
+        assert isinstance(client, DuckLakeClient)
+        # open connection but do not close it, ducklake always creates a separate connection
+        # and will not close it in destructor
+        con = ibis.duckdb.from_connection(client.sql_client.open_connection())
     elif issubclass(destination.spec, PostgresClientConfiguration):
         from dlt.destinations.impl.postgres.postgres import PostgresClient
         from dlt.destinations.impl.redshift.redshift import RedshiftClient
