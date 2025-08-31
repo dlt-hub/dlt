@@ -125,10 +125,10 @@ weaviate = [
     "weaviate-client>=3.22"
 ]
 mssql = [
-    "pyodbc>=4.0.39 ; python_version < '3.13'"
+    "pyodbc>=4.0.39"
 ]
 synapse = [
-    "pyodbc>=4.0.39 ; python_version < '3.13'",
+    "pyodbc>=4.0.39",
     "adlfs>=2024.7.0",
     "pyarrow>=16.0.0",
 ]

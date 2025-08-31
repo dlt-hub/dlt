@@ -63,8 +63,12 @@ def test_bump_version_changed_schema() -> None:
 def test_infer_column_bumps_version() -> None:
     # when schema is updated with a series of updates, version must change
     schema = Schema("event")
-    row = {"floatX": 78172.128, "confidenceX": 1.2, "strX": "STR"}
-    _, new_table = schema.coerce_row("event_user", None, row)
+    new_columns = [
+        utils.new_column("floatX", data_type="double"),
+        utils.new_column("confidenceX", data_type="double"),
+        utils.new_column("strX", data_type="text"),
+    ]
+    new_table = utils.new_table("event_user", columns=new_columns)
     schema.update_table(new_table)
     # schema version will be recomputed
     assert schema.version == 1
@@ -72,7 +76,7 @@ def test_infer_column_bumps_version() -> None:
     version_hash = schema.version_hash
 
     # another table
-    _, new_table = schema.coerce_row("event_bot", None, row)
+    new_table = utils.new_table("event_bot", columns=new_columns)
     schema.update_table(new_table)
     # version is still 1 (increment of 1)
     assert schema.version == 1
@@ -140,14 +144,15 @@ def test_create_ancestry() -> None:
     assert schema._stored_previous_hashes == expected_previous_hashes
     version = schema._stored_version
 
+    new_table = utils.new_table("event_user")
+
     # modify save and load schema 15 times and check ancestry
     for i in range(1, 15):
         # keep expected previous_hashes
         expected_previous_hashes.insert(0, schema._stored_version_hash)
 
         # update schema
-        row = {f"float{i}": 78172.128}
-        _, new_table = schema.coerce_row("event_user", None, row)
+        new_table["columns"][f"float{i}"] = utils.new_column(f"float{i}", "double")
         schema.update_table(new_table)
         schema_dict = schema.to_dict()
         schema = Schema.from_stored_schema(schema_dict)

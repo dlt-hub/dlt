@@ -8,11 +8,12 @@ import dlt
 from dlt.common.typing import TDataItem
 
 from dlt.common.exceptions import MissingDependencyException
+from dlt.extract.items_transform import LimitItem
 
 try:
     from dlt.sources.sql_database.helpers import TableLoader, TableBackend
     from dlt.sources.sql_database.schema_types import table_to_columns
-    from tests.load.sources.sql_database.sql_source import SQLAlchemySourceDB
+    from tests.load.sources.sql_database.postgres_source import PostgresSourceDB
     import sqlalchemy as sa
 except (MissingDependencyException, ModuleNotFoundError):
     pytest.skip("Tests require sql alchemy", allow_module_level=True)
@@ -32,13 +33,13 @@ class MockIncremental:
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 def test_cursor_or_unique_column_not_in_table(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend
+    postgres_db: PostgresSourceDB, backend: TableBackend
 ) -> None:
-    table = sql_source_db.get_table("chat_message")
+    table = postgres_db.get_table("chat_message")
 
     with pytest.raises(KeyError):
         TableLoader(
-            sql_source_db.engine,
+            postgres_db.engine,
             backend,
             table,
             table_to_columns(table),
@@ -47,9 +48,7 @@ def test_cursor_or_unique_column_not_in_table(
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
-def test_make_query_incremental_max(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend
-) -> None:
+def test_make_query_incremental_max(postgres_db: PostgresSourceDB, backend: TableBackend) -> None:
     """Verify query is generated according to incremental settings"""
 
     incremental = MockIncremental(
@@ -59,9 +58,9 @@ def test_make_query_incremental_max(
         row_order="asc",
     )
 
-    table = sql_source_db.get_table("chat_message")
+    table = postgres_db.get_table("chat_message")
     loader = TableLoader(
-        sql_source_db.engine,
+        postgres_db.engine,
         backend,
         table,
         table_to_columns(table),
@@ -79,9 +78,7 @@ def test_make_query_incremental_max(
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
-def test_make_query_incremental_min(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend
-) -> None:
+def test_make_query_incremental_min(postgres_db: PostgresSourceDB, backend: TableBackend) -> None:
     incremental = MockIncremental(
         last_value=dlt.common.pendulum.now(),
         last_value_func=min,
@@ -91,9 +88,9 @@ def test_make_query_incremental_min(
         on_cursor_value_missing="raise",
     )
 
-    table = sql_source_db.get_table("chat_message")
+    table = postgres_db.get_table("chat_message")
     loader = TableLoader(
-        sql_source_db.engine,
+        postgres_db.engine,
         backend,
         table,
         table_to_columns(table),
@@ -114,7 +111,7 @@ def test_make_query_incremental_min(
 @pytest.mark.parametrize("with_end_value", [True, False])
 @pytest.mark.parametrize("cursor_value_missing", ["include", "exclude"])
 def test_make_query_incremental_on_cursor_value_missing_set(
-    sql_source_db: SQLAlchemySourceDB,
+    postgres_db: PostgresSourceDB,
     backend: TableBackend,
     with_end_value: bool,
     cursor_value_missing: str,
@@ -128,9 +125,9 @@ def test_make_query_incremental_on_cursor_value_missing_set(
         on_cursor_value_missing=cursor_value_missing,
     )
 
-    table = sql_source_db.get_table("chat_message")
+    table = postgres_db.get_table("chat_message")
     loader = TableLoader(
-        sql_source_db.engine,
+        postgres_db.engine,
         backend,
         table,
         table_to_columns(table),
@@ -165,7 +162,7 @@ def test_make_query_incremental_on_cursor_value_missing_set(
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 @pytest.mark.parametrize("cursor_value_missing", ["include", "exclude"])
 def test_make_query_incremental_on_cursor_value_missing_no_last_value(
-    sql_source_db: SQLAlchemySourceDB,
+    postgres_db: PostgresSourceDB,
     backend: TableBackend,
     cursor_value_missing: str,
 ) -> None:
@@ -178,9 +175,9 @@ def test_make_query_incremental_on_cursor_value_missing_no_last_value(
         on_cursor_value_missing=cursor_value_missing,
     )
 
-    table = sql_source_db.get_table("chat_message")
+    table = postgres_db.get_table("chat_message")
     loader = TableLoader(
-        sql_source_db.engine,
+        postgres_db.engine,
         backend,
         table,
         table_to_columns(table),
@@ -203,7 +200,7 @@ def test_make_query_incremental_on_cursor_value_missing_no_last_value(
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 def test_make_query_incremental_end_value(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend
+    postgres_db: PostgresSourceDB, backend: TableBackend
 ) -> None:
     now = dlt.common.pendulum.now()
 
@@ -216,9 +213,9 @@ def test_make_query_incremental_end_value(
         on_cursor_value_missing="raise",
     )
 
-    table = sql_source_db.get_table("chat_message")
+    table = postgres_db.get_table("chat_message")
     loader = TableLoader(
-        sql_source_db.engine,
+        postgres_db.engine,
         backend,
         table,
         table_to_columns(table),
@@ -237,8 +234,80 @@ def test_make_query_incremental_end_value(
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+def test_make_query_incremental_end_value_and_limit(
+    postgres_db: PostgresSourceDB, backend: TableBackend
+) -> None:
+    now = dlt.common.pendulum.now()
+
+    incremental = MockIncremental(
+        last_value=now,
+        last_value_func=min,
+        cursor_path="created_at",
+        end_value=now.add(hours=1),
+        row_order=None,
+        on_cursor_value_missing="raise",
+    )
+
+    table = postgres_db.get_table("chat_message")
+    loader = TableLoader(
+        postgres_db.engine,
+        backend,
+        table,
+        table_to_columns(table),
+        chunk_size=1000,
+        limit=LimitItem(10, None),
+        incremental=incremental,  # type: ignore[arg-type]
+    )
+
+    query = loader.make_query()
+    expected = (
+        table.select()
+        .limit(10000)
+        .where(
+            sa.and_(
+                table.c.created_at <= incremental.last_value,
+                table.c.created_at > incremental.end_value,
+            )
+        )
+    )
+
+    assert query.compare(expected)
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+def test_make_query_with_limit(postgres_db: PostgresSourceDB, backend: TableBackend) -> None:
+    table = postgres_db.get_table("chat_message")
+    loader = TableLoader(
+        postgres_db.engine,
+        backend,
+        table,
+        table_to_columns(table),
+        chunk_size=1000,
+        limit=LimitItem(10, None),
+    )
+
+    query = loader.make_query()
+    expected = table.select().limit(10000)
+    assert query.compare(expected)
+
+    loader = TableLoader(
+        postgres_db.engine,
+        backend,
+        table,
+        table_to_columns(table),
+        chunk_size=1000,
+        limit=LimitItem(None, max_time=10.0),
+    )
+
+    query = loader.make_query()
+    # limit will not be added
+    expected = table.select()
+    assert query.compare(expected)
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 def test_make_query_incremental_any_fun(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend
+    postgres_db: PostgresSourceDB, backend: TableBackend
 ) -> None:
     incremental = MockIncremental(
         last_value=dlt.common.pendulum.now(),
@@ -249,9 +318,9 @@ def test_make_query_incremental_any_fun(
         on_cursor_value_missing="raise",
     )
 
-    table = sql_source_db.get_table("chat_message")
+    table = postgres_db.get_table("chat_message")
     loader = TableLoader(
-        sql_source_db.engine,
+        postgres_db.engine,
         backend,
         table,
         table_to_columns(table),
@@ -266,10 +335,10 @@ def test_make_query_incremental_any_fun(
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 def test_cursor_path_field_name_with_a_special_chars(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend
+    postgres_db: PostgresSourceDB, backend: TableBackend
 ) -> None:
     """Test that a field name with special characters in cursor_path is handled correctly."""
-    table = sql_source_db.get_table("chat_message")
+    table = postgres_db.get_table("chat_message")
 
     # Add a mock column with a special character
     special_field_name = "id$field"
@@ -284,7 +353,7 @@ def test_cursor_path_field_name_with_a_special_chars(
 
     # Should not raise any exception
     loader = TableLoader(
-        sql_source_db.engine,
+        postgres_db.engine,
         backend,
         table,
         table_to_columns(table),
@@ -294,11 +363,9 @@ def test_cursor_path_field_name_with_a_special_chars(
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
-def test_cursor_path_multiple_fields(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend
-) -> None:
+def test_cursor_path_multiple_fields(postgres_db: PostgresSourceDB, backend: TableBackend) -> None:
     """Test that a cursor_path with multiple fields raises a ValueError."""
-    table = sql_source_db.get_table("chat_message")
+    table = postgres_db.get_table("chat_message")
 
     incremental = MockIncremental(
         cursor_path="created_at,updated_at",
@@ -308,7 +375,7 @@ def test_cursor_path_multiple_fields(
 
     with pytest.raises(ValueError) as excinfo:
         TableLoader(
-            sql_source_db.engine,
+            postgres_db.engine,
             backend,
             table,
             table_to_columns(table),
@@ -319,10 +386,10 @@ def test_cursor_path_multiple_fields(
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 def test_cursor_path_complex_expression(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend
+    postgres_db: PostgresSourceDB, backend: TableBackend
 ) -> None:
     """Test that a complex JSONPath expression in cursor_path raises a ValueError."""
-    table = sql_source_db.get_table("chat_message")
+    table = postgres_db.get_table("chat_message")
 
     incremental = MockIncremental(
         cursor_path="$.users[0].id",
@@ -332,7 +399,7 @@ def test_cursor_path_complex_expression(
 
     with pytest.raises(ValueError) as excinfo:
         TableLoader(
-            sql_source_db.engine,
+            postgres_db.engine,
             backend,
             table,
             table_to_columns(table),
@@ -344,7 +411,7 @@ def test_cursor_path_complex_expression(
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 @pytest.mark.parametrize("last_value_func", [min, max])
 def test_make_query_incremental_range_start_open(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend, last_value_func: Callable[[Any], Any]
+    postgres_db: PostgresSourceDB, backend: TableBackend, last_value_func: Callable[[Any], Any]
 ) -> None:
     incremental = MockIncremental(
         last_value=dlt.common.pendulum.now(),
@@ -355,10 +422,10 @@ def test_make_query_incremental_range_start_open(
         range_start="open",
     )
 
-    table = sql_source_db.get_table("chat_message")
+    table = postgres_db.get_table("chat_message")
 
     loader = TableLoader(
-        sql_source_db.engine,
+        postgres_db.engine,
         backend,
         table,
         table_to_columns(table),
@@ -379,7 +446,7 @@ def test_make_query_incremental_range_start_open(
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
 @pytest.mark.parametrize("last_value_func", [min, max])
 def test_make_query_incremental_range_end_closed(
-    sql_source_db: SQLAlchemySourceDB, backend: TableBackend, last_value_func: Callable[[Any], Any]
+    postgres_db: PostgresSourceDB, backend: TableBackend, last_value_func: Callable[[Any], Any]
 ) -> None:
     incremental = MockIncremental(
         last_value=dlt.common.pendulum.now(),
@@ -390,9 +457,9 @@ def test_make_query_incremental_range_end_closed(
         range_end="closed",
     )
 
-    table = sql_source_db.get_table("chat_message")
+    table = postgres_db.get_table("chat_message")
     loader = TableLoader(
-        sql_source_db.engine,
+        postgres_db.engine,
         backend,
         table,
         table_to_columns(table),
