@@ -504,7 +504,7 @@ You can also set the limit to `0` for the resource to not yield any items.
 You can use `add_limit` to split incremental resources that process large data into manageable chunks:
 ```py
 ```
-splits loading of `issues` table into one hour chunks that are loaded in a loop. You'll see your data quicker without impacting the performance.
+splits loading of `issues` table into 10 minute chunks that are loaded in a loop. You'll see your data quicker without impacting the performance.
 Note **row_order** above! this makes sure that your table rows are returned deterministically so `dlt` can process consecutive chunks without
 losing data. Mind that ordering results may increase load on the database server. [Please read about other backfill strategies]
 

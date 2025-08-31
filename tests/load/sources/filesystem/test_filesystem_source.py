@@ -307,7 +307,9 @@ def test_incremental_order(bucket_url: str, incremental_method: str, row_order: 
     pipeline = dlt.pipeline("test_incremental_order", destination="duckdb", dev_mode=True)
 
     def _get_files() -> dlt.sources.DltResource:
-        incremental_ = dlt.sources.incremental[pendulum.DateTime]("file_name", row_order=row_order)
+        incremental_ = dlt.sources.incremental[pendulum.DateTime](
+            "file_name", row_order="asc", last_value_func=min if row_order == "desc" else max
+        )  # max if row_order=="asc" else min)
         if incremental_method == "signature":
             fs_ = filesystem(
                 bucket_url=bucket_url, file_glob="csv/*", incremental=incremental_, files_per_page=1
@@ -322,14 +324,36 @@ def test_incremental_order(bucket_url: str, incremental_method: str, row_order: 
     all_files = [file["file_name"] for file in filesystem(bucket_url=bucket_url, file_glob="csv/*")]
     all_files = sorted(all_files, reverse=row_order == "desc")
 
-    # load files with limit until we have data
+    # load files with limit until we have no data
     runs = 0
     while pipeline.run(_get_files().with_name("files").add_limit(1)).has_data:
-        print(pipeline.last_trace.last_load_info)
+        print(pipeline.last_trace.last_normalize_info)
         loaded_files = pipeline.dataset().files["file_name"].fetchall()
         runs += 1
         assert [t_[0] for t_ in loaded_files] == all_files[:runs]
     assert runs == 4
+
+
+@pytest.mark.parametrize("bucket_url", TESTS_BUCKET_URLS)
+def test_partitioned_load(bucket_url: str) -> None:
+    # def _get_ranges():
+    fs_ = filesystem(bucket_url=bucket_url, file_glob="**/*.csv")
+    all_files = [file["file_name"] for file in fs_]
+    max_name = max(all_files)
+
+    pipeline = dlt.pipeline("test_incremental_order", destination="duckdb", dev_mode=True)
+    # use open range to not load max_name
+    file_name_incremental = dlt.sources.incremental(
+        "file_name", initial_value=max_name, range_start="open"
+    )
+    file_resource = filesystem(
+        bucket_url=bucket_url, file_glob="**/*.csv", incremental=file_name_incremental
+    )
+    load_info = pipeline.run(file_resource)
+    assert_load_info(load_info)
+    print(pipeline.last_trace.last_normalize_info)
+    print(file_resource.state)
+    # _get_ranges()
 
 
 def test_file_chunking() -> None:

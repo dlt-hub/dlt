@@ -180,9 +180,6 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
                 pass
             raise outer
         finally:
-            # clear all pending result sets
-            while curr.nextset():
-                pass
             # always close cursor
             curr.close()
 

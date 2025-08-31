@@ -439,6 +439,8 @@ print(load_info)
 ### 6. Split large incremental loads
 If you have many files to process or they are large you may choose to split pipeline runs into smaller chunks (where single file is the smallest). There are
 two methods to do that:
+* Partitioning where divide your source data in several ranges and load them (possibly in parallel) and then continue to load data incrementally.
+* Split where you load data sequentially in small chunks
 
 Partitioning works as follows:
 1. Obtain a list of files ie. by just listing your resource `files = list(filesystem(...))`

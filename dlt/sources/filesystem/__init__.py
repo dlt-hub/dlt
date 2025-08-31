@@ -111,11 +111,14 @@ def filesystem(  # noqa DOC
     # NOTE: fsspec glob for buckets reads all files before running iterator
     #  so below we do not have real batching anyway
     if incremental and incremental.row_order:
+        reverse = (incremental.row_order == "asc" and incremental.last_value_func is min) or (
+            incremental.row_order == "desc" and incremental.last_value_func is max
+        )
         iter_ = iter(
             sorted(
                 list(glob_files(fs_client, bucket_url, file_glob)),
                 key=lambda f_: f_[incremental.cursor_path],  # type: ignore[literal-required]
-                reverse=incremental.row_order == "desc",
+                reverse=reverse,
             )
         )
 

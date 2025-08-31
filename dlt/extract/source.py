@@ -21,6 +21,7 @@ from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext, configspec
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
+from dlt.common.normalizers.json.typing import RelationalNormalizerConfig
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnName, TSchemaContract
 from dlt.common.schema.utils import normalize_table_identifiers
@@ -390,7 +391,6 @@ class DltSource(Iterable[TDataItem]):
     def name(self) -> str:
         return self._schema.name
 
-    # TODO: max_table_nesting/root_key below must go somewhere else ie. into RelationalSchema which is Schema + Relational normalizer.
     @property
     def max_table_nesting(self) -> int:
         """A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON."""
@@ -412,30 +412,38 @@ class DltSource(Iterable[TDataItem]):
 
         """
         # this also check the normalizer type
-        config = RelationalNormalizer.get_normalizer_config(self._schema).get("propagation")
-        data_normalizer = self._schema.data_item_normalizer
-        assert isinstance(data_normalizer, RelationalNormalizer)
-        return config.get("root_key_propagation")  # type: ignore[return-value]
+        config = RelationalNormalizer.get_normalizer_config(self._schema)
+        is_root_key = config.get("root_key_propagation")
+        if is_root_key is None:
+            # if not found get legacy value
+            is_root_key = self._get_root_key_legacy(config)
+            if is_root_key:
+                # set the root key if legacy value set
+                self.root_key = True
+        return is_root_key
 
     @root_key.setter
     def root_key(self, value: bool) -> None:
         # this also check the normalizer type
         config = RelationalNormalizer.get_normalizer_config(self._schema)
-        data_normalizer = self._schema.data_item_normalizer
-        assert isinstance(data_normalizer, RelationalNormalizer)
-
-        # we must remove root key propagation
-        with contextlib.suppress(KeyError):
-            propagation_config = config["propagation"]
-            propagation_config["root"].pop(data_normalizer.c_dlt_id)
-            # and set the value below
-            value = True
-
+        if value is None:
+            value = self._get_root_key_legacy(config)
         if value is not None:
             RelationalNormalizer.update_normalizer_config(
                 self._schema,
                 {"root_key_propagation": value},
             )
+
+    def _get_root_key_legacy(self, config: RelationalNormalizerConfig) -> Optional[bool]:
+        data_normalizer = self._schema.data_item_normalizer
+        assert isinstance(data_normalizer, RelationalNormalizer)
+        # we must remove root key propagation
+        with contextlib.suppress(KeyError):
+            propagation_config = config["propagation"]
+            propagation_config["root"].pop(data_normalizer.c_dlt_id)
+            # and set the value below
+            return True
+        return None
 
     @property
     def schema_contract(self) -> TSchemaContract:
