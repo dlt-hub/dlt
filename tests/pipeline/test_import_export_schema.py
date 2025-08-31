@@ -1,4 +1,5 @@
 import dlt, os
+import pytest
 
 from dlt.common.utils import uniq_id
 
@@ -219,3 +220,29 @@ def test_only_explicit_hints_in_import_schema() -> None:
     }
     import_schema = _get_import_schema("source")
     assert import_schema.tables["person"]["columns"].keys() == {"id", "age"}
+
+
+@pytest.mark.parametrize(
+    "table_nesting",
+    [0, 1],
+)
+def test_import_schema_preserves_max_nesting(table_nesting: int) -> None:
+    # Add nested field
+    @dlt.resource(max_table_nesting=table_nesting, table_name="my_table")
+    def nested_data():
+        nested_example_data = EXAMPLE_DATA[0]
+        nested_example_data["children"] = [{"id": 2, "name": "Max"}, {"id": 3, "name": "Julia"}]
+        yield nested_example_data
+
+    p = dlt.pipeline(
+        pipeline_name="schema_test" + uniq_id(),
+        destination="duckdb",
+        import_schema_path=IMPORT_SCHEMA_PATH,
+        export_schema_path=EXPORT_SCHEMA_PATH,
+    )
+    p.run(nested_data())
+
+    if table_nesting == 0:
+        assert "my_table__children" not in p.default_schema.tables
+    else:
+        assert "my_table__children" in p.default_schema.tables

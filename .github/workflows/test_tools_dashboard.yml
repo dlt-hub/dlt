@@ -1,0 +1,112 @@
+name: common | common
+
+on:
+  workflow_call:
+
+
+env:
+  RUNTIME__LOG_LEVEL: ERROR
+
+  # we need the secrets only for the rest_api_pipeline tests which are in tests/sources
+  # so we inject them only at the end
+  SOURCES__GITHUB__ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # and also for the github_api_pipeline tests
+  SOURCES__GITHUB_API_PIPELINE__ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  run_common:
+    name: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+
+          # macos tests
+          - os: macos-latest
+            python-version: "3.11"
+            shell: bash
+
+          # linux tests
+          - os: ubuntu-latest
+            python-version: "3.10"
+            shell: bash
+          - os: ubuntu-latest
+            python-version: "3.11"
+            shell: bash
+          - os: ubuntu-latest
+            python-version: "3.12"
+            shell: bash
+          - os: ubuntu-latest
+            python-version: "3.13"
+            shell: bash
+
+          
+          # windows tests
+          - os: windows-latest
+            python-version: "3.11"
+            shell: cmd
+            pytest_args: '-m "not forked"'
+
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@master
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install tzdata on windows
+        run: |
+          cd %USERPROFILE%
+          curl https://data.iana.org/time-zones/releases/tzdata2021e.tar.gz --output tzdata.tar.gz
+          mkdir tzdata
+          tar --extract --file tzdata.tar.gz --directory tzdata
+          mkdir %USERPROFILE%\Downloads\tzdata
+          copy tzdata %USERPROFILE%\Downloads\tzdata
+          curl https://raw.githubusercontent.com/unicode-org/cldr/master/common/supplemental/windowsZones.xml --output %USERPROFILE%\Downloads\tzdata\windowsZones.xml
+        if: runner.os == 'Windows'
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          activate-environment: true
+
+      # test pipeline dashboard app, does not work with python 3.13
+      - name: Install dlt with duckdb and dashboard
+        # note: this also tests the workspace extra installation
+        run: uv sync ${{ matrix.uv_sync_args }} --extra duckdb --extra workspace --group sentry-sdk --group pipeline --group sources --group dashboard-tests
+        if: matrix.python-version != '3.14.0-beta.4'
+
+      - name: Install playwright
+        run: playwright install
+        if: matrix.python-version != '3.14.0-beta.4'
+
+      # Run pipeline dashboard unit tests
+      - name: Run pipeline dashboard unit tests
+        run: |
+          pytest tests/helpers/dashboard
+
+      # Run pipeline dashboard e2e tests (does not pass with python 3.9, does not pass on windows (playwright does not work somehow), does not pass on python 3.13 (ibis not available))
+      # Mac is also disabled for the time being
+      - name: Run dashboard e2e
+        run: |
+          marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines/ --with_test_identifiers true & 
+          sleep 10
+          pytest --browser chromium tests/e2e
+        if: matrix.python-version != '3.9' && matrix.os != 'windows-latest' && matrix.os != 'macos-latest' && matrix.python-version != '3.14.0-beta.4'
+  
+  matrix_job_required_check:
+    name: common | common tests
+    needs: run_common
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check matrix job results
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "One or more matrix job tests failed or were cancelled. You may need to re-run them." && exit 1

@@ -18,6 +18,8 @@ secrets.toml
 logs/
 .continuerules
 .continue
+# temporary directory used by marimo for layout, caching, HTML snapshots; see marimo docs
+**/__marimo__  
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/

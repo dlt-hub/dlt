@@ -182,6 +182,28 @@ profiles:
         bucket_url: s3://dlt-ci-test-bucket/dlt_example_project/
 ```
 
+### Run Configurations
+
+For each pipeline, you can use the `run_config` section to define what happens when the pipeline is run from
+the command line with `dlt pipeline <pipeline_name> run`.
+
+```yaml
+pipelines:
+  my_pipeline:
+    source: my_source
+    destination: duckdb
+    dataset_name: my_dataset
+    run_config:
+      run_from_clean_folder: true
+      store_trace_info: true
+      retry_policy:
+        type: fixed
+        max_attempts: 3
+      retry_pipeline_steps: ["load"]
+```
+
+Read more about these options [here](../production/pipeline-runner.md).
+
 ### Project settings and variable substitution
 
 You can override default project settings using the `project` section:
@@ -364,9 +386,10 @@ transformation = entities.get_transformation("stressed_transformation")
 ```
 Here, we access the entities manager, which allows you to create sources, destinations, pipelines, and other objects.
 
-### Running pipelines with the runner
+### Running pipelines
 
-`dlt+` includes a pipeline runner, which is the same one used when you run pipelines from the CLI.
+`dlt+` includes a project runner which will instantiate pipelines from the `dlt.yml` file
+and run them with the [pipeline runner](../production/pipeline-runner.md), which is exactly the same as using the [pipeline run](../reference#dlt-pipeline-run) command of the CLI.
 You can also use it directly in your code through the project context:
 
 ```py
