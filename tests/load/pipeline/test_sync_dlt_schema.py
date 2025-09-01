@@ -189,7 +189,7 @@ def test_sync_dlt_schema(
     # Make sure the warning about orphaned tables is emitted
     logger_spy = mocker.spy(logger, "warning")
 
-    schema_drops = pipeline.sync_dlt_schema()
+    schema_drops = pipeline.sync_schema_from_destination()
 
     logger_spy.assert_called()
     assert logger_spy.call_count == 1
@@ -219,7 +219,7 @@ def test_sync_dlt_schema(
     else:
         _drop_table_in_sql(pipeline, destination_config, "my_last_table__children")
 
-    schema_drops = pipeline.sync_dlt_schema()
+    schema_drops = pipeline.sync_schema_from_destination()
     # Schema drop should include the "my_last_table" with the child table
     assert len(schema_drops) == 2
     assert "my_last_table" in schema_drops

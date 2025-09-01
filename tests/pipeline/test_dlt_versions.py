@@ -472,7 +472,7 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
                     with pipeline.managed_state(extract_state=True):
                         pass
                     # this will sync schema to destination
-                    pipeline.sync_schema()
+                    pipeline.sync_schema_to_destination()
                     # we have hash now
                     rows = client.execute_sql(f"SELECT * FROM {PIPELINE_STATE_TABLE_NAME}")
                     assert len(rows[0]) == 6 + 2

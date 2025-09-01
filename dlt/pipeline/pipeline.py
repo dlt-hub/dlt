@@ -98,7 +98,7 @@ from dlt.common.pipeline import (
 )
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive, simple_repr, without_none
-from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
+from dlt.common.warnings import deprecated, Dlt04DeprecationWarning, Dlt1160DeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
 from dlt.extract import DltSource
@@ -1030,8 +1030,17 @@ class Pipeline(SupportsPipeline):
         for load_id in normalize_storage.extracted_packages.list_packages():
             normalize_storage.extracted_packages.delete_package(load_id)
 
+    @deprecated(
+        "Please use sync_schema_to_destination instead. The sync_schema is deprecated due to"
+        " ambiguous naming.",
+        category=Dlt1160DeprecationWarning,
+    )
     @with_schemas_sync
     def sync_schema(self, schema_name: str = None) -> TSchemaTables:
+        return self.sync_schema_to_destination(schema_name)
+
+    @with_schemas_sync
+    def sync_schema_to_destination(self, schema_name: str = None) -> TSchemaTables:
         """Synchronizes the destination with the schema `schema_name`. If no name is provided, the default schema will be synchronized."""
         if not schema_name and not self.default_schema_name:
             raise PipelineConfigMissing(
@@ -1048,7 +1057,7 @@ class Pipeline(SupportsPipeline):
             return client.update_stored_schema()
 
     @with_schemas_sync
-    def sync_dlt_schema(
+    def sync_schema_from_destination(
         self, schema_name: str = None, table_names: Iterable[str] = None, dry_run: bool = False
     ) -> Optional[TSchemaDrop]:
         """Synchronizes the schema `schema_name` with the destination. If no name is provided, the default schema will be synchronized."""
@@ -1062,7 +1071,8 @@ class Pipeline(SupportsPipeline):
             )
         schema = self.schemas[schema_name] if schema_name else self.default_schema
         with self._get_destination_clients(schema)[0] as client:
-            client.initialize_storage()
+            if not client.is_storage_initialized():
+                raise DestinationUndefinedEntity()
             return client.update_from_stored_schema(table_names=table_names, dry_run=dry_run)
 
     def set_local_state_val(self, key: str, value: Any) -> None:

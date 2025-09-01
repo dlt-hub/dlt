@@ -406,8 +406,7 @@ def update_dlt_schema(
 
     # 3. If it's not a dry run, we actually drop from the dlt schema
     if not dry_run:
-        for table_name in table_drops:
-            schema.tables.pop(table_name)
+        schema.drop_tables(list(table_drops.keys()))
         for table_name, partial_table in column_drops.items():
             col_schemas = partial_table["columns"]
             col_names = [col for col in col_schemas]
