@@ -160,14 +160,12 @@ Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing I
 If your cursor column name contains special characters (e.g., `$`) you need to escape it when passing it to the `incremental` function. For example, if your cursor column is `example_$column`, you should pass it as `"'example_$column'"` or `'"example_$column"'` to the `incremental` function: `incremental("'example_$column'", initial_value=...)`.
 :::
 
-### Configure timezone aware and naive timestamp cursors
-If your cursor is on timestamp/datetime column, make sure you set up your initial and end values correctly. You will avoid implicit
-type conversions, invalid date time literals or column comparisons in database queries. Note that if implicit conversions may
-result in data loss ie. if naive datetime has different local timezone on the machine where Python is executing vs. your dbms.
+### Configure timezone-aware and naive timestamp cursors
+If your cursor is on a timestamp/datetime column, make sure you set up your initial and end values correctly. This will help you avoid implicit type conversions, invalid datetime literals, or column comparisons in database queries. Note that implicit conversions may result in data loss, for example if a naive datetime has a different local timezone on the machine where Python is executing versus your DBMS.
 
-* If your datetime columns is naive, use naive Python datetime. Note that `pendulum` datetime is tz-aware by default and standard `datetime` is naive.
-* Use `full` reflection level or above to reflect `timezone` (awareness hint) on the datetime columns.
-* read about the [timestamp handling](../../../general-usage/schema.md#handling-of-timestamp-and-time-zones) in `dlt`
+* If your datetime column is naive, use naive Python datetime. Note that `pendulum` datetime is timezone-aware by default while standard `datetime` is naive.
+* Use `full` reflection level or above to reflect the `timezone` (awareness hint) on datetime columns.
+* Read about [timestamp handling](../../../general-usage/schema.md#handling-of-timestamp-and-time-zones) in `dlt`
 
 
 ### Examples
