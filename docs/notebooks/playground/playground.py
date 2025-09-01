@@ -29,8 +29,8 @@ def run():
 
     @dlt.resource(name="customers")
     def fetch_customers():
-        response = requests.get("https://jaffle-shop.dlthub.com/api/v1/customers")
-        yield from response.json()
+        response = requests.get("https://jaffle-shop.dlthub.com/api/v1/customers?limit=100")
+        yield response.json()
 
     pipeline = dlt.pipeline(
         pipeline_name="customers_pipeline",
@@ -60,7 +60,7 @@ def connect(pipeline):
 @app.cell(hide_code=True)
 def tests(pipeline):
     # NOTE: this cell is only needed for testing this notebook on ci
-    assert pipeline.dataset().customers.df().shape[0] > 0
+    assert pipeline.dataset().customers.df().shape[0] == 100
     return
 
 
