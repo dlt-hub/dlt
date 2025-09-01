@@ -82,6 +82,7 @@ from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.utils import (
     verify_schema_merge_disposition,
     verify_schema_replace_disposition,
+    update_dlt_schema,
 )
 
 CURRENT_VERSION: int = 2
@@ -647,12 +648,12 @@ class FilesystemClient(
         # externally changed
         return applied_update
 
-    def update_dlt_schema(
+    def update_from_stored_schema(
         self,
         table_names: Iterable[str] = None,
         dry_run: bool = False,
     ) -> Optional[TSchemaDrop]:
-        return super().update_dlt_schema(table_names, dry_run)
+        return update_dlt_schema(self, self.schema, table_names, dry_run)
 
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
         table = super().prepare_load_table(table_name)

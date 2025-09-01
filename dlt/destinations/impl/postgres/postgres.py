@@ -12,7 +12,6 @@ from dlt.common.destination.client import (
     RunnableLoadJob,
     FollowupJobRequest,
     LoadJob,
-    WithTableReflection,
 )
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TColumnType
@@ -168,7 +167,7 @@ class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
                     cursor.copy_expert(copy_sql, f, size=8192)
 
 
-class PostgresClient(InsertValuesJobClient, WithTableReflection):
+class PostgresClient(InsertValuesJobClient):
     def __init__(
         self,
         schema: Schema,

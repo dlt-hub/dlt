@@ -10,7 +10,6 @@ from dlt.common.destination.client import (
     SupportsStagingDestination,
     FollowupJobRequest,
     LoadJob,
-    WithTableReflection,
 )
 
 from dlt.common.schema import TColumnSchema, Schema, TColumnHint

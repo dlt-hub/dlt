@@ -1063,7 +1063,7 @@ class Pipeline(SupportsPipeline):
         schema = self.schemas[schema_name] if schema_name else self.default_schema
         with self._get_destination_clients(schema)[0] as client:
             client.initialize_storage()
-            return client.update_dlt_schema(table_names=table_names, dry_run=dry_run)
+            return client.update_from_stored_schema(table_names=table_names, dry_run=dry_run)
 
     def set_local_state_val(self, key: str, value: Any) -> None:
         """Sets value in local state. Local state is not synchronized with destination."""

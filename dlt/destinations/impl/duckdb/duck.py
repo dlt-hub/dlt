@@ -7,7 +7,6 @@ from dlt.common.destination.client import (
     RunnableLoadJob,
     HasFollowupJobs,
     LoadJob,
-    WithTableReflection,
 )
 from dlt.common.schema.typing import TColumnSchema, TColumnType, TTableFormat
 from dlt.common.schema.utils import has_default_column_prop_value
@@ -50,7 +49,7 @@ class DuckDbCopyJob(RunnableLoadJob, HasFollowupJobs):
         )
 
 
-class DuckDbClient(InsertValuesJobClient, WithTableReflection):
+class DuckDbClient(InsertValuesJobClient):
     def __init__(
         self,
         schema: Schema,

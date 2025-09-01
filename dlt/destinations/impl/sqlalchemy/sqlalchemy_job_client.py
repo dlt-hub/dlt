@@ -13,7 +13,6 @@ from dlt.common.destination.client import (
     StateInfo,
     PreparedTableSchema,
     FollowupJobRequest,
-    WithTableReflection,
 )
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset, SqlLoadJob
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
@@ -42,7 +41,7 @@ from dlt.destinations.impl.sqlalchemy.load_jobs import (
 )
 
 
-class SqlalchemyJobClient(SqlJobClientWithStagingDataset, WithTableReflection):
+class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
     sql_client: SqlalchemyClient  # type: ignore[assignment]
 
     def __init__(

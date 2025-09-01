@@ -44,7 +44,6 @@ from dlt.common.destination.client import (
     FollowupJobRequest,
     SupportsStagingDestination,
     LoadJob,
-    WithTableReflection,
 )
 from dlt.destinations.sql_jobs import (
     SqlStagingCopyFollowupJob,
@@ -199,7 +198,7 @@ class LfTagsManager:
         logger.debug(f"Success: {verb} LF tags {lf_tags} to " + resource_msg)
 
 
-class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination, WithTableReflection):
+class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     def __init__(
         self,
         schema: Schema,
