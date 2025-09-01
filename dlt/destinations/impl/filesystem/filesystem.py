@@ -581,45 +581,6 @@ class FilesystemClient(
             raise exceptions[0]
         return loaded_tables
 
-    def _diff_between_actual_and_dlt_schema(
-        self, table_name: str, actual_col_names: set[str], disregard_dlt_columns: bool = True
-    ) -> TPartialTableSchema:
-        """Returns a partial table schema containing columns that exist in the dlt schema
-        but are missing from the actual table. Skips dlt internal columns by default.
-        """
-        col_schemas = self.schema.get_table_columns(table_name)
-
-        # Map escaped -> original names (actual_col_names are escaped)
-        escaped_to_original = {
-            self.sql_client.escape_column_name(col, quote=False): col for col in col_schemas.keys()
-        }
-        dropped_col_names = set(escaped_to_original.keys()) - actual_col_names
-
-        if not dropped_col_names:
-            return {}
-
-        partial_table: TPartialTableSchema = {"name": table_name, "columns": {}}
-
-        for esc_name in dropped_col_names:
-            orig_name = escaped_to_original[esc_name]
-
-            # Athena doesn't have dlt columns in actual columns. Don't drop them anyway.
-            if disregard_dlt_columns and orig_name in [C_DLT_ID, C_DLT_LOAD_ID]:
-                continue
-
-            col_schema = col_schemas[orig_name]
-            if col_schema.get("increment"):
-                # We can warn within the for loop,
-                # since there's only one incremental field per table
-                logger.warning(
-                    f"An incremental field {orig_name} is being removed from schema."
-                    "You should unset the"
-                    " incremental with `incremental=dlt.sources.incremental.EMPTY`"
-                )
-            partial_table["columns"][orig_name] = col_schema
-
-        return partial_table if partial_table["columns"] else {}
-
     def update_stored_schema(
         self,
         only_tables: Iterable[str] = None,

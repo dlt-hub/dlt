@@ -404,7 +404,7 @@ def update_dlt_schema(
                 " child tables in the destination and sync the dlt schema again."
             )
 
-    # 3. If it's not a dry run, we actually drop fromt the dlt schema
+    # 3. If it's not a dry run, we actually drop from the dlt schema
     if not dry_run:
         for table_name in table_drops:
             schema.tables.pop(table_name)

@@ -15,7 +15,7 @@ from typing import (
 import time
 from dlt.common.metrics import LoadJobMetrics
 from dlt.common.pendulum import pendulum
-from dlt.common.schema import Schema, TSchemaTables
+from dlt.common.schema import Schema, TSchemaTables, TSchemaDrop
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import LoadJobInfo
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -162,6 +162,13 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
                 "Raise on schema update due to `fail_schema_update` config flag"
             )
         return applied_update
+
+    def update_from_stored_schema(
+        self,
+        table_names: Iterable[str] = None,
+        dry_run: bool = False,
+    ) -> Optional[TSchemaDrop]:
+        return None
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
