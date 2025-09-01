@@ -1,41 +1,33 @@
+from __future__ import annotations
+
 from types import TracebackType
 from typing import Any, Type, Union, TYPE_CHECKING, List, Literal, overload
-
 
 from sqlglot.schema import Schema as SQLGlotSchema
 import sqlglot.expressions as sge
 
-from dlt.common.destination.exceptions import (
-    OpenTableClientNotAvailable,
-)
+import dlt
+from dlt.common.destination.exceptions import OpenTableClientNotAvailable
 from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common.json import json
 from dlt.common.destination.reference import TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase, SupportsOpenTables, WithStateSync
-from dlt.common.destination.dataset import (
-    SupportsRelation,
-    SupportsDataset,
-)
+from dlt.common.destination.dataset import SupportsRelation, SupportsDataset
 from dlt.common.schema import Schema
 from dlt.common.typing import Self
 from dlt.common.schema.typing import C_DLT_LOAD_ID
 from dlt.common.utils import simple_repr, without_none
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
+from dlt.dataset import lineage
 from dlt.dataset.relation import Relation
 from dlt.dataset.utils import get_destination_clients
 from dlt.destinations.queries import build_row_counts_expr
-
-from dlt.dataset import lineage
 
 
 if TYPE_CHECKING:
     from dlt.helpers.ibis import BaseBackend as IbisBackend
     from dlt.helpers.ibis import Table as IbisTable
     from dlt.helpers.ibis import Expr as IbisExpr
-else:
-    IbisBackend = Any
-    IbisTable = Any
-    IbisExpr = Any
 
 
 class Dataset(SupportsDataset):
@@ -45,7 +37,7 @@ class Dataset(SupportsDataset):
         self,
         destination: TDestinationReferenceArg,
         dataset_name: str,
-        schema: Union[Schema, str, None] = None,
+        schema: Union[dlt.Schema, str, None] = None,
     ) -> None:
         # provided properties
         self._destination = Destination.from_reference(destination)
@@ -53,23 +45,24 @@ class Dataset(SupportsDataset):
         self._dataset_name = dataset_name
 
         # derived / cached properties
-        self._schema: Schema = None
+        self._schema: dlt.Schema = None
         # self._sqlglot_schema: SQLGlotSchema = None
         self._sql_client: SqlClientBase[Any] = None
         self._opened_sql_client: SqlClientBase[Any] = None
         self._table_client: SupportsOpenTables = None
 
-    def ibis(self) -> IbisBackend:
-        """return a connected ibis backend"""
+    def ibis(self, read_only: bool = False) -> IbisBackend:
+        """return a connected ibis backend, read-only flag is only used for duckdb"""
         from dlt.helpers.ibis import create_ibis_backend
 
         return create_ibis_backend(
             self._destination,
             self._get_destination_client(self.schema),
+            read_only=read_only,
         )
 
     @property
-    def schema(self) -> Schema:
+    def schema(self) -> dlt.Schema:
         # NOTE: if this property raises AttributeError, __getattr__ will get called 🤯
         #   this leads to infinite recursion as __getattr_ calls this property
         if not self._schema:
@@ -129,19 +122,19 @@ class Dataset(SupportsDataset):
                 )
         return self._table_client
 
-    def is_same_physical_destination(self, other: "Dataset") -> bool:
+    def is_same_physical_destination(self, other: dlt.Dataset) -> bool:
         """
         Returns true if the other dataset is on the same physical destination
         helpful if we want to run sql queries without extracting the data
         """
         return str(self.destination_client.config) == str(other.destination_client.config)
 
-    def _get_destination_client(self, schema: Schema) -> JobClientBase:
+    def _get_destination_client(self, schema: dlt.Schema) -> JobClientBase:
         return get_destination_clients(
             schema, destination=self._destination, destination_dataset_name=self._dataset_name
         )[0]
 
-    def _get_sql_client(self, schema: Schema) -> SqlClientBase[Any]:
+    def _get_sql_client(self, schema: dlt.Schema) -> SqlClientBase[Any]:
         client = self._get_destination_client(self.schema)
         if isinstance(client, WithSqlClient):
             return client.sql_client
@@ -154,30 +147,34 @@ class Dataset(SupportsDataset):
         """Lazy load the schema on request"""
 
         # full schema given, nothing to do
-        if not self._schema and isinstance(self._provided_schema, Schema):
+        if not self._schema and isinstance(self._provided_schema, dlt.Schema):
             self._schema = self._provided_schema
 
         # schema name given, resolve it from destination by name
         elif not self._schema and isinstance(self._provided_schema, str):
-            with self._get_destination_client(Schema(self._provided_schema)) as client:
+            with self._get_destination_client(dlt.Schema(self._provided_schema)) as client:
                 if isinstance(client, WithStateSync):
                     stored_schema = client.get_stored_schema(self._provided_schema)
                     if stored_schema:
-                        self._schema = Schema.from_stored_schema(json.loads(stored_schema.schema))
+                        self._schema = dlt.Schema.from_stored_schema(
+                            json.loads(stored_schema.schema)
+                        )
                     else:
-                        self._schema = Schema(self._provided_schema)
+                        self._schema = dlt.Schema(self._provided_schema)
 
         # no schema name given, load newest schema from destination
         elif not self._schema:
-            with self._get_destination_client(Schema(self._dataset_name)) as client:
+            with self._get_destination_client(dlt.Schema(self._dataset_name)) as client:
                 if isinstance(client, WithStateSync):
                     stored_schema = client.get_stored_schema()
                     if stored_schema:
-                        self._schema = Schema.from_stored_schema(json.loads(stored_schema.schema))
+                        self._schema = dlt.Schema.from_stored_schema(
+                            json.loads(stored_schema.schema)
+                        )
 
         # default to empty schema with dataset name
         if not self._schema:
-            self._schema = Schema(self._dataset_name)
+            self._schema = dlt.Schema(self._dataset_name)
 
     def query(
         self,
@@ -357,3 +354,11 @@ class Dataset(SupportsDataset):
             else:
                 msg += "No data tables found in schema."
         return msg
+
+
+def dataset(
+    destination: TDestinationReferenceArg,
+    dataset_name: str,
+    schema: Union[Schema, str, None] = None,
+) -> Dataset:
+    return Dataset(destination, dataset_name, schema)

@@ -42,6 +42,11 @@ jobs:
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     uses: ./.github/workflows/test_common.yml
 
+  test_dashboard:
+    name: run dashboard tests
+    needs: [lint, get_docs_changes]
+    uses: ./.github/workflows/test_tools_dashboard.yml
+
   #
   # Destination and Sources local tests, do not provide secrets
   # Other tests that do not require remote connections

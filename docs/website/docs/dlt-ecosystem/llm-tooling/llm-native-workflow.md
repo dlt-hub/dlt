@@ -1,6 +1,6 @@
 ---
 title: LLM-native workflow
-description: How to extract and explore data from REST API with Cursor
+description: How to extract and explore data from REST API with AI editors/agents
 keywords: [cursor, llm, restapi, ai]
 ---
 
@@ -8,23 +8,32 @@ keywords: [cursor, llm, restapi, ai]
 
 ## Overview
 
-This guide walks you through a collaborative AI-human workflow for extracting and exploring data from REST API sources using Cursor and dlt. It introduces the first workflow available in dltHub Workspace — an LLM-native development environment for data engineering tasks.
+This guide walks you through a collaborative AI-human workflow for extracting and exploring data from REST API sources using an AI editor/agent of your choice and dlt. It introduces the first workflow available in dltHub workspace — an LLM-native development environment for data engineering tasks.
 
 You will learn:
-1. How to use dltHub's [LLM-context database](https://dlthub.com/workspace) to init workspace for the source you need.
+1. How to initialize a dltHub workspace for your source using dltHub’s [LLM-context database](https://dlthub.com/workspace).
 2. How to build a REST API source in minutes with AI assistance.
-3. How to debug the pipeline and explore data using the pipeline dashboard.
-4. How to start a new notebook and use the pipeline's dataset in it.
+3. How to debug a pipeline and explore data using the pipeline dashboard.
+4. How to start a new notebook and work with the pipeline’s dataset in it.
 
 ## Prerequisites
 
-- [Cursor IDE](https://cursor.com/) installed
+Have one of the following AI editors/agents installed:
+- [Cursor IDE](https://cursor.com/)
+- [Continue](https://www.continue.dev/)
+- [Cody](https://sourcegraph.com/cody)
+- [Claude](https://docs.anthropic.com/en/docs/claude-code/ide-integrations)
+- [Cline](https://cline.bot/)
+- [Codex](https://openai.com/codex/)
+- [Copilot](https://github.com/features/copilot)
+- [Amp](https://ampcode.com/)
+- [Windsurf](https://windsurf.com/)
 
 ## Concepts used in this guide
 
 Before diving into the workflow, here’s a quick overview of key terms you’ll encounter:
 
-1. **dltHub Workspace** - An environment where all data engineering tasks, from writing code to maintenance in production, can be executed by single developer:
+1. **dlt workspace** - An environment where all data engineering tasks, from writing code to maintenance in production, can be executed by a single developer:
    - Develop and test data pipelines locally
    - Run dlt pipelines, transformations, and notebooks with one command
    - Deliver live, production-ready reports with streamlined access to the dataset
@@ -32,28 +41,34 @@ Before diving into the workflow, here’s a quick overview of key terms you’ll
    We plan to support more functionality in the future, such as:
    - Deploy and run your data workflows in the cloud without any changes to code and schemas
    - Maintain pipelines with a Runtime Agent, customizable dashboards, and validation tests
-   - Deploy live, reports without worrying about schema drift or silent failures
+   - Deploy live reports without worrying about schema drift or silent failures
 
-2. **[Cursor](https://cursor.com/)** - An AI-powered code editor that lets you express tasks in natural language for an LLM agent to implement. This LLM-native workflow isn’t exclusive to Cursor, but it’s the first AI code editor we’ve integrated with.
+2. **[Cursor](https://cursor.com/)** - An AI-powered code editor that lets you express tasks in natural language for an LLM agent to implement. Cursor is the first AI code editor we’ve integrated with, so the examples use Cursor, but the same workflow applies to Continue, Copilot, Cody, Windsurf, Cline, Claude, Amp, and Codex (only the UI/shortcuts differ).
 
-3. **LLM-context** - A curated collection of prompts, rules, docs, and examples provided to an LLM for specific tasks. A rich context leads to more accurate, bug-free code generation. dltHub provides tailored [LLM-context for 1,000+ REST API sources](https://dlthub.com/workspace), so you can go from idea to working pipeline in under 10 minutes.
+3. **LLM-context** - A curated collection of prompts, rules, docs, and examples provided to an LLM for specific tasks. A rich context leads to more accurate, bug-free code generation. dltHub provides tailored [LLM-contexts for 1,000+ REST API sources](https://dlthub.com/workspace), so you can go from idea to working pipeline in under 10 minutes.
 
 ## Setup
 
-### Setup Cursor
+### Setup your AI editor/agent
 
-1. Use the right model
-For best results, use Claude 3.7-sonnet, Gemini 2.5+ or higher models. Weaker models struggle with context comprehension and workflow consistency.
-We've observed the best results with Claude 3.7-sonnet (which requires the paid version of Cursor).
+#### 1. Use the right model
 
-2. Add documentation
-AI code editors let you upload documentation and code examples to provide additional context. [Here](https://docs.cursor.com/context/@-symbols/@-docs) you can learn how to do it with Cursor.
-Go to `Cursor Settings > Indexing & Docs` to see all your added documentation. You can edit, delete, or add new docs here. We recommend adding documentation scoped for a specific task. Add the following documentation links:
+For best results, use newer models. For example, in Cursor we’ve found that Claude-4-sonnet performs best (available in the paid version). Older or weaker models often struggle with context comprehension and workflows.
 
-    * [REST API Source](../verified-sources/rest_api/) as `@dlt rest api`
-    * [Core dlt concepts & usage](../../general-usage/resource) as `@dlt docs`
+#### 2. Add documentation
 
-### Install dlt Workspace
+AI code editors let you upload documentation and code examples to provide additional context. The exact steps vary by tool, but here are two examples:
+
+1. Cursor ([guide](https://docs.cursor.com/context/@-symbols/@-docs)): Go to `Settings > Indexing & Docs` to add documentation.
+2. Continue ([guide](https://docs.continue.dev/customize/context/documentation)): In chat, type `@Docs` and press `Enter`, then click `Add Docs`.
+
+For any editor or agent, we recommend adding documentation scoped to a specific task.
+At minimum, include:
+
+* [REST API source](../verified-sources/rest_api/) as `@dlt_rest_api`
+* [Core dlt concepts & usage](../../general-usage/) as `@dlt_docs`
+
+### Install dlt workspace
 
 ```sh
 pip install "dlt[workspace]"
@@ -67,20 +82,22 @@ dltHub provides prepared contexts for 1000+ sources, available at [https://dlthu
 ![search for your source](https://storage.googleapis.com/dlt-blog-images/llm_workflows_search.png)
 </div>
 
-To initialize dltHub Workspace, execute the following:
+To initialize a dltHub workspace, execute the following:
 
 ```sh
 dlt init dlthub:{source_name} duckdb
 ```
 
-This command will initialize the dltHub Workspace with:
+This command will first prompt you to choose an AI editor/agent. If you pick the wrong one, no problem. After initializing the workspace, you can delete the incorrect editor rules and run `dlt ai setup` to select the editor again. This time it will only load the rules.
+
+The dltHub workspace will be initialized with:
 - Files and folder structure you know from [dlt init](../../walkthroughs/create-a-pipeline.md)
 - Documentation scaffold for the specific source (typically a `yaml` file) optimized for LLMs
-- Cursor rules tailored for `dlt`
-- Pipeline script and REST API Source (`{source_name}_pipeline.py`) definition that you'll customize in next step
+- Rules for `dlt`, configured for your selected AI editor/agent
+- Pipeline script and REST API source (`{source_name}_pipeline.py`) definition that you'll customize in the next step
 
 :::tip
-If you can't find the source you need, start with a generic REST API Source template. Choose source name you need i.e.
+If you can't find the source you need, start with a generic REST API source template. Choose a source name you need i.e.
 ```sh
 dlt init dlthub:my_internal_fast_api duckdb
 ```
@@ -98,20 +115,20 @@ Prompts are adjusted per API to provide the most accurate and relevant context.
 Here's a general prompt template you can adapt:
 
 ```text
-Please generate a REST API Source for {source} API, as specified in @{source}-docs.yaml
+Please generate a REST API source for {source} API, as specified in @{source}-docs.yaml
 Start with endpoints {endpoints you want} and skip incremental loading for now.
 Place the code in {source}_pipeline.py and name the pipeline {source}_pipeline.
 If the file exists, use it as a starting point.
 Do not add or modify any other files.
-Use @dlt rest api as a tutorial.
+Use @dlt_rest_api as a tutorial.
 After adding the endpoints, allow the user to run the pipeline with python {source}_pipeline.py and await further instructions.
 ```
 
-YIn this prompt, we use `@` references to link to source specifications and documentation. Make sure Cursor recognizes the referenced docs.
-You can learn more about [referencing with @ in Cursor](https://docs.cursor.com/context/@-symbols/overview).
+In this prompt, we use `@` references to link source specifications and documentation. Make sure Cursor (or whichevert AI editor/agent you use) recognizes the referenced docs.
+For example, see [Cursor’s guide](https://docs.cursor.com/context/@-symbols/overview) to @ references.
 
-* `@{source}-docs.yaml` contains the source specification. Describes the source with endpoints, parameters, and other details.
-* `@dlt rest api` contains the documentation for dlt's REST API source.
+* `@{source}-docs.yaml` contains the source specification and describes the source with endpoints, parameters, and other details.
+* `@dlt_rest_api` contains the documentation for dlt's REST API source.
 
 ### Add credentials
 
@@ -137,12 +154,12 @@ Load package 1749667187.541553 is LOADED and contains no failed jobs
 If the pipeline fails, pass error messages to the LLM. Restart after 4-8 failed attempts.
 :::
 
-### Validate with Pipeline Dashboard
+### Validate with pipeline dashboard
 
 Launch the dashboard to validate your pipeline:
 
 ```sh
-dlt pipeline {source}_pipeline show --dashboard
+dlt pipeline {source}_pipeline show
 ```
 
 The dashboard shows:
@@ -156,7 +173,7 @@ The dashboard helps detect silent failures due to pagination errors, schema drif
 ![dashboard](https://storage.googleapis.com/dlt-blog-images/llm-native-dashboard.png)
 </div>
 
-## Use the data in a Notebook
+## Use the data in a notebook
 
 With the pipeline and data validated, you can continue with custom data explorations and reports. You can use your preferred environment, for example, [Jupyter Notebook](https://jupyter.org/), [Marimo Notebook](https://marimo.io/), or a plain Python file.
 
@@ -174,7 +191,7 @@ my_data = dlt.pipeline("{source}_pipeline").dataset()
 # my_data.{table_name}.df().head()
 ```
 
-For more, see [dataset access guide](../../general-usage/dataset-access).
+For more, see the [dataset access guide](../../general-usage/dataset-access).
 
 ## Next steps: production deployment
 
@@ -182,12 +199,12 @@ For more, see [dataset access guide](../../general-usage/dataset-access).
 - [Deploy a pipeline](../../walkthroughs/deploy-a-pipeline/)
 
 
-## Addon: bring your own LLM Scaffold
+## Addon: bring your own LLM scaffold
 
-LLMs can infer a REST API Source definition from various types of input, and in many cases, it’s easy to provide what’s needed.
+LLMs can infer a REST API source definition from various types of input, and in many cases, it’s easy to provide what’s needed.
 
 Here are a few effective ways to scaffold your source:
 
 1. **FastAPI (Internal APIs)**. If you're using FastAPI, simply add a file with the autogenerated OpenAPI spec to your workspace and reference it in your prompt.
-2. **Legacy code in any programming language**. Add the relevant code files to your workspace and reference them directly in your prompt. LLM can extract useful structure even from older codebases.
-3. **Human-readable documentation**. Well-written documentation works too. You can add it to your Cursor docs and reference it in your prompt for context.
+2. **Legacy code in any programming language**. Add the relevant code files to your workspace and reference them directly in your prompt. LLMs can extract useful structure even from older codebases.
+3. **Human-readable documentation**. Well-written documentation works too. You can add it to your AI editor docs and reference it in your prompt for context.

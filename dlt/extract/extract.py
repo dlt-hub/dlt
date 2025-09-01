@@ -178,7 +178,7 @@ def data_to_sources(
     # apply hints and settings
     for source in sources:
         apply_settings(source)
-        for resource in source.selected_resources.values():
+        for resource in source.resources.extracted:
             apply_hint_args(resource)
 
     return sources
@@ -383,7 +383,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                             left_gens -= delta
                             collector.update("Resources", delta)
                         signals.raise_if_signalled()
-                        resource = source.resources[pipe_item.pipe.name]
+                        resource = source.resources.with_pipe(pipe_item.pipe)
                         item_format = get_data_item_format(pipe_item.item)
                         extractors[item_format].write_items(
                             resource, pipe_item.item, pipe_item.meta
@@ -448,10 +448,9 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     load_package.state.update(load_package_state_update)
 
                 # reset resource states, the `extracted` list contains all the explicit resources and all their parents
-                for resource in source.resources.extracted.values():
-                    with contextlib.suppress(DataItemRequiredForDynamicTableHints):
-                        if resource.write_disposition == "replace":
-                            reset_resource_state(resource.name)
+                for resource in source.resources.extracted:
+                    if resource.write_disposition == "replace":
+                        reset_resource_state(resource.name)
 
                 self._extract_single_source(
                     load_id,

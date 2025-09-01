@@ -24,7 +24,7 @@ See: https://github.com/apache/arrow-adbc/issues/1559
 from dataclasses import dataclass, field
 from datetime import datetime  # noqa: I251
 from http.cookies import SimpleCookie
-from typing import Any, List, Tuple, Optional, Mapping, Dict, AnyStr
+from typing import Any, List, Tuple, Optional, Mapping, Dict, AnyStr, Iterator
 
 import pyarrow
 import pytz
@@ -60,7 +60,9 @@ def quote_string(string: str) -> str:
 
 
 def format_datetime(d: datetime) -> str:
-    return d.astimezone(pytz.UTC).replace(tzinfo=None).isoformat(sep=" ", timespec="milliseconds")
+    if d.tzinfo is not None:
+        d = d.astimezone(pytz.UTC).replace(tzinfo=None)
+    return d.isoformat(sep=" ", timespec="milliseconds")
 
 
 def format_parameter(param: Any) -> str:
@@ -85,12 +87,6 @@ def parameterize_query(query: str, parameters: Optional[Tuple[Any, ...]]) -> str
         raise MalformedQueryError(*ex.args)
 
 
-def execute_query(connection: "DremioConnection", query: str) -> pyarrow.Table:
-    flight_desc = flight.FlightDescriptor.for_command(query)
-    flight_info = connection.client.get_flight_info(flight_desc, connection.options)
-    return connection.client.do_get(flight_info.endpoints[0].ticket, connection.options).read_all()
-
-
 def _any_str_to_str(string: AnyStr) -> str:
     if isinstance(string, bytes):
         return string.decode()
@@ -102,10 +98,16 @@ def _any_str_to_str(string: AnyStr) -> str:
 class DremioCursor:
     connection: "DremioConnection"
     table: pyarrow.Table = field(init=False, default_factory=lambda: pyarrow.table([]))
+    # default number of rows returned by fetchmany when size is not provided
+    arraysize: int = 1000
+    # flight stream reader and schema for streaming fetches
+    _reader: Optional[flight.FlightStreamReader] = field(init=False, default=None)
+    _schema: Optional[pyarrow.Schema] = field(init=False, default=None)
 
     @property
     def description(self) -> List[Tuple[str, pyarrow.DataType, Any, Any, Any, Any, Any]]:
-        return [(fld.name, fld.type, None, None, None, None, None) for fld in self.table.schema]
+        schema = self._schema or self.table.schema
+        return [(fld.name, fld.type, None, None, None, None, None) for fld in schema]
 
     @property
     def rowcount(self) -> int:
@@ -114,37 +116,186 @@ class DremioCursor:
     def execute(
         self, query: AnyStr, parameters: Optional[Tuple[Any, ...]] = None, *args: Any, **kwargs: Any
     ) -> None:
+        """Execute a query and prepare to stream results.
+
+        this configures a Flight stream reader so that results can be consumed
+        incrementally via fetchone/fetchmany/fetchall or iter_arrow_tables.
+
+        Args:
+            query: SQL query string (or bytes)
+            parameters: optional positional parameters for the query
+        """
+        # cancel any prior reader
+        if self._reader is not None:
+            try:
+                self._reader.cancel()
+            except Exception:
+                pass
+            finally:
+                self._reader = None
+
         query_str = _any_str_to_str(query)
         parameterized_query = parameterize_query(query_str, parameters)
-        self.table = execute_query(self.connection, parameterized_query)
+
+        # get flight info and open a reader without loading all results
+        flight_desc = flight.FlightDescriptor.for_command(parameterized_query)
+        flight_info = self.connection.client.get_flight_info(flight_desc, self.connection.options)
+        self._schema = flight_info.schema
+        self._reader = self.connection.client.do_get(
+            flight_info.endpoints[0].ticket, self.connection.options
+        )
+
+        # reset buffer table to empty with the expected schema
+        if self._schema is not None:
+            self.table = pyarrow.table({col.name: [] for col in self._schema}, schema=self._schema)
+        else:
+            self.table = pyarrow.table([])
 
     def fetchall(self) -> List[Tuple[Any, ...]]:
-        return self.fetchmany()
+        # read all remaining rows in batches of arraysize to avoid high memory spikes
+        rows: List[Tuple[Any, ...]] = []
+        while True:
+            batch = self.fetchmany(self.arraysize)
+            if not batch:
+                break
+            rows.extend(batch)
+        return rows
+
+    def _ensure_buffered_rows(self, size: int) -> None:
+        """ensure the in-memory buffer has at least size rows, reading from the stream.
+
+        Args:
+            size: minimum number of rows to buffer in self.table.
+        """
+        while len(self.table) < size and self._reader is not None:
+            try:
+                chunk = self._reader.read_chunk()
+            except StopIteration:
+                self._reader = None
+                break
+            record_batch = chunk.data
+            if record_batch is None:
+                continue
+            incoming = pyarrow.Table.from_batches([record_batch])
+            self.table = (
+                incoming if len(self.table) == 0 else pyarrow.concat_tables([self.table, incoming])
+            )
 
     def fetchmany(self, size: Optional[int] = None) -> List[Tuple[Any, ...]]:
+        """Fetch up to size rows, streaming from the server as needed.
+
+        Args:
+            size: number of rows to return. If None, uses self.arraysize.
+
+        Returns:
+            list of row tuples with up to ``size`` elements. May be empty when
+            no more rows are available.
+        """
         if size is None:
-            size = len(self.table)
-        pylist = self.table.to_pylist()
-        self.table = pyarrow.Table.from_pylist(pylist[size:])
-        return [tuple(d.values()) for d in pylist[:size]]
+            size = self.arraysize
+        if size <= 0:
+            return []
+
+        # ensure at least size rows in buffer
+        self._ensure_buffered_rows(size)
+
+        available = len(self.table)
+        if available == 0:
+            return []
+
+        take = min(size, available)
+        slice_table = self.table.slice(0, take)
+        self.table = self.table.slice(take)
+        return [tuple(d.values()) for d in slice_table.to_pylist()]
 
     def fetchone(self) -> Optional[Tuple[Any, ...]]:
         result = self.fetchmany(1)
         return result[0] if result else None
 
     def fetch_arrow_table(self) -> pyarrow.Table:
-        table = self.table
-        self.table = pyarrow.table({col.name: [] for col in table.schema}, schema=table.schema)
-        return table
+        """Read and return the full remaining result as an Arrow table.
+
+        this drains the underlying Flight stream (if active) and returns all
+        rows currently buffered plus all remaining rows from the server. The
+        cursor buffer is reset to empty afterwards.
+        """
+        parts: List[pyarrow.Table] = []
+        if len(self.table) > 0:
+            parts.append(self.table)
+
+        if self._reader is not None:
+            try:
+                while True:
+                    try:
+                        chunk = self._reader.read_chunk()
+                    except StopIteration:
+                        self._reader = None
+                        break
+                    rb = chunk.data
+                    if rb is None:
+                        continue
+                    parts.append(pyarrow.Table.from_batches([rb]))
+            finally:
+                # guard against leaving a half-open reader reference
+                self._reader = None
+
+        if parts:
+            full = pyarrow.concat_tables(parts) if len(parts) > 1 else parts[0]
+        else:
+            # return an empty table preserving known schema when possible
+            schema = self._schema or self.table.schema
+            full = pyarrow.table({col.name: [] for col in schema}, schema=schema)
+
+        # reset buffer to empty with the same schema
+        self.table = pyarrow.table({col.name: [] for col in full.schema}, schema=full.schema)
+        return full
 
     def close(self) -> None:
-        pass
+        # cancel the active reader, if any
+        if self._reader is not None:
+            try:
+                self._reader.cancel()
+            except Exception:
+                pass
+            finally:
+                self._reader = None
 
     def __enter__(self) -> "DremioCursor":
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore
         self.close()
+
+    def iter_arrow_tables(self, size: Optional[int] = None) -> pyarrow.Table:
+        """Fetch up to size rows and return them as an Arrow table.
+
+        this mirrors fetchmany but returns a pyarrow.Table instead of a list of
+        row tuples. It streams from the server as needed to satisfy the size.
+
+        Args:
+            size: number of rows to return. If None, uses self.arraysize.
+
+        Returns:
+            pyarrow.Table containing up to ``size`` rows. May be empty when no
+            more rows are available.
+        """
+        if size is None:
+            size = self.arraysize
+        if size <= 0:
+            # return an empty table with the current schema
+            schema = self.table.schema
+            return pyarrow.table({col.name: [] for col in schema}, schema=schema)
+
+        # ensure at least size rows in buffer
+        self._ensure_buffered_rows(size)
+
+        take = min(size, len(self.table))
+        if take == 0:
+            return None
+
+        slice_table = self.table.slice(0, take)
+        self.table = self.table.slice(take)
+        return slice_table
 
 
 @dataclass(frozen=True)

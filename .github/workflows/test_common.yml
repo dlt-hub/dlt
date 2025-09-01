@@ -43,9 +43,9 @@ jobs:
             python-version: "3.13"
             shell: bash
 
-          - os: ubuntu-latest
-            python-version: "3.14.0-beta.4"
-            shell: bash
+          # - os: ubuntu-latest
+          #   python-version: "3.14.0-beta.4"
+          #   shell: bash
 
           # linux test with minimal dependencies
           - os: ubuntu-latest
@@ -154,8 +154,8 @@ jobs:
       # Run pipeline dashboard e2e tests (does not pass with python 3.9, does not pass on windows (playwright does not work somehow), does not pass on python 3.13 (ibis not available))
       - name: Run dashboard e2e
         run: |
-          marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines_dir _storage/.dlt/pipelines/ --with_test_identifiers true & pytest --browser chromium tests/e2e
-        if: matrix.python-version != '3.9' && matrix.os != 'windows-latest' && matrix.python-version != '3.14.0-beta.4'
+          marimo run --headless dlt/helpers/dashboard/dlt_dashboard.py -- -- --pipelines-dir _storage/.dlt/pipelines/ --with_test_identifiers true & pytest --browser chromium tests/e2e
+        if: matrix.python-version != '3.9' && matrix.os == 'ubuntu-latest' && matrix.python-version != '3.14.0-beta.4'
   
   matrix_job_required_check:
     name: common | common tests

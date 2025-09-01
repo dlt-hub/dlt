@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import overload, Union, Any, Generator, Optional, Sequence, Tuple, Type, TYPE_CHECKING
 from textwrap import indent
 from contextlib import contextmanager
@@ -9,8 +11,8 @@ from sqlglot.expressions import ExpOrStr as SqlglotExprOrStr
 
 import sqlglot.expressions as sge
 
+import dlt
 from dlt.common.destination.dataset import SupportsRelation, TFilterOperation
-
 from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGlotDialect
 from dlt.common.schema.typing import TTableSchemaColumns, TTableSchema
 from dlt.common.typing import Self, TSortOrder
@@ -28,12 +30,7 @@ except (ImportError, MissingDependencyException):
     IbisExpr = None
 
 if TYPE_CHECKING:
-    from dlt.dataset.dataset import Dataset
     from dlt.helpers.ibis import Expr as IbisExpr
-else:
-    Dataset = Any
-    IbisTable = Any
-    BaseReadableDBAPIDataset = Any
 
 
 _FILTER_OP_MAP = {
@@ -53,7 +50,7 @@ class Relation(SupportsRelation, WithSqlClient):
     def __init__(
         self,
         *,
-        readable_dataset: "Dataset",
+        readable_dataset: dlt.Dataset,
         query: Union[str, sge.Query],
         query_dialect: Optional[str] = None,
         _execute_raw_query: bool = False,
@@ -63,14 +60,14 @@ class Relation(SupportsRelation, WithSqlClient):
     def __init__(
         self,
         *,
-        readable_dataset: "Dataset",
+        readable_dataset: dlt.Dataset,
         table_name: str,
     ) -> None: ...
 
     def __init__(
         self,
         *,
-        readable_dataset: "Dataset",
+        readable_dataset: dlt.Dataset,
         query: Optional[Union[str, sge.Query, IbisExpr]] = None,
         query_dialect: Optional[str] = None,
         table_name: Optional[str] = None,
@@ -219,10 +216,10 @@ class Relation(SupportsRelation, WithSqlClient):
     #
     # Query  / Expression Management
     #
-    def to_sql(self, pretty: bool = False) -> str:
+    def to_sql(self, pretty: bool = False, _raw_query: bool = False) -> str:
         """Returns an executable sql query string in the correct sql dialect for this relation"""
 
-        if self.__execute_raw_query:
+        if self.__execute_raw_query or _raw_query:
             query = self._sqlglot_expression
         else:
             query = self._normalized_query
@@ -298,7 +295,7 @@ class Relation(SupportsRelation, WithSqlClient):
     # Relation protocol methods
     #
 
-    def limit(self, limit: int, **kwargs: Any) -> Self:
+    def limit(self, limit: int) -> Self:
         rel = self.__copy__()
         rel._sqlglot_expression = rel._sqlglot_expression.limit(limit)
         return rel

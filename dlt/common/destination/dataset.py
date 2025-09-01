@@ -144,12 +144,11 @@ class SupportsRelation(SupportsDataAccess, Protocol):
         ...
 
     # modifying access parameters
-    def limit(self, limit: int, **kwargs: Any) -> Self:
+    def limit(self, limit: int) -> Self:
         """Returns a new relation with the limit applied.
 
         Args:
             limit (int): The number of rows to fetch.
-            **kwargs (Any): Additional keyword arguments to pass to the limit implementation of the destination client cursor.
 
         Returns:
             Self: The relation with the limit applied.
@@ -449,8 +448,11 @@ class SupportsDataset(Protocol):
         """Context manager to keep the connection to the destination open between queries"""
         ...
 
-    def ibis(self) -> IbisBackend:
+    def ibis(self, read_only: bool = False) -> IbisBackend:
         """Returns a connected ibis backend for the dataset. Not implemented for all destinations.
+
+        Args:
+            read_only (bool): Whether to open the connection in read only mode. Only used for duckdb.
 
         Returns:
             IbisBackend: The ibis backend for the dataset

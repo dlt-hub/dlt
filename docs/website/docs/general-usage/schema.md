@@ -173,7 +173,7 @@ On the other hand, if the `id` field was already a string, then introducing new 
 
 Now go ahead and try to add a new record where `id` is a float number; you should see a new field `id__v_double` in the schema.
 
-### Data types
+## Data types
 
 | dlt Data Type | Source Value Example                                | Precision and Scale                                     |
 | ------------- | --------------------------------------------------- | ------------------------------------------------------- |
@@ -193,15 +193,55 @@ Now go ahead and try to add a new record where `id` is a float number; you shoul
 
 `json` data type tells `dlt` to load that element as JSON or string and not attempt to flatten or create a nested table out of it. Note that structured types like arrays or maps are not supported by `dlt` at this point.
 
-`time` data type is saved in the destination without timezone info; if timezone is included, it is stripped. E.g., `'14:01:02+02:00` -> `'14:01:02'`.
+`time` data type is saved in the destination **without timezone info**; if timezone is included, time is converted to UTC and then to naive.
 
-:::tip
+
+### Handling of timestamp and time zones
+By default `dlt` normalizes timestamps (tz-aware an naive) into time zone aware type in UTC timezone. Since `1.16.0` it fully honors `timezone` boolean hint if set
+explicitly on a column or by a source/resource. Normalizers do not infer this hint from data. The same rules apply for tabular data (arrow/pandas) and Python objects:
+
+| input timestamp | `timezone` hint | normalized timestamp  |
+| --------------- | --------------- | --------------------- |
+| naive           | `None`, `True`  | tz-aware in UTC       |
+| naive           | `False`         | naive (pass-through)  |
+| tz-aware        | `None`, `True`  | tz-aware in UTC       |
+| tz-aware        | `False`         | to UTC and then naive |
+|                 |                 |                       |
+
+:::caution
+naive timestamps will **always be considered as UTC**, system timezone settings are ignored by `dlt`
+:::
+
+Ultimately destination will interpret the timestamp values. Some destinations:
+- do not support naive timestamps (ie. BigQuery) and will interpret them as naive UTC by attaching UTC timezone
+- do not support tz-aware timestamps (ie. Dremio, Athena) and will strip timezones from timestamps being loaded
+- do not store timezone at all and all timestamps are converted to UTC
+- store timezone as column level property and internally convert timestamps to UTC. (ie. postgres)
+- store timezone and offset (ie. MSSQL). however we could not find any destination that can read back the original timezones
+
+`dlt` sets sessions to UTC timezone to minimize chances of erroneous conversion.
+
+### Handling precision
 The precision and scale are interpreted by the particular destination and are validated when a column is created. Destinations that do not support precision for a given data type will ignore it.
 
-The precision for **timestamp** is useful when creating **parquet** files. Use 3 for milliseconds, 6 for microseconds, and 9 for nanoseconds.
-
 The precision for **bigint** is mapped to available integer types, i.e., TINYINT, INT, BIGINT. The default is 64 bits (8 bytes) precision (BIGINT).
-:::
+
+Selected destinations honor precision hint on **timestamp**. Precisions is numeric value in range of 0 (seconds) to 9 (nanoseconds) and set the fractional
+number of seconds stored in a column. The default value is 6 (microseconds) which is Python `datetime` precision. `postgres`, `duckdb`, `snowflake`, `synapse` and `mssql` allow to set precision. Additionally `duckdb` and `filesystem` (via. parquet) allow for nanosecond precision if:
+* you configure [parquet version](../dlt-ecosystem/file-formats/parquet.md#writer-settings) to **2.6**
+* you yield tabular data (arrow tables/pandas). `dlt` coerces all Python datetime objects into `pendulum` with microsecond precision.
+
+### Handling nulls
+In general, destinations are responsible for NULL enforcement. `dlt` does not verify nullability of data in arrow tables and Python objects. Note that:
+
+* there's an exception to that rule if Python object (`dict`) contains explicit `None` for non-nullable key. This check will be eliminated. Note that if value
+for a key is not present at all, nullability check is not done
+* nullability is checked by Arrow when saving parquet files. This is a new behavior and `dlt` normalizes it for older arrow versions.
+
+### Structured types
+`dlt` has experimental support for structured types that currently piggyback on `json` data type and may be set only by yielding arrow tables. `dlt`` does not
+evolve nested types and will not migrate destination schemas to match. Nested types are enabled for `filesystem`, `iceberg`, `delta` and `lancedb` destinations.
+
 
 ## Table references
 `dlt` tables refer to other tables. It supports two types of such references:

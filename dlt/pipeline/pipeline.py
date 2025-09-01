@@ -952,17 +952,19 @@ class Pipeline(SupportsPipeline):
     def __repr__(self) -> str:
         kwargs = {
             "pipeline_name": self.pipeline_name,
-            "destination": self._destination.destination_name if self._destination else None,
-            "staging": self._staging.destination_name if self._staging else None,
+            "destination": (
+                self._destination.destination_name if getattr(self, "_destination", None) else None
+            ),
+            "staging": self._staging.destination_name if getattr(self, "_staging", None) else None,
             "dataset_name": self.dataset_name,
             "default_schema_name": self.default_schema_name,
-            "schema_names": self.schema_names if self.schema_names else None,
-            "first_run": self.first_run if self.first_run else None,
-            "dev_mode": self.dev_mode if self.dev_mode else None,
-            # we check for `not is_active` which is the less common case
-            "is_active": self.is_active if not self.is_active else None,
-            "pipelines_dir": self.pipelines_dir,
-            "working_dir": self.working_dir,
+            "schema_names": getattr(self, "schema_names", None),
+            "first_run": getattr(self, "first_run", None),
+            "dev_mode": getattr(self, "dev_mode", None),
+            # `is_active is True` is the common case
+            "is_active": getattr(self, "is_active", None),
+            "pipelines_dir": getattr(self, "pipelines_dir", None),
+            "working_dir": getattr(self, "working_dir", None),
         }
         return simple_repr("dlt.pipeline", **without_none(kwargs))
 

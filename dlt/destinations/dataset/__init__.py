@@ -19,7 +19,7 @@ if not TYPE_CHECKING:
         expected_due="2.0.0",
     )
 
-from dlt.destinations.dataset.factory import dataset
+from dlt.dataset.dataset import dataset
 from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
 from dlt.destinations.dataset.relation import ReadableDBAPIRelation
 

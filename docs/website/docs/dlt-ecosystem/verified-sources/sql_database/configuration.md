@@ -160,6 +160,16 @@ Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing I
 If your cursor column name contains special characters (e.g., `$`) you need to escape it when passing it to the `incremental` function. For example, if your cursor column is `example_$column`, you should pass it as `"'example_$column'"` or `'"example_$column"'` to the `incremental` function: `incremental("'example_$column'", initial_value=...)`.
 :::
 
+### Configure timezone aware and naive timestamp cursors
+If your cursor is on timestamp/datetime column, make sure you set up your initial and end values correctly. You will avoid implicit
+type conversions, invalid date time literals or column comparisons in database queries. Note that if implicit conversions may
+result in data loss ie. if naive datetime has different local timezone on the machine where Python is executing vs. your dbms.
+
+* If your datetime columns is naive, use naive Python datetime. Note that `pendulum` datetime is tz-aware by default and standard `datetime` is naive.
+* Use `full` reflection level or above to reflect `timezone` (awareness hint) on the datetime columns.
+* read about the [timestamp handling](../../../general-usage/schema.md#handling-of-timestamp-and-time-zones) in `dlt`
+
+
 ### Examples
 
 1. **Incremental loading with the resource `sql_table`**.
@@ -210,6 +220,11 @@ If your cursor column name contains special characters (e.g., `$`) you need to e
     * When using "merge" write disposition, the source table needs a primary key, which `dlt` automatically sets up.
     * `apply_hints` is a powerful method that enables schema modifications after resource creation, like adjusting write disposition and primary keys. You can choose from various tables and use `apply_hints` multiple times to create pipelines with merged, appended, or replaced resources.
   :::
+
+## Limit number of items returned by the query
+If you specified a limit on `sql_table` resource with [add_limit](../../../general-usage/resource.md#sample-from-large-data), this limit will be forwarded 
+to the query. Note that limit works in the multiples of `chunk_size`. For example if the `chunk_size` is 1000 and you set `max_items` in `add_limit` to
+2, your query will return 2000 rows.
 
 ## Configuring the connection
 
