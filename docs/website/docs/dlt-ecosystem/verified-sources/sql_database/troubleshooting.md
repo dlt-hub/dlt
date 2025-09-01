@@ -10,18 +10,18 @@ import Header from '../_source-info-header.md';
 
 <Header/>
 
-## Timezone aware and non-aware data types
+## Timezone-aware and Non-aware Data Types
 
-### I see UTC datetime column in my destination, but my data source has naive datetime column
-Use `full` or `full_with_precision` reflection level to get explicit `timezone` hint in reflected table schemas. Without that
-hint, `dlt` will coerce all timestamps into tz-aware UTC ones.
+### I see a UTC datetime column in my destination, but my data source has a naive datetime column
+Use `full` or `full_with_precision` reflection level to get an explicit `timezone` hint in reflected table schemas. Without that
+hint, `dlt` will coerce all timestamps into timezone-aware UTC ones.
 
-### I have incremental cursor on datetime column and I see query errors
-Queries used to query data in the `sql_database` are created from `Incremental` instance attached to table resource. [Initial end and last values
-must match tz-awareness of the cursor column](setup.md) because they will be used as parameters to the `WHERE` clause. 
+### I have an incremental cursor on a datetime column and I see query errors
+Queries used to query data in the `sql_database` are created from an `Incremental` instance attached to the table resource. [Initial end and last values
+must match timezone-awareness of the cursor column](setup.md) because they will be used as parameters in the `WHERE` clause.
 
-In rare cases where last value is already stored in pipeline state and has wrong tz-awareness you may not be able to recover your pipeline automatically. You may 
-modify local pipeline state (after syncing with destination) to add/remove timezone.
+In rare cases where the last value is already stored in the pipeline state and has incorrect timezone-awareness, you may not be able to recover your pipeline automatically. You can
+modify the local pipeline state (after syncing with destination) to add/remove timezone information.
 
 ## Troubleshooting connection
 
