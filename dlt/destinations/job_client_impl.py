@@ -82,6 +82,7 @@ from dlt.destinations.utils import (
     info_schema_null_to_bool,
     verify_schema_merge_disposition,
     verify_schema_replace_disposition,
+    update_dlt_schema,
 )
 
 import sqlglot
@@ -327,12 +328,12 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync, WithTableRef
             )
         return applied_update
 
-    def update_dlt_schema(
+    def update_from_stored_schema(
         self,
         table_names: Iterable[str] = None,
         dry_run: bool = False,
     ) -> Optional[TSchemaDrop]:
-        return super().update_dlt_schema()
+        return update_dlt_schema(self, self.schema, table_names, dry_run)
 
     def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
         """Drop tables in destination database and optionally delete the stored schema as well.
@@ -447,6 +448,14 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync, WithTableRef
     def get_storage_tables(
         self, table_names: Iterable[str]
     ) -> Iterable[Tuple[str, TTableSchemaColumns]]:
+        """Uses INFORMATION_SCHEMA to retrieve table and column information for tables in `table_names` iterator.
+        Table names should be normalized according to naming convention and will be further converted to desired casing
+        in order to (in most cases) create case-insensitive name suitable for search in information schema.
+
+        The column names are returned as in information schema. To match those with columns in existing table, you'll need to use
+        `schema.get_new_table_columns` method and pass the correct casing. Most of the casing function are irreversible so it is not
+        possible to convert identifiers into INFORMATION SCHEMA back into case sensitive dlt schema.
+        """
         table_names = list(table_names)
         if len(table_names) == 0:
             # empty generator

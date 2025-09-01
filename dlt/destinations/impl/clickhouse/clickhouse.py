@@ -21,7 +21,6 @@ from dlt.common.destination.client import (
     RunnableLoadJob,
     FollowupJobRequest,
     LoadJob,
-    WithTableReflection,
 )
 from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.schema.typing import (
@@ -211,9 +210,7 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         return True
 
 
-class ClickHouseClient(
-    SqlJobClientWithStagingDataset, SupportsStagingDestination, WithTableReflection
-):
+class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
     def __init__(
         self,
         schema: Schema,
