@@ -28,6 +28,7 @@ from dlt.common.schema.utils import (
 )
 
 from dlt.destinations.exceptions import DatabaseTransientException
+from dlt.destinations.sql_client import WithSqlClient
 from dlt.extract import DltResource, resource as make_resource, DltSource
 
 RE_DATA_TYPE = re.compile(r"([A-Z]+)\((\d+)(?:,\s?(\d+))?\)")
@@ -299,76 +300,118 @@ def get_deterministic_temp_table_name(table_name: str, op: str) -> str:
     return f"{op_name}_{NamingConvention._compute_tag(op_name, 0.001)}"
 
 
+class WithTableReflectionAndSql(WithTableReflection, WithSqlClient):
+    pass
+
+
+def _diff_between_actual_and_dlt_schema(
+    client: WithTableReflectionAndSql,
+    schema: Schema,
+    table_name: str,
+    actual_col_names: set[str],
+    disregard_dlt_columns: bool = True,
+) -> TPartialTableSchema:
+    """Compares dlt schema with destination table schema and returns columns that appear to be missing.
+
+    This function identifies columns that exist in the dlt schema but are missing from the actual
+    destination table. It's used during schema synchronization to detect when columns may have
+    been dropped from the destination and need to be removed from the dlt schema as well.
+
+    However, dlt internal columns (_dlt_id, _dlt_load_id) are treated specially because:
+
+    1. Users rarely drop dlt internal columns manually, and if they did,
+       dlt cannot recover from this situation anyway.
+
+    2. Athena has a constraint where dlt columns exist in the data but not in the table metadata:
+
+       - Athena external tables have fixed schemas defined at CREATE TABLE time
+       - These columns exist in the actual data files but don't appear in INFORMATION_SCHEMA
+       - This causes false positives where dlt columns appear "missing" when they're not
+
+    Args:
+        client (WithTableReflectionAndSql): The destination client with table reflection capabilities.
+        schema (Schema): The dlt schema to compare against the destination.
+        table_name (str): Name of the table to analyze.
+        actual_col_names (set[str]): Column names that actually exist in the destination table,
+            typically obtained from INFORMATION_SCHEMA queries. For Athena,
+            this may not include dlt columns present in the underlying data files.
+        disregard_dlt_columns: Whether to ignore apparent mismatches for dlt internal
+            columns (_dlt_id, _dlt_load_id). Defaults to True to prevent incorrect
+            removal of essential dlt columns from the schema.
+
+    Returns:
+        TPartialTableSchema: Returns a partial table schema containing columns that exist in the dlt schema
+        but are missing from the actual table.
+
+    Example:
+        If dlt schema has [user_id, name, _dlt_id, _dlt_load_id] but destination
+        INFORMATION_SCHEMA only shows [user_id, name], this function would return
+        an empty dict (assuming disregard_dlt_columns=True) rather than suggesting
+        the dlt columns should be dropped.
+    """
+    col_schemas = schema.get_table_columns(table_name)
+
+    # Map escaped (like actual_col_names) -> original names (what appears in the dlt schema)
+    escaped_to_dlt = {
+        client.sql_client.escape_column_name(col, quote=False): col for col in col_schemas.keys()
+    }
+
+    possibly_dropped_col_names = set(escaped_to_dlt.keys()) - actual_col_names
+
+    if not possibly_dropped_col_names:
+        return {}
+
+    partial_table: TPartialTableSchema = {"name": table_name, "columns": {}}
+
+    for esc_name in possibly_dropped_col_names:
+        name_in_dlt = escaped_to_dlt[esc_name]
+
+        if disregard_dlt_columns and name_in_dlt in [C_DLT_ID, C_DLT_LOAD_ID]:
+            continue
+
+        col_schema = col_schemas[name_in_dlt]
+        if col_schema.get("increment"):
+            # We can warn within the for loop,
+            # since there's only one incremental field per table
+            logger.warning(
+                f"An incremental field {name_in_dlt} is being removed from schema."
+                "You should unset the"
+                " incremental with `incremental=dlt.sources.incremental.EMPTY`"
+            )
+        partial_table["columns"][name_in_dlt] = col_schema
+
+    return partial_table if partial_table["columns"] else {}
+
+
 def update_dlt_schema(
-    client: WithTableReflection,
+    client: WithTableReflectionAndSql,
     schema: Schema,
     table_names: Iterable[str] = None,
     dry_run: bool = False,
 ) -> Optional[TSchemaDrop]:
-    """Updates schema to the storage.
+    """Updates the dlt schema from destination.
 
     Compare the schema we think we should have with what actually exists in the destination,
     and drop any tables and/or columns that disappeared.
 
     Args:
+        client (WithTableReflectionAndSql): The destination client with table reflection capabilities.
+        schema (Schema): The dlt schema to compare against the destination.
         table_names (Iterable[str], optional): Check only listed tables. Defaults to None and checks all tables.
+        dry_run (bool, optional): Whether to actually update the dlt schema. Defaults to False.
 
     Returns:
-        Optional[TSchemaTables]: Returns an update that was applied to the schema.
+        Optional[TSchemaDrop]: Returns the update that was applied to the schema.
     """
-    from dlt.destinations.sql_client import WithSqlClient
-
-    if not isinstance(client, WithSqlClient):
-        raise NotImplementedError
-
-    def _diff_between_actual_and_dlt_schema(
-        table_name: str, actual_col_names: set[str], disregard_dlt_columns: bool = True
-    ) -> TPartialTableSchema:
-        """Returns a partial table schema containing columns that exist in the dlt schema
-        but are missing from the actual table. Skips dlt internal columns by default.
-        """
-        col_schemas = schema.get_table_columns(table_name)
-
-        # Map escaped -> original names (actual_col_names are escaped)
-        escaped_to_original = {
-            client.sql_client.escape_column_name(col, quote=False): col
-            for col in col_schemas.keys()
-        }
-        dropped_col_names = set(escaped_to_original.keys()) - actual_col_names
-
-        if not dropped_col_names:
-            return {}
-
-        partial_table: TPartialTableSchema = {"name": table_name, "columns": {}}
-
-        for esc_name in dropped_col_names:
-            orig_name = escaped_to_original[esc_name]
-
-            # Athena doesn't have dlt columns in actual columns. Don't drop them anyway.
-            if disregard_dlt_columns and orig_name in [C_DLT_ID, C_DLT_LOAD_ID]:
-                continue
-
-            col_schema = col_schemas[orig_name]
-            if col_schema.get("increment"):
-                # We can warn within the for loop,
-                # since there's only one incremental field per table
-                logger.warning(
-                    f"An incremental field {orig_name} is being removed from schema."
-                    "You should unset the"
-                    " incremental with `incremental=dlt.sources.incremental.EMPTY`"
-                )
-            partial_table["columns"][orig_name] = col_schema
-
-        return partial_table if partial_table["columns"] else {}
-
     tables = table_names if table_names else schema.data_table_names()
 
     table_drops: TSchemaDrop = {}  # includes entire tables to drop
     column_drops: TSchemaDrop = {}  # includes parts of tables to drop as partial tables
 
     # 1. Detect what needs to be dropped
+    actual_table_col_schemas = dict(client.get_storage_tables(tables))
     for table_name in tables:
-        _, actual_col_schemas = list(client.get_storage_tables([table_name]))[0]
+        actual_col_schemas = actual_table_col_schemas[table_name]
 
         # no actual column schemas ->
         # table doesn't exist ->
@@ -379,10 +422,12 @@ def update_dlt_schema(
             continue
 
         # actual column schemas present ->
-        # we compare actual schemas with dlt ones ->
+        # we compare actual column schemas with dlt ones ->
         # we take the difference as a partial table
         else:
             partial_table = _diff_between_actual_and_dlt_schema(
+                client,
+                schema,
                 table_name,
                 set(actual_col_schemas.keys()),
             )
