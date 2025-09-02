@@ -29,10 +29,10 @@ class StarrocksTypeMapper(TypeMapperImpl):
         "datetime": DATETIME
     }
 
-    sct_to_dbt = {
-        "text": "VARCHAR(%i)",
-        "decimal": "DECIMAL(%i,%i)"
-    }
+    # sct_to_dbt = {
+    #     "text": "VARCHAR(%i)",
+    #     "decimal": "DECIMAL(%i,%i)"
+    # }
 
     dbt_to_sct = {
     }
@@ -40,18 +40,31 @@ class StarrocksTypeMapper(TypeMapperImpl):
     def to_destination_type(  # type: ignore[override]
         self, column: TColumnSchema, table: PreparedTableSchema = None
     ) -> sqltypes.TypeEngine:
-        return super().to_destination_type(column, table)
+        sc_t = column['data_type']
+        precision, scale = column.get("precision"), column.get("scale")
+
+        if sc_t == 'decimal':
+            return self.to_db_decimal_type(column)
+        elif sc_t == 'text':
+            if precision != None:
+                return VARCHAR(precision)
+            else:
+                return VARCHAR(1000000)
+        else:
+            return self.sct_to_unbound_dbt[sc_t]
+
+        # return super().to_destination_type(column, table)
 
     def to_db_decimal_type(self, column: TColumnSchema) -> sa.types.TypeEngine:
         precision, scale = column.get("precision"), column.get("scale")
         if precision is None and scale is None:
             precision, scale = self.capabilities.decimal_precision
         return DECIMAL(precision, scale)
-    
+
 
 class starrocks(sqlalchemy):
     spec = StarrocksClientConfiguration
-    
+
     @property
     def client_class(self) -> Type["StarrocksJobClient"]:
         from dlt.destinations.impl.starrocks.job_client import StarrocksJobClient
