@@ -46,7 +46,7 @@ You can change this setting in your `config.toml` as follows:
 
 ### Use the built-in requests wrapper or RESTClient for API calls
 
-Instead of using Python Requests directly, you can use the built-in [requests wrapper](../general-usage/http/requests) or [`RESTClient`](../general-usage/http/rest-client) for API calls. This will make your pipeline more resilient to intermittent network errors and other random glitches.
+Instead of using Python Requests directly, you can use the built-in [requests wrapper](../../general-usage/http/requests) or [`RESTClient`](../../general-usage/http/rest-client) for API calls. This will make your pipeline more resilient to intermittent network errors and other random glitches.
 
 
 ### Use built-in JSON parser
