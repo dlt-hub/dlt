@@ -461,7 +461,7 @@ def test_migrate_to_load_package_state() -> None:
     """
     from dlt.destinations import dummy
 
-    p = dlt.pipeline(pipeline_name=uniq_id(), destination=dummy(completed_prob=1))
+    p = dlt.pipeline(pipeline_name="p" + uniq_id(), destination=dummy(completed_prob=1))
 
     p.extract([{"id": 1, "name": "dave"}], table_name="person")
     p.normalize()

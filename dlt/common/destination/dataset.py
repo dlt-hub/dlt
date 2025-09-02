@@ -144,12 +144,11 @@ class SupportsRelation(SupportsDataAccess, Protocol):
         ...
 
     # modifying access parameters
-    def limit(self, limit: int, **kwargs: Any) -> Self:
+    def limit(self, limit: int) -> Self:
         """Returns a new relation with the limit applied.
 
         Args:
             limit (int): The number of rows to fetch.
-            **kwargs (Any): Additional keyword arguments to pass to the limit implementation of the destination client cursor.
 
         Returns:
             Self: The relation with the limit applied.

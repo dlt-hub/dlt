@@ -19,6 +19,8 @@ from dlt.common.pipeline import get_dlt_pipelines_dir
 from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage
 from dlt.common.destination.client import DestinationClientConfiguration
+from dlt.common.exceptions import DltException
+from dlt.common.configuration.exceptions import ConfigFieldMissingException
 
 from dlt.helpers.dashboard import dlt_dashboard, ui_elements as ui
 from dlt.helpers.dashboard.config import DashboardConfiguration
@@ -188,7 +190,7 @@ def remote_state_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
     """
     try:
         remote_state = pipeline._restore_state_from_destination()
-    except (DatabaseUndefinedRelation, PipelineConfigMissing):
+    except (DatabaseUndefinedRelation, PipelineConfigMissing, ConfigFieldMissingException):
         remote_state = None
 
     if not remote_state:
@@ -294,7 +296,6 @@ def create_column_list(
 
         column_list.append(column_dict)
 
-    column_list.sort(key=lambda x: x["name"])
     if not show_internals:
         column_list = [c for c in column_list if not c["name"].lower().startswith("_dlt")]
     return _align_dict_keys(column_list)
@@ -517,9 +518,13 @@ def get_local_data_path(pipeline: dlt.Pipeline) -> str:
     """Get the local data path of a pipeline"""
     if not pipeline.destination or not pipeline.default_schema_name:
         return None
-    config = pipeline._get_destination_clients()[0].config
-    if isinstance(config, WithLocalFiles):
-        return config.local_dir
+    try:
+        config = pipeline._get_destination_clients()[0].config
+        if isinstance(config, WithLocalFiles):
+            return config.local_dir
+    except (PipelineConfigMissing, ConfigFieldMissingException):
+        # If configs are missing or anything like that, we can fail silently here
+        pass
     return None
 
 

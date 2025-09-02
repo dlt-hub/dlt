@@ -1,5 +1,6 @@
 from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING, Sequence, Tuple
 
+from dlt.common import logger
 from dlt.common.data_types.typing import TDataType
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.data_writers.escape import escape_databricks_identifier, escape_databricks_literal
@@ -39,6 +40,7 @@ class DatabricksTypeMapper(TypeMapperImpl):
         "BOOLEAN": "bool",
         "DATE": "date",
         "TIMESTAMP": "timestamp",
+        "TIMESTAMP_NTZ": "timestamp",
         "BIGINT": "bigint",
         "INT": "bigint",
         "SMALLINT": "bigint",
@@ -58,14 +60,26 @@ class DatabricksTypeMapper(TypeMapperImpl):
         table: PreparedTableSchema,
         loader_file_format: TLoaderFileFormat,
     ) -> None:
-        if loader_file_format == "jsonl" and column["data_type"] in {
-            "decimal",
-            "wei",
-            "binary",
-            "json",
-            "date",
-        }:
-            raise TerminalValueError("", column["data_type"])
+        if loader_file_format == "jsonl":
+            if column["data_type"] in {
+                "decimal",
+                "wei",
+                "binary",
+                "json",
+                "date",
+            }:
+                raise TerminalValueError("", column["data_type"])
+            if column["data_type"] == "timestamp" and column.get("timezone") is False:
+                raise TerminalValueError(
+                    "Cannot load naive timestamps from json, use parquet", column["data_type"]
+                )
+        if loader_file_format == "parquet":
+            if column["data_type"] in {"time"}:
+                raise TerminalValueError(
+                    "Spark can't read Time from parquet. Convert your time column to string or"
+                    " change file format.",
+                    column["data_type"],
+                )
 
     def to_db_integer_type(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         precision = column.get("precision")
@@ -82,6 +96,24 @@ class DatabricksTypeMapper(TypeMapperImpl):
         raise TerminalValueError(
             f"bigint with `{precision=:}` can't be mapped to Databricks integer type"
         )
+
+    def to_db_datetime_type(
+        self,
+        column: TColumnSchema,
+        table: PreparedTableSchema = None,
+    ) -> str:
+        column_name = column["name"]
+        table_name = table["name"]
+        timezone = column.get("timezone", True)
+        precision = column.get("precision")
+
+        if precision and precision != self.capabilities.timestamp_precision:
+            logger.warn(
+                f"Databricks does not support precision {precision} for column '{column_name}' in"
+                f" table '{table_name}'. Will default to 6."
+            )
+
+        return "TIMESTAMP" if timezone else "TIMESTAMP_NTZ"
 
     def from_destination_type(
         self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None

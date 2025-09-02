@@ -24,7 +24,7 @@ from typing import Optional, Dict, Any, Tuple, Iterable, List
 
 import dlt
 from dlt.common import pendulum
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.typing import TAnyDateTime
 from dlt.sources.helpers import requests
 from dlt.extract import DltResource
@@ -50,8 +50,8 @@ def zendesk_support(
         DltResource: a resource with ticket events
     """
     # Convert start_date and end_date to Pendulum datetime objects
-    start_date_obj = ensure_pendulum_datetime(start_date)
-    end_date_obj = ensure_pendulum_datetime(end_date) if end_date else None
+    start_date_obj = ensure_pendulum_datetime_utc(start_date)
+    end_date_obj = ensure_pendulum_datetime_utc(end_date) if end_date else None
 
     # Convert Pendulum datetime objects to Unix timestamps
     start_date_ts = start_date_obj.int_timestamp

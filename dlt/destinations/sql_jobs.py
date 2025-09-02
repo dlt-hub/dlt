@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Sequence, Tuple, cast, Optional, Callable, Union
 
 import yaml
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.destination import PreparedTableSchema
 from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.typing import TypedDict
@@ -827,7 +827,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 DestinationCapabilitiesContext.generic_capabilities().format_datetime_literal
             )
 
-        boundary_ts = ensure_pendulum_datetime(
+        boundary_ts = ensure_pendulum_datetime_utc(
             root_table.get(  # type: ignore[arg-type]
                 "x-boundary-timestamp",
                 current_load_package()["state"]["created_at"],
