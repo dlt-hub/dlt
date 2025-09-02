@@ -130,16 +130,14 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         )
 
     def _flatten(
-        self, table: str, dict_row: DictStrAny, _r_lvl: int, parent_path: Tuple[str, ...] = None
+        self, table: str, dict_row: DictStrAny, _r_lvl: int, full_path: Tuple[str, ...] = None
     ) -> Tuple[DictStrAny, Dict[Tuple[str, ...], Sequence[Any]]]:
         out_rec_row: DictStrAny = {}
         out_rec_list: Dict[Tuple[str, ...], Sequence[Any]] = {}
-        parent_path = parent_path or ()
-        ident_path = parent_path + (table,)
 
         def norm_row_dicts(dict_row: StrAny, __r_lvl: int, path: Tuple[str, ...] = ()) -> None:
-            # full ident path is the incoming ident path plus the nested path of this "internal" traversal
-            full_ident_path = ident_path + path if path else ident_path
+            # full nested path is the incoming ident path plus the nested path of this "internal" traversal
+            full_nested_path = full_path + path if path else full_path
 
             for k, v in dict_row.items():
                 if k.strip():
@@ -150,7 +148,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
                 is_list_or_dict = isinstance(v, (dict, list))
                 if not is_list_or_dict and self._is_column_nested_table_in_schema(
-                    table, norm_k, full_ident_path
+                    table, norm_k, full_nested_path
                 ):
                     # if column points to nested table and is None, purge it
                     if v is None:
@@ -285,7 +283,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     ) -> TNormalizedRowIterator:
         table = self._shorten_fragments(*parent_path, *ident_path)
         # flatten current row and extract all lists to recur into
-        flattened_row, lists = self._flatten(table, dict_row, _r_lvl, parent_path)
+        flattened_row, lists = self._flatten(table, dict_row, _r_lvl, parent_path + ident_path)
         # always extend row
         DataItemNormalizer._extend_row(extend, flattened_row)
 
