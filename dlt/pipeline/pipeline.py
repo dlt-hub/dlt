@@ -36,6 +36,7 @@ from dlt.common.destination.exceptions import (
     DestinationIncompatibleLoaderFileFormatException,
     DestinationNoStagingMode,
     DestinationUndefinedEntity,
+    DestinationTableReflectionNotSupported,
 )
 from dlt.common.runtime import signals
 from dlt.common.schema.typing import (
@@ -78,6 +79,7 @@ from dlt.common.destination.client import (
     WithStateSync,
     JobClientBase,
     DestinationClientStagingConfiguration,
+    WithTableReflection,
 )
 from dlt.common.destination.exceptions import SqlClientNotAvailable, FSClientNotAvailable
 from dlt.common.normalizers.naming import NamingConvention
@@ -108,8 +110,8 @@ from dlt.normalize import Normalize
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.fs_client import FSClientBase
-from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.dataset import get_destination_clients
+from dlt.destinations.utils import update_dlt_schema
 
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
@@ -120,7 +122,6 @@ from dlt.pipeline.exceptions import (
     CannotRestorePipelineException,
     InvalidPipelineName,
     PipelineConfigMissing,
-    PipelineNeverRan,
     PipelineNotActive,
     PipelineStepFailed,
 )
@@ -1073,7 +1074,12 @@ class Pipeline(SupportsPipeline):
         with self._get_destination_clients(schema)[0] as client:
             if not client.is_storage_initialized():
                 raise DestinationUndefinedEntity()
-            return client.update_from_stored_schema(table_names=table_names, dry_run=dry_run)
+            if isinstance(client, WithTableReflection):
+                return update_dlt_schema(
+                    client=client, schema=schema, table_names=table_names, dry_run=dry_run
+                )
+            else:
+                raise DestinationTableReflectionNotSupported(self._destination.destination_name)
 
     def set_local_state_val(self, key: str, value: Any) -> None:
         """Sets value in local state. Local state is not synchronized with destination."""

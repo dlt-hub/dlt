@@ -8,7 +8,7 @@ from dlt.common.storages.load_package import destination_state
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.configuration import create_resolved_partial
 
-from dlt.common.schema import Schema, TSchemaTables
+from dlt.common.schema import Schema, TSchemaTables, TSchemaDrop
 from dlt.common.destination import DestinationCapabilitiesContext
 
 from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration

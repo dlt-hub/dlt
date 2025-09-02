@@ -558,14 +558,6 @@ class JobClientBase(ABC):
             )
         return expected_update
 
-    @abstractmethod
-    def update_from_stored_schema(
-        self,
-        table_names: Iterable[str] = None,
-        dry_run: bool = False,
-    ) -> Optional[TSchemaDrop]:
-        pass
-
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
         """Prepares a table schema to be loaded by filling missing hints and doing other modifications requires by given destination.
 

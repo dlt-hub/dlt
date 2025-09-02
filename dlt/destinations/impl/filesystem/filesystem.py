@@ -609,13 +609,6 @@ class FilesystemClient(
         # externally changed
         return applied_update
 
-    def update_from_stored_schema(
-        self,
-        table_names: Iterable[str] = None,
-        dry_run: bool = False,
-    ) -> Optional[TSchemaDrop]:
-        return update_dlt_schema(self, self.schema, table_names, dry_run)
-
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
         table = super().prepare_load_table(table_name)
         if self.config.as_staging_destination:

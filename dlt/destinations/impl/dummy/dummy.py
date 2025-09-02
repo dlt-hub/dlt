@@ -163,13 +163,6 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
             )
         return applied_update
 
-    def update_from_stored_schema(
-        self,
-        table_names: Iterable[str] = None,
-        dry_run: bool = False,
-    ) -> Optional[TSchemaDrop]:
-        return None
-
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:

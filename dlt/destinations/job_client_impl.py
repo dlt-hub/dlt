@@ -328,13 +328,6 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync, WithTableRef
             )
         return applied_update
 
-    def update_from_stored_schema(
-        self,
-        table_names: Iterable[str] = None,
-        dry_run: bool = False,
-    ) -> Optional[TSchemaDrop]:
-        return update_dlt_schema(self, self.schema, table_names, dry_run)
-
     def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
         """Drop tables in destination database and optionally delete the stored schema as well.
         Clients that support ddl transactions will have both operations performed in a single transaction.

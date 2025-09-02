@@ -285,3 +285,11 @@ class FSClientNotAvailable(DestinationTerminalException):
             f"Filesystem Client not available for destination `{destination_name}` in pipeline"
             f" `{pipeline_name}`",
         )
+
+
+class DestinationTableReflectionNotSupported(DestinationTerminalException):
+    def __init__(self, destination_name: str) -> None:
+        super().__init__(
+            f"Destination `{destination_name}` does not support table reflection. "
+            "Schema synchronization from destination is not available for this destination type."
+        )
