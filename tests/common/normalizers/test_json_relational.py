@@ -1,5 +1,7 @@
 import pytest
 
+from typing import Any
+
 from dlt.common.typing import StrAny, DictStrAny
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.schema.typing import TColumnName, TSimpleRegex
@@ -12,13 +14,17 @@ from dlt.common.normalizers.json.relational import (
     DataItemNormalizer as RelationalNormalizer,
 )
 from dlt.common.normalizers.json import helpers as normalize_helpers
+from dlt.common.schema.utils import new_table
 
 from tests.utils import create_schema_with_name
 
 
 @pytest.fixture
 def norm() -> RelationalNormalizer:
-    return Schema("default").data_item_normalizer  # type: ignore[return-value]
+    # schema with some nested tables
+    s = Schema("default")
+
+    return s.data_item_normalizer  # type: ignore[return-value]
 
 
 def test_flatten_fix_field_name(norm: RelationalNormalizer) -> None:
@@ -945,3 +951,94 @@ def add_dlt_root_id_propagation(norm: RelationalNormalizer) -> None:
         },
     )
     norm._reset()
+
+
+def test_normalizer_child_table_behavior(norm: RelationalNormalizer) -> None:
+    """here we test what happens if columns that previously were used for creating nested tables do not have complex types"""
+
+    t1 = new_table("t1")
+    t1_nested = new_table("t1__nested", parent_table_name="t1")
+    t1_nested_subnested = new_table("t1__nested__subnested", parent_table_name="t1__nested")
+    t1_nested_subnested_subsubnested = new_table(
+        "t1__nested__subnested__subsubnested", parent_table_name="t1__nested__subnested"
+    )
+
+    norm.schema.update_table(t1)
+    norm.schema.update_table(t1_nested)
+    norm.schema.update_table(t1_nested_subnested)
+    norm.schema.update_table(t1_nested_subnested_subsubnested)
+
+    row: Any = {"nested": None, "other": "blah"}
+
+    # none value of direct child is removed
+    flattened_row, lists = norm._flatten("t1", row, 1000)
+    assert flattened_row == {"other": "blah"}
+    assert lists == {}
+
+    # single value gets wrapped in a list and propagated to child
+    row = {"nested": "singleton", "other": "blah"}
+    flattened_row, lists = norm._flatten("t1", row, 1000)
+    assert flattened_row == {"other": "blah"}
+    assert lists == {("nested",): ["singleton"]}
+
+    # regular lists of objects remain
+    row = {"nested": [{"some_object": "hello"}], "other": "blah"}
+    flattened_row, lists = norm._flatten("t1", row, 1000)
+    assert flattened_row == {"other": "blah"}
+    assert lists == {("nested",): [{"some_object": "hello"}]}
+
+    # doubly nested values work the same way, nested:nested is removed
+    # this tests concatenation of ident path and path
+    row = {"nested": {"subnested": None}, "other": "blah"}
+    flattened_row, lists = norm._flatten("t1", row, 1000)
+    assert flattened_row == {"other": "blah"}
+    assert lists == {}
+
+    row = {"nested": {"subnested": "singleton"}, "other": "blah"}
+    flattened_row, lists = norm._flatten("t1", row, 1000)
+    assert flattened_row == {"other": "blah"}
+    assert lists == {("nested", "subnested"): ["singleton"]}
+
+    row = {"nested": {"subnested": [{"some_object": "hello"}]}, "other": "blah"}
+    flattened_row, lists = norm._flatten("t1", row, 1000)
+    assert flattened_row == {"other": "blah"}
+    assert lists == {("nested", "subnested"): [{"some_object": "hello"}]}
+
+    # test lists in nested tables
+    # row = {
+    #     "nested": [
+    #         {"subnested": [{"some_object": "hello1"}]},
+    #         {"subnested": [{"some_object": "hello2"}]},
+    #     ],
+    #     "other": "blah",
+    # }
+    # flattened_row, lists = norm._flatten("t1", row, 1000)
+    # assert flattened_row == {"other": "blah"}
+    # assert lists == {("nested", "subnested"): [{"some_object": "hello"}, {"some_object": "hello2"}]}
+
+    # starting from a lower entry point also works (parent_path parameter in _flatten)
+    row = {"subnested": {"subsubnested": "singleton"}, "other": "blah"}
+    flattened_row, lists = norm._flatten("nested", row, 1000, parent_path=("t1",))
+    assert flattened_row == {"other": "blah"}
+    assert lists == {("subnested", "subsubnested"): ["singleton"]}
+
+    # test that all path items are concatenated properly
+    row = {"nested": "singleton", "other": "blah"}
+    rows = list(norm.normalize_data_item(row, "1762162.1212", "t1"))
+    assert rows[0][0] == ("t1", None)
+    assert "other" in rows[0][1]
+    assert "nested" not in rows[0][1]
+
+    assert rows[1][0] == ("t1__nested", "t1")
+    assert rows[1][1]["value"] == "singleton"
+    assert "other" not in rows[1][1]
+
+    # double nesting with lists in subnested table
+    # row = {
+    #     "nested": [
+    #         {"subnested": "singleton", "other": "blah"},
+    #         {"subnested": "singleton", "other": "blah"},
+    #     ],
+    #     "other": "blah",
+    # }
+    # rows = list(norm.normalize_data_item(row, "1762162.1212", "t1"))
