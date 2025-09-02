@@ -82,7 +82,6 @@ from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.utils import (
     verify_schema_merge_disposition,
     verify_schema_replace_disposition,
-    update_dlt_schema,
 )
 
 CURRENT_VERSION: int = 2
@@ -477,8 +476,12 @@ class FilesystemClient(
     def get_storage_tables(
         self, table_names: Iterable[str]
     ) -> Iterable[Tuple[str, TTableSchemaColumns]]:
-        """Yields tables that have files in storage, returns columns from files in storage for regular delta/iceberg tables,
-        or from schema for regular tables without table format"""
+        """Yield (table_name, column_schemas) pairs for tables that have files in storage.
+
+        For Delta and Iceberg tables, the columns present in the actual table metadata
+        are returned. For tables using regular file formats, the column schemas come from the
+        dlt schema instead, since their real schema cannot be reflected directly.
+        """
         for table_name in table_names:
             table_dir = self.get_table_dir(table_name)
             if (
@@ -495,13 +498,7 @@ class FilesystemClient(
                         )
 
                         iceberg_table = self.load_open_table("iceberg", table_name)
-                        actual_column_names = get_iceberg_table_columns(iceberg_table)
-
-                        col_schemas = {
-                            col: schema
-                            for col, schema in self.schema.get_table_columns(table_name).items()
-                            if col in actual_column_names
-                        }
+                        col_schemas = get_iceberg_table_columns(iceberg_table)
                         yield (table_name, col_schemas)
 
                     elif self.is_open_table("delta", table_name):
@@ -510,16 +507,16 @@ class FilesystemClient(
                         )
 
                         delta_table = self.load_open_table("delta", table_name)
-                        actual_column_names = get_delta_table_columns(delta_table)
-
-                        col_schemas = {
-                            col: schema
-                            for col, schema in self.schema.get_table_columns(table_name).items()
-                            if col in actual_column_names
-                        }
+                        col_schemas = get_delta_table_columns(delta_table)
                         yield (table_name, col_schemas)
 
                     else:
+                        logger.warning(
+                            f"Table '{table_name}' does not use a table format and does not support"
+                            " true schema reflection. Returning column schemas from the dlt"
+                            " schema, which may be stale if the underlying files were manually"
+                            " modified. "
+                        )
                         yield (table_name, self.schema.get_table_columns(table_name))
 
                 else:

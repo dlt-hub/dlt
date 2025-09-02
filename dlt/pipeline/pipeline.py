@@ -111,7 +111,7 @@ from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.dataset import get_destination_clients
-from dlt.destinations.utils import update_dlt_schema
+from dlt.destinations.utils import update_dlt_schema, WithTableReflectionAndSql
 
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
@@ -1074,9 +1074,12 @@ class Pipeline(SupportsPipeline):
         with self._get_destination_clients(schema)[0] as client:
             if not client.is_storage_initialized():
                 raise DestinationUndefinedEntity()
-            if isinstance(client, WithTableReflection):
+            if isinstance(client, WithTableReflection) and isinstance(client, WithSqlClient):
                 return update_dlt_schema(
-                    client=client, schema=schema, table_names=table_names, dry_run=dry_run
+                    client=cast(WithTableReflectionAndSql, client),
+                    schema=schema,
+                    table_names=table_names,
+                    dry_run=dry_run,
                 )
             else:
                 raise DestinationTableReflectionNotSupported(self._destination.destination_name)

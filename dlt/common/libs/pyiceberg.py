@@ -8,10 +8,10 @@ from dlt import version
 from dlt.common import logger
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.time import precise_time
-from dlt.common.libs.pyarrow import cast_arrow_schema_types
+from dlt.common.libs.pyarrow import cast_arrow_schema_types, py_arrow_to_table_schema_columns
 from dlt.common.libs.utils import load_open_tables
 from dlt.common.pipeline import SupportsPipeline
-from dlt.common.schema.typing import TWriteDisposition, TTableSchema
+from dlt.common.schema.typing import TWriteDisposition, TTableSchema, TTableSchemaColumns
 from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns_names_with_prop
 from dlt.common.utils import assert_min_pkg_version
 from dlt.common.exceptions import MissingDependencyException
@@ -253,6 +253,6 @@ def make_location(path: str, config: FilesystemConfiguration) -> str:
     return location
 
 
-def get_table_columns(table: IcebergTable) -> List[str]:
-    column_names = table.schema().column_names
-    return column_names
+def get_table_columns(table: IcebergTable) -> TTableSchemaColumns:
+    arrow_schema = table.schema().as_arrow()
+    return py_arrow_to_table_schema_columns(arrow_schema)

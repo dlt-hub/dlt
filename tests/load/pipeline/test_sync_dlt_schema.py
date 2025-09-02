@@ -1,17 +1,24 @@
 import json
+import os
 from typing import cast
+import tempfile
 
 import pytest
 from pytest_mock import MockerFixture
 
 import dlt
 from dlt.common.utils import uniq_id
+from dlt.common.libs.pyarrow import remove_columns
+from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
+from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.pipeline.pipeline import Pipeline
 
 from dlt.common import logger
 from tests.pipeline.utils import assert_load_info
+from tests.utils import TEST_STORAGE_ROOT
 from tests.load.utils import (
+    FILE_BUCKET,
     destinations_configs,
     DestinationTestConfiguration,
 )
@@ -132,6 +139,32 @@ def _drop_table_in_sql(
         client.execute_sql(query)
 
 
+def _drop_col_in_filesystem_json(file_path: str, col_name: str) -> None:
+    """Removes a specific column from a jsonl file"""
+    dir_ = os.path.dirname(file_path)
+    with open(file_path, "r", encoding="utf-8") as r:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=dir_, delete=False) as w:
+            tmp_path = w.name
+            for line in r:
+                obj = json.loads(line)
+                obj.pop(col_name, None)
+                json.dump(obj, w)
+                w.write("\n")
+    os.replace(tmp_path, file_path)
+
+
+def _drop_col_in_filesystem_parquet(file_path: str, col_name: str) -> None:
+    """Removes a specific column from a parquet file"""
+    dir_ = os.path.dirname(file_path)
+    table = pa.parquet.read_table(file_path)
+    modified_table = remove_columns(table, [col_name])
+    with tempfile.NamedTemporaryFile(suffix=".parquet", dir=dir_, delete=False) as tmp_file:
+        tmp_path = tmp_file.name
+
+    pa.parquet.write_table(modified_table, tmp_path)
+    os.replace(tmp_path, file_path)
+
+
 @dlt.resource(table_name="my_table")
 def my_resource(with_col: bool = True):
     row = {"id": 1, "name": "Liuwen"}
@@ -186,6 +219,23 @@ def test_sync_dlt_schema(
         _drop_column_in_sql(pipeline, destination_config, "my_table", "age")
         _drop_table_in_sql(pipeline, destination_config, "my_last_table")
 
+    # Prove a mismatch between what dlt knows (has in the schema) and what's in the destination
+    table_names = ["my_table", "my_other_table", "my_last_table", "my_last_table__children"]
+    dlt_knows = {
+        table_name: set(pipeline.default_schema.get_table_columns(table_name))
+        for table_name in table_names
+    }
+    assert "age" in dlt_knows["my_table"]
+    assert "my_last_table" in dlt_knows
+    assert dlt_knows["my_last_table"] != set()
+
+    client: SqlJobClientBase
+    with pipeline.destination_client() as client:  # type: ignore[assignment]
+        actual_tables = dict(client.get_storage_tables(table_names))
+    dest_has = {table_name: set(actual_tables[table_name]) for table_name in table_names}
+    assert "age" not in dest_has["my_table"]
+    assert dest_has["my_last_table"] == set()
+
     # Make sure the warning about orphaned tables is emitted
     logger_spy = mocker.spy(logger, "warning")
 
@@ -206,24 +256,92 @@ def test_sync_dlt_schema(
     assert len(schema_drops["my_table"]["columns"]) == 1
     assert "age" in schema_drops["my_table"]["columns"]
 
-    # ensure schema doesn't have the "age" column in "my_table" anymore
+    # Ensure schema doesn't have the "age" column in "my_table" anymore
     assert "age" not in pipeline.default_schema.tables["my_table"]["columns"]
-    # ensure "my_other_table" was NOT dropped from schema
+    # Ensure "my_other_table" was NOT dropped from schema
     assert "my_last_table" in pipeline.default_schema.tables
-    # sanity check that the child table is still there
+    # Sanity check that the child table is still there
     assert "my_last_table__children" in pipeline.default_schema.tables
 
-    # now the user drops the child table as instructed in the warning
+    # Now, the user drops the child table as instructed in the warning
     if destination_config.destination_type == "filesystem":
         _drop_table_in_filesystem(pipeline, destination_config, "my_last_table__children")
     else:
         _drop_table_in_sql(pipeline, destination_config, "my_last_table__children")
 
+    # Prove a mismatch between what dlt knows about my_last_table__children
+    # and what's in the destination
+    dlt_knows = {
+        "my_last_table__children": set(
+            pipeline.default_schema.get_table_columns("my_last_table__children")
+        )
+    }
+    assert dlt_knows["my_last_table__children"] != set()
+
+    with pipeline.destination_client() as client:  # type: ignore[assignment]
+        _, col_schemas = list(client.get_storage_tables(["my_last_table__children"]))[0]
+    dest_has = {"my_last_table__children": set(col_schemas)}
+    assert dest_has["my_last_table__children"] == set()
+
+    # Schema drop should now include the "my_last_table" with the child table
     schema_drops = pipeline.sync_schema_from_destination()
-    # Schema drop should include the "my_last_table" with the child table
     assert len(schema_drops) == 2
     assert "my_last_table" in schema_drops
     assert "my_last_table__children" in schema_drops
 
+    # Ensure schema doesn't have the "my_last_table" and "my_last_table__children" anymore
     assert "my_last_table" not in pipeline.default_schema.tables
     assert "my_last_table__children" not in pipeline.default_schema.tables
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        local_filesystem_configs=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_regular_filesystem_tables(
+    destination_config: DestinationTestConfiguration, mocker: MockerFixture
+) -> None:
+    pipeline = destination_config.setup_pipeline(pipeline_name=f"pipe_{uniq_id()}")
+
+    assert_load_info(
+        pipeline.run([my_resource(), my_other_resource()], **destination_config.run_kwargs)
+    )
+
+    # Simulate a scenario where the user manually drops an entire table
+    _drop_table_in_filesystem(pipeline, destination_config, "my_table")
+
+    # Prove a mismatch between what dlt knows about "my_table" and what's in the destination
+    dlt_knows = {"my_table": set(pipeline.default_schema.get_table_columns("my_table"))}
+    assert dlt_knows["my_table"] != set()
+
+    with pipeline.destination_client() as client:
+        client = cast(FilesystemClient, client)
+        _, col_schemas = list(client.get_storage_tables(["my_table"]))[0]
+    dest_has = {"my_table": set(col_schemas)}
+    assert dest_has["my_table"] == set()
+
+    schema_drops = pipeline.sync_schema_from_destination()
+
+    # Schema drop should include "my_table"
+    assert len(schema_drops) == 1
+    assert "my_table" in schema_drops
+    # Ensure schema doesn't have the "my_table" anymore
+    assert "my_table" not in pipeline.default_schema.tables
+
+    # Simulate a scenario where the user manually drops a column
+    with pipeline.destination_client() as client:
+        client = cast(FilesystemClient, client)
+        table_file = client.list_table_files("my_other_table")[0]
+    if destination_config.run_kwargs.get("loader_file_format") == "jsonl":
+        _drop_col_in_filesystem_json(table_file, "height")
+    else:
+        _drop_col_in_filesystem_parquet(table_file, "height")
+
+    # Make sure syncing from destination does nothing
+    # because we don't support individual column schema syncing from destination
+    # for regular filesystem without table format
+    schema_drops = pipeline.sync_schema_from_destination()
+    assert not schema_drops
