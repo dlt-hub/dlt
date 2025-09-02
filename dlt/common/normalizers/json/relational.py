@@ -125,23 +125,45 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         self._should_be_nested = lru_cache(maxsize=None)(
             partial(normalize_helpers.should_be_nested, self.schema)
         )
+        self._is_column_nested_table_in_schema = lru_cache(maxsize=None)(
+            partial(normalize_helpers.is_column_nested_table_in_schema, self.schema)
+        )
 
     def _flatten(
-        self, table: str, dict_row: DictStrAny, _r_lvl: int
+        self, table: str, dict_row: DictStrAny, _r_lvl: int, ident_path: Tuple[str, ...] = None
     ) -> Tuple[DictStrAny, Dict[Tuple[str, ...], Sequence[Any]]]:
         out_rec_row: DictStrAny = {}
         out_rec_list: Dict[Tuple[str, ...], Sequence[Any]] = {}
+        ident_path = ident_path or ()
 
         def norm_row_dicts(dict_row: StrAny, __r_lvl: int, path: Tuple[str, ...] = ()) -> None:
+            # full ident path is the incoming ident path plus the nested path of this "internal" traversal
+            full_ident_path = path + ident_path if path else ident_path
+
             for k, v in dict_row.items():
                 if k.strip():
                     norm_k = self._normalize_identifier(k)
                 else:
                     # for empty keys in the data use _
                     norm_k = self.EMPTY_KEY_IDENTIFIER
+
+                is_list_or_dict = isinstance(v, (dict, list))
+                if not is_list_or_dict and self._is_column_nested_table_in_schema(
+                    table, norm_k, full_ident_path
+                ):
+                    # if column points to nested table and is None, purge it
+                    if v is None:
+                        continue
+                    # if column points to nested table and is not a list of dict, make it a list
+                    else:
+                        v = [v]
+                        is_list_or_dict = True
+
+                # detect if the column is a nested table
                 nested_name = norm_k if path == () else self._shorten_fragments(*path, norm_k)
+
                 # for lists and dicts we must check if type is possibly nested
-                if isinstance(v, (dict, list)):
+                if is_list_or_dict:
                     if not self._is_nested_type(table, nested_name, __r_lvl):
                         # TODO: if schema contains table {table}__{nested_name} then convert v into single element list
                         if isinstance(v, dict):
@@ -262,7 +284,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     ) -> TNormalizedRowIterator:
         table = self._shorten_fragments(*parent_path, *ident_path)
         # flatten current row and extract all lists to recur into
-        flattened_row, lists = self._flatten(table, dict_row, _r_lvl)
+        flattened_row, lists = self._flatten(table, dict_row, _r_lvl, ident_path)
         # always extend row
         DataItemNormalizer._extend_row(extend, flattened_row)
 
