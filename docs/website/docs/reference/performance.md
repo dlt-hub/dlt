@@ -46,7 +46,7 @@ You can change this setting in your `config.toml` as follows:
 
 ### Use the built-in requests wrapper or RESTClient for API calls
 
-Instead of using Python Requests directly, you can use the built-in [requests wrapper](../general-usage/http/requests) or [`RESTClient`](../general-usage/http/rest-client) for API calls. This will make your pipeline more resilient to intermittent network errors and other random glitches.
+Instead of using Python Requests directly, you can use the built-in [requests wrapper](../../general-usage/http/requests) or [`RESTClient`](../../general-usage/http/rest-client) for API calls. This will make your pipeline more resilient to intermittent network errors and other random glitches.
 
 
 ### Use built-in JSON parser
@@ -136,7 +136,7 @@ Several [text file formats](../dlt-ecosystem/file-formats/) have `gzip` compress
 Keep in mind that load packages are buffered to disk and are left for any troubleshooting, so you can [clear disk space by setting the `delete_completed_jobs` option](../running-in-production/running.md#data-left-behind).
 
 ### Observing CPU and memory usage
-Please make sure that you have the `psutil` package installed (note that Airflow installs it by default). Then, you can dump the stats periodically by setting the [progress](../general-usage/pipeline.md#monitor-the-loading-progress) to `log` in `config.toml`:
+Please make sure that you have the `psutil` package installed (note that Airflow installs it by default). Then, you can dump the stats periodically by setting the [progress](../../general-usage/pipeline#monitor-the-loading-progress) to `log` in `config.toml`:
 ```toml
 progress="log"
 ```
