@@ -123,11 +123,11 @@ def test_verify_capabilities_data_types() -> None:
     assert exceptions[0].file_format == "parquet"
     assert exceptions[0].available_in_formats == ["model"]
 
-    # all supported on parquet
+    # time not supported on databricks
     exceptions = verify_supported_data_types(
         schema.tables.values(), new_jobs_parquet, databricks().capabilities(), "databricks"  # type: ignore[arg-type]
     )
-    assert len(exceptions) == 0
+    assert len(exceptions) == 1
     # date not supported on jsonl
     exceptions = verify_supported_data_types(
         schema.tables.values(), new_jobs_jsonl, databricks().capabilities(), "databricks"  # type: ignore[arg-type]

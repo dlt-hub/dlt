@@ -51,12 +51,6 @@ from dlt.destinations.path_utils import get_file_format_and_compression
 SUPPORTED_BLOB_STORAGE_PROTOCOLS = AZURE_BLOB_STORAGE_PROTOCOLS + S3_PROTOCOLS + GCS_PROTOCOLS
 
 
-SUPPORTED_HINTS: Dict[TDatabricksColumnHint, str] = {
-    "primary_key": "PRIMARY KEY",
-    "foreign_key": "FOREIGN KEY",
-}
-
-
 class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
@@ -314,9 +308,7 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         self.config: DatabricksClientConfiguration = config
         self.sql_client: DatabricksSqlClient = sql_client  # type: ignore[assignment, unused-ignore]
         self.type_mapper = self.capabilities.get_type_mapper()
-        self.active_hints = (
-            cast(Dict[TColumnHint, str], SUPPORTED_HINTS) if self.config.create_indexes else {}
-        )
+        # PK and FK are created in SQL fragments, not inline
 
     def _get_column_def_sql(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         column_def_sql = super()._get_column_def_sql(column, table)

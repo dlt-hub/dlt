@@ -1388,7 +1388,7 @@ def test_resource_name_in_schema() -> None:
         return [static_data(), dynamic_func_data(), dynamic_mark_data(), nested_data()]
 
     source = some_source()
-    p = dlt.pipeline(pipeline_name=uniq_id(), destination=DUMMY_COMPLETE)
+    p = dlt.pipeline(pipeline_name="p" + uniq_id(), destination=DUMMY_COMPLETE)
     p.run(source)
 
     schema = p.default_schema

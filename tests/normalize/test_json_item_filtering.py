@@ -1,5 +1,8 @@
+from typing import Iterator
 import pytest
 from copy import deepcopy
+from dlt.common.configuration.container import Container
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.exceptions import ParentTableNotFoundException
 
 from dlt.common.typing import DictStrAny
@@ -7,13 +10,30 @@ from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.common.schema.typing import TSimpleRegex
 
+from dlt.normalize.items_normalizers import JsonLItemsNormalizer
+from dlt.normalize.normalize import Normalize
 from tests.common.utils import load_json_case
+from tests.normalize.utils import DEFAULT_CAPS, add_preferred_types
 
 
-def test_row_field_filter(schema: Schema) -> None:
+@pytest.fixture(autouse=True)
+def default_caps() -> Iterator[DestinationCapabilitiesContext]:
+    # set the postgres caps as default for the whole module
+    with Container().injectable_context(DEFAULT_CAPS()) as caps:
+        yield caps
+
+
+@pytest.fixture
+def item_normalizer() -> JsonLItemsNormalizer:
+    n = Normalize()
+    schema = Schema("event")
     _add_excludes(schema)
+    return JsonLItemsNormalizer(None, None, schema, "load_id", n.config)
+
+
+def test_row_field_filter(item_normalizer: JsonLItemsNormalizer) -> None:
     bot_case: DictStrAny = load_json_case("mod_bot_case")
-    filtered_case = schema.filter_row("event_bot", deepcopy(bot_case))
+    filtered_case = item_normalizer._filter_row("event_bot", deepcopy(bot_case))
     # metadata, is_flagged and data should be eliminated
     ref_case = deepcopy(bot_case)
     del ref_case["metadata"]
@@ -26,39 +46,45 @@ def test_row_field_filter(schema: Schema) -> None:
     assert ref_case["data__custom"] == "remains"
 
 
-def test_whole_row_filter(schema: Schema) -> None:
-    _add_excludes(schema)
+def test_whole_row_filter(item_normalizer: JsonLItemsNormalizer) -> None:
     bot_case: DictStrAny = load_json_case("mod_bot_case")
     # the whole row should be eliminated if the exclude matches all the rows
-    filtered_case = schema.filter_row("event_bot__metadata", deepcopy(bot_case)["metadata"])
+    filtered_case = item_normalizer._filter_row(
+        "event_bot__metadata", deepcopy(bot_case)["metadata"]
+    )
     assert filtered_case == {}
     # also child rows will be excluded
-    filtered_case = schema.filter_row("event_bot__metadata__user", deepcopy(bot_case)["metadata"])
+    filtered_case = item_normalizer._filter_row(
+        "event_bot__metadata__user", deepcopy(bot_case)["metadata"]
+    )
     assert filtered_case == {}
 
 
-def test_whole_row_filter_with_exception(schema: Schema) -> None:
-    _add_excludes(schema)
+def test_whole_row_filter_with_exception(item_normalizer: JsonLItemsNormalizer) -> None:
     bot_case: DictStrAny = load_json_case("mod_bot_case")
     # whole row will be eliminated
-    filtered_case = schema.filter_row("event_bot__custom_data", deepcopy(bot_case)["custom_data"])
+    filtered_case = item_normalizer._filter_row(
+        "event_bot__custom_data", deepcopy(bot_case)["custom_data"]
+    )
     # mind that path event_bot__custom_data__included_object was also eliminated
     assert filtered_case == {}
     # this child of the row has exception (^event_bot__custom_data__included_object__ - the __ at the end select all childern but not the parent)
-    filtered_case = schema.filter_row(
+    filtered_case = item_normalizer._filter_row(
         "event_bot__custom_data__included_object",
         deepcopy(bot_case)["custom_data"]["included_object"],
     )
     assert filtered_case == bot_case["custom_data"]["included_object"]
-    filtered_case = schema.filter_row(
+    filtered_case = item_normalizer._filter_row(
         "event_bot__custom_data__excluded_path", deepcopy(bot_case)["custom_data"]["excluded_path"]
     )
     assert filtered_case == {}
 
 
-def test_filter_parent_table_schema_update(schema: Schema) -> None:
+def test_filter_parent_table_schema_update(item_normalizer: JsonLItemsNormalizer) -> None:
+    schema = item_normalizer.schema  # = Schema("event")
+    # _add_excludes(schema)
+    # add_preferred_types(schema)
     # filter out parent table and leave just child one. that should break the child-parent relationship and reject schema update
-    _add_excludes(schema)
     source_row = {
         "metadata": [
             {
@@ -71,12 +97,12 @@ def test_filter_parent_table_schema_update(schema: Schema) -> None:
     updates = []
 
     for (t, p), row in schema.normalize_data_item(source_row, "load_id", "event_bot"):
-        row = schema.filter_row(t, row)
+        row = item_normalizer._filter_row(t, row)
         if not row:
             # those rows are fully removed
             assert t in ["event_bot__metadata", "event_bot__metadata__elvl1"]
         else:
-            row, partial_table = schema.coerce_row(t, p, row)
+            row, partial_table = item_normalizer._coerce_row(t, p, row)
             updates.append(partial_table)
 
     # try to apply updates
@@ -91,20 +117,20 @@ def test_filter_parent_table_schema_update(schema: Schema) -> None:
 
     # add include filter that will preserve both tables
     updates.clear()
-    schema = Schema("event")
+    schema = item_normalizer.schema = Schema("event")
     _add_excludes(schema)
     schema.get_table("event_bot")["filters"]["includes"].extend(
         [TSimpleRegex("re:^metadata___dlt_"), TSimpleRegex("re:^metadata__elvl1___dlt_")]
     )
     schema._compile_settings()
     for (t, p), row in schema.normalize_data_item(source_row, "load_id", "event_bot"):
-        row = schema.filter_row(t, row)
+        row = item_normalizer._filter_row(t, row)
         if p is None:
             assert "_dlt_id" in row
         else:
             # full linking not wiped out
             assert set(row.keys()).issuperset(["_dlt_id", "_dlt_parent_id", "_dlt_list_idx"])
-        row, partial_table = schema.coerce_row(t, p, row)
+        row, partial_table = item_normalizer._coerce_row(t, p, row)
         updates.append(partial_table)
         schema.update_table(partial_table)
 
