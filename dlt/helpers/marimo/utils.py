@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pathlib
 import textwrap
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Union
 
 from dlt.common.storages import FileStorage
 from dlt.common.pipeline import get_dlt_pipelines_dir
