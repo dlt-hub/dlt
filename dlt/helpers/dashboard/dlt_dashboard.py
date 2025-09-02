@@ -328,7 +328,10 @@ def section_browse_data_table_list(
                     dlt_selected_schema_name, {}
                 )
                 _resources_state = _source_state.pop("resources", {})
-                _resource_state = _resources_state.get(_schema_table["resource"], {})
+                if "resource" in _schema_table:
+                    _resource_state = _resources_state.get(_schema_table["resource"], {})
+                else:
+                    _resource_state = {}
 
                 # render
                 _state_section_content.append(
@@ -342,7 +345,8 @@ def section_browse_data_table_list(
                             mo.ui.code_editor(
                                 yaml.safe_dump(_resource_state),
                                 label=(
-                                    f"<small>Resource state for {_schema_table['resource']}</small>"
+                                    "<small>Resource state for"
+                                    f" {_schema_table.get('resource', '')}</small>"
                                 ),
                                 language="yaml",
                             ),
@@ -355,7 +359,7 @@ def section_browse_data_table_list(
                 _result.append(
                     mo.accordion(
                         {
-                            f"<small>Show source and resource state resource {_schema_table['resource']} which created table {_table_name}</small>": mo.vstack(
+                            f"<small>Show source and resource state resource which created table {_table_name}</small>": mo.vstack(
                                 _state_section_content
                             )
                         }
