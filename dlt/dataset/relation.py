@@ -12,7 +12,7 @@ from sqlglot.expressions import ExpOrStr as SqlglotExprOrStr
 import sqlglot.expressions as sge
 
 import dlt
-from dlt.common.destination.dataset import SupportsRelation, TFilterOperation
+from dlt.common.destination.dataset import TFilterOperation
 from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGlotDialect
 from dlt.common.schema.typing import TTableSchemaColumns, TTableSchema
 from dlt.common.typing import Self, TSortOrder
@@ -25,7 +25,6 @@ from dlt.common.destination.dataset import SupportsDataAccess
 
 try:
     from dlt.helpers.ibis import Expr as IbisExpr
-    from dlt.helpers.ibis import compile_ibis_to_sqlglot
 except (ImportError, MissingDependencyException):
     IbisExpr = None
 
@@ -45,7 +44,7 @@ _FILTER_OP_MAP = {
 }
 
 
-class Relation(SupportsRelation, WithSqlClient):
+class Relation(WithSqlClient):
     @overload
     def __init__(
         self,
@@ -88,6 +87,7 @@ class Relation(SupportsRelation, WithSqlClient):
         # parse incoming query object
         self._sqlglot_expression: sge.Query = None
         if IbisExpr and isinstance(query, IbisExpr):
+            from dlt.helpers.ibis import compile_ibis_to_sqlglot
             self._sqlglot_expression = compile_ibis_to_sqlglot(query, self.query_dialect())
         elif query:
             self._sqlglot_expression = maybe_parse(
@@ -100,9 +100,7 @@ class Relation(SupportsRelation, WithSqlClient):
                 selected_columns=list(self._dataset.schema.get_table_columns(table_name).keys()),
             )
 
-    #
-    # forward DataAccess protocol methods
-    #
+
     def _wrap_iter(self, func_name: str) -> Any:
         """wrap Relation generators in cursor context"""
 
@@ -153,6 +151,12 @@ class Relation(SupportsRelation, WithSqlClient):
 
     @property
     def schema(self) -> TTableSchema:
+        """dlt schema of the `Relation`.
+        
+        This infers the schema from the relation's content. It's likely to include less
+        information than retrieving the schema from the pipeline or the dataset if the table
+        already exists.
+        """
         computed_columns, _ = self._compute_columns_schema(
             infer_sqlglot_schema=True,
             allow_anonymous_columns=True,
@@ -296,14 +300,20 @@ class Relation(SupportsRelation, WithSqlClient):
     #
 
     def limit(self, limit: int) -> Self:
+        """Create a `Relation` using a `LIMIT` clause."""
         rel = self.__copy__()
         rel._sqlglot_expression = rel._sqlglot_expression.limit(limit)
         return rel
 
     def head(self, limit: int = 5) -> Self:
+        """Create a `Relation` using a `LIMIT` clause. Defaults to `limit=5`
+        
+        This proxies `Relation.limit()`.
+        """
         return self.limit(limit)
 
     def select(self, *columns: str) -> Self:
+        """CReate a `Relation` with the selected columns using a `SELECT` clause."""
         proj = [sge.Column(this=sge.to_identifier(col, quoted=True)) for col in columns]
         subquery = self._sqlglot_expression.subquery()
         new_expr = sge.select(*proj).from_(subquery)
@@ -312,7 +322,16 @@ class Relation(SupportsRelation, WithSqlClient):
         rel.compute_columns_schema()
         return rel
 
-    def order_by(self, column_name: str, direction: TSortOrder = "asc") -> Self:
+    def order_by(self, column_name: str, *, direction: TSortOrder = "asc") -> Self:
+        """Create a `Relation` ordering results using a `ORDER BY` clause. 
+
+        Args:
+            column_name (str): The column to order by.
+            direction (TSortOrder, optional): The direction to order by: "asc"/"desc". Defaults to "asc".
+
+        Returns:
+            Self: A new Relation with the `ORDER BY` clause applied.
+        """
         if direction not in ["asc", "desc"]:
             raise ValueError(
                 f"`{direction}` is an invalid sort order, allowed values are: `asc` and `desc`"
@@ -327,7 +346,14 @@ class Relation(SupportsRelation, WithSqlClient):
         rel._sqlglot_expression = rel._sqlglot_expression.order_by(order_expr)
         return rel
 
+    # NOTE we currently force to have one column selected; we could be more flexible
+    # and rewrite the query to compute the AGG of all selected columns
+    # `SELECT AGG(col1), AGG(col2), ... FROM table``
     def _apply_agg(self, agg_cls: type[sge.AggFunc]) -> Self:
+        """Create a `Relation` with the aggregate function applied.
+
+        Exactly one column must be selected.
+        """
         if len(self._sqlglot_expression.selects) != 1:
             raise ValueError(
                 f"{agg_cls.__name__.lower()}() requires a query with exactly one select expression."
@@ -340,9 +366,17 @@ class Relation(SupportsRelation, WithSqlClient):
         return rel
 
     def max(self) -> Self:  # noqa: A003
+        """Create a `Relation` with the `MAX` aggregate applied.
+
+        Exactly one column must be selected.
+        """
         return self._apply_agg(sge.Max)
 
     def min(self) -> Self:  # noqa: A003
+        """Create a `Relation` with the `MIN` aggregate applied.
+
+        Exactly one column must be selected.
+        """
         return self._apply_agg(sge.Min)
 
     @overload
@@ -362,6 +396,18 @@ class Relation(SupportsRelation, WithSqlClient):
         operator: Optional[TFilterOperation] = None,
         value: Optional[Any] = None,
     ) -> Self:
+        """Create a `Relation` filtering results using a `WHERE` clause. 
+        
+        This is identical to `Relation.filter()`.
+
+        Args:
+            column_name (str): The column to filter on.
+            operator (TFilterOperation): The operator to use. Available operations are: eq, ne, gt, lt, gte, lte, in, not_in
+            value (Any): The value to filter on.
+
+        Returns:
+            Self: A new Relation with the WHERE clause applied.
+        """
         rel = self.__copy__()
 
         if not isinstance(rel._sqlglot_expression, sge.Select):
@@ -430,12 +476,27 @@ class Relation(SupportsRelation, WithSqlClient):
         operator: Optional[TFilterOperation] = None,
         value: Optional[Any] = None,
     ) -> Self:
+        """Create a `Relation` filtering results using a `WHERE` clause. 
+        
+        This is identical to `Relation.where()`.
+
+        Args:
+            column_name (str): The column to filter on.
+            operator (TFilterOperation): The operator to use. Available operations are: eq, ne, gt, lt, gte, lte, in, not_in
+            value (Any): The value to filter on.
+
+        Returns:
+            Self: A new Relation with the WHERE clause applied.
+        """
         if not operator and not value:
             return self.where(column_or_expr=column_or_expr)
         assert isinstance(column_or_expr, str)
         return self.where(column_or_expr=column_or_expr, operator=operator, value=value)
 
+    # NOTE The naming is ambiguous whether this returns a Relation or executes the query
+    # I suggest renaming `.to_scalar()`
     def scalar(self) -> Any:
+        """Execute the relation and return the first value of first column as a Python primitive"""
         row = self.fetchmany(2)
         if not row:
             return None
@@ -451,6 +512,10 @@ class Relation(SupportsRelation, WithSqlClient):
         return row[0][0]
 
     def __getitem__(self, columns: Sequence[str]) -> Self:
+        """Create a new Relation with the specified columns selected.
+        
+        This proxies `Relation.select()`.
+        """
         # NOTE remember that `issubclass(str, Sequence) is True`
         if isinstance(columns, str):
             columns = [columns]
@@ -469,9 +534,6 @@ class Relation(SupportsRelation, WithSqlClient):
 
         return self.select(*columns)
 
-    #
-    # Builtins
-    #
     def __str__(self) -> str:
         # TODO: merge detection of "simple" transformation that preserve table schema
         msg = f"Relation query: \n{indent(self.to_sql(pretty=True), prefix='  ')}\n"

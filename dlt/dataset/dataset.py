@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from types import TracebackType
-from typing import Any, Type, Union, TYPE_CHECKING, List, Literal, overload
+from typing import Any, Optional, Type, Union, TYPE_CHECKING, Literal, overload
 
 from sqlglot.schema import Schema as SQLGlotSchema
 import sqlglot.expressions as sge
@@ -12,25 +12,23 @@ from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common.json import json
 from dlt.common.destination.reference import TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase, SupportsOpenTables, WithStateSync
-from dlt.common.destination.dataset import SupportsRelation, SupportsDataset
 from dlt.common.schema import Schema
 from dlt.common.typing import Self
 from dlt.common.schema.typing import C_DLT_LOAD_ID
 from dlt.common.utils import simple_repr, without_none
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.dataset import lineage
-from dlt.dataset.relation import Relation
 from dlt.dataset.utils import get_destination_clients
 from dlt.destinations.queries import build_row_counts_expr
 
 
 if TYPE_CHECKING:
+    from ibis import ir
     from dlt.helpers.ibis import BaseBackend as IbisBackend
-    from dlt.helpers.ibis import Table as IbisTable
     from dlt.helpers.ibis import Expr as IbisExpr
 
 
-class Dataset(SupportsDataset):
+class Dataset:
     """Access to dataframes and arrow tables in the destination dataset via dbapi"""
 
     def __init__(
@@ -52,7 +50,12 @@ class Dataset(SupportsDataset):
         self._table_client: SupportsOpenTables = None
 
     def ibis(self, read_only: bool = False) -> IbisBackend:
-        """return a connected ibis backend, read-only flag is only used for duckdb"""
+        """Get an ibis backend for the dataset.
+        
+        This creates a connection to the destination.
+        
+        The `read_only` flag is currently only supported for duckdb destination.
+        """
         from dlt.helpers.ibis import create_ibis_backend
 
         return create_ibis_backend(
@@ -63,6 +66,11 @@ class Dataset(SupportsDataset):
 
     @property
     def schema(self) -> dlt.Schema:
+        """dlt schema associated with the dataset. 
+        
+        If no provided at dataset initialization, it is fetched from the destination.
+        """
+
         # NOTE: if this property raises AttributeError, __getattr__ will get called 🤯
         #   this leads to infinite recursion as __getattr_ calls this property
         if not self._schema:
@@ -71,14 +79,22 @@ class Dataset(SupportsDataset):
 
     @property
     def tables(self) -> list[str]:
+        """List of table names found in the dataset.
+        
+        This only includes "completed tables". In other words, during the lifetime of a `pipeline.run()`
+        execution, tables may exist on the destination, but will only appear on the dataset once
+        `pipeline.run()` is done.
+        """
         # return only completed tables
         return self.schema.data_table_names() + self.schema.dlt_table_names()
 
     def _ipython_key_completions_(self) -> list[str]:
+        """Provide table names as completion suggestion in interactive environments."""
         return self.tables
 
     @property
     def sqlglot_schema(self) -> SQLGlotSchema:
+        """SQLGlot schema of the dataset derived from the dlt schema."""
         # NOTE: no cache for now, it is probably more expensive to compute the current schema hash
         # to see wether this is stale than to compute a new sqlglot schema
         return lineage.create_sqlglot_schema(
@@ -87,10 +103,16 @@ class Dataset(SupportsDataset):
 
     @property
     def sqlglot_dialect(self) -> TSqlGlotDialect:
+        """SQLGlot dialect of the dataset destination.
+        
+        The dialect of a user's SQL query is the "input dialect";
+        this value is the "output dialect" in the context of SQLGlot transpilation.
+        """
         return self.sql_client.capabilities.sqlglot_dialect
 
     @property
     def dataset_name(self) -> str:
+        """Name of the dataset"""
         return self._dataset_name
 
     @property
@@ -179,34 +201,52 @@ class Dataset(SupportsDataset):
     def query(
         self,
         query: Union[str, sge.Select, IbisExpr],
-        query_dialect: TSqlGlotDialect = None,
+        query_dialect: Optional[TSqlGlotDialect] = None,
+        *,
         _execute_raw_query: bool = False,
-    ) -> SupportsRelation:
-        return Relation(
+    ) -> dlt.Relation:
+        """Create a `dlt.Relation` from an SQL query, SQLGlot expression or Ibis expression.
+
+        Args:
+            query (Union[str, sge.Select, IbisExpr]): The query that defines the relation. 
+            query_dialect (Optional[TSqlGlotDialect]): The dialect of the query. If specified, it will be used to transpile the query
+                to the destination's dialect. Otherwise, the query is assumed to be the destination's dialect (accessible via `Dataset.sqlglot_dialect`)
+
+        Returns:
+            dlt.Relation: The relation for the query
+        """
+        return dlt.Relation(
             readable_dataset=self,
             query=query,
             query_dialect=query_dialect,
             _execute_raw_query=_execute_raw_query,
         )
 
+    # NOTE could simply accept `*args, **kwargs` and pass to `.query()` but would decrease readability
+    # 
     def __call__(
         self,
         query: Union[str, sge.Select, IbisExpr],
-        query_dialect: TSqlGlotDialect = None,
+        query_dialect: Optional[TSqlGlotDialect] = None,
+        *,
         _execute_raw_query: bool = False,
-    ) -> SupportsRelation:
-        return self.query(query, query_dialect, _execute_raw_query)
+    ) -> dlt.Relation:
+        """Convenience method to proxy `Dataset.query()`. See this method for details."""
+        return self.query(query, query_dialect, _execute_raw_query=_execute_raw_query)
 
     @overload
-    def table(self, table_name: str) -> SupportsRelation: ...
+    def table(self, table_name: str) -> dlt.Relation: ...
 
     @overload
-    def table(self, table_name: str, table_type: Literal["relation"]) -> SupportsRelation: ...
+    def table(self, table_name: str, table_type: Literal["relation"]) -> dlt.Relation: ...
 
     @overload
-    def table(self, table_name: str, table_type: Literal["ibis"]) -> IbisTable: ...
+    def table(self, table_name: str, table_type: Literal["ibis"]) -> ir.Table: ...
 
-    def table(self, table_name: str, table_type: Literal["relation", "ibis"] = "relation") -> Any:
+    # TODO remove `table_type` argument. Instead, `dlt.Relation()` should have `.to_ibis()` method
+    def table(self, table_name: str, table_type: Literal["relation", "ibis"] = "relation") -> Union[dlt.Relation, ir.Table]:
+        """Get a `dlt.Relation` associated with a table from the dataset."""
+
         # dataset only provides access to tables known in dlt schema, direct query may circumvent this
         available_tables = self.tables
         if table_name not in available_tables:
@@ -223,7 +263,7 @@ class Dataset(SupportsDataset):
             return create_unbound_ibis_table(self.schema, self.dataset_name, table_name)
 
         # fallback to the standard dbapi relation
-        return Relation(
+        return dlt.Relation(
             readable_dataset=self,
             table_name=table_name,
         )
@@ -233,11 +273,19 @@ class Dataset(SupportsDataset):
         *,
         data_tables: bool = True,
         dlt_tables: bool = False,
-        table_names: List[str] = None,
-        load_id: str = None,
-    ) -> SupportsRelation:
-        """Returns a dictionary of table names and their row counts, returns counts of all data tables by default"""
-        """If table_names is provided, only the tables in the list are returned regardless of the data_tables and dlt_tables flags"""
+        table_names: Optional[list[str]] = None,
+        load_id: Optional[str] = None,
+    ) -> dlt.Relation:
+        """Create a `dlt.Relation` with the query to get the row counts of all tables in the dataset.
+
+        Args:
+            data_tables (bool): Whether to include data tables. Defaults to True.
+            dlt_tables (bool): Whether to include dlt tables. Defaults to False.
+            table_names (Optional[list[str]]): The names of the tables to include. Defaults to None. Will override data_tables and dlt_tables if set
+            load_id (Optional[str]): If set, only count rows associated with a given load id. Will exclude tables that do not have a load id.
+        Returns:
+            dlt.Relation: Relation for the query that computes the requested row count.
+        """
 
         selected_tables = table_names or []
         if not selected_tables:
@@ -271,8 +319,11 @@ class Dataset(SupportsDataset):
 
         return self.query(query=union_all_expr)
 
-    def __getitem__(self, table_name: str) -> SupportsRelation:
-        """access of table via dict notation"""
+    def __getitem__(self, table_name: str) -> dlt.Relation:
+        """Get a `dlt.Relation` for a table via dictionary notation.
+        
+        This proxies `Dataset.table()`.
+        """
         if table_name not in self.tables:
             raise KeyError(
                 f"Table `{table_name}` not found on dataset. Available tables: `{self.tables}`"
@@ -283,8 +334,15 @@ class Dataset(SupportsDataset):
         except ValueError as exc:
             raise KeyError(table_name, str(exc))
 
+    # TODO this creates all sorts of bugs in dynamic scenarios where `getattr()` is used
+    # Table names that collide with `Dataset` methods will shadow attributes.
+    # Potential fix:
+    # super().__getattr__(name); if None: or try/except: return self.table()
     def __getattr__(self, name: str) -> Any:
-        """Retrieve a `Relation` with `name` and raise `AttributeError` when not found"""
+        """Get a `dlt.Relation` for a table via dictionary notation.
+        
+        This proxies `Dataset.table()`.
+        """
         try:
             return self.table(name)
         # TODO: expect TableNotFound in the future
@@ -292,7 +350,7 @@ class Dataset(SupportsDataset):
             raise AttributeError(name, str(exc))
 
     def __enter__(self) -> Self:
-        """Context manager used to open and close sql client and internal connection"""
+        """Context manager to keep the connection to the destination open between queries"""
         assert (
             not self._opened_sql_client
         ), "context manager can't be used when sql client is initialized"
@@ -320,6 +378,7 @@ class Dataset(SupportsDataset):
     def __exit__(
         self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
     ) -> None:
+        """Context manager to keep the connection to the destination open between queries"""
         self._opened_sql_client.close_connection()
         self._opened_sql_client = None
 
