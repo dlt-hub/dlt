@@ -319,48 +319,55 @@ def section_browse_data_table_list(
                 _table_name = dlt_data_table_list.value[0]["name"]  # type: ignore[index,unused-ignore]
                 _schema_table = dlt_pipeline.schemas[dlt_selected_schema_name].tables[_table_name]
 
-                # state section
-                _state_section_content = []
+                # we only show resource state if the table has resource set, child tables do not have a resource set
+                if "resource" in _schema_table:
+                    # state section
+                    _state_section_content = []
 
-                # get source and resource state for correct resources from pipeline
-                _converted_state = json.loads(json.dumps(dlt_pipeline.state))
-                _source_state = _converted_state.get("sources", {}).get(
-                    dlt_selected_schema_name, {}
-                )
-                _resources_state = _source_state.pop("resources", {})
-                _resource_state = _resources_state.get(_schema_table["resource"], {})
+                    # get source and resource state for correct resources from pipeline
+                    _converted_state = json.loads(json.dumps(dlt_pipeline.state))
+                    _source_state = _converted_state.get("sources", {}).get(
+                        dlt_selected_schema_name, {}
+                    )
 
-                # render
-                _state_section_content.append(
-                    mo.hstack(
-                        [
-                            mo.ui.code_editor(
-                                yaml.safe_dump(_source_state),
-                                label=f"<small>Source state for {dlt_selected_schema_name}</small>",
-                                language="yaml",
-                            ),
-                            mo.ui.code_editor(
-                                yaml.safe_dump(_resource_state),
-                                label=(
-                                    f"<small>Resource state for {_schema_table['resource']}</small>"
+                    _resources_state = _source_state.pop("resources", {})
+                    _resource_state = _resources_state.get(_schema_table["resource"], {})
+
+                    # render
+                    _state_section_content.append(
+                        mo.hstack(
+                            [
+                                mo.ui.code_editor(
+                                    yaml.safe_dump(_source_state),
+                                    label=(
+                                        "<small>Source state for"
+                                        f" {dlt_selected_schema_name}</small>"
+                                    ),
+                                    language="yaml",
                                 ),
-                                language="yaml",
-                            ),
-                        ],
-                        justify="start",
-                        widths="equal",
+                                mo.ui.code_editor(
+                                    yaml.safe_dump(_resource_state),
+                                    label=(
+                                        "<small>Resource state for"
+                                        f" {_schema_table['resource']}</small>"
+                                    ),
+                                    language="yaml",
+                                ),
+                            ],
+                            justify="start",
+                            widths="equal",
+                        )
                     )
-                )
 
-                _result.append(
-                    mo.accordion(
-                        {
-                            f"<small>Show source and resource state resource {_schema_table['resource']} which created table {_table_name}</small>": mo.vstack(
-                                _state_section_content
-                            )
-                        }
+                    _result.append(
+                        mo.accordion(
+                            {
+                                f"<small>Show source and resource state resource {_schema_table['resource']} which created table {_table_name}</small>": mo.vstack(
+                                    _state_section_content
+                                )
+                            }
+                        )
                     )
-                )
 
                 _dataset = cast(
                     ReadableDBAPIDataset, dlt_pipeline.dataset(schema=dlt_selected_schema_name)
