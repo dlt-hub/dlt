@@ -24,8 +24,7 @@ from dlt.destinations.queries import build_row_counts_expr
 
 if TYPE_CHECKING:
     from ibis import ir
-    from dlt.helpers.ibis import BaseBackend as IbisBackend
-    from dlt.helpers.ibis import Expr as IbisExpr
+    from ibis import BaseBackend as IbisBackend
 
 
 class Dataset:
@@ -37,13 +36,10 @@ class Dataset:
         dataset_name: str,
         schema: Union[dlt.Schema, str, None] = None,
     ) -> None:
-        # provided properties
+        # TODO fix `._destination` such that is never `None`
         self._destination = Destination.from_reference(destination)
-        self._provided_schema = schema
         self._dataset_name = dataset_name
-
-        # derived / cached properties
-        self._schema: dlt.Schema = None
+        self._schema: Union[dlt.Schema, str, None] = schema
         # self._sqlglot_schema: SQLGlotSchema = None
         self._sql_client: SqlClientBase[Any] = None
         self._opened_sql_client: SqlClientBase[Any] = None
@@ -59,8 +55,8 @@ class Dataset:
         from dlt.helpers.ibis import create_ibis_backend
 
         return create_ibis_backend(
-            self._destination,
-            self._get_destination_client(self.schema),
+            destination=self._destination,
+            client=self.destination_client,
             read_only=read_only,
         )
 
@@ -68,13 +64,26 @@ class Dataset:
     def schema(self) -> dlt.Schema:
         """dlt schema associated with the dataset. 
         
-        If no provided at dataset initialization, it is fetched from the destination.
+        If no provided at dataset initialization, it is fetched from the destination. Fallbacks
+        to local dlt pipeline metadata.
         """
+        if isinstance(self._schema, dlt.Schema):
+            return self._schema
 
-        # NOTE: if this property raises AttributeError, __getattr__ will get called 🤯
-        #   this leads to infinite recursion as __getattr_ calls this property
-        if not self._schema:
-            self._ensure_schema()
+        maybe_schema: Optional[dlt.Schema] = None
+
+        if isinstance(self._schema, str):
+            maybe_schema = _get_dataset_schema_from_destination_using_schema_name(self, self._schema) 
+
+        if not maybe_schema:
+            maybe_schema = _get_dataset_schema_from_destination_using_dataset_name(self)
+
+        if not maybe_schema:
+            # uses local dlt pipeline data instead of destination
+            maybe_schema = dlt.Schema(self.dataset_name)
+
+        assert isinstance(maybe_schema, dlt.Schema)
+        self._schema = maybe_schema
         return self._schema
 
     @property
@@ -115,92 +124,52 @@ class Dataset:
         """Name of the dataset"""
         return self._dataset_name
 
+    # TODO why do we need `_opened_sql_client` and `_sql_client`? One seems used by 
+    # the `dlt.Dataset` context manager and the other by `dlt.Relation`
     @property
     def sql_client(self) -> SqlClientBase[Any]:
         # return the opened sql client if it exists
         if self._opened_sql_client:
             return self._opened_sql_client
         if not self._sql_client:
-            self._sql_client = self._get_sql_client(self.schema)
+            self._sql_client = get_dataset_sql_client(self)
         return self._sql_client
 
+    # TODO remove this; this seems only implemented to pass to `Relation` for it
+    # to respect the ABC requirements of `WithSqlClient` mixin
+    # also, it's odd that we need to instantiate an SQL client to get its class
     @property
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
         return self.sql_client.__class__
 
+    # TODO if `destination_client` returns a new client each time, it shouldn't be a property
     @property
     def destination_client(self) -> JobClientBase:
-        return self._get_destination_client(self.schema)
+        return get_dataset_destination_client(self)
 
+    # TODO should this public? This should only be accessed via `.__open__()`
     @property
     def open_table_client(self) -> SupportsOpenTables:
         if not self._table_client:
-            client = self._get_destination_client(self.schema)
+            client = get_dataset_destination_client(self)
             if isinstance(client, SupportsOpenTables):
                 self._table_client = client
             else:
-                raise OpenTableClientNotAvailable(
-                    self._dataset_name, self._destination.destination_name
-                )
+                raise OpenTableClientNotAvailable(self.dataset_name, self._destination.destination_name)
         return self._table_client
 
+    # TODO remove method; need to update `dlt-plus` to avoid conflict
+    # this is only used by `dlt_plus.transformation` currently
     def is_same_physical_destination(self, other: dlt.Dataset) -> bool:
         """
         Returns true if the other dataset is on the same physical destination
         helpful if we want to run sql queries without extracting the data
         """
-        return str(self.destination_client.config) == str(other.destination_client.config)
-
-    def _get_destination_client(self, schema: dlt.Schema) -> JobClientBase:
-        return get_destination_clients(
-            schema, destination=self._destination, destination_dataset_name=self._dataset_name
-        )[0]
-
-    def _get_sql_client(self, schema: dlt.Schema) -> SqlClientBase[Any]:
-        client = self._get_destination_client(self.schema)
-        if isinstance(client, WithSqlClient):
-            return client.sql_client
-        else:
-            raise Exception(
-                f"Destination `{client.config.destination_type}` does not support `SqlClient`."
-            )
-
-    def _ensure_schema(self) -> None:
-        """Lazy load the schema on request"""
-
-        # full schema given, nothing to do
-        if not self._schema and isinstance(self._provided_schema, dlt.Schema):
-            self._schema = self._provided_schema
-
-        # schema name given, resolve it from destination by name
-        elif not self._schema and isinstance(self._provided_schema, str):
-            with self._get_destination_client(dlt.Schema(self._provided_schema)) as client:
-                if isinstance(client, WithStateSync):
-                    stored_schema = client.get_stored_schema(self._provided_schema)
-                    if stored_schema:
-                        self._schema = dlt.Schema.from_stored_schema(
-                            json.loads(stored_schema.schema)
-                        )
-                    else:
-                        self._schema = dlt.Schema(self._provided_schema)
-
-        # no schema name given, load newest schema from destination
-        elif not self._schema:
-            with self._get_destination_client(dlt.Schema(self._dataset_name)) as client:
-                if isinstance(client, WithStateSync):
-                    stored_schema = client.get_stored_schema()
-                    if stored_schema:
-                        self._schema = dlt.Schema.from_stored_schema(
-                            json.loads(stored_schema.schema)
-                        )
-
-        # default to empty schema with dataset name
-        if not self._schema:
-            self._schema = dlt.Schema(self._dataset_name)
+        return is_same_physical_destination(self, other)
 
     def query(
         self,
-        query: Union[str, sge.Select, IbisExpr],
+        query: Union[str, sge.Select, ir.Expr],
         query_dialect: Optional[TSqlGlotDialect] = None,
         *,
         _execute_raw_query: bool = False,
@@ -208,7 +177,7 @@ class Dataset:
         """Create a `dlt.Relation` from an SQL query, SQLGlot expression or Ibis expression.
 
         Args:
-            query (Union[str, sge.Select, IbisExpr]): The query that defines the relation. 
+            query (Union[str, sge.Select, ir.Expr]): The query that defines the relation. 
             query_dialect (Optional[TSqlGlotDialect]): The dialect of the query. If specified, it will be used to transpile the query
                 to the destination's dialect. Otherwise, the query is assumed to be the destination's dialect (accessible via `Dataset.sqlglot_dialect`)
 
@@ -226,7 +195,7 @@ class Dataset:
     # 
     def __call__(
         self,
-        query: Union[str, sge.Select, IbisExpr],
+        query: Union[str, sge.Select, ir.Expr],
         query_dialect: Optional[TSqlGlotDialect] = None,
         *,
         _execute_raw_query: bool = False,
@@ -358,7 +327,7 @@ class Dataset:
         # use internal class
 
         # create a new sql client
-        self._opened_sql_client = self._get_sql_client(self.schema)
+        self._opened_sql_client = get_dataset_sql_client(self)
 
         NoCloseClient = type(
             "NoCloseClient",
@@ -384,10 +353,10 @@ class Dataset:
 
     def __repr__(self) -> str:
         # schema may not be set
-        schema_ = self._schema or self._provided_schema
+        schema_ = self.schema
         schema_repr = repr(schema_) if schema_ else None
         kwargs = {
-            "dataset_name": self._dataset_name,
+            "dataset_name": self.dataset_name,
             "destination": repr(self._destination),
             "schema": schema_repr,
         }
@@ -405,7 +374,7 @@ class Dataset:
         else:
             schema_info = f"with tables in dlt schema `{self.schema.name}`:\n"
 
-        msg = f"Dataset `{self._dataset_name}` at `{destination_info}` {schema_info}"
+        msg = f"Dataset `{self.dataset_name}` at `{destination_info}` {schema_info}"
         if _schema:
             tables = [name for name in self.schema.data_table_names()]
             if tables:
@@ -421,3 +390,62 @@ def dataset(
     schema: Union[Schema, str, None] = None,
 ) -> Dataset:
     return Dataset(destination, dataset_name, schema)
+
+
+def get_dataset_destination_client(dataset: dlt.Dataset) -> JobClientBase:
+    return get_destination_clients(
+        schema=dataset.schema,
+        destination=dataset._destination,
+        destination_dataset_name=dataset.dataset_name
+    )[0]
+
+
+def get_dataset_sql_client(dataset: dlt.Dataset) -> SqlClientBase[Any]:
+    client = get_dataset_destination_client(dataset)
+    if isinstance(client, WithSqlClient):
+        return client.sql_client
+    else:
+        raise Exception(
+            f"Destination `{client.config.destination_type}` does not support `SqlClient`."
+        )
+
+
+def is_same_physical_destination(dataset1: dlt.Dataset, dataset2: dlt.Dataset) -> bool:
+    """Check if both datasets are at the same physical destination. 
+
+    This is done by comparing the fingerprint of both destination configs. There
+    are potential false positive if two different config give access to the same destination.
+    """
+    return str(dataset1.destination_client.config) == str(dataset2.destination_client.config)
+
+
+def _get_dataset_schema_from_destination_using_schema_name(dataset: dlt.Dataset, schema_name: str) -> Optional[dlt.Schema]:
+    schema = None
+    with get_destination_clients(
+        schema=dlt.Schema(schema_name),
+        destination=dataset._destination,
+        destination_dataset_name=dataset.dataset_name,
+    )[0] as client:
+        if isinstance(client, WithStateSync):
+            stored_schema = client.get_stored_schema(schema_name)
+            if stored_schema:
+                schema = dlt.Schema.from_stored_schema(json.loads(stored_schema.schema))
+            else:
+                schema = dlt.Schema(schema_name)
+
+    return schema
+
+
+def _get_dataset_schema_from_destination_using_dataset_name(dataset: dlt.Dataset) -> Optional[dlt.Schema]:
+    schema = None
+    with get_destination_clients(
+        schema=dlt.Schema(dataset.dataset_name),
+        destination=dataset._destination,
+        destination_dataset_name=dataset.dataset_name,
+    )[0] as client:
+        if isinstance(client, WithStateSync):
+            stored_schema = client.get_stored_schema()
+            if stored_schema:
+                schema = dlt.Schema.from_stored_schema(json.loads(stored_schema.schema))
+
+    return schema
