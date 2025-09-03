@@ -8,6 +8,8 @@ from unittest.mock import patch
 
 from pytest_mock import MockerFixture
 
+from dlt.common.schema import Schema
+from dlt.common.utils import digest128
 from dlt.common import logger
 from dlt.common.runtime.anon_tracker import get_anonymous_id, track, disable_anon_tracker
 from dlt.common.runtime.exec_info import get_execution_context
@@ -192,6 +194,67 @@ def test_execution_context_with_plugin() -> None:
         assert context["plus"] == {"name": "dlt_plus", "version": "1.7.1"}
     finally:
         sys.path.remove(plus_path)
+
+
+def test_data_access_telemetry(disable_temporary_telemetry: RuntimeConfiguration) -> None:
+    from dlt.common.runtime.telemetry import with_dataset_access_telemetry
+    from dlt.common.runtime import anon_tracker
+
+    mock_github_env(os.environ)
+    mock_pod_env(os.environ)
+    SENT_ITEMS.clear()
+    config = SentryLoggerConfiguration()
+
+    # mock pipeline-like object with the required attributes
+    class MockPipeline:
+        def __init__(self, name):
+            self.destination = MockDestination()
+            self.dataset_name = name
+            self.default_schema_name = "default_schema"
+            self._dataset_access_tracked = False
+
+    class MockDestination:
+        def __init__(self):
+            self.destination_name = "duckdb"
+            self.destination_type = "duckdb"
+
+    @with_dataset_access_telemetry()
+    def mock_dataset_method(self, schema=None):
+        return "mock_dataset_object"
+
+    pipeline = MockPipeline("some_dataset")
+
+    with patch("dlt.common.runtime.anon_tracker.before_send", _mock_before_send):
+        start_test_telemetry(config)
+        # first access should trigger telemetry
+        mock_dataset_method(pipeline)
+        # second access should NOT trigger telemetry
+        mock_dataset_method(pipeline)
+        disable_anon_tracker()
+
+    # should have exactly 1 event despite two dataset method calls
+    assert len(SENT_ITEMS) == 1
+    event = SENT_ITEMS[0]
+
+    assert event["event"] == "data_access_connect"
+    assert event["properties"]["event_category"] == "data_access"
+    assert event["properties"]["event_name"] == "connect"
+    assert event["properties"]["success"]
+    assert event["properties"]["destination_name"] == "duckdb"
+    assert event["properties"]["destination_type"] == "duckdb"
+    assert event["properties"]["dataset_name_hash"] == digest128("some_dataset")
+    assert event["properties"]["default_schema_name_hash"] == digest128("default_schema")
+
+    # verify the rest, just in case
+    assert event["anonymousId"] == get_anonymous_id()
+    context = event["context"]
+    assert context["library"] == {"name": DLT_PKG_NAME, "version": __version__}
+    assert "plus" not in context
+    assert isinstance(context["cpu"], int)
+    assert isinstance(context["ci_run"], bool)
+    assert isinstance(context["exec_info"], list)
+    assert ["kubernetes", "codespaces"] <= context["exec_info"]
+    assert context["run_context"] == "dlt"
 
 
 def test_cleanup(environment: DictStrStr) -> None:

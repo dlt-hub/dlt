@@ -38,6 +38,7 @@ from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
 )
 from dlt.common.runtime import signals, apply_runtime_config
+from dlt.common.runtime.telemetry import with_dataset_access_telemetry
 from dlt.common.schema.typing import (
     TSchemaTables,
     TTableFormat,
@@ -355,6 +356,7 @@ class Pipeline(SupportsPipeline):
         self._trace: PipelineTrace = None
         self._last_trace: PipelineTrace = None
         self._state_restored: bool = False
+        self._dataset_access_tracked: bool = False
 
         # initialize pipeline working dir
         self._init_working_dir(pipeline_name, pipelines_dir)
@@ -1808,6 +1810,7 @@ class Pipeline(SupportsPipeline):
     # NOTE: I expect that we'll merge all relations into one. and then we'll be able to get rid
     #  of overload and dataset_type
 
+    @with_dataset_access_telemetry()
     def dataset(self, schema: Union[Schema, str, None] = None) -> SupportsDataset:
         """Returns a dataset object for querying the destination data.
 
