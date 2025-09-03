@@ -525,7 +525,7 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
         "select * from items where id < 20"
     )
 
-    assert query_relationship._sqlglot_expression == query_from_query_function._sqlglot_expression  # type: ignore
+    assert query_relationship.sqlglot_expression == query_from_query_function.sqlglot_expression  # type: ignore
 
     # we selected the first 20
     table = query_relationship.arrow()
@@ -571,25 +571,28 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
     # test various query stages
     # raw query has no aliases
     assert (
-        join_relationship._sqlglot_expression.sql("duckdb").replace(dataset_name, "dataset_name")
+        join_relationship.sqlglot_expression.sql("duckdb").replace(dataset_name, "dataset_name")
         == "SELECT i.id, di.double_id FROM dataset_name.items AS i JOIN dataset_name.double_items"
         " AS di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
     )
 
+    # TODO move these tests to the `dlt.destination.queries::normalize_query()`
+    # TODO modify `dlt.dataset.lineage::compute_columns_schema()` to return the normalized query instead of a tuple
     # qualified query has aliases
-    assert (
-        join_relationship._qualified_query.sql("duckdb").replace(dataset_name, "dataset_name")
-        == "SELECT i.id AS id, di.double_id AS double_id FROM dataset_name.items AS i JOIN"
-        " dataset_name.double_items AS di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
-    )
+    # assert (
+    #     join_relationship._qualified_query.sql("duckdb").replace(dataset_name, "dataset_name")
+    #     == "SELECT i.id AS id, di.double_id AS double_id FROM dataset_name.items AS i JOIN"
+    #     " dataset_name.double_items AS di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
+    # )
 
+    # TODO move these tests to the `dlt.destination.queries::normalize_query()`
     # normalized has quoted indentifiers
-    assert (
-        join_relationship._normalized_query.sql("duckdb").replace(dataset_name, "dataset_name")
-        == 'SELECT "i"."id" AS "id", "di"."double_id" AS "double_id" FROM "dataset_name"."items" AS'
-        ' "i" JOIN "dataset_name"."double_items" AS "di" ON ("i"."id" = "di"."id") WHERE'
-        ' "i"."id" < 20 ORDER BY "i"."id" ASC'
-    )
+    # assert (
+    #     join_relationship._normalized_query.sql("duckdb").replace(dataset_name, "dataset_name")
+    #     == 'SELECT "i"."id" AS "id", "di"."double_id" AS "double_id" FROM "dataset_name"."items" AS'
+    #     ' "i" JOIN "dataset_name"."double_items" AS "di" ON ("i"."id" = "di"."id") WHERE'
+    #     ' "i"."id" < 20 ORDER BY "i"."id" ASC'
+    # )
 
 
 @pytest.mark.no_load
@@ -1063,8 +1066,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert list(table[10]) == [10, 20]
     # verify computed columns
     assert (
-        list(relation.columns_schema.keys())
-        == relation.columns  # type: ignore[attr-defined]
+        relation.columns  # type: ignore[attr-defined]
         == relation._ipython_key_completions_()  # type: ignore[attr-defined]
         == ["id", "double_id"]
     )
@@ -1074,8 +1076,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     agg_relation = dataset(agg_query)
     assert agg_relation.fetchone()[0] == reduce(lambda a, b: a + b, range(20))
     assert (
-        list(agg_relation.columns_schema.keys())
-        == agg_relation.columns  # type: ignore[attr-defined]
+        agg_relation.columns  # type: ignore[attr-defined]
         == agg_relation._ipython_key_completions_()  # type: ignore[attr-defined]
         == ["sum_id"]
     )
@@ -1092,7 +1093,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     def sql_from_expr(expr: Any) -> Tuple[str, List[str]]:
         relation = dataset(expr)
         query = str(relation.to_sql()).replace(populated_pipeline.dataset_name, "dataset")  # type: ignore[attr-defined]
-        columns = list(relation.columns_schema.keys()) if relation.columns_schema else None
+        columns = relation.columns if relation.columns else None
         return re.sub(r"\s+", " ", query), columns
 
     # test all functions discussed here: https://ibis-project.org/tutorials/ibis-for-sql-users

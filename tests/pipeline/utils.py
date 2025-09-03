@@ -303,9 +303,8 @@ def _load_tables_to_dicts_sql(
     result: Dict[str, List[Dict[str, Any]]] = {}
     for table_name in table_names:
         relation = p.dataset(schema=schema_name)[table_name]
-        columns = list(relation.columns_schema.keys())
         for row in relation.fetchall():
-            result[table_name] = result.get(table_name, []) + [dict(zip(columns, row))]
+            result[table_name] = result.get(table_name, []) + [dict(zip(relation.columns, row))]
     return result
 
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import overload, Union, Any, Generator, Optional, Sequence, Tuple, Type, TYPE_CHECKING
+from typing import overload, Union, Any, Generator, Optional, Sequence, Type, TYPE_CHECKING
 from textwrap import indent
 from contextlib import contextmanager
 from dlt.common.utils import simple_repr, without_none
@@ -14,7 +14,8 @@ import sqlglot.expressions as sge
 import dlt
 from dlt.common.destination.dataset import TFilterOperation
 from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGlotDialect
-from dlt.common.schema.typing import TTableSchemaColumns, TTableSchema
+from dlt.common.libs.utils import is_instance_lib
+from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import Self, TSortOrder
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.dataset import lineage
@@ -23,10 +24,6 @@ from dlt.destinations.queries import normalize_query, build_select_expr
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination.dataset import SupportsDataAccess
 
-try:
-    from dlt.helpers.ibis import Expr as IbisExpr
-except (ImportError, MissingDependencyException):
-    IbisExpr = None
 
 if TYPE_CHECKING:
     from dlt.helpers.ibis import Expr as IbisExpr
@@ -49,7 +46,7 @@ class Relation(WithSqlClient):
     def __init__(
         self,
         *,
-        readable_dataset: dlt.Dataset,
+        dataset: dlt.Dataset,
         query: Union[str, sge.Query],
         query_dialect: Optional[str] = None,
         _execute_raw_query: bool = False,
@@ -59,47 +56,31 @@ class Relation(WithSqlClient):
     def __init__(
         self,
         *,
-        readable_dataset: dlt.Dataset,
+        dataset: dlt.Dataset,
         table_name: str,
     ) -> None: ...
 
     def __init__(
         self,
         *,
-        readable_dataset: dlt.Dataset,
+        dataset: dlt.Dataset,
         query: Optional[Union[str, sge.Query, IbisExpr]] = None,
         query_dialect: Optional[str] = None,
         table_name: Optional[str] = None,
         _execute_raw_query: bool = False,
     ) -> None:
         """Create a lazy evaluated relation for the dataset of a destination"""
+        if table_name is None and query is None:
+            raise ValueError("`dlt.Relation` needs to receive minimally `table_name` or `query` at initialization.")
 
-        # provided properties
-        self._dataset = readable_dataset
-        self.__execute_raw_query: bool = _execute_raw_query
+        self._dataset = dataset
+        self._query = query
+        self._query_dialect = query_dialect
+        self._table_name = table_name
+        self._execute_raw_query: bool = _execute_raw_query
 
-        # derived / cached properties
         self._opened_sql_client: SqlClientBase[Any] = None
-        self._columns_schema: TTableSchemaColumns = None
-        self.__qualified_query: sge.Query = None
-        self.__normalized_query: sge.Query = None
-
-        # parse incoming query object
-        self._sqlglot_expression: sge.Query = None
-        if IbisExpr and isinstance(query, IbisExpr):
-            from dlt.helpers.ibis import compile_ibis_to_sqlglot
-            self._sqlglot_expression = compile_ibis_to_sqlglot(query, self.query_dialect())
-        elif query:
-            self._sqlglot_expression = maybe_parse(
-                query,
-                dialect=query_dialect or self.query_dialect(),
-            )
-        else:
-            self._sqlglot_expression = build_select_expr(
-                table_name=table_name,
-                selected_columns=list(self._dataset.schema.get_table_columns(table_name).keys()),
-            )
-
+        self._schema: Optional[TTableSchemaColumns] = None
 
     def _wrap_iter(self, func_name: str) -> Any:
         """wrap Relation generators in cursor context"""
@@ -146,38 +127,70 @@ class Relation(WithSqlClient):
     @property
     def columns_schema(self) -> TTableSchemaColumns:
         if self._columns_schema is None:
-            self._columns_schema, self.__qualified_query = self._compute_columns_schema()
+            self._columns_schema, _ = _get_relation_output_columns_schema(self)
         return self._columns_schema
 
     @property
-    def schema(self) -> TTableSchema:
+    def schema(self) -> TTableSchemaColumns:
         """dlt schema of the `Relation`.
         
         This infers the schema from the relation's content. It's likely to include less
         information than retrieving the schema from the pipeline or the dataset if the table
         already exists.
         """
-        computed_columns, _ = self._compute_columns_schema(
-            infer_sqlglot_schema=True,
-            allow_anonymous_columns=True,
-            allow_partial=True,
-        )
-        return {"columns": computed_columns}
+        if self._schema is None:
+            # TODO this could be set and not recomputed AFAIK
+            schema, _ = _get_relation_output_columns_schema(
+                self,
+                infer_sqlglot_schema=True,
+                allow_anonymous_columns=True,
+                allow_partial=True,
+            )
+            self._schema = schema
+
+        assert self._schema is not None
+        return self._schema
 
     @schema.setter
-    def schema(self, new_value: TTableSchema) -> None:
+    def schema(self, new_value: Any) -> None:
+        """Disable schema setter."""
         raise NotImplementedError("Schema may not be set")
 
     @property
     def columns(self) -> list[str]:
-        return list(self.schema.get("columns", {}).keys())
+        """List of column names found on the table."""
+        return list(self.schema.keys())
 
     def _ipython_key_completions_(self) -> list[str]:
+        """Provide column names as completion suggestion in interactive environments."""
         return self.columns
 
-    #
-    # WithSqlClient interface
-    #
+    # TODO can we narrow type from `sge.Query` to `sge.Select`?
+    @property
+    def sqlglot_expression(self) -> sge.Query:
+        """SQLGlot expression"""
+        if isinstance(self.sqlglot_expression, sge.Query):
+            return self._sqlglot_expression
+
+        if isinstance(self._query, (str, sge.Query)):
+            expression = maybe_parse(self._query, dialect=self._query_dialect or self.query_dialect())
+        elif isinstance(self._table_name, str):
+            expression = build_select_expr(table_name=self._table_name, selected_columns=self.columns)
+        elif is_instance_lib(self._query, class_ref="ibis.Expr"):
+            from dlt.helpers.ibis import ibis
+            assert isinstance(self._query, ibis.Expr)
+
+            from dlt.helpers.ibis import compile_ibis_to_sqlglot
+            expression = compile_ibis_to_sqlglot(self._query, self.query_dialect())
+        else:
+            raise RuntimeError(
+                "`dlt.Relation` is missing `table_name` and `query` to resolve the SQLGlot expression."
+                " This is an unexpected error."
+            )
+
+        self._sqlglot_expression = expression
+        return self._sqlglot_expression
+
     @property
     def sql_client(self) -> SqlClientBase[Any]:
         return self._dataset.sql_client
@@ -186,9 +199,8 @@ class Relation(WithSqlClient):
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
         return self._dataset.sql_client_class
 
-    #
-    # Cursor Management
-    #
+    # TODO this probalby shouldn't be public; it should be accessed via the dataset or
+    # destination if relevant
     @contextmanager
     def cursor(self) -> Generator[SupportsDataAccess, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
@@ -196,10 +208,10 @@ class Relation(WithSqlClient):
             self._opened_sql_client = self.sql_client
 
             # we only compute the columns schema if we are not executing the raw query
-            if self.__execute_raw_query:
+            if self._execute_raw_query:
                 columns_schema = None
             else:
-                columns_schema = self.columns_schema
+                columns_schema = self.schema
 
             # case 1: client is already opened and managed from outside
             if self.sql_client.native_connection:
@@ -217,16 +229,18 @@ class Relation(WithSqlClient):
         finally:
             self._opened_sql_client = None
 
-    #
-    # Query  / Expression Management
-    #
-    def to_sql(self, pretty: bool = False, _raw_query: bool = False) -> str:
-        """Returns an executable sql query string in the correct sql dialect for this relation"""
+    def to_sql(self, pretty: bool = False, *, _raw_query: bool = False) -> str:
+        """Get the normalize query string in the correct sql dialect for this relation"""
 
-        if self.__execute_raw_query or _raw_query:
-            query = self._sqlglot_expression
+        if self._execute_raw_query or _raw_query:
+            query = self.sqlglot_expression
         else:
-            query = self._normalized_query
+            _, _qualified_query = _get_relation_output_columns_schema(self)
+            query = normalize_query(
+                sqlglot_schema=self._dataset.sqlglot_schema,
+                qualified_query=_qualified_query,
+                sql_client=self._dataset.sql_client,
+            )
 
         if not isinstance(query, sge.Query):
             raise ValueError(
@@ -236,73 +250,15 @@ class Relation(WithSqlClient):
 
         return query.sql(dialect=self.query_dialect(), pretty=pretty)
 
+    # TODO this name is confusing; this returns the dialect of the destination;
+    # I would assume the `query_dialect` to be the one of the user query
     def query_dialect(self) -> TSqlGlotDialect:
         return self._dataset.sqlglot_dialect
-
-    def compute_columns_schema(
-        self,
-        infer_sqlglot_schema: bool = True,
-        allow_anonymous_columns: bool = True,
-        allow_partial: bool = True,
-        **kwargs: Any,
-    ) -> TTableSchemaColumns:
-        return self._compute_columns_schema(
-            infer_sqlglot_schema, allow_anonymous_columns, allow_partial, **kwargs
-        )[0]
-
-    def _compute_columns_schema(
-        self,
-        infer_sqlglot_schema: bool = False,
-        allow_anonymous_columns: bool = True,
-        allow_partial: bool = False,
-        **kwargs: Any,
-    ) -> Tuple[TTableSchemaColumns, Optional[sge.Query]]:
-        """Provides the expected columns schema for the query
-
-        Args:
-            infer_sqlglot_schema (bool): If False, raise if any column types are not known
-            allow_anonymous_columns (bool): If False, raise if any columns have auto assigned names
-            allow_partial (bool): If False, will raise in case of parsing errors, missing table reference, unresolved `SELECT *`, etc.
-        """
-        # NOTE: if we do not have a schema, we cannot compute the columns schema
-        if self._dataset.schema is None:
-            return {}, None
-
-        return lineage.compute_columns_schema(
-            # use dlt schema compliant query so lineage will work correctly on non case folded identifiers
-            self._sqlglot_expression,
-            self._dataset.sqlglot_schema,
-            dialect=self.query_dialect(),
-            infer_sqlglot_schema=infer_sqlglot_schema,
-            allow_anonymous_columns=allow_anonymous_columns,
-            allow_partial=allow_partial,
-        )
-
-    @property
-    def _qualified_query(self) -> sge.Query:
-        if self.__qualified_query is None:
-            self._columns_schema, self.__qualified_query = self._compute_columns_schema()
-        return self.__qualified_query
-
-    @property
-    def _normalized_query(self) -> sge.Query:
-        """Computes and returns the normalized query"""
-        if self.__normalized_query is None:
-            self.__normalized_query = normalize_query(
-                self._dataset.sqlglot_schema,
-                self._qualified_query,
-                self._dataset.sql_client,
-            )
-        return self.__normalized_query
-
-    #
-    # Relation protocol methods
-    #
 
     def limit(self, limit: int) -> Self:
         """Create a `Relation` using a `LIMIT` clause."""
         rel = self.__copy__()
-        rel._sqlglot_expression = rel._sqlglot_expression.limit(limit)
+        rel._sqlglot_expression = rel.sqlglot_expression.limit(limit)
         return rel
 
     def head(self, limit: int = 5) -> Self:
@@ -315,11 +271,10 @@ class Relation(WithSqlClient):
     def select(self, *columns: str) -> Self:
         """CReate a `Relation` with the selected columns using a `SELECT` clause."""
         proj = [sge.Column(this=sge.to_identifier(col, quoted=True)) for col in columns]
-        subquery = self._sqlglot_expression.subquery()
+        subquery = self.sqlglot_expression.subquery()
         new_expr = sge.select(*proj).from_(subquery)
         rel = self.__copy__()
         rel._sqlglot_expression = merge_subqueries(new_expr)
-        rel.compute_columns_schema()
         return rel
 
     def order_by(self, column_name: str, *, direction: TSortOrder = "asc") -> Self:
@@ -343,7 +298,7 @@ class Relation(WithSqlClient):
             desc=(direction == "desc"),
         )
         rel = self.__copy__()
-        rel._sqlglot_expression = rel._sqlglot_expression.order_by(order_expr)
+        rel._sqlglot_expression = rel.sqlglot_expression.order_by(order_expr)
         return rel
 
     # NOTE we currently force to have one column selected; we could be more flexible
@@ -354,15 +309,15 @@ class Relation(WithSqlClient):
 
         Exactly one column must be selected.
         """
-        if len(self._sqlglot_expression.selects) != 1:
+        if len(self.sqlglot_expression.selects) != 1:
             raise ValueError(
                 f"{agg_cls.__name__.lower()}() requires a query with exactly one select expression."
                 " Consider selecting the column you want to aggregate."
             )
-        selected_col = self._sqlglot_expression.selects[0]
+        selected_col = self.sqlglot_expression.selects[0]
         expr = agg_cls(this=selected_col.this if hasattr(selected_col, "this") else selected_col)
         rel = self.__copy__()
-        rel._sqlglot_expression.set("expressions", [expr])
+        rel.sqlglot_expression.set("expressions", [expr])
         return rel
 
     def max(self) -> Self:  # noqa: A003
@@ -410,14 +365,14 @@ class Relation(WithSqlClient):
         """
         rel = self.__copy__()
 
-        if not isinstance(rel._sqlglot_expression, sge.Select):
+        if not isinstance(rel.sqlglot_expression, sge.Select):
             raise ValueError(
-                f"Query `{rel._sqlglot_expression}` received for `{rel.__class__.__name__}`. "
+                f"Query `{rel.sqlglot_expression}` received for `{rel.__class__.__name__}`. "
                 "Must be an SQL SELECT statement."
             )
 
         if not operator and not value:
-            rel._sqlglot_expression = rel._sqlglot_expression.where(
+            rel._sqlglot_expression = rel.sqlglot_expression.where(
                 column_or_expr, dialect=self.query_dialect()
             )
             return rel
@@ -436,10 +391,10 @@ class Relation(WithSqlClient):
                 )
 
         sqlgot_type = to_sqlglot_type(
-            dlt_type=self.columns_schema[column_name].get("data_type"),
-            precision=self.columns_schema[column_name].get("precision"),
-            timezone=self.columns_schema[column_name].get("timezone"),
-            nullable=self.columns_schema[column_name].get("nullable"),
+            dlt_type=self.schema[column_name].get("data_type"),
+            precision=self.schema[column_name].get("precision"),
+            timezone=self.schema[column_name].get("timezone"),
+            nullable=self.schema[column_name].get("nullable"),
         )
 
         value_expr = build_typed_literal(value, sqlgot_type)
@@ -456,7 +411,7 @@ class Relation(WithSqlClient):
         else:
             condition = condition_cls(this=column, expression=value_expr)
 
-        rel._sqlglot_expression = rel._sqlglot_expression.where(condition)
+        rel._sqlglot_expression = rel.sqlglot_expression.where(condition)
         return rel
 
     @overload
@@ -538,7 +493,7 @@ class Relation(WithSqlClient):
         # TODO: merge detection of "simple" transformation that preserve table schema
         msg = f"Relation query: \n{indent(self.to_sql(pretty=True), prefix='  ')}\n"
         msg += "Columns:\n"
-        for column in self.columns_schema.values():
+        for column in self.schema.values():
             # TODO: show x-annotation hints
             msg += f"{indent(column['name'], prefix='  ')} {column['data_type']}\n"
         return msg
@@ -552,7 +507,23 @@ class Relation(WithSqlClient):
         return simple_repr("dlt.Relation", **without_none(kwargs))
 
     def __copy__(self) -> Self:
-        return self.__class__(
-            readable_dataset=self._dataset,
-            query=self._sqlglot_expression,
-        )
+        return self.__class__(dataset=self._dataset, query=self.sqlglot_expression)
+
+
+def _get_relation_output_columns_schema(
+    relation: dlt.Relation,
+    *,
+    infer_sqlglot_schema: bool = False,
+    allow_anonymous_columns: bool = True,
+    allow_partial: bool = False,
+) -> tuple[TTableSchemaColumns, sge.Query]:
+    columns_schema, normalized_query = lineage.compute_columns_schema(
+        # use dlt schema compliant query so lineage will work correctly on non case folded identifiers
+        relation.sqlglot_expression,
+        relation._dataset.sqlglot_schema,
+        dialect=relation.query_dialect(),
+        infer_sqlglot_schema=infer_sqlglot_schema,
+        allow_anonymous_columns=allow_anonymous_columns,
+        allow_partial=allow_partial,
+    )
+    return columns_schema, normalized_query
