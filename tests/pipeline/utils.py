@@ -519,7 +519,7 @@ def select_data(
     dataset = p.dataset(schema=schema_name)
     # TODO: fix multiple dataset layout and remove hack
     if dataset_name:
-        dataset._dataset_name = dataset_name  # type: ignore[attr-defined]
+        dataset._dataset_name = dataset_name
     return list(dataset(sql, _execute_raw_query=_execute_raw_query).fetchall())
 
 
@@ -553,7 +553,7 @@ def assert_table_column(
     # select full table
     assert_query_column(
         p,
-        cast(ReadableDBAPIRelation, dataset[table_name]).to_sql(),
+        dataset[table_name].to_sql(),
         table_data,
         schema_name,
         info,

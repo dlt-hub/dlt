@@ -71,7 +71,10 @@ class Relation(WithSqlClient):
     ) -> None:
         """Create a lazy evaluated relation for the dataset of a destination"""
         if table_name is None and query is None:
-            raise ValueError("`dlt.Relation` needs to receive minimally `table_name` or `query` at initialization.")
+            raise ValueError(
+                "`dlt.Relation` needs to receive minimally `table_name` or `query` at"
+                " initialization."
+            )
 
         self._dataset = dataset
         self._query = query
@@ -80,6 +83,7 @@ class Relation(WithSqlClient):
         self._execute_raw_query: bool = _execute_raw_query
 
         self._opened_sql_client: SqlClientBase[Any] = None
+        self._sqlglot_expression: sge.Query = None
         self._schema: Optional[TTableSchemaColumns] = None
 
     def _wrap_iter(self, func_name: str) -> Any:
@@ -124,16 +128,20 @@ class Relation(WithSqlClient):
     def iter_fetch(self, *args: Any, **kwargs: Any) -> Any:
         return self._wrap_iter("iter_fetch")(*args, **kwargs)
 
+    # TODO I only kept this method to ask a question;
+    # why does `.columns_schema` use (infer_sqlglot_schema=False, allow_partial=False)
+    # whereas `.schema` uses (infer_sqlglot_schema=True, allow_partial=True)
+    # ?
     @property
     def columns_schema(self) -> TTableSchemaColumns:
-        if self._columns_schema is None:
-            self._columns_schema, _ = _get_relation_output_columns_schema(self)
-        return self._columns_schema
+        # if self._columns_schema is None:
+        _columns_schema, _ = _get_relation_output_columns_schema(self)
+        return _columns_schema
 
     @property
     def schema(self) -> TTableSchemaColumns:
         """dlt schema of the `Relation`.
-        
+
         This infers the schema from the relation's content. It's likely to include less
         information than retrieving the schema from the pipeline or the dataset if the table
         already exists.
@@ -173,19 +181,25 @@ class Relation(WithSqlClient):
             return self._sqlglot_expression
 
         if isinstance(self._query, (str, sge.Query)):
-            expression = maybe_parse(self._query, dialect=self._query_dialect or self.query_dialect())
+            expression = maybe_parse(
+                self._query, dialect=self._query_dialect or self.query_dialect()
+            )
         elif isinstance(self._table_name, str):
-            expression = build_select_expr(table_name=self._table_name, selected_columns=self.columns)
+            expression = build_select_expr(
+                table_name=self._table_name, selected_columns=self.columns
+            )
         elif is_instance_lib(self._query, class_ref="ibis.Expr"):
             from dlt.helpers.ibis import ibis
+
             assert isinstance(self._query, ibis.Expr)
 
             from dlt.helpers.ibis import compile_ibis_to_sqlglot
+
             expression = compile_ibis_to_sqlglot(self._query, self.query_dialect())
         else:
             raise RuntimeError(
-                "`dlt.Relation` is missing `table_name` and `query` to resolve the SQLGlot expression."
-                " This is an unexpected error."
+                "`dlt.Relation` is missing `table_name` and `query` to resolve the SQLGlot"
+                " expression. This is an unexpected error."
             )
 
         self._sqlglot_expression = expression
@@ -263,7 +277,7 @@ class Relation(WithSqlClient):
 
     def head(self, limit: int = 5) -> Self:
         """Create a `Relation` using a `LIMIT` clause. Defaults to `limit=5`
-        
+
         This proxies `Relation.limit()`.
         """
         return self.limit(limit)
@@ -278,7 +292,7 @@ class Relation(WithSqlClient):
         return rel
 
     def order_by(self, column_name: str, *, direction: TSortOrder = "asc") -> Self:
-        """Create a `Relation` ordering results using a `ORDER BY` clause. 
+        """Create a `Relation` ordering results using a `ORDER BY` clause.
 
         Args:
             column_name (str): The column to order by.
@@ -351,8 +365,8 @@ class Relation(WithSqlClient):
         operator: Optional[TFilterOperation] = None,
         value: Optional[Any] = None,
     ) -> Self:
-        """Create a `Relation` filtering results using a `WHERE` clause. 
-        
+        """Create a `Relation` filtering results using a `WHERE` clause.
+
         This is identical to `Relation.filter()`.
 
         Args:
@@ -431,8 +445,8 @@ class Relation(WithSqlClient):
         operator: Optional[TFilterOperation] = None,
         value: Optional[Any] = None,
     ) -> Self:
-        """Create a `Relation` filtering results using a `WHERE` clause. 
-        
+        """Create a `Relation` filtering results using a `WHERE` clause.
+
         This is identical to `Relation.where()`.
 
         Args:
@@ -468,7 +482,7 @@ class Relation(WithSqlClient):
 
     def __getitem__(self, columns: Sequence[str]) -> Self:
         """Create a new Relation with the specified columns selected.
-        
+
         This proxies `Relation.select()`.
         """
         # NOTE remember that `issubclass(str, Sequence) is True`

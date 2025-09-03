@@ -39,7 +39,7 @@ def test_dataset_autocompletion(mock_dataset: ReadableDBAPIDataset):
 
 def test_relation_autocompletion(mock_dataset: ReadableDBAPIDataset):
     expected_suggestions = ["col1", "col2"]
-    suggestions = mock_dataset["my_table"]._ipython_key_completions_()  # type: ignore[attr-defined]
+    suggestions = mock_dataset["my_table"]._ipython_key_completions_()
     assert set(expected_suggestions) == set(suggestions)
 
 
@@ -177,7 +177,7 @@ def test_changing_relation_with_query() -> None:
         schema=s,
     )
 
-    relation = cast(ReadableDBAPIRelation, dataset("SELECT * FROM something"))
+    relation = dataset("SELECT * FROM something")
     query = relation.to_sql()
     assert (
         'SELECT "something"."this" AS "this", "something"."that" AS "that" FROM'
@@ -185,9 +185,7 @@ def test_changing_relation_with_query() -> None:
         == query
     )
 
-    query = (
-        cast(ReadableDBAPIRelation, dataset("SELECT this, that FROM something")).limit(5).to_sql()
-    )
+    query = dataset("SELECT this, that FROM something").limit(5).to_sql()
     assert (
         'SELECT "something"."this" AS "this", "something"."that" AS "that" FROM'
         ' "pipeline_dataset"."something" AS "something" LIMIT 5'

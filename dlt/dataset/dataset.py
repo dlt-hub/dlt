@@ -47,9 +47,9 @@ class Dataset:
 
     def ibis(self, read_only: bool = False) -> IbisBackend:
         """Get an ibis backend for the dataset.
-        
+
         This creates a connection to the destination.
-        
+
         The `read_only` flag is currently only supported for duckdb destination.
         """
         from dlt.helpers.ibis import create_ibis_backend
@@ -62,8 +62,8 @@ class Dataset:
 
     @property
     def schema(self) -> dlt.Schema:
-        """dlt schema associated with the dataset. 
-        
+        """dlt schema associated with the dataset.
+
         If no provided at dataset initialization, it is fetched from the destination. Fallbacks
         to local dlt pipeline metadata.
         """
@@ -73,7 +73,9 @@ class Dataset:
         maybe_schema: Optional[dlt.Schema] = None
 
         if isinstance(self._schema, str):
-            maybe_schema = _get_dataset_schema_from_destination_using_schema_name(self, self._schema) 
+            maybe_schema = _get_dataset_schema_from_destination_using_schema_name(
+                self, self._schema
+            )
 
         if not maybe_schema:
             maybe_schema = _get_dataset_schema_from_destination_using_dataset_name(self)
@@ -89,7 +91,7 @@ class Dataset:
     @property
     def tables(self) -> list[str]:
         """List of table names found in the dataset.
-        
+
         This only includes "completed tables". In other words, during the lifetime of a `pipeline.run()`
         execution, tables may exist on the destination, but will only appear on the dataset once
         `pipeline.run()` is done.
@@ -113,7 +115,7 @@ class Dataset:
     @property
     def sqlglot_dialect(self) -> TSqlGlotDialect:
         """SQLGlot dialect of the dataset destination.
-        
+
         The dialect of a user's SQL query is the "input dialect";
         this value is the "output dialect" in the context of SQLGlot transpilation.
         """
@@ -124,7 +126,7 @@ class Dataset:
         """Name of the dataset"""
         return self._dataset_name
 
-    # TODO why do we need `_opened_sql_client` and `_sql_client`? One seems used by 
+    # TODO why do we need `_opened_sql_client` and `_sql_client`? One seems used by
     # the `dlt.Dataset` context manager and the other by `dlt.Relation`
     @property
     def sql_client(self) -> SqlClientBase[Any]:
@@ -155,7 +157,9 @@ class Dataset:
             if isinstance(client, SupportsOpenTables):
                 self._table_client = client
             else:
-                raise OpenTableClientNotAvailable(self.dataset_name, self._destination.destination_name)
+                raise OpenTableClientNotAvailable(
+                    self.dataset_name, self._destination.destination_name
+                )
         return self._table_client
 
     # TODO remove method; need to update `dlt-plus` to avoid conflict
@@ -177,7 +181,7 @@ class Dataset:
         """Create a `dlt.Relation` from an SQL query, SQLGlot expression or Ibis expression.
 
         Args:
-            query (Union[str, sge.Select, ir.Expr]): The query that defines the relation. 
+            query (Union[str, sge.Select, ir.Expr]): The query that defines the relation.
             query_dialect (Optional[TSqlGlotDialect]): The dialect of the query. If specified, it will be used to transpile the query
                 to the destination's dialect. Otherwise, the query is assumed to be the destination's dialect (accessible via `Dataset.sqlglot_dialect`)
 
@@ -185,14 +189,14 @@ class Dataset:
             dlt.Relation: The relation for the query
         """
         return dlt.Relation(
-            readable_dataset=self,
+            dataset=self,
             query=query,
             query_dialect=query_dialect,
             _execute_raw_query=_execute_raw_query,
         )
 
     # NOTE could simply accept `*args, **kwargs` and pass to `.query()` but would decrease readability
-    # 
+    #
     def __call__(
         self,
         query: Union[str, sge.Select, ir.Expr],
@@ -213,7 +217,9 @@ class Dataset:
     def table(self, table_name: str, table_type: Literal["ibis"]) -> ir.Table: ...
 
     # TODO remove `table_type` argument. Instead, `dlt.Relation()` should have `.to_ibis()` method
-    def table(self, table_name: str, table_type: Literal["relation", "ibis"] = "relation") -> Union[dlt.Relation, ir.Table]:
+    def table(
+        self, table_name: str, table_type: Literal["relation", "ibis"] = "relation"
+    ) -> Union[dlt.Relation, ir.Table]:
         """Get a `dlt.Relation` associated with a table from the dataset."""
 
         # dataset only provides access to tables known in dlt schema, direct query may circumvent this
@@ -232,10 +238,7 @@ class Dataset:
             return create_unbound_ibis_table(self.schema, self.dataset_name, table_name)
 
         # fallback to the standard dbapi relation
-        return dlt.Relation(
-            readable_dataset=self,
-            table_name=table_name,
-        )
+        return dlt.Relation(dataset=self, table_name=table_name)
 
     def row_counts(
         self,
@@ -290,7 +293,7 @@ class Dataset:
 
     def __getitem__(self, table_name: str) -> dlt.Relation:
         """Get a `dlt.Relation` for a table via dictionary notation.
-        
+
         This proxies `Dataset.table()`.
         """
         if table_name not in self.tables:
@@ -309,7 +312,7 @@ class Dataset:
     # super().__getattr__(name); if None: or try/except: return self.table()
     def __getattr__(self, name: str) -> Any:
         """Get a `dlt.Relation` for a table via dictionary notation.
-        
+
         This proxies `Dataset.table()`.
         """
         try:
@@ -396,7 +399,7 @@ def get_dataset_destination_client(dataset: dlt.Dataset) -> JobClientBase:
     return get_destination_clients(
         schema=dataset.schema,
         destination=dataset._destination,
-        destination_dataset_name=dataset.dataset_name
+        destination_dataset_name=dataset.dataset_name,
     )[0]
 
 
@@ -411,7 +414,7 @@ def get_dataset_sql_client(dataset: dlt.Dataset) -> SqlClientBase[Any]:
 
 
 def is_same_physical_destination(dataset1: dlt.Dataset, dataset2: dlt.Dataset) -> bool:
-    """Check if both datasets are at the same physical destination. 
+    """Check if both datasets are at the same physical destination.
 
     This is done by comparing the fingerprint of both destination configs. There
     are potential false positive if two different config give access to the same destination.
@@ -419,7 +422,9 @@ def is_same_physical_destination(dataset1: dlt.Dataset, dataset2: dlt.Dataset) -
     return str(dataset1.destination_client.config) == str(dataset2.destination_client.config)
 
 
-def _get_dataset_schema_from_destination_using_schema_name(dataset: dlt.Dataset, schema_name: str) -> Optional[dlt.Schema]:
+def _get_dataset_schema_from_destination_using_schema_name(
+    dataset: dlt.Dataset, schema_name: str
+) -> Optional[dlt.Schema]:
     schema = None
     with get_destination_clients(
         schema=dlt.Schema(schema_name),
@@ -436,7 +441,9 @@ def _get_dataset_schema_from_destination_using_schema_name(dataset: dlt.Dataset,
     return schema
 
 
-def _get_dataset_schema_from_destination_using_dataset_name(dataset: dlt.Dataset) -> Optional[dlt.Schema]:
+def _get_dataset_schema_from_destination_using_dataset_name(
+    dataset: dlt.Dataset,
+) -> Optional[dlt.Schema]:
     schema = None
     with get_destination_clients(
         schema=dlt.Schema(dataset.dataset_name),
