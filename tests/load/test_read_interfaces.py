@@ -1355,7 +1355,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
         # use name otherwise aleph schema is loaded
         schema=populated_pipeline.default_schema_name,
     )
-    
+
     # dataset.schema is only set once first accessed
     assert dataset._schema == populated_pipeline.default_schema_name
     dataset.schema
