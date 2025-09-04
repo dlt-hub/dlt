@@ -158,13 +158,13 @@ class ClickHouseSqlClient(
             # with the current implementation base table doesn't get dropped and we get an error on the next run
             # it seem like drop_dataset is never called, I've added logging there and nothing is printed
             self.execute_sql(f"""
-                CREATE TABLE IF NOT EXISTS {sentinel_base_table_name}
+                CREATE TABLE IF NOT EXISTS {sentinel_base_table_name} ON CLUSTER '{cluster}'
                 (_dlt_id String NOT NULL)
                 ENGINE={TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(sentinel_table_type)}
                 PRIMARY KEY _dlt_id
                 COMMENT 'internal dlt sentinel table'""")
             self.execute_sql(f"""
-                CREATE TABLE IF NOT EXISTS {sentinel_table_name}
+                CREATE TABLE IF NOT EXISTS {sentinel_table_name} ON CLUSTER '{cluster}'
                 (_dlt_id String NOT NULL)
                 ENGINE=Distributed('{cluster}', '{base_table_database}', '{sentinel_base_table_name}', rand())
                 COMMENT 'internal dlt sentinel table'""")
