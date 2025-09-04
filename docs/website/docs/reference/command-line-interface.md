@@ -117,7 +117,7 @@ Operations on pipelines that were ran locally.
 
 **Usage**
 ```sh
-dlt pipeline [-h] [--list-pipelines] [--hot-reload] [--pipelines-dir
+dlt pipeline [-h] [--list-pipelines] [--pipelines-dir
     PIPELINES_DIR] [--verbose] [pipeline_name]
     {info,show,failed-jobs,drop-pending-packages,sync,trace,schema,drop,load-package}
     ...
@@ -139,7 +139,6 @@ Inherits arguments from [`dlt`](#dlt).
 **Options**
 * `-h, --help` - Show this help message and exit
 * `--list-pipelines, -l` - List local pipelines
-* `--hot-reload` - Reload streamlit app (for core development)
 * `--pipelines-dir PIPELINES_DIR` - Pipelines working directory
 * `--verbose, -v` - Provides more information for certain commands.
 

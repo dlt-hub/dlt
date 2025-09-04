@@ -37,7 +37,6 @@ def pipeline_command(
     verbosity: int,
     dataset_name: str = None,
     destination: TDestinationReferenceArg = None,
-    hot_reload: Optional[bool] = False,
     **command_kwargs: Any,
 ) -> None:
     if operation == "list":
@@ -139,10 +138,6 @@ def pipeline_command(
                 "--client.showSidebarNavigation",
                 "false",
             ]
-
-            if hot_reload:
-                streamlit_cmd.append("--server.runOnSave")
-                streamlit_cmd.append("true")
 
             streamlit_cmd.append("--")
             streamlit_cmd.append(pipeline_name)
