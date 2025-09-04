@@ -141,7 +141,7 @@ def success_pipeline_filesystem():
         pipeline = dlt.pipeline(
             pipeline_name=SUCCESS_PIPELINE_FILESYSTEM,
             pipelines_dir=temp_dir,
-            destination=dlt.destinations.filesystem(bucket_url="file://tmp"),
+            destination=dlt.destinations.filesystem(bucket_url="_storage/data"),
             dataset_name="test_dataset",
             dev_mode=True,
         )
