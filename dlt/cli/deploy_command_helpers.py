@@ -8,6 +8,8 @@ from yaml import Dumper
 from itertools import chain
 from typing import List, Optional, Sequence, Tuple, Any, Dict
 
+from dlt.common.typing import TypedDict
+
 # optional dependencies
 try:
     import pipdeptree
@@ -129,12 +131,11 @@ class BaseDeployment(abc.ABC):
             # go through all once launched pipelines
             visitors = get_visitors(self.pipeline_script, self.pipeline_script_path)
             possible_pipelines = parse_pipeline_info(visitors)
-            pipeline_name: str = None
-            pipelines_dir: str = None
 
-            uniq_possible_pipelines = {t[0]: t for t in possible_pipelines}
+            uniq_possible_pipelines = {t["pipeline_name"]: t for t in possible_pipelines}
+            selected_pipeline_info: PipelineInfo = None
             if len(uniq_possible_pipelines) == 1:
-                pipeline_name, pipelines_dir = possible_pipelines[0]
+                selected_pipeline_info = possible_pipelines[0]
             elif len(uniq_possible_pipelines) > 1:
                 choices = list(uniq_possible_pipelines.keys())
                 choices_str = "".join([str(i + 1) for i in range(len(choices))])
@@ -144,12 +145,12 @@ class BaseDeployment(abc.ABC):
                     + ", ".join(choices_selection),
                     choices=choices_str,
                 )
-                pipeline_name, pipelines_dir = uniq_possible_pipelines[choices[int(sel) - 1]]
+                selected_pipeline_info = uniq_possible_pipelines[choices[int(sel) - 1]]
 
-            if pipelines_dir:
-                self.pipelines_dir = os.path.abspath(pipelines_dir)
-            if pipeline_name:
-                self.pipeline_name = pipeline_name
+            if selected_pipeline_info:
+                if pipelines_dir := selected_pipeline_info.get("pipelines_dir"):
+                    self.pipelines_dir = os.path.abspath(pipelines_dir)
+                self.pipeline_name = selected_pipeline_info.get("pipeline_name")
 
             # change the working dir to the script working dir
             with set_working_dir(self.working_directory):
@@ -307,11 +308,29 @@ def get_visitors(pipeline_script: str, pipeline_script_path: str) -> PipelineScr
     return visitor
 
 
-def parse_pipeline_info(visitor: PipelineScriptVisitor) -> List[Tuple[str, Optional[str]]]:
-    pipelines: List[Tuple[str, Optional[str]]] = []
+class PipelineInfo(TypedDict):
+    pipeline_name: str
+    pipelines_dir: Optional[str]
+    dataset_name: Optional[str]
+    destination: Optional[str]
+
+
+def parse_pipeline_info(
+    visitor: PipelineScriptVisitor, extended_info: bool = False
+) -> List[PipelineInfo]:
+    """
+    Parses pipeline info from the pipeline script.
+
+    Args:
+        visitor: The pipeline script visitor.
+        extended_info: Whether to require additional info such as dataset name, destination type, etc. Experimental. Will only work
+            if destinations are configured as string literals.
+    """
+    pipelines: List[PipelineInfo] = []
     if n.PIPELINE in visitor.known_calls:
         for call_args in visitor.known_calls[n.PIPELINE]:
             pipeline_name, pipelines_dir = None, None
+            dataset_name, destination = None, None
             # Check both full_refresh/dev_mode until full_refresh option is removed from dlt
             f_r_node = call_args.arguments.get("full_refresh") or call_args.arguments.get(
                 "dev_mode"
@@ -338,7 +357,7 @@ def parse_pipeline_info(visitor: PipelineScriptVisitor) -> List[Tuple[str, Optio
                 if pipelines_dir is None:
                     raise CliCommandInnerException(
                         "deploy",
-                        "The value of 'pipelines_dir' argument in call to `dlt_pipeline` cannot be"
+                        "The value of 'pipelines_dir' argument in call to `dlt.pipeline` cannot be"
                         f" determined from {ast.unparse(p_d_node).strip()}. Pipeline working dir"
                         " will be found. Pass it directly with --pipelines-dir option.",
                     )
@@ -349,11 +368,33 @@ def parse_pipeline_info(visitor: PipelineScriptVisitor) -> List[Tuple[str, Optio
                 if pipeline_name is None:
                     raise CliCommandInnerException(
                         "deploy",
-                        "The value of 'pipeline_name' argument in call to `dlt_pipeline` cannot be"
+                        "The value of 'pipeline_name' argument in call to `dlt.pipeline` cannot be"
                         f" determined from {ast.unparse(p_d_node).strip()}. Pipeline working dir"
                         " will be found. Pass it directly with --pipeline-name option.",
                     )
-            pipelines.append((pipeline_name, pipelines_dir))
+            if extended_info:
+                d_t_node = call_args.arguments.get("destination")
+                if d_t_node:
+                    destination = evaluate_node_literal(d_t_node)
+                    if destination is None:
+                        raise CliCommandInnerException(
+                            "deploy",
+                            "The value of 'destination' argument in call to `dlt.pipeline` cannot"
+                            f" be determined from {ast.unparse(d_t_node).strip()}, since it does"
+                            " not seem to be a string literal.",
+                        )
+                # dataset name can be set implicitly, do not raise if nothing is set
+                d_t_node = call_args.arguments.get("dataset_name")
+                if d_t_node:
+                    dataset_name = evaluate_node_literal(d_t_node)
+            pipelines.append(
+                PipelineInfo(
+                    pipeline_name=pipeline_name,
+                    pipelines_dir=pipelines_dir,
+                    dataset_name=dataset_name,
+                    destination=destination,
+                )
+            )
 
     return pipelines
 

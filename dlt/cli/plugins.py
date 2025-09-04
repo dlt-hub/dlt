@@ -494,6 +494,16 @@ The `dlt dashboard` command starts the dlt pipeline dashboard. You can use the d
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
         self.parser = parser
         self.parser.add_argument(
+            "pipeline_script_path",
+            metavar="pipeline-script-path",
+            help=(
+                "Path to a pipeline script, if provided, will sync the pipeline state for the first"
+                " pipeline found in the given script and open the dashboard for it."
+            ),
+            default=None,
+            nargs="?",
+        )
+        self.parser.add_argument(
             "--pipelines-dir", help="Pipelines working directory", default=None
         )
         self.parser.add_argument(
@@ -504,7 +514,11 @@ The `dlt dashboard` command starts the dlt pipeline dashboard. You can use the d
         )
 
     def execute(self, args: argparse.Namespace) -> None:
-        dashboard_command_wrapper(pipelines_dir=args.pipelines_dir, edit=args.edit)
+        dashboard_command_wrapper(
+            pipelines_dir=args.pipelines_dir,
+            edit=args.edit,
+            pipeline_script_path=args.pipeline_script_path,
+        )
 
 
 class TelemetryCommand(SupportsCliCommand):
