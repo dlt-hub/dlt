@@ -672,6 +672,8 @@ def section_loads(
                 dlt_loads_table = mo.ui.table(_loads_data, selection="single")
                 _result.append(dlt_loads_table)
                 _result.append(dlt_clear_query_cache)
+                if not _loads_data:
+                    _result.append(ui.build_error_callout(strings.no_loads_found_text))
             except Exception:
                 _result.append(ui.build_error_callout(strings.loads_loading_failed_text))
     mo.vstack(_result) if _result else None

@@ -164,7 +164,7 @@ def test_exception_pipeline(page: Page, failed_pipeline: Any):
 
     # loads page
     _open_section(page, "loads")
-    expect(page.get_by_text(app_strings.loads_loading_failed_text[0:20])).to_be_visible()
+    expect(page.get_by_text(app_strings.no_loads_found_text[0:20])).to_be_visible()
 
     _open_section(page, "ibis")
     expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
@@ -254,7 +254,7 @@ def test_simple_incremental_pipeline(page: Page, simple_incremental_pipeline: An
     expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
-        page.get_by_text('"pipeline_name": "one_two_three"').nth(0)
+        page.get_by_text("execution_context").nth(0)
     ).to_be_visible()  # this is part of the trace yaml
 
     # loads page
@@ -294,7 +294,7 @@ def test_fruit_pipeline(page: Page, fruit_pipeline: Any):
     expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
-        page.get_by_text('"pipeline_name": "fruit_pipeline"').nth(0)
+        page.get_by_text("execution_context").nth(0)
     ).to_be_visible()  # this is part of the trace yaml
 
     # loads page
@@ -331,7 +331,7 @@ def test_never_run_pipeline(page: Page, never_run_pipeline: Any):
 
     # loads page
     _open_section(page, "loads")
-    expect(page.get_by_text(app_strings.loads_loading_failed_text[0:20])).to_be_visible()
+    expect(page.get_by_text(app_strings.no_loads_found_text[0:20])).to_be_visible()
 
     _open_section(page, "ibis")
     expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()
@@ -365,8 +365,8 @@ def test_no_destination_pipeline(page: Page, no_destination_pipeline: Any):
     expect(page.get_by_text(app_strings.trace_subtitle)).to_be_visible()
     page.get_by_text(app_strings.trace_show_raw_trace_text).click()
     expect(
-        page.get_by_text('"pipeline_name": "no_destination_pipeline"').nth(0)
-    ).to_be_visible()  # this is part of the trace yaml
+        page.get_by_text("execution_context").nth(0)
+    ).to_be_visible()  # this is only shown in trace yaml
 
     _open_section(page, "ibis")
     expect(page.get_by_text(app_strings.ibis_backend_error_text[0:20])).to_be_visible()

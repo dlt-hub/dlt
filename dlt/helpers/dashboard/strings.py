@@ -238,6 +238,10 @@ loads_subtitle_long = (
     " the destination and your data, this might take some time."
 )
 loads_loading_failed_text = f"Failed to load loads from destination. {_credentials_info}"
+no_loads_found_text = (
+    "No loads found. Either this pipeline was never run or there was a problem connecting to the"
+    " destination."
+)
 loads_loading_spinner_text = "Loading loads from destination..."
 
 # loads details
