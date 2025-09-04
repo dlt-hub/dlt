@@ -2,7 +2,9 @@ import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
+from this import d
 
+from ibis import pi
 import marimo as mo
 import pytest
 import pandas as pd
@@ -40,19 +42,22 @@ from dlt.helpers.dashboard.utils import (
     sanitize_trace_for_display,
 )
 
-SUCCESS_PIPELINE = "success_pipeline"
+SUCCESS_PIPELINE_DUCKDB = "success_pipeline_duckdb"
+SUCCESS_PIPELINE_FILESYSTEM = "success_pipeline_filesystem"
 EXTRACT_EXCEPTION_PIPELINE = "extract_exception_pipeline"
 NEVER_RAN_PIPELINE = "never_ran_pipline"
 LOAD_EXCEPTION_PIPELINE = "load_exception_pipeline"
 
 ALL_PIPELINES = [
-    SUCCESS_PIPELINE,
+    SUCCESS_PIPELINE_DUCKDB,
     EXTRACT_EXCEPTION_PIPELINE,
     NEVER_RAN_PIPELINE,
     LOAD_EXCEPTION_PIPELINE,
+    SUCCESS_PIPELINE_FILESYSTEM,
 ]
 
-EXCEPTION_PIPELINES = [EXTRACT_EXCEPTION_PIPELINE, LOAD_EXCEPTION_PIPELINE]
+PIPELINES_WITH_EXCEPTIONS = [EXTRACT_EXCEPTION_PIPELINE, LOAD_EXCEPTION_PIPELINE]
+PIPELINES_WITH_LOAD = [SUCCESS_PIPELINE_DUCKDB, SUCCESS_PIPELINE_FILESYSTEM]
 
 
 @pytest.fixture
@@ -84,36 +89,64 @@ def temp_pipelines_dir():
 #
 # Fixtures
 #
+
+
+def run_success_pipeline(pipeline: dlt.Pipeline):
+    pipeline.run(fruitshop_source(), schema=dlt.Schema("fruitshop"))
+
+    # we overwrite the purchases table to have a child table and an incomplete column
+    @dlt.resource(  # type: ignore
+        primary_key="id",
+        write_disposition="merge",
+        columns={"incomplete": {}, "id": {"x-custom": "foo"}},
+    )
+    def purchases():
+        """Load purchases data from a simple python list."""
+        yield [
+            {"id": 1, "customer_id": 1, "inventory_id": 1, "quantity": 1, "child": [1, 2, 3]},
+            {"id": 2, "customer_id": 1, "inventory_id": 2, "quantity": 2},
+            {"id": 3, "customer_id": 2, "inventory_id": 3, "quantity": 3},
+        ]
+
+    pipeline.run(purchases(), schema=dlt.Schema("fruitshop"))
+
+    # write something to another schema so we have multiple schemas
+    pipeline.run([1, 2, 3], schema=dlt.Schema("other"), table_name="items")
+
+
 @pytest.fixture(scope="session")
-def success_pipeline():
+def success_pipeline_duckdb():
     """Create a test pipeline with in memory duckdb destination in temp folder"""
     import duckdb
 
     with tempfile.TemporaryDirectory() as temp_dir:
         pipeline = dlt.pipeline(
-            pipeline_name="success_pipeline",
+            pipeline_name=SUCCESS_PIPELINE_DUCKDB,
             pipelines_dir=temp_dir,
             destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
             dataset_name="test_dataset",
             dev_mode=True,
         )
 
-        pipeline.run(fruitshop_source(), schema=dlt.Schema("fruitshop"))
+        run_success_pipeline(pipeline)
 
-        # we overwrite the purchases table to have a child table and an incomplete column
-        @dlt.resource(primary_key="id", write_disposition="merge", columns={"incomplete": {}})
-        def purchases():
-            """Load purchases data from a simple python list."""
-            yield [
-                {"id": 1, "customer_id": 1, "inventory_id": 1, "quantity": 1, "child": [1, 2, 3]},
-                {"id": 2, "customer_id": 1, "inventory_id": 2, "quantity": 2},
-                {"id": 3, "customer_id": 2, "inventory_id": 3, "quantity": 3},
-            ]
+        yield pipeline
 
-        pipeline.run(purchases(), schema=dlt.Schema("fruitshop"))
 
-        # write something to another schema so we have multiple schemas
-        pipeline.run([1, 2, 3], schema=dlt.Schema("other"), table_name="items")
+@pytest.fixture(scope="session")
+def success_pipeline_filesystem():
+    """Create a test pipeline with in memory duckdb destination in temp folder"""
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        pipeline = dlt.pipeline(
+            pipeline_name=SUCCESS_PIPELINE_FILESYSTEM,
+            pipelines_dir=temp_dir,
+            destination=dlt.destinations.filesystem(bucket_url="file://tmp"),
+            dataset_name="test_dataset",
+            dev_mode=True,
+        )
+
+        run_success_pipeline(pipeline)
 
         yield pipeline
 
@@ -124,7 +157,7 @@ def extract_exception_pipeline():
 
     with tempfile.TemporaryDirectory() as temp_dir:
         pipeline = dlt.pipeline(
-            pipeline_name="extract_exception_pipeline",
+            pipeline_name=EXTRACT_EXCEPTION_PIPELINE,
             pipelines_dir=temp_dir,
             destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
             dataset_name="test_dataset",
@@ -147,7 +180,7 @@ def never_ran_pipline():
 
     with tempfile.TemporaryDirectory() as temp_dir:
         pipeline = dlt.pipeline(
-            pipeline_name="never_ran_pipline",
+            pipeline_name=NEVER_RAN_PIPELINE,
             pipelines_dir=temp_dir,
             destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
             dataset_name="test_dataset",
@@ -162,13 +195,21 @@ def load_exception_pipeline():
     import duckdb
 
     with tempfile.TemporaryDirectory() as temp_dir:
+
+        @dlt.destination
+        def failing_destination(one, two):
+            raise Exception("I am failing")
+
         pipeline = dlt.pipeline(
-            pipeline_name="never_ran_pipline",
+            pipeline_name=LOAD_EXCEPTION_PIPELINE,
             pipelines_dir=temp_dir,
-            destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+            destination=failing_destination(),
             dataset_name="test_dataset",
             dev_mode=True,
         )
+
+        with pytest.raises(Exception):
+            pipeline.run([1, 2, 3], table_name="items", schema=dlt.Schema("fruitshop"))
 
         yield pipeline
 
@@ -180,22 +221,30 @@ def pipeline(request):
     return request.getfixturevalue(request.param)
 
 
-def test_build_exception_section(extract_exception_pipeline, success_pipeline):
-    assert not build_exception_section(success_pipeline)
-    assert "Show full stacktrace" in build_exception_section(extract_exception_pipeline)[0].text
+@pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
+def test_build_exception_section(pipeline):
+    if pipeline.pipeline_name in PIPELINES_WITH_EXCEPTIONS:
+        assert "Show full stacktrace" in build_exception_section(pipeline)[0].text
+    else:
+        assert not build_exception_section(pipeline)
 
 
-def test_get_local_data_path(success_pipeline):
-    assert get_local_data_path(success_pipeline)
+@pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
+def test_get_local_data_path(pipeline):
+    if pipeline.pipeline_name == LOAD_EXCEPTION_PIPELINE:
+        # custom destination does not support local data path
+        assert get_local_data_path(pipeline) is None
+    else:
+        assert get_local_data_path(pipeline)
 
 
-def test_resolve_dashboard_config(success_pipeline):
+def test_resolve_dashboard_config(success_pipeline_duckdb):
     """Test resolving dashboard config with a real pipeline"""
 
-    os.environ["DASHBOARD__SUCCESS_PIPELINE__DATETIME_FORMAT"] = "some format"
+    os.environ["DASHBOARD__SUCCESS_PIPELINE_DUCKDB__DATETIME_FORMAT"] = "some format"
     os.environ["DASHBOARD__DATETIME_FORMAT"] = "other format"
 
-    config = resolve_dashboard_config(success_pipeline)
+    config = resolve_dashboard_config(success_pipeline_duckdb)
 
     assert isinstance(config, DashboardConfiguration)
     assert isinstance(config.datetime_format, str)
@@ -243,152 +292,170 @@ def test_get_local_pipelines_nonexistent_dir():
     assert pipelines == []
 
 
-def test_get_pipeline(success_pipeline):
+@pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
+def test_get_pipeline(pipeline):
     """Test getting a real pipeline by name"""
-    pipeline = get_pipeline(success_pipeline.pipeline_name, success_pipeline.pipelines_dir)
+    pipeline = get_pipeline(pipeline.pipeline_name, pipeline.pipelines_dir)
 
-    assert pipeline.pipeline_name == success_pipeline.pipeline_name
-    assert pipeline.dataset_name == success_pipeline.dataset_name
+    assert pipeline.pipeline_name == pipeline.pipeline_name
+    assert pipeline.dataset_name == pipeline.dataset_name
 
 
-def success_pipeline_details(success_pipeline, temp_pipelines_dir):
+@pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
+def test_pipeline_details(pipeline, temp_pipelines_dir):
     """Test getting pipeline details from a real pipeline"""
     config = DashboardConfiguration()
-    result = pipeline_details(config, success_pipeline, temp_pipelines_dir)
+    result = pipeline_details(config, pipeline, temp_pipelines_dir)
 
     assert isinstance(result, list)
-    assert len(result) == 9
+    if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
+        assert len(result) == 9
+    elif pipeline.pipeline_name == LOAD_EXCEPTION_PIPELINE:
+        # custom destination does not support remote data info
+        assert len(result) == 8
+    else:
+        # no remote data info
+        assert len(result) == 7
 
     # Convert to dict for easier testing
     details_dict = {item["name"]: item["value"] for item in result}
 
-    assert details_dict["pipeline_name"] == "success_pipeline"
-    assert details_dict["destination"] == "duckdb (dlt.destinations.duckdb)"
-    assert details_dict["dataset_name"] == success_pipeline.dataset_name
-    assert details_dict["schemas"].startswith("fruitshop")
-    assert details_dict["working_dir"].endswith(success_pipeline.pipeline_name)
+    assert details_dict["pipeline_name"] == pipeline.pipeline_name
+    if pipeline.pipeline_name == SUCCESS_PIPELINE_FILESYSTEM:
+        assert details_dict["destination"] == "filesystem (dlt.destinations.filesystem)"
+    elif pipeline.pipeline_name == LOAD_EXCEPTION_PIPELINE:
+        assert "failing_destination" in details_dict["destination"]
+    else:
+        assert details_dict["destination"] == "duckdb (dlt.destinations.duckdb)"
+    assert details_dict["dataset_name"] == pipeline.dataset_name
+    if (
+        pipeline.pipeline_name in PIPELINES_WITH_LOAD
+        or pipeline.pipeline_name == LOAD_EXCEPTION_PIPELINE
+    ):
+        assert details_dict["schemas"].startswith("fruitshop")
+    else:
+        assert "schemas" not in details_dict
+
+    assert details_dict["working_dir"].endswith(pipeline.pipeline_name)
 
 
-def test_create_table_list(success_pipeline):
+@pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
+@pytest.mark.parametrize("show_internals", [True, False])
+@pytest.mark.parametrize("show_child_tables", [True, False])
+def test_create_table_list(pipeline, show_internals, show_child_tables):
     """Test creating a basic table list with real schema"""
     config = DashboardConfiguration()
 
     result = create_table_list(
         config,
-        success_pipeline,
-        selected_schema_name=success_pipeline.default_schema_name,
-        show_child_tables=False,
+        pipeline,
+        selected_schema_name=pipeline.default_schema_name,
+        show_internals=show_internals,
+        show_child_tables=show_child_tables,
     )
 
-    # Should exclude _dlt_loads by default
+    base_table_names = {"inventory", "purchases", "customers", "inventory_categories"}
+    dlt_table_names = {"_dlt_loads", "_dlt_version", "_dlt_pipeline_state"}
+    child_table_names = {"purchases__child"}
+
+    expected_table_names = {*base_table_names}
+    if show_internals:
+        expected_table_names.update(dlt_table_names)
+    if show_child_tables:
+        expected_table_names.update(child_table_names)
+
     table_names = {table["name"] for table in result}
-    assert table_names == {"inventory", "purchases", "customers", "inventory_categories"}
-
-    result = create_table_list(
-        config,
-        success_pipeline,
-        selected_schema_name=success_pipeline.default_schema_name,
-        show_child_tables=True,
-    )
-    table_names = {table["name"] for table in result}
-    assert table_names == {
-        "inventory",
-        "purchases",
-        "customers",
-        "purchases__child",
-        "inventory_categories",
-    }
-
-    result = create_table_list(
-        config,
-        success_pipeline,
-        selected_schema_name=success_pipeline.default_schema_name,
-        show_internals=True,
-        show_child_tables=False,
-    )
-    table_names = {table["name"] for table in result}
-    assert table_names == {
-        "customers",
-        "purchases",
-        "_dlt_loads",
-        "_dlt_pipeline_state",
-        "inventory",
-        "_dlt_version",
-        "inventory_categories",
-    }
+    assert set(table_names) == expected_table_names
 
 
-def test_create_column_list_basic(success_pipeline):
+@pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
+@pytest.mark.parametrize("show_internals", [True, False])
+@pytest.mark.parametrize("show_type_hints", [True, False])
+@pytest.mark.parametrize("show_other_hints", [True, False])
+@pytest.mark.parametrize("show_custom_hints", [True, False])
+def test_create_column_list_basic(
+    pipeline, show_internals, show_type_hints, show_other_hints, show_custom_hints
+):
     """Test creating a basic column list with real schema"""
     config = DashboardConfiguration()
 
     # Should exclude _dlt columns by default, will also not show incomplete columns
     result = create_column_list(
         config,
-        success_pipeline,
-        selected_schema_name=success_pipeline.default_schema_name,
+        pipeline,
+        selected_schema_name=pipeline.default_schema_name,
         table_name="purchases",
+        show_internals=show_internals,
+        show_type_hints=show_type_hints,
+        show_other_hints=show_other_hints,
+        show_custom_hints=show_custom_hints,
     )
+
+    # check visible columns
+    base_column_names = {"customer_id", "quantity", "id", "inventory_id", "date"}
+    dlt_column_names = {"_dlt_load_id", "_dlt_id"}
+
+    expected_column_names = {*base_column_names}
+    if show_internals:
+        expected_column_names.update(dlt_column_names)
+
     column_names = {col["name"] for col in result}
-    assert column_names == {"customer_id", "quantity", "id", "inventory_id", "date"}
-
-    result = create_column_list(
-        config,
-        success_pipeline,
-        selected_schema_name=success_pipeline.default_schema_name,
-        table_name="purchases",
-        show_internals=True,
-    )
-    column_names = {col["name"] for col in result}
-    assert column_names == {
-        "_dlt_load_id",
-        "customer_id",
-        "quantity",
-        "id",
-        "inventory_id",
-        "_dlt_id",
-        "date",
-    }
-
-
-def test_create_column_list_type_hints(success_pipeline):
-    """Test creating column list with type hints"""
-    config = DashboardConfiguration()
-    result = create_column_list(
-        config,
-        success_pipeline,
-        selected_schema_name=success_pipeline.default_schema_name,
-        table_name="purchases",
-        show_type_hints=True,
-    )
+    assert column_names == expected_column_names
 
     # Find the id column
     id_column = next(col for col in result if col["name"] == "id")
-    assert id_column["data_type"] == "bigint"
-    assert id_column["nullable"] is False
+
+    # check type hints
+    if show_type_hints:
+        assert id_column["data_type"] == "bigint"
+        assert id_column["nullable"] is False
+    else:
+        assert "data_type" not in id_column
+        assert "nullable" not in id_column
+
+    if show_other_hints:
+        assert id_column["primary_key"] is True
+    else:
+        assert "primary_key" not in id_column
+
+    if show_custom_hints:
+        assert id_column["x-custom"] == "foo"
+    else:
+        assert "x-custom" not in id_column
 
 
-def test_get_query_result(success_pipeline):
+@pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
+def test_get_query_result(pipeline):
     """Test getting query result from real pipeline"""
     # Clear cache first
     get_query_result.cache_clear()
 
-    result = get_query_result(success_pipeline, "SELECT COUNT(*) as count FROM purchases")
-
+    result = get_query_result(pipeline, "SELECT COUNT(*) as count FROM purchases")
     assert isinstance(result, pd.DataFrame)
-    assert len(result) == 1
-    assert result.iloc[0]["count"] == 100
+
+    if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1
+        assert (
+            result.iloc[0]["count"] == 100
+            if pipeline.pipeline_name == SUCCESS_PIPELINE_DUCKDB
+            else 103
+        )  #  merge does not work on filesystem
+    else:
+        assert len(result) == 0
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
 def test_get_row_counts(pipeline):
     """Test getting row counts from real pipeline"""
     result = get_row_counts(pipeline)
-    if pipeline.pipeline_name == SUCCESS_PIPELINE:
+    if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
         assert result == {
             "customers": 13,
             "inventory": 6,
-            "purchases": 100,
+            "purchases": (
+                100 if pipeline.pipeline_name == SUCCESS_PIPELINE_DUCKDB else 103
+            ),  #  merge does not work on filesystem
             "purchases__child": 3,
             "inventory_categories": 3,
             "_dlt_version": 3,
@@ -408,10 +475,9 @@ def test_get_loads(pipeline):
     get_loads.cache_clear()
     result = get_loads(config, pipeline, limit=100)
 
-    if pipeline.pipeline_name == SUCCESS_PIPELINE:
+    if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
         assert isinstance(result, list)
         assert len(result) >= 1  # Should have at least one load
-
         if result:
             load = result[0]
             assert "load_id" in load
@@ -419,10 +485,15 @@ def test_get_loads(pipeline):
         assert result == []
 
 
-def test_trace(success_pipeline):
+@pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
+def test_trace(pipeline):
     """Test trace overview with real trace data"""
     config = DashboardConfiguration()
-    trace = success_pipeline.last_trace
+    trace = pipeline.last_trace
+
+    if pipeline.pipeline_name == NEVER_RAN_PIPELINE:
+        assert trace is None
+        return
 
     # overview
     result = trace_overview(config, trace)
@@ -434,7 +505,7 @@ def test_trace(success_pipeline):
         "duration",
     }
     values_dict = {item["name"]: item["value"] for item in result}
-    assert values_dict["pipeline_name"] == "success_pipeline"
+    assert values_dict["pipeline_name"] == pipeline.pipeline_name
 
     # execution context
     result = trace_execution_context(config, trace)
@@ -452,21 +523,32 @@ def test_trace(success_pipeline):
     # steps overview
     result = trace_steps_overview(config, trace)
 
-    assert len(result) == 3
-    assert result[0]["step"] == "extract"
-    assert result[1]["step"] == "normalize"
-    assert result[2]["step"] == "load"
+    if pipeline.pipeline_name == EXTRACT_EXCEPTION_PIPELINE:
+        assert len(result) == 1
+        assert result[0]["step"] == "extract"
+    else:
+        assert len(result) == 3
+        assert result[0]["step"] == "extract"
+        assert result[1]["step"] == "normalize"
+        assert result[2]["step"] == "load"
 
     # TODO: deeper test...
 
 
-def test_get_remote_state_details(success_pipeline):
-    remote_state = remote_state_details(success_pipeline)
-    assert remote_state[0] == {"name": "state_version", "value": 2}
-    assert remote_state[1]["name"] == "schemas"
-    assert remote_state[1]["value"].startswith("fruitshop")
-    assert remote_state[2]["name"] == ""
-    assert remote_state[2]["value"].startswith("other")
+@pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
+def test_get_remote_state_details(pipeline):
+    remote_state = remote_state_details(pipeline)
+
+    if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
+        assert remote_state[0] == {"name": "state_version", "value": 2}
+        assert remote_state[1]["name"] == "schemas"
+        assert remote_state[1]["value"].startswith("fruitshop")
+        assert remote_state[2]["name"] == ""
+        assert remote_state[2]["value"].startswith("other")
+    else:
+        assert remote_state == [
+            {"name": "Info", "value": "Could not restore state from destination"}
+        ]
 
 
 def test_style_cell():
@@ -618,28 +700,38 @@ def test_integration_get_local_pipelines_with_sorting(temp_pipelines_dir):
     assert most_recent["timestamp"] == 2000000
 
 
-def test_integration_pipeline_workflow(success_pipeline, temp_pipelines_dir):
+@pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
+def test_integration_pipeline_workflow(pipeline, temp_pipelines_dir):
     """Test integration scenario with complete pipeline workflow"""
     # Test pipeline details
     config = DashboardConfiguration()
 
-    details = pipeline_details(config, success_pipeline, temp_pipelines_dir)
+    details = pipeline_details(config, pipeline, temp_pipelines_dir)
     details_dict = {item["name"]: item["value"] for item in details}
-    assert details_dict["pipeline_name"] == "success_pipeline"
+    assert details_dict["pipeline_name"] == pipeline.pipeline_name
 
     # Test row counts
-    row_counts = get_row_counts(success_pipeline)
-    assert row_counts["customers"] == 13
+    row_counts = get_row_counts(pipeline)
+    if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
+        assert row_counts["customers"] == 13
+    else:
+        assert row_counts == {}
 
     # Test query execution
-    query_result = get_query_result(success_pipeline, "SELECT name FROM customers ORDER BY id")
-    assert len(query_result) == 13
-    assert query_result.iloc[0]["name"] == "simon"
+    query_result = get_query_result(pipeline, "SELECT name FROM customers ORDER BY id")
+    if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
+        assert len(query_result) == 13
+        assert query_result.iloc[0]["name"] == "simon"
+    else:
+        assert len(query_result) == 0
 
     # Test loads
     config = DashboardConfiguration()
-    loads = get_loads(config, success_pipeline)
-    assert len(loads) >= 1
+    loads = get_loads(config, pipeline)
+    if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
+        assert len(loads) >= 1
+    else:
+        assert loads == []
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)

@@ -28,6 +28,7 @@ from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationUn
 from dlt.pipeline.exceptions import PipelineConfigMissing
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt.pipeline.trace import PipelineTrace
+from dlt.common.destination.exceptions import SqlClientNotAvailable
 
 from dlt.common.storages.configuration import WithLocalFiles
 
@@ -327,7 +328,10 @@ def get_query_result(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
     """
     Get the result of a query.
     """
-    return pipeline.dataset()(query, _execute_raw_query=True).df()
+    try:
+        return pipeline.dataset()(query, _execute_raw_query=True).df()
+    except (DatabaseUndefinedRelation, DestinationUndefinedEntity, SqlClientNotAvailable):
+        return pd.DataFrame()
 
 
 def get_row_counts(
@@ -347,7 +351,7 @@ def get_row_counts(
             .df()
             .to_dict(orient="records")
         }
-    except (DatabaseUndefinedRelation, DestinationUndefinedEntity):
+    except (DatabaseUndefinedRelation, DestinationUndefinedEntity, SqlClientNotAvailable):
         return {}
 
 
@@ -363,7 +367,7 @@ def get_loads(c: DashboardConfiguration, pipeline: dlt.Pipeline, limit: int = 10
         loads = loads.order_by("inserted_at", "desc")
         loads_list = loads.df().to_dict(orient="records")
         loads_list = [_humanize_datetime_values(c, load) for load in loads_list]
-    except (DatabaseUndefinedRelation, DestinationUndefinedEntity):
+    except (DatabaseUndefinedRelation, DestinationUndefinedEntity, SqlClientNotAvailable):
         return []
 
     return loads_list
@@ -525,10 +529,10 @@ def open_local_folder(folder: str) -> None:
 
 def get_local_data_path(pipeline: dlt.Pipeline) -> str:
     """Get the local data path of a pipeline"""
-    if not pipeline.destination or not pipeline.default_schema_name:
+    if not pipeline.destination:
         return None
     try:
-        config = pipeline._get_destination_clients()[0].config
+        config = pipeline._get_destination_clients(dlt.Schema("temp"))[0].config
         if isinstance(config, WithLocalFiles):
             return config.local_dir
     except (PipelineConfigMissing, ConfigFieldMissingException):

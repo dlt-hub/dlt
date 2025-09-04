@@ -22,7 +22,7 @@ from dlt.dataset import lineage
 from dlt.dataset.relation import Relation
 from dlt.dataset.utils import get_destination_clients
 from dlt.destinations.queries import build_row_counts_expr
-
+from dlt.common.destination.exceptions import SqlClientNotAvailable
 
 if TYPE_CHECKING:
     from dlt.helpers.ibis import BaseBackend as IbisBackend
@@ -139,9 +139,7 @@ class Dataset(SupportsDataset):
         if isinstance(client, WithSqlClient):
             return client.sql_client
         else:
-            raise Exception(
-                f"Destination `{client.config.destination_type}` does not support `SqlClient`."
-            )
+            raise SqlClientNotAvailable(self.dataset_name, self._destination.destination_name)
 
     def _ensure_schema(self) -> None:
         """Lazy load the schema on request"""

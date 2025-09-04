@@ -954,7 +954,7 @@ def watch_changes(
         dlt_file_watcher = mo.watch.file(
             utils.get_trace_file_path(dlt_pipeline_name, dlt_pipelines_dir)
         )
-    return dlt_pipeline_name
+    return dlt_pipeline_name, dlt_file_watcher
 
 
 @app.cell(hide_code=True)
