@@ -24,7 +24,7 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingException
 
 from dlt.helpers.dashboard import dlt_dashboard, ui_elements as ui
 from dlt.helpers.dashboard.config import DashboardConfiguration
-from dlt.destinations.exceptions import DatabaseUndefinedRelation
+from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationUndefinedEntity
 from dlt.pipeline.exceptions import PipelineConfigMissing
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt.pipeline.trace import PipelineTrace
@@ -190,7 +190,12 @@ def remote_state_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
     """
     try:
         remote_state = pipeline._restore_state_from_destination()
-    except (DatabaseUndefinedRelation, PipelineConfigMissing, ConfigFieldMissingException):
+    except (
+        DatabaseUndefinedRelation,
+        PipelineConfigMissing,
+        ConfigFieldMissingException,
+        DestinationUndefinedEntity,
+    ):
         remote_state = None
 
     if not remote_state:
@@ -334,13 +339,16 @@ def get_row_counts(
         pipeline (dlt.Pipeline): The pipeline to get the row counts for.
         load_id (str): The load id to get the row counts for.
     """
-    return {
-        i["table_name"]: i["row_count"]
-        for i in pipeline.dataset(schema=selected_schema_name)
-        .row_counts(dlt_tables=True, load_id=load_id)
-        .df()
-        .to_dict(orient="records")
-    }
+    try:
+        return {
+            i["table_name"]: i["row_count"]
+            for i in pipeline.dataset(schema=selected_schema_name)
+            .row_counts(dlt_tables=True, load_id=load_id)
+            .df()
+            .to_dict(orient="records")
+        }
+    except (DatabaseUndefinedRelation, DestinationUndefinedEntity):
+        return {}
 
 
 @functools.cache
@@ -348,14 +356,15 @@ def get_loads(c: DashboardConfiguration, pipeline: dlt.Pipeline, limit: int = 10
     """
     Get the loads of a pipeline.
     """
-    loads = pipeline.dataset()._dlt_loads
-    if limit:
-        loads = loads.limit(limit)
-    loads = loads.order_by("inserted_at", "desc")
-
-    loads_list = loads.df().to_dict(orient="records")
-
-    loads_list = [_humanize_datetime_values(c, load) for load in loads_list]
+    try:
+        loads = pipeline.dataset()._dlt_loads
+        if limit:
+            loads = loads.limit(limit)
+        loads = loads.order_by("inserted_at", "desc")
+        loads_list = loads.df().to_dict(orient="records")
+        loads_list = [_humanize_datetime_values(c, load) for load in loads_list]
+    except (DatabaseUndefinedRelation, DestinationUndefinedEntity):
+        return []
 
     return loads_list
 
@@ -547,6 +556,29 @@ def build_pipeline_link_list(
             break
 
     return link_list
+
+
+def _remove_non_primitives(obj: Any) -> Any:
+    """Recursively remove all non-primitive values from a dictionary or list"""
+    if isinstance(obj, dict):
+        return {
+            k: _remove_non_primitives(v)
+            for k, v in obj.items()
+            if isinstance(k, (dict, list, str, int, float, bool))
+        }
+    elif isinstance(obj, (list)):
+        return [_remove_non_primitives(item) for item in obj]
+    else:
+        return obj
+
+
+def sanitize_trace_for_display(trace: PipelineTrace) -> Dict[str, Any]:
+    """Sanitize a trace for display by removing non-primitive keys (we use tuples as keys in nested hints..)"""
+    if not trace:
+        return {}
+    dict_trace = trace.asdict()
+    sanitized = _remove_non_primitives(dict_trace)
+    return cast(Dict[str, Any], sanitized)
 
 
 def build_exception_section(p: dlt.Pipeline) -> List[Any]:

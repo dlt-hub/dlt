@@ -625,16 +625,15 @@ def section_trace(
                 )
             )
             # TODO: trace is not json serializable. I'd store it as such if that was easy
-            # _result.append(
-            #     mo.accordion(
-            #         {
-            #             strings.trace_show_raw_trace_text: mo.ui.code_editor(
-            #                 json.dumps(dlt_trace, pretty=True),
-            #                 language="json",
-            #             )
-            #         }
-            #     )
-            # )
+            _result.append(
+                mo.accordion(
+                    {
+                        strings.trace_show_raw_trace_text: mo.json(
+                            utils.sanitize_trace_for_display(dlt_trace)
+                        )
+                    }
+                )
+            )
     mo.vstack(_result) if _result else None
     return
 
