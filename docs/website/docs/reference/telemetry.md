@@ -44,7 +44,7 @@ Anonymous telemetry is sent when:
 
 - Any `dlt` command is executed from the command line. The data contains the command name. In the case of the `dlt init` command, we also send the requested destination and data source names.
 - When `pipeline.run` is called, we send information when the [extract, normalize, and load](explainers/how-dlt-works.md) steps are completed. The data contains the destination name (e.g., `duckdb`), hashes of the dataset name, pipeline name, default schema name, destination fingerprint (which is a hash of selected destination configuration fields), elapsed time, and whether the step succeeded or not.
-- When `pipeline.dataset` is called, we send information about dataset access attempts. The data contains the destination name and type (e.g., `duckdb`), hashes of the dataset name, default schema, and whether the access attempt succeeded.
+- When `pipeline.dataset` is called, we send information about dataset access attempts. The data contains the destination name and type (e.g., `duckdb`), hashes of the dataset name, default and requested schema names, as well as whether the access attempt succeeded.
 - When `dbt` and `airflow` helpers are used
 
 Here is an example `dlt init` telemetry message:
@@ -138,6 +138,7 @@ Example for data access telemetry:
     "destination_type": "duckdb",
     "dataset_name_hash": "Hqk0a3Ov5AD55KjSg2rC",
     "default_schema_name_hash": "Hqk0a3Ov5AD55KjSg2rC",
+    "requested_schema_name_hash": "49ShjWp8x9h+rmyqjP6G",
     "event_category": "data_access",
     "event_name": "connect",
     "success": true

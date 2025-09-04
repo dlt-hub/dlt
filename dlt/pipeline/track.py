@@ -1,6 +1,6 @@
 """Implements SupportsTracking"""
 import contextlib
-from typing import Any, List
+from typing import Any, Union, Dict
 import humanize
 
 from dlt.common import logger
@@ -10,6 +10,7 @@ from dlt.common.runtime.exec_info import github_info
 from dlt.common.runtime.anon_tracker import track as dlthub_telemetry_track
 from dlt.common.runtime.slack import send_slack_message
 from dlt.common.pipeline import LoadInfo, ExtractInfo, SupportsPipeline
+from dlt.common.schema import Schema
 
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
@@ -78,6 +79,20 @@ def on_start_trace_step(
         span.__enter__()
 
 
+def _build_base_props(
+    pipeline: SupportsPipeline,
+) -> Dict[str, Union[str, None]]:
+    return {
+        "destination_name": pipeline.destination.destination_name if pipeline.destination else None,
+        "destination_type": pipeline.destination.destination_type if pipeline.destination else None,
+        "pipeline_name_hash": digest128(pipeline.pipeline_name),
+        "dataset_name_hash": digest128(pipeline.dataset_name) if pipeline.dataset_name else None,
+        "default_schema_name_hash": (
+            digest128(pipeline.default_schema_name) if pipeline.default_schema_name else None
+        ),
+    }
+
+
 def on_end_trace_step(
     trace: PipelineTrace,
     step: PipelineStepTrace,
@@ -95,13 +110,7 @@ def on_end_trace_step(
     props = {
         "elapsed": (step.finished_at - trace.started_at).total_seconds(),
         "success": step.step_exception is None,
-        "destination_name": pipeline.destination.destination_name if pipeline.destination else None,
-        "destination_type": pipeline.destination.destination_type if pipeline.destination else None,
-        "pipeline_name_hash": digest128(pipeline.pipeline_name),
-        "dataset_name_hash": digest128(pipeline.dataset_name) if pipeline.dataset_name else None,
-        "default_schema_name_hash": (
-            digest128(pipeline.default_schema_name) if pipeline.default_schema_name else None
-        ),
+        **_build_base_props(pipeline=pipeline),
         "transaction_id": trace.transaction_id,
     }
     if step.step == "extract" and step_info:

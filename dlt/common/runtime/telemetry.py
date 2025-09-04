@@ -2,11 +2,12 @@ import atexit
 import time
 import contextlib
 import inspect
-from typing import Any, Callable, cast, Union
+from typing import Any, Callable, Union
 
 from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import TFun
+from dlt.common.utils import digest128
 from dlt.common.configuration import resolve_configuration
 from dlt.common.runtime.anon_tracker import (
     TEventCategory,
@@ -15,7 +16,8 @@ from dlt.common.runtime.anon_tracker import (
     track,
 )
 from dlt.common.schema import Schema
-from dlt.common.utils import digest128
+from dlt.common.pipeline import SupportsPipeline
+from dlt.pipeline.track import _build_base_props
 
 _TELEMETRY_STARTED = False
 
@@ -114,65 +116,25 @@ def with_telemetry(
                 _track(False)
                 raise
 
-        return cast(TFun, _wrap)
+        return _wrap  # type: ignore
 
     return decorator
 
 
-def with_dataset_access_telemetry() -> Callable[[TFun], TFun]:
-    """Track dataset access but only once per pipeline instance"""
+def with_dataset_access_telemetry(
+    pipeline: SupportsPipeline, schema: Union[Schema, str, None], success: bool
+) -> None:
+    """Track dataset access telemetry event."""
+    schema_name = None
+    if isinstance(schema, Schema):
+        schema_name = schema.name
+    elif isinstance(schema, str):
+        schema_name = schema
 
-    def decorator(f: TFun) -> TFun:
-        def _wrap(*f_args: Any, **f_kwargs: Any) -> Any:
-            pipeline = f_args[0] if f_args else None
-            schema: Union[Schema, str, None] = f_kwargs.get("schema") or (
-                f_args[1] if len(f_args) > 1 else None
-            )
-
-            def _track_dataset_access_once(success: bool) -> None:
-                if pipeline and not getattr(pipeline, "_dataset_access_tracked", False):
-                    with contextlib.suppress(Exception):
-                        schema_name = None
-                        if schema is None:
-                            schema_name = getattr(pipeline, "default_schema_name", None)
-                        elif isinstance(schema, str):
-                            schema_name = schema
-                        elif isinstance(schema, Schema):
-                            schema_name = schema.name
-
-                        props = {
-                            "success": success,
-                            "destination_name": (
-                                pipeline.destination.destination_name
-                                if pipeline.destination
-                                else None
-                            ),
-                            "destination_type": (
-                                pipeline.destination.destination_type
-                                if pipeline.destination
-                                else None
-                            ),
-                            "dataset_name_hash": (
-                                digest128(pipeline.dataset_name) if pipeline.dataset_name else None
-                            ),
-                            "default_schema_name_hash": digest128(schema_name),
-                        }
-                        # resolve runtime config and init telemetry
-                        if not _TELEMETRY_STARTED:
-                            c = resolve_configuration(RuntimeConfiguration())
-                            start_telemetry(c)
-                        track("data_access", "connect", props)
-
-                        pipeline._dataset_access_tracked = True
-
-            try:
-                rv = f(*f_args, **f_kwargs)
-                _track_dataset_access_once(True)
-                return rv
-            except Exception:
-                _track_dataset_access_once(False)
-                raise
-
-        return cast(TFun, _wrap)
-
-    return decorator
+    props = {
+        "success": success,
+        **_build_base_props(pipeline=pipeline),
+        # The schema may differ from the default pipeline schema
+        "requested_schema_name_hash": digest128(schema_name) if schema_name else None,
+    }
+    track("data_access", "connect", props)

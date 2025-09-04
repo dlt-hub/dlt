@@ -1,19 +1,21 @@
-from typing import Any
+from typing import Any, Union
 from contextlib import nullcontext as does_not_raise
 import os
 import pytest
 import logging
 import base64
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 from pytest_mock import MockerFixture
 
-from dlt.common.schema import Schema
-from dlt.common.utils import digest128
+import dlt
 from dlt.common import logger
 from dlt.common.runtime.anon_tracker import get_anonymous_id, track, disable_anon_tracker
 from dlt.common.runtime.exec_info import get_execution_context
+from dlt.common.runtime.telemetry import with_dataset_access_telemetry
 from dlt.common.typing import DictStrAny, DictStrStr
+from dlt.common.schema import Schema
+from dlt.common.utils import digest128
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.version import DLT_PKG_NAME, __version__
@@ -196,40 +198,37 @@ def test_execution_context_with_plugin() -> None:
         sys.path.remove(plus_path)
 
 
-def test_data_access_telemetry(disable_temporary_telemetry: RuntimeConfiguration) -> None:
-    from dlt.common.runtime.telemetry import with_dataset_access_telemetry
-    from dlt.common.runtime import anon_tracker
+@pytest.mark.parametrize(
+    "schema",
+    [Schema("my_schema"), "str_schema", None],
+)
+@pytest.mark.parametrize(
+    "success",
+    [True, False],
+)
+def test_with_dataset_access_telemetry(
+    schema: Union[Schema, str, None], success: bool, monkeypatch
+) -> None:
+    pipeline = dlt.pipeline("test_with_dataset_access_telemetry", destination="duckdb")
 
-    mock_github_env(os.environ)
-    mock_pod_env(os.environ)
+    if not success:
+        monkeypatch.setattr(dlt, "dataset", Mock(side_effect=RuntimeError("fake_error")))
+
     SENT_ITEMS.clear()
     config = SentryLoggerConfiguration()
 
-    # mock pipeline-like object with the required attributes
-    class MockPipeline:
-        def __init__(self, name):
-            self.destination = MockDestination()
-            self.dataset_name = name
-            self.default_schema_name = "default_schema"
-            self._dataset_access_tracked = False
-
-    class MockDestination:
-        def __init__(self):
-            self.destination_name = "duckdb"
-            self.destination_type = "duckdb"
-
-    @with_dataset_access_telemetry()
-    def mock_dataset_method(self, schema=None):
-        return "mock_dataset_object"
-
-    pipeline = MockPipeline("some_dataset")
-
     with patch("dlt.common.runtime.anon_tracker.before_send", _mock_before_send):
         start_test_telemetry(config)
-        # first access should trigger telemetry
-        mock_dataset_method(pipeline)
+        # first access should always trigger telemetry
         # second access should NOT trigger telemetry
-        mock_dataset_method(pipeline)
+        if not success:
+            with pytest.raises(RuntimeError):
+                pipeline.dataset(schema)
+            with pytest.raises(RuntimeError):
+                pipeline.dataset(schema)
+        else:
+            pipeline.dataset(schema)
+            pipeline.dataset(schema)
         disable_anon_tracker()
 
     # should have exactly 1 event despite two dataset method calls
@@ -239,22 +238,17 @@ def test_data_access_telemetry(disable_temporary_telemetry: RuntimeConfiguration
     assert event["event"] == "data_access_connect"
     assert event["properties"]["event_category"] == "data_access"
     assert event["properties"]["event_name"] == "connect"
-    assert event["properties"]["success"]
-    assert event["properties"]["destination_name"] == "duckdb"
-    assert event["properties"]["destination_type"] == "duckdb"
-    assert event["properties"]["dataset_name_hash"] == digest128("some_dataset")
-    assert event["properties"]["default_schema_name_hash"] == digest128("default_schema")
-
-    # verify the rest, just in case
-    assert event["anonymousId"] == get_anonymous_id()
-    context = event["context"]
-    assert context["library"] == {"name": DLT_PKG_NAME, "version": __version__}
-    assert "plus" not in context
-    assert isinstance(context["cpu"], int)
-    assert isinstance(context["ci_run"], bool)
-    assert isinstance(context["exec_info"], list)
-    assert ["kubernetes", "codespaces"] <= context["exec_info"]
-    assert context["run_context"] == "dlt"
+    assert event["properties"]["success"] == success
+    assert event["properties"]["destination_name"] == pipeline.destination.destination_name
+    assert event["properties"]["destination_type"] == pipeline.destination.destination_type
+    assert event["properties"]["dataset_name_hash"] == digest128(pipeline.dataset_name)
+    assert event["properties"]["default_schema_name_hash"] is None
+    requested_schema_name_hash = None
+    if isinstance(schema, Schema):
+        requested_schema_name_hash = digest128(schema.name)
+    elif isinstance(schema, str):
+        requested_schema_name_hash = digest128(schema)
+    assert event["properties"]["requested_schema_name_hash"] == requested_schema_name_hash
 
 
 def test_cleanup(environment: DictStrStr) -> None:

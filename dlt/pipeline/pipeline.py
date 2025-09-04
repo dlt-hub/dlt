@@ -1810,7 +1810,6 @@ class Pipeline(SupportsPipeline):
     # NOTE: I expect that we'll merge all relations into one. and then we'll be able to get rid
     #  of overload and dataset_type
 
-    @with_dataset_access_telemetry()
     def dataset(self, schema: Union[Schema, str, None] = None) -> SupportsDataset:
         """Returns a dataset object for querying the destination data.
 
@@ -1847,8 +1846,18 @@ class Pipeline(SupportsPipeline):
         elif self.default_schema_name:
             schema = self.default_schema
 
-        return dlt.dataset(
-            self._destination,
-            self.dataset_name,
-            schema=schema,
-        )
+        try:
+            dataset = dlt.dataset(
+                self._destination,
+                self.dataset_name,
+                schema=schema,
+            )
+            success = True
+            return dataset
+        except Exception:
+            success = False
+            raise
+        finally:
+            if not self._dataset_access_tracked:
+                with_dataset_access_telemetry(pipeline=self, schema=schema, success=success)
+                self._dataset_access_tracked = True
