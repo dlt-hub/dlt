@@ -678,6 +678,7 @@ Starts the dlt pipeline dashboard.
 **Usage**
 ```sh
 dlt dashboard [-h] [--pipelines-dir PIPELINES_DIR] [--edit]
+    [pipeline-script-path]
 ```
 
 **Description**
@@ -694,6 +695,9 @@ The `dlt dashboard` command starts the dlt pipeline dashboard. You can use the d
 <summary>Show Arguments and Options</summary>
 
 Inherits arguments from [`dlt`](#dlt).
+
+**Positional arguments**
+* `pipeline-script-path` - Path to a pipeline script, if provided, will sync the pipeline state for the first pipeline found in the given script and open the dashboard for it.
 
 **Options**
 * `-h, --help` - Show this help message and exit

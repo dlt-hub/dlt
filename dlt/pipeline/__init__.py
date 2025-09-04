@@ -1,6 +1,8 @@
 from typing import Sequence, Type, cast, overload, Optional
 from typing_extensions import TypeVar
 
+import dlt
+
 from dlt.common.configuration.specs import known_sections
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import (
@@ -22,6 +24,7 @@ from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pip
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.progress import _from_name as collector_from_name, TCollectorArg, _NULL_COLLECTOR
 from dlt.pipeline.warnings import full_refresh_argument_deprecated
+from dlt.pipeline.exceptions import CannotRestorePipelineException
 
 TPipeline = TypeVar("TPipeline", bound=Pipeline, default=Pipeline)
 
@@ -193,6 +196,8 @@ def attach(
     destination: TDestinationReferenceArg = None,
     staging: TDestinationReferenceArg = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
+    dataset_name: str = None,
+    sync_if_missing: bool = False,
     **injection_kwargs: Any,
 ) -> Pipeline:
     """Attaches to the working folder of `pipeline_name` in `pipelines_dir` or in default directory. Requires that valid pipeline state exists in working folder.
@@ -216,24 +221,36 @@ def attach(
         staging or injection_kwargs.get("staging_type", None),
         destination_name=injection_kwargs.get("staging_name", None),
     )
+
+    pipeline_kwargs = {
+        "pipeline_name": pipeline_name,
+        "pipelines_dir": pipelines_dir,
+        "pipeline_salt": pipeline_salt,
+        "destination": destination,
+        "staging": staging,
+        "dataset_name": dataset_name,
+        "import_schema_path": None,
+        "export_schema_path": None,
+        "dev_mode": False,
+        "progress": progress,
+        "runtime": runtime_config,
+    }
+
     # create new pipeline instance
-    p = Pipeline(
-        pipeline_name,
-        pipelines_dir,
-        pipeline_salt,
-        destination,
-        staging,
-        None,
-        None,
-        None,
-        False,  # always False as dev_mode so we do not wipe the working folder
-        progress,
-        True,
-        last_config(**injection_kwargs),
-        runtime_config,
-    )
-    # set it as current pipeline
-    p.activate()
+    try:
+        p = Pipeline(
+            **pipeline_kwargs,
+            must_attach_to_local_pipeline=True,
+            config=last_config(**injection_kwargs),
+        )
+        # set it as current pipeline
+        p.activate()
+    except CannotRestorePipelineException:
+        if not sync_if_missing:
+            raise
+        p = dlt.pipeline(**pipeline_kwargs)
+        p.sync_destination()
+        p.activate()
     return p
 
 
