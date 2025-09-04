@@ -2,12 +2,11 @@ import atexit
 import time
 import contextlib
 import inspect
-from typing import Any, Callable, Union
+from typing import Any, Callable
 
 from dlt.common.configuration.specs import RuntimeConfiguration
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import TFun
-from dlt.common.utils import digest128
 from dlt.common.configuration import resolve_configuration
 from dlt.common.runtime.anon_tracker import (
     TEventCategory,
@@ -15,9 +14,6 @@ from dlt.common.runtime.anon_tracker import (
     disable_anon_tracker,
     track,
 )
-from dlt.common.schema import Schema
-from dlt.common.pipeline import SupportsPipeline
-from dlt.pipeline.track import _build_base_props
 
 _TELEMETRY_STARTED = False
 
@@ -119,22 +115,3 @@ def with_telemetry(
         return _wrap  # type: ignore
 
     return decorator
-
-
-def with_dataset_access_telemetry(
-    pipeline: SupportsPipeline, schema: Union[Schema, str, None], success: bool
-) -> None:
-    """Track dataset access telemetry event."""
-    schema_name = None
-    if isinstance(schema, Schema):
-        schema_name = schema.name
-    elif isinstance(schema, str):
-        schema_name = schema
-
-    props = {
-        "success": success,
-        **_build_base_props(pipeline=pipeline),
-        # The schema may differ from the default pipeline schema
-        "requested_schema_name_hash": digest128(schema_name) if schema_name else None,
-    }
-    track("data_access", "connect", props)

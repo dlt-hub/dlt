@@ -12,7 +12,6 @@ import dlt
 from dlt.common import logger
 from dlt.common.runtime.anon_tracker import get_anonymous_id, track, disable_anon_tracker
 from dlt.common.runtime.exec_info import get_execution_context
-from dlt.common.runtime.telemetry import with_dataset_access_telemetry
 from dlt.common.typing import DictStrAny, DictStrStr
 from dlt.common.schema import Schema
 from dlt.common.utils import digest128
@@ -29,6 +28,7 @@ from tests.utils import (
     disable_temporary_telemetry,
     init_test_logging,
     start_test_telemetry,
+    wipe_pipeline,
 )
 
 
@@ -206,14 +206,16 @@ def test_execution_context_with_plugin() -> None:
     "success",
     [True, False],
 )
-def test_with_dataset_access_telemetry(
+def test_on_first_dataset_access(
     schema: Union[Schema, str, None], success: bool, monkeypatch
 ) -> None:
-    pipeline = dlt.pipeline("test_with_dataset_access_telemetry", destination="duckdb")
+    pipeline = dlt.pipeline("test_on_first_dataset_access", destination="duckdb")
 
     if not success:
         monkeypatch.setattr(dlt, "dataset", Mock(side_effect=RuntimeError("fake_error")))
 
+    mock_github_env(os.environ)
+    mock_pod_env(os.environ)
     SENT_ITEMS.clear()
     config = SentryLoggerConfiguration()
 
@@ -235,9 +237,9 @@ def test_with_dataset_access_telemetry(
     assert len(SENT_ITEMS) == 1
     event = SENT_ITEMS[0]
 
-    assert event["event"] == "data_access_connect"
-    assert event["properties"]["event_category"] == "data_access"
-    assert event["properties"]["event_name"] == "connect"
+    assert event["event"] == "pipeline_access_dataset"
+    assert event["properties"]["event_category"] == "pipeline"
+    assert event["properties"]["event_name"] == "access_dataset"
     assert event["properties"]["success"] == success
     assert event["properties"]["destination_name"] == pipeline.destination.destination_name
     assert event["properties"]["destination_type"] == pipeline.destination.destination_type

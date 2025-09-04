@@ -1,6 +1,6 @@
 """Implements SupportsTracking"""
 import contextlib
-from typing import Any, Union, Dict
+from typing import Any, Union, Dict, Optional
 import humanize
 
 from dlt.common import logger
@@ -10,7 +10,6 @@ from dlt.common.runtime.exec_info import github_info
 from dlt.common.runtime.anon_tracker import track as dlthub_telemetry_track
 from dlt.common.runtime.slack import send_slack_message
 from dlt.common.pipeline import LoadInfo, ExtractInfo, SupportsPipeline
-from dlt.common.schema import Schema
 
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
@@ -91,6 +90,21 @@ def _build_base_props(
             digest128(pipeline.default_schema_name) if pipeline.default_schema_name else None
         ),
     }
+
+
+def on_first_dataset_access(
+    pipeline: SupportsPipeline,
+    success: bool,
+    schema_name: Optional[str] = None,
+) -> None:
+    """Track the first dataset access telemetry event for the given pipeline instance."""
+    props = {
+        "success": success,
+        **_build_base_props(pipeline=pipeline),
+        # The schema may differ from the default pipeline schema
+        "requested_schema_name_hash": digest128(schema_name) if schema_name else None,
+    }
+    dlthub_telemetry_track("pipeline", "access_dataset", props)
 
 
 def on_end_trace_step(
