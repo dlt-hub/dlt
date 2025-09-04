@@ -356,29 +356,26 @@ class Dataset:
 
     def __repr__(self) -> str:
         # schema may not be set
-        schema_ = self.schema
-        schema_repr = repr(schema_) if schema_ else None
         kwargs = {
             "dataset_name": self.dataset_name,
             "destination": repr(self._destination),
-            "schema": schema_repr,
+            "schema": repr(self.schema) if self.schema else None,
         }
         return simple_repr("dlt.dataset", **without_none(kwargs))
 
     def __str__(self) -> str:
         # obtain schema. this eventually loads it from destination (if only name was provided)
-        _schema = self.schema
         _client = self.destination_client
         # str(config) provides displayable physical location
         destination_info = f"{self._destination.destination_name}[{str(_client.config)}]"
         # new schema is created if dataset is not found or schema.name is not materialized yet
-        if _schema.is_new:
+        if self.schema.is_new:
             schema_info = "\nDataset is not available at the destination.\n"
         else:
             schema_info = f"with tables in dlt schema `{self.schema.name}`:\n"
 
         msg = f"Dataset `{self.dataset_name}` at `{destination_info}` {schema_info}"
-        if _schema:
+        if self.schema:
             tables = [name for name in self.schema.data_table_names()]
             if tables:
                 msg += ", ".join(tables)

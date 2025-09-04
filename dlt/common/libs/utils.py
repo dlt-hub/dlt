@@ -59,7 +59,7 @@ def is_instance_lib(obj: Any, *, class_ref: str) -> bool:
 
     module: ModuleType = sys.modules[module_name]
     target_class: Any = module
-    for part in import_parts:
+    for part in import_parts[1:]:
         target_class = getattr(target_class, part)
 
     return isinstance(obj, target_class)

@@ -177,7 +177,7 @@ class Relation(WithSqlClient):
     @property
     def sqlglot_expression(self) -> sge.Query:
         """SQLGlot expression"""
-        if isinstance(self.sqlglot_expression, sge.Query):
+        if isinstance(self._sqlglot_expression, sge.Query):
             return self._sqlglot_expression
 
         if isinstance(self._query, (str, sge.Query)):
@@ -185,9 +185,7 @@ class Relation(WithSqlClient):
                 self._query, dialect=self._query_dialect or self.query_dialect()
             )
         elif isinstance(self._table_name, str):
-            expression = build_select_expr(
-                table_name=self._table_name, selected_columns=self.columns
-            )
+            expression = build_select_expr(table_name=self._table_name)
         elif is_instance_lib(self._query, class_ref="ibis.Expr"):
             from dlt.helpers.ibis import ibis
 
@@ -291,7 +289,7 @@ class Relation(WithSqlClient):
         rel._sqlglot_expression = merge_subqueries(new_expr)
         return rel
 
-    def order_by(self, column_name: str, *, direction: TSortOrder = "asc") -> Self:
+    def order_by(self, column_name: str, direction: TSortOrder = "asc") -> Self:
         """Create a `Relation` ordering results using a `ORDER BY` clause.
 
         Args:

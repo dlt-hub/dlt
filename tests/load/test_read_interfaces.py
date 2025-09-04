@@ -1355,8 +1355,13 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
         # use name otherwise aleph schema is loaded
         schema=populated_pipeline.default_schema_name,
     )
-    # verify that sql client and schema are lazy loaded
-    assert not dataset._schema
+    
+    # dataset.schema is only set once first accessed
+    assert dataset._schema == populated_pipeline.default_schema_name
+    dataset.schema
+    assert isinstance(dataset.schema, dlt.Schema)
+
+    # verify that sql client is lazily loaded
     assert not dataset._opened_sql_client
     table_relationship = dataset.items
     table = table_relationship.fetchall()
