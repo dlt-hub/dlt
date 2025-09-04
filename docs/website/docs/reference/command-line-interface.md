@@ -117,8 +117,8 @@ Operations on pipelines that were ran locally.
 
 **Usage**
 ```sh
-dlt pipeline [-h] [--list-pipelines] [--pipelines-dir
-    PIPELINES_DIR] [--verbose] [pipeline_name]
+dlt pipeline [-h] [--list-pipelines] [--pipelines-dir PIPELINES_DIR] [--verbose]
+    [pipeline_name]
     {info,show,failed-jobs,drop-pending-packages,sync,trace,schema,drop,load-package}
     ...
 ```
