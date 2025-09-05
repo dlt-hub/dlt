@@ -15,7 +15,7 @@ import dlt
 from dlt.common.destination.dataset import TFilterOperation
 from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGlotDialect
 from dlt.common.libs.utils import is_instance_lib
-from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.schema.typing import TTableSchema, TTableSchemaColumns
 from dlt.common.typing import Self, TSortOrder
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.dataset import lineage
@@ -128,26 +128,22 @@ class Relation(WithSqlClient):
     def iter_fetch(self, *args: Any, **kwargs: Any) -> Any:
         return self._wrap_iter("iter_fetch")(*args, **kwargs)
 
-    # TODO I only kept this method to ask a question;
-    # why does `.columns_schema` use (infer_sqlglot_schema=False, allow_partial=False)
-    # whereas `.schema` uses (infer_sqlglot_schema=True, allow_partial=True)
-    # ?
+    # TODO did `.columns_schema` previously use (infer_sqlglot_schema=False, allow_partial=False)
+    # whereas `.schema` used (infer_sqlglot_schema=True, allow_partial=True)?
     @property
     def columns_schema(self) -> TTableSchemaColumns:
-        # if self._columns_schema is None:
-        _columns_schema, _ = _get_relation_output_columns_schema(self)
-        return _columns_schema
+        """dlt columns schema. Convenience method for `dlt.schema["columns"]`"""
+        return self.schema.get("columns", {})
 
     @property
-    def schema(self) -> TTableSchemaColumns:
-        """dlt schema of the `Relation`.
+    def schema(self) -> TTableSchema:
+        """dlt table schema associated with the relation.
 
         This infers the schema from the relation's content. It's likely to include less
         information than retrieving the schema from the pipeline or the dataset if the table
         already exists.
         """
         if self._schema is None:
-            # TODO this could be set and not recomputed AFAIK
             schema, _ = _get_relation_output_columns_schema(
                 self,
                 infer_sqlglot_schema=True,
@@ -167,7 +163,7 @@ class Relation(WithSqlClient):
     @property
     def columns(self) -> list[str]:
         """List of column names found on the table."""
-        return list(self.schema.keys())
+        return list(self.columns_schema.keys())
 
     def _ipython_key_completions_(self) -> list[str]:
         """Provide column names as completion suggestion in interactive environments."""
@@ -223,7 +219,7 @@ class Relation(WithSqlClient):
             if self._execute_raw_query:
                 columns_schema = None
             else:
-                columns_schema = self.schema
+                columns_schema = self.columns_schema
 
             # case 1: client is already opened and managed from outside
             if self.sql_client.native_connection:
@@ -404,10 +400,10 @@ class Relation(WithSqlClient):
                 )
 
         sqlgot_type = to_sqlglot_type(
-            dlt_type=self.schema[column_name].get("data_type"),
-            precision=self.schema[column_name].get("precision"),
-            timezone=self.schema[column_name].get("timezone"),
-            nullable=self.schema[column_name].get("nullable"),
+            dlt_type=self.columns_schema[column_name].get("data_type"),
+            precision=self.columns_schema[column_name].get("precision"),
+            timezone=self.columns_schema[column_name].get("timezone"),
+            nullable=self.columns_schema[column_name].get("nullable"),
         )
 
         value_expr = build_typed_literal(value, sqlgot_type)
@@ -506,7 +502,7 @@ class Relation(WithSqlClient):
         # TODO: merge detection of "simple" transformation that preserve table schema
         msg = f"Relation query: \n{indent(self.to_sql(pretty=True), prefix='  ')}\n"
         msg += "Columns:\n"
-        for column in self.schema.values():
+        for column in self.columns_schema.values():
             # TODO: show x-annotation hints
             msg += f"{indent(column['name'], prefix='  ')} {column['data_type']}\n"
         return msg

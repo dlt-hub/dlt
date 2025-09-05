@@ -10,7 +10,7 @@ import dlt
 from dlt.common.destination.exceptions import OpenTableClientNotAvailable
 from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common.json import json
-from dlt.common.destination.reference import TDestinationReferenceArg, Destination
+from dlt.common.destination.reference import AnyDestination, TDestinationReferenceArg, Destination
 from dlt.common.destination.client import JobClientBase, SupportsOpenTables, WithStateSync
 from dlt.common.schema import Schema
 from dlt.common.typing import Self
@@ -36,8 +36,8 @@ class Dataset:
         dataset_name: str,
         schema: Union[dlt.Schema, str, None] = None,
     ) -> None:
-        # TODO fix `._destination` such that is never `None`
-        self._destination = Destination.from_reference(destination)
+        self._destination_reference = destination
+        self._destination: AnyDestination = Destination.from_reference(destination)
         self._dataset_name = dataset_name
         self._schema: Union[dlt.Schema, str, None] = schema
         # self._sqlglot_schema: SQLGlotSchema = None
@@ -308,6 +308,7 @@ class Dataset:
 
     # TODO this creates all sorts of bugs in dynamic scenarios where `getattr()` is used
     # Table names that collide with `Dataset` methods will shadow attributes.
+    # You get much weaker IDE autocompletion than `.__getitem__()` or `.table()`
     # Potential fix:
     # super().__getattr__(name); if None: or try/except: return self.table()
     def __getattr__(self, name: str) -> Any:
