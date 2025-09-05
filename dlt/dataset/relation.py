@@ -153,7 +153,8 @@ class Relation(WithSqlClient):
             self._schema = schema
 
         assert self._schema is not None
-        return self._schema
+        # TODO use lineage features to propagate table-level dlt annotations
+        return {"columns": self._schema}
 
     @schema.setter
     def schema(self, new_value: Any) -> None:
@@ -248,7 +249,7 @@ class Relation(WithSqlClient):
                 qualified_query=_qualified_query,
                 sqlglot_schema=self._dataset.sqlglot_schema,
                 sql_client=self.sql_client,
-                casefold_identifier=self.sql_client.capabilities.casefold_identifier
+                casefold_identifier=self.sql_client.capabilities.casefold_identifier,
             )
 
         if not isinstance(query, sge.Query):

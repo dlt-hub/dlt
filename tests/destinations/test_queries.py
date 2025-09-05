@@ -1,7 +1,9 @@
-import pytest
+from typing import cast
 
 import duckdb
+import pytest
 import sqlglot
+from sqlglot import exp as sge
 from sqlglot.schema import MappingSchema as SQLGlotSchema
 
 import dlt
@@ -69,14 +71,10 @@ def test_selected_columns():
     assert stmt.sql() == expected
 
 
-
 def test_qualified_query():
-    sqlglot_schema = SQLGlotSchema({
-        "dataset_name": {
-            "items": {"id": str},
-            "double_items": {"double_id": str, "id": str}
-        }
-    })
+    sqlglot_schema = SQLGlotSchema(
+        {"dataset_name": {"items": {"id": str}, "double_items": {"double_id": str, "id": str}}}
+    )
     query_expr = sqlglot.parse_one("""
 SELECT
     i.id AS id,
@@ -104,12 +102,9 @@ ORDER BY i.id ASC
 
 
 def test_normalize_query():
-    sqlglot_schema = SQLGlotSchema({
-        "dataset_name": {
-            "items": {"id": str},
-            "double_items": {"double_id": str, "id": str}
-        }
-    })
+    sqlglot_schema = SQLGlotSchema(
+        {"dataset_name": {"items": {"id": str}, "double_items": {"double_id": str, "id": str}}}
+    )
     qualified_query_expr = sqlglot.parse_one("""
 SELECT
     i.id AS id,
@@ -120,23 +115,22 @@ ON (i.id = di.id)
 WHERE i.id < 20
 ORDER BY i.id ASC
 """)
-    
+
     expected_normalized_query = (
         'SELECT "i"."id" AS "id", "di"."double_id" AS "double_id" FROM "dataset_name"."items" AS'
         ' "i" JOIN "dataset_name"."double_items" AS "di" ON ("i"."id" = "di"."id") WHERE'
         ' "i"."id" < 20 ORDER BY "i"."id" ASC'
     )
-    
+
     con = duckdb.connect(":memory:")
     duckdb_dest = dlt.destinations.duckdb(con)
     duckdb_destination_client = duckdb_dest.client(
-        dlt.Schema("foobar"),
-        DuckDbClientConfiguration()._bind_dataset_name("dataset_name")
+        dlt.Schema("foobar"), DuckDbClientConfiguration()._bind_dataset_name("dataset_name")
     )
 
     with duckdb_destination_client.sql_client as sql_client:
         normalized_query_expr = _normalize_query(
-            qualified_query=qualified_query_expr,
+            qualified_query=cast(sge.Query, qualified_query_expr),
             sqlglot_schema=sqlglot_schema,
             sql_client=sql_client,
             casefold_identifier=sql_client.capabilities.casefold_identifier,
