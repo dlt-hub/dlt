@@ -9,6 +9,9 @@ import subprocess
 import dlt
 import marimo as mo
 import pandas as pd
+import yaml
+import traceback
+
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import known_sections
@@ -17,12 +20,13 @@ from dlt.common.json import json
 from dlt.common.pendulum import pendulum
 from dlt.common.pipeline import get_dlt_pipelines_dir
 from dlt.common.schema import Schema
+from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages import FileStorage
 from dlt.common.destination.client import DestinationClientConfiguration
-from dlt.common.exceptions import DltException
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.destinations.dataset import ReadableDBAPIDataset, ReadableDBAPIRelation
 
-from dlt.helpers.dashboard import dlt_dashboard, ui_elements as ui
+from dlt.helpers.dashboard import ui_elements as ui
 from dlt.helpers.dashboard.config import DashboardConfiguration
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationUndefinedEntity
 from dlt.pipeline.exceptions import PipelineConfigMissing
@@ -38,6 +42,20 @@ PICKLE_TRACE_FILE = "trace.pickle"
 #
 # App helpers
 #
+
+
+def _exception_to_string(exception: Exception) -> str:
+    """Convert an exception to a string"""
+    if isinstance(exception, (PipelineConfigMissing, ConfigFieldMissingException)):
+        return "Could not connect to destination, configuration vaslues are missing."
+    elif isinstance(exception, (SqlClientNotAvailable)):
+        return "The destination of this pipeline does not support querying data with sql."
+    elif isinstance(exception, (DestinationUndefinedEntity, DatabaseUndefinedRelation)):
+        return (
+            "Could connect to destination, but the required table or dataset does not exist in the"
+            " destination."
+        )
+    return str(exception)
 
 
 def resolve_dashboard_config(p: dlt.Pipeline) -> DashboardConfiguration:
@@ -161,7 +179,7 @@ def pipeline_details(
     try:
         credentials = str(get_destination_config(pipeline).credentials)
     except Exception:
-        credentials = "Could not resolve credentials"
+        credentials = "Could not resolve credentials."
 
     # find the pipeline in all_pipelines and get the timestamp
     pipeline_timestamp = get_pipeline_last_run(pipeline.pipeline_name, pipeline.pipelines_dir)
@@ -189,18 +207,17 @@ def remote_state_details(pipeline: dlt.Pipeline) -> List[Dict[str, Any]]:
     """
     Get the remote state details of a pipeline.
     """
+    error_details = ""
+    remote_state = None
     try:
         remote_state = pipeline._restore_state_from_destination()
-    except (
-        DatabaseUndefinedRelation,
-        PipelineConfigMissing,
-        ConfigFieldMissingException,
-        DestinationUndefinedEntity,
-    ):
-        remote_state = None
+    except Exception as exc:
+        error_details = _exception_to_string(exc)
 
     if not remote_state:
-        return _dict_to_table_items({"Info": "Could not restore state from destination"})
+        return _dict_to_table_items(
+            {"Info": "Could not restore state from destination", "Details": error_details}
+        )
     remote_schemas = pipeline._get_schemas_from_destination(
         remote_state["schema_names"], always_download=True
     )
@@ -307,6 +324,22 @@ def create_column_list(
     return _align_dict_keys(column_list)
 
 
+def get_source_and_resouce_state_for_table(
+    table: TTableSchema, pipeline: dlt.Pipeline, schema_name: str
+) -> Tuple[str, str, str]:
+    if "resource" not in table:
+        return None, None, None
+
+    # get source and resource state for correct resources from pipeline
+    _converted_state = json.loads(json.dumps(pipeline.state))
+    _source_state = _converted_state.get("sources", {}).get(schema_name, {})
+
+    _resources_state = _source_state.pop("resources", {})
+    _resource_state = _resources_state.get(table["resource"], {})
+
+    return table["resource"], yaml.safe_dump(_source_state), yaml.safe_dump(_resource_state)
+
+
 #
 # Cached Queries
 #
@@ -318,9 +351,30 @@ def clear_query_cache(pipeline: dlt.Pipeline) -> None:
     """
 
     get_query_result.cache_clear()
-    get_loads.cache_clear()
     get_schema_by_version.cache_clear()
     # get_row_counts.cache_clear()
+
+
+def get_default_query_for_table(
+    pipeline: dlt.Pipeline, schema_name: str, table_name: str, limit: bool
+) -> Tuple[str, str, str]:
+    try:
+        _dataset = cast(ReadableDBAPIDataset, pipeline.dataset(schema=schema_name))
+        _sql_query = (
+            cast(ReadableDBAPIRelation, _dataset.table(table_name))
+            .limit(1000 if limit else None)
+            .to_sql(pretty=True, _raw_query=True)
+        )
+        return _sql_query, None, None
+    except Exception as exc:
+        return "", _exception_to_string(exc), traceback.format_exc()
+
+
+def get_example_query_for_dataset(pipeline: dlt.Pipeline, schema_name: str) -> Tuple[str, str, str]:
+    _dataset = cast(ReadableDBAPIDataset, pipeline.dataset(schema=schema_name))
+    if tables := _dataset.schema.data_tables():
+        return get_default_query_for_table(pipeline, schema_name, tables[0]["name"], True)
+    return "", None, None
 
 
 @functools.cache
@@ -328,10 +382,7 @@ def get_query_result(pipeline: dlt.Pipeline, query: str) -> pd.DataFrame:
     """
     Get the result of a query.
     """
-    try:
-        return pipeline.dataset()(query, _execute_raw_query=True).df()
-    except (DatabaseUndefinedRelation, DestinationUndefinedEntity, SqlClientNotAvailable):
-        return pd.DataFrame()
+    return pipeline.dataset()(query, _execute_raw_query=True).df()
 
 
 def get_row_counts(
@@ -352,11 +403,13 @@ def get_row_counts(
             .to_dict(orient="records")
         }
     except (DatabaseUndefinedRelation, DestinationUndefinedEntity, SqlClientNotAvailable):
+        # TODO: somehow propagate errors to the user here
         return {}
 
 
-@functools.cache
-def get_loads(c: DashboardConfiguration, pipeline: dlt.Pipeline, limit: int = 100) -> Any:
+def get_loads(
+    c: DashboardConfiguration, pipeline: dlt.Pipeline, limit: int = 100
+) -> Tuple[Any, str, str]:
     """
     Get the loads of a pipeline.
     """
@@ -367,10 +420,9 @@ def get_loads(c: DashboardConfiguration, pipeline: dlt.Pipeline, limit: int = 10
         loads = loads.order_by("inserted_at", "desc")
         loads_list = loads.df().to_dict(orient="records")
         loads_list = [_humanize_datetime_values(c, load) for load in loads_list]
-    except (DatabaseUndefinedRelation, DestinationUndefinedEntity, SqlClientNotAvailable):
-        return []
-
-    return loads_list
+        return loads_list, None, None
+    except Exception as exc:
+        return [], _exception_to_string(exc), traceback.format_exc()
 
 
 @functools.cache
@@ -562,6 +614,11 @@ def build_pipeline_link_list(
     return link_list
 
 
+def get_state_as_yaml_string(pipeline: dlt.Pipeline) -> str:
+    """Get the state of a pipeline as a yaml string"""
+    return yaml.safe_dump(json.loads(json.dumps(pipeline.state)))
+
+
 def _remove_non_primitives(obj: Any) -> Any:
     """Recursively remove all non-primitive values from a dictionary or list"""
     if isinstance(obj, dict):
@@ -673,7 +730,9 @@ def _humanize_datetime_values(c: DashboardConfiguration, d: Dict[str, Any]) -> D
     def _humanize_datetime(dt: Union[str, int]) -> str:
         from datetime import datetime  # noqa: I251
 
-        if isinstance(dt, datetime):
+        if dt in ["", None, "-"]:
+            return "-"
+        elif isinstance(dt, datetime):
             p = pendulum.instance(dt)
         elif isinstance(dt, str) and dt.replace(".", "").isdigit():
             p = pendulum.from_timestamp(float(dt))
@@ -689,7 +748,7 @@ def _humanize_datetime_values(c: DashboardConfiguration, d: Dict[str, Any]) -> D
         d["started_at"] = _humanize_datetime(started_at)
     if finished_at:
         d["finished_at"] = _humanize_datetime(finished_at)
-    if started_at and finished_at:
+    if started_at not in ["", None, "-"] and finished_at not in ["", None, "-"]:
         d["duration"] = (
             f"{pendulum.instance(finished_at).diff(pendulum.instance(started_at)).in_words()}"
         )

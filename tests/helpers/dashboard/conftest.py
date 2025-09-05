@@ -20,13 +20,14 @@ def pipeline(request):
 @pytest.fixture(scope="session")
 def success_pipeline_duckdb():
     with tempfile.TemporaryDirectory() as temp_dir:
-        yield create_success_pipeline_duckdb(temp_dir)
+        yield create_success_pipeline_duckdb(temp_dir, ":memory:")
 
 
 @pytest.fixture(scope="session")
 def success_pipeline_filesystem():
     with tempfile.TemporaryDirectory() as temp_dir:
-        yield create_success_pipeline_filesystem(temp_dir)
+        with tempfile.TemporaryDirectory() as storage:
+            yield create_success_pipeline_filesystem(temp_dir, storage)
 
 
 @pytest.fixture(scope="session")

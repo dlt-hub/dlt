@@ -1,12 +1,16 @@
 #
 # A list of pipelines that are execute and are in various states for testing the dashboard
 # TODO: generalize these and make them available for other tests
+# TODO: consolidate these test pipelines with the ones in tests/e2e/helpers/dashboard
 #
 
 import dlt
 import pytest
 from dlt.sources._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
+)
+from dlt.common.destination.exceptions import (
+    DestinationTerminalException,
 )
 
 import tempfile
@@ -30,6 +34,13 @@ PIPELINES_WITH_LOAD = [SUCCESS_PIPELINE_DUCKDB, SUCCESS_PIPELINE_FILESYSTEM]
 
 
 def run_success_pipeline(pipeline: dlt.Pipeline):
+    """
+    Create a success pipeline with
+       * fruitshop dataset
+       * child table
+       * second schema
+       * incremental column
+    """
     pipeline.run(fruitshop_source(), schema=dlt.Schema("fruitshop"))
 
     # we overwrite the purchases table to have a child table and an incomplete column
@@ -38,7 +49,7 @@ def run_success_pipeline(pipeline: dlt.Pipeline):
         write_disposition="merge",
         columns={"incomplete": {}, "id": {"x-custom": "foo"}},
     )
-    def purchases():
+    def purchases(inc_id=dlt.sources.incremental("id")):
         """Load purchases data from a simple python list."""
         yield [
             {"id": 1, "customer_id": 1, "inventory_id": 1, "quantity": 1, "child": [1, 2, 3]},
@@ -49,17 +60,23 @@ def run_success_pipeline(pipeline: dlt.Pipeline):
     pipeline.run(purchases(), schema=dlt.Schema("fruitshop"))
 
     # write something to another schema so we have multiple schemas
-    pipeline.run([1, 2, 3], schema=dlt.Schema("other"), table_name="items")
+    pipeline.run(
+        fruitshop_source().customers,
+        schema=dlt.Schema("fruitshop_customers"),
+        table_name="other_customers",
+    )
 
 
-def create_success_pipeline_duckdb(pipelines_dir: str = None):
-    """Create a test pipeline with in memory duckdb destination in temp folder"""
+def create_success_pipeline_duckdb(pipelines_dir: str = None, db_location: str = None):
+    """Create a test pipeline with in memory duckdb destination, properties see `run_success_pipeline`"""
     import duckdb
 
     pipeline = dlt.pipeline(
         pipeline_name=SUCCESS_PIPELINE_DUCKDB,
         pipelines_dir=pipelines_dir,
-        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+        destination=dlt.destinations.duckdb(
+            credentials=duckdb.connect(db_location) if db_location else None
+        ),
     )
 
     run_success_pipeline(pipeline)
@@ -67,13 +84,15 @@ def create_success_pipeline_duckdb(pipelines_dir: str = None):
     return pipeline
 
 
-def create_success_pipeline_filesystem(pipelines_dir: str = None):
-    """Create a test pipeline with in memory duckdb destination in temp folder"""
+def create_success_pipeline_filesystem(
+    pipelines_dir: str = None, bucket_url: str = "_storage/data"
+):
+    """Create a test pipeline with filesystem destination, properties see `run_success_pipeline`"""
 
     pipeline = dlt.pipeline(
         pipeline_name=SUCCESS_PIPELINE_FILESYSTEM,
         pipelines_dir=pipelines_dir,
-        destination=dlt.destinations.filesystem(bucket_url=pipelines_dir),
+        destination=dlt.destinations.filesystem(bucket_url=bucket_url),
     )
 
     run_success_pipeline(pipeline)
@@ -82,6 +101,7 @@ def create_success_pipeline_filesystem(pipelines_dir: str = None):
 
 
 def create_extract_exception_pipeline(pipelines_dir: str = None):
+    """Create a test pipeline with duckdb destination, raises an exception in the extract step"""
     import duckdb
 
     pipeline = dlt.pipeline(
@@ -101,6 +121,7 @@ def create_extract_exception_pipeline(pipelines_dir: str = None):
 
 
 def create_never_ran_pipline(pipelines_dir: str = None):
+    """Create a test pipeline with duckdb destination which never was run"""
     import duckdb
 
     pipeline = dlt.pipeline(
@@ -113,17 +134,28 @@ def create_never_ran_pipline(pipelines_dir: str = None):
 
 
 def create_load_exception_pipeline(pipelines_dir: str = None):
+    """Create a test pipeline with duckdb destination, raises an exception in the load step"""
+
     @dlt.destination
     def failing_destination(one, two):
-        raise Exception("I am failing")
+        raise DestinationTerminalException()
 
     pipeline = dlt.pipeline(
         pipeline_name=LOAD_EXCEPTION_PIPELINE,
         pipelines_dir=pipelines_dir,
-        destination=failing_destination(),
+        destination=dlt.destinations.dummy(timeout=0.1),
     )
 
     with pytest.raises(Exception):
         pipeline.run([1, 2, 3], table_name="items", schema=dlt.Schema("fruitshop"))
 
     return pipeline
+
+
+# NOTE: this sript can be run to create the test pipelines globally for manual testing of the dashboard app and cli
+if __name__ == "__main__":
+    create_success_pipeline_duckdb()
+    create_success_pipeline_filesystem()
+    create_extract_exception_pipeline()
+    create_never_ran_pipline()
+    create_load_exception_pipeline()

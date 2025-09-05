@@ -40,6 +40,10 @@ from dlt.helpers.dashboard.utils import (
     get_local_data_path,
     remote_state_details,
     sanitize_trace_for_display,
+    get_pipeline_last_run,
+    trace_resolved_config_values,
+    trace_step_details,
+    get_state_as_yaml_string,
 )
 
 from tests.helpers.dashboard.example_pipelines import (
@@ -82,13 +86,17 @@ def temp_pipelines_dir():
         yield str(pipelines_dir)
 
 
-#
-# Fixtures
-#
+@pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
+def test_get_pipeline_last_run(pipeline: dlt.Pipeline):
+    """Test getting the last run of a pipeline"""
+    if pipeline.pipeline_name == NEVER_RAN_PIPELINE:
+        assert get_pipeline_last_run(pipeline.pipeline_name, pipeline.pipelines_dir) == 0
+    else:
+        assert get_pipeline_last_run(pipeline.pipeline_name, pipeline.pipelines_dir) > 1000000
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
-def test_build_exception_section(pipeline):
+def test_build_exception_section(pipeline: dlt.Pipeline):
     if pipeline.pipeline_name in PIPELINES_WITH_EXCEPTIONS:
         assert "Show full stacktrace" in build_exception_section(pipeline)[0].text
     else:
@@ -96,7 +104,7 @@ def test_build_exception_section(pipeline):
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
-def test_get_local_data_path(pipeline):
+def test_get_local_data_path(pipeline: dlt.Pipeline):
     if pipeline.pipeline_name == LOAD_EXCEPTION_PIPELINE:
         # custom destination does not support local data path
         assert get_local_data_path(pipeline) is None
@@ -119,6 +127,15 @@ def test_resolve_dashboard_config(success_pipeline_duckdb):
     other_pipeline = dlt.pipeline(pipeline_name="other_pipeline", destination="duckdb")
     config = resolve_dashboard_config(other_pipeline)
     assert config.datetime_format == "other format"
+
+
+@pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
+def test_get_pipelines(pipeline: dlt.Pipeline):
+    """Test getting local pipelines"""
+    pipelines_dir, pipelines = get_local_pipelines(pipeline.pipelines_dir)
+    assert pipelines_dir == pipeline.pipelines_dir
+    assert len(pipelines) == 1
+    assert pipelines[0]["name"] == pipeline.pipeline_name
 
 
 def test_get_local_pipelines_with_temp_dir(temp_pipelines_dir):
@@ -159,7 +176,7 @@ def test_get_local_pipelines_nonexistent_dir():
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
-def test_get_pipeline(pipeline):
+def test_get_pipeline(pipeline: dlt.Pipeline):
     """Test getting a real pipeline by name"""
     pipeline = get_pipeline(pipeline.pipeline_name, pipeline.pipelines_dir)
 
@@ -190,7 +207,7 @@ def test_pipeline_details(pipeline, temp_pipelines_dir):
     if pipeline.pipeline_name == SUCCESS_PIPELINE_FILESYSTEM:
         assert details_dict["destination"] == "filesystem (dlt.destinations.filesystem)"
     elif pipeline.pipeline_name == LOAD_EXCEPTION_PIPELINE:
-        assert "failing_destination" in details_dict["destination"]
+        assert details_dict["destination"] == "dummy (dlt.destinations.dummy)"
     else:
         assert details_dict["destination"] == "duckdb (dlt.destinations.duckdb)"
     assert details_dict["dataset_name"] == pipeline.dataset_name
@@ -291,7 +308,7 @@ def test_create_column_list_basic(
 
 
 @pytest.mark.parametrize("pipeline", PIPELINES_WITH_LOAD, indirect=True)
-def test_get_query_result(pipeline):
+def test_get_query_result(pipeline: dlt.Pipeline):
     """Test getting query result from real pipeline"""
     # Clear cache first
     get_query_result.cache_clear()
@@ -312,7 +329,7 @@ def test_get_query_result(pipeline):
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
-def test_get_row_counts(pipeline):
+def test_get_row_counts(pipeline: dlt.Pipeline):
     """Test getting row counts from real pipeline"""
     result = get_row_counts(pipeline)
     if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
@@ -326,19 +343,25 @@ def test_get_row_counts(pipeline):
             "inventory_categories": 3,
             "_dlt_version": 3,
             "_dlt_loads": 4,
-            "_dlt_pipeline_state": 2,
+            "_dlt_pipeline_state": 3,
         }
     else:
         result = {}
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
-def test_get_loads(pipeline):
+def test_get_state_as_yaml_string(pipeline):
+    """Test getting the state of a pipeline as a yaml string"""
+    yaml_string = get_state_as_yaml_string(pipeline)
+    assert pipeline.pipeline_name in yaml_string
+
+
+@pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
+def test_get_loads(pipeline: dlt.Pipeline):
     """Test getting loads from real pipeline"""
     config = DashboardConfiguration()
 
     # Clear cache first
-    get_loads.cache_clear()
     result = get_loads(config, pipeline, limit=100)
 
     if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
@@ -352,7 +375,7 @@ def test_get_loads(pipeline):
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
-def test_trace(pipeline):
+def test_trace(pipeline: dlt.Pipeline):
     """Test trace overview with real trace data"""
     config = DashboardConfiguration()
     trace = pipeline.last_trace
@@ -385,6 +408,7 @@ def test_trace(pipeline):
         "ci_run",
         "exec_info",
     }
+    # TODO: inspect values
 
     # steps overview
     result = trace_steps_overview(config, trace)
@@ -398,23 +422,31 @@ def test_trace(pipeline):
         assert result[1]["step"] == "normalize"
         assert result[2]["step"] == "load"
 
-    # TODO: deeper test...
+    # TODO: inspect values of trace steps overview
+
+    for item in result:
+        result = trace_step_details(config, trace, item["step"])
+        # TODO: inspect trace step details
+
+    # resolved config values (TODO: add at least one config value)
+    result = trace_resolved_config_values(config, trace)
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
-def test_get_remote_state_details(pipeline):
+def test_get_remote_state_details(pipeline: dlt.Pipeline):
     remote_state = remote_state_details(pipeline)
 
     if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
-        assert remote_state[0] == {"name": "state_version", "value": 2}
+        assert remote_state[0] == {"name": "state_version", "value": 3}
         assert remote_state[1]["name"] == "schemas"
         assert remote_state[1]["value"].startswith("fruitshop")
         assert remote_state[2]["name"] == ""
-        assert remote_state[2]["value"].startswith("other")
+        assert remote_state[2]["value"].startswith("fruitshop_customers")
     else:
-        assert remote_state == [
-            {"name": "Info", "value": "Could not restore state from destination"}
-        ]
+        assert remote_state[0] == {
+            "name": "Info",
+            "value": "Could not restore state from destination",
+        }
 
 
 def test_style_cell():
@@ -601,7 +633,7 @@ def test_integration_pipeline_workflow(pipeline, temp_pipelines_dir):
 
 
 @pytest.mark.parametrize("pipeline", ALL_PIPELINES, indirect=True)
-def test_sanitize_trace_for_display(pipeline):
+def test_sanitize_trace_for_display(pipeline: dlt.Pipeline):
     """Test sanitizing trace for display"""
     trace = pipeline.last_trace
     sanitized = sanitize_trace_for_display(trace)
