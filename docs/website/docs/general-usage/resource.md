@@ -548,6 +548,71 @@ In the example above, we use `dlt.mark.with_hints` and `dlt.mark.make_hints` to 
 You can emit columns as a Pydantic model and use dynamic hints (i.e., lambda for table name) as well. You should avoid redefining `Incremental` this way.
 :::
 
+### Materialize schema without loading data
+
+Sometimes you need a table to exist with no rows. Examples:
+
+- Prepare empty tables for downstream jobs.
+- [Publish a schema](../walkthroughs/adjust-a-schema) before data arrives.
+- Ensure tables exist even when an upstream returns zero records.
+
+dlt’s default behavior is that it creates tables only when a resource yields data. If no rows are yieled, the table is not created.
+
+#### Options for schema materialization
+
+At the resource level, there are two ways to materialize an empty schema in the destination.
+
+#### Provide schema explicitly
+To create an empty table, declare the schema explicitly in one of two ways:
+
+- in the resource function with `@dlt.resource`, or
+- by applying hints with `apply_hints`.
+
+You can also [adjust schemas manually](../walkthroughs/adjust-a-schema) using import/export folders.
+
+Declaring the schema ensures dlt updates the schema even when no data is present.
+
+Then define the resource function and yield an empty dict (`{}`). dlt creates an empty table with all declared columns. Only the metadata columns `_dlt_id` and `_dlt_load_id` will have values.
+
+:::note
+The load will fail if the schema marks any columns as `NOT NULL` i.e. `"nullable": False`. Ensure all non-metadata columns are nullable when loading an empty table.
+:::
+
+Example: 
+```py
+@dlt.resource(
+    table_name="your_table_name",
+    columns={
+        "id": {"data_type": "bigint", "nullable": True},
+        "event_type": {"data_type": "text", "nullable": True}
+    },
+    write_disposition="replace"
+)
+def raw_events():
+    yield {}
+```
+
+#### Materialize schema without rows
+
+Use `dlt.mark.materialize_table_schema()` together with `dlt.mark.with_hints()` to define a schema without inserting rows.
+
+Unlike the explicit schema method, this works even if the schema contains non-nullable columns, since no data is written.
+
+Example:
+```py
+@dlt.resource(table_name="raw_events")
+def raw_events():
+    yield dlt.mark.with_hints(
+        dlt.mark.materialize_table_schema(),  # create schema only (no rows)
+        dlt.mark.make_hints(columns=[
+            {"name": "id", "data_type": "bigint", "primary_key": True, "nullable": False},  # PK ⇒ non-nullable
+            {"name": "event_type", "data_type": "text", "nullable": True},
+        ])
+    )
+```
+Result: 
+Table `raw_events` is created with the defined schema and no rows.
+
 ### Import external files
 You can import external files, i.e., CSV, Parquet, and JSONL, by yielding items marked with `with_file_import`, optionally passing a table schema corresponding to the imported file. dlt will not read, parse, or normalize any names (i.e., CSV or Arrow headers) and will attempt to copy the file into the destination as is.
 ```py
