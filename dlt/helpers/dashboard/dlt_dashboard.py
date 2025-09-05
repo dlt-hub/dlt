@@ -362,11 +362,9 @@ def section_browse_data_table_list(
                     )
                 )
 
-                _dataset = cast(
-                    ReadableDBAPIDataset, dlt_pipeline.dataset(schema=dlt_selected_schema_name)
-                )
+                _dataset = dlt_pipeline.dataset(schema=dlt_selected_schema_name)
                 _sql_query = (
-                    cast(ReadableDBAPIRelation, _dataset.table(_table_name))
+                    _dataset.table(_table_name)
                     .limit(1000 if dlt_restrict_to_last_1000.value else None)
                     .to_sql(pretty=True, _raw_query=True)
                 )

@@ -303,9 +303,8 @@ def _load_tables_to_dicts_sql(
     result: Dict[str, List[Dict[str, Any]]] = {}
     for table_name in table_names:
         relation = p.dataset(schema=schema_name)[table_name]
-        columns = list(relation.columns_schema.keys())
         for row in relation.fetchall():
-            result[table_name] = result.get(table_name, []) + [dict(zip(columns, row))]
+            result[table_name] = result.get(table_name, []) + [dict(zip(relation.columns, row))]
     return result
 
 
@@ -520,7 +519,7 @@ def select_data(
     dataset = p.dataset(schema=schema_name)
     # TODO: fix multiple dataset layout and remove hack
     if dataset_name:
-        dataset._dataset_name = dataset_name  # type: ignore[attr-defined]
+        dataset._dataset_name = dataset_name
     return list(dataset(sql, _execute_raw_query=_execute_raw_query).fetchall())
 
 
@@ -554,7 +553,7 @@ def assert_table_column(
     # select full table
     assert_query_column(
         p,
-        cast(ReadableDBAPIRelation, dataset[table_name]).to_sql(),
+        dataset[table_name].to_sql(),
         table_data,
         schema_name,
         info,

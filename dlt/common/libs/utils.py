@@ -1,3 +1,5 @@
+import sys
+from types import ModuleType
 from typing import Dict, Any, Optional
 
 from dlt.common.destination.client import SupportsOpenTables
@@ -38,3 +40,26 @@ def load_open_tables(
             schema_open_tables = [t for t in schema_open_tables if t in tables]
 
         return {name: client.load_open_table(table_format, name) for name in schema_open_tables}
+
+
+def is_instance_lib(obj: Any, *, class_ref: str) -> bool:
+    """Allows `isinstance()` checks without directly importing 3rd party libraries
+
+    Example:
+        ```python
+        df = pd.DataFrame(...)
+        _isinstance_external(df, class_ref="pandas.DataFrame")
+        ```
+    """
+    import_parts = class_ref.split(".")
+    module_name = import_parts[0]
+
+    if module_name not in sys.modules:
+        return False
+
+    module: ModuleType = sys.modules[module_name]
+    target_class: Any = module
+    for part in import_parts[1:]:
+        target_class = getattr(target_class, part)
+
+    return isinstance(obj, target_class)
